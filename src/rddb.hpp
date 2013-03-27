@@ -7,8 +7,8 @@
 
 #ifndef RRDB_HPP_
 #define RRDB_HPP_
-#include "leveldb/db.h"
 #include <stdint.h>
+#include <map>
 
 namespace rddb
 {
@@ -20,16 +20,15 @@ namespace rddb
 		HASH_FIELD = 3,
 		LIST_ELEMENT = 4
 	};
-	struct MetaData
-	{
-			uint8_t type;
-	};
 
+	typedef uint64_t DBID;
 	struct KeyValueEngine
 	{
-			virtual int CreateDB(int db) = 0;
-			virtual int Put(const void* key, int keysize, const void* value,
-					int valuesize) = 0;
+			virtual DBID CreateDB(int db) = 0;
+			virtual int Put(const DBID& db, const void* key, int keysize,
+			        const void* value, int valuesize) = 0;
+			virtual int Get(const DBID& db, const void* key, int keysize,
+			        std::string* value) = 0;
 			virtual ~KeyValueEngine()
 			{
 			}
@@ -41,8 +40,18 @@ namespace rddb
 			KeyValueEngine* m_engine;
 		public:
 			RDDB(KeyValueEngine* engine);
-			int SelectDB(uint32_t idx);
+			int Set(DBID db, const void* key, int keysize, const void* value,
+			        int valuesize);
+			int HSet(DBID db, const void* key, int keysize, const void* field,
+			        int fieldsize, const void* value, int valuesize);
+			int ZAdd(DBID db, const void* key, int keysize, uint64_t score,
+			        const void* value, int valuesize);
+			int SAdd(DBID db, const void* key, int keysize, const void* value,
+			        int valuesize);
+			int RPush(DBID db, const void* key, int keysize, const void* value,
+						        int valuesize);
 	};
+
 }
 
 #endif /* RRDB_HPP_ */
