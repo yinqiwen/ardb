@@ -9,6 +9,7 @@
 #define RRDB_HPP_
 #include <stdint.h>
 #include <map>
+#include "helpers.hpp"
 
 namespace rddb
 {
@@ -26,9 +27,10 @@ namespace rddb
 	{
 			virtual DBID CreateDB(int db) = 0;
 			virtual int Put(const DBID& db, const void* key, int keysize,
-			        const void* value, int valuesize) = 0;
+					const void* value, int valuesize) = 0;
 			virtual int Get(const DBID& db, const void* key, int keysize,
-			        std::string* value) = 0;
+					std::string* value) = 0;
+			virtual int Del(const DBID& db, const void* key, int keysize) = 0;
 			virtual ~KeyValueEngine()
 			{
 			}
@@ -38,18 +40,25 @@ namespace rddb
 	{
 		private:
 			KeyValueEngine* m_engine;
+			void EncodeKVKey(Buffer& buf, const void* key, int keysize);
+			void EncodeKVValue(Buffer& buf, const void* value, int valuesize);
 		public:
 			RDDB(KeyValueEngine* engine);
 			int Set(DBID db, const void* key, int keysize, const void* value,
-			        int valuesize);
+					int valuesize);
+			int Get(DBID db, const void* key, int keysize, std::string* value);
+			int Del(DBID db, const void* key, int keysize);
+			bool Exists(DBID db, const void* key, int keysize);
+			int Expire(DBID db, const void* key, int keysize, uint32_t secs);
+
 			int HSet(DBID db, const void* key, int keysize, const void* field,
-			        int fieldsize, const void* value, int valuesize);
-			int ZAdd(DBID db, const void* key, int keysize, uint64_t score,
-			        const void* value, int valuesize);
+					int fieldsize, const void* value, int valuesize);
+			int ZAdd(DBID db, const void* key, int keysize, int64_t score,
+					const void* value, int valuesize);
 			int SAdd(DBID db, const void* key, int keysize, const void* value,
-			        int valuesize);
+					int valuesize);
 			int RPush(DBID db, const void* key, int keysize, const void* value,
-						        int valuesize);
+					int valuesize);
 	};
 
 }

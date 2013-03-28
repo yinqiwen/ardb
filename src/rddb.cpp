@@ -16,17 +16,6 @@ namespace rddb
 	{
 	}
 
-	int RDDB::Set(DBID db, const void* key, int keysize, const void* value,
-	        int valuesize)
-	{
-		Buffer tmp(keysize + 16);
-		BufferHelper::WriteFixUInt8(tmp, KV);
-		BufferHelper::WriteVarUInt32(tmp, keysize);
-		tmp.Write(key, keysize);
-		return m_engine->Put(db, tmp.GetRawBuffer(), tmp.ReadableBytes(), value,
-		        valuesize);
-	}
-
 	int RDDB::HSet(DBID db, const void* key, int keysize, const void* field,
 	        int fieldsize, const void* value, int valuesize)
 	{
@@ -45,7 +34,7 @@ namespace rddb
 		        valuesize);
 	}
 
-	int RDDB::ZAdd(DBID db, const void* key, int keysize, uint64_t score,
+	int RDDB::ZAdd(DBID db, const void* key, int keysize, int64_t score,
 	        const void* value, int valuesize)
 	{
 		Buffer tmp(keysize + 16);
