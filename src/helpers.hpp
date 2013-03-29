@@ -9,6 +9,7 @@
 #define HELPERS_HPP_
 #include <time.h>
 #include <sys/time.h>
+#include <string.h>
 #ifdef __MACH__
 #include <mach/clock.h>
 #include <mach/mach.h>
@@ -33,6 +34,22 @@ namespace rddb
 		uint64_t ret = ((uint64_t) timeValue.tv_sec) * 1000000000;
 		ret += timeValue.tv_nsec;
 		return ret;
+	}
+
+	inline bool str_toint64(const char* str, int64_t& value)
+	{
+		if (NULL == str)
+		{
+			return false;
+		}
+		char *endptr = NULL;
+		long long int val = strtoll(str, &endptr, 10);
+		if (NULL == endptr || *endptr != '\0')
+		{
+			return false;
+		}
+		value = val;
+		return true;
 	}
 }
 

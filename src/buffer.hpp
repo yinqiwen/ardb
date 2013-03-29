@@ -38,12 +38,18 @@ namespace rddb
 
 			size_t m_write_idx;
 			size_t m_read_idx;
+			bool m_in_heap;
 		public:
 			static const int BUFFER_MAX_READ = 8192;
 			static const size_t DEFAULT_BUFFER_SIZE = 32;
 			inline Buffer() :
-					m_buffer(NULL), m_buffer_len(0), m_write_idx(0), m_read_idx(
-					        0)
+					m_buffer(0), m_buffer_len(0), m_write_idx(0), m_read_idx(0), m_in_heap(
+							true)
+			{
+			}
+			inline Buffer(char* value, int off, int len) :
+					m_buffer(value), m_buffer_len(len), m_write_idx(len), m_read_idx(
+							off), m_in_heap(false)
 			{
 			}
 			inline size_t GetReadIndex()
@@ -89,6 +95,10 @@ namespace rddb
 
 			inline size_t Compact(size_t leastLength)
 			{
+				if (!Readable())
+				{
+					Clear();
+				}
 				uint32_t writableBytes = WriteableBytes();
 				if (writableBytes < leastLength)
 				{
@@ -105,8 +115,11 @@ namespace rddb
 						return 0;
 					}
 					memcpy(newSpace, m_buffer + m_read_idx, readableBytes);
+				} else
+				{
+					return 0;
 				}
-				if (NULL != m_buffer)
+				if (NULL != m_buffer && m_in_heap)
 				{
 					free(m_buffer);
 				}
@@ -114,6 +127,7 @@ namespace rddb
 				m_write_idx = readableBytes;
 				m_buffer_len = readableBytes;
 				m_buffer = newSpace;
+				m_in_heap = true;
 				return total - readableBytes;
 			}
 
@@ -122,8 +136,7 @@ namespace rddb
 				if (WriteableBytes() >= minWritableBytes)
 				{
 					return true;
-				}
-				else
+				} else
 				{
 					size_t newCapacity = Capacity();
 					if (0 == newCapacity)
@@ -142,7 +155,11 @@ namespace rddb
 					if (NULL != tmp)
 					{
 						memcpy(tmp, m_buffer, ReadableBytes());
-						free(m_buffer);
+						if (m_in_heap)
+						{
+							free(m_buffer);
+						}
+						m_in_heap = true;
 						m_buffer = tmp;
 						m_buffer_len = newCapacity;
 						return true;
@@ -295,8 +312,7 @@ namespace rddb
 						memmove(m_buffer, m_buffer + m_read_idx, tmp);
 						m_read_idx = 0;
 						m_write_idx = tmp;
-					}
-					else
+					} else
 					{
 						m_read_idx = m_write_idx = 0;
 					}
@@ -309,8 +325,7 @@ namespace rddb
 			int ReadFD(int fd, int& err);
 			int WriteFD(int fd, int& err);
 			inline Buffer(size_t size) :
-					m_buffer(NULL), m_buffer_len(0), m_write_idx(0), m_read_idx(
-					        0)
+					m_buffer(0), m_buffer_len(0), m_write_idx(0), m_read_idx(0)
 			{
 				EnsureWritableBytes(size);
 			}
@@ -321,7 +336,10 @@ namespace rddb
 			}
 			inline ~Buffer()
 			{
-				free(m_buffer);
+				if (!m_buffer && m_in_heap)
+				{
+					free(m_buffer);
+				}
 			}
 
 	};
