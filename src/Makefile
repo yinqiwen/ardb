@@ -10,7 +10,7 @@ CXXFLAGS=-Wall -Wno-format -g -O2 -D_FILE_OFFSET_BITS=64 -fPIC
 CCFLAGS=-Wall -std=gnu99 -pedantic -Wno-format -g -O2 -D_FILE_OFFSET_BITS=64 -fPIC
 LDFLAGS=-g 
 
-INCS=-I./
+INCS=-I./ ./util
 
 LIBS=
 
