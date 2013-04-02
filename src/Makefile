@@ -6,11 +6,13 @@
 CXX=g++
 CC=gcc
 
+LEVELDB_PATH=../../../Libs/leveldb
+
 CXXFLAGS=-Wall -Wno-format -g -O2 -D_FILE_OFFSET_BITS=64 -fPIC
 CCFLAGS=-Wall -std=gnu99 -pedantic -Wno-format -g -O2 -D_FILE_OFFSET_BITS=64 -fPIC
 LDFLAGS=-g 
 
-INCS=-I./ ./util
+INCS=-I./ -I./util -I${LEVELDB_PATH}/include
 
 LIBS=
 
@@ -20,7 +22,7 @@ LIBS=
 %.o : %.c
 	${CC} -c ${CCFLAGS} ${INCS} $< -o $@
 
-CPP_VPATH=.
+CPP_VPATH=. ./util ./engine
        
 C_VPATH=.
 

@@ -11,14 +11,78 @@ namespace rddb
 	void RDDB::EncodeKey(Buffer& buf, const KeyObject& key)
 	{
 		BufferHelper::WriteFixUInt8(buf, key.type);
-		BufferHelper::WriteVarUInt32(buf, key.len);
-		buf.Write(key.raw, key.len);
+		BufferHelper::WriteVarSlice(buf, key.key);
+		switch (key.type)
+		{
+			case HASH_FIELD:
+			{
+				const HashKeyObject& hk = (const HashKeyObject&) key;
+				BufferHelper::WriteVarSlice(buf, hk.field);
+				break;
+			}
+			case LIST_ELEMENT:
+			{
+				const ListKeyObject& lk = (const ListKeyObject&) key;
+				BufferHelper::WriteVarInt32(buf, lk.score);
+				break;
+			}
+			case LIST_META:
+			{
+				const ListMetaValue& lmv = (const ListMetaValue&) key;
+				BufferHelper::WriteVarUInt32(buf, lmv.size);
+				BufferHelper::WriteVarInt32(buf, lmv.min_score);
+				BufferHelper::WriteVarInt32(buf, lmv.max_score);
+				break;
+			}
+			case SET_ELEMENT:
+			{
+				const SetKeyObject& sk = (const SetKeyObject&) key;
+				BufferHelper::WriteVarSlice(buf, sk.value);
+				break;
+			}
+			case SET_META:
+			{
+				const SetMetaValue& sk = (const SetMetaValue&) key;
+				BufferHelper::WriteVarUInt32(buf, sk.size);
+				break;
+			}
+			case ZSET_META:
+			{
+				const ZSetMetaValue& sk = (const ZSetMetaValue&) key;
+				BufferHelper::WriteVarUInt32(buf, sk.size);
+				break;
+			}
+			case ZSET_ELEMENT:
+			{
+				const ZSetKeyObject& sk = (const ZSetKeyObject&) key;
+				BufferHelper::WriteVarSlice(buf, sk.value);
+				BufferHelper::WriteVarInt64(buf, sk.score);
+				break;
+			}
+			case ZSET_ELEMENT_BARRIER:
+			{
+				const ZSetKeyBarrierObject& zk =
+						(const ZSetKeyBarrierObject&) key;
+				BufferHelper::WriteVarSlice(buf, zk.value);
+				break;
+			}
+			default:
+			{
+				break;
+			}
+		}
 	}
+
+
 	void RDDB::EncodeValue(Buffer& buf, const ValueObject& value)
 	{
 		BufferHelper::WriteFixUInt8(buf, value.type);
 		switch (value.type)
 		{
+			case EMPTY:
+			{
+				break;
+			}
 			case INTEGER:
 			{
 				BufferHelper::WriteVarInt64(buf, value.v.int_v);
@@ -34,10 +98,9 @@ namespace rddb
 				if (NULL != value.v.raw)
 				{
 					BufferHelper::WriteVarInt64(buf,
-					        value.v.raw->ReadableBytes());
+							value.v.raw->ReadableBytes());
 					buf.Write(value.v.raw, value.v.raw->ReadableBytes());
-				}
-				else
+				} else
 				{
 					BufferHelper::WriteVarInt64(buf, 0);
 				}
@@ -55,6 +118,10 @@ namespace rddb
 		}
 		switch (value.type)
 		{
+			case EMPTY:
+			{
+				break;
+			}
 			case INTEGER:
 			{
 				if (!BufferHelper::ReadVarInt64(buf, value.v.int_v))
@@ -75,7 +142,7 @@ namespace rddb
 			{
 				uint32_t len;
 				if (!BufferHelper::ReadVarUInt32(buf, len)
-				        || buf.ReadableBytes() < len)
+						|| buf.ReadableBytes() < len)
 				{
 					return -1;
 				}
@@ -88,36 +155,34 @@ namespace rddb
 		return 0;
 	}
 
-	void RDDB::FillValueObject(const void* value, int valuesize,
-	        ValueObject& valueobject)
+	//Need consider "0001" situation
+	void RDDB::FillValueObject(const Slice& value, ValueObject& valueobject)
 	{
 		valueobject.type = RAW;
 		int64_t intv;
 		double doublev;
-		if (raw_toint64(value, valuesize, intv))
+		if (raw_toint64(value.data(), value.size(), intv))
 		{
 			valueobject.type = INTEGER;
 			valueobject.v.int_v = intv;
-		}
-		else if (raw_todouble(value, valuesize, doublev))
+		} else if (raw_todouble(value.data(), value.size(), doublev))
 		{
 			valueobject.type = DOUBLE;
 			valueobject.v.double_v = doublev;
-		}
-		else
+		} else
 		{
-			char* v = (char*) value;
-			valueobject.v.raw = new Buffer(v, 0, valuesize);
+			char* v = const_cast<char*>(value.data());
+			valueobject.v.raw = new Buffer(v, 0, value.size());
 		}
 	}
 
 	int RDDB::GetValue(DBID db, const KeyObject& key, ValueObject& v)
 	{
-		Buffer keybuf(key.len + 16);
+		Buffer keybuf(key.key.size() + 16);
 		EncodeKey(keybuf, key);
+		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
 		std::string value;
-		int ret = m_engine->Get(db, keybuf.GetRawBuffer(),
-		        keybuf.ReadableBytes(), &value);
+		int ret = GetDB(db)->Get(k, &value);
 		if (ret == 0)
 		{
 			Buffer readbuf(const_cast<char*>(value.c_str()), 0, value.size());
@@ -128,8 +193,7 @@ namespace rddb
 					uint64_t now = get_current_epoch_nanos();
 					if (now >= v.expire)
 					{
-						m_engine->Del(db, keybuf.GetRawBuffer(),
-						        keybuf.ReadableBytes());
+						GetDB(db)->Del(k);
 						return ERR_NOT_EXIST;
 					}
 				}
@@ -138,77 +202,98 @@ namespace rddb
 		return ERR_NOT_EXIST;
 	}
 
+	Iterator* RDDB::FindValue(DBID db, KeyObject& key, ValueObject& value)
+	{
+		Buffer keybuf(key.key.size() + 16);
+		EncodeKey(keybuf, key);
+		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
+		std::string str;
+		Iterator* iter = GetDB(db)->Find(k);
+		if (NULL != iter)
+		{
+			if (!iter->Valid())
+			{
+				delete iter;
+				return NULL;
+			}
+
+		}
+		return iter;
+	}
+
 	int RDDB::SetValue(DBID db, KeyObject& key, ValueObject& value)
 	{
-		Buffer keybuf(key.len + 16);
+		Buffer keybuf(key.key.size() + 16);
 		EncodeKey(keybuf, key);
 		Buffer valuebuf(64);
 		EncodeValue(valuebuf, value);
-		return m_engine->Put(db, keybuf.GetRawBuffer(), keybuf.ReadableBytes(),
-		        valuebuf.GetRawBuffer(), valuebuf.ReadableBytes());
-
+		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
+		Slice v(valuebuf.GetRawReadBuffer(), valuebuf.ReadableBytes());
+		return GetDB(db)->Put(k, v);
 	}
 
-	int RDDB::Set(DBID db, const void* key, int keysize, const void* value,
-	        int valuesize)
+	int RDDB::DelValue(DBID db, KeyObject& key)
 	{
-		return SetEx(db, key, keysize, value, valuesize, 0);
+		Buffer keybuf(key.key.size() + 16);
+		EncodeKey(keybuf, key);
+		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
+		return GetDB(db)->Del(k);
 	}
 
-	int RDDB::SetNX(DBID db, const void* key, int keysize, const void* value,
-	        int valuesize)
+	int RDDB::Set(DBID db, const Slice& key, const Slice& value)
 	{
-		if (!Exists(db, key, keysize))
+		return SetEx(db, key, value, 0);
+	}
+
+	int RDDB::SetNX(DBID db, const Slice& key, const Slice& value)
+	{
+		if (!Exists(db, key))
 		{
-			KeyObject keyobject(KV, key, keysize);
+			KeyObject keyobject(key);
 			ValueObject valueobject;
-			FillValueObject(value, valuesize, valueobject);
+			FillValueObject(value, valueobject);
 			return SetValue(db, keyobject, valueobject);
 		}
 		return 0;
 	}
 
-	int RDDB::SetEx(DBID db, const void* key, int keysize, const void* value,
-	        int valuesize, uint32_t secs)
+	int RDDB::SetEx(DBID db, const Slice& key, const Slice& value,
+			uint32_t secs)
 	{
-		return PSetEx(db, key, keysize, value, valuesize, secs * 1000);
+		return PSetEx(db, key, value, secs * 1000);
 	}
-	int RDDB::PSetEx(DBID db, const void* key, int keysize, const void* value,
-	        int valuesize, uint32_t ms)
+	int RDDB::PSetEx(DBID db, const Slice& key, const Slice& value, uint32_t ms)
 	{
-		KeyObject keyobject(KV, key, keysize);
+		KeyObject keyobject(key);
 		ValueObject valueobject;
-		FillValueObject(value, valuesize, valueobject);
+		FillValueObject(value, valueobject);
 		uint64_t now = get_current_epoch_nanos();
 		uint64_t expire = now + (uint64_t) ms * 1000000L;
 		valueobject.expire = expire;
 		return SetValue(db, keyobject, valueobject);
 	}
 
-	int RDDB::Get(DBID db, const void* key, int keysize, ValueObject& value)
+	int RDDB::Get(DBID db, const Slice& key, ValueObject& value)
 	{
-		KeyObject keyobject(KV, key, keysize);
+		KeyObject keyobject(key);
 		return GetValue(db, keyobject, value);
 	}
 
-	int RDDB::Del(DBID db, const void* key, int keysize)
+	int RDDB::Del(DBID db, const Slice& key)
 	{
-		KeyObject keyobject(KV, key, keysize);
-		Buffer keybuf(keysize + 16);
-		EncodeKey(keybuf, keyobject);
-		return m_engine->Del(db, keybuf.GetRawBuffer(), keybuf.ReadableBytes());
+		KeyObject k(key);
+		return DelValue(db, k);
 	}
 
-	bool RDDB::Exists(DBID db, const void* key, int keysize)
+	bool RDDB::Exists(DBID db, const Slice& key)
 	{
 		ValueObject value;
-		return Get(db, key, keysize, value) == 0;
+		return Get(db, key, value) == 0;
 	}
 
-	int RDDB::SetExpiration(DBID db, const void* key, int keysize,
-	        uint64_t expire)
+	int RDDB::SetExpiration(DBID db, const Slice& key, uint64_t expire)
 	{
-		KeyObject keyobject(KV, key, keysize);
+		KeyObject keyobject(key);
 		ValueObject value;
 		if (0 == GetValue(db, keyobject, value))
 		{
@@ -218,45 +303,51 @@ namespace rddb
 		return ERR_NOT_EXIST;
 	}
 
-	int RDDB::Strlen(DBID db, const void* key, int keysize)
+	int RDDB::Strlen(DBID db, const Slice& key)
 	{
 		ValueObject v;
-		if (0 == Get(db, key, keysize, v))
+		if (0 == Get(db, key, v))
 		{
 			ValueObject2RawBuffer(v);
 			return v.v.raw->ReadableBytes();
 		}
 		return ERR_NOT_EXIST;
 	}
-	int RDDB::Expire(DBID db, const void* key, int keysize, uint32_t secs)
+	int RDDB::Expire(DBID db, const Slice& key, uint32_t secs)
 	{
 		uint64_t now = get_current_epoch_nanos();
 		uint64_t expire = now + (uint64_t) secs * 1000000000L;
-		return SetExpiration(db, key, keysize, expire);
+		return SetExpiration(db, key, expire);
 	}
 
-	int RDDB::Expireat(DBID db, const void* key, int keysize, uint32_t ts)
+	int RDDB::Expireat(DBID db, const Slice& key, uint32_t ts)
 	{
 		uint64_t expire = (uint64_t) ts * 1000000000L;
-		return SetExpiration(db, key, keysize, expire);
+		return SetExpiration(db, key, expire);
 	}
 
-	int RDDB::Persist(DBID db, const void* key, int keysize)
+	int RDDB::Persist(DBID db, const Slice& key)
 	{
-		return SetExpiration(db, key, keysize, 0);
+		return SetExpiration(db, key, 0);
 	}
 
-	int RDDB::Pexpire(DBID db, const void* key, int keysize, uint32_t ms)
+	int RDDB::Pexpire(DBID db, const Slice& key, uint32_t ms)
 	{
 		uint64_t now = get_current_epoch_nanos();
 		uint64_t expire = now + (uint64_t) ms * 1000000L;
-		return SetExpiration(db, key, keysize, expire);
+		return SetExpiration(db, key, expire);
 	}
 
-	int Move(DBID srcdb, const void* key, int keysize, DBID dstdb)
+	int RDDB::Move(DBID srcdb, const Slice& key, DBID dstdb)
 	{
-		//std::string value;
-		return -1;
+		ValueObject v;
+		if (0 == Get(srcdb, key, v))
+		{
+			Del(srcdb, key);
+			KeyObject k(key);
+			return SetValue(dstdb, k, v);
+		}
+		return ERR_NOT_EXIST;
 	}
 }
 

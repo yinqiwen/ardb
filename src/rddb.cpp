@@ -21,8 +21,7 @@ namespace rddb
 			if (v.type == INTEGER)
 			{
 				v.v.raw->Printf("%lld", iv);
-			}
-			else if (v.type == DOUBLE)
+			} else if (v.type == DOUBLE)
 			{
 				v.v.raw->Printf("%f", dv);
 			}
@@ -47,73 +46,23 @@ namespace rddb
 		return pos;
 	}
 
-	RDDB::RDDB(KeyValueEngine* engine) :
-			m_engine(engine)
+	RDDB::RDDB(KeyValueEngineFactory* engine) :
+			m_engine_factory(engine)
 	{
 	}
 
-	int RDDB::HSet(DBID db, const void* key, int keysize, const void* field,
-	        int fieldsize, const void* value, int valuesize)
+	KeyValueEngine* RDDB::GetDB(DBID db)
 	{
-		Buffer tmp(keysize + fieldsize + 16);
-		BufferHelper::WriteFixUInt8(tmp, HASH_FIELD);
-		BufferHelper::WriteVarUInt32(tmp, keysize);
-		tmp.Write(key, keysize);
-		//padding '0'
-		tmp.WriteByte('0');
-		m_engine->Put(db, tmp.GetRawBuffer(), tmp.ReadableBytes(), "", 0);
-		tmp.AdvanceWriteIndex(-1);
-		tmp.WriteByte('1');
-		BufferHelper::WriteVarUInt32(tmp, fieldsize);
-		tmp.Write(field, fieldsize);
-		return m_engine->Put(db, tmp.GetRawBuffer(), tmp.ReadableBytes(), value,
-		        valuesize);
-	}
-
-	int RDDB::ZAdd(DBID db, const void* key, int keysize, int64_t score,
-	        const void* value, int valuesize)
-	{
-		Buffer tmp(keysize + 16);
-		BufferHelper::WriteFixUInt8(tmp, ZSET_ELEMENT);
-		BufferHelper::WriteVarUInt32(tmp, keysize);
-		tmp.Write(key, keysize);
-		BufferHelper::WriteVarUInt64(tmp, score);
-		tmp.Write(value, valuesize);
-		std::string getvalue;
-		if (m_engine->Get(db, tmp.GetRawBuffer(), tmp.ReadableBytes(),
-		        &getvalue) == 0)
+		KeyValueEngineTable::iterator found = m_engine_table.find(db);
+		if (found != m_engine_table.end())
 		{
-			return 0;
+			return found->second;
 		}
-		return m_engine->Put(db, tmp.GetRawBuffer(), tmp.ReadableBytes(), "", 0);
+		KeyValueEngine* engine = m_engine_factory->CreateDB(db);
+		m_engine_table[db] = engine;
+        return engine;
 	}
 
-	int RDDB::SAdd(DBID db, const void* key, int keysize, const void* value,
-	        int valuesize)
-	{
-		Buffer tmp(keysize + 16);
-		BufferHelper::WriteFixUInt8(tmp, SET_ELEMENT);
-		BufferHelper::WriteVarUInt32(tmp, keysize);
-		tmp.Write(key, keysize);
-		BufferHelper::WriteVarUInt32(tmp, valuesize);
-		tmp.Write(value, valuesize);
-		std::string getvalue;
-		if (m_engine->Get(db, tmp.GetRawBuffer(), tmp.ReadableBytes(),
-		        &getvalue) == 0)
-		{
-			return 0;
-		}
-		return m_engine->Put(db, tmp.GetRawBuffer(), tmp.ReadableBytes(), "", 0);
-	}
 
-	int RDDB::RPush(DBID db, const void* key, int keysize, const void* value,
-	        int valuesize)
-	{
-		Buffer tmp(keysize + 16);
-		BufferHelper::WriteFixUInt8(tmp, LIST_ELEMENT);
-		BufferHelper::WriteVarUInt32(tmp, keysize);
-		tmp.Write(key, keysize);
-		return 0;
-	}
 }
 

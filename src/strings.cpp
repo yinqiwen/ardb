@@ -8,20 +8,20 @@
 
 namespace rddb
 {
-	int RDDB::Append(DBID db, const void* key, int keysize, const char* value,
-	        int valuesize)
+	static uint32_t kXIncrSeed = 0;
+	int RDDB::Append(DBID db, const Slice& key, const Slice& value)
 	{
-		KeyObject k(KV, key, keysize);
+		KeyObject k(key);
 		ValueObject v;
 		if (GetValue(db, k, v) < 0)
 		{
 			v.type = RAW;
-			v.v.raw = new Buffer(const_cast<char*>(value), 0, valuesize);
-		}
-		else
+			v.v.raw = new Buffer(const_cast<char*>(value.data()), 0,
+					value.size());
+		} else
 		{
 			ValueObject2RawBuffer(v);
-			v.v.raw->Write(value, valuesize);
+			v.v.raw->Write(value.data(), value.size());
 		}
 
 		uint32_t size = v.v.raw->ReadableBytes();
@@ -33,14 +33,20 @@ namespace rddb
 		return ret;
 	}
 
-	int RDDB::Incr(DBID db, const void* key, int keysize, int64_t& value)
+	int RDDB::XIncrby(DBID db, const Slice& key, int64_t increment)
 	{
-		return Incrby(db, key, keysize, 1, value);
+		KeyObject k(key);
+		return 0;
 	}
-	int RDDB::Incrby(DBID db, const void* key, int keysize, int64_t increment,
-	        int64_t& value)
+
+	int RDDB::Incr(DBID db, const Slice& key, int64_t& value)
 	{
-		KeyObject k(KV, key, keysize);
+		return Incrby(db, key, 1, value);
+	}
+	int RDDB::Incrby(DBID db, const Slice& key, int64_t increment,
+			int64_t& value)
+	{
+		KeyObject k(key);
 		ValueObject v;
 		if (GetValue(db, k, v) < 0)
 		{
@@ -52,28 +58,27 @@ namespace rddb
 			SetValue(db, k, v);
 			value = v.v.int_v;
 			return 0;
-		}
-		else
+		} else
 		{
 			return -1;
 		}
 	}
 
-	int RDDB::Decr(DBID db, const void* key, int keysize, int64_t& value)
+	int RDDB::Decr(DBID db, const Slice& key, int64_t& value)
 	{
-		return Decrby(db, key, keysize, 1, value);
+		return Decrby(db, key, 1, value);
 	}
 
-	int RDDB::Decrby(DBID db, const void* key, int keysize, int64_t decrement,
-	        int64_t& value)
+	int RDDB::Decrby(DBID db, const Slice& key, int64_t decrement,
+			int64_t& value)
 	{
-		return Incrby(db, key, keysize, 0 - decrement, value);
+		return Incrby(db, key, 0 - decrement, value);
 	}
 
-	int RDDB::IncrbyFloat(DBID db, const void* key, int keysize,
-	        double increment, double& value)
+	int RDDB::IncrbyFloat(DBID db, const Slice& key, double increment,
+			double& value)
 	{
-		KeyObject k(KV, key, keysize);
+		KeyObject k(key);
 		ValueObject v;
 		if (GetValue(db, k, v) < 0)
 		{
@@ -91,17 +96,16 @@ namespace rddb
 			SetValue(db, k, v);
 			value = v.v.double_v;
 			return 0;
-		}
-		else
+		} else
 		{
 			return -1;
 		}
 	}
 
-	int RDDB::GetRange(DBID db, const void* key, int keysize, int start,
-	        int end, ValueObject& v)
+	int RDDB::GetRange(DBID db, const Slice& key, int start, int end,
+			ValueObject& v)
 	{
-		KeyObject k(KV, key, keysize);
+		KeyObject k(key);
 		if (GetValue(db, k, v) < 0)
 		{
 			return ERR_NOT_EXIST;
@@ -121,10 +125,9 @@ namespace rddb
 		return RDDB_OK;
 	}
 
-	int RDDB::SetRange(DBID db, const void* key, int keysize, int start,
-	        const void* value, int valuesize)
+	int RDDB::SetRange(DBID db, const Slice& key, int start, const Slice& value)
 	{
-		KeyObject k(KV, key, keysize);
+		KeyObject k(key);
 		ValueObject v;
 		if (GetValue(db, k, v) < 0)
 		{
@@ -136,19 +139,19 @@ namespace rddb
 		}
 		start = RealPosition(v.v.raw, start);
 		v.v.raw->SetWriteIndex(start);
-		v.v.raw->Write(value, valuesize);
+		v.v.raw->Write(value.data(), value.size());
 		return SetValue(db, k, v);
 	}
 
-	int RDDB::GetSet(DBID db, const void* key, int keysize, const char* value,
-	        int valuesize, ValueObject& v)
+	int RDDB::GetSet(DBID db, const Slice& key, const Slice& value,
+			ValueObject& v)
 	{
-		KeyObject k(KV, key, keysize);
+		KeyObject k(key);
 		if (GetValue(db, k, v) < 0)
 		{
 			return ERR_NOT_EXIST;
 		}
-		return Set(db, key, keysize, value, valuesize);
+		return Set(db, key, value);
 	}
 }
 

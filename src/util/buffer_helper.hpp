@@ -8,21 +8,15 @@
 #ifndef NOVA_BufferHELPER_HPP_
 #define NOVA_BufferHELPER_HPP_
 #include "buffer.hpp"
+#include "slice.hpp"
 #include <string>
 using std::string;
 #define MAX_BYTEARRAY_BUFFER_SIZE 4096
 namespace rddb
 {
-	/**
-	 * 序列化/反序列化基本类型到Buffer的辅助类
-	 */
 	class BufferHelper
 	{
 		public:
-			/**
-			 * 反序列化固定长度的uint64
-			 * @fromNetwork: 是否按照网络字节序转化
-			 */
 			static bool ReadFixUInt64(Buffer& buffer, uint64_t& i,
 			        bool fromNetwork = true);
 			static bool ReadFixInt64(Buffer& buffer, int64_t& i,
@@ -42,9 +36,6 @@ namespace rddb
 			static bool ReadFixString(Buffer& buffer, char*& str,
 			        bool fromNetwork = true);
 
-			/**
-			 * 反序列化非固定长度的uint64， 遵循zigzag算法
-			 */
 			static bool ReadVarDouble(Buffer& buffer, double& i);
 			static bool ReadVarUInt64(Buffer& buffer, uint64_t& i);
 			static bool ReadVarInt64(Buffer& buffer, int64_t& i);
@@ -57,10 +48,7 @@ namespace rddb
 			static bool ReadBool(Buffer& buffer, bool& value);
 
 			static bool WriteBool(Buffer& buffer, bool value);
-			/**
-			 * 序列化固定长度的uint64
-			 * @toNetwork: 是否按照网络字节序转化
-			 */
+
 			static bool WriteFixUInt64(Buffer& buffer, uint64_t i,
 			        bool toNetwork = true);
 			static bool WriteFixInt64(Buffer& buffer, int64_t i,
@@ -80,9 +68,7 @@ namespace rddb
 			        bool toNetwork = true);
 			static bool WriteFixString(Buffer& buffer, const char* str,
 			        bool toNetwork = true);
-			/**
-			 * 序列化非固定长度的uint64, 遵循zigzag算法
-			 */
+
 			static bool WriteVarUInt64(Buffer& buffer, uint64_t i);
 			static bool WriteVarInt64(Buffer& buffer, int64_t i);
 			static bool WriteVarUInt32(Buffer& buffer, uint32_t i);
@@ -92,6 +78,7 @@ namespace rddb
 			static bool WriteVarDouble(Buffer& buffer, double d);
 			static bool WriteVarString(Buffer& buffer, const string& str);
 			static bool WriteVarString(Buffer& buffer, const char* str);
+			static bool WriteVarSlice(Buffer& buffer, const Slice& data);
 	};
 }
 
