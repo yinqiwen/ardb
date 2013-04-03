@@ -11,12 +11,15 @@
 #include <map>
 #include <list>
 #include <string>
+#include "common.hpp"
+#include "rddb_data.hpp"
 #include "slice.hpp"
 #include "util/helpers.hpp"
 #include "util/buffer_helper.hpp"
 #include "util/sds.h"
 
 #define RDDB_OK 0
+#define ERR_INVALID_STR -5
 #define ERR_DB_NOT_EXIST -6
 #define ERR_KEY_EXIST -7
 #define ERR_INVALID_TYPE -8
@@ -25,105 +28,6 @@
 
 namespace rddb
 {
-	enum KeyType
-	{
-		KV = 0,
-		SET_META = 1,
-		SET_ELEMENT = 2,
-		ZSET_META = 3,
-		ZSET_ELEMENT_BARRIER = 4,
-		ZSET_ELEMENT = 5,
-		HASH_META = 6,
-		HASH_FIELD = 7,
-		LIST_META = 8,
-		LIST_ELEMENT = 9,
-
-	};
-
-	struct KeyObject
-	{
-			KeyType type;
-			const Slice& key;
-
-			KeyObject(const Slice& k, KeyType T = KV) :
-					type(T), key(k)
-			{
-			}
-	};
-
-	struct ZSetKeyObject: public KeyObject
-	{
-			const Slice& value;
-			int64_t score;
-			ZSetKeyObject(const Slice& k, const Slice& v, int64_t s) :
-					KeyObject(k, SET_ELEMENT), value(v), score(s)
-			{
-			}
-	};
-	struct ZSetKeyBarrierObject: public KeyObject
-	{
-			const Slice& value;
-			ZSetKeyBarrierObject(const Slice& k, const Slice& v) :
-					KeyObject(k, ZSET_ELEMENT_BARRIER), value(v)
-			{
-			}
-	};
-
-	struct ZSetMetaValue
-	{
-			uint32_t size;
-			ZSetMetaValue() :
-					size(0)
-			{
-			}
-	};
-
-	struct SetKeyObject: public KeyObject
-	{
-			const Slice& value;
-			SetKeyObject(const Slice& k, const Slice& v) :
-					KeyObject(k, SET_ELEMENT), value(v)
-			{
-			}
-	};
-
-	struct SetMetaValue
-	{
-			uint32_t size;
-			SetMetaValue() :
-					size(0)
-			{
-			}
-	};
-
-	struct HashKeyObject: public KeyObject
-	{
-			const Slice& field;
-			HashKeyObject(const Slice& k, const Slice& f) :
-					KeyObject(k, HASH_FIELD), field(f)
-			{
-			}
-	};
-
-	struct ListKeyObject: public KeyObject
-	{
-			int32_t score;
-			ListKeyObject(const Slice& k, int32_t s) :
-					KeyObject(k, LIST_ELEMENT), score(s)
-			{
-			}
-	};
-
-	struct ListMetaValue
-	{
-			uint32_t size;
-			int32_t min_score;
-			int32_t max_score;
-			ListMetaValue() :
-					size(0), min_score(0), max_score(0)
-			{
-			}
-	};
 
 	enum ValueDataType
 	{
@@ -231,7 +135,6 @@ namespace rddb
 	class RDDB
 	{
 		private:
-			static void EncodeKey(Buffer& buf, const KeyObject& key);
 			static void EncodeValue(Buffer& buf, const ValueObject& value);
 			static bool DecodeValue(Buffer& buf, ValueObject& value);
 			static void FillValueObject(const Slice& value,
@@ -248,7 +151,7 @@ namespace rddb
 			int GetValue(DBID db, const KeyObject& key, ValueObject& v);
 			int SetValue(DBID db, KeyObject& key, ValueObject& value);
 			int DelValue(DBID db, KeyObject& key);
-			Iterator* FindValue(DBID db, KeyObject& key, ValueObject& value);
+			Iterator* FindValue(DBID db, KeyObject& key);
 			int SetHashValue(DBID db, const Slice& key, const Slice& field,
 					ValueObject& value);
 			int ListPush(DBID db, const Slice& key, const Slice& value,
@@ -316,10 +219,16 @@ namespace rddb
 			int RPop(DBID db, const Slice& key, ValueObject& v);
 			int LLen(DBID db, const Slice& key);
 
-			int ZAdd(DBID db, const Slice& key, int64_t score,
+			int ZAdd(DBID db, const Slice& key, double score,
 					const Slice& value);
 			int ZCard(DBID db, const Slice& key);
-			int ZCount(DBID db, const Slice& key, int64_t min, int64_t max);
+			int ZScore(DBID db, const Slice& key, const Slice& value,
+					double& score);
+			int ZRem(DBID db, const Slice& key, const Slice& value);
+			int ZCount(DBID db, const Slice& key, const std::string& min,
+					const std::string& max);
+			int ZIncrby(DBID db, const Slice& key, double increment,
+					const Slice& value, double& score);
 
 			int SAdd(DBID db, const Slice& key, const Slice& value);
 			int SCard(DBID db, const Slice& key);

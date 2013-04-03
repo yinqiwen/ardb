@@ -1,0 +1,40 @@
+10
+
+dir
+135
+http://google-glog.googlecode.com/svn/trunk/vsprojects
+http://google-glog.googlecode.com/svn
+
+
+
+2009-01-23T18:56:19.639069Z
+33
+shinichiro.hamaji
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+eb4d4688-79bd-11dd-afb4-1d65580434c0
+
+libglog
+dir
+
+logging_unittest
+dir
+
+libglog_static
+dir
+
+logging_unittest_static
+dir
+

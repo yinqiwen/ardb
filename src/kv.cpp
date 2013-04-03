@@ -8,72 +8,6 @@
 
 namespace rddb
 {
-	void RDDB::EncodeKey(Buffer& buf, const KeyObject& key)
-	{
-		BufferHelper::WriteFixUInt8(buf, key.type);
-		BufferHelper::WriteVarSlice(buf, key.key);
-		switch (key.type)
-		{
-			case HASH_FIELD:
-			{
-				const HashKeyObject& hk = (const HashKeyObject&) key;
-				BufferHelper::WriteVarSlice(buf, hk.field);
-				break;
-			}
-			case LIST_ELEMENT:
-			{
-				const ListKeyObject& lk = (const ListKeyObject&) key;
-				BufferHelper::WriteVarInt32(buf, lk.score);
-				break;
-			}
-			case LIST_META:
-			{
-				const ListMetaValue& lmv = (const ListMetaValue&) key;
-				BufferHelper::WriteVarUInt32(buf, lmv.size);
-				BufferHelper::WriteVarInt32(buf, lmv.min_score);
-				BufferHelper::WriteVarInt32(buf, lmv.max_score);
-				break;
-			}
-			case SET_ELEMENT:
-			{
-				const SetKeyObject& sk = (const SetKeyObject&) key;
-				BufferHelper::WriteVarSlice(buf, sk.value);
-				break;
-			}
-			case SET_META:
-			{
-				const SetMetaValue& sk = (const SetMetaValue&) key;
-				BufferHelper::WriteVarUInt32(buf, sk.size);
-				break;
-			}
-			case ZSET_META:
-			{
-				const ZSetMetaValue& sk = (const ZSetMetaValue&) key;
-				BufferHelper::WriteVarUInt32(buf, sk.size);
-				break;
-			}
-			case ZSET_ELEMENT:
-			{
-				const ZSetKeyObject& sk = (const ZSetKeyObject&) key;
-				BufferHelper::WriteVarSlice(buf, sk.value);
-				BufferHelper::WriteVarInt64(buf, sk.score);
-				break;
-			}
-			case ZSET_ELEMENT_BARRIER:
-			{
-				const ZSetKeyBarrierObject& zk =
-						(const ZSetKeyBarrierObject&) key;
-				BufferHelper::WriteVarSlice(buf, zk.value);
-				break;
-			}
-			default:
-			{
-				break;
-			}
-		}
-	}
-
-
 	void RDDB::EncodeValue(Buffer& buf, const ValueObject& value)
 	{
 		BufferHelper::WriteFixUInt8(buf, value.type);
@@ -155,7 +89,7 @@ namespace rddb
 		return 0;
 	}
 
-	//Need consider "0001" situation
+//Need consider "0001" situation
 	void RDDB::FillValueObject(const Slice& value, ValueObject& valueobject)
 	{
 		valueobject.type = RAW;
@@ -179,7 +113,7 @@ namespace rddb
 	int RDDB::GetValue(DBID db, const KeyObject& key, ValueObject& v)
 	{
 		Buffer keybuf(key.key.size() + 16);
-		EncodeKey(keybuf, key);
+		encode_key(keybuf, key);
 		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
 		std::string value;
 		int ret = GetDB(db)->Get(k, &value);
@@ -202,10 +136,10 @@ namespace rddb
 		return ERR_NOT_EXIST;
 	}
 
-	Iterator* RDDB::FindValue(DBID db, KeyObject& key, ValueObject& value)
+	Iterator* RDDB::FindValue(DBID db, KeyObject& key)
 	{
 		Buffer keybuf(key.key.size() + 16);
-		EncodeKey(keybuf, key);
+		encode_key(keybuf, key);
 		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
 		std::string str;
 		Iterator* iter = GetDB(db)->Find(k);
@@ -216,7 +150,6 @@ namespace rddb
 				delete iter;
 				return NULL;
 			}
-
 		}
 		return iter;
 	}
@@ -224,7 +157,7 @@ namespace rddb
 	int RDDB::SetValue(DBID db, KeyObject& key, ValueObject& value)
 	{
 		Buffer keybuf(key.key.size() + 16);
-		EncodeKey(keybuf, key);
+		encode_key(keybuf, key);
 		Buffer valuebuf(64);
 		EncodeValue(valuebuf, value);
 		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
@@ -235,7 +168,7 @@ namespace rddb
 	int RDDB::DelValue(DBID db, KeyObject& key)
 	{
 		Buffer keybuf(key.key.size() + 16);
-		EncodeKey(keybuf, key);
+		encode_key(keybuf, key);
 		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
 		return GetDB(db)->Del(k);
 	}

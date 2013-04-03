@@ -8,7 +8,7 @@
 
 namespace rddb
 {
-	static uint32_t kXIncrSeed = 0;
+	//static uint32_t kXIncrSeed = 0;
 	int RDDB::Append(DBID db, const Slice& key, const Slice& value)
 	{
 		KeyObject k(key);

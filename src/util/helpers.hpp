@@ -14,6 +14,7 @@
 #ifdef __MACH__
 #include <mach/clock.h>
 #include <mach/mach.h>
+#include "common.hpp"
 #endif
 
 namespace rddb
@@ -67,6 +68,19 @@ namespace rddb
 			return false;
 		}
 
+		value = val;
+		return true;
+	}
+
+	inline bool str_todouble(const char* str, double& value)
+	{
+		RETURN_FALSE_IF_NULL(str);
+		char *endptr = NULL;
+		double val = strtod(str, &endptr);
+		if (NULL == endptr)
+		{
+			return false;
+		}
 		value = val;
 		return true;
 	}

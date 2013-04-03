@@ -1,0 +1,95 @@
+K 25
+svn:wc:ra_dav:version-url
+V 26
+/svn/!svn/ver/117/trunk/m4
+END
+using_operator.m4
+K 25
+svn:wc:ra_dav:version-url
+V 42
+/svn/!svn/ver/2/trunk/m4/using_operator.m4
+END
+libtool.m4
+K 25
+svn:wc:ra_dav:version-url
+V 37
+/svn/!svn/ver/117/trunk/m4/libtool.m4
+END
+ac_rwlock.m4
+K 25
+svn:wc:ra_dav:version-url
+V 38
+/svn/!svn/ver/93/trunk/m4/ac_rwlock.m4
+END
+ac_have_sync_val_compare_and_swap.m4
+K 25
+svn:wc:ra_dav:version-url
+V 63
+/svn/!svn/ver/102/trunk/m4/ac_have_sync_val_compare_and_swap.m4
+END
+ac_have_attribute.m4
+K 25
+svn:wc:ra_dav:version-url
+V 45
+/svn/!svn/ver/2/trunk/m4/ac_have_attribute.m4
+END
+lt~obsolete.m4
+K 25
+svn:wc:ra_dav:version-url
+V 41
+/svn/!svn/ver/117/trunk/m4/lt~obsolete.m4
+END
+stl_namespace.m4
+K 25
+svn:wc:ra_dav:version-url
+V 41
+/svn/!svn/ver/2/trunk/m4/stl_namespace.m4
+END
+pc_from_ucontext.m4
+K 25
+svn:wc:ra_dav:version-url
+V 45
+/svn/!svn/ver/75/trunk/m4/pc_from_ucontext.m4
+END
+namespaces.m4
+K 25
+svn:wc:ra_dav:version-url
+V 38
+/svn/!svn/ver/2/trunk/m4/namespaces.m4
+END
+ltsugar.m4
+K 25
+svn:wc:ra_dav:version-url
+V 36
+/svn/!svn/ver/93/trunk/m4/ltsugar.m4
+END
+acx_pthread.m4
+K 25
+svn:wc:ra_dav:version-url
+V 40
+/svn/!svn/ver/55/trunk/m4/acx_pthread.m4
+END
+ac_have_builtin_expect.m4
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/svn/!svn/ver/2/trunk/m4/ac_have_builtin_expect.m4
+END
+ltversion.m4
+K 25
+svn:wc:ra_dav:version-url
+V 39
+/svn/!svn/ver/117/trunk/m4/ltversion.m4
+END
+google_namespace.m4
+K 25
+svn:wc:ra_dav:version-url
+V 44
+/svn/!svn/ver/2/trunk/m4/google_namespace.m4
+END
+ltoptions.m4
+K 25
+svn:wc:ra_dav:version-url
+V 39
+/svn/!svn/ver/117/trunk/m4/ltoptions.m4
+END

@@ -45,6 +45,7 @@ namespace rddb
 			static bool ReadVarInt16(Buffer& buffer, int16_t& i);
 			static bool ReadVarString(Buffer& buffer, string& str);
 			static bool ReadVarString(Buffer& buffer, char*& str);
+			static bool ReadVarSlice(Buffer& buffer, Slice& str);
 			static bool ReadBool(Buffer& buffer, bool& value);
 
 			static bool WriteBool(Buffer& buffer, bool value);

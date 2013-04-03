@@ -5,32 +5,23 @@
  *      Author: wqy
  */
 
-#include "leveldb/db.h"
+#include "rddb.hpp"
+#include "engine/leveldb_engine.hpp"
 #include <string>
 #include <iostream>
+#include <glog/logging.h>
+
+using namespace rddb;
 
 int main(int argc, char** argv)
 {
-	leveldb::DB* db;
-	leveldb::Options options;
-	options.create_if_missing = true;
-	leveldb::Status status = leveldb::DB::Open(options, "./testdb", &db);
-	std::string value = "1";
-	for (int i = 0; i < 100000; i++)
-	{
-		char tmp[100];
-		sprintf(tmp, "%d", i);
-		db->Put(leveldb::WriteOptions(), tmp, value);
-	}
-	std::cout << "Start seek" << std::endl;
-	leveldb::Iterator* it = db->NewIterator(leveldb::ReadOptions());
-	it->Seek("1234506");
-	if ( it->Valid())
-	{
-		std::cout << it->key().ToString() << ": " << it->value().ToString() << std::endl;
-	}
-	std::cout << "End seek" << std::endl;
-
+	google::InitGoogleLogging(argv[0]);
+	LOG(INFO)<< "Found " << 1 << " cookies";
+//	LevelDBEngineFactory factory("/tmp/rddb/test");
+//	RDDB db(&factory);
+//	Slice key("key");
+//	Slice field("filed");
+//	Slice value("123345");
+//	db.HSet(0, key, field, value);
 	return 0;
-
 }

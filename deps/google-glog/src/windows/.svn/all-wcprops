@@ -1,0 +1,29 @@
+K 25
+svn:wc:ra_dav:version-url
+V 35
+/svn/!svn/ver/135/trunk/src/windows
+END
+port.cc
+K 25
+svn:wc:ra_dav:version-url
+V 42
+/svn/!svn/ver/23/trunk/src/windows/port.cc
+END
+port.h
+K 25
+svn:wc:ra_dav:version-url
+V 42
+/svn/!svn/ver/135/trunk/src/windows/port.h
+END
+config.h
+K 25
+svn:wc:ra_dav:version-url
+V 44
+/svn/!svn/ver/135/trunk/src/windows/config.h
+END
+preprocess.sh
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/svn/!svn/ver/119/trunk/src/windows/preprocess.sh
+END

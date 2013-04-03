@@ -1,0 +1,71 @@
+K 25
+svn:wc:ra_dav:version-url
+V 36
+/svn/!svn/ver/132/trunk/packages/deb
+END
+control
+K 25
+svn:wc:ra_dav:version-url
+V 42
+/svn/!svn/ver/2/trunk/packages/deb/control
+END
+compat
+K 25
+svn:wc:ra_dav:version-url
+V 41
+/svn/!svn/ver/2/trunk/packages/deb/compat
+END
+libgoogle-glog-dev.dirs
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/!svn/ver/46/trunk/packages/deb/libgoogle-glog-dev.dirs
+END
+changelog
+K 25
+svn:wc:ra_dav:version-url
+V 46
+/svn/!svn/ver/132/trunk/packages/deb/changelog
+END
+docs
+K 25
+svn:wc:ra_dav:version-url
+V 39
+/svn/!svn/ver/2/trunk/packages/deb/docs
+END
+copyright
+K 25
+svn:wc:ra_dav:version-url
+V 44
+/svn/!svn/ver/2/trunk/packages/deb/copyright
+END
+libgoogle-glog0.dirs
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/!svn/ver/2/trunk/packages/deb/libgoogle-glog0.dirs
+END
+rules
+K 25
+svn:wc:ra_dav:version-url
+V 40
+/svn/!svn/ver/2/trunk/packages/deb/rules
+END
+libgoogle-glog-dev.install
+K 25
+svn:wc:ra_dav:version-url
+V 62
+/svn/!svn/ver/46/trunk/packages/deb/libgoogle-glog-dev.install
+END
+README
+K 25
+svn:wc:ra_dav:version-url
+V 41
+/svn/!svn/ver/2/trunk/packages/deb/README
+END
+libgoogle-glog0.install
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/svn/!svn/ver/2/trunk/packages/deb/libgoogle-glog0.install
+END

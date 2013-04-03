@@ -6,21 +6,104 @@
  */
 #include "leveldb_engine.hpp"
 #include "rddb.hpp"
+#include <string.h>
 
 #define LEVELDB_SLICE(slice) leveldb::Slice(slice.data(), slice.size())
 #define RDDB_SLICE(slice) Slice(slice.data(), slice.size())
+#define COMPARE_NUMBER(a, b)  (a == b?0:(a>b?1:-1))
 
 namespace rddb
 {
-	int LevelDBComparator::Compare(const leveldb::Slice& a, const leveldb::Slice& b) const
+	int LevelDBComparator::Compare(const leveldb::Slice& a,
+			const leveldb::Slice& b) const
 	{
-
+		KeyObject* ak = NULL;
+		KeyObject* bk = NULL;
+		if (NULL == ak && NULL == bk)
+		{
+			return 0;
+		}
+		if (NULL != ak && NULL == bk)
+		{
+			DELETE(ak);
+			return 1;
+		}
+		if (NULL == ak && NULL != bk)
+		{
+			DELETE(bk);
+			return -1;
+		}
+		int ret = 0;
+		if (ak->type == bk->type)
+		{
+			ret = ak->key.compare(bk->key);
+			if (ret != 0)
+			{
+				DELETE(ak);
+				DELETE(bk);
+				return ret;
+			}
+			switch (ak->type)
+			{
+				case HASH_FIELD:
+				{
+					HashKeyObject* hak = (HashKeyObject*) ak;
+					HashKeyObject* hbk = (HashKeyObject*) bk;
+					ret = hak->field.compare(hbk->field);
+					break;
+				}
+				case LIST_ELEMENT:
+				{
+					ListKeyObject* lak = (ListKeyObject*) ak;
+					ListKeyObject* lbk = (ListKeyObject*) bk;
+					ret = COMPARE_NUMBER(lak->score, lbk->score);
+					break;
+				}
+				case SET_ELEMENT:
+				{
+					SetKeyObject* sak = (SetKeyObject*) ak;
+					SetKeyObject* sbk = (SetKeyObject*) bk;
+					ret = sak->value.compare(sbk->value);
+					break;
+				}
+				case ZSET_ELEMENT:
+				{
+					ZSetKeyObject* zak = (ZSetKeyObject*) ak;
+					ZSetKeyObject* zbk = (ZSetKeyObject*) bk;
+					int ret = COMPARE_NUMBER(zak->score, zbk->score);
+					if (ret == 0)
+					{
+						ret = zak->value.compare(zbk->value);
+					}
+					break;
+				}
+				case ZSET_ELEMENT_SCORE:
+				{
+					ZSetScoreKeyObject* zak = (ZSetScoreKeyObject*) ak;
+					ZSetScoreKeyObject* zbk = (ZSetScoreKeyObject*) bk;
+					ret = zak->value.compare(zbk->value);
+					break;
+				}
+				case SET_META:
+				case ZSET_META:
+				case LIST_META:
+				default:
+				{
+					break;
+				}
+			}
+		} else
+		{
+			ret = ak->type > bk->type ? 1 : -1;
+		}
+		DELETE(ak);
+		DELETE(bk);
+		return ret;
 	}
 
 	void LevelDBComparator::FindShortestSeparator(std::string* start,
-						const leveldb::Slice& limit) const
+			const leveldb::Slice& limit) const
 	{
-
 	}
 
 	void LevelDBComparator::FindShortSuccessor(std::string* key) const
@@ -35,11 +118,19 @@ namespace rddb
 	}
 	KeyValueEngine* LevelDBEngineFactory::CreateDB(DBID db)
 	{
-		return NULL;
+		LevelDBEngine* engine = new LevelDBEngine();
+		char tmp[m_base_path.size() + 16];
+		sprintf(tmp, "%s/%lld", m_base_path.c_str(), db);
+		if (engine->Init(tmp) != 0)
+		{
+			DELETE(engine);
+			return NULL;
+		}
+		return engine;
 	}
 	void LevelDBEngineFactory::DestroyDB(KeyValueEngine* engine)
 	{
-
+		DELETE(engine);
 	}
 
 	void LevelDBIterator::Next()
@@ -67,6 +158,15 @@ namespace rddb
 			m_db(NULL), m_batch_mode(false)
 	{
 
+	}
+
+	int LevelDBEngine::Init(const std::string& path)
+	{
+		leveldb::DB* db;
+		leveldb::Options options;
+		options.create_if_missing = true;
+		leveldb::Status status = leveldb::DB::Open(options, path.c_str(), &db);
+		return status.ok() ? 0 : -1;
 	}
 
 	int LevelDBEngine::BeginBatchWrite()
@@ -123,8 +223,7 @@ namespace rddb
 	{
 		leveldb::ReadOptions options;
 		leveldb::Iterator* iter = m_db->NewIterator(options);
-		leveldb::Slice k(findkey.data(), findkey.size());
-		iter->Seek(k);
+		iter->Seek(LEVELDB_SLICE(findkey));
 		return new LevelDBIterator(iter);
 	}
 }

@@ -351,6 +351,28 @@ namespace rddb
 		return true;
 	}
 
+	bool BufferHelper::ReadVarSlice(Buffer& buffer, Slice& str)
+	{
+		uint32_t len;
+		if (!ReadVarUInt32(buffer, len))
+		{
+			return false;
+		}
+		if (0 == len)
+		{
+			str.clear();
+			return true;
+		}
+		if (buffer.ReadableBytes() < len)
+		{
+			return false;
+		}
+		Slice s(buffer.GetRawReadBuffer(), len);
+		buffer.SkipBytes(len);
+		str = s;
+		return true;
+	}
+
 	bool BufferHelper::WriteBool(Buffer& buffer, bool value)
 	{
 		buffer.WriteByte((char) value);
