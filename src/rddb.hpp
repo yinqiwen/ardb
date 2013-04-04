@@ -11,6 +11,7 @@
 #include <map>
 #include <list>
 #include <string>
+#include <deque>
 #include "common.hpp"
 #include "rddb_data.hpp"
 #include "slice.hpp"
@@ -119,6 +120,7 @@ namespace rddb
 	};
 	typedef void RDDBLogHandler(LogLevel level, const char* filename, int line,
 			const std::string& message);
+	typedef std::deque<ValueObject*> ValueObjectQueue;
 	class RDDB
 	{
 		private:
@@ -161,7 +163,6 @@ namespace rddb
 			int Strlen(DBID db, const Slice& key);
 			int Rename(DBID db, const Slice& key1, const Slice& key2);
 			int RenameNX(DBID db, const Slice& key1, const Slice& key2);
-			int RandomKey(DBID db, std::string* key);
 			int Keys(DBID db, const std::string& pattern,
 					std::list<std::string>& ret)
 			{
@@ -185,6 +186,7 @@ namespace rddb
 					const Slice& value);
 			int GetSet(DBID db, const Slice& key, const Slice& value,
 					ValueObject& valueobj);
+			int SetBit(DBID db, const Slice& key, uint32_t offset, uint8_t value);
 
 			int HSet(DBID db, const Slice& key, const Slice& field,
 					const Slice& value);

@@ -5,6 +5,7 @@
  *      Author: wqy
  */
 #include "rddb.hpp"
+#include <bitset>
 
 namespace rddb
 {
@@ -239,11 +240,6 @@ namespace rddb
 		return ERR_NOT_EXIST;
 	}
 
-	int RDDB::RandomKey(DBID db, std::string* key)
-	{
-		return 0;
-	}
-
 	int RDDB::Move(DBID srcdb, const Slice& key, DBID dstdb)
 	{
 		ValueObject v;
@@ -254,6 +250,19 @@ namespace rddb
 			return SetValue(dstdb, k, v);
 		}
 		return ERR_NOT_EXIST;
+	}
+
+	int RDDB::SetBit(DBID db, const Slice& key, uint32_t offset, uint8_t value)
+	{
+		ValueObject v;
+		if (0 == Get(db, key, v))
+		{
+
+		} else
+		{
+
+		}
+		return 0;
 	}
 }
 

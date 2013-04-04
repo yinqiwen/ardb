@@ -11,21 +11,21 @@ PERSIST key                     DONE
 PEXPIRE key milliseconds        DONE
 PEXPIREAT key milliseconds-timestamp  DONE
 PTTL key                        DONE
-RANDOMKEY                       Consider
+RANDOMKEY                       Discard
 RENAME key newkey               DONE
 RENAMENX key newkey             DONE
 RESTORE key ttl serialized-value  Discard
 SORT key                        NotYet
 TTL key                        DONE
-TYPE key                       Consider
+TYPE key                       Discard
 
 APPEND key value               DONE
-BITCOUNT key [start] [end]     Consider
-BITOP operation destkey key [key ...]  Consider
+BITCOUNT key [start] [end]     NotYet
+BITOP operation destkey key [key ...]  NotYet
 DECR key                       DONE
 DECRBY key decrement           DONE
 GET key                        DONE
-GETBIT key offset              Consider
+GETBIT key offset              NotYet
 GETRANGE key start end         DONE
 GETSET key value               DONE
 INCR key                       DONE
@@ -36,7 +36,7 @@ MSET key value [key value ...] NotYet
 MSETNX key value [key value ...] NotYet
 PSETEX key milliseconds value  DONE
 SET key value [EX seconds] [PX milliseconds] [NX|XX]  NotYet
-SETBIT key offset value        Consider
+SETBIT key offset value        NotYet
 SETEX key seconds value        DONE
 SETNX key value                DONE
 SETRANGE key offset value      DONE
