@@ -63,7 +63,7 @@ namespace rddb
 		BatchWriteGuard guard(GetDB(db));
 		ListKeyObject lk(key, score);
 		ValueObject lv;
-		FillValueObject(value, lv);
+		fill_value(value, lv);
 		if (0 == SetValue(db, lk, lv))
 		{
 			EncodeListMetaData(v, meta);

@@ -18,7 +18,7 @@ namespace rddb
 			const Slice& value)
 	{
 		ValueObject valueobject;
-		FillValueObject(value, valueobject);
+		fill_value(value, valueobject);
 		return SetHashValue(db, key, field, valueobject);
 	}
 

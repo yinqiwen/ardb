@@ -20,5 +20,9 @@ int main(int argc, char** argv)
 	LevelDBEngineFactory factory("/tmp/rddb/test");
 	RDDB db(&factory);
 	test_strings(db);
+	test_hashs(db);
+	test_lists(db);
+	test_sets(db);
+	test_zsets(db);
 	return 0;
 }

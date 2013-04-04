@@ -11,6 +11,7 @@
 #include <map>
 #include <list>
 #include <string>
+#include "common.hpp"
 #include "slice.hpp"
 #include "util/buffer_helper.hpp"
 
@@ -116,8 +117,56 @@ namespace rddb
 			}
 	};
 
-    void encode_key(Buffer& buf, const KeyObject& key);
+	enum ValueDataType
+	{
+		EMPTY = 0, INTEGER = 1, DOUBLE = 2, RAW = 3
+	};
+
+	enum OperationType
+	{
+		NOOP = 0, ADD = 1
+	};
+
+	struct ValueObject
+	{
+			uint8_t type;
+			union
+			{
+					int64_t int_v;
+					double double_v;
+					Buffer* raw;
+			} v;
+			uint64_t expire;
+			ValueObject() :
+					type(RAW), expire(0)
+			{
+				v.int_v = 0;
+			}
+			void Clear()
+			{
+				if (type == RAW && NULL != v.raw)
+				{
+					DELETE(v.raw);
+				}
+				v.int_v = 0;
+			}
+			~ValueObject()
+			{
+				if (type == RAW && v.raw != NULL)
+				{
+					delete v.raw;
+				}
+			}
+	};
+
+	void encode_key(Buffer& buf, const KeyObject& key);
 	KeyObject* decode_key(const Slice& key);
+
+	void encode_value(Buffer& buf, const ValueObject& value);
+	bool decode_value(Buffer& buf, ValueObject& value);
+	void fill_value(const Slice& value, ValueObject& valueobject);
+	int value_convert_to_raw(ValueObject& v);
+	int value_convert_to_number(ValueObject& v);
 
 }
 

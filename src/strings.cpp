@@ -20,7 +20,7 @@ namespace rddb
 					value.size());
 		} else
 		{
-			ValueObject2RawBuffer(v);
+			value_convert_to_raw(v);
 			v.v.raw->Write(value.data(), value.size());
 		}
 
@@ -52,6 +52,7 @@ namespace rddb
 		{
 			return -1;
 		}
+		value_convert_to_number(v);
 		if (v.type == INTEGER)
 		{
 			v.v.int_v += increment;
@@ -84,6 +85,7 @@ namespace rddb
 		{
 			return -1;
 		}
+		value_convert_to_number(v);
 		if (v.type == INTEGER)
 		{
 			v.type = DOUBLE;
@@ -112,7 +114,7 @@ namespace rddb
 		}
 		if (v.type != RAW)
 		{
-			ValueObject2RawBuffer(v);
+			value_convert_to_raw(v);
 		}
 		start = RealPosition(v.v.raw, start);
 		end = RealPosition(v.v.raw, end);
@@ -135,7 +137,7 @@ namespace rddb
 		}
 		if (v.type != RAW)
 		{
-			ValueObject2RawBuffer(v);
+			value_convert_to_raw(v);
 		}
 		start = RealPosition(v.v.raw, start);
 		v.v.raw->SetWriteIndex(start);

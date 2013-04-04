@@ -29,48 +29,6 @@
 namespace rddb
 {
 
-	enum ValueDataType
-	{
-		EMPTY = 0, INTEGER = 1, DOUBLE = 2, RAW = 3
-	};
-
-	enum OperationType
-	{
-		NOOP = 0, ADD = 1
-	};
-
-	struct ValueObject
-	{
-			uint8_t type;
-			union
-			{
-					int64_t int_v;
-					double double_v;
-					Buffer* raw;
-			} v;
-			uint64_t expire;
-			ValueObject() :
-					type(RAW), expire(0)
-			{
-				v.int_v = 0;
-			}
-			void Clear()
-			{
-				if (type == RAW && NULL != v.raw)
-				{
-					DELETE(v.raw);
-				}
-				v.int_v = 0;
-			}
-			~ValueObject()
-			{
-				if (type == RAW && v.raw != NULL)
-				{
-					delete v.raw;
-				}
-			}
-	};
-
 	struct Iterator
 	{
 			virtual void Next() = 0;
@@ -140,16 +98,33 @@ namespace rddb
 			}
 	};
 
+	enum LogLevel
+	{
+		LOGLEVEL_INFO,     // Informational
+		LOGLEVEL_WARNING, // Warns about issues that, although not technically a
+						  // problem now, could cause problems in the future.  For
+						  // example, a // warning will be printed when parsing a
+						  // message that is near the message size limit.
+		LOGLEVEL_ERROR,    // An error occurred which should never happen during
+						   // normal use.
+		LOGLEVEL_FATAL,    // An error occurred from which the library cannot
+						   // recover.  This usually indicates a programming error
+						   // in the code which calls the library, especially when
+						   // compiled in debug mode.
+#ifdef NDEBUG
+		LOGLEVEL_DFATAL = LOGLEVEL_ERROR
+#else
+		LOGLEVEL_DFATAL = LOGLEVEL_FATAL
+#endif
+	};
+	typedef void RDDBLogHandler(LogLevel level, const char* filename, int line,
+			const std::string& message);
 	class RDDB
 	{
 		private:
-			static void EncodeValue(Buffer& buf, const ValueObject& value);
-			static bool DecodeValue(Buffer& buf, ValueObject& value);
-			static void FillValueObject(const Slice& value,
-					ValueObject& valueobj);
-			static Buffer* ValueObject2RawBuffer(ValueObject& valueobj);
 			static size_t RealPosition(Buffer* buf, int pos);
 
+			RDDBLogHandler* m_logger;
 			KeyValueEngineFactory* m_engine_factory;
 			typedef std::map<DBID, KeyValueEngine*> KeyValueEngineTable;
 			KeyValueEngineTable m_engine_table;
@@ -179,9 +154,14 @@ namespace rddb
 			bool Exists(DBID db, const Slice& key);
 			int Expire(DBID db, const Slice& key, uint32_t secs);
 			int Expireat(DBID db, const Slice& key, uint32_t ts);
+			int TTL(DBID db, const Slice& key);
+			int PTTL(DBID db, const Slice& key);
 			int Persist(DBID db, const Slice& key);
 			int Pexpire(DBID db, const Slice& key, uint32_t ms);
 			int Strlen(DBID db, const Slice& key);
+			int Rename(DBID db, const Slice& key1, const Slice& key2);
+			int RenameNX(DBID db, const Slice& key1, const Slice& key2);
+			int RandomKey(DBID db, std::string* key);
 			int Keys(DBID db, const std::string& pattern,
 					std::list<std::string>& ret)
 			{

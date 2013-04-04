@@ -1,0 +1,157 @@
+DEL key [key ...]               DONE
+DUMP key                        Discard
+EXISTS key                      DONE
+EXPIRE key seconds              DONE
+EXPIREAT key timestamp          DONE
+KEYS pattern                    NotYet
+MIGRATE host port key destination-db timeout   Discard
+MOVE key db                     DONE
+OBJECT subcommand [arguments [arguments ...]]  Consider 
+PERSIST key                     DONE
+PEXPIRE key milliseconds        DONE
+PEXPIREAT key milliseconds-timestamp  DONE
+PTTL key                        DONE
+RANDOMKEY                       Consider
+RENAME key newkey               DONE
+RENAMENX key newkey             DONE
+RESTORE key ttl serialized-value  Discard
+SORT key                        NotYet
+TTL key                        DONE
+TYPE key                       Consider
+
+APPEND key value               DONE
+BITCOUNT key [start] [end]     Consider
+BITOP operation destkey key [key ...]  Consider
+DECR key                       DONE
+DECRBY key decrement           DONE
+GET key                        DONE
+GETBIT key offset              Consider
+GETRANGE key start end         DONE
+GETSET key value               DONE
+INCR key                       DONE
+INCRBY key increment           DONE
+INCRBYFLOAT key increment      DONE
+MGET key [key ...]             NotYet
+MSET key value [key value ...] NotYet
+MSETNX key value [key value ...] NotYet
+PSETEX key milliseconds value  DONE
+SET key value [EX seconds] [PX milliseconds] [NX|XX]  NotYet
+SETBIT key offset value        Consider
+SETEX key seconds value        DONE
+SETNX key value                DONE
+SETRANGE key offset value      DONE
+STRLEN key                     DONE
+
+HDEL key field [field ...]     DONE
+HEXISTS key field              DONE
+HGET key field                 DONE
+HGETALL key                    NotYet
+HINCRBY key field increment    DONE
+HINCRBYFLOAT key field increment DONE
+HKEYS key                      NotYet
+HLEN key                       NotYet
+HMGET key field [field ...]    NotYet
+HMSET key field value [field value ...]  NotYet
+HSET key field value           DONE
+HSETNX key field value         DONE
+HVALS key                      NotYet
+
+BLPOP key [key ...] timeout    NotYet
+BRPOP key [key ...] timeout    NotYet
+BRPOPLPUSH source destination timeout NotYet
+LINDEX key index               NotYet
+LINSERT key BEFORE|AFTER pivot value  NotYet
+LLEN key                       DONE
+LPOP key                       DONE
+LPUSH key value [value ...]    DONE
+LPUSHX key value               DONE
+LRANGE key start stop          NotYet
+LREM key count value           NotYet
+LSET key index value           NotYet
+LTRIM key start stop           NotYet
+RPOP key                       DONE
+RPOPLPUSH source destination   NotYet
+RPUSH key value [value ...]    DONE
+RPUSHX key value               DONE
+
+SADD key member [member ...]   DONE
+SCARD key                      DONE
+SDIFF key [key ...]            NotYet
+SDIFFSTORE destination key [key ...] NotYet
+SINTER key [key ...]           NotYet
+SINTERSTORE destination key [key ...] NotYet
+SISMEMBER key member           DONE
+SMEMBERS key                   NotYet
+SMOVE source destination member NotYet
+SPOP key                       NotYet
+SRANDMEMBER key [count]        NotYet
+SREM key member [member ...]   DONE
+SUNION key [key ...]           NotYet
+SUNIONSTORE destination key [key ...] NotYet
+
+ZADD key score member [score member ...]   DONE
+ZCARD key                                  DONE
+ZCOUNT key min max                         DONE
+ZINCRBY key increment member               DONE
+ZINTERSTORE destination numkeys key        NotYet
+ZRANGE key start stop [WITHSCORES]         NotYet
+ZRANGEBYSCORE key min max [WITHSCORES]     NotYet
+ZRANK key member                           NotYet
+ZREM key member [member ...]               DONE
+ZREMRANGEBYRANK key start stop             NotYet
+ZREMRANGEBYSCORE key min max               NotYet
+ZREVRANGE key start stop [WITHSCORES]      NotYet
+ZREVRANGEBYSCORE key max min [WITHSCORES]  NotYet
+ZREVRANK key member                        NotYet
+ZSCORE key member                          DONE
+ZUNIONSTORE destination numkeys key        NotYet
+
+PSUBSCRIBE pattern [pattern ...]           NotYet
+PUBLISH channel message                    NotYet
+PUNSUBSCRIBE [pattern [pattern ...]]       NotYet
+SUBSCRIBE channel [channel ...]            NotYet
+UNSUBSCRIBE [channel [channel ...]]        NotYet
+
+DISCARD                                    NotYet
+EXEC                                       NotYet
+MULTI                                      NotYet
+UNWATCH                                    NotYet
+WATCH key [key ...]                        NotYet
+
+EVAL script numkeys key [key ...] arg      NotYet
+EVALSHA sha1 numkeys key [key ...] arg     NotYet
+SCRIPT EXISTS script [script ...]          NotYet
+SCRIPT FLUSH                               NotYet   
+SCRIPT KILL                                NotYet
+SCRIPT LOAD script                         NotYet
+
+AUTH password                              NotYet
+ECHO message                               NotYet
+PING                                       NotYet
+QUIT                                       NotYet
+SELECT index                               NotYet
+
+BGREWRITEAOF                               Discard
+BGSAVE                                     Discard
+CLIENT KILL ip:port                        NotYet
+CLIENT LIST                                NotYet
+CLIENT GETNAME                             NotYet
+CLIENT SETNAME connection-name             NotYet
+CONFIG GET parameter                       NotYet
+CONFIG SET parameter value                 NotYet
+CONFIG RESETSTAT                           NotYet
+DBSIZE                                     Discard
+DEBUG OBJECT key                           NotYet
+DEBUG SEGFAULT                             NotYet
+FLUSHALL                                   Discard
+FLUSHDB                                    Discard
+INFO [section]                             NotYet
+LASTSAVE                                   Discard
+MONITOR                                    NotYet
+SAVE                                       Discard
+SHUTDOWN [NOSAVE] [SAVE]                   NotYet
+SLAVEOF host port                          NotYet
+SLOWLOG subcommand [argument]              NotYet
+SYNC                                       Discard
+TIME                                       NotYet
+

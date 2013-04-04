@@ -9,25 +9,14 @@
 
 namespace rddb
 {
-
-	Buffer* RDDB::ValueObject2RawBuffer(ValueObject& v)
+	static const char* kLogLevelNames[] = { "INFO", "WARN", "ERROR", "FATAL" };
+	static void StdLogHandler(LogLevel level, const char* filename, int line,
+			const std::string& message)
 	{
-		if (v.type != RAW)
-		{
-			int64_t iv = v.v.int_v;
-			double dv = v.v.double_v;
-			v.type = RAW;
-			v.v.raw = new Buffer(16);
-			if (v.type == INTEGER)
-			{
-				v.v.raw->Printf("%lld", iv);
-			} else if (v.type == DOUBLE)
-			{
-				v.v.raw->Printf("%f", dv);
-			}
-		}
-		return v.v.raw;
+		printf("[%s][%s:%d]%s\n", kLogLevelNames[level], filename, line,
+				message.c_str());
 	}
+
 
 	size_t RDDB::RealPosition(Buffer* buf, int pos)
 	{
@@ -47,7 +36,7 @@ namespace rddb
 	}
 
 	RDDB::RDDB(KeyValueEngineFactory* engine) :
-			m_engine_factory(engine)
+			m_logger(StdLogHandler), m_engine_factory(engine)
 	{
 	}
 
