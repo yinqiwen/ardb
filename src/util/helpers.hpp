@@ -11,6 +11,7 @@
 #include <sys/time.h>
 #include <string.h>
 #include <stdlib.h>
+#include <string>
 #ifdef __MACH__
 #include <mach/clock.h>
 #include <mach/mach.h>
@@ -102,6 +103,9 @@ namespace rddb
 		value = val;
 		return true;
 	}
+	bool is_file_exist(const std::string& path);
+	bool is_dir_exist(const std::string& path);
+	bool make_dir(const std::string& path);
 }
 
 #endif /* HELPERS_HPP_ */

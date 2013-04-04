@@ -6,6 +6,8 @@
  */
 #include "leveldb_engine.hpp"
 #include "rddb.hpp"
+#include "rddb_data.hpp"
+#include "util/helpers.hpp"
 #include <string.h>
 
 #define LEVELDB_SLICE(slice) leveldb::Slice(slice.data(), slice.size())
@@ -17,8 +19,9 @@ namespace rddb
 	int LevelDBComparator::Compare(const leveldb::Slice& a,
 			const leveldb::Slice& b) const
 	{
-		KeyObject* ak = NULL;
-		KeyObject* bk = NULL;
+
+		KeyObject* ak = decode_key(RDDB_SLICE(a));
+		KeyObject* bk = decode_key(RDDB_SLICE(b));
 		if (NULL == ak && NULL == bk)
 		{
 			return 0;
@@ -162,10 +165,14 @@ namespace rddb
 
 	int LevelDBEngine::Init(const std::string& path)
 	{
-		leveldb::DB* db;
 		leveldb::Options options;
 		options.create_if_missing = true;
-		leveldb::Status status = leveldb::DB::Open(options, path.c_str(), &db);
+		options.comparator = &m_comparator;
+		make_dir(path);
+		leveldb::Status status = leveldb::DB::Open(options, path.c_str(), &m_db);
+		if(!status.ok()){
+			printf("#####Failed to init engine:%s\n", status.ToString().c_str());
+		}
 		return status.ok() ? 0 : -1;
 	}
 
@@ -204,6 +211,9 @@ namespace rddb
 	int LevelDBEngine::Get(const Slice& key, std::string* value)
 	{
 		leveldb::Status s = m_db->Get(leveldb::ReadOptions(), LEVELDB_SLICE(key), value);
+		if(!s.ok()){
+			printf("Failed to find %s\n", s.ToString().c_str());
+		}
 		return s.ok() ? 0 : -1;
 	}
 	int LevelDBEngine::Del(const Slice& key)

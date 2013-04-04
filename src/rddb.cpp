@@ -59,10 +59,12 @@ namespace rddb
 			return found->second;
 		}
 		KeyValueEngine* engine = m_engine_factory->CreateDB(db);
-		m_engine_table[db] = engine;
-        return engine;
+		if (NULL != engine)
+		{
+			m_engine_table[db] = engine;
+		}
+		return engine;
 	}
-
 
 }
 

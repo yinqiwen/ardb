@@ -54,6 +54,14 @@ namespace rddb
 			{
 				v.int_v = 0;
 			}
+			void Clear()
+			{
+				if (type == RAW && NULL != v.raw)
+				{
+					DELETE(v.raw);
+				}
+				v.int_v = 0;
+			}
 			~ValueObject()
 			{
 				if (type == RAW && v.raw != NULL)

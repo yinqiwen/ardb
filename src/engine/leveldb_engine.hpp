@@ -54,7 +54,7 @@ namespace rddb
 			// by any clients of this package.
 			const char* Name() const
 			{
-				return "leveldb.rddb";
+				return "RDDBLevelDB";
 			}
 
 			// Advanced functions: these are used to reduce the space requirements
@@ -76,6 +76,7 @@ namespace rddb
 	{
 		private:
 			leveldb::DB* m_db;
+			LevelDBComparator m_comparator;
 			leveldb::WriteBatch m_batch;
 			bool m_batch_mode;
 		public:

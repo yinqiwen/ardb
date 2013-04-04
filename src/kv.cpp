@@ -31,7 +31,7 @@ namespace rddb
 			{
 				if (NULL != value.v.raw)
 				{
-					BufferHelper::WriteVarInt64(buf,
+					BufferHelper::WriteVarUInt32(buf,
 							value.v.raw->ReadableBytes());
 					buf.Write(value.v.raw, value.v.raw->ReadableBytes());
 				} else
@@ -78,8 +78,10 @@ namespace rddb
 				if (!BufferHelper::ReadVarUInt32(buf, len)
 						|| buf.ReadableBytes() < len)
 				{
+					printf("######%d  %d\n", len, buf.ReadableBytes());
 					return -1;
 				}
+
 				value.v.raw = new Buffer(len);
 				buf.Read(value.v.raw, len);
 				break;
@@ -130,6 +132,9 @@ namespace rddb
 						GetDB(db)->Del(k);
 						return ERR_NOT_EXIST;
 					}
+				} else
+				{
+					return RDDB_OK;
 				}
 			}
 		}
@@ -200,8 +205,12 @@ namespace rddb
 		KeyObject keyobject(key);
 		ValueObject valueobject;
 		FillValueObject(value, valueobject);
-		uint64_t now = get_current_epoch_nanos();
-		uint64_t expire = now + (uint64_t) ms * 1000000L;
+		uint64_t expire = 0;
+		if (ms > 0)
+		{
+			uint64_t now = get_current_epoch_nanos();
+			expire = now + (uint64_t) ms * 1000000L;
+		}
 		valueobject.expire = expire;
 		return SetValue(db, keyobject, valueobject);
 	}
