@@ -95,17 +95,16 @@ namespace rddb
 		{
 			Slice tmpkey = it->Key();
 			KeyObject* kk = decode_key(tmpkey);
-			if (NULL == kk)
+			if (NULL == kk || kk->type != HASH_FIELD || kk->key.compare(key) != 0)
 			{
-				break;
-			}
-			if (kk->type != HASH_FIELD || kk->key.compare(key) != 0)
-			{
+				DELETE(kk);
 				break;
 			}
 			HashKeyObject* hk = (HashKeyObject*) kk;
 			std::string filed(hk->field.data(), hk->field.size());
 			fields.push_back(filed);
+			it->Next();
+			DELETE(kk);
 		}
 		DELETE(it);
 		return fields.empty() ? ERR_NOT_EXIST : 0;
@@ -121,15 +120,13 @@ namespace rddb
 		{
 			Slice tmpkey = it->Key();
 			KeyObject* kk = decode_key(tmpkey);
-			if (NULL == kk)
-			{
-				break;
-			}
-			if (kk->type != HASH_FIELD || kk->key.compare(key) != 0)
+			if (NULL == kk|| kk->type != HASH_FIELD || kk->key.compare(key) != 0)
 			{
 				break;
 			}
 			len++;
+			it->Next();
+			DELETE(kk);
 		}
 		DELETE(it);
 		return len;
@@ -144,12 +141,9 @@ namespace rddb
 		{
 			Slice tmpkey = it->Key();
 			KeyObject* kk = decode_key(tmpkey);
-			if (NULL == kk)
+			if (NULL == kk|| kk->type != HASH_FIELD || kk->key.compare(key) != 0)
 			{
-				break;
-			}
-			if (kk->type != HASH_FIELD || kk->key.compare(key) != 0)
-			{
+				DELETE(kk);
 				break;
 			}
 			ValueObject* v = new ValueObject();
@@ -157,6 +151,8 @@ namespace rddb
 			        it->Value().size());
 			decode_value(readbuf, *v);
 			values.push_back(v);
+			it->Next();
+			DELETE(kk);
 		}
 		DELETE(it);
 		return values.empty() ? ERR_NOT_EXIST : 0;
@@ -188,6 +184,7 @@ namespace rddb
 			        it->Value().size());
 			decode_value(readbuf, *v);
 			values.push_back(v);
+			it->Next();
 		}
 		DELETE(it);
 		return fields.empty() ? ERR_NOT_EXIST : 0;

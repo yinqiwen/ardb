@@ -24,7 +24,7 @@ namespace rddb
 			case LIST_ELEMENT:
 			{
 				const ListKeyObject& lk = (const ListKeyObject&) key;
-				BufferHelper::WriteVarInt32(buf, lk.score);
+				BufferHelper::WriteVarDouble(buf, lk.score);
 				break;
 			}
 			case SET_ELEMENT:
@@ -82,8 +82,8 @@ namespace rddb
 			}
 			case LIST_ELEMENT:
 			{
-				int32_t score;
-				if (!BufferHelper::ReadVarInt32(buf, score))
+				double score;
+				if (!BufferHelper::ReadVarDouble(buf, score))
 				{
 					return NULL;
 				}

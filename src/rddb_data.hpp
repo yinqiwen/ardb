@@ -41,6 +41,9 @@ namespace rddb
 					type(T), key(k)
 			{
 			}
+			virtual ~KeyObject()
+			{
+			}
 	};
 
 	struct ZSetKeyObject: public KeyObject
@@ -99,8 +102,8 @@ namespace rddb
 
 	struct ListKeyObject: public KeyObject
 	{
-			int32_t score;
-			ListKeyObject(const Slice& k, int32_t s) :
+			double score;
+			ListKeyObject(const Slice& k, double s) :
 					KeyObject(k, LIST_ELEMENT), score(s)
 			{
 			}
@@ -109,8 +112,8 @@ namespace rddb
 	struct ListMetaValue
 	{
 			uint32_t size;
-			int32_t min_score;
-			int32_t max_score;
+			double min_score;
+			double max_score;
 			ListMetaValue() :
 					size(0), min_score(0), max_score(0)
 			{

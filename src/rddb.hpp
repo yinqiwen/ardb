@@ -8,6 +8,7 @@
 #ifndef RRDB_HPP_
 #define RRDB_HPP_
 #include <stdint.h>
+#include <float.h>
 #include <map>
 #include <vector>
 #include <list>
@@ -146,7 +147,7 @@ namespace rddb
 			int SetHashValue(DBID db, const Slice& key, const Slice& field,
 			        ValueObject& value);
 			int ListPush(DBID db, const Slice& key, const Slice& value,
-			        bool athead, bool onlyexist);
+			        bool athead, bool onlyexist, double withscore = DBL_MAX);
 			int ListPop(DBID db, const Slice& key, bool athead,
 			        ValueObject& value);
 			std::string m_err_cause;
@@ -238,6 +239,17 @@ namespace rddb
 			int RPushx(DBID db, const Slice& key, const Slice& value);
 			int LPop(DBID db, const Slice& key, ValueObject& v);
 			int RPop(DBID db, const Slice& key, ValueObject& v);
+			int LIndex(DBID db, const Slice& key, uint32_t index,
+			        ValueObject& v);
+			int LInsert(DBID db, const Slice& key, const Slice& op,
+			        const Slice& pivot, const Slice& value);
+			int LRange(DBID db, const Slice& key, int start, int end,
+			        ValueArray& values);
+			int LRem(DBID db, const Slice& key, int count, const Slice& value);
+			int LSet(DBID db, const Slice& key, int index, const Slice& value);
+			int LTrim(DBID db, const Slice& key, int start, int stop);
+			int RPopLPush(DBID db, const Slice& key1, const Slice& key2);
+			int LClear(DBID db, const Slice& key);
 			int LLen(DBID db, const Slice& key);
 
 			int ZAdd(DBID db, const Slice& key, double score,
