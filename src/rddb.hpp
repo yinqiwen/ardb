@@ -265,8 +265,19 @@ namespace rddb
 
 			int SAdd(DBID db, const Slice& key, const Slice& value);
 			int SCard(DBID db, const Slice& key);
+			int SMembers(DBID db, const Slice& key, StringArray& values);
+			int SDiff(DBID db, SliceArray& keys, StringArray& values);
+			int SDiffStore(DBID db, const Slice& dst, SliceArray& keys);
+			int SInter(DBID db, SliceArray& keys, StringArray& values);
+			int SInterStore(DBID db, const Slice& dst, SliceArray& keys);
 			int SIsMember(DBID db, const Slice& key, const Slice& value);
 			int SRem(DBID db, const Slice& key, const Slice& value);
+			int SMove(DBID db, const Slice& src, const Slice& dst,  const Slice& value);
+			int SPop(DBID db, const Slice& key, std::string& value);
+			int SRandMember(DBID db, const Slice& key, StringArray& values, int count = 1);
+			int SUnion(DBID db, SliceArray& keys, StringArray& values);
+			int SUnionStore(DBID db, const Slice& dst, SliceArray& keys);
+			int SClear(DBID db, const Slice& key);
 	};
 }
 
