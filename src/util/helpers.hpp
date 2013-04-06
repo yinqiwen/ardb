@@ -12,10 +12,10 @@
 #include <string.h>
 #include <stdlib.h>
 #include <string>
+#include "common.hpp"
 #ifdef __MACH__
 #include <mach/clock.h>
 #include <mach/mach.h>
-#include "common.hpp"
 #endif
 
 namespace rddb

@@ -11,12 +11,22 @@ namespace rddb
 {
 	static const char* kLogLevelNames[] = { "INFO", "WARN", "ERROR", "FATAL" };
 	static void StdLogHandler(LogLevel level, const char* filename, int line,
-			const std::string& message)
+	        const std::string& message)
 	{
 		printf("[%s][%s:%d]%s\n", kLogLevelNames[level], filename, line,
-				message.c_str());
+		        message.c_str());
 	}
 
+	void RDDB::ClearValueArray(ValueArray& array)
+	{
+		ValueArray::iterator it = array.begin();
+		while (it != array.end())
+		{
+			DELETE(*it);
+			it++;
+		}
+		array.clear();
+	}
 
 	size_t RDDB::RealPosition(Buffer* buf, int pos)
 	{

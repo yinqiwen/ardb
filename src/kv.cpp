@@ -26,7 +26,8 @@ namespace rddb
 				{
 					GetDB(db)->Del(k);
 					return ERR_NOT_EXIST;
-				} else
+				}
+				else
 				{
 					return RDDB_OK;
 				}
@@ -72,6 +73,79 @@ namespace rddb
 		return GetDB(db)->Del(k);
 	}
 
+	int RDDB::MSet(DBID db, SliceArray& keys, SliceArray& values)
+	{
+		if (keys.size() != values.size())
+		{
+			return ERR_INVALID_ARGS;
+		}
+		SliceArray::iterator kit = keys.begin();
+		SliceArray::iterator vit = values.begin();
+		BatchWriteGuard guard(GetDB(db));
+		while (kit != keys.end())
+		{
+			KeyObject keyobject(*kit);
+			ValueObject valueobject;
+			fill_value(*vit, valueobject);
+			SetValue(db, keyobject, valueobject);
+			kit++;
+			vit++;
+		}
+		return 0;
+	}
+
+	int RDDB::MSetNX(DBID db, SliceArray& keys, SliceArray& values)
+	{
+		if (keys.size() != values.size())
+		{
+			return ERR_INVALID_ARGS;
+		}
+		SliceArray::iterator kit = keys.begin();
+		SliceArray::iterator vit = values.begin();
+		BatchWriteGuard guard(GetDB(db));
+		while (kit != keys.end())
+		{
+			KeyObject keyobject(*kit);
+			ValueObject valueobject;
+			if (0 != GetValue(db, keyobject, valueobject))
+			{
+				fill_value(*vit, valueobject);
+				SetValue(db, keyobject, valueobject);
+			}
+			kit++;
+			vit++;
+		}
+		return 0;
+	}
+
+	int RDDB::Set(DBID db, const Slice& key, const Slice& value, int ex, int px,
+	        int nxx)
+	{
+		ValueObject v;
+		KeyObject k(key);
+		if (-1 == nxx)
+		{
+			if (0 == GetValue(db, k, v))
+			{
+				return ERR_KEY_EXIST;
+			}
+		}
+		else if (1 == nxx)
+		{
+			if (0 != GetValue(db, k, v))
+			{
+				return ERR_NOT_EXIST;
+			}
+		}
+
+		if (px > 0)
+		{
+			PSetEx(db, key, value, px);
+		}
+		SetEx(db, key, value, ex);
+		return 0;
+	}
+
 	int RDDB::Set(DBID db, const Slice& key, const Slice& value)
 	{
 		return SetEx(db, key, value, 0);
@@ -91,7 +165,7 @@ namespace rddb
 	}
 
 	int RDDB::SetEx(DBID db, const Slice& key, const Slice& value,
-			uint32_t secs)
+	        uint32_t secs)
 	{
 		return PSetEx(db, key, value, secs * 1000);
 	}
@@ -114,6 +188,27 @@ namespace rddb
 	{
 		KeyObject keyobject(key);
 		return GetValue(db, keyobject, value);
+	}
+
+	int RDDB::MGet(DBID db, SliceArray& keys, ValueArray& value)
+	{
+		SliceArray::iterator it = keys.begin();
+		while (it != keys.end())
+		{
+			KeyObject k(*it);
+			ValueObject* v = new ValueObject();
+			if (0 == GetValue(db, k, *v))
+			{
+				value.push_back(v);
+			}
+			else
+			{
+				DELETE(v);
+				value.push_back(NULL);
+			}
+			it++;
+		}
+		return 0;
 	}
 
 	int RDDB::Del(DBID db, const Slice& key)
@@ -258,7 +353,8 @@ namespace rddb
 		if (0 == Get(db, key, v))
 		{
 
-		} else
+		}
+		else
 		{
 
 		}

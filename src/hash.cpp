@@ -9,13 +9,13 @@
 namespace rddb
 {
 	int RDDB::SetHashValue(DBID db, const Slice& key, const Slice& field,
-			ValueObject& value)
+	        ValueObject& value)
 	{
 		HashKeyObject k(key, field);
 		return SetValue(db, k, value);
 	}
 	int RDDB::HSet(DBID db, const Slice& key, const Slice& field,
-			const Slice& value)
+	        const Slice& value)
 	{
 		ValueObject valueobject;
 		fill_value(value, valueobject);
@@ -23,7 +23,7 @@ namespace rddb
 	}
 
 	int RDDB::HSetNX(DBID db, const Slice& key, const Slice& field,
-			const Slice& value)
+	        const Slice& value)
 	{
 		if (HExists(db, key, field))
 		{
@@ -39,7 +39,7 @@ namespace rddb
 	}
 
 	int RDDB::HGet(DBID db, const Slice& key, const Slice& field,
-			ValueObject& value)
+	        ValueObject& value)
 	{
 		HashKeyObject k(key, field);
 		if (0 == GetValue(db, k, value))
@@ -49,6 +49,150 @@ namespace rddb
 		return ERR_NOT_EXIST;
 	}
 
+	int RDDB::HMSet(DBID db, const Slice& key, const SliceArray& fields,
+	        const SliceArray& values)
+	{
+		if (fields.size() != values.size())
+		{
+			return ERR_INVALID_ARGS;
+		}
+		BatchWriteGuard guard(GetDB(db));
+		SliceArray::const_iterator it = fields.begin();
+		SliceArray::const_iterator sit = values.begin();
+		while (it != fields.end())
+		{
+			HSet(db, key, *it, *sit);
+			it++;
+			sit++;
+		}
+		return 0;
+	}
+
+	int RDDB::HMGet(DBID db, const Slice& key, const SliceArray& fields,
+	        ValueArray& values)
+	{
+		SliceArray::const_iterator it = fields.begin();
+		while (it != fields.end())
+		{
+			HashKeyObject k(key, *it);
+			ValueObject* v = new ValueObject;
+			if (0 != GetValue(db, k, *v))
+			{
+				DELETE(v);
+			}
+			values.push_back(v);
+			it++;
+		}
+		return 0;
+	}
+
+	int RDDB::HKeys(DBID db, const Slice& key, StringArray& fields)
+	{
+		Slice empty;
+		HashKeyObject k(key, empty);
+		Iterator* it = FindValue(db, k);
+		while (NULL != it && it->Valid())
+		{
+			Slice tmpkey = it->Key();
+			KeyObject* kk = decode_key(tmpkey);
+			if (NULL == kk)
+			{
+				break;
+			}
+			if (kk->type != HASH_FIELD || kk->key.compare(key) != 0)
+			{
+				break;
+			}
+			HashKeyObject* hk = (HashKeyObject*) kk;
+			std::string filed(hk->field.data(), hk->field.size());
+			fields.push_back(filed);
+		}
+		DELETE(it);
+		return fields.empty() ? ERR_NOT_EXIST : 0;
+	}
+
+	int RDDB::HLen(DBID db, const Slice& key)
+	{
+		Slice empty;
+		HashKeyObject k(key, empty);
+		Iterator* it = FindValue(db, k);
+		int len = 0;
+		while (NULL != it && it->Valid())
+		{
+			Slice tmpkey = it->Key();
+			KeyObject* kk = decode_key(tmpkey);
+			if (NULL == kk)
+			{
+				break;
+			}
+			if (kk->type != HASH_FIELD || kk->key.compare(key) != 0)
+			{
+				break;
+			}
+			len++;
+		}
+		DELETE(it);
+		return len;
+	}
+
+	int RDDB::HVals(DBID db, const Slice& key, ValueArray& values)
+	{
+		Slice empty;
+		HashKeyObject k(key, empty);
+		Iterator* it = FindValue(db, k);
+		while (NULL != it && it->Valid())
+		{
+			Slice tmpkey = it->Key();
+			KeyObject* kk = decode_key(tmpkey);
+			if (NULL == kk)
+			{
+				break;
+			}
+			if (kk->type != HASH_FIELD || kk->key.compare(key) != 0)
+			{
+				break;
+			}
+			ValueObject* v = new ValueObject();
+			Buffer readbuf(const_cast<char*>(it->Value().data()), 0,
+			        it->Value().size());
+			decode_value(readbuf, *v);
+			values.push_back(v);
+		}
+		DELETE(it);
+		return values.empty() ? ERR_NOT_EXIST : 0;
+	}
+
+	int RDDB::HGetAll(DBID db, const Slice& key, StringArray& fields,
+	        ValueArray& values)
+	{
+		Slice empty;
+		HashKeyObject k(key, empty);
+		Iterator* it = FindValue(db, k);
+		while (NULL != it && it->Valid())
+		{
+			Slice tmpkey = it->Key();
+			KeyObject* kk = decode_key(tmpkey);
+			if (NULL == kk)
+			{
+				break;
+			}
+			if (kk->type != HASH_FIELD || kk->key.compare(key) != 0)
+			{
+				break;
+			}
+			HashKeyObject* hk = (HashKeyObject*) kk;
+			std::string filed(hk->field.data(), hk->field.size());
+			fields.push_back(filed);
+			ValueObject* v = new ValueObject();
+			Buffer readbuf(const_cast<char*>(it->Value().data()), 0,
+			        it->Value().size());
+			decode_value(readbuf, *v);
+			values.push_back(v);
+		}
+		DELETE(it);
+		return fields.empty() ? ERR_NOT_EXIST : 0;
+	}
+
 	bool RDDB::HExists(DBID db, const Slice& key, const Slice& field)
 	{
 		ValueObject v;
@@ -56,7 +200,7 @@ namespace rddb
 	}
 
 	int RDDB::HIncrby(DBID db, const Slice& key, const Slice& field,
-			int64_t increment, int64_t& value)
+	        int64_t increment, int64_t& value)
 	{
 		ValueObject v;
 		v.type = INTEGER;
@@ -71,7 +215,7 @@ namespace rddb
 	}
 
 	int RDDB::HIncrbyFloat(DBID db, const Slice& key, const Slice& field,
-			double increment, double& value)
+	        double increment, double& value)
 	{
 		ValueObject v;
 		v.type = DOUBLE;
