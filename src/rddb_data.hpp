@@ -67,8 +67,10 @@ namespace rddb
 	struct ZSetMetaValue
 	{
 			uint32_t size;
+			double min_score;
+			double max_score;
 			ZSetMetaValue() :
-					size(0)
+					size(0), min_score(0), max_score(0)
 			{
 			}
 	};

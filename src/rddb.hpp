@@ -85,8 +85,7 @@ namespace rddb
 					if (m_success)
 					{
 						m_engine->CommitBatchWrite();
-					}
-					else
+					} else
 					{
 						m_engine->DiscardBatchWrite();
 					}
@@ -108,15 +107,15 @@ namespace rddb
 	{
 		LOGLEVEL_INFO, // Informational
 		LOGLEVEL_WARNING, // Warns about issues that, although not technically a
-		                  // problem now, could cause problems in the future.  For
-		                  // example, a // warning will be printed when parsing a
-		                  // message that is near the message size limit.
+						  // problem now, could cause problems in the future.  For
+						  // example, a // warning will be printed when parsing a
+						  // message that is near the message size limit.
 		LOGLEVEL_ERROR, // An error occurred which should never happen during
-		                // normal use.
+						// normal use.
 		LOGLEVEL_FATAL, // An error occurred from which the library cannot
-		                // recover.  This usually indicates a programming error
-		                // in the code which calls the library, especially when
-		                // compiled in debug mode.
+						// recover.  This usually indicates a programming error
+						// in the code which calls the library, especially when
+						// compiled in debug mode.
 #ifdef NDEBUG
 		LOGLEVEL_DFATAL = LOGLEVEL_ERROR
 #else
@@ -124,10 +123,29 @@ namespace rddb
 #endif
 	};
 	typedef void RDDBLogHandler(LogLevel level, const char* filename, int line,
-	        const std::string& message);
+			const std::string& message);
 	typedef std::deque<ValueObject*> ValueArray;
 	typedef std::deque<Slice> SliceArray;
 	typedef std::deque<std::string> StringArray;
+	typedef std::vector<uint32_t> WeightArray;
+
+	enum AggregateType
+	{
+		AGGREGATE_SUM = 0, AGGREGATE_MIN = 1, AGGREGATE_MAX = 2,
+	};
+
+	struct RDDBQueryOptions
+	{
+			bool withscores;
+			bool withlimit;
+			int limit_offset;
+			int limit_count;
+			RDDBQueryOptions() :
+					withscores(false), withlimit(false), limit_offset(0), limit_count(
+							0)
+			{
+			}
+	};
 	class RDDB
 	{
 		private:
@@ -145,11 +163,25 @@ namespace rddb
 			int DelValue(DBID db, KeyObject& key);
 			Iterator* FindValue(DBID db, KeyObject& key);
 			int SetHashValue(DBID db, const Slice& key, const Slice& field,
-			        ValueObject& value);
+					ValueObject& value);
 			int ListPush(DBID db, const Slice& key, const Slice& value,
-			        bool athead, bool onlyexist, double withscore = DBL_MAX);
+					bool athead, bool onlyexist, double withscore = DBL_MAX);
 			int ListPop(DBID db, const Slice& key, bool athead,
-			        ValueObject& value);
+					ValueObject& value);
+			int GetZSetMetaValue(DBID db, const Slice& key,
+					ZSetMetaValue& meta);
+			void SetZSetMetaValue(DBID db, const Slice& key,
+					ZSetMetaValue& meta);
+			struct WalkHandler
+			{
+					virtual int OnKeyValue(KeyObject* key,
+							ValueObject* value) = 0;
+					virtual ~WalkHandler()
+					{
+					}
+			};
+			void Walk(DBID db, KeyObject& key, bool reverse,
+					WalkHandler* handler);
 			std::string m_err_cause;
 			void SetErrorCause(const std::string& cause)
 			{
@@ -160,14 +192,14 @@ namespace rddb
 			static void ClearValueArray(ValueArray& array);
 			int Set(DBID db, const Slice& key, const Slice& value);
 			int Set(DBID db, const Slice& key, const Slice& value, int ex,
-			        int px, int nxx);
+					int px, int nxx);
 			int MSet(DBID db, SliceArray& keys, SliceArray& values);
 			int MSetNX(DBID db, SliceArray& keys, SliceArray& value);
 			int SetNX(DBID db, const Slice& key, const Slice& value);
 			int SetEx(DBID db, const Slice& key, const Slice& value,
-			        uint32_t secs);
+					uint32_t secs);
 			int PSetEx(DBID db, const Slice& key, const Slice& value,
-			        uint32_t ms);
+					uint32_t ms);
 			int Get(DBID db, const Slice& key, ValueObject& value);
 			int MGet(DBID db, SliceArray& keys, ValueArray& value);
 			int Del(DBID db, const Slice& key);
@@ -182,7 +214,7 @@ namespace rddb
 			int Rename(DBID db, const Slice& key1, const Slice& key2);
 			int RenameNX(DBID db, const Slice& key1, const Slice& key2);
 			int Keys(DBID db, const std::string& pattern,
-			        std::list<std::string>& ret)
+					std::list<std::string>& ret)
 			{
 				return -1;
 			}
@@ -191,44 +223,44 @@ namespace rddb
 			int Append(DBID db, const Slice& key, const Slice& value);
 			int Decr(DBID db, const Slice& key, int64_t& value);
 			int Decrby(DBID db, const Slice& key, int64_t decrement,
-			        int64_t& value);
+					int64_t& value);
 			int Incr(DBID db, const Slice& key, int64_t& value);
 			int XIncrby(DBID db, const Slice& key, int64_t increment);
 			int Incrby(DBID db, const Slice& key, int64_t increment,
-			        int64_t& value);
+					int64_t& value);
 			int IncrbyFloat(DBID db, const Slice& key, double increment,
-			        double& value);
+					double& value);
 			int GetRange(DBID db, const Slice& key, int start, int end,
-			        ValueObject& valueobj);
+					ValueObject& valueobj);
 			int SetRange(DBID db, const Slice& key, int start,
-			        const Slice& value);
+					const Slice& value);
 			int GetSet(DBID db, const Slice& key, const Slice& value,
-			        ValueObject& valueobj);
+					ValueObject& valueobj);
 			int BitCount(DBID db, const Slice& key, int start, int end);
 			int GetBit(DBID db, const Slice& key, int offset);
 			int SetBit(DBID db, const Slice& key, uint32_t offset,
-			        uint8_t value);
+					uint8_t value);
 			int BitOP(DBID db, const Slice& op, const Slice& dstkey,
-			        SliceArray& keys);
+					SliceArray& keys);
 
 			int HSet(DBID db, const Slice& key, const Slice& field,
-			        const Slice& value);
+					const Slice& value);
 			int HSetNX(DBID db, const Slice& key, const Slice& field,
-			        const Slice& value);
+					const Slice& value);
 			int HDel(DBID db, const Slice& key, const Slice& field);
 			bool HExists(DBID db, const Slice& key, const Slice& field);
 			int HGet(DBID db, const Slice& key, const Slice& field,
-			        ValueObject& value);
+					ValueObject& value);
 			int HIncrby(DBID db, const Slice& key, const Slice& field,
-			        int64_t increment, int64_t& value);
+					int64_t increment, int64_t& value);
 			int HIncrbyFloat(DBID db, const Slice& key, const Slice& field,
-			        double increment, double& value);
+					double increment, double& value);
 			int HMGet(DBID db, const Slice& key, const SliceArray& fields,
-			        ValueArray& values);
+					ValueArray& values);
 			int HMSet(DBID db, const Slice& key, const SliceArray& fields,
-			        const SliceArray& values);
+					const SliceArray& values);
 			int HGetAll(DBID db, const Slice& key, StringArray& fields,
-			        ValueArray& values);
+					ValueArray& values);
 			int HKeys(DBID db, const Slice& key, StringArray& fields);
 			int HVals(DBID db, const Slice& key, ValueArray& values);
 			int HLen(DBID db, const Slice& key);
@@ -240,11 +272,11 @@ namespace rddb
 			int LPop(DBID db, const Slice& key, ValueObject& v);
 			int RPop(DBID db, const Slice& key, ValueObject& v);
 			int LIndex(DBID db, const Slice& key, uint32_t index,
-			        ValueObject& v);
+					ValueObject& v);
 			int LInsert(DBID db, const Slice& key, const Slice& op,
-			        const Slice& pivot, const Slice& value);
+					const Slice& pivot, const Slice& value);
 			int LRange(DBID db, const Slice& key, int start, int end,
-			        ValueArray& values);
+					ValueArray& values);
 			int LRem(DBID db, const Slice& key, int count, const Slice& value);
 			int LSet(DBID db, const Slice& key, int index, const Slice& value);
 			int LTrim(DBID db, const Slice& key, int start, int stop);
@@ -253,15 +285,35 @@ namespace rddb
 			int LLen(DBID db, const Slice& key);
 
 			int ZAdd(DBID db, const Slice& key, double score,
-			        const Slice& value);
+					const Slice& value);
 			int ZCard(DBID db, const Slice& key);
 			int ZScore(DBID db, const Slice& key, const Slice& value,
-			        double& score);
+					double& score);
 			int ZRem(DBID db, const Slice& key, const Slice& value);
 			int ZCount(DBID db, const Slice& key, const std::string& min,
-			        const std::string& max);
+					const std::string& max);
 			int ZIncrby(DBID db, const Slice& key, double increment,
-			        const Slice& value, double& score);
+					const Slice& value, double& score);
+			int ZRank(DBID db, const Slice& key, const Slice& member);
+			int ZRevRank(DBID db, const Slice& key, const Slice& member);
+			int ZRemRangeByRank(DBID db, const Slice& key, int start, int stop);
+			int ZRemRangeByScore(DBID db, const Slice& key,
+					const std::string& min, const std::string& max);
+			int ZRange(DBID db, const Slice& key, int start, int stop,
+					StringArray& values, RDDBQueryOptions& options);
+			int ZRangeByScore(DBID db, const Slice& key, const std::string& min,
+					const std::string& max, StringArray& values,
+					RDDBQueryOptions& options);
+			int ZRevRange(DBID db, const Slice& key, int start, int stop,
+					StringArray& values, RDDBQueryOptions& options);
+			int ZRevRangeByScore(DBID db, const Slice& key,
+					const std::string& min, const std::string& max,
+					StringArray& values, RDDBQueryOptions& options);
+			int ZUnionStore(DBID db, const Slice& dst, SliceArray& keys,
+					WeightArray& weights, AggregateType type = AGGREGATE_SUM);
+			int ZInterStore(DBID db, const Slice& dst, SliceArray& keys,
+					WeightArray& weights, AggregateType type = AGGREGATE_SUM);
+			int ZClear(DBID db, const Slice& key);
 
 			int SAdd(DBID db, const Slice& key, const Slice& value);
 			int SCard(DBID db, const Slice& key);
@@ -272,9 +324,11 @@ namespace rddb
 			int SInterStore(DBID db, const Slice& dst, SliceArray& keys);
 			int SIsMember(DBID db, const Slice& key, const Slice& value);
 			int SRem(DBID db, const Slice& key, const Slice& value);
-			int SMove(DBID db, const Slice& src, const Slice& dst,  const Slice& value);
+			int SMove(DBID db, const Slice& src, const Slice& dst,
+					const Slice& value);
 			int SPop(DBID db, const Slice& key, std::string& value);
-			int SRandMember(DBID db, const Slice& key, StringArray& values, int count = 1);
+			int SRandMember(DBID db, const Slice& key, StringArray& values,
+					int count = 1);
 			int SUnion(DBID db, SliceArray& keys, StringArray& values);
 			int SUnionStore(DBID db, const Slice& dst, SliceArray& keys);
 			int SClear(DBID db, const Slice& key);

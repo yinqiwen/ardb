@@ -11,10 +11,10 @@ namespace rddb
 {
 	static const char* kLogLevelNames[] = { "INFO", "WARN", "ERROR", "FATAL" };
 	static void StdLogHandler(LogLevel level, const char* filename, int line,
-	        const std::string& message)
+			const std::string& message)
 	{
 		printf("[%s][%s:%d]%s\n", kLogLevelNames[level], filename, line,
-		        message.c_str());
+				message.c_str());
 	}
 
 	void RDDB::ClearValueArray(ValueArray& array)
@@ -48,6 +48,44 @@ namespace rddb
 	RDDB::RDDB(KeyValueEngineFactory* engine) :
 			m_logger(StdLogHandler), m_engine_factory(engine)
 	{
+	}
+
+	void RDDB::Walk(DBID db, KeyObject& key, bool reverse, WalkHandler* handler)
+	{
+		Iterator* iter = FindValue(db, key);
+		if (reverse && NULL != iter)
+		{
+			iter->Prev();
+		}
+		while (NULL != iter && iter->Valid())
+		{
+			Slice tmpkey = iter->Key();
+			KeyObject* kk = decode_key(tmpkey);
+			if (NULL == kk || kk->type != key.type
+					|| kk->key.compare(key.key) != 0)
+			{
+				DELETE(kk);
+				break;
+			}
+			ValueObject v;
+			Buffer readbuf(const_cast<char*>(iter->Value().data()), 0,
+					iter->Value().size());
+			decode_value(readbuf, v);
+			int ret = handler->OnKeyValue(kk, &v);
+			DELETE(kk);
+			if(ret < 0)
+			{
+				break;
+			}
+			if (reverse)
+			{
+				iter->Prev();
+			} else
+			{
+				iter->Next();
+			}
+		}
+		DELETE(iter);
 	}
 
 	KeyValueEngine* RDDB::GetDB(DBID db)
