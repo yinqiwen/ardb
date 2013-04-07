@@ -87,6 +87,8 @@ namespace rddb
 	struct SetMetaValue
 	{
 			uint32_t size;
+			std::string min;
+			std::string max;
 			SetMetaValue() :
 					size(0)
 			{

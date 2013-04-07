@@ -172,6 +172,10 @@ namespace rddb
 					ZSetMetaValue& meta);
 			void SetZSetMetaValue(DBID db, const Slice& key,
 					ZSetMetaValue& meta);
+			int GetSetMetaValue(DBID db, const Slice& key,
+					SetMetaValue& meta);
+			void SetSetMetaValue(DBID db, const Slice& key,
+					SetMetaValue& meta);
 			struct WalkHandler
 			{
 					virtual int OnKeyValue(KeyObject* key,
