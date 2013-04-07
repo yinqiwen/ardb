@@ -18,8 +18,8 @@ namespace rddb
 			return false;
 		}
 		return BufferHelper::ReadVarUInt32(*(v.v.raw), meta.size)
-				&& BufferHelper::ReadVarString(*(v.v.raw), meta.min)
-				&& BufferHelper::ReadVarString(*(v.v.raw), meta.max);
+		        && BufferHelper::ReadVarString(*(v.v.raw), meta.min)
+		        && BufferHelper::ReadVarString(*(v.v.raw), meta.max);
 	}
 	static void EncodeSetMetaData(ValueObject& v, SetMetaValue& meta)
 	{
@@ -318,9 +318,9 @@ namespace rddb
 				const std::string* current_min;
 				const std::string* current_max;
 				SInterWalk(ValueSet& cmp, ValueSet& result,
-						const std::string& min, const std::string& max) :
+				        const std::string& min, const std::string& max) :
 						z_cmp(cmp), z_result(result), s_min(min), s_max(max), current_min(
-								NULL), current_max(NULL)
+						        NULL), current_max(NULL)
 				{
 				}
 				int OnKeyValue(KeyObject* k, ValueObject* value)
@@ -340,7 +340,7 @@ namespace rddb
 						return 0;
 					}
 					std::pair<ValueSet::iterator, bool> iter = z_result.insert(
-							vstr);
+					        vstr);
 					if (NULL == current_min)
 					{
 
@@ -417,6 +417,14 @@ namespace rddb
 				empty.type = EMPTY;
 				SetValue(db, sk, empty);
 				meta.size++;
+				if (meta.min.size() == 0 || v.compare(meta.min) < 0)
+				{
+					meta.min = v;
+				}
+				if (meta.max.size() == 0 || v.compare(meta.max) > 0)
+				{
+					meta.max = v;
+				}
 				it++;
 			}
 			EncodeSetMetaData(smv, meta);
@@ -426,7 +434,7 @@ namespace rddb
 	}
 
 	int RDDB::SMove(DBID db, const Slice& src, const Slice& dst,
-			const Slice& value)
+	        const Slice& value)
 	{
 		SetKeyObject sk(src, value);
 		ValueObject sv;
@@ -434,8 +442,8 @@ namespace rddb
 		{
 			return 0;
 		}
-		sk.key = dst;
-		SetValue(db, sk, sv);
+		SRem(db, src, value);
+		SAdd(db, dst, value);
 		return 1;
 	}
 
@@ -449,7 +457,7 @@ namespace rddb
 			Slice tmpkey = iter->Key();
 			KeyObject* kk = decode_key(tmpkey);
 			if (NULL == kk || kk->type != SET_ELEMENT
-					|| kk->key.compare(key) != 0)
+			        || kk->key.compare(key) != 0)
 			{
 				DELETE(kk);
 				break;
@@ -464,7 +472,7 @@ namespace rddb
 	}
 
 	int RDDB::SRandMember(DBID db, const Slice& key, StringArray& values,
-			int count)
+	        int count)
 	{
 		Slice empty;
 		SetKeyObject sk(key, empty);
@@ -480,7 +488,7 @@ namespace rddb
 			Slice tmpkey = iter->Key();
 			KeyObject* kk = decode_key(tmpkey);
 			if (NULL == kk || kk->type != SET_ELEMENT
-					|| kk->key.compare(key) != 0)
+			        || kk->key.compare(key) != 0)
 			{
 				DELETE(kk);
 				break;
@@ -549,6 +557,14 @@ namespace rddb
 				empty.type = EMPTY;
 				SetValue(db, sk, empty);
 				meta.size++;
+				if (meta.min.size() == 0 || v.compare(meta.min) < 0)
+				{
+					meta.min = v;
+				}
+				if (meta.max.size() == 0 || v.compare(meta.max) > 0)
+				{
+					meta.max = v;
+				}
 				it++;
 			}
 			EncodeSetMetaData(smv, meta);
