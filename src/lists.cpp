@@ -229,7 +229,7 @@ namespace rddb
 			}
 			DelValue(db, lk);
 			EncodeListMetaData(v, meta);
-            value = walk.pop_value;
+			value = walk.pop_value;
 			return SetValue(db, k, v);
 		} else
 		{
@@ -246,14 +246,14 @@ namespace rddb
 		return ListPop(db, key, false, v);
 	}
 
-	int RDDB::LIndex(DBID db, const Slice& key, uint32_t index, ValueObject& v)
+	int RDDB::LIndex(DBID db, const Slice& key, uint32_t index, std::string& v)
 	{
 		ListKeyObject lk(key, -DBL_MAX);
 		struct LIndexWalk: public WalkHandler
 		{
 				int cursor;
 				int index;
-				std::string found_value;
+				std::string& found_value;
 				int OnKeyValue(KeyObject* k, ValueObject* v)
 				{
 					if (cursor == index)
@@ -266,22 +266,21 @@ namespace rddb
 					cursor++;
 					return 0;
 				}
-				LIndexWalk(int i) :
-						cursor(0), index(i)
+				LIndexWalk(int i, std::string& v) :
+						cursor(0), index(i), found_value(v)
 				{
 				}
-		} walk(index);
+		} walk(index, v);
 		Walk(db, lk, false, &walk);
 		if (walk.cursor == walk.index)
 		{
-			fill_value(walk.found_value, v);
 			return 0;
 		}
 		return ERR_NOT_EXIST;
 	}
 
 	int RDDB::LRange(DBID db, const Slice& key, int start, int end,
-			ValueArray& values)
+			StringArray& values)
 	{
 		int len = LLen(db, key);
 		if (len < 0)
@@ -309,42 +308,35 @@ namespace rddb
 			end = 0;
 		}
 		ListKeyObject lk(key, -DBL_MAX);
-		uint32_t cursor = 0;
-		Iterator* iter = FindValue(db, lk);
-		bool insert = false;
-		while (NULL != iter && iter->Valid())
+		struct LRangeWalk: public WalkHandler
 		{
-			Slice tmpkey = iter->Key();
-			KeyObject* kk = decode_key(tmpkey);
-			if (NULL == kk || kk->type != LIST_ELEMENT
-					|| kk->key.compare(key) != 0)
-			{
-				DELETE(kk);
-				break;
-			}
-			if (cursor == start)
-			{
-				insert = true;
-			}
-			if (cursor > end)
-			{
-				DELETE(kk);
-				break;
-			}
-			if (insert)
-			{
-				Slice tmpvalue = iter->Value();
-				ValueObject* v = new ValueObject;
-				Buffer readbuf(const_cast<char*>(tmpvalue.data()), 0,
-						tmpvalue.size());
-				decode_value(readbuf, *v);
-				values.push_back(v);
-			}
-			DELETE(kk);
-			cursor++;
-			iter->Next();
-		}
-		DELETE(iter);
+				int cursor;
+				int l_start;
+				int l_stop;
+				StringArray& found_values;
+				int OnKeyValue(KeyObject* k, ValueObject* v)
+				{
+					if (cursor >= l_start && cursor <= l_stop)
+					{
+						value_convert_to_raw(*v);
+						const char* tmp = v->v.raw->GetRawReadBuffer();
+						std::string str(tmp, v->v.raw->ReadableBytes());
+						found_values.push_back(str);
+					}
+					cursor++;
+					if (cursor > l_stop)
+					{
+						return -1;
+					}
+					return 0;
+				}
+				LRangeWalk(int start, int stop, StringArray& vs) :
+						cursor(0), l_start(start), l_stop(stop), found_values(
+								vs)
+				{
+				}
+		} walk(start, end, values);
+		Walk(db, lk, false, &walk);
 		return 0;
 	}
 
@@ -388,100 +380,51 @@ namespace rddb
 		{
 			return ERR_NOT_EXIST;
 		}
-		Iterator* iter = NULL;
+
+		ListKeyObject lk(key, meta.min_score);
 		int total = count;
 		bool fromhead = true;
-		if (count >= 0)
-		{
-			ListKeyObject lk(key, -DBL_MAX);
-			iter = FindValue(db, lk);
-			iter->Next();
-		} else
+		if (count < 0)
 		{
 			fromhead = false;
 			total = 0 - count;
-			ListKeyObject lk(key, DBL_MAX);
-			iter = FindValue(db, lk);
-			iter->Prev();
+			lk.score = meta.max_score;
 		}
-		int remcount = 0;
-		BatchWriteGuard guard(GetDB(db));
-		bool replace_min_score = false;
-		bool replace_max_score = false;
-		double last_score = 0;
-		while (NULL != iter && iter->Valid())
+		struct LRemWalk: public WalkHandler
 		{
-			Slice tmpkey = iter->Key();
-			KeyObject* kk = decode_key(tmpkey);
-			if (NULL == kk || kk->type != LIST_ELEMENT
-					|| kk->key.compare(key) != 0)
-			{
-				DELETE(kk);
-				break;
-			}
-			Slice tmpvalue = iter->Value();
-			ValueObject v;
-			Buffer readbuf(const_cast<char*>(tmpvalue.data()), 0,
-					tmpvalue.size());
-			decode_value(readbuf, v);
-			Slice cmp(v.v.raw->GetRawReadBuffer(), v.v.raw->ReadableBytes());
-			ListKeyObject* lek = (ListKeyObject*) kk;
-			if (cmp.compare(value) == 0)
-			{
-				DelValue(db, *lek);
-				if (lek->score == meta.min_score)
+				RDDB* z_db;
+				DBID z_dbid;
+				const Slice& cmp_value;
+				int remcount;
+				int rem_total;
+				int OnKeyValue(KeyObject* k, ValueObject* v)
 				{
-					if (fromhead)
+					ListKeyObject* sek = (ListKeyObject*) k;
+					Slice cmp(v->v.raw->GetRawReadBuffer(),
+							v->v.raw->ReadableBytes());
+					if (cmp.compare(cmp_value) == 0)
 					{
-						replace_min_score = true;
-					} else
-					{
-						meta.min_score = last_score;
+						z_db->DelValue(z_dbid, *sek);
+						remcount++;
+						if (rem_total == remcount)
+						{
+							return -1;
+						}
 					}
+					return 0;
 				}
-				if (lek->score == meta.max_score)
+				LRemWalk(RDDB* db, DBID dbid, const Slice& v, int total) :
+						z_db(db), z_dbid(dbid), cmp_value(v), remcount(0), rem_total(
+								total)
 				{
-					if (fromhead)
-					{
-						meta.max_score = last_score;
-					} else
-					{
-						replace_max_score = true;
-					}
 				}
-				remcount++;
-			} else
-			{
-				last_score = lek->score;
-				if (replace_min_score)
-				{
-					meta.min_score = last_score;
-					replace_min_score = false;
-				}
-				if (replace_max_score)
-				{
-					meta.max_score = last_score;
-					replace_max_score = false;
-				}
-			}
-			if (total > 0 && remcount == total)
-			{
-				break;
-			}
-			if (count >= 0)
-			{
-				iter->Next();
-			} else
-			{
-				iter->Prev();
-			}
-			DELETE(kk);
-		}
-		DELETE(iter);
-		meta.size -= remcount;
+		} walk(this, db, value, total);
+		BatchWriteGuard guard(GetDB(db));
+		Walk(db, lk, !fromhead, &walk);
+		meta.size -= walk.remcount;
 		EncodeListMetaData(v, meta);
 		SetValue(db, k, v);
-		return remcount;
+		return walk.remcount;
 	}
 
 	int RDDB::LSet(DBID db, const Slice& key, int index, const Slice& value)
@@ -500,35 +443,34 @@ namespace rddb
 			return ERR_NOT_EXIST;
 		}
 		ListKeyObject lk(key, -DBL_MAX);
-		uint32_t cursor = 0;
-		Iterator* iter = FindValue(db, lk);
-		bool found = false;
-		while (NULL != iter && iter->Valid())
+		struct LSetWalk: public WalkHandler
 		{
-			Slice tmpkey = iter->Key();
-			KeyObject* kk = decode_key(tmpkey);
-			if (NULL == kk || kk->type != LIST_ELEMENT
-					|| kk->key.compare(key) != 0)
-			{
-				DELETE(kk);
-				break;
-			}
-			if (cursor == index)
-			{
-				found = true;
-				ValueObject v;
-				fill_value(iter->Value(), v);
-				ListKeyObject* lek = (ListKeyObject*) kk;
-				SetValue(db, *lek, v);
-				DELETE(kk);
-				break;
-			}
-			cursor++;
-			DELETE(kk);
-			iter->Next();
-		}
-		DELETE(iter);
-		if (!found)
+				RDDB* z_db;
+				DBID z_dbid;
+				const Slice& set_value;
+				int cursor;
+				int dst_idx;
+				int OnKeyValue(KeyObject* k, ValueObject* v)
+				{
+					ListKeyObject* sek = (ListKeyObject*) k;
+					if (cursor == dst_idx)
+					{
+						ValueObject v;
+						fill_value(set_value, v);
+						z_db->SetValue(z_dbid, *sek, v);
+						return -1;
+					}
+					cursor++;
+					return 0;
+				}
+				LSetWalk(RDDB* db, DBID dbid, const Slice& v, int index) :
+						z_db(db), z_dbid(dbid), set_value(v), cursor(0), dst_idx(
+								index)
+				{
+				}
+		} walk(this, db, value, index);
+		Walk(db, lk, false, &walk);
+		if (walk.cursor != index)
 		{
 			return ERR_NOT_EXIST;
 		}

@@ -112,11 +112,11 @@ PUNSUBSCRIBE [pattern [pattern ...]]       NotYet
 SUBSCRIBE channel [channel ...]            NotYet
 UNSUBSCRIBE [channel [channel ...]]        NotYet
 
-DISCARD                                    NotYet
-EXEC                                       NotYet
-MULTI                                      NotYet
-UNWATCH                                    NotYet
-WATCH key [key ...]                        NotYet
+DISCARD                                    DONE
+EXEC                                       DONE
+MULTI                                      DONE
+UNWATCH                                    Discard
+WATCH key [key ...]                        Discard
 
 EVAL script numkeys key [key ...] arg      NotYet
 EVALSHA sha1 numkeys key [key ...] arg     NotYet

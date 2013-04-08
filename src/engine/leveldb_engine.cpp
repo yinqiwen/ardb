@@ -241,6 +241,10 @@ namespace rddb
 		leveldb::ReadOptions options;
 		leveldb::Iterator* iter = m_db->NewIterator(options);
 		iter->Seek(LEVELDB_SLICE(findkey));
+		if(!iter->Valid())
+		{
+			iter->SeekToLast();
+		}
 		return new LevelDBIterator(iter);
 	}
 }

@@ -248,11 +248,11 @@ namespace rddb
 			int LPop(DBID db, const Slice& key, std::string& v);
 			int RPop(DBID db, const Slice& key, std::string& v);
 			int LIndex(DBID db, const Slice& key, uint32_t index,
-					ValueObject& v);
+					std::string& v);
 			int LInsert(DBID db, const Slice& key, const Slice& op,
 					const Slice& pivot, const Slice& value);
 			int LRange(DBID db, const Slice& key, int start, int end,
-					ValueArray& values);
+					StringArray& values);
 			int LRem(DBID db, const Slice& key, int count, const Slice& value);
 			int LSet(DBID db, const Slice& key, int index, const Slice& value);
 			int LTrim(DBID db, const Slice& key, int start, int stop);

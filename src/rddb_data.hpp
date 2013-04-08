@@ -35,7 +35,7 @@ namespace rddb
 		HASH_FIELD = 7,
 		LIST_META = 8,
 		LIST_ELEMENT = 9,
-
+		KEY_END = 1000,
 	};
 
 	struct KeyObject

@@ -46,14 +46,6 @@ namespace rddb
 		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
 		std::string str;
 		Iterator* iter = GetDB(db)->Find(k);
-		if (NULL != iter)
-		{
-			if (!iter->Valid())
-			{
-				delete iter;
-				return NULL;
-			}
-		}
 		return iter;
 	}
 

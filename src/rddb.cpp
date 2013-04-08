@@ -45,10 +45,7 @@ namespace rddb
 	void RDDB::Walk(DBID db, KeyObject& key, bool reverse, WalkHandler* handler)
 	{
 		Iterator* iter = FindValue(db, key);
-		if (reverse && NULL != iter)
-		{
-			iter->Prev();
-		}
+		bool isFirstElement = true;
 		while (NULL != iter && iter->Valid())
 		{
 			Slice tmpkey = iter->Key();
@@ -56,6 +53,13 @@ namespace rddb
 			if (NULL == kk || kk->type != key.type
 					|| kk->key.compare(key.key) != 0)
 			{
+				if(reverse && isFirstElement)
+				{
+					DELETE(kk);
+					iter->Prev();
+					isFirstElement = false;
+					continue;
+				}
 				DELETE(kk);
 				break;
 			}
