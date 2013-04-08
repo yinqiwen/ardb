@@ -9,14 +9,20 @@
 #define RDDB_DATA_HPP_
 #include <stdint.h>
 #include <map>
+#include <set>
 #include <list>
+#include <vector>
+#include <deque>
 #include <string>
+#include <tr1/unordered_set>
+#include <tr1/unordered_map>
 #include "common.hpp"
 #include "slice.hpp"
 #include "util/buffer_helper.hpp"
 
 namespace rddb
 {
+
 	enum KeyType
 	{
 		KV = 0,
@@ -165,6 +171,14 @@ namespace rddb
 				}
 			}
 	};
+
+	typedef uint64_t DBID;
+
+	typedef std::tr1::unordered_map<std::string, double> ValueScoreMap;
+	typedef std::vector<ZSetMetaValue> ZSetMetaValueArray;
+	typedef std::vector<SetMetaValue> SetMetaValueArray;
+	typedef std::set<std::string> ValueSet;
+	typedef std::tr1::unordered_map<std::string, ValueSet> KeyValueSet;
 
 	void encode_key(Buffer& buf, const KeyObject& key);
 	KeyObject* decode_key(const Slice& key);

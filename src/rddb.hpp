@@ -19,7 +19,6 @@
 #include "slice.hpp"
 #include "util/helpers.hpp"
 #include "util/buffer_helper.hpp"
-#include "util/sds.h"
 
 #define RDDB_OK 0
 #define ERR_INVALID_ARGS -3
@@ -93,7 +92,6 @@ namespace rddb
 			}
 	};
 
-	typedef uint64_t DBID;
 	struct KeyValueEngineFactory
 	{
 			virtual KeyValueEngine* CreateDB(DBID db) = 0;
@@ -103,27 +101,6 @@ namespace rddb
 			}
 	};
 
-	enum LogLevel
-	{
-		LOGLEVEL_INFO, // Informational
-		LOGLEVEL_WARNING, // Warns about issues that, although not technically a
-						  // problem now, could cause problems in the future.  For
-						  // example, a // warning will be printed when parsing a
-						  // message that is near the message size limit.
-		LOGLEVEL_ERROR, // An error occurred which should never happen during
-						// normal use.
-		LOGLEVEL_FATAL, // An error occurred from which the library cannot
-						// recover.  This usually indicates a programming error
-						// in the code which calls the library, especially when
-						// compiled in debug mode.
-#ifdef NDEBUG
-		LOGLEVEL_DFATAL = LOGLEVEL_ERROR
-#else
-		LOGLEVEL_DFATAL = LOGLEVEL_FATAL
-#endif
-	};
-	typedef void RDDBLogHandler(LogLevel level, const char* filename, int line,
-			const std::string& message);
 	typedef std::deque<ValueObject*> ValueArray;
 	typedef std::deque<Slice> SliceArray;
 	typedef std::deque<std::string> StringArray;
@@ -151,7 +128,6 @@ namespace rddb
 		private:
 			static size_t RealPosition(Buffer* buf, int pos);
 
-			RDDBLogHandler* m_logger;
 			KeyValueEngineFactory* m_engine_factory;
 			typedef std::map<DBID, KeyValueEngine*> KeyValueEngineTable;
 			KeyValueEngineTable m_engine_table;
@@ -172,10 +148,8 @@ namespace rddb
 					ZSetMetaValue& meta);
 			void SetZSetMetaValue(DBID db, const Slice& key,
 					ZSetMetaValue& meta);
-			int GetSetMetaValue(DBID db, const Slice& key,
-					SetMetaValue& meta);
-			void SetSetMetaValue(DBID db, const Slice& key,
-					SetMetaValue& meta);
+			int GetSetMetaValue(DBID db, const Slice& key, SetMetaValue& meta);
+			void SetSetMetaValue(DBID db, const Slice& key, SetMetaValue& meta);
 			struct WalkHandler
 			{
 					virtual int OnKeyValue(KeyObject* key,
@@ -336,6 +310,11 @@ namespace rddb
 			int SUnion(DBID db, SliceArray& keys, StringArray& values);
 			int SUnionStore(DBID db, const Slice& dst, SliceArray& keys);
 			int SClear(DBID db, const Slice& key);
+
+			int Discard(DBID db);
+			int Exec(DBID db);
+			int Multi(DBID db);
+
 	};
 }
 

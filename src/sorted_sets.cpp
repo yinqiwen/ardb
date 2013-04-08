@@ -7,8 +7,7 @@
 
 #include "rddb.hpp"
 #include <float.h>
-#include <tr1/unordered_set>
-#include <tr1/unordered_map>
+
 
 namespace rddb
 {
@@ -814,7 +813,7 @@ namespace rddb
 		{
 			weights.push_back(1);
 		}
-		typedef std::tr1::unordered_map<std::string, double> ValueScoreMap;
+
 		ValueScoreMap vm;
 		struct ZUnionWalk: public WalkHandler
 		{
@@ -921,7 +920,6 @@ namespace rddb
 			weights.push_back(1);
 		}
 		uint32_t min_size = 0;
-		typedef std::vector<ZSetMetaValue> ZSetMetaValueArray;
 		ZSetMetaValueArray metas;
 		uint32_t min_idx = 0;
 		uint32_t idx = 0;
@@ -942,13 +940,11 @@ namespace rddb
 			idx++;
 		}
 
-		typedef std::tr1::unordered_map<std::string, double> ValueScoreMap;
 		struct ZInterWalk: public WalkHandler
 		{
 				uint32_t z_weight;
 				ValueScoreMap& z_cmp;
 				ValueScoreMap& z_result;
-
 				AggregateType z_aggre_type;
 				ZInterWalk(uint32_t weight, ValueScoreMap& cmp,
 						ValueScoreMap& result, AggregateType type) :

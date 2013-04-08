@@ -6,8 +6,6 @@
  */
 
 #include "rddb.hpp"
-#include <tr1/unordered_set>
-#include <tr1/unordered_map>
 
 namespace rddb
 {
@@ -18,8 +16,8 @@ namespace rddb
 			return false;
 		}
 		return BufferHelper::ReadVarUInt32(*(v.v.raw), meta.size)
-		        && BufferHelper::ReadVarString(*(v.v.raw), meta.min)
-		        && BufferHelper::ReadVarString(*(v.v.raw), meta.max);
+				&& BufferHelper::ReadVarString(*(v.v.raw), meta.min)
+				&& BufferHelper::ReadVarString(*(v.v.raw), meta.max);
 	}
 	static void EncodeSetMetaData(ValueObject& v, SetMetaValue& meta)
 	{
@@ -192,47 +190,87 @@ namespace rddb
 		{
 			return ERR_INVALID_ARGS;
 		}
-		typedef std::tr1::unordered_set<std::string> ValueSet;
-		typedef std::tr1::unordered_map<std::string, ValueSet> KeyValueSet;
-		StringArray vs;
-		KeyValueSet kvs;
-		SMembers(db, keys.front(), vs);
-		for (int i = 1; i < keys.size(); i++)
+		SetMetaValueArray metas;
+		SliceArray::iterator kit = keys.begin();
+		while (kit != keys.end())
 		{
-			Slice k = keys.at(i);
-			std::string tmp(k.data(), k.size());
-			StringArray vss;
-			SMembers(db, k, vss);
-			StringArray::iterator vit = vss.begin();
-			while (vit != vss.end())
-			{
-				kvs[tmp].insert(*vit);
-				vit++;
-			}
+			SetMetaValue meta;
+			GetSetMetaValue(db, *kit, meta);
+			metas.push_back(meta);
+			kit++;
 		}
-		if (vs.size() > 0)
+		ValueSet vs;
+		struct SDiffWalk: public WalkHandler
 		{
-			StringArray::iterator it = vs.begin();
-			while (it < vs.begin())
-			{
-				std::string& v = *it;
-				bool found = false;
-				for (int i = 1; i < keys.size(); i++)
+				int idx;
+				ValueSet& vset;
+				const std::string* vlimit;
+				int OnKeyValue(KeyObject* k, ValueObject* v)
 				{
-					Slice k = keys.at(i);
-					std::string tmp(k.data(), k.size());
-					if (kvs[tmp].find(v) != kvs[tmp].end())
+					SetKeyObject* sek = (SetKeyObject*) k;
+					std::string str(sek->value.data(), sek->value.size());
+					if (idx == 0)
 					{
-						found = true;
-						break;
+						vset.insert(str);
+					} else
+					{
+						if (vset.count(str) != 0)
+						{
+							vset.erase(str);
+						}
+						if (vset.size() == 0)
+						{
+							return -1;
+						}
+						if (NULL != vlimit && str.compare(*vlimit) > 0)
+						{
+							return -1;
+						}
 					}
+					return 0;
 				}
-				if (!found)
+				SDiffWalk(ValueSet& vs, int i, const std::string* limit) :
+						vset(vs), idx(i), vlimit(limit)
 				{
-					values.push_back(v);
 				}
-				it++;
+		};
+		for (int i = 0; i < keys.size(); i++)
+		{
+			Slice k = keys[i];
+			Slice search_value;
+			const std::string* limit = NULL;
+			if (i > 0)
+			{
+				if (vs.size() == 0)
+				{
+					break;
+				}
+				int cmp_min = metas[i].min.compare(*(vs.rbegin()));
+				if (metas[i].min.compare(*(vs.rbegin())) > 0)
+				{
+					continue;
+				} else if (metas[i].max.compare(*(vs.begin())) < 0)
+				{
+					continue;
+				}
+				if (metas[i].min.compare(*(vs.begin())) < 0)
+				{
+					search_value = *(vs.begin());
+				}
+				if (metas[i].max.compare(*(vs.rbegin())) > 0)
+				{
+					limit = &(*(vs.begin()));
+				}
 			}
+			SetKeyObject sk(k, search_value);
+			SDiffWalk walk(vs, i, limit);
+			Walk(db, sk, false, &walk);
+		}
+		ValueSet::iterator it = vs.begin();
+		while (it != vs.end())
+		{
+			values.push_back(*it);
+			it++;
 		}
 		return 0;
 	}
@@ -246,8 +284,8 @@ namespace rddb
 		StringArray vs;
 		if (0 == SDiff(db, keys, vs) && vs.size() > 0)
 		{
-			SClear(db, dst);
 			BatchWriteGuard guard(GetDB(db));
+			SClear(db, dst);
 			KeyObject k(dst, SET_META);
 			ValueObject smv;
 			SetMetaValue meta;
@@ -261,6 +299,14 @@ namespace rddb
 				empty.type = EMPTY;
 				SetValue(db, sk, empty);
 				meta.size++;
+				if (meta.min.size() == 0 || v.compare(meta.min) < 0)
+				{
+					meta.min = v;
+				}
+				if (meta.max.size() == 0 || v.compare(meta.max) > 0)
+				{
+					meta.max = v;
+				}
 				it++;
 			}
 			EncodeSetMetaData(smv, meta);
@@ -277,7 +323,6 @@ namespace rddb
 			return ERR_INVALID_ARGS;
 		}
 		uint32_t min_size = 0;
-		typedef std::vector<SetMetaValue> SetMetaValueArray;
 		SetMetaValueArray metas;
 		uint32_t min_idx = 0;
 		uint32_t idx = 0;
@@ -308,7 +353,6 @@ namespace rddb
 			idx++;
 		}
 
-		typedef std::tr1::unordered_set<std::string> ValueSet;
 		struct SInterWalk: public WalkHandler
 		{
 				ValueSet& z_cmp;
@@ -318,9 +362,9 @@ namespace rddb
 				const std::string* current_min;
 				const std::string* current_max;
 				SInterWalk(ValueSet& cmp, ValueSet& result,
-				        const std::string& min, const std::string& max) :
+						const std::string& min, const std::string& max) :
 						z_cmp(cmp), z_result(result), s_min(min), s_max(max), current_min(
-						        NULL), current_max(NULL)
+								NULL), current_max(NULL)
 				{
 				}
 				int OnKeyValue(KeyObject* k, ValueObject* value)
@@ -340,7 +384,7 @@ namespace rddb
 						return 0;
 					}
 					std::pair<ValueSet::iterator, bool> iter = z_result.insert(
-					        vstr);
+							vstr);
 					if (NULL == current_min)
 					{
 
@@ -402,8 +446,8 @@ namespace rddb
 		StringArray vs;
 		if (0 == SInter(db, keys, vs) && vs.size() > 0)
 		{
-			SClear(db, dst);
 			BatchWriteGuard guard(GetDB(db));
+			SClear(db, dst);
 			KeyObject k(dst, SET_META);
 			ValueObject smv;
 			SetMetaValue meta;
@@ -434,7 +478,7 @@ namespace rddb
 	}
 
 	int RDDB::SMove(DBID db, const Slice& src, const Slice& dst,
-	        const Slice& value)
+			const Slice& value)
 	{
 		SetKeyObject sk(src, value);
 		ValueObject sv;
@@ -457,7 +501,7 @@ namespace rddb
 			Slice tmpkey = iter->Key();
 			KeyObject* kk = decode_key(tmpkey);
 			if (NULL == kk || kk->type != SET_ELEMENT
-			        || kk->key.compare(key) != 0)
+					|| kk->key.compare(key) != 0)
 			{
 				DELETE(kk);
 				break;
@@ -472,7 +516,7 @@ namespace rddb
 	}
 
 	int RDDB::SRandMember(DBID db, const Slice& key, StringArray& values,
-	        int count)
+			int count)
 	{
 		Slice empty;
 		SetKeyObject sk(key, empty);
@@ -488,7 +532,7 @@ namespace rddb
 			Slice tmpkey = iter->Key();
 			KeyObject* kk = decode_key(tmpkey);
 			if (NULL == kk || kk->type != SET_ELEMENT
-			        || kk->key.compare(key) != 0)
+					|| kk->key.compare(key) != 0)
 			{
 				DELETE(kk);
 				break;
@@ -513,7 +557,6 @@ namespace rddb
 
 	int RDDB::SUnion(DBID db, SliceArray& keys, StringArray& values)
 	{
-		typedef std::tr1::unordered_set<std::string> ValueSet;
 		ValueSet kvs;
 		for (int i = 0; i < keys.size(); i++)
 		{
@@ -542,8 +585,8 @@ namespace rddb
 		StringArray ss;
 		if (0 == SUnion(db, keys, ss) && ss.size() > 0)
 		{
-			SClear(db, dst);
 			BatchWriteGuard guard(GetDB(db));
+			SClear(db, dst);
 			KeyObject k(dst, SET_META);
 			ValueObject smv;
 			SetMetaValue meta;

@@ -9,14 +9,6 @@
 
 namespace rddb
 {
-	static const char* kLogLevelNames[] = { "INFO", "WARN", "ERROR", "FATAL" };
-	static void StdLogHandler(LogLevel level, const char* filename, int line,
-			const std::string& message)
-	{
-		printf("[%s][%s:%d]%s\n", kLogLevelNames[level], filename, line,
-				message.c_str());
-	}
-
 	void RDDB::ClearValueArray(ValueArray& array)
 	{
 		ValueArray::iterator it = array.begin();
@@ -46,7 +38,7 @@ namespace rddb
 	}
 
 	RDDB::RDDB(KeyValueEngineFactory* engine) :
-			m_logger(StdLogHandler), m_engine_factory(engine)
+			m_engine_factory(engine)
 	{
 	}
 
@@ -73,7 +65,7 @@ namespace rddb
 			decode_value(readbuf, v);
 			int ret = handler->OnKeyValue(kk, &v);
 			DELETE(kk);
-			if(ret < 0)
+			if (ret < 0)
 			{
 				break;
 			}

@@ -158,7 +158,7 @@ namespace rddb
 	}
 
 	LevelDBEngine::LevelDBEngine() :
-			m_db(NULL), m_batch_mode(false)
+			m_db(NULL)
 	{
 
 	}
@@ -169,37 +169,43 @@ namespace rddb
 		options.create_if_missing = true;
 		options.comparator = &m_comparator;
 		make_dir(path);
-		leveldb::Status status = leveldb::DB::Open(options, path.c_str(), &m_db);
-		if(!status.ok()){
-			printf("#####Failed to init engine:%s\n", status.ToString().c_str());
+		leveldb::Status status = leveldb::DB::Open(options, path.c_str(),
+				&m_db);
+		if (!status.ok())
+		{
+			printf("#####Failed to init engine:%s\n",
+					status.ToString().c_str());
 		}
 		return status.ok() ? 0 : -1;
 	}
 
 	int LevelDBEngine::BeginBatchWrite()
 	{
-		m_batch.Clear();
-		m_batch_mode = true;
+		m_batch_stack.push(true);
 		return 0;
 	}
 	int LevelDBEngine::CommitBatchWrite()
 	{
-		leveldb::Status s = m_db->Write(leveldb::WriteOptions(), &m_batch);
-		m_batch.Clear();
-		m_batch_mode = false;
-		return s.ok() ? 0 : -1;
+		m_batch_stack.pop();
+		if (m_batch_stack.empty())
+		{
+			leveldb::Status s = m_db->Write(leveldb::WriteOptions(), &m_batch);
+			m_batch.Clear();
+			return s.ok() ? 0 : -1;
+		}
+		return 0;
 	}
 	int LevelDBEngine::DiscardBatchWrite()
 	{
+		m_batch_stack.pop();
 		m_batch.Clear();
-		m_batch_mode = false;
 		return 0;
 	}
 
 	int LevelDBEngine::Put(const Slice& key, const Slice& value)
 	{
 		leveldb::Status s = leveldb::Status::OK();
-		if (m_batch_mode)
+		if (!m_batch_stack.empty())
 		{
 			m_batch.Put(LEVELDB_SLICE(key), LEVELDB_SLICE(value));
 		} else
@@ -211,7 +217,8 @@ namespace rddb
 	int LevelDBEngine::Get(const Slice& key, std::string* value)
 	{
 		leveldb::Status s = m_db->Get(leveldb::ReadOptions(), LEVELDB_SLICE(key), value);
-		if(!s.ok()){
+		if(!s.ok())
+		{
 			printf("Failed to find %s\n", s.ToString().c_str());
 		}
 		return s.ok() ? 0 : -1;
@@ -219,7 +226,7 @@ namespace rddb
 	int LevelDBEngine::Del(const Slice& key)
 	{
 		leveldb::Status s = leveldb::Status::OK();
-		if (m_batch_mode)
+		if (!m_batch_stack.empty())
 		{
 			m_batch.Delete(LEVELDB_SLICE(key));
 		} else

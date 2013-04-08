@@ -9,6 +9,7 @@
 #include "leveldb/write_batch.h"
 #include "leveldb/comparator.h"
 #include "rddb.hpp"
+#include <stack>
 
 namespace rddb
 {
@@ -78,7 +79,7 @@ namespace rddb
 			leveldb::DB* m_db;
 			LevelDBComparator m_comparator;
 			leveldb::WriteBatch m_batch;
-			bool m_batch_mode;
+			std::stack<bool> m_batch_stack;
 		public:
 			LevelDBEngine();
 			int Init(const std::string& path);

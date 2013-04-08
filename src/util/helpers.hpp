@@ -13,6 +13,11 @@
 #include <stdlib.h>
 #include <string>
 #include "common.hpp"
+#include "time_helper.hpp"
+#include "file_helper.hpp"
+#include "string_helper.hpp"
+#include "math_helper.hpp"
+#include "network_helper.hpp"
 #ifdef __MACH__
 #include <mach/clock.h>
 #include <mach/mach.h>
@@ -39,21 +44,6 @@ namespace rddb
 		return ret;
 	}
 
-	inline bool str_toint64(const char* str, int64_t& value)
-	{
-		if (NULL == str)
-		{
-			return false;
-		}
-		char *endptr = NULL;
-		long long int val = strtoll(str, &endptr, 10);
-		if (NULL == endptr || *endptr != '\0')
-		{
-			return false;
-		}
-		value = val;
-		return true;
-	}
 
 	inline bool raw_toint64(const void* raw, uint32_t len, int64_t& value)
 	{
@@ -73,18 +63,6 @@ namespace rddb
 		return true;
 	}
 
-	inline bool str_todouble(const char* str, double& value)
-	{
-		RETURN_FALSE_IF_NULL(str);
-		char *endptr = NULL;
-		double val = strtod(str, &endptr);
-		if (NULL == endptr)
-		{
-			return false;
-		}
-		value = val;
-		return true;
-	}
 
 	inline bool raw_todouble(const void* raw, uint32_t len, double& value)
 	{
@@ -103,9 +81,6 @@ namespace rddb
 		value = val;
 		return true;
 	}
-	bool is_file_exist(const std::string& path);
-	bool is_dir_exist(const std::string& path);
-	bool make_dir(const std::string& path);
 }
 
 #endif /* HELPERS_HPP_ */
