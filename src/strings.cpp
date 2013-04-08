@@ -19,18 +19,18 @@ namespace rddb
 		unsigned char *p;
 		const uint32_t* p4 = (const uint32_t*) s;
 		static const unsigned char bitsinbyte[256] = { 0, 1, 1, 2, 1, 2, 2, 3,
-		        1, 2, 2, 3, 2, 3, 3, 4, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3,
-		        4, 4, 5, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3,
-		        3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 1, 2, 2, 3, 2, 3, 3,
-		        4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5,
-		        4, 5, 5, 6, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 3,
-		        4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, 1, 2, 2, 3, 2, 3,
-		        3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4,
-		        5, 4, 5, 5, 6, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
-		        3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, 2, 3, 3, 4, 3,
-		        4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5,
-		        5, 6, 5, 6, 6, 7, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6,
-		        7, 4, 5, 5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8 };
+				1, 2, 2, 3, 2, 3, 3, 4, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3,
+				4, 4, 5, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3,
+				3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 1, 2, 2, 3, 2, 3, 3,
+				4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5,
+				4, 5, 5, 6, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 3,
+				4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, 1, 2, 2, 3, 2, 3,
+				3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4,
+				5, 4, 5, 5, 6, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
+				3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, 2, 3, 3, 4, 3,
+				4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5,
+				5, 6, 5, 6, 6, 7, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6,
+				7, 4, 5, 5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8 };
 
 		/* Count bits 16 bytes at a time */
 		while (count >= 16)
@@ -52,13 +52,13 @@ namespace rddb
 			aux4 = aux4 - ((aux4 >> 1) & 0x55555555);
 			aux4 = (aux4 & 0x33333333) + ((aux4 >> 2) & 0x33333333);
 			bits +=
-			        ((((aux1 + (aux1 >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24)
-			                + ((((aux2 + (aux2 >> 4)) & 0x0F0F0F0F) * 0x01010101)
-			                        >> 24)
-			                + ((((aux3 + (aux3 >> 4)) & 0x0F0F0F0F) * 0x01010101)
-			                        >> 24)
-			                + ((((aux4 + (aux4 >> 4)) & 0x0F0F0F0F) * 0x01010101)
-			                        >> 24);
+					((((aux1 + (aux1 >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24)
+							+ ((((aux2 + (aux2 >> 4)) & 0x0F0F0F0F) * 0x01010101)
+									>> 24)
+							+ ((((aux3 + (aux3 >> 4)) & 0x0F0F0F0F) * 0x01010101)
+									>> 24)
+							+ ((((aux4 + (aux4 >> 4)) & 0x0F0F0F0F) * 0x01010101)
+									>> 24);
 		}
 		/* Count the remaining bytes */
 		p = (unsigned char*) p4;
@@ -75,9 +75,8 @@ namespace rddb
 		{
 			v.type = RAW;
 			v.v.raw = new Buffer(const_cast<char*>(value.data()), 0,
-			        value.size());
-		}
-		else
+					value.size());
+		} else
 		{
 			value_convert_to_raw(v);
 			v.v.raw->Write(value.data(), value.size());
@@ -103,7 +102,7 @@ namespace rddb
 		return Incrby(db, key, 1, value);
 	}
 	int RDDB::Incrby(DBID db, const Slice& key, int64_t increment,
-	        int64_t& value)
+			int64_t& value)
 	{
 		KeyObject k(key);
 		ValueObject v;
@@ -118,8 +117,7 @@ namespace rddb
 			SetValue(db, k, v);
 			value = v.v.int_v;
 			return 0;
-		}
-		else
+		} else
 		{
 			return -1;
 		}
@@ -131,13 +129,13 @@ namespace rddb
 	}
 
 	int RDDB::Decrby(DBID db, const Slice& key, int64_t decrement,
-	        int64_t& value)
+			int64_t& value)
 	{
 		return Incrby(db, key, 0 - decrement, value);
 	}
 
 	int RDDB::IncrbyFloat(DBID db, const Slice& key, double increment,
-	        double& value)
+			double& value)
 	{
 		KeyObject k(key);
 		ValueObject v;
@@ -158,15 +156,14 @@ namespace rddb
 			SetValue(db, k, v);
 			value = v.v.double_v;
 			return 0;
-		}
-		else
+		} else
 		{
 			return -1;
 		}
 	}
 
 	int RDDB::GetRange(DBID db, const Slice& key, int start, int end,
-	        ValueObject& v)
+			ValueObject& v)
 	{
 		KeyObject k(key);
 		if (GetValue(db, k, v) < 0)
@@ -207,7 +204,7 @@ namespace rddb
 	}
 
 	int RDDB::GetSet(DBID db, const Slice& key, const Slice& value,
-	        ValueObject& v)
+			ValueObject& v)
 	{
 		KeyObject k(key);
 		if (GetValue(db, k, v) < 0)
@@ -257,6 +254,10 @@ namespace rddb
 		if (byteval != tmp)
 		{
 			((uint8_t*) v.v.raw->GetRawReadBuffer())[byte] = byteval;
+			if (byte >= v.v.raw->GetWriteIndex())
+			{
+				v.v.raw->SetWriteIndex(byte + 1);
+			}
 			SetValue(db, k, v);
 		}
 		return bitval;
@@ -275,11 +276,14 @@ namespace rddb
 		size_t bitval = 0;
 
 		byte = bitoffset >> 3;
-		bit = 7 - (bitoffset & 0x7);
-		if (byte < v.v.raw->ReadableBytes())
+		if (byte >= v.v.raw->ReadableBytes())
 		{
-			bitval = v.v.raw->GetRawReadBuffer()[byte] & (1 << bit);
+			printf("####%d %d\n", byte, v.v.raw->ReadableBytes());
+			return 0;
 		}
+		int byteval = ((const uint8_t*) v.v.raw->GetRawReadBuffer())[byte];
+		bit = 7 - (bitoffset & 0x7);
+		bitval = byteval & (1 << bit);
 		return bitval;
 	}
 
@@ -378,8 +382,7 @@ namespace rddb
 						j += sizeof(unsigned long) * 4;
 						minlen -= sizeof(unsigned long) * 4;
 					}
-				}
-				else if (op == BITOP_OR)
+				} else if (op == BITOP_OR)
 				{
 					while (minlen >= sizeof(unsigned long) * 4)
 					{
@@ -395,8 +398,7 @@ namespace rddb
 						j += sizeof(unsigned long) * 4;
 						minlen -= sizeof(unsigned long) * 4;
 					}
-				}
-				else if (op == BITOP_XOR)
+				} else if (op == BITOP_XOR)
 				{
 					while (minlen >= sizeof(unsigned long) * 4)
 					{
@@ -412,8 +414,7 @@ namespace rddb
 						j += sizeof(unsigned long) * 4;
 						minlen -= sizeof(unsigned long) * 4;
 					}
-				}
-				else if (op == BITOP_NOT)
+				} else if (op == BITOP_NOT)
 				{
 					while (minlen >= sizeof(unsigned long) * 4)
 					{
@@ -492,7 +493,7 @@ namespace rddb
 			return 0;
 		}
 		long bytes = end - start + 1;
-		return popcount(v.v.raw->GetRawReadBuffer(), bytes);
+		return popcount(v.v.raw->GetRawReadBuffer() + start, bytes);
 	}
 }
 

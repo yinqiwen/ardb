@@ -242,6 +242,7 @@ namespace rddb
 			int HKeys(DBID db, const Slice& key, StringArray& fields);
 			int HVals(DBID db, const Slice& key, ValueArray& values);
 			int HLen(DBID db, const Slice& key);
+			int HClear(DBID db, const Slice& key);
 
 			int LPush(DBID db, const Slice& key, const Slice& value);
 			int LPushx(DBID db, const Slice& key, const Slice& value);

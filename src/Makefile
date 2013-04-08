@@ -45,19 +45,22 @@ CHANNEL_CFILES := $(foreach dir, $(CHANNEL_C_VPATH), $(wildcard $(dir)/*.c))
 CHANNEL_CPP_OBJECTS := $(patsubst %.cpp, %.o, $(CHANNEL_CPPFILES))
 CHANNEL_C_OBJECTS := $(patsubst %.c, %.o, $(CHANNEL_CFILES))
 
-DIST_LIB = librddb.so
+#DIST_LIB = librddb.so
 DIST_LIBA = librddb.a
 
-all: $(DIST_LIBA) 
+all: lib leveldb
 
 $(DIST_LIB):$(CPP_OBJECTS) ${C_OBJECTS}
 	${CXX} -shared -o $@ $^
 
 $(DIST_LIBA):$(CPP_OBJECTS) ${C_OBJECTS}
 	ar rcs $@ $^
+
+lib:$(DIST_LIBA)
+	
 	
 leveldb:$(LEVELDB_OBJECTS) $(CPP_OBJECTS) ${C_OBJECTS} ${CHANNEL_C_OBJECTS} ${CHANNEL_CPP_OBJECTS} 
 	${CXX} -o leveldb $(LEVELDB_OBJECTS) $(CPP_OBJECTS) ${C_OBJECTS} $(LIBS) 
 
 clean:
-	rm -f ${CPP_OBJECTS} ${C_OBJECTS} $(DIST_LIBA) $(DIST_LIB)
+	rm -f ${CPP_OBJECTS} ${C_OBJECTS} $(DIST_LIBA) $(DIST_LIB) ${CHANNEL_C_OBJECTS} ${CHANNEL_CPP_OBJECTS} leveldb

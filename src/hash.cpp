@@ -9,13 +9,13 @@
 namespace rddb
 {
 	int RDDB::SetHashValue(DBID db, const Slice& key, const Slice& field,
-	        ValueObject& value)
+			ValueObject& value)
 	{
 		HashKeyObject k(key, field);
 		return SetValue(db, k, value);
 	}
 	int RDDB::HSet(DBID db, const Slice& key, const Slice& field,
-	        const Slice& value)
+			const Slice& value)
 	{
 		ValueObject valueobject;
 		fill_value(value, valueobject);
@@ -23,13 +23,13 @@ namespace rddb
 	}
 
 	int RDDB::HSetNX(DBID db, const Slice& key, const Slice& field,
-	        const Slice& value)
+			const Slice& value)
 	{
 		if (HExists(db, key, field))
 		{
-			return ERR_KEY_EXIST;
+			return 0;
 		}
-		return HSet(db, key, field, value);
+		return HSet(db, key, field, value) == 0 ? 1 : 0;
 	}
 
 	int RDDB::HDel(DBID db, const Slice& key, const Slice& field)
@@ -39,7 +39,7 @@ namespace rddb
 	}
 
 	int RDDB::HGet(DBID db, const Slice& key, const Slice& field,
-	        ValueObject& value)
+			ValueObject& value)
 	{
 		HashKeyObject k(key, field);
 		if (0 == GetValue(db, k, value))
@@ -50,7 +50,7 @@ namespace rddb
 	}
 
 	int RDDB::HMSet(DBID db, const Slice& key, const SliceArray& fields,
-	        const SliceArray& values)
+			const SliceArray& values)
 	{
 		if (fields.size() != values.size())
 		{
@@ -69,7 +69,7 @@ namespace rddb
 	}
 
 	int RDDB::HMGet(DBID db, const Slice& key, const SliceArray& fields,
-	        ValueArray& values)
+			ValueArray& values)
 	{
 		SliceArray::const_iterator it = fields.begin();
 		while (it != fields.end())
@@ -86,6 +86,30 @@ namespace rddb
 		return 0;
 	}
 
+	int RDDB::HClear(DBID db, const Slice& key)
+	{
+		Slice empty;
+		HashKeyObject sk(key, empty);
+		struct HClearWalk: public WalkHandler
+		{
+				RDDB* z_db;
+				DBID z_dbid;
+				int OnKeyValue(KeyObject* k, ValueObject* v)
+				{
+					HashKeyObject* sek = (HashKeyObject*) k;
+					z_db->DelValue(z_dbid, *sek);
+					return 0;
+				}
+				HClearWalk(RDDB* db, DBID dbid) :
+						z_db(db), z_dbid(dbid)
+				{
+				}
+		} walk(this, db);
+		BatchWriteGuard guard(GetDB(db));
+		Walk(db, sk, false, &walk);
+		return 0;
+	}
+
 	int RDDB::HKeys(DBID db, const Slice& key, StringArray& fields)
 	{
 		Slice empty;
@@ -95,7 +119,8 @@ namespace rddb
 		{
 			Slice tmpkey = it->Key();
 			KeyObject* kk = decode_key(tmpkey);
-			if (NULL == kk || kk->type != HASH_FIELD || kk->key.compare(key) != 0)
+			if (NULL == kk || kk->type != HASH_FIELD
+					|| kk->key.compare(key) != 0)
 			{
 				DELETE(kk);
 				break;
@@ -120,7 +145,8 @@ namespace rddb
 		{
 			Slice tmpkey = it->Key();
 			KeyObject* kk = decode_key(tmpkey);
-			if (NULL == kk|| kk->type != HASH_FIELD || kk->key.compare(key) != 0)
+			if (NULL == kk || kk->type != HASH_FIELD
+					|| kk->key.compare(key) != 0)
 			{
 				break;
 			}
@@ -141,14 +167,15 @@ namespace rddb
 		{
 			Slice tmpkey = it->Key();
 			KeyObject* kk = decode_key(tmpkey);
-			if (NULL == kk|| kk->type != HASH_FIELD || kk->key.compare(key) != 0)
+			if (NULL == kk || kk->type != HASH_FIELD
+					|| kk->key.compare(key) != 0)
 			{
 				DELETE(kk);
 				break;
 			}
 			ValueObject* v = new ValueObject();
 			Buffer readbuf(const_cast<char*>(it->Value().data()), 0,
-			        it->Value().size());
+					it->Value().size());
 			decode_value(readbuf, *v);
 			values.push_back(v);
 			it->Next();
@@ -159,7 +186,7 @@ namespace rddb
 	}
 
 	int RDDB::HGetAll(DBID db, const Slice& key, StringArray& fields,
-	        ValueArray& values)
+			ValueArray& values)
 	{
 		Slice empty;
 		HashKeyObject k(key, empty);
@@ -181,7 +208,7 @@ namespace rddb
 			fields.push_back(filed);
 			ValueObject* v = new ValueObject();
 			Buffer readbuf(const_cast<char*>(it->Value().data()), 0,
-			        it->Value().size());
+					it->Value().size());
 			decode_value(readbuf, *v);
 			values.push_back(v);
 			it->Next();
@@ -197,11 +224,12 @@ namespace rddb
 	}
 
 	int RDDB::HIncrby(DBID db, const Slice& key, const Slice& field,
-	        int64_t increment, int64_t& value)
+			int64_t increment, int64_t& value)
 	{
 		ValueObject v;
 		v.type = INTEGER;
 		HGet(db, key, field, v);
+		value_convert_to_number(v);
 		if (v.type != INTEGER)
 		{
 			return ERR_INVALID_TYPE;
@@ -212,17 +240,22 @@ namespace rddb
 	}
 
 	int RDDB::HIncrbyFloat(DBID db, const Slice& key, const Slice& field,
-	        double increment, double& value)
+			double increment, double& value)
 	{
 		ValueObject v;
 		v.type = DOUBLE;
 		HGet(db, key, field, v);
-		if (v.type != DOUBLE)
+		value_convert_to_number(v);
+		if (v.type != DOUBLE && v.type != INTEGER)
 		{
 			return ERR_INVALID_TYPE;
 		}
+		if(v.type == INTEGER){
+			int64_t tmp = v.v.int_v;
+			v.v.double_v = tmp;
+		}
 		v.v.double_v += increment;
-		value = v.v.int_v;
+		value = v.v.double_v;
 		return SetHashValue(db, key, field, v);
 	}
 }
