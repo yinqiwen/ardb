@@ -38,12 +38,28 @@ namespace rddb
 		return DelValue(db, k);
 	}
 
-	int RDDB::HGet(DBID db, const Slice& key, const Slice& field,
-			ValueObject& value)
+	int RDDB::HGetValue(DBID db, const Slice& key, const Slice& field,
+			ValueObject* value)
 	{
 		HashKeyObject k(key, field);
 		if (0 == GetValue(db, k, value))
 		{
+			return 0;
+		}
+		return ERR_NOT_EXIST;
+	}
+
+	int RDDB::HGet(DBID db, const Slice& key, const Slice& field,
+			std::string* value)
+	{
+		HashKeyObject k(key, field);
+		ValueObject v;
+		if (0 == GetValue(db, k, &v))
+		{
+			if (NULL != value)
+			{
+				value->assign(v.ToString());
+			}
 			return 0;
 		}
 		return ERR_NOT_EXIST;
@@ -69,17 +85,13 @@ namespace rddb
 	}
 
 	int RDDB::HMGet(DBID db, const Slice& key, const SliceArray& fields,
-			ValueArray& values)
+			StringArray& values)
 	{
 		SliceArray::const_iterator it = fields.begin();
 		while (it != fields.end())
 		{
-			HashKeyObject k(key, *it);
-			ValueObject* v = new ValueObject;
-			if (0 != GetValue(db, k, *v))
-			{
-				DELETE(v);
-			}
+			std::string v;
+			HGet(db, key, *it, &v);
 			values.push_back(v);
 			it++;
 		}
@@ -158,7 +170,7 @@ namespace rddb
 		return len;
 	}
 
-	int RDDB::HVals(DBID db, const Slice& key, ValueArray& values)
+	int RDDB::HVals(DBID db, const Slice& key, StringArray& values)
 	{
 		Slice empty;
 		HashKeyObject k(key, empty);
@@ -173,11 +185,11 @@ namespace rddb
 				DELETE(kk);
 				break;
 			}
-			ValueObject* v = new ValueObject();
+			ValueObject v;
 			Buffer readbuf(const_cast<char*>(it->Value().data()), 0,
 					it->Value().size());
-			decode_value(readbuf, *v);
-			values.push_back(v);
+			decode_value(readbuf, v);
+			values.push_back(v.ToString());
 			it->Next();
 			DELETE(kk);
 		}
@@ -186,7 +198,7 @@ namespace rddb
 	}
 
 	int RDDB::HGetAll(DBID db, const Slice& key, StringArray& fields,
-			ValueArray& values)
+			StringArray& values)
 	{
 		Slice empty;
 		HashKeyObject k(key, empty);
@@ -206,11 +218,11 @@ namespace rddb
 			HashKeyObject* hk = (HashKeyObject*) kk;
 			std::string filed(hk->field.data(), hk->field.size());
 			fields.push_back(filed);
-			ValueObject* v = new ValueObject();
+			ValueObject v;
 			Buffer readbuf(const_cast<char*>(it->Value().data()), 0,
 					it->Value().size());
-			decode_value(readbuf, *v);
-			values.push_back(v);
+			decode_value(readbuf, v);
+			values.push_back(v.ToString());
 			it->Next();
 		}
 		DELETE(it);
@@ -219,8 +231,7 @@ namespace rddb
 
 	bool RDDB::HExists(DBID db, const Slice& key, const Slice& field)
 	{
-		ValueObject v;
-		return HGet(db, key, field, v) == 0;
+		return HGet(db, key, field, NULL) == 0;
 	}
 
 	int RDDB::HIncrby(DBID db, const Slice& key, const Slice& field,
@@ -228,7 +239,7 @@ namespace rddb
 	{
 		ValueObject v;
 		v.type = INTEGER;
-		HGet(db, key, field, v);
+		HGetValue(db, key, field, &v);
 		value_convert_to_number(v);
 		if (v.type != INTEGER)
 		{
@@ -244,13 +255,14 @@ namespace rddb
 	{
 		ValueObject v;
 		v.type = DOUBLE;
-		HGet(db, key, field, v);
+		HGetValue(db, key, field, &v);
 		value_convert_to_number(v);
 		if (v.type != DOUBLE && v.type != INTEGER)
 		{
 			return ERR_INVALID_TYPE;
 		}
-		if(v.type == INTEGER){
+		if (v.type == INTEGER)
+		{
 			int64_t tmp = v.v.int_v;
 			v.v.double_v = tmp;
 		}

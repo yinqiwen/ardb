@@ -15,8 +15,8 @@ namespace rddb
 			return false;
 		}
 		return BufferHelper::ReadVarUInt32(*(v.v.raw), meta.size)
-		        && BufferHelper::ReadVarDouble(*(v.v.raw), meta.min_score)
-		        && BufferHelper::ReadVarDouble(*(v.v.raw), meta.max_score);
+				&& BufferHelper::ReadVarDouble(*(v.v.raw), meta.min_score)
+				&& BufferHelper::ReadVarDouble(*(v.v.raw), meta.max_score);
 	}
 	static void EncodeListMetaData(ValueObject& v, ListMetaValue& meta)
 	{
@@ -31,13 +31,13 @@ namespace rddb
 	}
 
 	int RDDB::ListPush(DBID db, const Slice& key, const Slice& value,
-	        bool athead, bool onlyexist, double withscore)
+			bool athead, bool onlyexist, double withscore)
 	{
 		KeyObject k(key, LIST_META);
 		ValueObject v;
 		ListMetaValue meta;
 		double score = withscore != DBL_MAX ? withscore : 0;
-		if (0 == GetValue(db, k, v))
+		if (0 == GetValue(db, k, &v))
 		{
 			if (!DecodeListMetaData(v, meta))
 			{
@@ -50,32 +50,30 @@ namespace rddb
 				if (score < meta.min_score)
 				{
 					meta.min_score = score;
-				}
-				else if (score > meta.max_score)
+				} else if (score > meta.max_score)
 				{
 					meta.max_score = score;
 				}
-			}
-			else
+			} else
 			{
 				if (athead)
 				{
 					meta.min_score--;
 					score = meta.min_score;
-				}
-				else
+				} else
 				{
 					meta.max_score++;
 					score = meta.max_score;
 				}
 			}
-		}
-		else
+		} else
 		{
 			if (onlyexist)
 			{
 				return ERR_NOT_EXIST;
 			}
+			meta.size++;
+			score = 0;
 		}
 		BatchWriteGuard guard(GetDB(db));
 		ListKeyObject lk(key, score);
@@ -84,7 +82,7 @@ namespace rddb
 		if (0 == SetValue(db, lk, lv))
 		{
 			EncodeListMetaData(v, meta);
-			return SetValue(db, k, v);
+			return SetValue(db, k, v) == 0 ? meta.size : -1;
 		}
 		return -1;
 	}
@@ -95,7 +93,8 @@ namespace rddb
 
 	int RDDB::RPushx(DBID db, const Slice& key, const Slice& value)
 	{
-		return ListPush(db, key, value, false, true);
+		int len = ListPush(db, key, value, false, true);
+		return len < 0 ? 0 : len;
 	}
 
 	int RDDB::LPush(DBID db, const Slice& key, const Slice& value)
@@ -105,11 +104,12 @@ namespace rddb
 
 	int RDDB::LPushx(DBID db, const Slice& key, const Slice& value)
 	{
-		return ListPush(db, key, value, true, true);
+		int len = ListPush(db, key, value, true, true);
+		return len < 0 ? 0 : len;
 	}
 
 	int RDDB::LInsert(DBID db, const Slice& key, const Slice& opstr,
-	        const Slice& pivot, const Slice& value)
+			const Slice& pivot, const Slice& value)
 	{
 		bool before;
 		if (!strncasecmp(opstr.data(), "before", opstr.size()))
@@ -121,97 +121,77 @@ namespace rddb
 			return ERR_INVALID_OPERATION;
 		}
 		ListKeyObject lk(key, -DBL_MAX);
-		uint32_t cursor = 0;
-		Iterator* iter = FindValue(db, lk);
-		bool found = false;
-		double pivot_score = 0;
-		double score = 0;
-		while (NULL != iter && iter->Valid())
+		struct LInsertWalk: public WalkHandler
 		{
-			Slice tmpkey = iter->Key();
-			KeyObject* kk = decode_key(tmpkey);
-			if (NULL == kk || kk->type != LIST_ELEMENT
-			        || kk->key.compare(key) != 0)
-			{
-				break;
-			}
-			ValueObject v;
-			Slice tmpvalue = iter->Value();
-			Buffer readbuf(const_cast<char*>(tmpvalue.data()), 0,
-			        tmpvalue.size());
-			decode_value(readbuf, v);
-			Slice cmp(v.v.raw->GetRawReadBuffer(), v.v.raw->ReadableBytes());
-			if (cmp.compare(value) == 0)
-			{
-				ListKeyObject* lek = (ListKeyObject*) kk;
-				pivot_score = lek->score;
-				found = true;
-				break;
-			}
-			cursor++;
-			iter->Next();
-		}
-		if (found)
-		{
-			if (before)
-			{
-				iter->Prev();
-			}
-			else
-			{
-				iter->Next();
-			}
-			if (iter->Valid())
-			{
-				Slice tmpkey = iter->Key();
-				KeyObject* kk = decode_key(tmpkey);
-				if (NULL == kk || kk->type != LIST_ELEMENT
-				        || kk->key.compare(key) != 0)
+				bool before_pivot;
+				double pivot_score;
+				double next_score;
+				bool found;
+				const Slice& cmp_value;
+				int OnKeyValue(KeyObject* k, ValueObject* v)
 				{
-					if (before)
+					ListKeyObject* sek = (ListKeyObject*) k;
+					if (found && !before_pivot)
 					{
-						score = pivot_score - 1;
+						next_score = sek->score;
+						return -1;
 					}
-					else
+					value_convert_to_raw(*v);
+					Slice cmp(v->v.raw->GetRawReadBuffer(),
+							v->v.raw->ReadableBytes());
+					if (cmp.compare(cmp_value) == 0)
 					{
-						score = pivot_score + 1;
+						pivot_score = sek->score;
+						found = true;
+						if (before_pivot)
+						{
+							return -1;
+						}
+					} else
+					{
+						if (before_pivot)
+						{
+							next_score = sek->score;
+						}
 					}
+					return 0;
 				}
-				else
+				LInsertWalk(bool flag, const Slice& value) :
+						before_pivot(flag), pivot_score(-DBL_MAX), next_score(
+								-DBL_MAX), found(false), cmp_value(value)
 				{
-					ListKeyObject* lek = (ListKeyObject*) kk;
-					score = (lek->score + pivot_score) / 2;
 				}
-			}
-			else
-			{
-				if (before)
-				{
-					score = pivot_score - 1;
-				}
-				else
-				{
-					score = pivot_score + 1;
-				}
-			}
-			ListPush(db, key, value, true, false, score);
-		}
-		DELETE(iter);
-		if (!found)
+		} walk(before, pivot);
+		Walk(db, lk, false, &walk);
+		if (!walk.found)
 		{
 			return ERR_NOT_EXIST;
 		}
-		return 0;
+		double score = 0;
+		if (walk.next_score != -DBL_MAX)
+		{
+			score = (walk.next_score + walk.pivot_score) / 2;
+		} else
+		{
+			if (before)
+			{
+				score = walk.pivot_score - 1;
+			} else
+			{
+				score = walk.pivot_score + 1;
+			}
+		}
+		return ListPush(db, key, value, true, false, score);
 	}
 
 	int RDDB::ListPop(DBID db, const Slice& key, bool athead,
-	        ValueObject& value)
+			std::string& value)
 	{
 		KeyObject k(key, LIST_META);
 		ValueObject v;
 		ListMetaValue meta;
 		double score;
-		if (0 == GetValue(db, k, v))
+		if (0 == GetValue(db, k, &v))
 		{
 			if (!DecodeListMetaData(v, meta))
 			{
@@ -221,8 +201,7 @@ namespace rddb
 			if (athead)
 			{
 				score = meta.min_score;
-			}
-			else
+			} else
 			{
 				score = meta.max_score;
 			}
@@ -230,59 +209,39 @@ namespace rddb
 			{
 				meta.min_score = meta.max_score = 0;
 			}
-			else
-			{
-				ListKeyObject lk(key, score);
-				Iterator* iter = FindValue(db, lk);
-				if (NULL != iter && iter->Valid())
-				{
-					if (athead)
-					{
-						iter->Next();
-					}
-					else
-					{
-						iter->Prev();
-					}
-					Slice tmpkey = iter->Key();
-					KeyObject* kk = decode_key(tmpkey);
-					if (NULL == kk || kk->type != LIST_ELEMENT
-					        || kk->key.compare(key) != 0)
-					{
-						//do nothing
-					}
-					else
-					{
-						ListKeyObject* lek = (ListKeyObject*) kk;
-						if (athead)
-						{
-							meta.min_score = lek->score;
-						}
-						else
-						{
-							meta.max_score = lek->score;
-						}
-					}
-					DELETE(kk);
-				}
-			}
 			ListKeyObject lk(key, score);
 			BatchWriteGuard guard(GetDB(db));
+			struct LPopWalk: public WalkHandler
+			{
+					std::string pop_value;
+					int OnKeyValue(KeyObject* k, ValueObject* v)
+					{
+						value_convert_to_raw(*v);
+						const char* tmp = v->v.raw->GetRawReadBuffer();
+						pop_value.assign(tmp, v->v.raw->ReadableBytes());
+						return -1;
+					}
+			} walk;
+			Walk(db, lk, !athead, &walk);
+			if (walk.pop_value.empty())
+			{
+				return ERR_NOT_EXIST;
+			}
 			DelValue(db, lk);
 			EncodeListMetaData(v, meta);
+            value = walk.pop_value;
 			return SetValue(db, k, v);
-		}
-		else
+		} else
 		{
 			return ERR_NOT_EXIST;
 		}
 	}
 
-	int RDDB::LPop(DBID db, const Slice& key, ValueObject& value)
+	int RDDB::LPop(DBID db, const Slice& key, std::string& value)
 	{
 		return ListPop(db, key, true, value);
 	}
-	int RDDB::RPop(DBID db, const Slice& key, ValueObject& v)
+	int RDDB::RPop(DBID db, const Slice& key, std::string& v)
 	{
 		return ListPop(db, key, false, v);
 	}
@@ -290,43 +249,39 @@ namespace rddb
 	int RDDB::LIndex(DBID db, const Slice& key, uint32_t index, ValueObject& v)
 	{
 		ListKeyObject lk(key, -DBL_MAX);
-		uint32_t cursor = 0;
-		Iterator* iter = FindValue(db, lk);
-		bool found = false;
-		while (NULL != iter && iter->Valid())
+		struct LIndexWalk: public WalkHandler
 		{
-			Slice tmpkey = iter->Key();
-			KeyObject* kk = decode_key(tmpkey);
-			if (NULL == kk || kk->type != LIST_ELEMENT
-			        || kk->key.compare(key) != 0)
-			{
-				DELETE(kk);
-				break;
-			}
-			if (cursor == index)
-			{
-				found = true;
-				Slice tmpvalue = iter->Value();
-				Buffer readbuf(const_cast<char*>(tmpvalue.data()), 0,
-				        tmpvalue.size());
-				decode_value(readbuf, v);
-				DELETE(kk);
-				break;
-			}
-			cursor++;
-			DELETE(kk);
-			iter->Next();
-		}
-		DELETE(iter);
-		if (!found)
+				int cursor;
+				int index;
+				std::string found_value;
+				int OnKeyValue(KeyObject* k, ValueObject* v)
+				{
+					if (cursor == index)
+					{
+						value_convert_to_raw(*v);
+						const char* tmp = v->v.raw->GetRawReadBuffer();
+						found_value.assign(tmp, v->v.raw->ReadableBytes());
+						return -1;
+					}
+					cursor++;
+					return 0;
+				}
+				LIndexWalk(int i) :
+						cursor(0), index(i)
+				{
+				}
+		} walk(index);
+		Walk(db, lk, false, &walk);
+		if (walk.cursor == walk.index)
 		{
-			return ERR_NOT_EXIST;
+			fill_value(walk.found_value, v);
+			return 0;
 		}
-		return 0;
+		return ERR_NOT_EXIST;
 	}
 
 	int RDDB::LRange(DBID db, const Slice& key, int start, int end,
-	        ValueArray& values)
+			ValueArray& values)
 	{
 		int len = LLen(db, key);
 		if (len < 0)
@@ -362,7 +317,7 @@ namespace rddb
 			Slice tmpkey = iter->Key();
 			KeyObject* kk = decode_key(tmpkey);
 			if (NULL == kk || kk->type != LIST_ELEMENT
-			        || kk->key.compare(key) != 0)
+					|| kk->key.compare(key) != 0)
 			{
 				DELETE(kk);
 				break;
@@ -381,7 +336,7 @@ namespace rddb
 				Slice tmpvalue = iter->Value();
 				ValueObject* v = new ValueObject;
 				Buffer readbuf(const_cast<char*>(tmpvalue.data()), 0,
-				        tmpvalue.size());
+						tmpvalue.size());
 				decode_value(readbuf, *v);
 				values.push_back(v);
 			}
@@ -396,26 +351,23 @@ namespace rddb
 	int RDDB::LClear(DBID db, const Slice& key)
 	{
 		ListKeyObject lk(key, -DBL_MAX);
-		uint32_t cursor = 0;
-		Iterator* iter = FindValue(db, lk);
-		BatchWriteGuard guard(GetDB(db));
-		while (NULL != iter && iter->Valid())
+		struct LClearWalk: public WalkHandler
 		{
-			Slice tmpkey = iter->Key();
-			KeyObject* kk = decode_key(tmpkey);
-			if (NULL == kk || kk->type != LIST_ELEMENT
-			        || kk->key.compare(key) != 0)
-			{
-				DELETE(kk);
-				break;
-			}
-			ListKeyObject* lek = (ListKeyObject*) kk;
-			DelValue(db, *lek);
-			DELETE(kk);
-			cursor++;
-			iter->Next();
-		}
-		DELETE(iter);
+				RDDB* z_db;
+				DBID z_dbid;
+				int OnKeyValue(KeyObject* k, ValueObject* v)
+				{
+					ListKeyObject* sek = (ListKeyObject*) k;
+					z_db->DelValue(z_dbid, *sek);
+					return 0;
+				}
+				LClearWalk(RDDB* db, DBID dbid) :
+						z_db(db), z_dbid(dbid)
+				{
+				}
+		} walk(this, db);
+		BatchWriteGuard guard(GetDB(db));
+		Walk(db, lk, false, &walk);
 		KeyObject k(key, LIST_META);
 		DelValue(db, k);
 		return 0;
@@ -426,14 +378,13 @@ namespace rddb
 		KeyObject k(key, LIST_META);
 		ValueObject v;
 		ListMetaValue meta;
-		if (0 == GetValue(db, k, v))
+		if (0 == GetValue(db, k, &v))
 		{
 			if (!DecodeListMetaData(v, meta))
 			{
 				return ERR_INVALID_TYPE;
 			}
-		}
-		else
+		} else
 		{
 			return ERR_NOT_EXIST;
 		}
@@ -445,8 +396,7 @@ namespace rddb
 			ListKeyObject lk(key, -DBL_MAX);
 			iter = FindValue(db, lk);
 			iter->Next();
-		}
-		else
+		} else
 		{
 			fromhead = false;
 			total = 0 - count;
@@ -464,7 +414,7 @@ namespace rddb
 			Slice tmpkey = iter->Key();
 			KeyObject* kk = decode_key(tmpkey);
 			if (NULL == kk || kk->type != LIST_ELEMENT
-			        || kk->key.compare(key) != 0)
+					|| kk->key.compare(key) != 0)
 			{
 				DELETE(kk);
 				break;
@@ -472,7 +422,7 @@ namespace rddb
 			Slice tmpvalue = iter->Value();
 			ValueObject v;
 			Buffer readbuf(const_cast<char*>(tmpvalue.data()), 0,
-			        tmpvalue.size());
+					tmpvalue.size());
 			decode_value(readbuf, v);
 			Slice cmp(v.v.raw->GetRawReadBuffer(), v.v.raw->ReadableBytes());
 			ListKeyObject* lek = (ListKeyObject*) kk;
@@ -484,8 +434,7 @@ namespace rddb
 					if (fromhead)
 					{
 						replace_min_score = true;
-					}
-					else
+					} else
 					{
 						meta.min_score = last_score;
 					}
@@ -495,15 +444,13 @@ namespace rddb
 					if (fromhead)
 					{
 						meta.max_score = last_score;
-					}
-					else
+					} else
 					{
 						replace_max_score = true;
 					}
 				}
 				remcount++;
-			}
-			else
+			} else
 			{
 				last_score = lek->score;
 				if (replace_min_score)
@@ -524,8 +471,7 @@ namespace rddb
 			if (count >= 0)
 			{
 				iter->Next();
-			}
-			else
+			} else
 			{
 				iter->Prev();
 			}
@@ -562,7 +508,7 @@ namespace rddb
 			Slice tmpkey = iter->Key();
 			KeyObject* kk = decode_key(tmpkey);
 			if (NULL == kk || kk->type != LIST_ELEMENT
-			        || kk->key.compare(key) != 0)
+					|| kk->key.compare(key) != 0)
 			{
 				DELETE(kk);
 				break;
@@ -628,7 +574,7 @@ namespace rddb
 			Slice tmpkey = iter->Key();
 			KeyObject* kk = decode_key(tmpkey);
 			if (NULL == kk || kk->type != LIST_ELEMENT
-			        || kk->key.compare(key) != 0)
+					|| kk->key.compare(key) != 0)
 			{
 				DELETE(kk);
 				break;
@@ -646,8 +592,7 @@ namespace rddb
 				{
 					meta.max_score = lek->score;
 				}
-			}
-			else
+			} else
 			{
 				DelValue(db, *lek);
 			}
@@ -665,15 +610,14 @@ namespace rddb
 		KeyObject k(key, LIST_META);
 		ValueObject v;
 		ListMetaValue meta;
-		if (0 == GetValue(db, k, v))
+		if (0 == GetValue(db, k, &v))
 		{
 			if (!DecodeListMetaData(v, meta))
 			{
 				return ERR_INVALID_TYPE;
 			}
 			return meta.size;
-		}
-		else
+		} else
 		{
 			return ERR_NOT_EXIST;
 		}
@@ -681,11 +625,10 @@ namespace rddb
 
 	int RDDB::RPopLPush(DBID db, const Slice& key1, const Slice& key2)
 	{
-		ValueObject v;
-		if(0 == RPop(db, key1, v))
+		std::string v;
+		if (0 == RPop(db, key1, v))
 		{
-			value_convert_to_raw(v);
-			Slice sv(v.v.raw->GetRawReadBuffer(), v.v.raw->ReadableBytes());
+			Slice sv(v.c_str(), v.size());
 			return RPush(db, key2, sv);
 		}
 		return ERR_NOT_EXIST;

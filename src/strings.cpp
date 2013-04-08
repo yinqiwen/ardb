@@ -71,7 +71,7 @@ namespace rddb
 	{
 		KeyObject k(key);
 		ValueObject v;
-		if (GetValue(db, k, v) < 0)
+		if (GetValue(db, k, &v) < 0)
 		{
 			v.type = RAW;
 			v.v.raw = new Buffer(const_cast<char*>(value.data()), 0,
@@ -106,7 +106,7 @@ namespace rddb
 	{
 		KeyObject k(key);
 		ValueObject v;
-		if (GetValue(db, k, v) < 0)
+		if (GetValue(db, k, &v) < 0)
 		{
 			return -1;
 		}
@@ -139,7 +139,7 @@ namespace rddb
 	{
 		KeyObject k(key);
 		ValueObject v;
-		if (GetValue(db, k, v) < 0)
+		if (GetValue(db, k, &v) < 0)
 		{
 			return -1;
 		}
@@ -163,25 +163,27 @@ namespace rddb
 	}
 
 	int RDDB::GetRange(DBID db, const Slice& key, int start, int end,
-			ValueObject& v)
+			std::string& v)
 	{
 		KeyObject k(key);
-		if (GetValue(db, k, v) < 0)
+		ValueObject vo;
+		if (GetValue(db, k, &vo) < 0)
 		{
 			return ERR_NOT_EXIST;
 		}
-		if (v.type != RAW)
+		if (vo.type != RAW)
 		{
-			value_convert_to_raw(v);
+			value_convert_to_raw(vo);
 		}
-		start = RealPosition(v.v.raw, start);
-		end = RealPosition(v.v.raw, end);
+		start = RealPosition(vo.v.raw, start);
+		end = RealPosition(vo.v.raw, end);
 		if (start > end)
 		{
 			return ERR_OUTOFRANGE;
 		}
-		v.v.raw->SetReadIndex(start);
-		v.v.raw->SetWriteIndex(end + 1);
+		vo.v.raw->SetReadIndex(start);
+		vo.v.raw->SetWriteIndex(end + 1);
+		v = vo.ToString();
 		return RDDB_OK;
 	}
 
@@ -189,7 +191,7 @@ namespace rddb
 	{
 		KeyObject k(key);
 		ValueObject v;
-		if (GetValue(db, k, v) < 0)
+		if (GetValue(db, k, &v) < 0)
 		{
 			return ERR_NOT_EXIST;
 		}
@@ -204,10 +206,9 @@ namespace rddb
 	}
 
 	int RDDB::GetSet(DBID db, const Slice& key, const Slice& value,
-			ValueObject& v)
+			std::string& v)
 	{
-		KeyObject k(key);
-		if (GetValue(db, k, v) < 0)
+		if (Get(db, key, &v) < 0)
 		{
 			return ERR_NOT_EXIST;
 		}
@@ -228,7 +229,7 @@ namespace rddb
 		byte = bitoffset >> 3;
 		KeyObject k(key);
 		ValueObject v;
-		if (GetValue(db, k, v) < 0)
+		if (GetValue(db, k, &v) < 0)
 		{
 			v.type = RAW;
 			v.v.raw = new Buffer();
@@ -267,7 +268,7 @@ namespace rddb
 	{
 		KeyObject k(key);
 		ValueObject v;
-		if (GetValue(db, k, v) < 0)
+		if (GetValue(db, k, &v) < 0)
 		{
 			return ERR_NOT_EXIST;
 		}
@@ -328,7 +329,7 @@ namespace rddb
 			lens.push_back(0);
 			KeyObject k(keys[j]);
 			ValueObject* v = new ValueObject();
-			if (0 != GetValue(db, k, *v))
+			if (0 != GetValue(db, k, v))
 			{
 				vs.push_back(NULL);
 				DELETE(v);
@@ -468,12 +469,7 @@ namespace rddb
 		{
 			free(res);
 		}
-		ValueArray::iterator it = vs.begin();
-		while (it != vs.end())
-		{
-			DELETE(*it);
-			it++;
-		}
+		ClearValueArray(vs);
 		return maxlen;
 	}
 
@@ -481,7 +477,7 @@ namespace rddb
 	{
 		KeyObject k(key);
 		ValueObject v;
-		if (GetValue(db, k, v) < 0)
+		if (GetValue(db, k, &v) < 0)
 		{
 			return ERR_NOT_EXIST;
 		}

@@ -155,6 +155,27 @@ namespace rddb
 			{
 				v.int_v = 0;
 			}
+			std::string ToString()
+			{
+				switch(type){
+					case INTEGER:
+					{
+						Buffer tmp(64);
+						tmp.Printf("%lld", v.int_v);
+						return std::string(tmp.GetRawReadBuffer(), tmp.ReadableBytes());
+					}
+					case DOUBLE:
+					{
+						Buffer tmp(64);
+						tmp.Printf("%f", v.double_v);
+						return std::string(tmp.GetRawReadBuffer(), tmp.ReadableBytes());
+					}
+					default:
+					{
+						return std::string(v.raw->GetRawReadBuffer(), v.raw->ReadableBytes());
+					}
+				}
+			}
 			void Clear()
 			{
 				if (type == RAW && NULL != v.raw)
@@ -179,6 +200,11 @@ namespace rddb
 	typedef std::vector<SetMetaValue> SetMetaValueArray;
 	typedef std::set<std::string> ValueSet;
 	typedef std::tr1::unordered_map<std::string, ValueSet> KeyValueSet;
+
+	typedef std::deque<ValueObject*> ValueArray;
+	typedef std::deque<Slice> SliceArray;
+	typedef std::deque<std::string> StringArray;
+	typedef std::vector<uint32_t> WeightArray;
 
 	void encode_key(Buffer& buf, const KeyObject& key);
 	KeyObject* decode_key(const Slice& key);

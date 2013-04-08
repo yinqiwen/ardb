@@ -23,6 +23,7 @@ namespace rddb
 	int RDDB::Multi(DBID db)
 	{
 		GetDB(db)->CommitBatchWrite();
+		return 0;
 	}
 }
 

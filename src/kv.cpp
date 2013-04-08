@@ -10,7 +10,7 @@
 namespace rddb
 {
 
-	int RDDB::GetValue(DBID db, const KeyObject& key, ValueObject& v)
+	int RDDB::GetValue(DBID db, const KeyObject& key, ValueObject* v)
 	{
 		Buffer keybuf(key.key.size() + 16);
 		encode_key(keybuf, key);
@@ -19,15 +19,18 @@ namespace rddb
 		int ret = GetDB(db)->Get(k, &value);
 		if (ret == 0)
 		{
-			Buffer readbuf(const_cast<char*>(value.c_str()), 0, value.size());
-			if (decode_value(readbuf, v))
+			if (NULL == v)
 			{
-				if (v.expire > 0 && get_current_epoch_nanos() >= v.expire)
+				return 0;
+			}
+			Buffer readbuf(const_cast<char*>(value.c_str()), 0, value.size());
+			if (decode_value(readbuf, *v))
+			{
+				if (v->expire > 0 && get_current_epoch_nanos() >= v->expire)
 				{
 					GetDB(db)->Del(k);
 					return ERR_NOT_EXIST;
-				}
-				else
+				} else
 				{
 					return RDDB_OK;
 				}
@@ -107,7 +110,7 @@ namespace rddb
 		{
 			KeyObject keyobject(*kit);
 			ValueObject valueobject;
-			if (0 != GetValue(db, keyobject, valueobject))
+			if (0 != GetValue(db, keyobject, &valueobject))
 			{
 				fill_value(*vit, valueobject);
 				SetValue(db, keyobject, valueobject);
@@ -119,20 +122,18 @@ namespace rddb
 	}
 
 	int RDDB::Set(DBID db, const Slice& key, const Slice& value, int ex, int px,
-	        int nxx)
+			int nxx)
 	{
-		ValueObject v;
 		KeyObject k(key);
 		if (-1 == nxx)
 		{
-			if (0 == GetValue(db, k, v))
+			if (0 == GetValue(db, k, NULL))
 			{
 				return ERR_KEY_EXIST;
 			}
-		}
-		else if (1 == nxx)
+		} else if (1 == nxx)
 		{
-			if (0 != GetValue(db, k, v))
+			if (0 != GetValue(db, k, NULL))
 			{
 				return ERR_NOT_EXIST;
 			}
@@ -165,7 +166,7 @@ namespace rddb
 	}
 
 	int RDDB::SetEx(DBID db, const Slice& key, const Slice& value,
-	        uint32_t secs)
+			uint32_t secs)
 	{
 		return PSetEx(db, key, value, secs * 1000);
 	}
@@ -184,28 +185,29 @@ namespace rddb
 		return SetValue(db, keyobject, valueobject);
 	}
 
-	int RDDB::Get(DBID db, const Slice& key, ValueObject& value)
+	int RDDB::Get(DBID db, const Slice& key, std::string* value)
 	{
 		KeyObject keyobject(key);
-		return GetValue(db, keyobject, value);
+		ValueObject v;
+		int ret = GetValue(db, keyobject, &v);
+		if (0 == ret)
+		{
+			if (NULL != value)
+			{
+				value->assign(v.ToString());
+			}
+		}
+		return ret;
 	}
 
-	int RDDB::MGet(DBID db, SliceArray& keys, ValueArray& value)
+	int RDDB::MGet(DBID db, SliceArray& keys, StringArray& value)
 	{
 		SliceArray::iterator it = keys.begin();
 		while (it != keys.end())
 		{
-			KeyObject k(*it);
-			ValueObject* v = new ValueObject();
-			if (0 == GetValue(db, k, *v))
-			{
-				value.push_back(v);
-			}
-			else
-			{
-				DELETE(v);
-				value.push_back(NULL);
-			}
+			std::string v;
+			Get(db, *it, &v);
+			value.push_back(v);
 			it++;
 		}
 		return 0;
@@ -219,15 +221,14 @@ namespace rddb
 
 	bool RDDB::Exists(DBID db, const Slice& key)
 	{
-		ValueObject value;
-		return Get(db, key, value) == 0;
+		return Get(db, key, NULL) == 0;
 	}
 
 	int RDDB::SetExpiration(DBID db, const Slice& key, uint64_t expire)
 	{
 		KeyObject keyobject(key);
 		ValueObject value;
-		if (0 == GetValue(db, keyobject, value))
+		if (0 == GetValue(db, keyobject, &value))
 		{
 			value.expire = expire;
 			return SetValue(db, keyobject, value);
@@ -237,11 +238,10 @@ namespace rddb
 
 	int RDDB::Strlen(DBID db, const Slice& key)
 	{
-		ValueObject v;
-		if (0 == Get(db, key, v))
+		std::string v;
+		if (0 == Get(db, key, &v))
 		{
-			value_convert_to_raw(v);
-			return v.v.raw->ReadableBytes();
+			return v.size();
 		}
 		return ERR_NOT_EXIST;
 	}
@@ -273,7 +273,8 @@ namespace rddb
 	int RDDB::PTTL(DBID db, const Slice& key)
 	{
 		ValueObject v;
-		if (0 == Get(db, key, v))
+		KeyObject k(key);
+		if (0 == GetValue(db, k, &v))
 		{
 			int ttl = 0;
 			if (v.expire > 0)
@@ -308,7 +309,8 @@ namespace rddb
 	int RDDB::Rename(DBID db, const Slice& key1, const Slice& key2)
 	{
 		ValueObject v;
-		if (0 == Get(db, key1, v))
+		KeyObject k1(key1);
+		if (0 == GetValue(db, k1, &v))
 		{
 			BatchWriteGuard guard(GetDB(db));
 			Del(db, key1);
@@ -320,29 +322,28 @@ namespace rddb
 
 	int RDDB::RenameNX(DBID db, const Slice& key1, const Slice& key2)
 	{
-		ValueObject v1, v2;
-		if (0 == Get(db, key1, v1))
+		std::string v1;
+		if (0 == Get(db, key1, &v1))
 		{
-			if (0 == Get(db, key2, v2))
+			if (0 == Get(db, key2, NULL))
 			{
 				return 0;
 			}
 			BatchWriteGuard guard(GetDB(db));
 			Del(db, key1);
-			KeyObject k2(key2);
-			return SetValue(db, k2, v1) != 0 ? -1 : 1;
+			return Set(db, key2, v1) != 0 ? -1 : 1;
 		}
 		return ERR_NOT_EXIST;
 	}
 
 	int RDDB::Move(DBID srcdb, const Slice& key, DBID dstdb)
 	{
-		ValueObject v;
-		if (0 == Get(srcdb, key, v))
+		std::string v;
+		if (0 == Get(srcdb, key, &v))
 		{
 			Del(srcdb, key);
 			KeyObject k(key);
-			return SetValue(dstdb, k, v);
+			return Set(dstdb, key, v);
 		}
 		return ERR_NOT_EXIST;
 	}

@@ -101,11 +101,6 @@ namespace rddb
 			}
 	};
 
-	typedef std::deque<ValueObject*> ValueArray;
-	typedef std::deque<Slice> SliceArray;
-	typedef std::deque<std::string> StringArray;
-	typedef std::vector<uint32_t> WeightArray;
-
 	enum AggregateType
 	{
 		AGGREGATE_SUM = 0, AGGREGATE_MIN = 1, AGGREGATE_MAX = 2,
@@ -134,7 +129,7 @@ namespace rddb
 			KeyValueEngine* GetDB(DBID db);
 
 			int SetExpiration(DBID db, const Slice& key, uint64_t expire);
-			int GetValue(DBID db, const KeyObject& key, ValueObject& v);
+			int GetValue(DBID db, const KeyObject& key, ValueObject* v);
 			int SetValue(DBID db, KeyObject& key, ValueObject& value);
 			int DelValue(DBID db, KeyObject& key);
 			Iterator* FindValue(DBID db, KeyObject& key);
@@ -143,13 +138,15 @@ namespace rddb
 			int ListPush(DBID db, const Slice& key, const Slice& value,
 					bool athead, bool onlyexist, double withscore = DBL_MAX);
 			int ListPop(DBID db, const Slice& key, bool athead,
-					ValueObject& value);
+					std::string& value);
 			int GetZSetMetaValue(DBID db, const Slice& key,
 					ZSetMetaValue& meta);
 			void SetZSetMetaValue(DBID db, const Slice& key,
 					ZSetMetaValue& meta);
 			int GetSetMetaValue(DBID db, const Slice& key, SetMetaValue& meta);
 			void SetSetMetaValue(DBID db, const Slice& key, SetMetaValue& meta);
+			int HGetValue(DBID db, const Slice& key, const Slice& field,
+					ValueObject* value);
 			struct WalkHandler
 			{
 					virtual int OnKeyValue(KeyObject* key,
@@ -178,8 +175,8 @@ namespace rddb
 					uint32_t secs);
 			int PSetEx(DBID db, const Slice& key, const Slice& value,
 					uint32_t ms);
-			int Get(DBID db, const Slice& key, ValueObject& value);
-			int MGet(DBID db, SliceArray& keys, ValueArray& value);
+			int Get(DBID db, const Slice& key, std::string* value);
+			int MGet(DBID db, SliceArray& keys, StringArray& value);
 			int Del(DBID db, const Slice& key);
 			bool Exists(DBID db, const Slice& key);
 			int Expire(DBID db, const Slice& key, uint32_t secs);
@@ -209,11 +206,11 @@ namespace rddb
 			int IncrbyFloat(DBID db, const Slice& key, double increment,
 					double& value);
 			int GetRange(DBID db, const Slice& key, int start, int end,
-					ValueObject& valueobj);
+					std::string& valueobj);
 			int SetRange(DBID db, const Slice& key, int start,
 					const Slice& value);
 			int GetSet(DBID db, const Slice& key, const Slice& value,
-					ValueObject& valueobj);
+					std::string& valueobj);
 			int BitCount(DBID db, const Slice& key, int start, int end);
 			int GetBit(DBID db, const Slice& key, int offset);
 			int SetBit(DBID db, const Slice& key, uint32_t offset,
@@ -228,19 +225,19 @@ namespace rddb
 			int HDel(DBID db, const Slice& key, const Slice& field);
 			bool HExists(DBID db, const Slice& key, const Slice& field);
 			int HGet(DBID db, const Slice& key, const Slice& field,
-					ValueObject& value);
+					std::string* value);
 			int HIncrby(DBID db, const Slice& key, const Slice& field,
 					int64_t increment, int64_t& value);
 			int HIncrbyFloat(DBID db, const Slice& key, const Slice& field,
 					double increment, double& value);
 			int HMGet(DBID db, const Slice& key, const SliceArray& fields,
-					ValueArray& values);
+					StringArray& values);
 			int HMSet(DBID db, const Slice& key, const SliceArray& fields,
 					const SliceArray& values);
 			int HGetAll(DBID db, const Slice& key, StringArray& fields,
-					ValueArray& values);
+					StringArray& values);
 			int HKeys(DBID db, const Slice& key, StringArray& fields);
-			int HVals(DBID db, const Slice& key, ValueArray& values);
+			int HVals(DBID db, const Slice& key, StringArray& values);
 			int HLen(DBID db, const Slice& key);
 			int HClear(DBID db, const Slice& key);
 
@@ -248,8 +245,8 @@ namespace rddb
 			int LPushx(DBID db, const Slice& key, const Slice& value);
 			int RPush(DBID db, const Slice& key, const Slice& value);
 			int RPushx(DBID db, const Slice& key, const Slice& value);
-			int LPop(DBID db, const Slice& key, ValueObject& v);
-			int RPop(DBID db, const Slice& key, ValueObject& v);
+			int LPop(DBID db, const Slice& key, std::string& v);
+			int RPop(DBID db, const Slice& key, std::string& v);
 			int LIndex(DBID db, const Slice& key, uint32_t index,
 					ValueObject& v);
 			int LInsert(DBID db, const Slice& key, const Slice& op,
@@ -315,7 +312,6 @@ namespace rddb
 			int Discard(DBID db);
 			int Exec(DBID db);
 			int Multi(DBID db);
-
 	};
 }
 

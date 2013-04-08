@@ -64,7 +64,7 @@ namespace rddb
 		KeyObject k(key, ZSET_META);
 		ValueObject v;
 		ZSetMetaValue meta;
-		if (0 == GetValue(db, k, v))
+		if (0 == GetValue(db, k, &v))
 		{
 			if (!DecodeZSetMetaData(v, meta))
 			{
@@ -82,7 +82,7 @@ namespace rddb
 
 		ZSetScoreKeyObject zk(key, value);
 		ValueObject zv;
-		if (0 != GetValue(db, zk, zv))
+		if (0 != GetValue(db, zk, &zv))
 		{
 			meta.size++;
 			zv.type = DOUBLE;
@@ -126,7 +126,7 @@ namespace rddb
 	{
 		KeyObject k(key, ZSET_META);
 		ValueObject v;
-		if (0 == GetValue(db, k, v))
+		if (0 == GetValue(db, k, &v))
 		{
 			if (!DecodeZSetMetaData(v, meta))
 			{
@@ -152,7 +152,7 @@ namespace rddb
 	{
 		ZSetScoreKeyObject zk(key, value);
 		ValueObject zv;
-		if (0 != GetValue(db, zk, zv))
+		if (0 != GetValue(db, zk, &zv))
 		{
 			return ERR_NOT_EXIST;
 		}
@@ -165,7 +165,7 @@ namespace rddb
 	{
 		ZSetScoreKeyObject zk(key, value);
 		ValueObject zv;
-		if (0 == GetValue(db, zk, zv))
+		if (0 == GetValue(db, zk, &zv))
 		{
 			BatchWriteGuard guard(GetDB(db));
 			SetValue(db, zk, zv);
@@ -213,7 +213,7 @@ namespace rddb
 	{
 		ZSetScoreKeyObject zk(key, value);
 		ValueObject zv;
-		if (0 == GetValue(db, zk, zv))
+		if (0 == GetValue(db, zk, &zv))
 		{
 			BatchWriteGuard guard(GetDB(db));
 			DelValue(db, zk);

@@ -35,7 +35,7 @@ namespace rddb
 	{
 		KeyObject k(key, SET_META);
 		ValueObject v;
-		if (0 == GetValue(db, k, v))
+		if (0 == GetValue(db, k, &v))
 		{
 			if (!DecodeSetMetaData(v, meta))
 			{
@@ -62,7 +62,7 @@ namespace rddb
 		Slice max(meta.max);
 		SetKeyObject sk(key, value);
 		ValueObject sv;
-		if (0 != GetValue(db, sk, sv))
+		if (0 != GetValue(db, sk, &sv))
 		{
 			meta.size++;
 			if (min.size() == 0 || min.compare(value) > 0)
@@ -87,7 +87,7 @@ namespace rddb
 		KeyObject k(key, SET_META);
 		ValueObject v;
 		SetMetaValue meta;
-		if (0 == GetValue(db, k, v))
+		if (0 == GetValue(db, k, &v))
 		{
 			if (!DecodeSetMetaData(v, meta))
 			{
@@ -102,7 +102,7 @@ namespace rddb
 	{
 		SetKeyObject sk(key, value);
 		ValueObject sv;
-		if (0 != GetValue(db, sk, sv))
+		if (0 != GetValue(db, sk, &sv))
 		{
 			return ERR_NOT_EXIST;
 		}
@@ -114,7 +114,7 @@ namespace rddb
 		KeyObject k(key, SET_META);
 		ValueObject v;
 		SetMetaValue meta;
-		if (0 == GetValue(db, k, v))
+		if (0 == GetValue(db, k, &v))
 		{
 			if (!DecodeSetMetaData(v, meta))
 			{
@@ -123,7 +123,7 @@ namespace rddb
 		}
 		SetKeyObject sk(key, value);
 		ValueObject sv;
-		if (0 != GetValue(db, sk, sv))
+		if (0 != GetValue(db, sk, &sv))
 		{
 			meta.size--;
 			sv.type = EMPTY;
@@ -482,7 +482,7 @@ namespace rddb
 	{
 		SetKeyObject sk(src, value);
 		ValueObject sv;
-		if (0 != GetValue(db, sk, sv))
+		if (0 != GetValue(db, sk, &sv))
 		{
 			return 0;
 		}
