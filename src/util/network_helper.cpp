@@ -13,6 +13,7 @@
 #include <sys/un.h>
 #include <net/if.h>
 #include <string.h>
+#include <stdio.h>
 
 namespace rddb
 {

@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdexcept>
+#include <stdlib.h>
 
 namespace rddb
 {

@@ -11,7 +11,6 @@
 #include <string>
 #include <vector>
 #include <limits.h>
-#include <iconv.h>
 
 namespace rddb
 {

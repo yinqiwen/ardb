@@ -7,6 +7,8 @@
 #include "util/config_helper.hpp"
 #include "util/string_helper.hpp"
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include "logger.hpp"
 
 namespace rddb
