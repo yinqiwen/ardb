@@ -208,7 +208,12 @@ namespace rddb
 	int RDDB::Del(DBID db, const Slice& key)
 	{
 		KeyObject k(key);
-		return DelValue(db, k);
+		DelValue(db, k);
+		HClear(db, key);
+		LClear(db, key);
+		ZClear(db, key);
+		SClear(db, key);
+		return 0;
 	}
 
 	bool RDDB::Exists(DBID db, const Slice& key)
