@@ -312,6 +312,10 @@ namespace rddb
 			int Discard(DBID db);
 			int Exec(DBID db);
 			int Multi(DBID db);
+
+			int Type(DBID db, const Slice& key);
+			int Sort(DBID db, const Slice& key, const StringArray& args, StringArray& values);
+
 	};
 }
 

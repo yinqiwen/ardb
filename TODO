@@ -17,7 +17,7 @@ RENAMENX key newkey             DONE
 RESTORE key ttl serialized-value  Discard
 SORT key                        NotYet
 TTL key                        DONE
-TYPE key                       Discard
+TYPE key                       DONE
 
 APPEND key value               DONE
 BITCOUNT key [start] [end]     DONE

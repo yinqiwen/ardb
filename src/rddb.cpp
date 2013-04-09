@@ -7,6 +7,19 @@
 #include "rddb.hpp"
 #include <string.h>
 
+#define  GET_KEY_TYPE(DB, KEY, TYPE)   do{ \
+		Iterator* iter = FindValue(DB, KEY);  \
+		if (NULL != iter && iter->Valid()) \
+		{                                  \
+			Slice tmp = iter->Key();       \
+			KeyObject* k = decode_key(tmp); \
+			if(NULL != k && k->key.compare(KEY.key) == 0)\
+			{                                            \
+				TYPE = k->type;                          \
+	         }                                           \
+	    }\
+}while(0)
+
 namespace rddb
 {
 	void RDDB::ClearValueArray(ValueArray& array)
@@ -53,7 +66,7 @@ namespace rddb
 			if (NULL == kk || kk->type != key.type
 					|| kk->key.compare(key.key) != 0)
 			{
-				if(reverse && isFirstElement)
+				if (reverse && isFirstElement)
 				{
 					DELETE(kk);
 					iter->Prev();
@@ -97,6 +110,51 @@ namespace rddb
 			m_engine_table[db] = engine;
 		}
 		return engine;
+	}
+
+	int RDDB::Type(DBID db, const Slice& key)
+	{
+		if (Exists(db, key))
+		{
+			return KV;
+		}
+
+		int type = -1;
+		Slice empty;
+		SetKeyObject sk(key, empty);
+		GET_KEY_TYPE(db, sk, type);
+		if (type < 0)
+		{
+			ZSetScoreKeyObject zk(key, empty);
+			GET_KEY_TYPE(db, zk, type);
+			if (type < 0)
+			{
+				HashKeyObject hk(key, empty);
+				GET_KEY_TYPE(db, hk, type);
+				if (type < 0)
+				{
+					KeyObject lk(key, LIST_META);
+					GET_KEY_TYPE(db, lk, type);
+				}
+			}
+		}
+		return type;
+	}
+
+	int RDDB::Sort(DBID db, const Slice& key, const StringArray& args,
+			StringArray& values)
+	{
+		struct SortOptions
+		{
+				std::string by;
+				bool with_limit;
+				StringArray get_patterns;
+				bool is_desc;
+				bool with_alpha;
+				std::string store_dst;
+		};
+
+		return 0;
 	}
 
 }
