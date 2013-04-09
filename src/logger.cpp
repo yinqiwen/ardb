@@ -11,7 +11,7 @@
 #include <stdio.h>
 namespace ardb
 {
-	static ARDBLogHandler* kLogHandler = 0;
+	static ArdbLogHandler* kLogHandler = 0;
 	static IsLogEnable* kLogChecker = 0;
 	static const char* kLogLevelNames[] = { "FATAL", "ERROR", "WARN", "INFO",
 			"DEBUG", "TRACE" };
@@ -73,7 +73,7 @@ namespace ardb
 		return true;
 	}
 
-	ARDBLogHandler* ARDBLogger::GetLogHandler()
+	ArdbLogHandler* ArdbLogger::GetLogHandler()
 	{
 		if (!kLogHandler)
 		{
@@ -81,7 +81,7 @@ namespace ardb
 		}
 		return kLogHandler;
 	}
-	IsLogEnable* ARDBLogger::GetLogChecker()
+	IsLogEnable* ArdbLogger::GetLogChecker()
 	{
 		if (!kLogChecker)
 		{
@@ -89,7 +89,7 @@ namespace ardb
 		}
 		return kLogChecker;
 	}
-	void ARDBLogger::InstallLogHandler(ARDBLogHandler* h, IsLogEnable* c)
+	void ArdbLogger::InstallLogHandler(ArdbLogHandler* h, IsLogEnable* c)
 	{
 		kLogHandler = h;
 		kLogChecker = c;
