@@ -17,7 +17,7 @@
 namespace ardb
 {
 	int LevelDBComparator::Compare(const leveldb::Slice& a,
-			const leveldb::Slice& b) const
+	        const leveldb::Slice& b) const
 	{
 		KeyObject* ak = decode_key(ARDB_SLICE(a));
 		KeyObject* bk = decode_key(ARDB_SLICE(b));
@@ -94,9 +94,10 @@ namespace ardb
 					break;
 				}
 			}
-		} else
+		}
+		else
 		{
-			ret = ak->type > bk->type ? 1 : -1;
+			ret = COMPARE_NUMBER(ak->type ,bk->type);
 		}
 		DELETE(ak);
 		DELETE(bk);
@@ -104,7 +105,7 @@ namespace ardb
 	}
 
 	void LevelDBComparator::FindShortestSeparator(std::string* start,
-			const leveldb::Slice& limit) const
+	        const leveldb::Slice& limit) const
 	{
 	}
 
@@ -169,7 +170,7 @@ namespace ardb
 		options.comparator = &m_comparator;
 		make_dir(path);
 		leveldb::Status status = leveldb::DB::Open(options, path.c_str(),
-				&m_db);
+		        &m_db);
 		if (!status.ok())
 		{
 			DEBUG_LOG("Failed to init engine:%s\n", status.ToString().c_str());
@@ -206,16 +207,19 @@ namespace ardb
 		if (!m_batch_stack.empty())
 		{
 			m_batch.Put(LEVELDB_SLICE(key), LEVELDB_SLICE(value));
-		} else
+		}
+		else
 		{
-			s = m_db->Put(leveldb::WriteOptions(), LEVELDB_SLICE(key),LEVELDB_SLICE(value));
+			s = m_db->Put(leveldb::WriteOptions(), LEVELDB_SLICE(key),
+			        LEVELDB_SLICE(value));
 		}
 		return s.ok() ? 0 : -1;
 	}
 	int LevelDBEngine::Get(const Slice& key, std::string* value)
 	{
-		leveldb::Status s = m_db->Get(leveldb::ReadOptions(), LEVELDB_SLICE(key), value);
-		if(!s.ok())
+		leveldb::Status s = m_db->Get(leveldb::ReadOptions(),
+		        LEVELDB_SLICE(key), value);
+		if (!s.ok())
 		{
 			//DEBUG_LOG("Failed to find %s", s.ToString().c_str());
 		}
@@ -227,7 +231,8 @@ namespace ardb
 		if (!m_batch_stack.empty())
 		{
 			m_batch.Delete(LEVELDB_SLICE(key));
-		} else
+		}
+		else
 		{
 			s = m_db->Delete(leveldb::WriteOptions(), LEVELDB_SLICE(key));
 		}

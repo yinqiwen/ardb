@@ -15,59 +15,54 @@
 
 namespace ardb
 {
-    namespace codec
-    {
-        class RedisFrameDecoder;
-        class RedisCommandFrame
-        {
-            public:
-                typedef std::vector<Buffer*> ArgumentArray;
-            private:
-                bool m_is_inline;
-                ArgumentArray m_args;
-                Buffer* GetNextArgument(size_t len);
-                friend class RedisFrameDecoder;
-            public:
-                RedisCommandFrame() :
-                    m_is_inline(false)
-                {
-                }
-                bool IsInLine()
-                {
-                    return m_is_inline;
-                }
-                ArgumentArray& GetArguments()
-                {
-                    return m_args;
-                }
-                Buffer* GetArgument(uint32 index);
-                void Clear();
-                int DecodeFromBuffer(Buffer& buf);
-                int EncodeToBuffer(Buffer& buf);
-                int EncodeRawProtocol(Buffer& buf);
-                //int EncodeToRawCommandString(std::string& str);
-                ~RedisCommandFrame();
-        };
+	namespace codec
+	{
+		class RedisFrameDecoder;
+		class RedisCommandFrame
+		{
+			public:
+				typedef std::vector<std::string> ArgumentArray;
+			private:
+				bool m_is_inline;
+				ArgumentArray m_args;
+				void FillNextArgument(Buffer& buf, size_t len);
+				friend class RedisFrameDecoder;
+			public:
+				RedisCommandFrame() :
+						m_is_inline(false)
+				{
+				}
+				bool IsInLine()
+				{
+					return m_is_inline;
+				}
+				ArgumentArray& GetArguments()
+				{
+					return m_args;
+				}
+				std::string* GetArgument(uint32 index);
+				void Clear();
+				~RedisCommandFrame();
+		};
 
-        //typedef std::list<std::string> RedisCommandFrame;
-        class RedisFrameDecoder: public FrameDecoder<RedisCommandFrame>
-        {
-            protected:
-                int ProcessInlineBuffer(ChannelHandlerContext& ctx,
-                        Buffer& buffer, RedisCommandFrame* frame);
-                int ProcessMultibulkBuffer(ChannelHandlerContext& ctx,
-                        Buffer& buffer, RedisCommandFrame* frame);
-                FrameDecodeResult<RedisCommandFrame> Decode(
-                        ChannelHandlerContext& ctx, Channel* channel,
-                        Buffer& buffer);
-            public:
+		//typedef std::list<std::string> RedisCommandFrame;
+		class RedisFrameDecoder: public StackFrameDecoder<RedisCommandFrame>
+		{
+			protected:
+				int ProcessInlineBuffer(ChannelHandlerContext& ctx,
+				        Buffer& buffer, RedisCommandFrame& frame);
+				int ProcessMultibulkBuffer(ChannelHandlerContext& ctx,
+				        Buffer& buffer, RedisCommandFrame& frame);
+				bool Decode(ChannelHandlerContext& ctx, Channel* channel,
+				        Buffer& buffer, RedisCommandFrame& msg);
+			public:
 
-                RedisFrameDecoder()
-                {
-                }
+				RedisFrameDecoder()
+				{
+				}
 
-        };
-    }
+		};
+	}
 }
 
 #endif /* REDIS_FRAME_DECODER_HPP_ */
