@@ -13,7 +13,7 @@
 using std::map;
 using std::string;
 
-namespace rddb
+namespace ardb
 {
 
 	typedef std::map<std::string, std::string> Properties;

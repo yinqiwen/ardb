@@ -9,7 +9,7 @@
 #define TIMER_TASK_QUEUE_HPP_
 #include "common.hpp"
 #include "timer_task.hpp"
-namespace rddb
+namespace ardb
 {
 
 	class TimerTaskQueue

@@ -18,7 +18,7 @@
 
 using std::string;
 
-namespace rddb
+namespace ardb
 {
 	class SocketHostAddress: public Address
 	{

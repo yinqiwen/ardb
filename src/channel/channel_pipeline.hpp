@@ -18,7 +18,7 @@
 using std::map;
 using std::vector;
 using std::string;
-namespace rddb
+namespace ardb
 {
 	/**
 	 *  ChannelPipeline用于管理注册在channle上的handler， handler之间关系， event流向如图

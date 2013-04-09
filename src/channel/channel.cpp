@@ -6,7 +6,7 @@
  */
 #include "channel/all_includes.hpp"
 
-using namespace rddb;
+using namespace ardb;
 
 static uint32 kChannelIDSeed = 1;
 

@@ -13,7 +13,7 @@
 #include <errno.h>
 #include <string.h>
 
-using namespace rddb;
+using namespace ardb;
 
 ServerSocketChannel::ServerSocketChannel(ChannelService& factory)
 		: SocketChannel(factory), m_connected_socks(0), m_accepted_cb(NULL)

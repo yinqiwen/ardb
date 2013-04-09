@@ -10,7 +10,7 @@
 #include "channel/channel.hpp"
 #include <vector>
 
-namespace rddb
+namespace ardb
 {
 	struct SignalHandler
 	{

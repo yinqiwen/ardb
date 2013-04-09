@@ -23,7 +23,7 @@
 #include <mach/mach.h>
 #endif
 
-namespace rddb
+namespace ardb
 {
 	inline uint64_t get_current_epoch_nanos()
 	{

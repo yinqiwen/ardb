@@ -7,7 +7,7 @@
 #include "channel/all_includes.hpp"
 #include "util/time_helper.hpp"
 
-using namespace rddb;
+using namespace ardb;
 
 int TimerChannel::TimeoutCB(struct aeEventLoop *eventLoop, long long id,
         void *clientData)

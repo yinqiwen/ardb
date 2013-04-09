@@ -4,9 +4,9 @@
  *  Created on: 2013-3-29
  *      Author: wqy
  */
-#include "rddb.hpp"
+#include "ardb.hpp"
 
-namespace rddb
+namespace ardb
 {
 	static const long BITOP_AND = 0;
 	static const long BITOP_OR = 1;
@@ -67,7 +67,7 @@ namespace rddb
 		return bits;
 	}
 
-	int RDDB::Append(DBID db, const Slice& key, const Slice& value)
+	int Ardb::Append(DBID db, const Slice& key, const Slice& value)
 	{
 		KeyObject k(key);
 		ValueObject v;
@@ -91,17 +91,17 @@ namespace rddb
 		return ret;
 	}
 
-	int RDDB::XIncrby(DBID db, const Slice& key, int64_t increment)
+	int Ardb::XIncrby(DBID db, const Slice& key, int64_t increment)
 	{
 		KeyObject k(key);
 		return 0;
 	}
 
-	int RDDB::Incr(DBID db, const Slice& key, int64_t& value)
+	int Ardb::Incr(DBID db, const Slice& key, int64_t& value)
 	{
 		return Incrby(db, key, 1, value);
 	}
-	int RDDB::Incrby(DBID db, const Slice& key, int64_t increment,
+	int Ardb::Incrby(DBID db, const Slice& key, int64_t increment,
 			int64_t& value)
 	{
 		KeyObject k(key);
@@ -123,18 +123,18 @@ namespace rddb
 		}
 	}
 
-	int RDDB::Decr(DBID db, const Slice& key, int64_t& value)
+	int Ardb::Decr(DBID db, const Slice& key, int64_t& value)
 	{
 		return Decrby(db, key, 1, value);
 	}
 
-	int RDDB::Decrby(DBID db, const Slice& key, int64_t decrement,
+	int Ardb::Decrby(DBID db, const Slice& key, int64_t decrement,
 			int64_t& value)
 	{
 		return Incrby(db, key, 0 - decrement, value);
 	}
 
-	int RDDB::IncrbyFloat(DBID db, const Slice& key, double increment,
+	int Ardb::IncrbyFloat(DBID db, const Slice& key, double increment,
 			double& value)
 	{
 		KeyObject k(key);
@@ -162,7 +162,7 @@ namespace rddb
 		}
 	}
 
-	int RDDB::GetRange(DBID db, const Slice& key, int start, int end,
+	int Ardb::GetRange(DBID db, const Slice& key, int start, int end,
 			std::string& v)
 	{
 		KeyObject k(key);
@@ -184,10 +184,10 @@ namespace rddb
 		vo.v.raw->SetReadIndex(start);
 		vo.v.raw->SetWriteIndex(end + 1);
 		v = vo.ToString();
-		return RDDB_OK;
+		return ARDB_OK;
 	}
 
-	int RDDB::SetRange(DBID db, const Slice& key, int start, const Slice& value)
+	int Ardb::SetRange(DBID db, const Slice& key, int start, const Slice& value)
 	{
 		KeyObject k(key);
 		ValueObject v;
@@ -205,7 +205,7 @@ namespace rddb
 		return SetValue(db, k, v);
 	}
 
-	int RDDB::GetSet(DBID db, const Slice& key, const Slice& value,
+	int Ardb::GetSet(DBID db, const Slice& key, const Slice& value,
 			std::string& v)
 	{
 		if (Get(db, key, &v) < 0)
@@ -215,7 +215,7 @@ namespace rddb
 		return Set(db, key, value);
 	}
 
-	int RDDB::SetBit(DBID db, const Slice& key, uint32_t offset, uint8_t value)
+	int Ardb::SetBit(DBID db, const Slice& key, uint32_t offset, uint8_t value)
 	{
 		size_t bitoffset;
 		int byte, bit;
@@ -264,7 +264,7 @@ namespace rddb
 		return bitval;
 	}
 
-	int RDDB::GetBit(DBID db, const Slice& key, int bitoffset)
+	int Ardb::GetBit(DBID db, const Slice& key, int bitoffset)
 	{
 		KeyObject k(key);
 		ValueObject v;
@@ -288,7 +288,7 @@ namespace rddb
 		return bitval;
 	}
 
-	int RDDB::BitOP(DBID db, const Slice& opstr, const Slice& dstkey,
+	int Ardb::BitOP(DBID db, const Slice& opstr, const Slice& dstkey,
 			SliceArray& keys)
 	{
 		long op, j, numkeys;
@@ -473,7 +473,7 @@ namespace rddb
 		return maxlen;
 	}
 
-	int RDDB::BitCount(DBID db, const Slice& key, int start, int end)
+	int Ardb::BitCount(DBID db, const Slice& key, int start, int end)
 	{
 		KeyObject k(key);
 		ValueObject v;

@@ -10,7 +10,7 @@
 #include "hash_testcase.cpp"
 #include "zset_testcase.cpp"
 
-void test_type(RDDB& db)
+void test_type(Ardb& db)
 {
 	db.SAdd(0, "myset", "123");
 	db.LPush(0, "mylist", "value0");
@@ -26,7 +26,7 @@ void test_type(RDDB& db)
 	LOG_IF(FATAL, db.Type(0, "skey") != KV) << "type failed.";
 }
 
-void test_all(RDDB& db)
+void test_all(Ardb& db)
 {
 	test_strings(db);
 	test_hashs(db);

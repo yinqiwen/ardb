@@ -80,7 +80,7 @@ typedef uint32_t uint32;
 typedef uint64_t uint64;
 #endif
 
-namespace rddb
+namespace ardb
 {
 	template<typename T>
 	struct Type

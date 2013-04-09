@@ -15,7 +15,7 @@
 #include <sys/ioctl.h>
 #include <stdio.h>
 
-namespace rddb
+namespace ardb
 {
 	bool is_file_exist(const std::string& path)
 	{

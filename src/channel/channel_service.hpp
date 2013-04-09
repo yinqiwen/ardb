@@ -28,7 +28,7 @@ using std::list;
 using std::pair;
 using std::make_pair;
 
-namespace rddb
+namespace ardb
 {
 	enum ChannelSoftSignal
 	{

@@ -16,7 +16,7 @@
 #include "common.hpp"
 #include <string>
 
-namespace rddb
+namespace ardb
 {
 	class SocketUnixAddress: public Address
 	{

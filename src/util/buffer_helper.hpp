@@ -12,7 +12,7 @@
 #include <string>
 using std::string;
 #define MAX_BYTEARRAY_BUFFER_SIZE 4096
-namespace rddb
+namespace ardb
 {
 	class BufferHelper
 	{

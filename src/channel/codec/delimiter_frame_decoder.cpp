@@ -7,8 +7,8 @@
 #include "channel/all_includes.hpp"
 #include "util/exception/api_exception.hpp"
 
-using namespace rddb::codec;
-using namespace rddb;
+using namespace ardb::codec;
+using namespace ardb;
 
 Delimiters CommonDelimiters::m_lineDelimiter;
 Delimiters CommonDelimiters::m_nulDelimiter;

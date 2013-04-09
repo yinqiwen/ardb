@@ -9,7 +9,7 @@
 #define NOVA_APIEXCEPTION_HPP_
 #include "exception.hpp"
 
-namespace rddb
+namespace ardb
 {
 	class APIException: public Exception
 	{

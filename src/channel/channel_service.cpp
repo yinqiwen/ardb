@@ -11,7 +11,7 @@
 #include "util/buffer_helper.hpp"
 #include <list>
 
-using namespace rddb;
+using namespace ardb;
 
 ChannelService::ChannelService(uint32 setsize) :
         m_eventLoop(NULL), m_timer(NULL), m_signal_channel(NULL), m_self_soft_signal_channel(

@@ -17,7 +17,7 @@
 #include <string.h>
 #include "common.hpp"
 
-namespace rddb
+namespace ardb
 {
 	class SocketInetAddress: public Address
 	{

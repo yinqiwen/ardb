@@ -7,7 +7,7 @@
 #include "timer_task_queue.hpp"
 #include <string.h>
 
-using namespace rddb;
+using namespace ardb;
 static const uint32 kDefaultQueueSize = 128;
 
 TimerTaskQueue::TimerTaskQueue() :

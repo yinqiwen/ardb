@@ -5,22 +5,22 @@
  *      Author: wqy
  */
 
-#include "rddb.hpp"
+#include "ardb.hpp"
 
-namespace rddb
+namespace ardb
 {
-	int RDDB::Discard(DBID db)
+	int Ardb::Discard(DBID db)
 	{
 		GetDB(db)->DiscardBatchWrite();
 		return 0;
 	}
 
-	int RDDB::Exec(DBID db)
+	int Ardb::Exec(DBID db)
 	{
 		GetDB(db)->BeginBatchWrite();
 		return 0;
 	}
-	int RDDB::Multi(DBID db)
+	int Ardb::Multi(DBID db)
 	{
 		GetDB(db)->CommitBatchWrite();
 		return 0;

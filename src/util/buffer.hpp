@@ -17,7 +17,7 @@
 #include <unistd.h>
 #include <string>
 
-namespace rddb
+namespace ardb
 {
 	/**
 	 * 动态自增长的buffer类，同时记录读写标记, 内存模型如下

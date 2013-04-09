@@ -6,7 +6,7 @@
  */
 #include "channel/all_includes.hpp"
 
-using namespace rddb;
+using namespace ardb;
 
 ChannelHandlerContext::ChannelHandlerContext(ChannelPipeline& pipeline,
         ChannelHandlerContext* prev, ChannelHandlerContext* next,

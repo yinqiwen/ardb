@@ -9,9 +9,9 @@
 #include "util/helpers.hpp"
 #include <stdarg.h>
 #include <stdio.h>
-namespace rddb
+namespace ardb
 {
-	static RDDBLogHandler* kLogHandler = 0;
+	static ARDBLogHandler* kLogHandler = 0;
 	static IsLogEnable* kLogChecker = 0;
 	static const char* kLogLevelNames[] = { "FATAL", "ERROR", "WARN", "INFO",
 			"DEBUG", "TRACE" };
@@ -73,7 +73,7 @@ namespace rddb
 		return true;
 	}
 
-	RDDBLogHandler* RDDBLogger::GetLogHandler()
+	ARDBLogHandler* ARDBLogger::GetLogHandler()
 	{
 		if (!kLogHandler)
 		{
@@ -81,7 +81,7 @@ namespace rddb
 		}
 		return kLogHandler;
 	}
-	IsLogEnable* RDDBLogger::GetLogChecker()
+	IsLogEnable* ARDBLogger::GetLogChecker()
 	{
 		if (!kLogChecker)
 		{
@@ -89,7 +89,7 @@ namespace rddb
 		}
 		return kLogChecker;
 	}
-	void RDDBLogger::InstallLogHandler(RDDBLogHandler* h, IsLogEnable* c)
+	void ARDBLogger::InstallLogHandler(ARDBLogHandler* h, IsLogEnable* c)
 	{
 		kLogHandler = h;
 		kLogChecker = c;

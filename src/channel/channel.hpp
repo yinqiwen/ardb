@@ -66,7 +66,7 @@
 //#define  CHANNEL_OPERATION_BREAK -1
 //#define  CHANNEL_OPERATION_DELAY_READ -2
 
-namespace rddb
+namespace ardb
 {
 	struct ChannelOptions
 	{

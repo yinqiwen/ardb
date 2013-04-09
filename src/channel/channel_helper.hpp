@@ -14,7 +14,7 @@
 
 using std::string;
 
-namespace rddb
+namespace ardb
 {
 	class Channel;
 	class ChannelEvent;

@@ -12,7 +12,7 @@
 
 using std::pair;
 
-namespace rddb
+namespace ardb
 {
 	namespace codec
 	{

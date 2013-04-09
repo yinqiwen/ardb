@@ -12,15 +12,15 @@
 // non-const method, all threads accessing the same Slice must use
 // external synchronization.
 
-#ifndef STORAGE_RDDB_INCLUDE_SLICE_H_
-#define STORAGE_RDDB_INCLUDE_SLICE_H_
+#ifndef STORAGE_ARDB_INCLUDE_SLICE_H_
+#define STORAGE_ARDB_INCLUDE_SLICE_H_
 
 #include <assert.h>
 #include <stddef.h>
 #include <string.h>
 #include <string>
 
-namespace rddb
+namespace ardb
 {
 	class Slice
 	{
@@ -141,6 +141,6 @@ namespace rddb
 		return r;
 	}
 
-}  // namespace rddb
+}  // namespace ardb
 
-#endif  // STORAGE_RDDB_INCLUDE_SLICE_H_
+#endif  // STORAGE_ARDB_INCLUDE_SLICE_H_

@@ -4,13 +4,13 @@
  *  Created on: 2013-4-9
  *      Author: wqy
  */
-#include "rddb.hpp"
+#include "ardb.hpp"
 #include <string>
 #include <glog/logging.h>
 
-using namespace rddb;
+using namespace ardb;
 
-void test_set_saddrem(RDDB& db)
+void test_set_saddrem(Ardb& db)
 {
 	db.SClear(0, "myset");
 	db.SAdd(0, "myset", "123");
@@ -23,7 +23,7 @@ void test_set_saddrem(RDDB& db)
 														<< db.SCard(0, "myset");
 }
 
-void test_set_member(RDDB& db)
+void test_set_member(Ardb& db)
 {
 	db.SClear(0, "myset");
 	db.SAdd(0, "myset", "v1");
@@ -37,7 +37,7 @@ void test_set_member(RDDB& db)
 	LOG_IF(FATAL, members[0] != "v1") << "SMembers myset failed:";
 }
 
-void test_set_diff(RDDB& db)
+void test_set_diff(Ardb& db)
 {
 	db.SClear(0, "myset1");
 	db.SClear(0, "myset2");
@@ -64,7 +64,7 @@ void test_set_diff(RDDB& db)
 	LOG_IF(FATAL, db.SCard(0, "myset2") != 2) << "SDiffStore myset2 failed:";
 }
 
-void test_set_inter(RDDB& db)
+void test_set_inter(Ardb& db)
 {
 	db.SClear(0, "myset1");
 	db.SClear(0, "myset2");
@@ -90,7 +90,7 @@ void test_set_inter(RDDB& db)
 	LOG_IF(FATAL, db.SCard(0, "myset2") != 1) << "SInterStore myset2 failed:";
 }
 
-void test_set_union(RDDB& db)
+void test_set_union(Ardb& db)
 {
 	db.SClear(0, "myset1");
 	db.SClear(0, "myset2");
@@ -116,7 +116,7 @@ void test_set_union(RDDB& db)
 	LOG_IF(FATAL, db.SCard(0, "myset2") != 5) << "SUnionStore myset2 failed:";
 }
 
-void test_sets(RDDB& db)
+void test_sets(Ardb& db)
 {
 	test_set_saddrem(db);
 	test_set_member(db);

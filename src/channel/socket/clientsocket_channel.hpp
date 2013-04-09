@@ -9,7 +9,7 @@
 #define NOVA_CLIENTSOCKETCHANNEL_HPP_
 #include "channel/socket/socket_channel.hpp"
 
-namespace rddb
+namespace ardb
 {
 	class ServerSocketChannel;
 	class ClientSocketChannel: public SocketChannel

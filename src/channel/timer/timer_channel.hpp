@@ -10,7 +10,7 @@
 #include "channel/channel.hpp"
 #include "timer.hpp"
 
-namespace rddb
+namespace ardb
 {
 	class TimerChannel: public Timer, public Channel
 	{

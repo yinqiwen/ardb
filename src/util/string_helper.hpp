@@ -12,7 +12,7 @@
 #include <vector>
 #include <limits.h>
 
-namespace rddb
+namespace ardb
 {
 	std::string get_basename(const std::string& filename);
 

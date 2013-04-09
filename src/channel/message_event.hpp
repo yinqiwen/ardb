@@ -9,7 +9,7 @@
 #define NOVA_MESSAGEEVENT_HPP_
 #include "common.hpp"
 #include "channel/channel_event.hpp"
-namespace rddb
+namespace ardb
 {
 	template<typename T>
 	class MessageEvent: public ChannelEvent

@@ -7,7 +7,7 @@
 #include "network_helper.hpp"
 #include "socket_address.hpp"
 
-using namespace rddb;
+using namespace ardb;
 
 SocketAddress::SocketAddress(const string& host, uint32 port):SocketHostAddress(host,port),m_inet_addr(get_inet_address(host,port))
 {

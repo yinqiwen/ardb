@@ -13,7 +13,7 @@
 #include <vector>
 #include <string>
 
-namespace rddb
+namespace ardb
 {
     namespace codec
     {

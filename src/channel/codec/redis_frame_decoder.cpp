@@ -10,9 +10,9 @@
 
 #include <limits.h>
 
-using rddb::BufferHelper;
-using namespace rddb::codec;
-using namespace rddb;
+using ardb::BufferHelper;
+using namespace ardb::codec;
+using namespace ardb;
 
 /* Client request types */
 static const uint32 REDIS_REQ_INLINE = 1;
@@ -292,7 +292,7 @@ FrameDecodeResult<RedisCommandFrame> RedisFrameDecoder::Decode(
 		if (ret > 0)
 		{
 			return FrameDecodeResult<RedisCommandFrame>(frame,
-					rddb::StandardDestructor<RedisCommandFrame>);
+					ardb::StandardDestructor<RedisCommandFrame>);
 		} else
 		{
 			DELETE(frame);

@@ -12,7 +12,7 @@
 #include "channel/timer/timer.hpp"
 using std::string;
 
-namespace rddb
+namespace ardb
 {
 	class ChannelPipeline;
 	class Channel;

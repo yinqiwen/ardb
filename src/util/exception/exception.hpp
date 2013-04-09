@@ -12,7 +12,7 @@
 
 using std::string;
 
-namespace rddb
+namespace ardb
 {
 	class Exception: public std::exception
 	{

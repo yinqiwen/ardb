@@ -8,7 +8,7 @@
 #ifndef NOVA_DATAGRAMCHANNEL_HPP_
 #define NOVA_DATAGRAMCHANNEL_HPP_
 #include "channel/socket/socket_channel.hpp"
-namespace rddb
+namespace ardb
 {
 	class DatagramChannel: public SocketChannel
 	{

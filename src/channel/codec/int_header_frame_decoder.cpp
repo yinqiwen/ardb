@@ -6,7 +6,7 @@
  */
 #include "channel/all_includes.hpp"
 
-using namespace rddb::codec;
+using namespace ardb::codec;
 
 //static void DestoryByteBuffer(ByteBuffer* obj)
 //{

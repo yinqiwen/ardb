@@ -5,8 +5,8 @@
  *      Author: wqy
  */
 
-#ifndef RRDB_HPP_
-#define RRDB_HPP_
+#ifndef ARDB_HPP_
+#define ARDB_HPP_
 #include <stdint.h>
 #include <float.h>
 #include <map>
@@ -15,12 +15,12 @@
 #include <string>
 #include <deque>
 #include "common.hpp"
-#include "rddb_data.hpp"
+#include "ardb_data.hpp"
 #include "slice.hpp"
 #include "util/helpers.hpp"
 #include "util/buffer_helper.hpp"
 
-#define RDDB_OK 0
+#define ARDB_OK 0
 #define ERR_INVALID_ARGS -3
 #define ERR_INVALID_OPERATION -4
 #define ERR_INVALID_STR -5
@@ -30,7 +30,7 @@
 #define ERR_OUTOFRANGE -9
 #define ERR_NOT_EXIST -10
 
-namespace rddb
+namespace ardb
 {
 
 	struct Iterator
@@ -106,19 +106,19 @@ namespace rddb
 		AGGREGATE_SUM = 0, AGGREGATE_MIN = 1, AGGREGATE_MAX = 2,
 	};
 
-	struct RDDBQueryOptions
+	struct ArdbQueryOptions
 	{
 			bool withscores;
 			bool withlimit;
 			int limit_offset;
 			int limit_count;
-			RDDBQueryOptions() :
+			ArdbQueryOptions() :
 					withscores(false), withlimit(false), limit_offset(0), limit_count(
 							0)
 			{
 			}
 	};
-	class RDDB
+	class Ardb
 	{
 		private:
 			static size_t RealPosition(Buffer* buf, int pos);
@@ -163,7 +163,7 @@ namespace rddb
 				m_err_cause = cause;
 			}
 		public:
-			RDDB(KeyValueEngineFactory* factory);
+			Ardb(KeyValueEngineFactory* factory);
 			static void ClearValueArray(ValueArray& array);
 			int Set(DBID db, const Slice& key, const Slice& value);
 			int Set(DBID db, const Slice& key, const Slice& value, int ex,
@@ -276,15 +276,15 @@ namespace rddb
 			int ZRemRangeByScore(DBID db, const Slice& key,
 					const std::string& min, const std::string& max);
 			int ZRange(DBID db, const Slice& key, int start, int stop,
-					StringArray& values, RDDBQueryOptions& options);
+					StringArray& values, ArdbQueryOptions& options);
 			int ZRangeByScore(DBID db, const Slice& key, const std::string& min,
 					const std::string& max, StringArray& values,
-					RDDBQueryOptions& options);
+					ArdbQueryOptions& options);
 			int ZRevRange(DBID db, const Slice& key, int start, int stop,
-					StringArray& values, RDDBQueryOptions& options);
+					StringArray& values, ArdbQueryOptions& options);
 			int ZRevRangeByScore(DBID db, const Slice& key,
 					const std::string& max, const std::string& min,
-					StringArray& values, RDDBQueryOptions& options);
+					StringArray& values, ArdbQueryOptions& options);
 			int ZUnionStore(DBID db, const Slice& dst, SliceArray& keys,
 					WeightArray& weights, AggregateType type = AGGREGATE_SUM);
 			int ZInterStore(DBID db, const Slice& dst, SliceArray& keys,

@@ -9,7 +9,7 @@
 #define MATH_HELPER_HPP_
 #include "common.hpp"
 
-namespace rddb
+namespace ardb
 {
 	uint32 upper_power_of_two(uint32 t);
 	int32 random_int32();

@@ -23,7 +23,7 @@
 #include <mach/clock.h>
 #include <mach/mach.h>
 #endif
-namespace rddb
+namespace ardb
 {
 	void init_timespec(uint64 time, TimeUnit unit, struct timespec& val);
 	void init_timeval(uint64 time, TimeUnit unit, struct timeval& val);

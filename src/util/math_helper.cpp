@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-namespace rddb
+namespace ardb
 {
 	uint32 upper_power_of_two(uint32 v)
 	{

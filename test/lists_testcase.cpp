@@ -4,13 +4,13 @@
  *  Created on: 2013-4-9
  *      Author: wqy
  */
-#include "rddb.hpp"
+#include "ardb.hpp"
 #include <string>
 #include <glog/logging.h>
 
-using namespace rddb;
+using namespace ardb;
 
-void test_lists_lpush(RDDB& db)
+void test_lists_lpush(Ardb& db)
 {
 	db.LClear(0, "mylist");
 	int ret = db.LPushx(0, "mylist", "value0");
@@ -26,7 +26,7 @@ void test_lists_lpush(RDDB& db)
 	LOG_IF(FATAL, v!="value3") << "LIndex failed:" << v;
 }
 
-void test_lists_rpush(RDDB& db)
+void test_lists_rpush(Ardb& db)
 {
 	db.LClear(0, "mylist");
 	int ret = db.RPushx(0, "mylist", "value0");
@@ -42,7 +42,7 @@ void test_lists_rpush(RDDB& db)
 	LOG_IF(FATAL, v != "value2") << "LIndex failed:" << v;
 }
 
-void test_lists_insert(RDDB& db)
+void test_lists_insert(Ardb& db)
 {
 	db.LClear(0, "mylist");
 	db.RPush(0, "mylist", "value0");
@@ -63,7 +63,7 @@ void test_lists_insert(RDDB& db)
 	LOG_IF(FATAL, vstr != "value0") << "LPop failed:" << vstr;
 }
 
-void test_lists_lrange(RDDB& db)
+void test_lists_lrange(Ardb& db)
 {
 	db.LClear(0, "mylist");
 	db.RPush(0, "mylist", "value0");
@@ -79,7 +79,7 @@ void test_lists_lrange(RDDB& db)
 	LOG_IF(FATAL, array.size() != 3) << "lrange failed:";
 }
 
-void test_lists_ltrim(RDDB& db)
+void test_lists_ltrim(Ardb& db)
 {
 	db.LClear(0, "mylist");
 	db.RPush(0, "mylist", "value0");
@@ -91,7 +91,7 @@ void test_lists_ltrim(RDDB& db)
 														<< db.LLen(0, "mylist");
 }
 
-void test_lists_lrem(RDDB& db)
+void test_lists_lrem(Ardb& db)
 {
 	db.LClear(0, "mylist");
 	db.RPush(0, "mylist", "value0");
@@ -109,7 +109,7 @@ void test_lists_lrem(RDDB& db)
 														<< db.LLen(0, "mylist");
 }
 
-void test_lists(RDDB& db)
+void test_lists(Ardb& db)
 {
 	test_lists_lpush(db);
 	test_lists_rpush(db);

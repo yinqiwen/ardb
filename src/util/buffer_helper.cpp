@@ -8,7 +8,7 @@
 #include "buffer_helper.hpp"
 //#include "net/network_helper.hpp"
 
-namespace rddb
+namespace ardb
 {
 	static const int kMaxVarintBytes = 10;
 	static const int kMaxVarint32Bytes = 5;

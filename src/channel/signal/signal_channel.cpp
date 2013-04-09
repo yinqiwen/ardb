@@ -8,7 +8,7 @@
 #include "util/helpers.hpp"
 #include <signal.h>
 
-using namespace rddb;
+using namespace ardb;
 
 static char kReadSigInfoBuf[sizeof(int) + sizeof(siginfo_t)];
 static char kWriteSigInfoBuf[sizeof(int) + sizeof(siginfo_t)];
@@ -59,8 +59,8 @@ bool SignalChannel::DoOpen()
     }
     m_self_read_pipe_fd = pipefd[0];
     m_self_write_pipe_fd = pipefd[1];
-    rddb::make_fd_nonblocking(m_self_read_pipe_fd);
-    rddb::make_fd_nonblocking(m_self_write_pipe_fd);
+    ardb::make_fd_nonblocking(m_self_read_pipe_fd);
+    ardb::make_fd_nonblocking(m_self_write_pipe_fd);
     aeCreateFileEvent(m_service.GetRawEventLoop(), m_self_read_pipe_fd,
             AE_READABLE, Channel::IOEventCallback, this);
     m_singleton_instance = this;

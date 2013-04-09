@@ -8,7 +8,7 @@
 #include <string.h>
 #include <errno.h>
 
-using namespace rddb;
+using namespace ardb;
 
 APIException::APIException() :
 	Exception()

@@ -11,7 +11,7 @@
 #include "channel/socket/socket_channel.hpp"
 #include "util/socket_host_address.hpp"
 
-namespace rddb
+namespace ardb
 {
 	class ServerSocketChannel;
 	typedef int SocketAcceptedCallBack(ServerSocketChannel* server,

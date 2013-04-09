@@ -1,12 +1,12 @@
 /*
- * rddb_data.hpp
+ * ardb_data.hpp
  *
  *  Created on: 2013-4-3
  *      Author: wqy
  */
 
-#ifndef RDDB_DATA_HPP_
-#define RDDB_DATA_HPP_
+#ifndef ARDB_DATA_HPP_
+#define ARDB_DATA_HPP_
 #include <stdint.h>
 #include <map>
 #include <set>
@@ -20,7 +20,7 @@
 #include "slice.hpp"
 #include "util/buffer_helper.hpp"
 
-namespace rddb
+namespace ardb
 {
 
 	enum KeyType
@@ -217,4 +217,4 @@ namespace rddb
 
 }
 
-#endif /* RDDB_DATA_HPP_ */
+#endif /* ARDB_DATA_HPP_ */

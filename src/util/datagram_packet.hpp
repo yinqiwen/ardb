@@ -10,7 +10,7 @@
 
 #include "socket_inet_address.hpp"
 #include "buffer.hpp"
-namespace rddb
+namespace ardb
 {
 	class DatagramPacket
 	{

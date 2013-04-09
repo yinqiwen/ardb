@@ -8,7 +8,7 @@
 #ifndef LOGGER_MACROS_HPP_
 #define LOGGER_MACROS_HPP_
 
-namespace rddb
+namespace ardb
 {
 	enum LogLevel
 	{
@@ -23,64 +23,64 @@ namespace rddb
 
 		INVALID_LOG_LEVEL = 100
 	};
-	typedef void RDDBLogHandler(LogLevel level, const char* filename,
+	typedef void ARDBLogHandler(LogLevel level, const char* filename,
 			const char* function, int line, const char* format, ...);
 	typedef bool IsLogEnable(LogLevel level);
 
-	struct RDDBLogger
+	struct ARDBLogger
 	{
-			static RDDBLogHandler* GetLogHandler();
+			static ARDBLogHandler* GetLogHandler();
 			static IsLogEnable* GetLogChecker();
-			static void InstallLogHandler(RDDBLogHandler* h, IsLogEnable* c);
+			static void InstallLogHandler(ARDBLogHandler* h, IsLogEnable* c);
 	};
 }
 
-#define DEBUG_ENABLED() ((rddb::RDDBLogger::GetLogChecker())(rddb::DEBUG_LOG_LEVEL))
-#define TRACE_ENABLED() ((rddb::RDDBLogger::GetLogChecker())(rddb::TRACE_LOG_LEVEL))
-#define ERROR_ENABLED() ((rddb::RDDBLogger::GetLogChecker())(rddb::ERROR_LOG_LEVEL))
-#define INFO_ENABLED()  ((rddb::RDDBLogger::GetLogChecker())(rddb::INFO_LOG_LEVEL))
-#define FATAL_ENABLED() ((rddb::RDDBLogger::GetLogChecker())(rddb::FATAL_LOG_LEVEL))
-#define WARN_ENABLED() ((rddb::RDDBLogger::GetLogChecker())(rddb::WARN_LOG_LEVEL))
+#define DEBUG_ENABLED() ((ardb::ARDBLogger::GetLogChecker())(ardb::DEBUG_LOG_LEVEL))
+#define TRACE_ENABLED() ((ardb::ARDBLogger::GetLogChecker())(ardb::TRACE_LOG_LEVEL))
+#define ERROR_ENABLED() ((ardb::ARDBLogger::GetLogChecker())(ardb::ERROR_LOG_LEVEL))
+#define INFO_ENABLED()  ((ardb::ARDBLogger::GetLogChecker())(ardb::INFO_LOG_LEVEL))
+#define FATAL_ENABLED() ((ardb::ARDBLogger::GetLogChecker())(ardb::FATAL_LOG_LEVEL))
+#define WARN_ENABLED() ((ardb::ARDBLogger::GetLogChecker())(ardb::WARN_LOG_LEVEL))
 
 #define DEBUG_LOG( ...) do {\
    if(DEBUG_ENABLED())\
    {                 \
-	   (*(rddb::RDDBLogger::GetLogHandler()))(rddb::DEBUG_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
+	   (*(ardb::ARDBLogger::GetLogHandler()))(ardb::DEBUG_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
    }\
 }while(0)
 
 #define WARN_LOG(...) do {\
 	if(WARN_ENABLED())\
     {                 \
-		(*(rddb::RDDBLogger::GetLogHandler()))(rddb::WARN_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
+		(*(ardb::ARDBLogger::GetLogHandler()))(ardb::WARN_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
 	}\
 }while(0)
 
 #define TRACE_LOG(...) do {\
 	if(TRACE_ENABLED())\
 	{                 \
-		(*(rddb::RDDBLogger::GetLogHandler()))(rddb::TRACE_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
+		(*(ardb::ARDBLogger::GetLogHandler()))(ardb::TRACE_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
 	}\
 }while(0)
 
 #define ERROR_LOG(...) do {\
 	if(ERROR_ENABLED())\
 	{                 \
-		(*(rddb::RDDBLogger::GetLogHandler()))(rddb::ERROR_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
+		(*(ardb::ARDBLogger::GetLogHandler()))(ardb::ERROR_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
 	}\
 }while(0)
 
 #define FATAL_LOG(...) do {\
 	if(FATAL_ENABLED())\
     {                 \
-		(*(rddb::RDDBLogger::GetLogHandler()))(rddb::FATAL_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
+		(*(ardb::ARDBLogger::GetLogHandler()))(ardb::FATAL_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
 	}\
 }while(0)
 
 #define INFO_LOG(...) do {\
 	if(INFO_ENABLED())\
 	{                 \
-		(*(rddb::RDDBLogger::GetLogHandler()))(rddb::INFO_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \                 \
+		(*(ardb::ARDBLogger::GetLogHandler()))(ardb::INFO_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \                 \
 	}\
 }while(0)
 

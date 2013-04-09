@@ -11,9 +11,9 @@
 #include "channel/channel_upstream_handler.hpp"
 #include "util/buffer.hpp"
 
-using namespace rddb;
-using rddb::Buffer;
-namespace rddb
+using namespace ardb;
+using ardb::Buffer;
+namespace ardb
 {
 	namespace codec
 	{
@@ -21,9 +21,9 @@ namespace rddb
 		struct FrameDecodeResult
 		{
 				T* msg;
-				typename rddb::Type<T>::Destructor* destructor;
+				typename ardb::Type<T>::Destructor* destructor;
 				FrameDecodeResult(T* obj = NULL,
-						typename rddb::Type<T>::Destructor* d = NULL) :
+						typename ardb::Type<T>::Destructor* d = NULL) :
 						msg(obj), destructor(d)
 				{
 				}

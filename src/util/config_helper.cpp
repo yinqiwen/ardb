@@ -11,7 +11,7 @@
 #include <string.h>
 #include "logger.hpp"
 
-namespace rddb
+namespace ardb
 {
 	static const uint32 kConfigLineMax = 1024;
 	bool parse_conf_file(const string& path, Properties& result,

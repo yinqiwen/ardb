@@ -11,7 +11,7 @@
 #include <list>
 #include <utility>
 #include <map>
-namespace rddb
+namespace ardb
 {
 	template<typename K, typename V>
 	class LRUCache

@@ -11,7 +11,7 @@
 #include "buffer.hpp"
 #include <string>
 
-namespace rddb
+namespace ardb
 {
 	bool is_file_exist(const std::string& path);
 	bool is_dir_exist(const std::string& path);

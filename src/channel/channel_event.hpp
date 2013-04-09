@@ -8,7 +8,7 @@
 #ifndef NOVA_CHANNELEVENT_HPP_
 #define NOVA_CHANNELEVENT_HPP_
 #include "common.hpp"
-namespace rddb
+namespace ardb
 {
 	class Channel;
 	/**

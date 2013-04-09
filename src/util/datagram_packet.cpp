@@ -6,7 +6,7 @@
  */
 #include "datagram_packet.hpp"
 
-using namespace rddb;
+using namespace ardb;
 
 DatagramPacket::DatagramPacket(uint32 size) :
 		m_buffer(NULL), m_is_buffer_self(true)

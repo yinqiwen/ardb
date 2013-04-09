@@ -4,13 +4,13 @@
  *  Created on: 2013-3-28
  *      Author: wqy
  */
-#include "rddb.hpp"
+#include "ardb.hpp"
 #include <bitset>
 
-namespace rddb
+namespace ardb
 {
 
-	int RDDB::GetValue(DBID db, const KeyObject& key, ValueObject* v)
+	int Ardb::GetValue(DBID db, const KeyObject& key, ValueObject* v)
 	{
 		Buffer keybuf(key.key.size() + 16);
 		encode_key(keybuf, key);
@@ -32,14 +32,14 @@ namespace rddb
 					return ERR_NOT_EXIST;
 				} else
 				{
-					return RDDB_OK;
+					return ARDB_OK;
 				}
 			}
 		}
 		return ERR_NOT_EXIST;
 	}
 
-	Iterator* RDDB::FindValue(DBID db, KeyObject& key)
+	Iterator* Ardb::FindValue(DBID db, KeyObject& key)
 	{
 		Buffer keybuf(key.key.size() + 16);
 		encode_key(keybuf, key);
@@ -49,7 +49,7 @@ namespace rddb
 		return iter;
 	}
 
-	int RDDB::SetValue(DBID db, KeyObject& key, ValueObject& value)
+	int Ardb::SetValue(DBID db, KeyObject& key, ValueObject& value)
 	{
 		Buffer keybuf(key.key.size() + 16);
 		encode_key(keybuf, key);
@@ -60,7 +60,7 @@ namespace rddb
 		return GetDB(db)->Put(k, v);
 	}
 
-	int RDDB::DelValue(DBID db, KeyObject& key)
+	int Ardb::DelValue(DBID db, KeyObject& key)
 	{
 		Buffer keybuf(key.key.size() + 16);
 		encode_key(keybuf, key);
@@ -68,7 +68,7 @@ namespace rddb
 		return GetDB(db)->Del(k);
 	}
 
-	int RDDB::MSet(DBID db, SliceArray& keys, SliceArray& values)
+	int Ardb::MSet(DBID db, SliceArray& keys, SliceArray& values)
 	{
 		if (keys.size() != values.size())
 		{
@@ -89,7 +89,7 @@ namespace rddb
 		return 0;
 	}
 
-	int RDDB::MSetNX(DBID db, SliceArray& keys, SliceArray& values)
+	int Ardb::MSetNX(DBID db, SliceArray& keys, SliceArray& values)
 	{
 		if (keys.size() != values.size())
 		{
@@ -113,7 +113,7 @@ namespace rddb
 		return 0;
 	}
 
-	int RDDB::Set(DBID db, const Slice& key, const Slice& value, int ex, int px,
+	int Ardb::Set(DBID db, const Slice& key, const Slice& value, int ex, int px,
 			int nxx)
 	{
 		KeyObject k(key);
@@ -139,12 +139,12 @@ namespace rddb
 		return 0;
 	}
 
-	int RDDB::Set(DBID db, const Slice& key, const Slice& value)
+	int Ardb::Set(DBID db, const Slice& key, const Slice& value)
 	{
 		return SetEx(db, key, value, 0);
 	}
 
-	int RDDB::SetNX(DBID db, const Slice& key, const Slice& value)
+	int Ardb::SetNX(DBID db, const Slice& key, const Slice& value)
 	{
 		if (!Exists(db, key))
 		{
@@ -157,12 +157,12 @@ namespace rddb
 		return 0;
 	}
 
-	int RDDB::SetEx(DBID db, const Slice& key, const Slice& value,
+	int Ardb::SetEx(DBID db, const Slice& key, const Slice& value,
 			uint32_t secs)
 	{
 		return PSetEx(db, key, value, secs * 1000);
 	}
-	int RDDB::PSetEx(DBID db, const Slice& key, const Slice& value, uint32_t ms)
+	int Ardb::PSetEx(DBID db, const Slice& key, const Slice& value, uint32_t ms)
 	{
 		KeyObject keyobject(key);
 		ValueObject valueobject;
@@ -177,7 +177,7 @@ namespace rddb
 		return SetValue(db, keyobject, valueobject);
 	}
 
-	int RDDB::Get(DBID db, const Slice& key, std::string* value)
+	int Ardb::Get(DBID db, const Slice& key, std::string* value)
 	{
 		KeyObject keyobject(key);
 		ValueObject v;
@@ -192,7 +192,7 @@ namespace rddb
 		return ret;
 	}
 
-	int RDDB::MGet(DBID db, SliceArray& keys, StringArray& value)
+	int Ardb::MGet(DBID db, SliceArray& keys, StringArray& value)
 	{
 		SliceArray::iterator it = keys.begin();
 		while (it != keys.end())
@@ -205,7 +205,7 @@ namespace rddb
 		return 0;
 	}
 
-	int RDDB::Del(DBID db, const Slice& key)
+	int Ardb::Del(DBID db, const Slice& key)
 	{
 		KeyObject k(key);
 		DelValue(db, k);
@@ -216,12 +216,12 @@ namespace rddb
 		return 0;
 	}
 
-	bool RDDB::Exists(DBID db, const Slice& key)
+	bool Ardb::Exists(DBID db, const Slice& key)
 	{
 		return Get(db, key, NULL) == 0;
 	}
 
-	int RDDB::SetExpiration(DBID db, const Slice& key, uint64_t expire)
+	int Ardb::SetExpiration(DBID db, const Slice& key, uint64_t expire)
 	{
 		KeyObject keyobject(key);
 		ValueObject value;
@@ -233,7 +233,7 @@ namespace rddb
 		return ERR_NOT_EXIST;
 	}
 
-	int RDDB::Strlen(DBID db, const Slice& key)
+	int Ardb::Strlen(DBID db, const Slice& key)
 	{
 		std::string v;
 		if (0 == Get(db, key, &v))
@@ -242,32 +242,32 @@ namespace rddb
 		}
 		return ERR_NOT_EXIST;
 	}
-	int RDDB::Expire(DBID db, const Slice& key, uint32_t secs)
+	int Ardb::Expire(DBID db, const Slice& key, uint32_t secs)
 	{
 		uint64_t now = get_current_epoch_nanos();
 		uint64_t expire = now + (uint64_t) secs * 1000000000L;
 		return SetExpiration(db, key, expire);
 	}
 
-	int RDDB::Expireat(DBID db, const Slice& key, uint32_t ts)
+	int Ardb::Expireat(DBID db, const Slice& key, uint32_t ts)
 	{
 		uint64_t expire = (uint64_t) ts * 1000000000L;
 		return SetExpiration(db, key, expire);
 	}
 
-	int RDDB::Persist(DBID db, const Slice& key)
+	int Ardb::Persist(DBID db, const Slice& key)
 	{
 		return SetExpiration(db, key, 0);
 	}
 
-	int RDDB::Pexpire(DBID db, const Slice& key, uint32_t ms)
+	int Ardb::Pexpire(DBID db, const Slice& key, uint32_t ms)
 	{
 		uint64_t now = get_current_epoch_nanos();
 		uint64_t expire = now + (uint64_t) ms * 1000000L;
 		return SetExpiration(db, key, expire);
 	}
 
-	int RDDB::PTTL(DBID db, const Slice& key)
+	int Ardb::PTTL(DBID db, const Slice& key)
 	{
 		ValueObject v;
 		KeyObject k(key);
@@ -289,7 +289,7 @@ namespace rddb
 		return ERR_NOT_EXIST;
 	}
 
-	int RDDB::TTL(DBID db, const Slice& key)
+	int Ardb::TTL(DBID db, const Slice& key)
 	{
 		int ttl = PTTL(db, key);
 		if (ttl > 0)
@@ -303,7 +303,7 @@ namespace rddb
 		return ttl;
 	}
 
-	int RDDB::Rename(DBID db, const Slice& key1, const Slice& key2)
+	int Ardb::Rename(DBID db, const Slice& key1, const Slice& key2)
 	{
 		ValueObject v;
 		KeyObject k1(key1);
@@ -317,7 +317,7 @@ namespace rddb
 		return ERR_NOT_EXIST;
 	}
 
-	int RDDB::RenameNX(DBID db, const Slice& key1, const Slice& key2)
+	int Ardb::RenameNX(DBID db, const Slice& key1, const Slice& key2)
 	{
 		std::string v1;
 		if (0 == Get(db, key1, &v1))
@@ -333,7 +333,7 @@ namespace rddb
 		return ERR_NOT_EXIST;
 	}
 
-	int RDDB::Move(DBID srcdb, const Slice& key, DBID dstdb)
+	int Ardb::Move(DBID srcdb, const Slice& key, DBID dstdb)
 	{
 		std::string v;
 		if (0 == Get(srcdb, key, &v))

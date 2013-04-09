@@ -5,10 +5,10 @@
  *      Author: wqy
  */
 
-#include "rddb.hpp"
+#include "ardb.hpp"
 #include <float.h>
 
-namespace rddb
+namespace ardb
 {
 	static int parse_score(const std::string& score_str, double& score,
 			bool& contain)
@@ -58,7 +58,7 @@ namespace rddb
 		BufferHelper::WriteVarDouble(*(v.v.raw), meta.max_score);
 	}
 
-	int RDDB::ZAdd(DBID db, const Slice& key, double score, const Slice& value)
+	int Ardb::ZAdd(DBID db, const Slice& key, double score, const Slice& value)
 	{
 		ZSetMetaValue meta;
 		GetZSetMetaValue(db, key, meta);
@@ -112,7 +112,7 @@ namespace rddb
 		return 0;
 	}
 
-	void RDDB::SetZSetMetaValue(DBID db, const Slice& key, ZSetMetaValue& meta)
+	void Ardb::SetZSetMetaValue(DBID db, const Slice& key, ZSetMetaValue& meta)
 	{
 		KeyObject k(key, ZSET_META);
 		ValueObject v;
@@ -120,7 +120,7 @@ namespace rddb
 		SetValue(db, k, v);
 	}
 
-	int RDDB::GetZSetMetaValue(DBID db, const Slice& key, ZSetMetaValue& meta)
+	int Ardb::GetZSetMetaValue(DBID db, const Slice& key, ZSetMetaValue& meta)
 	{
 		KeyObject k(key, ZSET_META);
 		ValueObject v;
@@ -135,7 +135,7 @@ namespace rddb
 		return ERR_NOT_EXIST;
 	}
 
-	int RDDB::ZCard(DBID db, const Slice& key)
+	int Ardb::ZCard(DBID db, const Slice& key)
 	{
 		ZSetMetaValue meta;
 		if (0 == GetZSetMetaValue(db, key, meta))
@@ -145,7 +145,7 @@ namespace rddb
 		return ERR_NOT_EXIST;
 	}
 
-	int RDDB::ZScore(DBID db, const Slice& key, const Slice& value,
+	int Ardb::ZScore(DBID db, const Slice& key, const Slice& value,
 			double& score)
 	{
 		ZSetScoreKeyObject zk(key, value);
@@ -158,7 +158,7 @@ namespace rddb
 		return 0;
 	}
 
-	int RDDB::ZIncrby(DBID db, const Slice& key, double increment,
+	int Ardb::ZIncrby(DBID db, const Slice& key, double increment,
 			const Slice& value, double& score)
 	{
 		ZSetScoreKeyObject zk(key, value);
@@ -179,7 +179,7 @@ namespace rddb
 		return ERR_NOT_EXIST;
 	}
 
-	int RDDB::ZClear(DBID db, const Slice& key)
+	int Ardb::ZClear(DBID db, const Slice& key)
 	{
 		Slice empty;
 		ZSetKeyObject sk(key, empty, -DBL_MAX);
@@ -187,7 +187,7 @@ namespace rddb
 		BatchWriteGuard guard(GetDB(db));
 		struct ZClearWalk: public WalkHandler
 		{
-				RDDB* z_db;
+				Ardb* z_db;
 				DBID z_dbid;
 				int OnKeyValue(KeyObject* k, ValueObject* value)
 				{
@@ -197,7 +197,7 @@ namespace rddb
 					z_db->DelValue(z_dbid, tmp);
 					return 0;
 				}
-				ZClearWalk(RDDB* db, DBID id) :
+				ZClearWalk(Ardb* db, DBID id) :
 						z_db(db), z_dbid(id)
 				{
 				}
@@ -208,7 +208,7 @@ namespace rddb
 		return 0;
 	}
 
-	int RDDB::ZRem(DBID db, const Slice& key, const Slice& value)
+	int Ardb::ZRem(DBID db, const Slice& key, const Slice& value)
 	{
 		ZSetScoreKeyObject zk(key, value);
 		ValueObject zv;
@@ -229,7 +229,7 @@ namespace rddb
 		return ERR_NOT_EXIST;
 	}
 
-	int RDDB::ZCount(DBID db, const Slice& key, const std::string& min,
+	int Ardb::ZCount(DBID db, const Slice& key, const std::string& min,
 			const std::string& max)
 	{
 		bool containmin = true;
@@ -282,7 +282,7 @@ namespace rddb
 		return walk.count;
 	}
 
-	int RDDB::ZRank(DBID db, const Slice& key, const Slice& member)
+	int Ardb::ZRank(DBID db, const Slice& key, const Slice& member)
 	{
 		ZSetMetaValue meta;
 		if (0 != GetZSetMetaValue(db, key, meta))
@@ -318,7 +318,7 @@ namespace rddb
 		return walk.foundRank;
 	}
 
-	int RDDB::ZRevRank(DBID db, const Slice& key, const Slice& member)
+	int Ardb::ZRevRank(DBID db, const Slice& key, const Slice& member)
 	{
 		ZSetMetaValue meta;
 		if (0 != GetZSetMetaValue(db, key, meta))
@@ -354,7 +354,7 @@ namespace rddb
 		return walk.foundRank;
 	}
 
-	int RDDB::ZRemRangeByRank(DBID db, const Slice& key, int start, int stop)
+	int Ardb::ZRemRangeByRank(DBID db, const Slice& key, int start, int stop)
 	{
 		ZSetMetaValue meta;
 		if (0 != GetZSetMetaValue(db, key, meta))
@@ -379,7 +379,7 @@ namespace rddb
 		struct ZRemRangeByRankWalk: public WalkHandler
 		{
 				int rank;
-				RDDB* z_db;
+				Ardb* z_db;
 				DBID z_dbid;
 				int z_start;
 				int z_stop;
@@ -403,7 +403,7 @@ namespace rddb
 					}
 					return 0;
 				}
-				ZRemRangeByRankWalk(RDDB* db, DBID dbid, int start, int stop,
+				ZRemRangeByRankWalk(Ardb* db, DBID dbid, int start, int stop,
 						ZSetMetaValue& meta) :
 						rank(0), z_db(db), z_dbid(z_dbid), z_start(start), z_stop(
 								stop), z_meta(meta), z_count(0)
@@ -415,7 +415,7 @@ namespace rddb
 		return walk.z_count;
 	}
 
-	int RDDB::ZRemRangeByScore(DBID db, const Slice& key,
+	int Ardb::ZRemRangeByScore(DBID db, const Slice& key,
 			const std::string& min, const std::string& max)
 	{
 		ZSetMetaValue meta;
@@ -436,7 +436,7 @@ namespace rddb
 		BatchWriteGuard guard(GetDB(db));
 		struct ZRemRangeByScoreWalk: public WalkHandler
 		{
-				RDDB* z_db;
+				Ardb* z_db;
 				DBID z_dbid;
 				double z_min_score;
 				bool z_containmin;
@@ -473,7 +473,7 @@ namespace rddb
 					}
 					return 0;
 				}
-				ZRemRangeByScoreWalk(RDDB* db, DBID dbid, ZSetMetaValue& meta) :
+				ZRemRangeByScoreWalk(Ardb* db, DBID dbid, ZSetMetaValue& meta) :
 						z_db(db), z_dbid(z_dbid), z_meta(meta), z_count(0)
 				{
 				}
@@ -487,8 +487,8 @@ namespace rddb
 		return walk.z_count;
 	}
 
-	int RDDB::ZRange(DBID db, const Slice& key, int start, int stop,
-			StringArray& values, RDDBQueryOptions& options)
+	int Ardb::ZRange(DBID db, const Slice& key, int start, int stop,
+			StringArray& values, ArdbQueryOptions& options)
 	{
 		ZSetMetaValue meta;
 		if (0 != GetZSetMetaValue(db, key, meta))
@@ -516,7 +516,7 @@ namespace rddb
 				int z_start;
 				int z_stop;
 				StringArray& z_values;
-				RDDBQueryOptions& z_options;
+				ArdbQueryOptions& z_options;
 				int z_count;
 				int OnKeyValue(KeyObject* k, ValueObject* v)
 				{
@@ -542,7 +542,7 @@ namespace rddb
 					return 0;
 				}
 				ZRangeWalk(int start, int stop, StringArray& v,
-						RDDBQueryOptions& options) :
+						ArdbQueryOptions& options) :
 						rank(0), z_start(start), z_stop(stop), z_values(v), z_options(
 								options), z_count(0)
 				{
@@ -552,9 +552,9 @@ namespace rddb
 		return walk.z_count;
 	}
 
-	int RDDB::ZRangeByScore(DBID db, const Slice& key, const std::string& min,
+	int Ardb::ZRangeByScore(DBID db, const Slice& key, const std::string& min,
 			const std::string& max, StringArray& values,
-			RDDBQueryOptions& options)
+			ArdbQueryOptions& options)
 	{
 		ZSetMetaValue meta;
 		if (0 != GetZSetMetaValue(db, key, meta))
@@ -574,7 +574,7 @@ namespace rddb
 		struct ZRangeByScoreWalk: public WalkHandler
 		{
 				StringArray& z_values;
-				RDDBQueryOptions& z_options;
+				ArdbQueryOptions& z_options;
 				double z_min_score;
 				bool z_containmin;
 				bool z_containmax;
@@ -635,7 +635,7 @@ namespace rddb
 					}
 					return 0;
 				}
-				ZRangeByScoreWalk(StringArray& v, RDDBQueryOptions& options) :
+				ZRangeByScoreWalk(StringArray& v, ArdbQueryOptions& options) :
 						z_values(v), z_options(options), z_count(0)
 				{
 				}
@@ -648,8 +648,8 @@ namespace rddb
 		return walk.z_count;
 	}
 
-	int RDDB::ZRevRange(DBID db, const Slice& key, int start, int stop,
-			StringArray& values, RDDBQueryOptions& options)
+	int Ardb::ZRevRange(DBID db, const Slice& key, int start, int stop,
+			StringArray& values, ArdbQueryOptions& options)
 	{
 		ZSetMetaValue meta;
 		if (0 != GetZSetMetaValue(db, key, meta))
@@ -677,9 +677,9 @@ namespace rddb
 				int z_start;
 				int z_stop;
 				StringArray& z_values;
-				RDDBQueryOptions& z_options;
+				ArdbQueryOptions& z_options;
 				ZRevRangeWalk(int start, int stop, StringArray& values,
-						RDDBQueryOptions& options) :
+						ArdbQueryOptions& options) :
 						rank(0), count(0), z_start(start), z_stop(stop), z_values(
 								values), z_options(options)
 				{
@@ -712,9 +712,9 @@ namespace rddb
 		return walk.count;
 	}
 
-	int RDDB::ZRevRangeByScore(DBID db, const Slice& key,
+	int Ardb::ZRevRangeByScore(DBID db, const Slice& key,
 			const std::string& max, const std::string& min, StringArray& values,
-			RDDBQueryOptions& options)
+			ArdbQueryOptions& options)
 	{
 		ZSetMetaValue meta;
 		if (0 != GetZSetMetaValue(db, key, meta))
@@ -734,7 +734,7 @@ namespace rddb
 		struct ZRangeByScoreWalk: public WalkHandler
 		{
 				StringArray& z_values;
-				RDDBQueryOptions& z_options;
+				ArdbQueryOptions& z_options;
 				double z_min_score;
 				bool z_containmin;
 				bool z_containmax;
@@ -795,7 +795,7 @@ namespace rddb
 					}
 					return 0;
 				}
-				ZRangeByScoreWalk(StringArray& v, RDDBQueryOptions& options) :
+				ZRangeByScoreWalk(StringArray& v, ArdbQueryOptions& options) :
 						z_values(v), z_options(options), z_count(0)
 				{
 				}
@@ -808,7 +808,7 @@ namespace rddb
 		return walk.z_count;
 	}
 
-	int RDDB::ZUnionStore(DBID db, const Slice& dst, SliceArray& keys,
+	int Ardb::ZUnionStore(DBID db, const Slice& dst, SliceArray& keys,
 			WeightArray& weights, AggregateType type)
 	{
 		while (weights.size() < keys.size())
@@ -914,7 +914,7 @@ namespace rddb
 		return vm.size();
 	}
 
-	int RDDB::ZInterStore(DBID db, const Slice& dst, SliceArray& keys,
+	int Ardb::ZInterStore(DBID db, const Slice& dst, SliceArray& keys,
 			WeightArray& weights, AggregateType type)
 	{
 		while (weights.size() < keys.size())

@@ -12,7 +12,7 @@
 #include <sys/types.h>
 #include <fcntl.h>
 
-using namespace rddb;
+using namespace ardb;
 
 bool SocketChannel::DoConfigure(const ChannelOptions& options)
 {

@@ -5,22 +5,22 @@
  *      Author: wqy
  */
 #include "leveldb_engine.hpp"
-#include "rddb.hpp"
-#include "rddb_data.hpp"
+#include "ardb.hpp"
+#include "ardb_data.hpp"
 #include "util/helpers.hpp"
 #include <string.h>
 
 #define LEVELDB_SLICE(slice) leveldb::Slice(slice.data(), slice.size())
-#define RDDB_SLICE(slice) Slice(slice.data(), slice.size())
+#define ARDB_SLICE(slice) Slice(slice.data(), slice.size())
 #define COMPARE_NUMBER(a, b)  (a == b?0:(a>b?1:-1))
 
-namespace rddb
+namespace ardb
 {
 	int LevelDBComparator::Compare(const leveldb::Slice& a,
 			const leveldb::Slice& b) const
 	{
-		KeyObject* ak = decode_key(RDDB_SLICE(a));
-		KeyObject* bk = decode_key(RDDB_SLICE(b));
+		KeyObject* ak = decode_key(ARDB_SLICE(a));
+		KeyObject* bk = decode_key(ARDB_SLICE(b));
 		if (NULL == ak && NULL == bk)
 		{
 			return 0;
@@ -145,11 +145,11 @@ namespace rddb
 	}
 	Slice LevelDBIterator::Key() const
 	{
-		return RDDB_SLICE(m_iter->key());
+		return ARDB_SLICE(m_iter->key());
 	}
 	Slice LevelDBIterator::Value() const
 	{
-		return RDDB_SLICE(m_iter->value());
+		return ARDB_SLICE(m_iter->value());
 	}
 	bool LevelDBIterator::Valid()
 	{

@@ -12,7 +12,7 @@
 #include "channel/exception_event.hpp"
 #include "channel/message_event.hpp"
 #include "channel/channel_handler_context.hpp"
-namespace rddb
+namespace ardb
 {
 
 	/**

@@ -11,7 +11,7 @@
 #include <string>
 
 using std::string;
-namespace rddb
+namespace ardb
 {
 	class ChannelException
 	{

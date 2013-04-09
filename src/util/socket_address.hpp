@@ -9,7 +9,7 @@
 #define NOVA_SOCKETADDRESS_HPP_
 #include "socket_host_address.hpp"
 #include "socket_inet_address.hpp"
-namespace rddb
+namespace ardb
 {
 
 	class SocketAddress: public SocketHostAddress

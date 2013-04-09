@@ -12,7 +12,7 @@
 #include <stdexcept>
 #include <stdlib.h>
 
-namespace rddb
+namespace ardb
 {
 
 	std::string get_basename(const std::string& filename)

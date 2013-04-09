@@ -8,7 +8,7 @@
 #ifndef NOVA_TIMEUNIT_HPP_
 #define NOVA_TIMEUNIT_HPP_
 
-namespace rddb
+namespace ardb
 {
 	enum TimeUnit
 	{

@@ -1,13 +1,13 @@
 /*
- * rddb_data.cpp
+ * ardb_data.cpp
  *
  *  Created on: 2013-4-3
  *      Author: wqy
  */
-#include "rddb_data.hpp"
+#include "ardb_data.hpp"
 #include "util/helpers.hpp"
 
-namespace rddb
+namespace ardb
 {
 	void encode_key(Buffer& buf, const KeyObject& key)
 	{

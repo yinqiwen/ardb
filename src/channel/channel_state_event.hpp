@@ -9,7 +9,7 @@
 #define NOVA_CHANNELSTATEEVENT_HPP_
 #include "channel/channel_event.hpp"
 
-namespace rddb
+namespace ardb
 {
 	enum ChannelState
 	{

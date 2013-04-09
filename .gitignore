@@ -4,3 +4,4 @@
 /.svn
 /.libs
 leveldb
+*.bak

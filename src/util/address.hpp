@@ -7,7 +7,7 @@
 
 #ifndef NOVA_ADDRESS_HPP_
 #define NOVA_ADDRESS_HPP_
-namespace rddb
+namespace ardb
 {
 	//Just a tag interface
 	class Address

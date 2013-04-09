@@ -4,16 +4,13 @@
  *  Created on: 2013-4-9
  *      Author: wqy
  */
-#include "rddb.hpp"
+#include "ardb.hpp"
 #include <string>
 #include <glog/logging.h>
 
-using namespace rddb;
+using namespace ardb;
 
-
-
-
-void test_hash_hgetset(RDDB& db)
+void test_hash_hgetset(Ardb& db)
 {
 	db.Del(0, "myhash");
 	db.HSet(0, "myhash", "field1", "value1");
@@ -22,7 +19,7 @@ void test_hash_hgetset(RDDB& db)
 	LOG_IF(FATAL, v != "value1") << "HGetSet failed:" << v;
 }
 
-void test_hash_hexists(RDDB& db)
+void test_hash_hexists(Ardb& db)
 {
 	db.HClear(0, "myhash");
 	bool ret = db.HExists(0, "myhash", "field1");
@@ -34,7 +31,7 @@ void test_hash_hexists(RDDB& db)
 	LOG_IF(FATAL, ret != false) << "HExists myhash failed:" << ret;
 }
 
-void test_hash_hgetall(RDDB& db)
+void test_hash_hgetall(Ardb& db)
 {
 	db.HClear(0, "myhash");
 	db.HSet(0, "myhash", "field1", "value1");
@@ -51,7 +48,7 @@ void test_hash_hgetall(RDDB& db)
 	LOG_IF(FATAL, ret != 0) << "hgetall myhash failed:" << values.size();
 }
 
-void test_hash_hkeys(RDDB& db)
+void test_hash_hkeys(Ardb& db)
 {
 	db.HClear(0, "myhash");
 	db.HSet(0, "myhash", "field1", "value1");
@@ -65,7 +62,7 @@ void test_hash_hkeys(RDDB& db)
 															<< fields.size();
 }
 
-void test_hash_hvals(RDDB& db)
+void test_hash_hvals(Ardb& db)
 {
 	db.HClear(0, "myhash");
 	db.HSet(0, "myhash", "field1", "value1");
@@ -77,7 +74,7 @@ void test_hash_hvals(RDDB& db)
 	LOG_IF(FATAL, ret != 0) << "hgetall myhash failed:" << values.size();
 }
 
-void test_hash_hlen(RDDB& db)
+void test_hash_hlen(Ardb& db)
 {
 	db.HClear(0, "myhash");
 	db.HSet(0, "myhash", "field1", "value1");
@@ -90,7 +87,7 @@ void test_hash_hlen(RDDB& db)
 														<< db.HLen(0, "myhash");
 }
 
-void test_hash_hsetnx(RDDB& db)
+void test_hash_hsetnx(Ardb& db)
 {
 	db.HClear(0, "myhash");
 	int ret = db.HSetNX(0, "myhash", "field1", "value1");
@@ -99,7 +96,7 @@ void test_hash_hsetnx(RDDB& db)
 	LOG_IF(FATAL, ret != 0) << "hsetnx myhash failed:" << ret;
 }
 
-void test_hash_hincr(RDDB& db)
+void test_hash_hincr(Ardb& db)
 {
 	db.HClear(0, "myhash");
 	int ret = db.HSetNX(0, "myhash", "field1", "100");
@@ -111,7 +108,7 @@ void test_hash_hincr(RDDB& db)
 	LOG_IF(FATAL, dv != 300.25) << "hincrbyfloat myhash failed:" << dv;
 }
 
-void test_hashs(RDDB& db)
+void test_hashs(Ardb& db)
 {
 	test_hash_hgetset(db);
 	test_hash_hexists(db);

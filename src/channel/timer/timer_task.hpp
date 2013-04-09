@@ -9,8 +9,8 @@
 #define NOVA_SCHEDULETIMERTASK_HPP_
 #include "common.hpp"
 #include "util/time_unit.hpp"
-using rddb::TimeUnit;
-namespace rddb
+using ardb::TimeUnit;
+namespace ardb
 {
 	enum TimerTaskState
 	{
@@ -40,7 +40,7 @@ namespace rddb
 			TimerTask(uint32 id, Runnable* runner,
 					RunnableDestructor* destructor) :
 					m_id(id), m_state(VIRGIN), m_delay(0), m_period(0), m_unit(
-							rddb::MILLIS), m_nextTriggerTime(0), m_runner(
+							ardb::MILLIS), m_nextTriggerTime(0), m_runner(
 							runner), m_runner_destructor(destructor), m_queue_index(
 							0)
 			{

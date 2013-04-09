@@ -8,7 +8,7 @@
 #include "util/helpers.hpp"
 #include <errno.h>
 #include <string.h>
-using namespace rddb;
+using namespace ardb;
 
 int EventFD::OpenNonBlock()
 {
@@ -32,8 +32,8 @@ int EventFD::OpenNonBlock()
     }
     read_fd = pipefd[0];
     write_fd = pipefd[1];
-    rddb::make_fd_nonblocking(write_fd);
-    rddb::make_fd_nonblocking(read_fd);
+    ardb::make_fd_nonblocking(write_fd);
+    ardb::make_fd_nonblocking(read_fd);
 #endif
     return 0;
 }

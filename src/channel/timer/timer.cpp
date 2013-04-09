@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <algorithm>
 
-using namespace rddb;
+using namespace ardb;
 
 Timer::Timer()
 {

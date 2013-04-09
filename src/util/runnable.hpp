@@ -7,7 +7,7 @@
 
 #ifndef NOVA_RUNNABLE_HPP_
 #define NOVA_RUNNABLE_HPP_
-namespace rddb
+namespace ardb
 {
 	class Runnable
 	{

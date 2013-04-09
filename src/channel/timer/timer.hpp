@@ -14,8 +14,8 @@
 #include <map>
 #include <tr1/unordered_map>
 
-using rddb::TimeUnit;
-namespace rddb
+using ardb::TimeUnit;
+namespace ardb
 {
 	class Timer
 	{
@@ -48,16 +48,16 @@ namespace rddb
 		public:
 			Timer();
 			int32 Schedule(Runnable* task, int64 delay, int64_t period = -1,
-					TimeUnit unit = rddb::MILLIS);
+					TimeUnit unit = ardb::MILLIS);
 			int32 ScheduleHeapTask(Runnable* task, int64 delay, int64 period =
-					-1, TimeUnit unit = rddb::MILLIS);
+					-1, TimeUnit unit = ardb::MILLIS);
 			int32 ScheduleWithDestructor(Runnable* task,
 					RunnableDestructor* destructor, int64 delay, int64 period =
-							-1, TimeUnit unit = rddb::MILLIS);
+							-1, TimeUnit unit = ardb::MILLIS);
 			bool Cancel(uint32 taskID);
 			int64 GetNextTriggerMillsTime(uint32 taskID);
 			bool AdjustNextTriggerTime(uint32 taskID, int64 value,
-					TimeUnit unit = rddb::MILLIS);
+					TimeUnit unit = ardb::MILLIS);
 			uint32 GetAlivedTaskNumber();
 			int64 Routine();
 			virtual ~Timer();

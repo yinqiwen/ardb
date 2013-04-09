@@ -15,7 +15,7 @@
 #include <string.h>
 #include <stdio.h>
 
-namespace rddb
+namespace ardb
 {
 
 	static const uint16 kMaxNICCount = 16;

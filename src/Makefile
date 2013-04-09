@@ -45,8 +45,8 @@ CHANNEL_CFILES := $(foreach dir, $(CHANNEL_C_VPATH), $(wildcard $(dir)/*.c))
 CHANNEL_CPP_OBJECTS := $(patsubst %.cpp, %.o, $(CHANNEL_CPPFILES))
 CHANNEL_C_OBJECTS := $(patsubst %.c, %.o, $(CHANNEL_CFILES))
 
-#DIST_LIB = librddb.so
-DIST_LIBA = librddb.a
+#DIST_LIB = libardb.so
+DIST_LIBA = libardb.a
 
 all: lib leveldb
 

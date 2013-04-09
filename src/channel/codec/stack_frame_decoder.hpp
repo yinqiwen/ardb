@@ -11,9 +11,9 @@
 #include "channel/channel_upstream_handler.hpp"
 #include "util/buffer.hpp"
 
-using rddb::Buffer;
+using ardb::Buffer;
 
-namespace rddb
+namespace ardb
 {
 	namespace codec
 	{

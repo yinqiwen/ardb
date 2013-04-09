@@ -4,13 +4,13 @@
  *  Created on: 2013-4-9
  *      Author: wqy
  */
-#include "rddb.hpp"
+#include "ardb.hpp"
 #include <string>
 #include <glog/logging.h>
 
-using namespace rddb;
+using namespace ardb;
 
-void test_zsets_addrem(RDDB& db)
+void test_zsets_addrem(Ardb& db)
 {
 	db.ZClear(0, "myzset");
 	db.ZAdd(0, "myzset", 3, "v0");
@@ -33,21 +33,21 @@ void test_zsets_addrem(RDDB& db)
 														<< db.ZCard(0,
 																"myzset");
 	StringArray values;
-	RDDBQueryOptions options;
+	ArdbQueryOptions options;
 	db.ZRange(0, "myzset", 0, -1, values, options);
 	LOG_IF(FATAL, values.size() != 2) << "Fail:" << values.size();
 	LOG_IF(FATAL, values[0] != "v1") << "Fail:" << values[0];
 	LOG_IF(FATAL, values[1] != "v0") << "Fail:" << values[1];
 }
 
-void test_zsets_zrange(RDDB& db)
+void test_zsets_zrange(Ardb& db)
 {
 	db.ZClear(0, "myzset");
 	db.ZAdd(0, "myzset", 1, "one");
 	db.ZAdd(0, "myzset", 1, "uno");
 	db.ZAdd(0, "myzset", 2, "two");
 	db.ZAdd(0, "myzset", 3, "two");
-	RDDBQueryOptions options;
+	ArdbQueryOptions options;
 	options.withscores = true;
 	StringArray values;
 	db.ZRange(0, "myzset", 0, -1, values, options);
@@ -65,7 +65,7 @@ void test_zsets_zrange(RDDB& db)
 	LOG_IF(FATAL, values[0] != "two") << "Fail:" << values[0];
 }
 
-void test_zsets_zcount(RDDB& db)
+void test_zsets_zcount(Ardb& db)
 {
 	db.ZClear(0, "myzset");
 	db.ZAdd(0, "myzset", 1, "one");
@@ -77,7 +77,7 @@ void test_zsets_zcount(RDDB& db)
 	LOG_IF(FATAL, count != 2) << "Fail:" << count;
 }
 
-void test_zsets_zrank(RDDB& db)
+void test_zsets_zrank(Ardb& db)
 {
 	db.ZClear(0, "myzset");
 	db.ZAdd(0, "myzset", 1, "one");
@@ -87,7 +87,7 @@ void test_zsets_zrank(RDDB& db)
 	LOG_IF(FATAL, rank != 2) << "Fail:" << rank;
 }
 
-void test_zsets_zrem(RDDB& db)
+void test_zsets_zrem(Ardb& db)
 {
 	db.ZClear(0, "myzset");
 	db.ZAdd(0, "myzset", 1, "one");
@@ -101,13 +101,13 @@ void test_zsets_zrem(RDDB& db)
 	LOG_IF(FATAL, count != 1) << "Fail:" << count;
 }
 
-void test_zsets_zrev(RDDB& db)
+void test_zsets_zrev(Ardb& db)
 {
 	db.ZClear(0, "myzset");
 	db.ZAdd(0, "myzset", 1, "one");
 	db.ZAdd(0, "myzset", 2, "two");
 	db.ZAdd(0, "myzset", 3, "three");
-	RDDBQueryOptions options;
+	ArdbQueryOptions options;
 	options.withscores = true;
 	StringArray values;
 	db.ZRevRange(0, "myzset", 0, -1, values, options);
@@ -131,14 +131,14 @@ void test_zsets_zrev(RDDB& db)
 	LOG_IF(FATAL, values[0] != "two") << "Fail:" << values[0];
 }
 
-void test_zsets_incr(RDDB& db)
+void test_zsets_incr(Ardb& db)
 {
 	db.ZClear(0, "myzset");
 	db.ZAdd(0, "myzset", 1, "one");
 	db.ZAdd(0, "myzset", 2, "two");
 	double score;
 	db.ZIncrby(0, "myzset", 2, "one", score);
-	RDDBQueryOptions options;
+	ArdbQueryOptions options;
 	options.withscores = true;
 	StringArray values;
 	db.ZRange(0, "myzset", 0, -1, values, options);
@@ -146,7 +146,7 @@ void test_zsets_incr(RDDB& db)
 	LOG_IF(FATAL, values[0] != "two") << "Fail:" << values[0];
 }
 
-void test_zsets_inter(RDDB& db)
+void test_zsets_inter(Ardb& db)
 {
 	db.ZClear(0, "myzset1");
 	db.ZClear(0, "myzset2");
@@ -164,7 +164,7 @@ void test_zsets_inter(RDDB& db)
 	db.ZInterStore(0, "myzset3", keys, ws);
 
 	LOG_IF(FATAL, db.ZCard(0, "myzset3") != 2) << "Fail:";
-	RDDBQueryOptions options;
+	ArdbQueryOptions options;
 	options.withscores = true;
 	StringArray values;
 	db.ZRange(0, "myzset3", 0, -1, values, options);
@@ -172,7 +172,7 @@ void test_zsets_inter(RDDB& db)
 	LOG_IF(FATAL, values[0] != "one") << "Fail:" ;
 }
 
-void test_zsets_union(RDDB& db)
+void test_zsets_union(Ardb& db)
 {
 	db.ZClear(0, "myzset1");
 	db.ZClear(0, "myzset2");
@@ -190,7 +190,7 @@ void test_zsets_union(RDDB& db)
 	db.ZUnionStore(0, "myzset3", keys, ws);
 
 	LOG_IF(FATAL, db.ZCard(0, "myzset3") != 3) << "Fail:";
-	RDDBQueryOptions options;
+	ArdbQueryOptions options;
 	options.withscores = true;
 	StringArray values;
 	db.ZRange(0, "myzset3", 0, -1, values, options);
@@ -200,7 +200,7 @@ void test_zsets_union(RDDB& db)
 	LOG_IF(FATAL, values[4] != "two") << "Fail:" << values[4];
 }
 
-void test_zsets(RDDB& db)
+void test_zsets(Ardb& db)
 {
 	test_zsets_addrem(db);
 	test_zsets_zrange(db);

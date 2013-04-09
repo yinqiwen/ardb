@@ -34,7 +34,7 @@
 #include "channel/codec/delimiter_frame_decoder.hpp"
 #include <errno.h>
 
-namespace rddb
+namespace ardb
 {
 
 	template<typename T>

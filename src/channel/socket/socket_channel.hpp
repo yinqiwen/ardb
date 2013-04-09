@@ -11,7 +11,7 @@
 #include "util/socket_address.hpp"
 
 
-namespace rddb
+namespace ardb
 {
 	enum SocketChannelState
 	{

@@ -6,7 +6,7 @@
  */
 #include "channel/all_includes.hpp"
 
-namespace rddb
+namespace ardb
 {
 	bool fire_channel_bound(Channel* channel)
 	{

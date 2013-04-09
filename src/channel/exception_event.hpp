@@ -10,7 +10,7 @@
 #include "channel/channel_event.hpp"
 #include "util/exception/api_exception.hpp"
 
-namespace rddb
+namespace ardb
 {
 	class ChannelEventFactory;
 	class ExceptionEvent: public ChannelEvent

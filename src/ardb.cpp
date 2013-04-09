@@ -1,10 +1,10 @@
 /*
- * rddb.cpp
+ * ardb.cpp
  *
  *  Created on: 2013-3-27
  *      Author: wqy
  */
-#include "rddb.hpp"
+#include "ardb.hpp"
 #include <string.h>
 
 #define  GET_KEY_TYPE(DB, KEY, TYPE)   do{ \
@@ -20,9 +20,9 @@
 	    }\
 }while(0)
 
-namespace rddb
+namespace ardb
 {
-	void RDDB::ClearValueArray(ValueArray& array)
+	void Ardb::ClearValueArray(ValueArray& array)
 	{
 		ValueArray::iterator it = array.begin();
 		while (it != array.end())
@@ -33,7 +33,7 @@ namespace rddb
 		array.clear();
 	}
 
-	size_t RDDB::RealPosition(Buffer* buf, int pos)
+	size_t Ardb::RealPosition(Buffer* buf, int pos)
 	{
 		if (pos < 0)
 		{
@@ -50,12 +50,12 @@ namespace rddb
 		return pos;
 	}
 
-	RDDB::RDDB(KeyValueEngineFactory* engine) :
+	Ardb::Ardb(KeyValueEngineFactory* engine) :
 			m_engine_factory(engine)
 	{
 	}
 
-	void RDDB::Walk(DBID db, KeyObject& key, bool reverse, WalkHandler* handler)
+	void Ardb::Walk(DBID db, KeyObject& key, bool reverse, WalkHandler* handler)
 	{
 		Iterator* iter = FindValue(db, key);
 		bool isFirstElement = true;
@@ -97,7 +97,7 @@ namespace rddb
 		DELETE(iter);
 	}
 
-	KeyValueEngine* RDDB::GetDB(DBID db)
+	KeyValueEngine* Ardb::GetDB(DBID db)
 	{
 		KeyValueEngineTable::iterator found = m_engine_table.find(db);
 		if (found != m_engine_table.end())
@@ -112,7 +112,7 @@ namespace rddb
 		return engine;
 	}
 
-	int RDDB::Type(DBID db, const Slice& key)
+	int Ardb::Type(DBID db, const Slice& key)
 	{
 		if (Exists(db, key))
 		{
@@ -141,7 +141,7 @@ namespace rddb
 		return type;
 	}
 
-	int RDDB::Sort(DBID db, const Slice& key, const StringArray& args,
+	int Ardb::Sort(DBID db, const Slice& key, const StringArray& args,
 			StringArray& values)
 	{
 		struct SortOptions

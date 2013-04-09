@@ -4,17 +4,17 @@
  *  Created on: 2013-3-31
  *      Author: wqy
  */
-#include "rddb.hpp"
+#include "ardb.hpp"
 
-namespace rddb
+namespace ardb
 {
-	int RDDB::SetHashValue(DBID db, const Slice& key, const Slice& field,
+	int Ardb::SetHashValue(DBID db, const Slice& key, const Slice& field,
 			ValueObject& value)
 	{
 		HashKeyObject k(key, field);
 		return SetValue(db, k, value);
 	}
-	int RDDB::HSet(DBID db, const Slice& key, const Slice& field,
+	int Ardb::HSet(DBID db, const Slice& key, const Slice& field,
 			const Slice& value)
 	{
 		ValueObject valueobject;
@@ -22,7 +22,7 @@ namespace rddb
 		return SetHashValue(db, key, field, valueobject);
 	}
 
-	int RDDB::HSetNX(DBID db, const Slice& key, const Slice& field,
+	int Ardb::HSetNX(DBID db, const Slice& key, const Slice& field,
 			const Slice& value)
 	{
 		if (HExists(db, key, field))
@@ -32,13 +32,13 @@ namespace rddb
 		return HSet(db, key, field, value) == 0 ? 1 : 0;
 	}
 
-	int RDDB::HDel(DBID db, const Slice& key, const Slice& field)
+	int Ardb::HDel(DBID db, const Slice& key, const Slice& field)
 	{
 		HashKeyObject k(key, field);
 		return DelValue(db, k);
 	}
 
-	int RDDB::HGetValue(DBID db, const Slice& key, const Slice& field,
+	int Ardb::HGetValue(DBID db, const Slice& key, const Slice& field,
 			ValueObject* value)
 	{
 		HashKeyObject k(key, field);
@@ -49,7 +49,7 @@ namespace rddb
 		return ERR_NOT_EXIST;
 	}
 
-	int RDDB::HGet(DBID db, const Slice& key, const Slice& field,
+	int Ardb::HGet(DBID db, const Slice& key, const Slice& field,
 			std::string* value)
 	{
 		HashKeyObject k(key, field);
@@ -65,7 +65,7 @@ namespace rddb
 		return ERR_NOT_EXIST;
 	}
 
-	int RDDB::HMSet(DBID db, const Slice& key, const SliceArray& fields,
+	int Ardb::HMSet(DBID db, const Slice& key, const SliceArray& fields,
 			const SliceArray& values)
 	{
 		if (fields.size() != values.size())
@@ -84,7 +84,7 @@ namespace rddb
 		return 0;
 	}
 
-	int RDDB::HMGet(DBID db, const Slice& key, const SliceArray& fields,
+	int Ardb::HMGet(DBID db, const Slice& key, const SliceArray& fields,
 			StringArray& values)
 	{
 		SliceArray::const_iterator it = fields.begin();
@@ -98,13 +98,13 @@ namespace rddb
 		return 0;
 	}
 
-	int RDDB::HClear(DBID db, const Slice& key)
+	int Ardb::HClear(DBID db, const Slice& key)
 	{
 		Slice empty;
 		HashKeyObject sk(key, empty);
 		struct HClearWalk: public WalkHandler
 		{
-				RDDB* z_db;
+				Ardb* z_db;
 				DBID z_dbid;
 				int OnKeyValue(KeyObject* k, ValueObject* v)
 				{
@@ -112,7 +112,7 @@ namespace rddb
 					z_db->DelValue(z_dbid, *sek);
 					return 0;
 				}
-				HClearWalk(RDDB* db, DBID dbid) :
+				HClearWalk(Ardb* db, DBID dbid) :
 						z_db(db), z_dbid(dbid)
 				{
 				}
@@ -122,7 +122,7 @@ namespace rddb
 		return 0;
 	}
 
-	int RDDB::HKeys(DBID db, const Slice& key, StringArray& fields)
+	int Ardb::HKeys(DBID db, const Slice& key, StringArray& fields)
 	{
 		Slice empty;
 		HashKeyObject k(key, empty);
@@ -147,7 +147,7 @@ namespace rddb
 		return fields.empty() ? ERR_NOT_EXIST : 0;
 	}
 
-	int RDDB::HLen(DBID db, const Slice& key)
+	int Ardb::HLen(DBID db, const Slice& key)
 	{
 		Slice empty;
 		HashKeyObject k(key, empty);
@@ -170,7 +170,7 @@ namespace rddb
 		return len;
 	}
 
-	int RDDB::HVals(DBID db, const Slice& key, StringArray& values)
+	int Ardb::HVals(DBID db, const Slice& key, StringArray& values)
 	{
 		Slice empty;
 		HashKeyObject k(key, empty);
@@ -197,7 +197,7 @@ namespace rddb
 		return values.empty() ? ERR_NOT_EXIST : 0;
 	}
 
-	int RDDB::HGetAll(DBID db, const Slice& key, StringArray& fields,
+	int Ardb::HGetAll(DBID db, const Slice& key, StringArray& fields,
 			StringArray& values)
 	{
 		Slice empty;
@@ -229,12 +229,12 @@ namespace rddb
 		return fields.empty() ? ERR_NOT_EXIST : 0;
 	}
 
-	bool RDDB::HExists(DBID db, const Slice& key, const Slice& field)
+	bool Ardb::HExists(DBID db, const Slice& key, const Slice& field)
 	{
 		return HGet(db, key, field, NULL) == 0;
 	}
 
-	int RDDB::HIncrby(DBID db, const Slice& key, const Slice& field,
+	int Ardb::HIncrby(DBID db, const Slice& key, const Slice& field,
 			int64_t increment, int64_t& value)
 	{
 		ValueObject v;
@@ -250,7 +250,7 @@ namespace rddb
 		return SetHashValue(db, key, field, v);
 	}
 
-	int RDDB::HIncrbyFloat(DBID db, const Slice& key, const Slice& field,
+	int Ardb::HIncrbyFloat(DBID db, const Slice& key, const Slice& field,
 			double increment, double& value)
 	{
 		ValueObject v;

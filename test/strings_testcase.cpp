@@ -4,13 +4,13 @@
  *  Created on: 2013-4-9
  *      Author: wqy
  */
-#include "rddb.hpp"
+#include "ardb.hpp"
 #include <string>
 #include <glog/logging.h>
 
-using namespace rddb;
+using namespace ardb;
 
-void test_strings_append(RDDB& db)
+void test_strings_append(Ardb& db)
 {
 	std::string v;
 	//append
@@ -21,7 +21,7 @@ void test_strings_append(RDDB& db)
 	LOG_IF(FATAL, v != "abcabc") << "Invalid str:" << v;
 }
 
-void test_strings_getrange(RDDB& db)
+void test_strings_getrange(Ardb& db)
 {
 	std::string v;
 	db.Set(0, "skey", "abcabc");
@@ -29,7 +29,7 @@ void test_strings_getrange(RDDB& db)
 	LOG_IF(FATAL, v != "bc") << "GetRange failed";
 }
 
-void test_strings_setrange(RDDB& db)
+void test_strings_setrange(Ardb& db)
 {
 	std::string v;
 	db.Set(0, "skey", "abcabc");
@@ -38,7 +38,7 @@ void test_strings_setrange(RDDB& db)
 	LOG_IF(FATAL, v != "abc12345") << "SetRange failed:" << v;
 }
 
-void test_strings_getset(RDDB& db)
+void test_strings_getset(Ardb& db)
 {
 	std::string v;
 	db.Set(0, "skey", "abcabc");
@@ -46,14 +46,14 @@ void test_strings_getset(RDDB& db)
 	LOG_IF(FATAL, v != "abcabc") << "GetSet failed:" << v;
 }
 
-void test_strings_strlen(RDDB& db)
+void test_strings_strlen(Ardb& db)
 {
 	db.Set(0, "skey", "abcabcabc");
 	int len = db.Strlen(0, "skey");
 	LOG_IF(FATAL, len != 9) << "Strlen failed:" << len;
 }
 
-void test_strings_decr(RDDB& db)
+void test_strings_decr(Ardb& db)
 {
 	db.Set(0, "intkey", "010");
 	int64_t iv = 0;
@@ -63,7 +63,7 @@ void test_strings_decr(RDDB& db)
 	LOG_IF(FATAL, iv != 7) << "Decrby failed";
 }
 
-void test_strings_incr(RDDB& db)
+void test_strings_incr(Ardb& db)
 {
 	db.Set(0, "intkey", "012");
 	int64_t iv = 0;
@@ -74,7 +74,7 @@ void test_strings_incr(RDDB& db)
 	LOG_IF(FATAL, dv != 15.23) << "IncrbyFloat failed";
 }
 
-void test_strings_exists(RDDB& db)
+void test_strings_exists(Ardb& db)
 {
 	db.Del(0, "intkey1");
 	LOG_IF(FATAL, db.Exists(0, "intkey1")) << "Exists intkey1 failed";
@@ -82,7 +82,7 @@ void test_strings_exists(RDDB& db)
 	LOG_IF(FATAL, db.Exists(0, "intkey1") == false) << "Exists intkey failed";
 }
 
-void test_strings_setnx(RDDB& db)
+void test_strings_setnx(Ardb& db)
 {
 	db.Set(0, "intkey1", "123");
 	LOG_IF(FATAL, db.SetNX(0, "intkey1", "2345") != 0)
@@ -92,7 +92,7 @@ void test_strings_setnx(RDDB& db)
 																<< "SetNX intkey failed";
 }
 
-void test_strings_expire(RDDB& db)
+void test_strings_expire(Ardb& db)
 {
 	ValueObject v;
 	db.Set(0, "intkey1", "123");
@@ -102,7 +102,7 @@ void test_strings_expire(RDDB& db)
 	LOG_IF(FATAL, db.Exists(0, "intkey1") == true) << "Expire intkey failed";
 }
 
-void test_strings_bitcount(RDDB& db)
+void test_strings_bitcount(Ardb& db)
 {
 	db.Set(0, "intkey1", "foobar");
 	int bitcount = db.BitCount(0, "intkey1", 0, 0);
@@ -113,7 +113,7 @@ void test_strings_bitcount(RDDB& db)
 	LOG_IF(FATAL, bitcount != 6) << "bitcount intkey1 failed:" << bitcount;
 }
 
-void test_strings_setgetbit(RDDB& db)
+void test_strings_setgetbit(Ardb& db)
 {
 	ValueObject v;
 	db.Del(0, "mykey");
@@ -127,7 +127,7 @@ void test_strings_setgetbit(RDDB& db)
 	LOG_IF(FATAL, ret != 0) << "getbit mykey failed:" << ret;
 }
 
-void test_strings(RDDB& db)
+void test_strings(Ardb& db)
 {
 	test_strings_append(db);
 	test_strings_getrange(db);

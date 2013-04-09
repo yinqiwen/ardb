@@ -8,10 +8,10 @@
 #include "leveldb/db.h"
 #include "leveldb/write_batch.h"
 #include "leveldb/comparator.h"
-#include "rddb.hpp"
+#include "ardb.hpp"
 #include <stack>
 
-namespace rddb
+namespace ardb
 {
 	class LevelDBIterator: public Iterator
 	{
@@ -55,7 +55,7 @@ namespace rddb
 			// by any clients of this package.
 			const char* Name() const
 			{
-				return "RDDBLevelDB";
+				return "ARDBLevelDB";
 			}
 
 			// Advanced functions: these are used to reduce the space requirements

@@ -8,7 +8,7 @@
 #include <limits.h>
 
 //static const uint32 kmax_uint32 = 0xffffffff;
-namespace rddb
+namespace ardb
 {
 	static struct tm k_tm;
 

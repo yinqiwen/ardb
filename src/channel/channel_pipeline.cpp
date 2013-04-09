@@ -6,7 +6,7 @@
  */
 #include "channel/all_includes.hpp"
 
-using namespace rddb;
+using namespace ardb;
 
 #define CHECK_DUPLICATE_NAME(name)          \
 	    do{                                 \

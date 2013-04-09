@@ -15,7 +15,7 @@
 
 using std::list;
 
-namespace rddb
+namespace ardb
 {
 	SocketInetAddress get_inet_address(const string& host, uint16 port);
 	SocketInetAddress get_inet_address(const SocketHostAddress& addr);

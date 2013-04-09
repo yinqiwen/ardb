@@ -10,7 +10,7 @@
 #include "channel/codec/stack_frame_decoder.hpp"
 #include <string>
 #include <vector>
-namespace rddb
+namespace ardb
 {
 	namespace codec
 	{
