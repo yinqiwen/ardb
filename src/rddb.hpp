@@ -283,7 +283,7 @@ namespace rddb
 			int ZRevRange(DBID db, const Slice& key, int start, int stop,
 					StringArray& values, RDDBQueryOptions& options);
 			int ZRevRangeByScore(DBID db, const Slice& key,
-					const std::string& min, const std::string& max,
+					const std::string& max, const std::string& min,
 					StringArray& values, RDDBQueryOptions& options);
 			int ZUnionStore(DBID db, const Slice& dst, SliceArray& keys,
 					WeightArray& weights, AggregateType type = AGGREGATE_SUM);

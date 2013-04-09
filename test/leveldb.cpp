@@ -19,10 +19,6 @@ int main(int argc, char** argv)
 	google::InitGoogleLogging(argv[0]);
 	LevelDBEngineFactory factory("/tmp/rddb/test");
 	RDDB db(&factory);
-	test_strings(db);
-	test_hashs(db);
-	test_lists(db);
-	test_sets(db);
-	test_zsets(db);
+	test_all(db);
 	return 0;
 }

@@ -199,7 +199,7 @@ namespace rddb
 		{
 				int idx;
 				ValueSet& vset;
-				const std::string* vlimit;
+				std::string vlimit;
 				int OnKeyValue(KeyObject* k, ValueObject* v)
 				{
 					SetKeyObject* sek = (SetKeyObject*) k;
@@ -217,14 +217,14 @@ namespace rddb
 						{
 							return -1;
 						}
-						if (NULL != vlimit && str.compare(*vlimit) > 0)
+						if (!vlimit.empty() && str.compare(vlimit) > 0)
 						{
 							return -1;
 						}
 					}
 					return 0;
 				}
-				SDiffWalk(ValueSet& vs, int i, const std::string* limit) :
+				SDiffWalk(ValueSet& vs, int i, const std::string& limit) :
 						vset(vs), idx(i), vlimit(limit)
 				{
 				}
@@ -233,7 +233,7 @@ namespace rddb
 		{
 			Slice k = keys[i];
 			Slice search_value;
-			const std::string* limit = NULL;
+			std::string limit;
 			if (i > 0)
 			{
 				if (vs.size() == 0)
@@ -254,7 +254,7 @@ namespace rddb
 				}
 				if (metas[i].max.compare(*(vs.rbegin())) > 0)
 				{
-					limit = &(*(vs.begin()));
+					limit = *(vs.rbegin());
 				}
 			}
 			SetKeyObject sk(k, search_value);
@@ -303,7 +303,7 @@ namespace rddb
 				it++;
 			}
 			SetSetMetaValue(db, dst, meta);
-			return  meta.size;
+			return meta.size;
 		}
 		return 0;
 
@@ -463,7 +463,7 @@ namespace rddb
 				it++;
 			}
 			SetSetMetaValue(0, dst, meta);
-			return  meta.size;
+			return meta.size;
 		}
 		return 0;
 	}

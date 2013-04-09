@@ -57,7 +57,7 @@ namespace rddb
 			Slice value;
 			double score;
 			ZSetKeyObject(const Slice& k, const Slice& v, double s) :
-					KeyObject(k, SET_ELEMENT), value(v), score(s)
+					KeyObject(k, ZSET_ELEMENT), value(v), score(s)
 			{
 			}
 	};

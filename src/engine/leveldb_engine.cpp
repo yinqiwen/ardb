@@ -19,7 +19,6 @@ namespace rddb
 	int LevelDBComparator::Compare(const leveldb::Slice& a,
 			const leveldb::Slice& b) const
 	{
-
 		KeyObject* ak = decode_key(RDDB_SLICE(a));
 		KeyObject* bk = decode_key(RDDB_SLICE(b));
 		if (NULL == ak && NULL == bk)
@@ -73,7 +72,7 @@ namespace rddb
 				{
 					ZSetKeyObject* zak = (ZSetKeyObject*) ak;
 					ZSetKeyObject* zbk = (ZSetKeyObject*) bk;
-					int ret = COMPARE_NUMBER(zak->score, zbk->score);
+					ret = COMPARE_NUMBER(zak->score, zbk->score);
 					if (ret == 0)
 					{
 						ret = zak->value.compare(zbk->value);
@@ -173,8 +172,7 @@ namespace rddb
 				&m_db);
 		if (!status.ok())
 		{
-			DEBUG_LOG("Failed to init engine:%s\n",
-					status.ToString().c_str());
+			DEBUG_LOG("Failed to init engine:%s\n", status.ToString().c_str());
 		}
 		return status.ok() ? 0 : -1;
 	}
@@ -219,7 +217,7 @@ namespace rddb
 		leveldb::Status s = m_db->Get(leveldb::ReadOptions(), LEVELDB_SLICE(key), value);
 		if(!s.ok())
 		{
-			DEBUG_LOG("Failed to find %s", s.ToString().c_str());
+			//DEBUG_LOG("Failed to find %s", s.ToString().c_str());
 		}
 		return s.ok() ? 0 : -1;
 	}
@@ -241,7 +239,7 @@ namespace rddb
 		leveldb::ReadOptions options;
 		leveldb::Iterator* iter = m_db->NewIterator(options);
 		iter->Seek(LEVELDB_SLICE(findkey));
-		if(!iter->Valid())
+		if (!iter->Valid())
 		{
 			iter->SeekToLast();
 		}

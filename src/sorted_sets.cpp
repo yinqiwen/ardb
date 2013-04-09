@@ -8,7 +8,6 @@
 #include "rddb.hpp"
 #include <float.h>
 
-
 namespace rddb
 {
 	static int parse_score(const std::string& score_str, double& score,
@@ -61,23 +60,18 @@ namespace rddb
 
 	int RDDB::ZAdd(DBID db, const Slice& key, double score, const Slice& value)
 	{
-		KeyObject k(key, ZSET_META);
-		ValueObject v;
 		ZSetMetaValue meta;
-		if (0 == GetValue(db, k, &v))
-		{
-			if (!DecodeZSetMetaData(v, meta))
-			{
-				return ERR_INVALID_TYPE;
-			}
-		}
+		GetZSetMetaValue(db, key, meta);
+		bool metachange = false;
 		if (score > meta.max_score)
 		{
 			meta.max_score = score;
+			metachange = true;
 		}
 		if (score < meta.min_score)
 		{
 			meta.min_score = score;
+			metachange = true;
 		}
 
 		ZSetScoreKeyObject zk(key, value);
@@ -93,8 +87,8 @@ namespace rddb
 			ValueObject zsv;
 			zsv.type = EMPTY;
 			SetValue(db, zsk, zsv);
-			EncodeZSetMetaData(v, meta);
-			return SetValue(db, k, v) == 0 ? 1 : -1;
+			SetZSetMetaValue(db, key, meta);
+			return 1;
 		} else
 		{
 			if (zv.v.double_v != score)
@@ -108,6 +102,10 @@ namespace rddb
 				SetValue(db, zsk, zsv);
 				zv.type = DOUBLE;
 				zv.v.double_v = score;
+				if (metachange)
+				{
+					SetZSetMetaValue(db, key, meta);
+				}
 				return SetValue(db, zk, zv);
 			}
 		}
@@ -185,6 +183,7 @@ namespace rddb
 	{
 		Slice empty;
 		ZSetKeyObject sk(key, empty, -DBL_MAX);
+
 		BatchWriteGuard guard(GetDB(db));
 		struct ZClearWalk: public WalkHandler
 		{
@@ -222,11 +221,8 @@ namespace rddb
 			ZSetMetaValue meta;
 			if (0 == GetZSetMetaValue(db, key, meta))
 			{
-				if (meta.size > 1)
-				{
-					meta.size--;
-					SetZSetMetaValue(db, key, meta);
-				}
+				meta.size--;
+				SetZSetMetaValue(db, key, meta);
 			}
 			return 0;
 		}
@@ -257,6 +253,7 @@ namespace rddb
 				int OnKeyValue(KeyObject* k, ValueObject* v)
 				{
 					ZSetKeyObject* zko = (ZSetKeyObject*) k;
+					//DEBUG_LOG("Enter with %f %f ", zko->score, z_max_score);
 					if (zko->score > z_min_score && zko->score < z_max_score)
 					{
 						count++;
@@ -268,6 +265,10 @@ namespace rddb
 					if (z_containmax && zko->score == z_max_score)
 					{
 						count++;
+					}
+					if (zko->score > z_max_score)
+					{
+						return -1;
 					}
 					return 0;
 				}
@@ -309,7 +310,7 @@ namespace rddb
 					return 0;
 				}
 				ZRankWalk(const Slice& m) :
-						rank(0), z_member(m), foundRank(-1)
+						rank(0), z_member(m), foundRank(ERR_NOT_EXIST)
 				{
 				}
 		} walk(member);
@@ -396,7 +397,7 @@ namespace rddb
 						z_count++;
 					}
 					rank++;
-					if (rank == z_stop)
+					if (rank > z_stop)
 					{
 						return -1;
 					}
@@ -508,6 +509,7 @@ namespace rddb
 		}
 		Slice empty;
 		ZSetKeyObject tmp(key, empty, meta.min_score);
+
 		struct ZRangeWalk: public WalkHandler
 		{
 				int rank;
@@ -533,7 +535,7 @@ namespace rddb
 						z_count++;
 					}
 					rank++;
-					if (rank == z_stop)
+					if (rank > z_stop)
 					{
 						return -1;
 					}
@@ -699,7 +701,7 @@ namespace rddb
 						count++;
 					}
 					rank++;
-					if (rank == z_stop)
+					if (rank > z_stop)
 					{
 						return -1;
 					}
@@ -711,7 +713,7 @@ namespace rddb
 	}
 
 	int RDDB::ZRevRangeByScore(DBID db, const Slice& key,
-			const std::string& min, const std::string& max, StringArray& values,
+			const std::string& max, const std::string& min, StringArray& values,
 			RDDBQueryOptions& options)
 	{
 		ZSetMetaValue meta;
@@ -842,7 +844,7 @@ namespace rddb
 						}
 						case AGGREGATE_MAX:
 						{
-							score = z_weight * zsk->score;
+							score = z_weight * (zsk->score);
 							if (score > z_vm[vstr])
 							{
 								z_vm[vstr] = score;
@@ -852,7 +854,7 @@ namespace rddb
 						case AGGREGATE_SUM:
 						default:
 						{
-							score = z_weight * zsk->score + z_vm[vstr];
+							score = z_weight * (zsk->score) + z_vm[vstr];
 							z_vm[vstr] = score;
 							break;
 						}
@@ -985,8 +987,14 @@ namespace rddb
 						case AGGREGATE_SUM:
 						default:
 						{
-							z_result[vstr] = z_weight * zsk->score
-									+ z_cmp[vstr];
+							if (z_cmp.count(vstr) == 0)
+							{
+								z_result[vstr] = z_weight * (zsk->score);
+							} else
+							{
+								z_result[vstr] = z_weight * (zsk->score)
+										+ z_cmp[vstr];
+							}
 							break;
 						}
 					}
@@ -996,7 +1004,7 @@ namespace rddb
 		ValueScoreMap cmp1, cmp2;
 		Slice empty;
 		ZSetKeyObject cmp_start(keys[min_idx], empty, metas[min_idx].min_score);
-		ZInterWalk walk(weights[idx], cmp1, cmp1, type);
+		ZInterWalk walk(weights[min_idx], cmp1, cmp1, type);
 		Walk(db, cmp_start, false, &walk);
 		ValueScoreMap* cmp = &cmp1;
 		ValueScoreMap* result = &cmp2;
