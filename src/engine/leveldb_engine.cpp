@@ -173,7 +173,7 @@ namespace rddb
 				&m_db);
 		if (!status.ok())
 		{
-			printf("#####Failed to init engine:%s\n",
+			DEBUG_LOG("Failed to init engine:%s\n",
 					status.ToString().c_str());
 		}
 		return status.ok() ? 0 : -1;
@@ -219,7 +219,7 @@ namespace rddb
 		leveldb::Status s = m_db->Get(leveldb::ReadOptions(), LEVELDB_SLICE(key), value);
 		if(!s.ok())
 		{
-			printf("Failed to find %s\n", s.ToString().c_str());
+			DEBUG_LOG("Failed to find %s", s.ToString().c_str());
 		}
 		return s.ok() ? 0 : -1;
 	}

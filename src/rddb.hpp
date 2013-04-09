@@ -298,7 +298,7 @@ namespace rddb
 			int SDiffStore(DBID db, const Slice& dst, SliceArray& keys);
 			int SInter(DBID db, SliceArray& keys, StringArray& values);
 			int SInterStore(DBID db, const Slice& dst, SliceArray& keys);
-			int SIsMember(DBID db, const Slice& key, const Slice& value);
+			bool SIsMember(DBID db, const Slice& key, const Slice& value);
 			int SRem(DBID db, const Slice& key, const Slice& value);
 			int SMove(DBID db, const Slice& src, const Slice& dst,
 					const Slice& value);

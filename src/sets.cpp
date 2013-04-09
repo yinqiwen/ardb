@@ -98,39 +98,34 @@ namespace rddb
 		return ERR_NOT_EXIST;
 	}
 
-	int RDDB::SIsMember(DBID db, const Slice& key, const Slice& value)
+	bool RDDB::SIsMember(DBID db, const Slice& key, const Slice& value)
 	{
 		SetKeyObject sk(key, value);
 		ValueObject sv;
-		if (0 != GetValue(db, sk, &sv))
+		if (0 != GetValue(db, sk, NULL))
 		{
-			return ERR_NOT_EXIST;
+			return false;
 		}
-		return 1;
+		return true;
 	}
 
 	int RDDB::SRem(DBID db, const Slice& key, const Slice& value)
 	{
-		KeyObject k(key, SET_META);
-		ValueObject v;
 		SetMetaValue meta;
-		if (0 == GetValue(db, k, &v))
+		if (0 != GetSetMetaValue(db, key, meta))
 		{
-			if (!DecodeSetMetaData(v, meta))
-			{
-				return ERR_INVALID_TYPE;
-			}
+			return ERR_NOT_EXIST;
 		}
 		SetKeyObject sk(key, value);
 		ValueObject sv;
-		if (0 != GetValue(db, sk, &sv))
+		if (0 == GetValue(db, sk, &sv))
 		{
 			meta.size--;
 			sv.type = EMPTY;
 			BatchWriteGuard guard(GetDB(db));
 			DelValue(db, sk);
-			EncodeSetMetaData(v, meta);
-			return SetValue(db, k, v) == 0 ? 1 : -1;
+			SetSetMetaValue(db, key, meta);
+			return 1;
 		}
 		return 0;
 	}
@@ -286,11 +281,9 @@ namespace rddb
 		{
 			BatchWriteGuard guard(GetDB(db));
 			SClear(db, dst);
-			KeyObject k(dst, SET_META);
-			ValueObject smv;
 			SetMetaValue meta;
 			StringArray::iterator it = vs.begin();
-			while (it < vs.begin())
+			while (it != vs.end())
 			{
 				std::string& v = *it;
 				Slice sv(v.c_str(), v.size());
@@ -309,8 +302,8 @@ namespace rddb
 				}
 				it++;
 			}
-			EncodeSetMetaData(smv, meta);
-			return SetValue(db, k, smv) == 0 ? meta.size : -1;
+			SetSetMetaValue(db, dst, meta);
+			return  meta.size;
 		}
 		return 0;
 
@@ -448,11 +441,9 @@ namespace rddb
 		{
 			BatchWriteGuard guard(GetDB(db));
 			SClear(db, dst);
-			KeyObject k(dst, SET_META);
-			ValueObject smv;
 			SetMetaValue meta;
 			StringArray::iterator it = vs.begin();
-			while (it < vs.begin())
+			while (it != vs.end())
 			{
 				std::string& v = *it;
 				Slice sv(v.c_str(), v.size());
@@ -471,8 +462,8 @@ namespace rddb
 				}
 				it++;
 			}
-			EncodeSetMetaData(smv, meta);
-			return SetValue(db, k, smv) == 0 ? meta.size : -1;
+			SetSetMetaValue(0, dst, meta);
+			return  meta.size;
 		}
 		return 0;
 	}
@@ -587,11 +578,9 @@ namespace rddb
 		{
 			BatchWriteGuard guard(GetDB(db));
 			SClear(db, dst);
-			KeyObject k(dst, SET_META);
-			ValueObject smv;
 			SetMetaValue meta;
 			StringArray::iterator it = ss.begin();
-			while (it < ss.begin())
+			while (it != ss.end())
 			{
 				std::string& v = *it;
 				Slice sv(v.c_str(), v.size());
@@ -610,8 +599,8 @@ namespace rddb
 				}
 				it++;
 			}
-			EncodeSetMetaData(smv, meta);
-			return SetValue(db, k, smv) == 0 ? meta.size : -1;
+			SetSetMetaValue(db, dst, meta);
+			return meta.size;
 		}
 		return 0;
 	}
