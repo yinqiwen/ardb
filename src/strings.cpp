@@ -328,18 +328,16 @@ namespace ardb
 		{
 			lens.push_back(0);
 			KeyObject k(keys[j]);
-			ValueObject* v = new ValueObject();
-			if (0 != GetValue(db, k, v))
+			vs.push_back(ValueObject());
+			if (0 != GetValue(db, k, &vs[j]))
 			{
-				vs.push_back(NULL);
-				DELETE(v);
 				src[j] = NULL;
 				continue;
 			}
-			value_convert_to_raw(*v);
-			vs.push_back(v);
-			lens[j] = v->v.raw->ReadableBytes();
-			src[j] = (unsigned char *) (v->v.raw->GetRawReadBuffer());
+			value_convert_to_raw(vs[j]);
+
+			lens[j] = vs[j].v.raw->ReadableBytes();
+			src[j] = (unsigned char *) (vs[j].v.raw->GetRawReadBuffer());
 			if (lens[j] > maxlen)
 				maxlen = lens[j];
 			if (j == 0 || lens[j] < minlen)
@@ -460,7 +458,7 @@ namespace ardb
 		if (maxlen)
 		{
 			ValueObject v;
-			fill_value(Slice((char*) res, maxlen), v);
+			fill_raw_value(Slice((char*) res, maxlen), v);
 			KeyObject k(dstkey);
 			SetValue(db, k, v);
 		}
@@ -469,7 +467,6 @@ namespace ardb
 		{
 			free(res);
 		}
-		ClearValueArray(vs);
 		return maxlen;
 	}
 

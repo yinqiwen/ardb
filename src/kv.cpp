@@ -81,7 +81,7 @@ namespace ardb
 		{
 			KeyObject keyobject(*kit);
 			ValueObject valueobject;
-			fill_value(*vit, valueobject);
+			smart_fill_value(*vit, valueobject);
 			SetValue(db, keyobject, valueobject);
 			kit++;
 			vit++;
@@ -104,7 +104,7 @@ namespace ardb
 			ValueObject valueobject;
 			if (0 != GetValue(db, keyobject, &valueobject))
 			{
-				fill_value(*vit, valueobject);
+				smart_fill_value(*vit, valueobject);
 				SetValue(db, keyobject, valueobject);
 			}
 			kit++;
@@ -150,7 +150,7 @@ namespace ardb
 		{
 			KeyObject keyobject(key);
 			ValueObject valueobject;
-			fill_value(value, valueobject);
+			smart_fill_value(value, valueobject);
 			int ret = SetValue(db, keyobject, valueobject);
 			return ret == 0 ? 1 : ret;
 		}
@@ -166,7 +166,7 @@ namespace ardb
 	{
 		KeyObject keyobject(key);
 		ValueObject valueobject;
-		fill_value(value, valueobject);
+		smart_fill_value(value, valueobject);
 		uint64_t expire = 0;
 		if (ms > 0)
 		{

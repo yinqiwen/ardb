@@ -164,7 +164,7 @@ namespace ardb
 			}
 		public:
 			Ardb(KeyValueEngineFactory* factory);
-			static void ClearValueArray(ValueArray& array);
+			//static void ClearValueArray(ValueArray& array);
 			int Set(DBID db, const Slice& key, const Slice& value);
 			int Set(DBID db, const Slice& key, const Slice& value, int ex,
 					int px, int nxx);

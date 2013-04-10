@@ -9,6 +9,41 @@
 
 namespace ardb
 {
+	SetKeyObject::SetKeyObject(const Slice& k, const ValueObject& v) :
+			KeyObject(k, SET_ELEMENT), value(v)
+	{
+
+	}
+	SetKeyObject::SetKeyObject(const Slice& k, const Slice& v) :
+			KeyObject(k, SET_ELEMENT)
+	{
+		smart_fill_value(v, value);
+	}
+
+	ZSetKeyObject::ZSetKeyObject(const Slice& k, const ValueObject& v, double s) :
+			KeyObject(k, ZSET_ELEMENT), value(v), score(s)
+	{
+
+	}
+
+	ZSetKeyObject::ZSetKeyObject(const Slice& k, const Slice& v, double s) :
+			KeyObject(k, ZSET_ELEMENT), score(s)
+	{
+		smart_fill_value(v, value);
+	}
+
+	ZSetScoreKeyObject::ZSetScoreKeyObject(const Slice& k, const ValueObject& v) :
+			KeyObject(k, ZSET_ELEMENT_SCORE), value(v)
+	{
+
+	}
+
+	ZSetScoreKeyObject::ZSetScoreKeyObject(const Slice& k, const Slice& v) :
+			KeyObject(k, ZSET_ELEMENT_SCORE)
+	{
+		smart_fill_value(v, value);
+	}
+
 	void encode_key(Buffer& buf, const KeyObject& key)
 	{
 		BufferHelper::WriteFixUInt8(buf, key.type);
@@ -30,20 +65,20 @@ namespace ardb
 			case SET_ELEMENT:
 			{
 				const SetKeyObject& sk = (const SetKeyObject&) key;
-				BufferHelper::WriteVarSlice(buf, sk.value);
+				encode_value(buf, sk.value);
 				break;
 			}
 			case ZSET_ELEMENT:
 			{
 				const ZSetKeyObject& sk = (const ZSetKeyObject&) key;
-				BufferHelper::WriteVarSlice(buf, sk.value);
 				BufferHelper::WriteVarDouble(buf, sk.score);
+				encode_value(buf, sk.value);
 				break;
 			}
 			case ZSET_ELEMENT_SCORE:
 			{
 				const ZSetScoreKeyObject& zk = (const ZSetScoreKeyObject&) key;
-				BufferHelper::WriteVarSlice(buf, zk.value);
+				encode_value(buf, zk.value);
 				break;
 			}
 			case LIST_META:
@@ -64,7 +99,7 @@ namespace ardb
 		{
 			return false;
 		}
-		type = (KeyType)t;
+		type = (KeyType) t;
 		return true;
 	}
 
@@ -104,32 +139,37 @@ namespace ardb
 
 			case SET_ELEMENT:
 			{
-				Slice value;
-				if (!BufferHelper::ReadVarSlice(buf, value))
+				SetKeyObject* sk = new SetKeyObject(keystr, Slice());
+				if (!decode_value(buf, sk->value))
 				{
+					DELETE(sk);
 					return NULL;
 				}
-				return new SetKeyObject(keystr, value);
+				return sk;
 			}
 			case ZSET_ELEMENT:
 			{
-				Slice value;
+				ZSetKeyObject* zsk = new ZSetKeyObject(keystr, Slice(), 0);
 				double score;
-				if (!BufferHelper::ReadVarSlice(buf, value)
-						|| !BufferHelper::ReadVarDouble(buf, score))
+				if (!decode_value(buf, zsk->value)
+				        || !BufferHelper::ReadVarDouble(buf, score))
 				{
+					DELETE(zsk);
 					return NULL;
 				}
-				return new ZSetKeyObject(keystr, value, score);
+				zsk->score = score;
+				return zsk;
 			}
 			case ZSET_ELEMENT_SCORE:
 			{
-				Slice value;
-				if (!BufferHelper::ReadVarSlice(buf, value))
+				ZSetScoreKeyObject* zsk = new ZSetScoreKeyObject(keystr,
+				        Slice());
+				if (!decode_value(buf, zsk->value))
 				{
+					DELETE(zsk);
 					return NULL;
 				}
-				return new ZSetScoreKeyObject(keystr, value);
+				return zsk;
 			}
 			case SET_META:
 			case ZSET_META:
@@ -152,9 +192,20 @@ namespace ardb
 			if (v.type == INTEGER)
 			{
 				v.v.raw->Printf("%lld", iv);
-			} else if (v.type == DOUBLE)
+			}
+			else if (v.type == DOUBLE)
 			{
-				v.v.raw->Printf("%f", dv);
+				double min = -4503599627370495; /* (2^52)-1 */
+				double max = 4503599627370496; /* -(2^52) */
+				iv = (int64_t) dv;
+				if (dv > min && dv < max && dv == ((double) iv))
+				{
+					v.v.raw->Printf("%lld", iv);
+				}
+				else
+				{
+					v.v.raw->Printf("%.17g", dv);
+				}
 			}
 			return 0;
 		}
@@ -170,14 +221,15 @@ namespace ardb
 		int64_t intv;
 		double dv;
 		if (raw_toint64(v.v.raw->GetRawReadBuffer(), v.v.raw->ReadableBytes(),
-				intv))
+		        intv))
 		{
 			v.Clear();
 			v.type = INTEGER;
 			v.v.int_v = intv;
 			return 1;
-		} else if (raw_todouble(v.v.raw->GetRawReadBuffer(),
-				v.v.raw->ReadableBytes(), dv))
+		}
+		else if (raw_todouble(v.v.raw->GetRawReadBuffer(),
+		        v.v.raw->ReadableBytes(), dv))
 		{
 			v.Clear();
 			v.type = DOUBLE;
@@ -211,16 +263,20 @@ namespace ardb
 				if (NULL != value.v.raw)
 				{
 					BufferHelper::WriteVarUInt32(buf,
-							value.v.raw->ReadableBytes());
+					        value.v.raw->ReadableBytes());
 					buf.Write(value.v.raw, value.v.raw->ReadableBytes());
-				} else
+				}
+				else
 				{
 					BufferHelper::WriteVarInt64(buf, 0);
 				}
 				break;
 			}
 		}
-		BufferHelper::WriteVarUInt64(buf, value.expire);
+		if (value.expire > 0)
+		{
+			BufferHelper::WriteVarUInt64(buf, value.expire);
+		}
 	}
 
 	bool decode_value(Buffer& buf, ValueObject& value)
@@ -255,7 +311,7 @@ namespace ardb
 			{
 				uint32_t len;
 				if (!BufferHelper::ReadVarUInt32(buf, len)
-						|| buf.ReadableBytes() < len)
+				        || buf.ReadableBytes() < len)
 				{
 					return false;
 				}
@@ -265,29 +321,41 @@ namespace ardb
 				break;
 			}
 		}
+		value.expire = 0;
 		BufferHelper::ReadVarUInt64(buf, value.expire);
 		return true;
 	}
-
-	//Need consider "0001" situation
-	void fill_value(const Slice& value, ValueObject& valueobject)
+	void smart_fill_value(const Slice& value, ValueObject& valueobject)
 	{
-		valueobject.type = RAW;
-		//		int64_t intv;
-		//		double doublev;
-		//		if (raw_toint64(value.data(), value.size(), intv))
-		//		{
-		//			valueobject.type = INTEGER;
-		//			valueobject.v.int_v = intv;
-		//		} else if (raw_todouble(value.data(), value.size(), doublev))
-		//		{
-		//			valueobject.type = DOUBLE;
-		//			valueobject.v.double_v = doublev;
-		//		} else
+		if (value.empty())
 		{
+			valueobject.type = EMPTY;
+			return;
+		}
+		int64_t intv;
+		double doublev;
+		if (raw_toint64(value.data(), value.size(), intv))
+		{
+			valueobject.type = INTEGER;
+			valueobject.v.int_v = intv;
+		}
+		else if (raw_todouble(value.data(), value.size(), doublev))
+		{
+			valueobject.type = DOUBLE;
+			valueobject.v.double_v = doublev;
+		}
+		else
+		{
+			valueobject.type = RAW;
 			char* v = const_cast<char*>(value.data());
 			valueobject.v.raw = new Buffer(v, 0, value.size());
 		}
+	}
+	void fill_raw_value(const Slice& value, ValueObject& valueobject)
+	{
+		valueobject.type = RAW;
+		char* v = const_cast<char*>(value.data());
+		valueobject.v.raw = new Buffer(v, 0, value.size());
 	}
 
 }

@@ -10,90 +10,74 @@
 
 #include "ardb.hpp"
 
-#define COMPARE_NUMBER(a, b)  (a == b?0:(a>b?1:-1))
+#define COMPARE_EXIST(a, b)  do{ \
+	if(!a && !b) return 0;\
+	if(a != b) return COMPARE_NUMBER(a,b); \
+}while(0)
+
+#define RETURN_NONEQ_RESULT(a, b)  do{ \
+	if(a != b) return COMPARE_NUMBER(a,b); \
+}while(0)
 
 namespace ardb
 {
 	inline int ardb_compare_keys(const char* akbuf, size_t aksiz,
-			const char* bkbuf, size_t bksiz)
+	        const char* bkbuf, size_t bksiz)
 	{
-		Slice a(akbuf, aksiz);
-		Slice b(bkbuf, bksiz);
-		KeyType at, bt;
-		if (peek_key_type(a, at) && peek_key_type(b, bt))
-		{
-			if (at != bt)
-			{
-				return COMPARE_NUMBER(at, bt);
-			}
-		}
-
-		KeyObject* ak = decode_key(a);
-		KeyObject* bk = decode_key(b);
-		if (NULL == ak && NULL == bk)
-		{
-			return 0;
-		}
-		if (NULL != ak && NULL == bk)
-		{
-			DELETE(ak);
-			return 1;
-		}
-		if (NULL == ak && NULL != bk)
-		{
-			DELETE(bk);
-			return -1;
-		}
-		if(ak->type != bk->type){
-			return COMPARE_NUMBER(ak->type, bk->type);
-		}
+		Buffer ak_buf(const_cast<char*>(akbuf), 0, aksiz);
+		Buffer bk_buf(const_cast<char*>(bkbuf), 0, bksiz);
+		uint8_t at, bt;
+		bool found_a = BufferHelper::ReadFixUInt8(ak_buf, at);
+		bool found_b = BufferHelper::ReadFixUInt8(bk_buf, bt);
+		COMPARE_EXIST(found_a, found_b);
+		RETURN_NONEQ_RESULT(at, bt);
 		int ret = 0;
-		ret = ak->key.compare(bk->key);
+		Slice akey, bkey;
+		found_a = BufferHelper::ReadVarSlice(ak_buf, akey);
+		found_b = BufferHelper::ReadVarSlice(bk_buf, bkey);
+		COMPARE_EXIST(found_a, found_b);
+		int ret = akey.compare(bkey);
 		if (ret != 0)
 		{
-			DELETE(ak);
-			DELETE(bk);
 			return ret;
 		}
-		switch (ak->type)
+
+		switch (at)
 		{
+			case ZSET_ELEMENT_SCORE:
+			case SET_ELEMENT:
 			case HASH_FIELD:
 			{
-				HashKeyObject* hak = (HashKeyObject*) ak;
-				HashKeyObject* hbk = (HashKeyObject*) bk;
-				ret = hak->field.compare(hbk->field);
+				Slice af, bf;
+				found_a = BufferHelper::ReadVarSlice(ak_buf, af);
+				found_b = BufferHelper::ReadVarSlice(bk_buf, bf);
+				COMPARE_EXIST(found_a, found_b);
+				ret = af.compare(bf);
 				break;
 			}
 			case LIST_ELEMENT:
 			{
-				ListKeyObject* lak = (ListKeyObject*) ak;
-				ListKeyObject* lbk = (ListKeyObject*) bk;
-				ret = COMPARE_NUMBER(lak->score, lbk->score);
-				break;
-			}
-			case SET_ELEMENT:
-			{
-				SetKeyObject* sak = (SetKeyObject*) ak;
-				SetKeyObject* sbk = (SetKeyObject*) bk;
-				ret = sak->value.compare(sbk->value);
+				double ascore, bscore;
+				found_a = BufferHelper::ReadVarDouble(ak_buf, ascore);
+				found_b = BufferHelper::ReadVarDouble(ak_buf, bscore);
+				COMPARE_EXIST(found_a, found_b);
+				ret = COMPARE_NUMBER(ascore, bscore);
 				break;
 			}
 			case ZSET_ELEMENT:
 			{
-				ZSetKeyObject* zak = (ZSetKeyObject*) ak;
-				ZSetKeyObject* zbk = (ZSetKeyObject*) bk;
-				ret = COMPARE_NUMBER(zak->score, zbk->score);
+				double ascore, bscore;
+				found_a = BufferHelper::ReadVarDouble(ak_buf, ascore);
+				found_b = BufferHelper::ReadVarDouble(ak_buf, bscore);
+				ret = COMPARE_NUMBER(ascore, bscore);
 				if (ret == 0)
 				{
-					ret = zak->value.compare(zbk->value);
+					Slice af, bf;
+					found_a = BufferHelper::ReadVarSlice(ak_buf, af);
+					found_b = BufferHelper::ReadVarSlice(bk_buf, bf);
+					COMPARE_EXIST(found_a, found_b);
+					ret = af.compare(bf);
 				}
-				break;
-			}
-			case ZSET_ELEMENT_SCORE:
-			{
-				ZSetScoreKeyObject* zak = (ZSetScoreKeyObject*) ak;
-				ZSetScoreKeyObject* zbk = (ZSetScoreKeyObject*) bk;
-				ret = zak->value.compare(zbk->value);
 				break;
 			}
 			case SET_META:
@@ -104,8 +88,6 @@ namespace ardb
 				break;
 			}
 		}
-		DELETE(ak);
-		DELETE(bk);
 		return ret;
 	}
 }

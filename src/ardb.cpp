@@ -22,16 +22,16 @@
 
 namespace ardb
 {
-	void Ardb::ClearValueArray(ValueArray& array)
-	{
-		ValueArray::iterator it = array.begin();
-		while (it != array.end())
-		{
-			DELETE(*it);
-			it++;
-		}
-		array.clear();
-	}
+//	void Ardb::ClearValueArray(ValueArray& array)
+//	{
+//		ValueArray::iterator it = array.begin();
+//		while (it != array.end())
+//		{
+//			DELETE(*it);
+//			it++;
+//		}
+//		array.clear();
+//	}
 
 	size_t Ardb::RealPosition(Buffer* buf, int pos)
 	{

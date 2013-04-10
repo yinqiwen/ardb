@@ -78,7 +78,7 @@ namespace ardb
 		BatchWriteGuard guard(GetDB(db));
 		ListKeyObject lk(key, score);
 		ValueObject lv;
-		fill_value(value, lv);
+		smart_fill_value(value, lv);
 		if (0 == SetValue(db, lk, lv))
 		{
 			EncodeListMetaData(v, meta);
@@ -216,9 +216,7 @@ namespace ardb
 					std::string pop_value;
 					int OnKeyValue(KeyObject* k, ValueObject* v)
 					{
-						value_convert_to_raw(*v);
-						const char* tmp = v->v.raw->GetRawReadBuffer();
-						pop_value.assign(tmp, v->v.raw->ReadableBytes());
+						pop_value.assign(v->ToString());
 						return -1;
 					}
 			} walk;
@@ -257,13 +255,9 @@ namespace ardb
 				int OnKeyValue(KeyObject* k, ValueObject* v)
 				{
 					ListKeyObject* lck = (ListKeyObject*)k;
-					value_convert_to_raw(*v);
-					//DEBUG_LOG("#####%d %f %s", cursor, lck->score, v->v.raw->GetRawReadBuffer());
 					if (cursor == index)
 					{
-						value_convert_to_raw(*v);
-						const char* tmp = v->v.raw->GetRawReadBuffer();
-						found_value.assign(tmp, v->v.raw->ReadableBytes());
+						found_value.assign(v->ToString());
 						return -1;
 					}
 					cursor++;
@@ -321,10 +315,7 @@ namespace ardb
 				{
 					if (cursor >= l_start && cursor <= l_stop)
 					{
-						value_convert_to_raw(*v);
-						const char* tmp = v->v.raw->GetRawReadBuffer();
-						std::string str(tmp, v->v.raw->ReadableBytes());
-						found_values.push_back(str);
+						found_values.push_back(v->ToString());
 					}
 					cursor++;
 					if (cursor > l_stop)
@@ -353,7 +344,6 @@ namespace ardb
 				int OnKeyValue(KeyObject* k, ValueObject* v)
 				{
 					ListKeyObject* sek = (ListKeyObject*) k;
-					//DEBUG_LOG("#####DELETE %f", sek->score);
 					z_db->DelValue(z_dbid, *sek);
 					return 0;
 				}
@@ -460,7 +450,7 @@ namespace ardb
 					if (cursor == dst_idx)
 					{
 						ValueObject v;
-						fill_value(set_value, v);
+						smart_fill_value(set_value, v);
 						z_db->SetValue(z_dbid, *sek, v);
 						return -1;
 					}

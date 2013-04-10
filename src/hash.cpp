@@ -9,21 +9,21 @@
 namespace ardb
 {
 	int Ardb::SetHashValue(DBID db, const Slice& key, const Slice& field,
-			ValueObject& value)
+	        ValueObject& value)
 	{
 		HashKeyObject k(key, field);
 		return SetValue(db, k, value);
 	}
 	int Ardb::HSet(DBID db, const Slice& key, const Slice& field,
-			const Slice& value)
+	        const Slice& value)
 	{
 		ValueObject valueobject;
-		fill_value(value, valueobject);
+		smart_fill_value(value, valueobject);
 		return SetHashValue(db, key, field, valueobject);
 	}
 
 	int Ardb::HSetNX(DBID db, const Slice& key, const Slice& field,
-			const Slice& value)
+	        const Slice& value)
 	{
 		if (HExists(db, key, field))
 		{
@@ -39,7 +39,7 @@ namespace ardb
 	}
 
 	int Ardb::HGetValue(DBID db, const Slice& key, const Slice& field,
-			ValueObject* value)
+	        ValueObject* value)
 	{
 		HashKeyObject k(key, field);
 		if (0 == GetValue(db, k, value))
@@ -50,7 +50,7 @@ namespace ardb
 	}
 
 	int Ardb::HGet(DBID db, const Slice& key, const Slice& field,
-			std::string* value)
+	        std::string* value)
 	{
 		HashKeyObject k(key, field);
 		ValueObject v;
@@ -66,7 +66,7 @@ namespace ardb
 	}
 
 	int Ardb::HMSet(DBID db, const Slice& key, const SliceArray& fields,
-			const SliceArray& values)
+	        const SliceArray& values)
 	{
 		if (fields.size() != values.size())
 		{
@@ -85,7 +85,7 @@ namespace ardb
 	}
 
 	int Ardb::HMGet(DBID db, const Slice& key, const SliceArray& fields,
-			StringArray& values)
+	        StringArray& values)
 	{
 		SliceArray::const_iterator it = fields.begin();
 		while (it != fields.end())
@@ -132,7 +132,7 @@ namespace ardb
 			Slice tmpkey = it->Key();
 			KeyObject* kk = decode_key(tmpkey);
 			if (NULL == kk || kk->type != HASH_FIELD
-					|| kk->key.compare(key) != 0)
+			        || kk->key.compare(key) != 0)
 			{
 				DELETE(kk);
 				break;
@@ -158,7 +158,7 @@ namespace ardb
 			Slice tmpkey = it->Key();
 			KeyObject* kk = decode_key(tmpkey);
 			if (NULL == kk || kk->type != HASH_FIELD
-					|| kk->key.compare(key) != 0)
+			        || kk->key.compare(key) != 0)
 			{
 				break;
 			}
@@ -180,14 +180,14 @@ namespace ardb
 			Slice tmpkey = it->Key();
 			KeyObject* kk = decode_key(tmpkey);
 			if (NULL == kk || kk->type != HASH_FIELD
-					|| kk->key.compare(key) != 0)
+			        || kk->key.compare(key) != 0)
 			{
 				DELETE(kk);
 				break;
 			}
 			ValueObject v;
 			Buffer readbuf(const_cast<char*>(it->Value().data()), 0,
-					it->Value().size());
+			        it->Value().size());
 			decode_value(readbuf, v);
 			values.push_back(v.ToString());
 			it->Next();
@@ -198,7 +198,7 @@ namespace ardb
 	}
 
 	int Ardb::HGetAll(DBID db, const Slice& key, StringArray& fields,
-			StringArray& values)
+	        StringArray& values)
 	{
 		Slice empty;
 		HashKeyObject k(key, empty);
@@ -220,7 +220,7 @@ namespace ardb
 			fields.push_back(filed);
 			ValueObject v;
 			Buffer readbuf(const_cast<char*>(it->Value().data()), 0,
-					it->Value().size());
+			        it->Value().size());
 			decode_value(readbuf, v);
 			values.push_back(v.ToString());
 			it->Next();
@@ -235,7 +235,7 @@ namespace ardb
 	}
 
 	int Ardb::HIncrby(DBID db, const Slice& key, const Slice& field,
-			int64_t increment, int64_t& value)
+	        int64_t increment, int64_t& value)
 	{
 		ValueObject v;
 		v.type = INTEGER;
@@ -251,7 +251,7 @@ namespace ardb
 	}
 
 	int Ardb::HIncrbyFloat(DBID db, const Slice& key, const Slice& field,
-			double increment, double& value)
+	        double increment, double& value)
 	{
 		ValueObject v;
 		v.type = DOUBLE;

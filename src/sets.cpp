@@ -16,8 +16,8 @@ namespace ardb
 			return false;
 		}
 		return BufferHelper::ReadVarUInt32(*(v.v.raw), meta.size)
-				&& BufferHelper::ReadVarString(*(v.v.raw), meta.min)
-				&& BufferHelper::ReadVarString(*(v.v.raw), meta.max);
+		        && decode_value(*(v.v.raw), meta.min)
+		        && decode_value(*(v.v.raw), meta.max);
 	}
 	static void EncodeSetMetaData(ValueObject& v, SetMetaValue& meta)
 	{
@@ -27,8 +27,8 @@ namespace ardb
 			v.v.raw = new Buffer(16);
 		}
 		BufferHelper::WriteVarUInt32(*(v.v.raw), meta.size);
-		BufferHelper::WriteVarString(*(v.v.raw), meta.min);
-		BufferHelper::WriteVarString(*(v.v.raw), meta.max);
+		encode_value(*(v.v.raw), meta.min);
+		encode_value(*(v.v.raw), meta.max);
 	}
 
 	int Ardb::GetSetMetaValue(DBID db, const Slice& key, SetMetaValue& meta)
@@ -58,20 +58,20 @@ namespace ardb
 		KeyObject k(key, SET_META);
 		SetMetaValue meta;
 		GetSetMetaValue(db, key, meta);
-		Slice min(meta.min);
-		Slice max(meta.max);
+		ValueObject v;
+		smart_fill_value(value, v);
 		SetKeyObject sk(key, value);
 		ValueObject sv;
 		if (0 != GetValue(db, sk, &sv))
 		{
 			meta.size++;
-			if (min.size() == 0 || min.compare(value) > 0)
+			if (meta.min.type == EMPTY || meta.min.Compare(v) > 0)
 			{
-				meta.min.assign(value.data(), value.size());
+				meta.min.Copy(v);
 			}
-			if (max.size() == 0 || max.compare(value) < 0)
+			if (meta.max.type == EMPTY || meta.max.Compare(v) < 0)
 			{
-				meta.max.assign(value.data(), value.size());
+				meta.max.Copy(v);
 			}
 			sv.type = EMPTY;
 			BatchWriteGuard guard(GetDB(db));
@@ -140,8 +140,7 @@ namespace ardb
 				int OnKeyValue(KeyObject* k, ValueObject* v)
 				{
 					SetKeyObject* sek = (SetKeyObject*) k;
-					std::string tmp(sek->value.data(), sek->value.size());
-					z_values.push_back(tmp);
+					z_values.push_back(sek->value.ToString());
 					return 0;
 				}
 				SMembersWalk(StringArray& vs) :
@@ -199,32 +198,33 @@ namespace ardb
 		{
 				int idx;
 				ValueSet& vset;
-				std::string vlimit;
+				ValueObject vlimit;
 				int OnKeyValue(KeyObject* k, ValueObject* v)
 				{
 					SetKeyObject* sek = (SetKeyObject*) k;
-					std::string str(sek->value.data(), sek->value.size());
 					if (idx == 0)
 					{
-						vset.insert(str);
-					} else
+						vset.insert(sek->value);
+					}
+					else
 					{
-						if (vset.count(str) != 0)
+						if (vset.count(sek->value) != 0)
 						{
-							vset.erase(str);
+							vset.erase(sek->value);
 						}
 						if (vset.size() == 0)
 						{
 							return -1;
 						}
-						if (!vlimit.empty() && str.compare(vlimit) > 0)
+						if (vlimit.type != EMPTY
+						        && sek->value.Compare(vlimit) > 0)
 						{
 							return -1;
 						}
 					}
 					return 0;
 				}
-				SDiffWalk(ValueSet& vs, int i, const std::string& limit) :
+				SDiffWalk(ValueSet& vs, int i, const ValueObject& limit) :
 						vset(vs), idx(i), vlimit(limit)
 				{
 				}
@@ -232,27 +232,28 @@ namespace ardb
 		for (int i = 0; i < keys.size(); i++)
 		{
 			Slice k = keys[i];
-			Slice search_value;
-			std::string limit;
+			ValueObject search_value;
+			ValueObject limit;
 			if (i > 0)
 			{
 				if (vs.size() == 0)
 				{
 					break;
 				}
-				int cmp_min = metas[i].min.compare(*(vs.rbegin()));
-				if (metas[i].min.compare(*(vs.rbegin())) > 0)
-				{
-					continue;
-				} else if (metas[i].max.compare(*(vs.begin())) < 0)
+				int cmp_min = metas[i].min.Compare(*(vs.rbegin()));
+				if (metas[i].min.Compare(*(vs.rbegin())) > 0)
 				{
 					continue;
 				}
-				if (metas[i].min.compare(*(vs.begin())) < 0)
+				else if (metas[i].max.Compare(*(vs.begin())) < 0)
+				{
+					continue;
+				}
+				if (metas[i].min.Compare(*(vs.begin())) < 0)
 				{
 					search_value = *(vs.begin());
 				}
-				if (metas[i].max.compare(*(vs.rbegin())) > 0)
+				if (metas[i].max.Compare(*(vs.rbegin())) > 0)
 				{
 					limit = *(vs.rbegin());
 				}
@@ -264,7 +265,7 @@ namespace ardb
 		ValueSet::iterator it = vs.begin();
 		while (it != vs.end())
 		{
-			values.push_back(*it);
+			values.push_back(it->ToString());
 			it++;
 		}
 		return 0;
@@ -292,13 +293,13 @@ namespace ardb
 				empty.type = EMPTY;
 				SetValue(db, sk, empty);
 				meta.size++;
-				if (meta.min.size() == 0 || v.compare(meta.min) < 0)
+				if (meta.min.type == EMPTY || sk.value.Compare(meta.min) < 0)
 				{
-					meta.min = v;
+					meta.min = sk.value;
 				}
-				if (meta.max.size() == 0 || v.compare(meta.max) > 0)
+				if (meta.max.type == EMPTY || sk.value.Compare(meta.max) > 0)
 				{
-					meta.max = v;
+					meta.max = sk.value;
 				}
 				it++;
 			}
@@ -319,8 +320,8 @@ namespace ardb
 		SetMetaValueArray metas;
 		uint32_t min_idx = 0;
 		uint32_t idx = 0;
-		std::string min;
-		std::string max;
+		ValueObject min;
+		ValueObject max;
 		SliceArray::iterator kit = keys.begin();
 		while (kit != keys.end())
 		{
@@ -333,11 +334,11 @@ namespace ardb
 					min_idx = idx;
 				}
 			}
-			if (min.size() == 0 || min.compare(meta.min) < 0)
+			if (min.type == EMPTY || min.Compare(meta.min) < 0)
 			{
 				min = meta.min;
 			}
-			if (max.size() == 0 || max.compare(meta.max) > 0)
+			if (max.type == EMPTY || max.Compare(meta.max) > 0)
 			{
 				max = meta.max;
 			}
@@ -350,37 +351,35 @@ namespace ardb
 		{
 				ValueSet& z_cmp;
 				ValueSet& z_result;
-				const std::string& s_min;
-				const std::string& s_max;
-				const std::string* current_min;
-				const std::string* current_max;
+				const ValueObject& s_min;
+				const ValueObject& s_max;
+				const ValueObject* current_min;
+				const ValueObject* current_max;
 				SInterWalk(ValueSet& cmp, ValueSet& result,
-						const std::string& min, const std::string& max) :
+				        const ValueObject& min, const ValueObject& max) :
 						z_cmp(cmp), z_result(result), s_min(min), s_max(max), current_min(
-								NULL), current_max(NULL)
+						        NULL), current_max(NULL)
 				{
 				}
 				int OnKeyValue(KeyObject* k, ValueObject* value)
 				{
 					SetKeyObject* sk = (SetKeyObject*) k;
-					std::string vstr(sk->value.data(), sk->value.size());
-					if (vstr.compare(s_min) < 0)
+					if (sk->value.Compare(s_min) < 0)
 					{
 						return 0;
 					}
-					if (vstr.compare(s_max) > 0)
+					if (sk->value.Compare(s_max) > 0)
 					{
 						return -1;
 					}
-					if ((&z_cmp != &z_result) && z_cmp.count(vstr) == 0)
+					if ((&z_cmp != &z_result) && z_cmp.count(sk->value) == 0)
 					{
 						return 0;
 					}
 					std::pair<ValueSet::iterator, bool> iter = z_result.insert(
-							vstr);
+					        sk->value);
 					if (NULL == current_min)
 					{
-
 						current_min = &(*(iter.first));
 					}
 					current_max = &(*(iter.first));
@@ -388,8 +387,7 @@ namespace ardb
 				}
 		};
 		ValueSet cmp1, cmp2;
-		Slice min_start(min);
-		SetKeyObject cmp_start(keys[min_idx], min_start);
+		SetKeyObject cmp_start(keys[min_idx], min);
 		SInterWalk walk(cmp1, cmp1, min, max);
 		Walk(db, cmp_start, false, &walk);
 		ValueSet* cmp = &cmp1;
@@ -398,19 +396,18 @@ namespace ardb
 		{
 			if (i != min_idx)
 			{
-				Slice min_start(min);
-				SetKeyObject tmp(keys.at(i), min_start);
+				SetKeyObject tmp(keys.at(i), min);
 				SInterWalk walk(*cmp, *result, min, max);
 				Walk(db, tmp, false, &walk);
 				cmp->clear();
 				ValueSet* old = cmp;
 				cmp = result;
 				result = old;
-				if (min.compare(*walk.current_min) < 0)
+				if (min.Compare(*walk.current_min) < 0)
 				{
 					min = *walk.current_min;
 				}
-				if (max.compare(*walk.current_max) > 0)
+				if (max.Compare(*walk.current_max) > 0)
 				{
 					max = *walk.current_max;
 				}
@@ -422,8 +419,7 @@ namespace ardb
 			ValueSet::iterator it = cmp->begin();
 			while (it != cmp->end())
 			{
-				const std::string& v = *it;
-				values.push_back(v);
+				values.push_back(it->ToString());
 				it++;
 			}
 		}
@@ -452,13 +448,13 @@ namespace ardb
 				empty.type = EMPTY;
 				SetValue(db, sk, empty);
 				meta.size++;
-				if (meta.min.size() == 0 || v.compare(meta.min) < 0)
+				if (meta.min.type == EMPTY || sk.value.Compare(meta.min) < 0)
 				{
-					meta.min = v;
+					meta.min = sk.value;
 				}
-				if (meta.max.size() == 0 || v.compare(meta.max) > 0)
+				if (meta.max.type == EMPTY || sk.value.Compare(meta.max) > 0)
 				{
-					meta.max = v;
+					meta.max = sk.value;
 				}
 				it++;
 			}
@@ -469,7 +465,7 @@ namespace ardb
 	}
 
 	int Ardb::SMove(DBID db, const Slice& src, const Slice& dst,
-			const Slice& value)
+	        const Slice& value)
 	{
 		SetKeyObject sk(src, value);
 		ValueObject sv;
@@ -492,13 +488,13 @@ namespace ardb
 			Slice tmpkey = iter->Key();
 			KeyObject* kk = decode_key(tmpkey);
 			if (NULL == kk || kk->type != SET_ELEMENT
-					|| kk->key.compare(key) != 0)
+			        || kk->key.compare(key) != 0)
 			{
 				DELETE(kk);
 				break;
 			}
 			SetKeyObject* sek = (SetKeyObject*) kk;
-			value.append(sek->value.data(), sek->value.size());
+			value.assign(sek->value.ToString());
 			DelValue(db, *sek);
 			DELETE(kk);
 			return 0;
@@ -507,7 +503,7 @@ namespace ardb
 	}
 
 	int Ardb::SRandMember(DBID db, const Slice& key, StringArray& values,
-			int count)
+	        int count)
 	{
 		Slice empty;
 		SetKeyObject sk(key, empty);
@@ -523,13 +519,13 @@ namespace ardb
 			Slice tmpkey = iter->Key();
 			KeyObject* kk = decode_key(tmpkey);
 			if (NULL == kk || kk->type != SET_ELEMENT
-					|| kk->key.compare(key) != 0)
+			        || kk->key.compare(key) != 0)
 			{
 				DELETE(kk);
 				break;
 			}
 			SetKeyObject* sek = (SetKeyObject*) kk;
-			values.push_back(std::string(sek->value.data(), sek->value.size()));
+			values.push_back(sek->value.ToString());
 			DELETE(kk);
 			iter->Next();
 			cursor++;
@@ -548,7 +544,7 @@ namespace ardb
 
 	int Ardb::SUnion(DBID db, SliceArray& keys, StringArray& values)
 	{
-		ValueSet kvs;
+		StringSet kvs;
 		for (int i = 0; i < keys.size(); i++)
 		{
 			Slice k = keys.at(i);
@@ -562,7 +558,7 @@ namespace ardb
 				vit++;
 			}
 		}
-		ValueSet::iterator vit = kvs.begin();
+		StringSet::iterator vit = kvs.begin();
 		while (vit != kvs.end())
 		{
 			values.push_back(*vit);
@@ -589,13 +585,13 @@ namespace ardb
 				empty.type = EMPTY;
 				SetValue(db, sk, empty);
 				meta.size++;
-				if (meta.min.size() == 0 || v.compare(meta.min) < 0)
+				if (meta.min.type == EMPTY || sk.value.Compare(meta.min) < 0)
 				{
-					meta.min = v;
+					meta.min = sk.value;
 				}
-				if (meta.max.size() == 0 || v.compare(meta.max) > 0)
+				if (meta.max.type == EMPTY || sk.value.Compare(meta.max) > 0)
 				{
-					meta.max = v;
+					meta.max = sk.value;
 				}
 				it++;
 			}
