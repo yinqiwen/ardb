@@ -72,7 +72,7 @@ int RedisFrameDecoder::ProcessInlineBuffer(ChannelHandlerContext& ctx,
 			buffer.AdvanceReadIndex(2); //skip "\r\n"
 			break;
 		}
-		int space_index = buffer.IndexOf(" ", 1, current, index - 2);
+		int space_index = buffer.IndexOf(" ", 1, current, index);
 		if (-1 == space_index)
 		{
 			break;

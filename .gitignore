@@ -4,4 +4,5 @@
 /.svn
 /.libs
 leveldb
+kcdb
 *.bak

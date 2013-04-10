@@ -32,6 +32,8 @@ namespace ardb
 	char* str_toupper(char* str);
 	std::string string_tolower(const std::string& str);
 	std::string string_toupper(const std::string& str);
+	void lower_string(std::string& str);
+	void upper_string(std::string& str);
 
 	bool str_toint64(const char* str, int64& value);
 	bool str_touint64(const char* str, uint64& value);

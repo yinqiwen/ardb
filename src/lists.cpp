@@ -256,6 +256,9 @@ namespace ardb
 				std::string& found_value;
 				int OnKeyValue(KeyObject* k, ValueObject* v)
 				{
+					ListKeyObject* lck = (ListKeyObject*)k;
+					value_convert_to_raw(*v);
+					//DEBUG_LOG("#####%d %f %s", cursor, lck->score, v->v.raw->GetRawReadBuffer());
 					if (cursor == index)
 					{
 						value_convert_to_raw(*v);
@@ -350,6 +353,7 @@ namespace ardb
 				int OnKeyValue(KeyObject* k, ValueObject* v)
 				{
 					ListKeyObject* sek = (ListKeyObject*) k;
+					//DEBUG_LOG("#####DELETE %f", sek->score);
 					z_db->DelValue(z_dbid, *sek);
 					return 0;
 				}

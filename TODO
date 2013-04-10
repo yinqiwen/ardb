@@ -127,8 +127,8 @@ SCRIPT LOAD script                         NotYet
 
 AUTH password                              NotYet
 ECHO message                               NotYet
-PING                                       NotYet
-QUIT                                       NotYet
+PING                                       DONE
+QUIT                                       DONE
 SELECT index                               NotYet
 
 BGREWRITEAOF                               Discard

@@ -14,17 +14,78 @@
 using namespace ardb::codec;
 namespace ardb
 {
-	class ARDBServer
+	struct ArdbServerConfig
+	{
+			std::string listen_host;
+			int64 listen_port;
+			std::string listen_unix_path;
+			int64 max_clients;
+			std::string data_base_path;
+			ArdbServerConfig() :
+					listen_port(0), max_clients(10000)
+			{
+			}
+	};
+
+
+
+	struct ArdbReply
+	{
+			int type;
+			std::string str;
+			int64_t integer;
+			std::deque<ArdbReply> elements;
+			ArdbReply() :
+					type(0), integer(0)
+			{
+			}
+			void Clear()
+			{
+				type = 0;
+				integer = 0;
+				str.clear();
+				elements.clear();
+			}
+	};
+
+	struct ArdbConnContext
+	{
+			DBID currentDB;
+			Channel* conn;
+			ArdbReply reply;
+			ArdbConnContext() :
+					currentDB(0), conn(NULL)
+			{
+			}
+	};
+
+	class ArdbServer
 	{
 		private:
-			ChannelService* m_server;
-            void ProcessRedisCommand(Channel* conn, RedisCommandFrame& cmd);
+			ArdbServerConfig m_cfg;
+			ChannelService* m_service;
+			typedef int (ArdbServer::*RedisCommandHandler)(ArdbConnContext&,
+					ArgumentArray&);
+
+			struct RedisCommandHandlerSetting{
+					const char* name;
+					RedisCommandHandler handler;
+					int arity;
+			};
+			typedef std::map<std::string, RedisCommandHandlerSetting> RedisCommandHandlerSettingTable;
+			RedisCommandHandlerSettingTable m_handler_table;
+
+			void ProcessRedisCommand(ArdbConnContext& ctx,
+					RedisCommandFrame& cmd);
+			int Ping(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Echo(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Select(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Quit(ArdbConnContext& ctx, ArgumentArray& cmd);
 		public:
-			ARDBServer();
-			int Ping();
-			int Echo(const std::string& message);
-			int Select(DBID id);
-			int Start();
+			static int ParseConfig(const std::string& file, ArdbServerConfig& cfg);
+			ArdbServer();
+			int Start(const ArdbServerConfig& cfg);
+			~ArdbServer();
 	};
 }
 

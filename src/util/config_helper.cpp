@@ -14,7 +14,7 @@
 namespace ardb
 {
 	static const uint32 kConfigLineMax = 1024;
-	bool parse_conf_file(const string& path, Properties& result,
+	bool parse_conf_file(const std::string& path, Properties& result,
 			const char* sep)
 	{
 		char buf[kConfigLineMax + 1];
@@ -54,7 +54,39 @@ namespace ardb
 		return true;
 	}
 
-	bool parse_ini_conf_file(const string& path, INIProperties& result,
+	bool conf_get_int64(const Properties& conf, const std::string& name,
+			int64& value, bool ignore_nonexist)
+	{
+		Properties::const_iterator found = conf.find(name);
+		if (found == conf.end())
+		{
+			return ignore_nonexist;
+		}
+		return string_toint64(found->second, value);
+	}
+	bool conf_get_string(const Properties& conf, const std::string& name,
+			std::string& value, bool ignore_nonexist)
+	{
+		Properties::const_iterator found = conf.find(name);
+		if (found == conf.end())
+		{
+			return ignore_nonexist;
+		}
+		value = found->second;
+		return true;
+	}
+	bool conf_get_double(const Properties& conf, const std::string& name,
+			double& value, bool ignore_nonexist)
+	{
+		Properties::const_iterator found = conf.find(name);
+		if (found == conf.end())
+		{
+			return ignore_nonexist;
+		}
+		return string_todouble(found->second, value);
+	}
+
+	bool parse_ini_conf_file(const std::string& path, INIProperties& result,
 			const char* sep)
 	{
 		char buf[kConfigLineMax + 1];

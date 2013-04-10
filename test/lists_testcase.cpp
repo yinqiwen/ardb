@@ -38,8 +38,8 @@ void test_lists_rpush(Ardb& db)
 	LOG_IF(FATAL, db.LLen(0, "mylist") != 4) << "lrpush/llen mylist failed:"
 														<< db.LLen(0, "mylist");
 	std::string v;
-	db.LIndex(0, "mylist", 2, v);
-	LOG_IF(FATAL, v != "value2") << "LIndex failed:" << v;
+	db.LIndex(0, "mylist", 3, v);
+	LOG_IF(FATAL, v != "value3") << "LIndex failed:" << v;
 }
 
 void test_lists_insert(Ardb& db)

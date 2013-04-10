@@ -60,8 +60,10 @@ void test_set_diff(Ardb& db)
 	LOG_IF(FATAL, values.size() != 2) << "Sdiff failed:";
 	LOG_IF(FATAL, values[0] != "b") << "Sdiff store failed:";
 	LOG_IF(FATAL, values[1] != "d") << "Sdiff store failed:";
-	db.SDiffStore(0, "myset2", keys);
-	LOG_IF(FATAL, db.SCard(0, "myset2") != 2) << "SDiffStore myset2 failed:";
+	int len = db.SDiffStore(0, "myset2", keys);
+	LOG_IF(FATAL, len != 2) << "SDiffStore myset2 failed:"<<len;
+	len = db.SCard(0, "myset2") ;
+	LOG_IF(FATAL, len != 2) << "SDiffStore myset2 failed:"<<len;
 }
 
 void test_set_inter(Ardb& db)

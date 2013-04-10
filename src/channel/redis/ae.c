@@ -37,8 +37,8 @@
 #include <stdlib.h>
 #include <time.h>
 
-#include "channel/redis/ae.h"
-#include "util/zmalloc.h"
+#include "ae.h"
+#include "zmalloc.h"
 
 /* Include the best multiplexing layer supported by this system.
  * The following should be ordered by performances, descending. */

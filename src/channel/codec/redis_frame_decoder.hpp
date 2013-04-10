@@ -10,7 +10,7 @@
 
 #include "channel/all_includes.hpp"
 #include "channel/codec/frame_decoder.hpp"
-#include <vector>
+#include <deque>
 #include <string>
 
 namespace ardb
@@ -18,10 +18,9 @@ namespace ardb
 	namespace codec
 	{
 		class RedisFrameDecoder;
+		typedef std::deque<std::string> ArgumentArray;
 		class RedisCommandFrame
 		{
-			public:
-				typedef std::vector<std::string> ArgumentArray;
 			private:
 				bool m_is_inline;
 				ArgumentArray m_args;
@@ -50,11 +49,11 @@ namespace ardb
 		{
 			protected:
 				int ProcessInlineBuffer(ChannelHandlerContext& ctx,
-				        Buffer& buffer, RedisCommandFrame& frame);
+						Buffer& buffer, RedisCommandFrame& frame);
 				int ProcessMultibulkBuffer(ChannelHandlerContext& ctx,
-				        Buffer& buffer, RedisCommandFrame& frame);
+						Buffer& buffer, RedisCommandFrame& frame);
 				bool Decode(ChannelHandlerContext& ctx, Channel* channel,
-				        Buffer& buffer, RedisCommandFrame& msg);
+						Buffer& buffer, RedisCommandFrame& msg);
 			public:
 
 				RedisFrameDecoder()

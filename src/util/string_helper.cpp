@@ -175,6 +175,27 @@ namespace ardb
 		return str;
 	}
 
+	void lower_string(std::string& str)
+	{
+		uint32 i = 0;
+		std::string ret;
+		while (i < str.size())
+		{
+			str[i] = tolower(str.at(i));
+			i++;
+		}
+	}
+	void upper_string(std::string& str)
+	{
+		uint32 i = 0;
+		std::string ret;
+		while (i < str.size())
+		{
+			str[i] = toupper(str.at(i));
+			i++;
+		}
+	}
+
 	std::string string_tolower(const std::string& str)
 	{
 		uint32 i = 0;
@@ -205,7 +226,7 @@ namespace ardb
 		RETURN_FALSE_IF_NULL(str);
 		char *endptr = NULL;
 		long long int val = strtoll(str, &endptr, 10);
-		if (NULL == endptr)
+		if (NULL == endptr || 0 != *endptr)
 		{
 			return false;
 		}
@@ -229,7 +250,7 @@ namespace ardb
 		RETURN_FALSE_IF_NULL(str);
 		char *endptr = NULL;
 		float val = strtof(str, &endptr);
-		if (NULL == endptr)
+		if (NULL == endptr || 0 != *endptr)
 		{
 			return false;
 		}
@@ -242,7 +263,7 @@ namespace ardb
 		RETURN_FALSE_IF_NULL(str);
 		char *endptr = NULL;
 		double val = strtod(str, &endptr);
-		if (NULL == endptr)
+		if (NULL == endptr || 0 != *endptr)
 		{
 			return false;
 		}
