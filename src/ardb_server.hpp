@@ -16,18 +16,17 @@ namespace ardb
 {
 	struct ArdbServerConfig
 	{
+			bool daemonize;
 			std::string listen_host;
 			int64 listen_port;
 			std::string listen_unix_path;
 			int64 max_clients;
 			std::string data_base_path;
 			ArdbServerConfig() :
-					listen_port(0), max_clients(10000)
+					daemonize(false), listen_port(0), max_clients(10000)
 			{
 			}
 	};
-
-
 
 	struct ArdbReply
 	{
@@ -67,7 +66,8 @@ namespace ardb
 			typedef int (ArdbServer::*RedisCommandHandler)(ArdbConnContext&,
 					ArgumentArray&);
 
-			struct RedisCommandHandlerSetting{
+			struct RedisCommandHandlerSetting
+			{
 					const char* name;
 					RedisCommandHandler handler;
 					int arity;
@@ -82,7 +82,8 @@ namespace ardb
 			int Select(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Quit(ArdbConnContext& ctx, ArgumentArray& cmd);
 		public:
-			static int ParseConfig(const std::string& file, ArdbServerConfig& cfg);
+			static int ParseConfig(const std::string& file,
+					ArdbServerConfig& cfg);
 			ArdbServer();
 			int Start(const ArdbServerConfig& cfg);
 			~ArdbServer();

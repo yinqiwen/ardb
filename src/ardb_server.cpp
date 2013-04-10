@@ -105,7 +105,13 @@ namespace ardb
 		conf_get_int64(props, "port", cfg.listen_port);
 		conf_get_string(props, "bind", cfg.listen_host);
 		conf_get_string(props, "unixsocket", cfg.listen_unix_path);
-
+		std::string daemonize;
+		conf_get_string(props, "daemonize", daemonize);
+		daemonize = string_tolower(daemonize);
+		if (daemonize == "yes")
+		{
+			cfg.daemonize = true;
+		}
 		return 0;
 	}
 
