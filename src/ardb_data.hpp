@@ -209,6 +209,8 @@ namespace ardb
 	void encode_key(Buffer& buf, const KeyObject& key);
 	KeyObject* decode_key(const Slice& key);
 
+	bool peek_key_type(const Slice& key, KeyType& type);
+
 	void encode_value(Buffer& buf, const ValueObject& value);
 	bool decode_value(Buffer& buf, ValueObject& value);
 	void fill_value(const Slice& value, ValueObject& valueobject);

@@ -7,100 +7,16 @@
 #include "kyotocabinet_engine.hpp"
 #include "ardb.hpp"
 #include "ardb_data.hpp"
+#include "comparator.hpp"
 #include "util/helpers.hpp"
 #include <string.h>
-
-#define COMPARE_NUMBER(a, b)  (a == b?0:(a>b?1:-1))
 
 namespace ardb
 {
 	int32_t KCDBComparator::compare(const char* akbuf, size_t aksiz,
 			const char* bkbuf, size_t bksiz)
 	{
-		Slice a(akbuf, aksiz);
-		Slice b(bkbuf, bksiz);
-		KeyObject* ak = decode_key(a);
-		KeyObject* bk = decode_key(b);
-		if (NULL == ak && NULL == bk)
-		{
-			return 0;
-		}
-		if (NULL != ak && NULL == bk)
-		{
-			DELETE(ak);
-			return 1;
-		}
-		if (NULL == ak && NULL != bk)
-		{
-			DELETE(bk);
-			return -1;
-		}
-		int ret = 0;
-		if (ak->type == bk->type)
-		{
-			ret = ak->key.compare(bk->key);
-			if (ret != 0)
-			{
-				DELETE(ak);
-				DELETE(bk);
-				return ret;
-			}
-			switch (ak->type)
-			{
-				case HASH_FIELD:
-				{
-					HashKeyObject* hak = (HashKeyObject*) ak;
-					HashKeyObject* hbk = (HashKeyObject*) bk;
-					ret = hak->field.compare(hbk->field);
-					break;
-				}
-				case LIST_ELEMENT:
-				{
-					ListKeyObject* lak = (ListKeyObject*) ak;
-					ListKeyObject* lbk = (ListKeyObject*) bk;
-					ret = COMPARE_NUMBER(lak->score, lbk->score);
-					break;
-				}
-				case SET_ELEMENT:
-				{
-					SetKeyObject* sak = (SetKeyObject*) ak;
-					SetKeyObject* sbk = (SetKeyObject*) bk;
-					ret = sak->value.compare(sbk->value);
-					break;
-				}
-				case ZSET_ELEMENT:
-				{
-					ZSetKeyObject* zak = (ZSetKeyObject*) ak;
-					ZSetKeyObject* zbk = (ZSetKeyObject*) bk;
-					ret = COMPARE_NUMBER(zak->score, zbk->score);
-					if (ret == 0)
-					{
-						ret = zak->value.compare(zbk->value);
-					}
-					break;
-				}
-				case ZSET_ELEMENT_SCORE:
-				{
-					ZSetScoreKeyObject* zak = (ZSetScoreKeyObject*) ak;
-					ZSetScoreKeyObject* zbk = (ZSetScoreKeyObject*) bk;
-					ret = zak->value.compare(zbk->value);
-					break;
-				}
-				case SET_META:
-				case ZSET_META:
-				case LIST_META:
-				default:
-				{
-					break;
-				}
-			}
-		} else
-		{
-			ret = COMPARE_NUMBER(ak->type, bk->type);
-		}
-		DELETE(ak);
-		DELETE(bk);
-		return ret;
+		return ardb_compare_keys(akbuf, aksiz, bkbuf, bksiz);
 	}
 
 	KCDBEngineFactory::KCDBEngineFactory(const std::string& basepath) :

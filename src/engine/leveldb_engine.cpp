@@ -7,105 +7,23 @@
 #include "leveldb_engine.hpp"
 #include "ardb.hpp"
 #include "ardb_data.hpp"
+#include "comparator.hpp"
 #include "util/helpers.hpp"
 #include <string.h>
 
 #define LEVELDB_SLICE(slice) leveldb::Slice(slice.data(), slice.size())
 #define ARDB_SLICE(slice) Slice(slice.data(), slice.size())
-#define COMPARE_NUMBER(a, b)  (a == b?0:(a>b?1:-1))
 
 namespace ardb
 {
 	int LevelDBComparator::Compare(const leveldb::Slice& a,
-	        const leveldb::Slice& b) const
+			const leveldb::Slice& b) const
 	{
-		KeyObject* ak = decode_key(ARDB_SLICE(a));
-		KeyObject* bk = decode_key(ARDB_SLICE(b));
-		if (NULL == ak && NULL == bk)
-		{
-			return 0;
-		}
-		if (NULL != ak && NULL == bk)
-		{
-			DELETE(ak);
-			return 1;
-		}
-		if (NULL == ak && NULL != bk)
-		{
-			DELETE(bk);
-			return -1;
-		}
-		int ret = 0;
-		if (ak->type == bk->type)
-		{
-			ret = ak->key.compare(bk->key);
-			if (ret != 0)
-			{
-				DELETE(ak);
-				DELETE(bk);
-				return ret;
-			}
-			switch (ak->type)
-			{
-				case HASH_FIELD:
-				{
-					HashKeyObject* hak = (HashKeyObject*) ak;
-					HashKeyObject* hbk = (HashKeyObject*) bk;
-					ret = hak->field.compare(hbk->field);
-					break;
-				}
-				case LIST_ELEMENT:
-				{
-					ListKeyObject* lak = (ListKeyObject*) ak;
-					ListKeyObject* lbk = (ListKeyObject*) bk;
-					ret = COMPARE_NUMBER(lak->score, lbk->score);
-					break;
-				}
-				case SET_ELEMENT:
-				{
-					SetKeyObject* sak = (SetKeyObject*) ak;
-					SetKeyObject* sbk = (SetKeyObject*) bk;
-					ret = sak->value.compare(sbk->value);
-					break;
-				}
-				case ZSET_ELEMENT:
-				{
-					ZSetKeyObject* zak = (ZSetKeyObject*) ak;
-					ZSetKeyObject* zbk = (ZSetKeyObject*) bk;
-					ret = COMPARE_NUMBER(zak->score, zbk->score);
-					if (ret == 0)
-					{
-						ret = zak->value.compare(zbk->value);
-					}
-					break;
-				}
-				case ZSET_ELEMENT_SCORE:
-				{
-					ZSetScoreKeyObject* zak = (ZSetScoreKeyObject*) ak;
-					ZSetScoreKeyObject* zbk = (ZSetScoreKeyObject*) bk;
-					ret = zak->value.compare(zbk->value);
-					break;
-				}
-				case SET_META:
-				case ZSET_META:
-				case LIST_META:
-				default:
-				{
-					break;
-				}
-			}
-		}
-		else
-		{
-			ret = COMPARE_NUMBER(ak->type ,bk->type);
-		}
-		DELETE(ak);
-		DELETE(bk);
-		return ret;
+		return ardb_compare_keys(a.data(), a.size(), b.data(), b.size());
 	}
 
 	void LevelDBComparator::FindShortestSeparator(std::string* start,
-	        const leveldb::Slice& limit) const
+			const leveldb::Slice& limit) const
 	{
 	}
 
@@ -170,7 +88,7 @@ namespace ardb
 		options.comparator = &m_comparator;
 		make_dir(path);
 		leveldb::Status status = leveldb::DB::Open(options, path.c_str(),
-		        &m_db);
+				&m_db);
 		if (!status.ok())
 		{
 			DEBUG_LOG("Failed to init engine:%s\n", status.ToString().c_str());
@@ -211,14 +129,14 @@ namespace ardb
 		else
 		{
 			s = m_db->Put(leveldb::WriteOptions(), LEVELDB_SLICE(key),
-			        LEVELDB_SLICE(value));
+					LEVELDB_SLICE(value));
 		}
 		return s.ok() ? 0 : -1;
 	}
 	int LevelDBEngine::Get(const Slice& key, std::string* value)
 	{
 		leveldb::Status s = m_db->Get(leveldb::ReadOptions(),
-		        LEVELDB_SLICE(key), value);
+		LEVELDB_SLICE(key), value);
 		if (!s.ok())
 		{
 			//DEBUG_LOG("Failed to find %s", s.ToString().c_str());

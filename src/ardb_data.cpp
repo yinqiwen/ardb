@@ -56,6 +56,18 @@ namespace ardb
 		}
 	}
 
+	bool peek_key_type(const Slice& key, KeyType& type)
+	{
+		Buffer buf(const_cast<char*>(key.data()), 0, key.size());
+		uint8_t t;
+		if (!BufferHelper::ReadFixUInt8(buf, t))
+		{
+			return false;
+		}
+		type = (KeyType)t;
+		return true;
+	}
+
 	KeyObject* decode_key(const Slice& key)
 	{
 		Buffer buf(const_cast<char*>(key.data()), 0, key.size());
