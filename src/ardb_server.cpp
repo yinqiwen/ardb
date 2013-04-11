@@ -6,6 +6,7 @@
  */
 #include "ardb_server.hpp"
 #include <stdarg.h>
+#define __USE_KYOTOCABINET__ 1
 #ifdef __USE_KYOTOCABINET__
 #include "engine/kyotocabinet_engine.hpp"
 #else
@@ -23,6 +24,7 @@
 	R.type = REDIS_REPLY_STRING;\
 	R.str = S;\
 }while(0)
+
 
 namespace ardb
 {
@@ -69,7 +71,8 @@ namespace ardb
 				if (reply.str.size() > 0)
 				{
 					buf.Printf("%s\r\n", reply.str.c_str());
-				} else
+				}
+				else
 				{
 					buf.Printf("\r\n");
 				}
@@ -127,12 +130,19 @@ namespace ardb
 	ArdbServer::ArdbServer() :
 			m_service(NULL), m_db(NULL), m_engine(NULL)
 	{
-		struct RedisCommandHandlerSetting settingTable[] = { { "ping",
-				&ArdbServer::Ping, 0, 0 }, { "echo", &ArdbServer::Echo, 1, 1 },
-				{ "quit", &ArdbServer::Quit, 0, 0 }, { "select",
-						&ArdbServer::Select, 1, 1 }, { "append",
-						&ArdbServer::Append, 2, 2 }, { "get", &ArdbServer::Get,
-						1, 1 }, { "set", &ArdbServer::Set, 2, 7 }, };
+		struct RedisCommandHandlerSetting settingTable[] = {
+				{ "ping", &ArdbServer::Ping, 0, 0 },
+				{ "echo", &ArdbServer::Echo, 1, 1 },
+		        { "quit", &ArdbServer::Quit, 0, 0 },
+		        { "select",&ArdbServer::Select, 1, 1 },
+		        { "append",&ArdbServer::Append, 2, 2 },
+		        { "get", &ArdbServer::Get,1, 1 },
+		        { "set", &ArdbServer::Set, 2, 7 },
+		        { "del", &ArdbServer::Del, 1, -1 },
+		        { "exists", &ArdbServer::Exists, 1, 1 },
+		        { "expire", &ArdbServer::Expire, 2, 2 },
+		        { "expireat", &ArdbServer::Expireat, 2, 2 },
+		};
 
 		uint32 arraylen = arraysize(settingTable);
 		for (uint32 i = 0; i < arraylen; i++)
@@ -145,6 +155,39 @@ namespace ardb
 		DELETE(m_service);
 	}
 
+	int ArdbServer::Expire(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		fill_int_reply(ctx.reply, 1);
+		return 0;
+	}
+
+	int ArdbServer::Expireat(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		fill_int_reply(ctx.reply, 1);
+		return 0;
+	}
+
+	int ArdbServer::Exists(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		bool ret = m_db->Exists(ctx.currentDB, cmd[0]);
+		fill_int_reply(ctx.reply, ret?1:0);
+		return 0;
+	}
+
+	int ArdbServer::Del(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		SliceArray array;
+		ArgumentArray::iterator it = cmd.begin();
+		while (it != cmd.end())
+		{
+			array.push_back(*it);
+			it++;
+		}
+		m_db->Del(ctx.currentDB, array);
+		fill_int_reply(ctx.reply, array.size());
+		return 0;
+	}
+
 	int ArdbServer::Set(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
 		const std::string& key = cmd[0];
@@ -153,7 +196,8 @@ namespace ardb
 		if (cmd.size() == 2)
 		{
 			ret = m_db->Set(ctx.currentDB, key, value);
-		} else
+		}
+		else
 		{
 			int i = 0;
 			uint64 px = 0, ex = 0;
@@ -164,19 +208,23 @@ namespace ardb
 				{
 					int64 iv;
 					if (!raw_toint64(cmd[i + 1].c_str(), cmd[i + 1].size(), iv)
-							|| iv < 0)
+					        || iv < 0)
 					{
 						fill_error_reply(ctx.reply,
-								"ERR value is not an integer or out of range");
+						        "ERR value is not an integer or out of range");
 						return 0;
 					}
-					if(tmp == "px"){
+					if (tmp == "px")
+					{
 						px = iv;
-					}else{
-						ex=iv;
+					}
+					else
+					{
+						ex = iv;
 					}
 					i++;
-				} else
+				}
+				else
 				{
 					break;
 				}
@@ -193,7 +241,8 @@ namespace ardb
 				if (cmp != "nx" && cmp != "xx")
 				{
 					syntaxerror = true;
-				} else
+				}
+				else
 				{
 					hasnx = cmp == "nx";
 					hasxx = cmp == "xx";
@@ -213,12 +262,13 @@ namespace ardb
 			{
 				nxx = 1;
 			}
-			ret = m_db->Set(ctx.currentDB, key, value, ex,px, nxx);
+			ret = m_db->Set(ctx.currentDB, key, value, ex, px, nxx);
 		}
 		if (0 == ret)
 		{
 			fill_status_reply(ctx.reply, "OK");
-		} else
+		}
+		else
 		{
 			ctx.reply.type = REDIS_REPLY_NIL;
 		}
@@ -232,7 +282,8 @@ namespace ardb
 		if (0 == m_db->Get(ctx.currentDB, key, &value))
 		{
 			FILL_STR_REPLY(ctx.reply, value);
-		} else
+		}
+		else
 		{
 			ctx.reply.type = REDIS_REPLY_NIL;
 		}
@@ -247,10 +298,11 @@ namespace ardb
 		if (ret > 0)
 		{
 			fill_int_reply(ctx.reply, ret);
-		} else
+		}
+		else
 		{
 			fill_error_reply(ctx.reply, "ERR failed to append key:%s",
-					key.c_str());
+			        key.c_str());
 		}
 		return 0;
 	}
@@ -268,15 +320,16 @@ namespace ardb
 	}
 	int ArdbServer::Select(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
-		int64 idx = 0;
-		if (!string_toint64(cmd[0], idx) || idx < 0)
+//		int64 idx = 0;
+//		if (!string_toint64(cmd[0], idx) || idx < 0)
+//		{
+//			fill_error_reply(ctx.reply, "ERR invalid DB index");
+//		}
+//		else
 		{
-			fill_error_reply(ctx.reply, "ERR invalid DB index");
-		} else
-		{
-			ctx.currentDB = idx;
+			ctx.currentDB = cmd[0];
 			fill_status_reply(ctx.reply, "OK");
-			DEBUG_LOG("db is %s  %d", cmd[0].c_str(), idx);
+			DEBUG_LOG("Select db is %s", cmd[0].c_str());
 		}
 		return 0;
 	}
@@ -288,7 +341,7 @@ namespace ardb
 	}
 
 	void ArdbServer::ProcessRedisCommand(ArdbConnContext& ctx,
-			RedisCommandFrame& args)
+	        RedisCommandFrame& args)
 	{
 		ctx.reply.Clear();
 		std::string* cmd = args.GetArgument(0);
@@ -297,7 +350,7 @@ namespace ardb
 			int ret = 0;
 			lower_string(*cmd);
 			RedisCommandHandlerSettingTable::iterator found =
-					m_handler_table.find(*cmd);
+			        m_handler_table.find(*cmd);
 			if (found != m_handler_table.end())
 			{
 				RedisCommandHandler handler = found->second.handler;
@@ -307,29 +360,31 @@ namespace ardb
 				if (found->second.min_arity >= 0)
 				{
 					valid_cmd = args.GetArguments().size()
-							>= found->second.min_arity;
+					        >= found->second.min_arity;
 				}
 				if (found->second.max_arity >= 0 && valid_cmd)
 				{
 					valid_cmd = args.GetArguments().size()
-							<= found->second.max_arity;
+					        <= found->second.max_arity;
 				}
 
 				if (!valid_cmd)
 				{
 					fill_error_reply(ctx.reply,
-							"ERR wrong number of arguments for '%s' command",
-							cmd->c_str());
-				} else
+					        "ERR wrong number of arguments for '%s' command",
+					        cmd->c_str());
+				}
+				else
 				{
 					ret = (this->*handler)(ctx, args.GetArguments());
 				}
 
-			} else
+			}
+			else
 			{
 				ERROR_LOG("No handler found for:%s", cmd->c_str());
 				fill_error_reply(ctx.reply, "ERR unknown command '%s'",
-						cmd->c_str());
+				        cmd->c_str());
 			}
 
 			Buffer buf;
@@ -349,7 +404,7 @@ namespace ardb
 	static void ardb_pipeline_init(ChannelPipeline* pipeline, void* data)
 	{
 		ChannelUpstreamHandler<RedisCommandFrame>* handler =
-				(ChannelUpstreamHandler<RedisCommandFrame>*) data;
+		        (ChannelUpstreamHandler<RedisCommandFrame>*) data;
 		pipeline->AddLast("decoder", new RedisFrameDecoder);
 		pipeline->AddLast("handler", handler);
 	}
@@ -364,12 +419,12 @@ namespace ardb
 	{
 		ParseConfig(props, m_cfg);
 		struct RedisRequestHandler: public ChannelUpstreamHandler<
-				RedisCommandFrame>
+		        RedisCommandFrame>
 		{
 				ArdbServer* server;
 				ArdbConnContext ardbctx;
 				void MessageReceived(ChannelHandlerContext& ctx,
-						MessageEvent<RedisCommandFrame>& e)
+				        MessageEvent<RedisCommandFrame>& e)
 				{
 					ardbctx.conn = ctx.GetChannel();
 					server->ProcessRedisCommand(ardbctx, *(e.GetMessage()));
@@ -401,12 +456,12 @@ namespace ardb
 		if (!m_cfg.listen_host.empty())
 		{
 			SocketHostAddress address(m_cfg.listen_host.c_str(),
-					m_cfg.listen_port);
+			        m_cfg.listen_port);
 			ServerSocketChannel* server = m_service->NewServerSocketChannel();
 			if (!server->Bind(&address))
 			{
 				ERROR_LOG(
-						"Failed to bind on %s:%d", m_cfg.listen_host.c_str(), m_cfg.listen_port);
+				        "Failed to bind on %s:%d", m_cfg.listen_host.c_str(), m_cfg.listen_port);
 				return -1;
 			}
 			server->Configure(ops);
@@ -420,7 +475,7 @@ namespace ardb
 			if (!server->Bind(&address))
 			{
 				ERROR_LOG(
-						"Failed to bind on %s", m_cfg.listen_unix_path.c_str());
+				        "Failed to bind on %s", m_cfg.listen_unix_path.c_str());
 				return -1;
 			}
 			server->Configure(ops);

@@ -17,13 +17,13 @@
 namespace ardb
 {
 	int LevelDBComparator::Compare(const leveldb::Slice& a,
-			const leveldb::Slice& b) const
+	        const leveldb::Slice& b) const
 	{
 		return ardb_compare_keys(a.data(), a.size(), b.data(), b.size());
 	}
 
 	void LevelDBComparator::FindShortestSeparator(std::string* start,
-			const leveldb::Slice& limit) const
+	        const leveldb::Slice& limit) const
 	{
 	}
 
@@ -38,18 +38,18 @@ namespace ardb
 	}
 
 	void LevelDBEngineFactory::ParseConfig(const Properties& props,
-			LevelDBConfig& cfg)
+	        LevelDBConfig& cfg)
 	{
 		cfg.path = ".";
 		conf_get_string(props, "dir", cfg.path);
 	}
 
-	KeyValueEngine* LevelDBEngineFactory::CreateDB(DBID db)
+	KeyValueEngine* LevelDBEngineFactory::CreateDB(const DBID& db)
 	{
 		LevelDBEngine* engine = new LevelDBEngine();
 		LevelDBConfig cfg = m_cfg;
-		char tmp[cfg.path.size() + 16];
-		sprintf(tmp, "%s/%lld", cfg.path.c_str(), db);
+		char tmp[cfg.path.size() + db.size() + 10];
+		sprintf(tmp, "%s/%s", cfg.path.c_str(), db.c_str());
 		cfg.path = tmp;
 		if (engine->Init(cfg) != 0)
 		{
@@ -98,7 +98,7 @@ namespace ardb
 		options.comparator = &m_comparator;
 		make_dir(cfg.path);
 		leveldb::Status status = leveldb::DB::Open(options, cfg.path.c_str(),
-				&m_db);
+		        &m_db);
 		if (!status.ok())
 		{
 			DEBUG_LOG("Failed to init engine:%s\n", status.ToString().c_str());
@@ -139,14 +139,14 @@ namespace ardb
 		else
 		{
 			s = m_db->Put(leveldb::WriteOptions(), LEVELDB_SLICE(key),
-					LEVELDB_SLICE(value));
+			        LEVELDB_SLICE(value));
 		}
 		return s.ok() ? 0 : -1;
 	}
 	int LevelDBEngine::Get(const Slice& key, std::string* value)
 	{
 		leveldb::Status s = m_db->Get(leveldb::ReadOptions(),
-		LEVELDB_SLICE(key), value);
+		        LEVELDB_SLICE(key), value);
 		if (!s.ok())
 		{
 			//DEBUG_LOG("Failed to find %s", s.ToString().c_str());

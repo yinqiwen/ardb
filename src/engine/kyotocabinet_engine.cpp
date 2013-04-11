@@ -30,11 +30,11 @@ namespace ardb
 		cfg.path = ".";
 		conf_get_string(props, "dir", cfg.path);
 	}
-	KeyValueEngine* KCDBEngineFactory::CreateDB(DBID db)
+	KeyValueEngine* KCDBEngineFactory::CreateDB(const DBID& db)
 	{
 		KCDBEngine* engine = new KCDBEngine();
-		char tmp[m_cfg.path.size() + 16];
-		sprintf(tmp, "%s/%lld", m_cfg.path.c_str(), db);
+		char tmp[m_cfg.path.size() + db.size() + 10];
+		sprintf(tmp, "%s/%s", m_cfg.path.c_str(), db.c_str());
 		KCDBConfig cfg = m_cfg;
 		cfg.path = tmp;
 		if (engine->Init(cfg) != 0)

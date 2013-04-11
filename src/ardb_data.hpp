@@ -306,7 +306,7 @@ namespace ardb
 //			}
 //	};
 
-	typedef uint64_t DBID;
+	typedef std::string DBID;
 
 	typedef std::map<ValueObject, double> ValueScoreMap;
 	typedef std::vector<ZSetMetaValue> ZSetMetaValueArray;
@@ -324,8 +324,6 @@ namespace ardb
 
 	void encode_key(Buffer& buf, const KeyObject& key);
 	KeyObject* decode_key(const Slice& key);
-
-	bool peek_key_type(const Slice& key, KeyType& type);
 
 	void encode_value(Buffer& buf, const ValueObject& value);
 	bool decode_value(Buffer& buf, ValueObject& value);

@@ -60,7 +60,7 @@ namespace ardb
 		BufferHelper::WriteVarDouble(*(v.v.raw), meta.max_score);
 	}
 
-	int Ardb::ZAdd(DBID db, const Slice& key, double score, const Slice& value)
+	int Ardb::ZAdd(const DBID& db, const Slice& key, double score, const Slice& value)
 	{
 		ZSetMetaValue meta;
 		GetZSetMetaValue(db, key, meta);
@@ -115,7 +115,7 @@ namespace ardb
 		return 0;
 	}
 
-	void Ardb::SetZSetMetaValue(DBID db, const Slice& key, ZSetMetaValue& meta)
+	void Ardb::SetZSetMetaValue(const DBID& db, const Slice& key, ZSetMetaValue& meta)
 	{
 		KeyObject k(key, ZSET_META);
 		ValueObject v;
@@ -123,7 +123,7 @@ namespace ardb
 		SetValue(db, k, v);
 	}
 
-	int Ardb::GetZSetMetaValue(DBID db, const Slice& key, ZSetMetaValue& meta)
+	int Ardb::GetZSetMetaValue(const DBID& db, const Slice& key, ZSetMetaValue& meta)
 	{
 		KeyObject k(key, ZSET_META);
 		ValueObject v;
@@ -138,7 +138,7 @@ namespace ardb
 		return ERR_NOT_EXIST;
 	}
 
-	int Ardb::ZCard(DBID db, const Slice& key)
+	int Ardb::ZCard(const DBID& db, const Slice& key)
 	{
 		ZSetMetaValue meta;
 		if (0 == GetZSetMetaValue(db, key, meta))
@@ -148,7 +148,7 @@ namespace ardb
 		return ERR_NOT_EXIST;
 	}
 
-	int Ardb::ZScore(DBID db, const Slice& key, const Slice& value,
+	int Ardb::ZScore(const DBID& db, const Slice& key, const Slice& value,
 	        double& score)
 	{
 		ZSetScoreKeyObject zk(key, value);
@@ -161,7 +161,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::ZIncrby(DBID db, const Slice& key, double increment,
+	int Ardb::ZIncrby(const DBID& db, const Slice& key, double increment,
 	        const Slice& value, double& score)
 	{
 		ZSetScoreKeyObject zk(key, value);
@@ -182,7 +182,7 @@ namespace ardb
 		return ERR_NOT_EXIST;
 	}
 
-	int Ardb::ZClear(DBID db, const Slice& key)
+	int Ardb::ZClear(const DBID& db, const Slice& key)
 	{
 		Slice empty;
 		ZSetKeyObject sk(key, empty, -DBL_MAX);
@@ -211,7 +211,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::ZRem(DBID db, const Slice& key, const Slice& value)
+	int Ardb::ZRem(const DBID& db, const Slice& key, const Slice& value)
 	{
 		ZSetScoreKeyObject zk(key, value);
 		ValueObject zv;
@@ -232,7 +232,7 @@ namespace ardb
 		return ERR_NOT_EXIST;
 	}
 
-	int Ardb::ZCount(DBID db, const Slice& key, const std::string& min,
+	int Ardb::ZCount(const DBID& db, const Slice& key, const std::string& min,
 	        const std::string& max)
 	{
 		bool containmin = true;
@@ -285,7 +285,7 @@ namespace ardb
 		return walk.count;
 	}
 
-	int Ardb::ZRank(DBID db, const Slice& key, const Slice& member)
+	int Ardb::ZRank(const DBID& db, const Slice& key, const Slice& member)
 	{
 		ZSetMetaValue meta;
 		if (0 != GetZSetMetaValue(db, key, meta))
@@ -322,7 +322,7 @@ namespace ardb
 		return walk.foundRank;
 	}
 
-	int Ardb::ZRevRank(DBID db, const Slice& key, const Slice& member)
+	int Ardb::ZRevRank(const DBID& db, const Slice& key, const Slice& member)
 	{
 		ZSetMetaValue meta;
 		if (0 != GetZSetMetaValue(db, key, meta))
@@ -359,7 +359,7 @@ namespace ardb
 		return walk.foundRank;
 	}
 
-	int Ardb::ZRemRangeByRank(DBID db, const Slice& key, int start, int stop)
+	int Ardb::ZRemRangeByRank(const DBID& db, const Slice& key, int start, int stop)
 	{
 		ZSetMetaValue meta;
 		if (0 != GetZSetMetaValue(db, key, meta))
@@ -408,7 +408,7 @@ namespace ardb
 					}
 					return 0;
 				}
-				ZRemRangeByRankWalk(Ardb* db, DBID dbid, int start, int stop,
+				ZRemRangeByRankWalk(Ardb* db, const DBID& dbid, int start, int stop,
 				        ZSetMetaValue& meta) :
 						rank(0), z_db(db), z_dbid(z_dbid), z_start(start), z_stop(
 						        stop), z_meta(meta), z_count(0)
@@ -420,7 +420,7 @@ namespace ardb
 		return walk.z_count;
 	}
 
-	int Ardb::ZRemRangeByScore(DBID db, const Slice& key,
+	int Ardb::ZRemRangeByScore(const DBID& db, const Slice& key,
 	        const std::string& min, const std::string& max)
 	{
 		ZSetMetaValue meta;
@@ -476,7 +476,7 @@ namespace ardb
 					}
 					return 0;
 				}
-				ZRemRangeByScoreWalk(Ardb* db, DBID dbid, ZSetMetaValue& meta) :
+				ZRemRangeByScoreWalk(Ardb* db, const DBID& dbid, ZSetMetaValue& meta) :
 						z_db(db), z_dbid(z_dbid), z_meta(meta), z_count(0)
 				{
 				}
@@ -490,7 +490,7 @@ namespace ardb
 		return walk.z_count;
 	}
 
-	int Ardb::ZRange(DBID db, const Slice& key, int start, int stop,
+	int Ardb::ZRange(const DBID& db, const Slice& key, int start, int stop,
 	        StringArray& values, ArdbQueryOptions& options)
 	{
 		ZSetMetaValue meta;
@@ -553,7 +553,7 @@ namespace ardb
 		return walk.z_count;
 	}
 
-	int Ardb::ZRangeByScore(DBID db, const Slice& key, const std::string& min,
+	int Ardb::ZRangeByScore(const DBID& db, const Slice& key, const std::string& min,
 	        const std::string& max, StringArray& values,
 	        ArdbQueryOptions& options)
 	{
@@ -643,7 +643,7 @@ namespace ardb
 		return walk.z_count;
 	}
 
-	int Ardb::ZRevRange(DBID db, const Slice& key, int start, int stop,
+	int Ardb::ZRevRange(const DBID& db, const Slice& key, int start, int stop,
 	        StringArray& values, ArdbQueryOptions& options)
 	{
 		ZSetMetaValue meta;
@@ -703,7 +703,7 @@ namespace ardb
 		return walk.count;
 	}
 
-	int Ardb::ZRevRangeByScore(DBID db, const Slice& key,
+	int Ardb::ZRevRangeByScore(const DBID& db, const Slice& key,
 	        const std::string& max, const std::string& min, StringArray& values,
 	        ArdbQueryOptions& options)
 	{
@@ -793,7 +793,7 @@ namespace ardb
 		return walk.z_count;
 	}
 
-	int Ardb::ZUnionStore(DBID db, const Slice& dst, SliceArray& keys,
+	int Ardb::ZUnionStore(const DBID& db, const Slice& dst, SliceArray& keys,
 	        WeightArray& weights, AggregateType type)
 	{
 		while (weights.size() < keys.size())
@@ -897,7 +897,7 @@ namespace ardb
 		return vm.size();
 	}
 
-	int Ardb::ZInterStore(DBID db, const Slice& dst, SliceArray& keys,
+	int Ardb::ZInterStore(const DBID& db, const Slice& dst, SliceArray& keys,
 	        WeightArray& weights, AggregateType type)
 	{
 		while (weights.size() < keys.size())

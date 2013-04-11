@@ -33,31 +33,31 @@ namespace ardb
 			}
 	};
 
-	int Ardb::TCreate(DBID db, const Slice& tableName, SliceArray& keys)
+	int Ardb::TCreate(const DBID& db, const Slice& tableName, SliceArray& keys)
 	{
 		return 0;
 	}
 
-	int Ardb::TGet(DBID db, const Slice& tableName, const SliceArray& fields,
+	int Ardb::TGet(const DBID& db, const Slice& tableName, const SliceArray& fields,
 			KeyCondition& conds, StringArray& values)
 	{
 		return 0;
 	}
-	int Ardb::TSet(DBID db, const Slice& tableName, const SliceArray& fields,
+	int Ardb::TSet(const DBID& db, const Slice& tableName, const SliceArray& fields,
 			KeyCondition& conds, const StringArray& values)
 	{
 		return 0;
 	}
-	int Ardb::TDel(DBID db, const Slice& tableName, const SliceArray& fields,
+	int Ardb::TDel(const DBID& db, const Slice& tableName, const SliceArray& fields,
 			KeyCondition& conds, const StringArray& values)
 	{
 		return 0;
 	}
-	int Ardb::TClear(DBID db, const Slice& tableName)
+	int Ardb::TClear(const DBID& db, const Slice& tableName)
 	{
 		return 0;
 	}
-	int Ardb::TCount(DBID db, const Slice& tableName)
+	int Ardb::TCount(const DBID& db, const Slice& tableName)
 	{
 		//TableMetaKeyObject meta;
 		//return meta.size;

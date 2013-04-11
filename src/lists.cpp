@@ -30,7 +30,7 @@ namespace ardb
 		BufferHelper::WriteVarDouble(*(v.v.raw), meta.max_score);
 	}
 
-	int Ardb::ListPush(DBID db, const Slice& key, const Slice& value,
+	int Ardb::ListPush(const DBID& db, const Slice& key, const Slice& value,
 			bool athead, bool onlyexist, double withscore)
 	{
 		KeyObject k(key, LIST_META);
@@ -86,29 +86,29 @@ namespace ardb
 		}
 		return -1;
 	}
-	int Ardb::RPush(DBID db, const Slice& key, const Slice& value)
+	int Ardb::RPush(const DBID& db, const Slice& key, const Slice& value)
 	{
 		return ListPush(db, key, value, false, false);
 	}
 
-	int Ardb::RPushx(DBID db, const Slice& key, const Slice& value)
+	int Ardb::RPushx(const DBID& db, const Slice& key, const Slice& value)
 	{
 		int len = ListPush(db, key, value, false, true);
 		return len < 0 ? 0 : len;
 	}
 
-	int Ardb::LPush(DBID db, const Slice& key, const Slice& value)
+	int Ardb::LPush(const DBID& db, const Slice& key, const Slice& value)
 	{
 		return ListPush(db, key, value, true, false);
 	}
 
-	int Ardb::LPushx(DBID db, const Slice& key, const Slice& value)
+	int Ardb::LPushx(const DBID& db, const Slice& key, const Slice& value)
 	{
 		int len = ListPush(db, key, value, true, true);
 		return len < 0 ? 0 : len;
 	}
 
-	int Ardb::LInsert(DBID db, const Slice& key, const Slice& opstr,
+	int Ardb::LInsert(const DBID& db, const Slice& key, const Slice& opstr,
 			const Slice& pivot, const Slice& value)
 	{
 		bool before;
@@ -184,7 +184,7 @@ namespace ardb
 		return ListPush(db, key, value, true, false, score);
 	}
 
-	int Ardb::ListPop(DBID db, const Slice& key, bool athead,
+	int Ardb::ListPop(const DBID& db, const Slice& key, bool athead,
 			std::string& value)
 	{
 		KeyObject k(key, LIST_META);
@@ -235,16 +235,16 @@ namespace ardb
 		}
 	}
 
-	int Ardb::LPop(DBID db, const Slice& key, std::string& value)
+	int Ardb::LPop(const DBID& db, const Slice& key, std::string& value)
 	{
 		return ListPop(db, key, true, value);
 	}
-	int Ardb::RPop(DBID db, const Slice& key, std::string& v)
+	int Ardb::RPop(const DBID& db, const Slice& key, std::string& v)
 	{
 		return ListPop(db, key, false, v);
 	}
 
-	int Ardb::LIndex(DBID db, const Slice& key, uint32_t index, std::string& v)
+	int Ardb::LIndex(const DBID& db, const Slice& key, uint32_t index, std::string& v)
 	{
 		ListKeyObject lk(key, -DBL_MAX);
 		struct LIndexWalk: public WalkHandler
@@ -276,7 +276,7 @@ namespace ardb
 		return ERR_NOT_EXIST;
 	}
 
-	int Ardb::LRange(DBID db, const Slice& key, int start, int end,
+	int Ardb::LRange(const DBID& db, const Slice& key, int start, int end,
 			StringArray& values)
 	{
 		int len = LLen(db, key);
@@ -334,7 +334,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::LClear(DBID db, const Slice& key)
+	int Ardb::LClear(const DBID& db, const Slice& key)
 	{
 		ListKeyObject lk(key, -DBL_MAX);
 		struct LClearWalk: public WalkHandler
@@ -349,7 +349,7 @@ namespace ardb
 					x++;
 					return 0;
 				}
-				LClearWalk(Ardb* db, DBID dbid) :
+				LClearWalk(Ardb* db, const DBID& dbid) :
 						z_db(db), z_dbid(dbid),x(0)
 				{
 				}
@@ -361,7 +361,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::LRem(DBID db, const Slice& key, int count, const Slice& value)
+	int Ardb::LRem(const DBID& db, const Slice& key, int count, const Slice& value)
 	{
 		KeyObject k(key, LIST_META);
 		ValueObject v;
@@ -409,7 +409,7 @@ namespace ardb
 					}
 					return 0;
 				}
-				LRemWalk(Ardb* db, DBID dbid, const Slice& v, int total) :
+				LRemWalk(Ardb* db, const DBID& dbid, const Slice& v, int total) :
 						z_db(db), z_dbid(dbid), cmp_value(v), remcount(0), rem_total(
 								total)
 				{
@@ -423,7 +423,7 @@ namespace ardb
 		return walk.remcount;
 	}
 
-	int Ardb::LSet(DBID db, const Slice& key, int index, const Slice& value)
+	int Ardb::LSet(const DBID& db, const Slice& key, int index, const Slice& value)
 	{
 		int len = LLen(db, key);
 		if (len <= 0)
@@ -459,7 +459,7 @@ namespace ardb
 					cursor++;
 					return 0;
 				}
-				LSetWalk(Ardb* db, DBID dbid, const Slice& v, int index) :
+				LSetWalk(Ardb* db, const DBID& dbid, const Slice& v, int index) :
 						z_db(db), z_dbid(dbid), set_value(v), cursor(0), dst_idx(
 								index)
 				{
@@ -473,7 +473,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::LTrim(DBID db, const Slice& key, int start, int stop)
+	int Ardb::LTrim(const DBID& db, const Slice& key, int start, int stop)
 	{
 		int len = LLen(db, key);
 		if (len <= 0)
@@ -543,7 +543,7 @@ namespace ardb
 		return SetValue(db, k, v);;
 	}
 
-	int Ardb::LLen(DBID db, const Slice& key)
+	int Ardb::LLen(const DBID& db, const Slice& key)
 	{
 		KeyObject k(key, LIST_META);
 		ValueObject v;
@@ -561,7 +561,7 @@ namespace ardb
 		}
 	}
 
-	int Ardb::RPopLPush(DBID db, const Slice& key1, const Slice& key2)
+	int Ardb::RPopLPush(const DBID& db, const Slice& key1, const Slice& key2)
 	{
 		std::string v;
 		if (0 == RPop(db, key1, v))

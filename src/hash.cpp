@@ -8,13 +8,13 @@
 
 namespace ardb
 {
-	int Ardb::SetHashValue(DBID db, const Slice& key, const Slice& field,
+	int Ardb::SetHashValue(const DBID& db, const Slice& key, const Slice& field,
 	        ValueObject& value)
 	{
 		HashKeyObject k(key, field);
 		return SetValue(db, k, value);
 	}
-	int Ardb::HSet(DBID db, const Slice& key, const Slice& field,
+	int Ardb::HSet(const DBID& db, const Slice& key, const Slice& field,
 	        const Slice& value)
 	{
 		ValueObject valueobject;
@@ -22,7 +22,7 @@ namespace ardb
 		return SetHashValue(db, key, field, valueobject);
 	}
 
-	int Ardb::HSetNX(DBID db, const Slice& key, const Slice& field,
+	int Ardb::HSetNX(const DBID& db, const Slice& key, const Slice& field,
 	        const Slice& value)
 	{
 		if (HExists(db, key, field))
@@ -32,13 +32,13 @@ namespace ardb
 		return HSet(db, key, field, value) == 0 ? 1 : 0;
 	}
 
-	int Ardb::HDel(DBID db, const Slice& key, const Slice& field)
+	int Ardb::HDel(const DBID& db, const Slice& key, const Slice& field)
 	{
 		HashKeyObject k(key, field);
 		return DelValue(db, k);
 	}
 
-	int Ardb::HGetValue(DBID db, const Slice& key, const Slice& field,
+	int Ardb::HGetValue(const DBID& db, const Slice& key, const Slice& field,
 	        ValueObject* value)
 	{
 		HashKeyObject k(key, field);
@@ -49,7 +49,7 @@ namespace ardb
 		return ERR_NOT_EXIST;
 	}
 
-	int Ardb::HGet(DBID db, const Slice& key, const Slice& field,
+	int Ardb::HGet(const DBID& db, const Slice& key, const Slice& field,
 	        std::string* value)
 	{
 		HashKeyObject k(key, field);
@@ -65,7 +65,7 @@ namespace ardb
 		return ERR_NOT_EXIST;
 	}
 
-	int Ardb::HMSet(DBID db, const Slice& key, const SliceArray& fields,
+	int Ardb::HMSet(const DBID& db, const Slice& key, const SliceArray& fields,
 	        const SliceArray& values)
 	{
 		if (fields.size() != values.size())
@@ -84,7 +84,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::HMGet(DBID db, const Slice& key, const SliceArray& fields,
+	int Ardb::HMGet(const DBID& db, const Slice& key, const SliceArray& fields,
 	        StringArray& values)
 	{
 		SliceArray::const_iterator it = fields.begin();
@@ -98,7 +98,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::HClear(DBID db, const Slice& key)
+	int Ardb::HClear(const DBID& db, const Slice& key)
 	{
 		Slice empty;
 		HashKeyObject sk(key, empty);
@@ -112,7 +112,7 @@ namespace ardb
 					z_db->DelValue(z_dbid, *sek);
 					return 0;
 				}
-				HClearWalk(Ardb* db, DBID dbid) :
+				HClearWalk(Ardb* db, const DBID& dbid) :
 						z_db(db), z_dbid(dbid)
 				{
 				}
@@ -122,7 +122,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::HKeys(DBID db, const Slice& key, StringArray& fields)
+	int Ardb::HKeys(const DBID& db, const Slice& key, StringArray& fields)
 	{
 		Slice empty;
 		HashKeyObject k(key, empty);
@@ -147,7 +147,7 @@ namespace ardb
 		return fields.empty() ? ERR_NOT_EXIST : 0;
 	}
 
-	int Ardb::HLen(DBID db, const Slice& key)
+	int Ardb::HLen(const DBID& db, const Slice& key)
 	{
 		Slice empty;
 		HashKeyObject k(key, empty);
@@ -170,7 +170,7 @@ namespace ardb
 		return len;
 	}
 
-	int Ardb::HVals(DBID db, const Slice& key, StringArray& values)
+	int Ardb::HVals(const DBID& db, const Slice& key, StringArray& values)
 	{
 		Slice empty;
 		HashKeyObject k(key, empty);
@@ -197,7 +197,7 @@ namespace ardb
 		return values.empty() ? ERR_NOT_EXIST : 0;
 	}
 
-	int Ardb::HGetAll(DBID db, const Slice& key, StringArray& fields,
+	int Ardb::HGetAll(const DBID& db, const Slice& key, StringArray& fields,
 	        StringArray& values)
 	{
 		Slice empty;
@@ -229,12 +229,12 @@ namespace ardb
 		return fields.empty() ? ERR_NOT_EXIST : 0;
 	}
 
-	bool Ardb::HExists(DBID db, const Slice& key, const Slice& field)
+	bool Ardb::HExists(const DBID& db, const Slice& key, const Slice& field)
 	{
 		return HGet(db, key, field, NULL) == 0;
 	}
 
-	int Ardb::HIncrby(DBID db, const Slice& key, const Slice& field,
+	int Ardb::HIncrby(const DBID& db, const Slice& key, const Slice& field,
 	        int64_t increment, int64_t& value)
 	{
 		ValueObject v;
@@ -250,7 +250,7 @@ namespace ardb
 		return SetHashValue(db, key, field, v);
 	}
 
-	int Ardb::HIncrbyFloat(DBID db, const Slice& key, const Slice& field,
+	int Ardb::HIncrbyFloat(const DBID& db, const Slice& key, const Slice& field,
 	        double increment, double& value)
 	{
 		ValueObject v;

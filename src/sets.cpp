@@ -31,7 +31,7 @@ namespace ardb
 		encode_value(*(v.v.raw), meta.max);
 	}
 
-	int Ardb::GetSetMetaValue(DBID db, const Slice& key, SetMetaValue& meta)
+	int Ardb::GetSetMetaValue(const DBID& db, const Slice& key, SetMetaValue& meta)
 	{
 		KeyObject k(key, SET_META);
 		ValueObject v;
@@ -45,7 +45,7 @@ namespace ardb
 		}
 		return ERR_NOT_EXIST;
 	}
-	void Ardb::SetSetMetaValue(DBID db, const Slice& key, SetMetaValue& meta)
+	void Ardb::SetSetMetaValue(const DBID& db, const Slice& key, SetMetaValue& meta)
 	{
 		KeyObject k(key, SET_META);
 		ValueObject v;
@@ -53,7 +53,7 @@ namespace ardb
 		SetValue(db, k, v);
 	}
 
-	int Ardb::SAdd(DBID db, const Slice& key, const Slice& value)
+	int Ardb::SAdd(const DBID& db, const Slice& key, const Slice& value)
 	{
 		KeyObject k(key, SET_META);
 		SetMetaValue meta;
@@ -82,7 +82,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::SCard(DBID db, const Slice& key)
+	int Ardb::SCard(const DBID& db, const Slice& key)
 	{
 		KeyObject k(key, SET_META);
 		ValueObject v;
@@ -98,7 +98,7 @@ namespace ardb
 		return ERR_NOT_EXIST;
 	}
 
-	bool Ardb::SIsMember(DBID db, const Slice& key, const Slice& value)
+	bool Ardb::SIsMember(const DBID& db, const Slice& key, const Slice& value)
 	{
 		SetKeyObject sk(key, value);
 		if (0 != GetValue(db, sk, NULL))
@@ -108,7 +108,7 @@ namespace ardb
 		return true;
 	}
 
-	int Ardb::SRem(DBID db, const Slice& key, const Slice& value)
+	int Ardb::SRem(const DBID& db, const Slice& key, const Slice& value)
 	{
 		SetMetaValue meta;
 		if (0 != GetSetMetaValue(db, key, meta))
@@ -129,7 +129,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::SMembers(DBID db, const Slice& key, StringArray& values)
+	int Ardb::SMembers(const DBID& db, const Slice& key, StringArray& values)
 	{
 		Slice empty;
 		SetKeyObject sk(key, empty);
@@ -152,7 +152,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::SClear(DBID db, const Slice& key)
+	int Ardb::SClear(const DBID& db, const Slice& key)
 	{
 		Slice empty;
 		SetKeyObject sk(key, empty);
@@ -166,7 +166,7 @@ namespace ardb
 					z_db->DelValue(z_dbid, *sek);
 					return 0;
 				}
-				SClearWalk(Ardb* db, DBID dbid) :
+				SClearWalk(Ardb* db, const DBID& dbid) :
 						z_db(db), z_dbid(dbid)
 				{
 				}
@@ -178,7 +178,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::SDiff(DBID db, SliceArray& keys, StringArray& values)
+	int Ardb::SDiff(const DBID& db, SliceArray& keys, StringArray& values)
 	{
 		if (keys.size() < 2)
 		{
@@ -269,7 +269,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::SDiffStore(DBID db, const Slice& dst, SliceArray& keys)
+	int Ardb::SDiffStore(const DBID& db, const Slice& dst, SliceArray& keys)
 	{
 		if (keys.size() < 2)
 		{
@@ -308,7 +308,7 @@ namespace ardb
 
 	}
 
-	int Ardb::SInter(DBID db, SliceArray& keys, StringArray& values)
+	int Ardb::SInter(const DBID& db, SliceArray& keys, StringArray& values)
 	{
 		if (keys.size() < 2)
 		{
@@ -426,7 +426,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::SInterStore(DBID db, const Slice& dst, SliceArray& keys)
+	int Ardb::SInterStore(const DBID& db, const Slice& dst, SliceArray& keys)
 	{
 		if (keys.size() < 2)
 		{
@@ -464,7 +464,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::SMove(DBID db, const Slice& src, const Slice& dst,
+	int Ardb::SMove(const DBID& db, const Slice& src, const Slice& dst,
 			const Slice& value)
 	{
 		SetKeyObject sk(src, value);
@@ -478,7 +478,7 @@ namespace ardb
 		return 1;
 	}
 
-	int Ardb::SPop(DBID db, const Slice& key, std::string& value)
+	int Ardb::SPop(const DBID& db, const Slice& key, std::string& value)
 	{
 		Slice empty;
 		SetKeyObject sk(key, empty);
@@ -502,7 +502,7 @@ namespace ardb
 		return -1;
 	}
 
-	int Ardb::SRandMember(DBID db, const Slice& key, StringArray& values,
+	int Ardb::SRandMember(const DBID& db, const Slice& key, StringArray& values,
 			int count)
 	{
 		Slice empty;
@@ -542,7 +542,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::SUnion(DBID db, SliceArray& keys, StringArray& values)
+	int Ardb::SUnion(const DBID& db, SliceArray& keys, StringArray& values)
 	{
 		StringSet kvs;
 		for (int i = 0; i < keys.size(); i++)
@@ -567,7 +567,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::SUnionStore(DBID db, const Slice& dst, SliceArray& keys)
+	int Ardb::SUnionStore(const DBID& db, const Slice& dst, SliceArray& keys)
 	{
 		StringArray ss;
 		if (0 == SUnion(db, keys, ss) && ss.size() > 0)

@@ -10,7 +10,7 @@
 namespace ardb
 {
 
-	int Ardb::GetValue(DBID db, const KeyObject& key, ValueObject* v,
+	int Ardb::GetValue(const DBID& db, const KeyObject& key, ValueObject* v,
 			uint64* expire)
 	{
 		Buffer keybuf(key.key.size() + 16);
@@ -46,7 +46,7 @@ namespace ardb
 		return ERR_NOT_EXIST;
 	}
 
-	Iterator* Ardb::FindValue(DBID db, KeyObject& key)
+	Iterator* Ardb::FindValue(const DBID& db, KeyObject& key)
 	{
 		Buffer keybuf(key.key.size() + 16);
 		encode_key(keybuf, key);
@@ -56,7 +56,7 @@ namespace ardb
 		return iter;
 	}
 
-	int Ardb::SetValue(DBID db, KeyObject& key, ValueObject& value,
+	int Ardb::SetValue(const DBID& db, KeyObject& key, ValueObject& value,
 			uint64 expire)
 	{
 		Buffer keybuf(key.key.size() + 16);
@@ -72,7 +72,7 @@ namespace ardb
 		return GetDB(db)->Put(k, v);
 	}
 
-	int Ardb::DelValue(DBID db, KeyObject& key)
+	int Ardb::DelValue(const DBID& db, KeyObject& key)
 	{
 		Buffer keybuf(key.key.size() + 16);
 		encode_key(keybuf, key);
@@ -80,7 +80,7 @@ namespace ardb
 		return GetDB(db)->Del(k);
 	}
 
-	int Ardb::MSet(DBID db, SliceArray& keys, SliceArray& values)
+	int Ardb::MSet(const DBID& db, SliceArray& keys, SliceArray& values)
 	{
 		if (keys.size() != values.size())
 		{
@@ -101,7 +101,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::MSetNX(DBID db, SliceArray& keys, SliceArray& values)
+	int Ardb::MSetNX(const DBID& db, SliceArray& keys, SliceArray& values)
 	{
 		if (keys.size() != values.size())
 		{
@@ -125,7 +125,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::Set(DBID db, const Slice& key, const Slice& value, int ex, int px,
+	int Ardb::Set(const DBID& db, const Slice& key, const Slice& value, int ex, int px,
 			int nxx)
 	{
 		KeyObject k(key);
@@ -151,12 +151,12 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::Set(DBID db, const Slice& key, const Slice& value)
+	int Ardb::Set(const DBID& db, const Slice& key, const Slice& value)
 	{
 		return SetEx(db, key, value, 0);
 	}
 
-	int Ardb::SetNX(DBID db, const Slice& key, const Slice& value)
+	int Ardb::SetNX(const DBID& db, const Slice& key, const Slice& value)
 	{
 		if (!Exists(db, key))
 		{
@@ -169,12 +169,12 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::SetEx(DBID db, const Slice& key, const Slice& value,
+	int Ardb::SetEx(const DBID& db, const Slice& key, const Slice& value,
 			uint32_t secs)
 	{
 		return PSetEx(db, key, value, secs * 1000);
 	}
-	int Ardb::PSetEx(DBID db, const Slice& key, const Slice& value, uint32_t ms)
+	int Ardb::PSetEx(const DBID& db, const Slice& key, const Slice& value, uint32_t ms)
 	{
 		KeyObject keyobject(key);
 		ValueObject valueobject;
@@ -188,7 +188,7 @@ namespace ardb
 		return SetValue(db, keyobject, valueobject, expire);
 	}
 
-	int Ardb::Get(DBID db, const Slice& key, std::string* value)
+	int Ardb::Get(const DBID& db, const Slice& key, std::string* value)
 	{
 		KeyObject keyobject(key);
 		ValueObject v;
@@ -203,7 +203,7 @@ namespace ardb
 		return ret;
 	}
 
-	int Ardb::MGet(DBID db, SliceArray& keys, StringArray& value)
+	int Ardb::MGet(const DBID& db, SliceArray& keys, StringArray& value)
 	{
 		SliceArray::iterator it = keys.begin();
 		while (it != keys.end())
@@ -216,23 +216,35 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::Del(DBID db, const Slice& key)
+	int Ardb::Del(const DBID& db, const Slice& key)
 	{
 		KeyObject k(key);
 		DelValue(db, k);
-		HClear(db, key);
-		LClear(db, key);
-		ZClear(db, key);
-		SClear(db, key);
+		//HClear(db, key);
+		//LClear(db, key);
+		//ZClear(db, key);
+		//SClear(db, key);
 		return 0;
 	}
 
-	bool Ardb::Exists(DBID db, const Slice& key)
+	int Ardb::Del(const DBID& db, const SliceArray& keys)
+	{
+		BatchWriteGuard guard(GetDB(db));
+		SliceArray::const_iterator it = keys.begin();
+		while(it != keys.end())
+		{
+			Del(db, *it);
+			it++;
+		}
+		return 0;
+	}
+
+	bool Ardb::Exists(const DBID& db, const Slice& key)
 	{
 		return Get(db, key, NULL) == 0;
 	}
 
-	int Ardb::SetExpiration(DBID db, const Slice& key, uint64_t expire)
+	int Ardb::SetExpiration(const DBID& db, const Slice& key, uint64_t expire)
 	{
 		KeyObject keyobject(key);
 		ValueObject value;
@@ -243,7 +255,7 @@ namespace ardb
 		return ERR_NOT_EXIST;
 	}
 
-	int Ardb::Strlen(DBID db, const Slice& key)
+	int Ardb::Strlen(const DBID& db, const Slice& key)
 	{
 		std::string v;
 		if (0 == Get(db, key, &v))
@@ -252,32 +264,32 @@ namespace ardb
 		}
 		return ERR_NOT_EXIST;
 	}
-	int Ardb::Expire(DBID db, const Slice& key, uint32_t secs)
+	int Ardb::Expire(const DBID& db, const Slice& key, uint32_t secs)
 	{
 		uint64_t now = get_current_epoch_nanos();
 		uint64_t expire = now + (uint64_t) secs * 1000000000L;
 		return SetExpiration(db, key, expire);
 	}
 
-	int Ardb::Expireat(DBID db, const Slice& key, uint32_t ts)
+	int Ardb::Expireat(const DBID& db, const Slice& key, uint32_t ts)
 	{
 		uint64_t expire = (uint64_t) ts * 1000000000L;
 		return SetExpiration(db, key, expire);
 	}
 
-	int Ardb::Persist(DBID db, const Slice& key)
+	int Ardb::Persist(const DBID& db, const Slice& key)
 	{
 		return SetExpiration(db, key, 0);
 	}
 
-	int Ardb::Pexpire(DBID db, const Slice& key, uint32_t ms)
+	int Ardb::Pexpire(const DBID& db, const Slice& key, uint32_t ms)
 	{
 		uint64_t now = get_current_epoch_nanos();
 		uint64_t expire = now + (uint64_t) ms * 1000000L;
 		return SetExpiration(db, key, expire);
 	}
 
-	int Ardb::PTTL(DBID db, const Slice& key)
+	int Ardb::PTTL(const DBID& db, const Slice& key)
 	{
 		ValueObject v;
 		KeyObject k(key);
@@ -300,7 +312,7 @@ namespace ardb
 		return ERR_NOT_EXIST;
 	}
 
-	int Ardb::TTL(DBID db, const Slice& key)
+	int Ardb::TTL(const DBID& db, const Slice& key)
 	{
 		int ttl = PTTL(db, key);
 		if (ttl > 0)
@@ -314,7 +326,7 @@ namespace ardb
 		return ttl;
 	}
 
-	int Ardb::Rename(DBID db, const Slice& key1, const Slice& key2)
+	int Ardb::Rename(const DBID& db, const Slice& key1, const Slice& key2)
 	{
 		ValueObject v;
 		KeyObject k1(key1);
@@ -328,7 +340,7 @@ namespace ardb
 		return ERR_NOT_EXIST;
 	}
 
-	int Ardb::RenameNX(DBID db, const Slice& key1, const Slice& key2)
+	int Ardb::RenameNX(const DBID& db, const Slice& key1, const Slice& key2)
 	{
 		std::string v1;
 		if (0 == Get(db, key1, &v1))

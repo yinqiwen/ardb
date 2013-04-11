@@ -125,7 +125,7 @@ namespace ardb
 	{
 	}
 
-	void Ardb::Walk(DBID db, KeyObject& key, bool reverse, WalkHandler* handler)
+	void Ardb::Walk(const DBID& db, KeyObject& key, bool reverse, WalkHandler* handler)
 	{
 		Iterator* iter = FindValue(db, key);
 		bool isFirstElement = true;
@@ -167,7 +167,7 @@ namespace ardb
 		DELETE(iter);
 	}
 
-	KeyValueEngine* Ardb::GetDB(DBID db)
+	KeyValueEngine* Ardb::GetDB(const DBID& db)
 	{
 		KeyValueEngineTable::iterator found = m_engine_table.find(db);
 		if (found != m_engine_table.end())
@@ -182,7 +182,7 @@ namespace ardb
 		return engine;
 	}
 
-	int Ardb::Type(DBID db, const Slice& key)
+	int Ardb::Type(const DBID& db, const Slice& key)
 	{
 		if (Exists(db, key))
 		{
@@ -211,7 +211,7 @@ namespace ardb
 		return type;
 	}
 
-	int Ardb::Sort(DBID db, const Slice& key, const StringArray& args,
+	int Ardb::Sort(const DBID& db, const Slice& key, const StringArray& args,
 			StringArray& values)
 	{
 		struct SortOptions

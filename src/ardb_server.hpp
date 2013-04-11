@@ -89,6 +89,10 @@ namespace ardb
 			int Append(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Get(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Set(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Del(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Exists(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Expire(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Expireat(ArdbConnContext& ctx, ArgumentArray& cmd);
 		public:
 			static int ParseConfig(const Properties& props,
 					ArdbServerConfig& cfg);

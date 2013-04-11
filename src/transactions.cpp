@@ -9,18 +9,18 @@
 
 namespace ardb
 {
-	int Ardb::Discard(DBID db)
+	int Ardb::Discard(const DBID& db)
 	{
 		GetDB(db)->DiscardBatchWrite();
 		return 0;
 	}
 
-	int Ardb::Exec(DBID db)
+	int Ardb::Exec(const DBID& db)
 	{
 		GetDB(db)->BeginBatchWrite();
 		return 0;
 	}
-	int Ardb::Multi(DBID db)
+	int Ardb::Multi(const DBID& db)
 	{
 		GetDB(db)->CommitBatchWrite();
 		return 0;
