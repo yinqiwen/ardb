@@ -129,8 +129,8 @@ namespace ardb
 			KeyValueEngine* GetDB(DBID db);
 
 			int SetExpiration(DBID db, const Slice& key, uint64_t expire);
-			int GetValue(DBID db, const KeyObject& key, ValueObject* v);
-			int SetValue(DBID db, KeyObject& key, ValueObject& value);
+			int GetValue(DBID db, const KeyObject& key, ValueObject* v, uint64* expire = NULL);
+			int SetValue(DBID db, KeyObject& key, ValueObject& value, uint64 expire = 0);
 			int DelValue(DBID db, KeyObject& key);
 			Iterator* FindValue(DBID db, KeyObject& key);
 			int SetHashValue(DBID db, const Slice& key, const Slice& field,

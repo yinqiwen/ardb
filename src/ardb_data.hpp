@@ -38,6 +38,9 @@ namespace ardb
 		HASH_FIELD = 7,
 		LIST_META = 8,
 		LIST_ELEMENT = 9,
+		TABLE_META = 10,
+		TABLE_INDEX = 11,
+		TABLE_ROW = 12,
 		KEY_END = 255,
 	};
 
@@ -69,24 +72,26 @@ namespace ardb
 					double double_v;
 					Buffer* raw;
 			} v;
-			uint64_t expire;
+			//uint64_t expire;
 			ValueObject() :
-					type(EMPTY), expire(0)
+					type(EMPTY)
 			{
 				v.int_v = 0;
 			}
 			ValueObject(int64_t iv) :
-					type(INTEGER), expire(0)
+					type(INTEGER)
 			{
 				v.int_v = iv;
 			}
 			ValueObject(double dv) :
-					type(DOUBLE), expire(0)
+					type(DOUBLE)
 			{
 				v.double_v = dv;
 			}
-			ValueObject(const ValueObject& other)
+			ValueObject(const ValueObject& other) :
+					type(EMPTY)
 			{
+				v.int_v = 0;
 				Copy(other);
 			}
 			ValueObject & operator=(const ValueObject &rhs)
@@ -98,28 +103,32 @@ namespace ardb
 			{
 				return Compare(other) < 0;
 			}
-			std::string ToString()const
+			std::string ToString() const
 			{
 				switch (type)
 				{
+					case EMPTY:
+					{
+						return "";
+					}
 					case INTEGER:
 					{
 						Buffer tmp(64);
 						tmp.Printf("%lld", v.int_v);
 						return std::string(tmp.GetRawReadBuffer(),
-						        tmp.ReadableBytes());
+								tmp.ReadableBytes());
 					}
 					case DOUBLE:
 					{
 						Buffer tmp(64);
 						tmp.Printf("%f", v.double_v);
 						return std::string(tmp.GetRawReadBuffer(),
-						        tmp.ReadableBytes());
+								tmp.ReadableBytes());
 					}
 					default:
 					{
 						return std::string(v.raw->GetRawReadBuffer(),
-						        v.raw->ReadableBytes());
+								v.raw->ReadableBytes());
 					}
 				}
 			}
@@ -156,7 +165,7 @@ namespace ardb
 					{
 						v.raw = new Buffer(other.v.raw->ReadableBytes());
 						v.raw->Write(other.v.raw->GetRawReadBuffer(),
-						        other.v.raw->ReadableBytes());
+								other.v.raw->ReadableBytes());
 						return;
 					}
 				}
@@ -184,19 +193,16 @@ namespace ardb
 					default:
 					{
 						Slice a(v.raw->GetRawReadBuffer(),
-						        v.raw->ReadableBytes());
+								v.raw->ReadableBytes());
 						Slice b(other.v.raw->GetRawReadBuffer(),
-						        other.v.raw->ReadableBytes());
+								other.v.raw->ReadableBytes());
 						return a.compare(b);
 					}
 				}
 			}
 			~ValueObject()
 			{
-				if (type == RAW)
-				{
-					DELETE(v.raw);
-				}
+				Clear();
 			}
 	};
 

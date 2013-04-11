@@ -16,8 +16,8 @@ namespace ardb
 			return false;
 		}
 		return BufferHelper::ReadVarUInt32(*(v.v.raw), meta.size)
-		        && decode_value(*(v.v.raw), meta.min)
-		        && decode_value(*(v.v.raw), meta.max);
+				&& decode_value(*(v.v.raw), meta.min)
+				&& decode_value(*(v.v.raw), meta.max);
 	}
 	static void EncodeSetMetaData(ValueObject& v, SetMetaValue& meta)
 	{
@@ -60,18 +60,18 @@ namespace ardb
 		GetSetMetaValue(db, key, meta);
 		ValueObject v;
 		smart_fill_value(value, v);
-		SetKeyObject sk(key, value);
+		SetKeyObject sk(key, v);
 		ValueObject sv;
 		if (0 != GetValue(db, sk, &sv))
 		{
 			meta.size++;
 			if (meta.min.type == EMPTY || meta.min.Compare(v) > 0)
 			{
-				meta.min.Copy(v);
+				meta.min = v;
 			}
 			if (meta.max.type == EMPTY || meta.max.Compare(v) < 0)
 			{
-				meta.max.Copy(v);
+				meta.max = v;
 			}
 			sv.type = EMPTY;
 			BatchWriteGuard guard(GetDB(db));
@@ -101,7 +101,6 @@ namespace ardb
 	bool Ardb::SIsMember(DBID db, const Slice& key, const Slice& value)
 	{
 		SetKeyObject sk(key, value);
-		ValueObject sv;
 		if (0 != GetValue(db, sk, NULL))
 		{
 			return false;
@@ -134,6 +133,24 @@ namespace ardb
 	{
 		Slice empty;
 		SetKeyObject sk(key, empty);
+//		KeyObject emptykey(empty);
+//		Iterator* iter = FindValue(db, emptykey);
+//		while (iter->Valid())
+//		{
+//			Slice k = iter->Key();
+//			KeyObject* kk = decode_key(k);
+//			if (NULL != kk)
+//			{
+//				if (kk->type == SET_ELEMENT)
+//				{
+//					SetKeyObject* sk = (SetKeyObject*) kk;
+//					//DEBUG_LOG(
+//					//		"###SetKey %d %s", sk->value.v.raw->ReadableBytes(), sk->value.v.raw->GetRawReadBuffer());
+//				}
+//			}
+//			iter->Next();
+//		}
+
 		struct SMembersWalk: public WalkHandler
 		{
 				StringArray& z_values;
@@ -205,8 +222,7 @@ namespace ardb
 					if (idx == 0)
 					{
 						vset.insert(sek->value);
-					}
-					else
+					} else
 					{
 						if (vset.count(sek->value) != 0)
 						{
@@ -217,7 +233,7 @@ namespace ardb
 							return -1;
 						}
 						if (vlimit.type != EMPTY
-						        && sek->value.Compare(vlimit) > 0)
+								&& sek->value.Compare(vlimit) > 0)
 						{
 							return -1;
 						}
@@ -244,8 +260,7 @@ namespace ardb
 				if (metas[i].min.Compare(*(vs.rbegin())) > 0)
 				{
 					continue;
-				}
-				else if (metas[i].max.Compare(*(vs.begin())) < 0)
+				} else if (metas[i].max.Compare(*(vs.begin())) < 0)
 				{
 					continue;
 				}
@@ -316,7 +331,7 @@ namespace ardb
 		{
 			return ERR_INVALID_ARGS;
 		}
-		uint32_t min_size = 0;
+		uint32_t min_size = -1;
 		SetMetaValueArray metas;
 		uint32_t min_idx = 0;
 		uint32_t idx = 0;
@@ -328,7 +343,7 @@ namespace ardb
 			SetMetaValue meta;
 			if (0 == GetSetMetaValue(db, *kit, meta))
 			{
-				if (min_size == 0 || min_size > meta.size)
+				if (min_size == -1 || min_size > meta.size)
 				{
 					min_size = meta.size;
 					min_idx = idx;
@@ -356,9 +371,9 @@ namespace ardb
 				const ValueObject* current_min;
 				const ValueObject* current_max;
 				SInterWalk(ValueSet& cmp, ValueSet& result,
-				        const ValueObject& min, const ValueObject& max) :
+						const ValueObject& min, const ValueObject& max) :
 						z_cmp(cmp), z_result(result), s_min(min), s_max(max), current_min(
-						        NULL), current_max(NULL)
+								NULL), current_max(NULL)
 				{
 				}
 				int OnKeyValue(KeyObject* k, ValueObject* value)
@@ -377,7 +392,7 @@ namespace ardb
 						return 0;
 					}
 					std::pair<ValueSet::iterator, bool> iter = z_result.insert(
-					        sk->value);
+							sk->value);
 					if (NULL == current_min)
 					{
 						current_min = &(*(iter.first));
@@ -403,11 +418,13 @@ namespace ardb
 				ValueSet* old = cmp;
 				cmp = result;
 				result = old;
-				if (min.Compare(*walk.current_min) < 0)
+				if (NULL != walk.current_min
+						&& min.Compare(*walk.current_min) < 0)
 				{
 					min = *walk.current_min;
 				}
-				if (max.Compare(*walk.current_max) > 0)
+				if (NULL != walk.current_max
+						&& max.Compare(*walk.current_max) > 0)
 				{
 					max = *walk.current_max;
 				}
@@ -465,7 +482,7 @@ namespace ardb
 	}
 
 	int Ardb::SMove(DBID db, const Slice& src, const Slice& dst,
-	        const Slice& value)
+			const Slice& value)
 	{
 		SetKeyObject sk(src, value);
 		ValueObject sv;
@@ -488,7 +505,7 @@ namespace ardb
 			Slice tmpkey = iter->Key();
 			KeyObject* kk = decode_key(tmpkey);
 			if (NULL == kk || kk->type != SET_ELEMENT
-			        || kk->key.compare(key) != 0)
+					|| kk->key.compare(key) != 0)
 			{
 				DELETE(kk);
 				break;
@@ -503,7 +520,7 @@ namespace ardb
 	}
 
 	int Ardb::SRandMember(DBID db, const Slice& key, StringArray& values,
-	        int count)
+			int count)
 	{
 		Slice empty;
 		SetKeyObject sk(key, empty);
@@ -519,7 +536,7 @@ namespace ardb
 			Slice tmpkey = iter->Key();
 			KeyObject* kk = decode_key(tmpkey);
 			if (NULL == kk || kk->type != SET_ELEMENT
-			        || kk->key.compare(key) != 0)
+					|| kk->key.compare(key) != 0)
 			{
 				DELETE(kk);
 				break;

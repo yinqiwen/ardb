@@ -341,14 +341,16 @@ namespace ardb
 		{
 				Ardb* z_db;
 				DBID z_dbid;
+				int x;
 				int OnKeyValue(KeyObject* k, ValueObject* v)
 				{
 					ListKeyObject* sek = (ListKeyObject*) k;
 					z_db->DelValue(z_dbid, *sek);
+					x++;
 					return 0;
 				}
 				LClearWalk(Ardb* db, DBID dbid) :
-						z_db(db), z_dbid(dbid)
+						z_db(db), z_dbid(dbid),x(0)
 				{
 				}
 		} walk(this, db);

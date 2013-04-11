@@ -215,9 +215,8 @@ namespace ardb
 		return Set(db, key, value);
 	}
 
-	int Ardb::SetBit(DBID db, const Slice& key, uint32_t offset, uint8_t value)
+	int Ardb::SetBit(DBID db, const Slice& key, uint32_t bitoffset, uint8_t value)
 	{
-		size_t bitoffset;
 		int byte, bit;
 		int byteval, bitval;
 		long on = value;

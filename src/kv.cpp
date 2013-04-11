@@ -10,7 +10,8 @@
 namespace ardb
 {
 
-	int Ardb::GetValue(DBID db, const KeyObject& key, ValueObject* v)
+	int Ardb::GetValue(DBID db, const KeyObject& key, ValueObject* v,
+			uint64* expire)
 	{
 		Buffer keybuf(key.key.size() + 16);
 		encode_key(keybuf, key);
@@ -26,7 +27,13 @@ namespace ardb
 			Buffer readbuf(const_cast<char*>(value.c_str()), 0, value.size());
 			if (decode_value(readbuf, *v))
 			{
-				if (v->expire > 0 && get_current_epoch_nanos() >= v->expire)
+				uint64 tmp = 0;
+				BufferHelper::ReadVarUInt64(readbuf, tmp);
+				if (NULL != expire)
+				{
+					*expire = tmp;
+				}
+				if (tmp > 0 && get_current_epoch_nanos() >= tmp)
 				{
 					GetDB(db)->Del(k);
 					return ERR_NOT_EXIST;
@@ -49,12 +56,17 @@ namespace ardb
 		return iter;
 	}
 
-	int Ardb::SetValue(DBID db, KeyObject& key, ValueObject& value)
+	int Ardb::SetValue(DBID db, KeyObject& key, ValueObject& value,
+			uint64 expire)
 	{
 		Buffer keybuf(key.key.size() + 16);
 		encode_key(keybuf, key);
 		Buffer valuebuf(64);
 		encode_value(valuebuf, value);
+		if (expire > 0)
+		{
+			BufferHelper::WriteVarUInt64(valuebuf, expire);
+		}
 		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
 		Slice v(valuebuf.GetRawReadBuffer(), valuebuf.ReadableBytes());
 		return GetDB(db)->Put(k, v);
@@ -173,8 +185,7 @@ namespace ardb
 			uint64_t now = get_current_epoch_nanos();
 			expire = now + (uint64_t) ms * 1000000L;
 		}
-		valueobject.expire = expire;
-		return SetValue(db, keyobject, valueobject);
+		return SetValue(db, keyobject, valueobject, expire);
 	}
 
 	int Ardb::Get(DBID db, const Slice& key, std::string* value)
@@ -227,8 +238,7 @@ namespace ardb
 		ValueObject value;
 		if (0 == GetValue(db, keyobject, &value))
 		{
-			value.expire = expire;
-			return SetValue(db, keyobject, value);
+			return SetValue(db, keyobject, value, expire);
 		}
 		return ERR_NOT_EXIST;
 	}
@@ -271,13 +281,14 @@ namespace ardb
 	{
 		ValueObject v;
 		KeyObject k(key);
-		if (0 == GetValue(db, k, &v))
+		uint64 expire = 0;
+		if (0 == GetValue(db, k, &v, &expire))
 		{
 			int ttl = 0;
-			if (v.expire > 0)
+			if (expire > 0)
 			{
 				uint64_t now = get_current_epoch_nanos();
-				uint64_t ttlsns = v.expire - now;
+				uint64_t ttlsns = expire - now;
 				ttl = ttlsns / 1000000L;
 				if (ttlsns % 1000000000L >= 500000L)
 				{
