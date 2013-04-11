@@ -18,6 +18,7 @@
 #include <kcpolydb.h>
 #include <stack>
 #include "ardb.hpp"
+#include "util/config_helper.hpp"
 
 namespace ardb
 {
@@ -50,6 +51,11 @@ namespace ardb
 					size_t bksiz);
 	};
 
+	struct KCDBConfig
+	{
+			std::string path;
+	};
+
 	class KCDBEngine: public KeyValueEngine
 	{
 		private:
@@ -60,7 +66,7 @@ namespace ardb
 			std::map<std::string, std::string> m_bulk_set_kvs;
 		public:
 			KCDBEngine();
-			int Init(const std::string& path);
+			int Init(const KCDBConfig& cfg);
 			int Put(const Slice& key, const Slice& value);
 			int Get(const Slice& key, std::string* value);
 			int Del(const Slice& key);
@@ -73,9 +79,10 @@ namespace ardb
 	class KCDBEngineFactory: public KeyValueEngineFactory
 	{
 		private:
-			std::string m_base_path;
+			KCDBConfig m_cfg;
+			static void ParseConfig(const Properties& props, KCDBConfig& cfg);
 		public:
-			KCDBEngineFactory(const std::string& basepath);
+			KCDBEngineFactory(const Properties& cfg);
 			KeyValueEngine* CreateDB(DBID db);
 			void DestroyDB(KeyValueEngine* engine);
 	};

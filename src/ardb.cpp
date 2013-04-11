@@ -19,87 +19,89 @@
 				TYPE = k->type;                          \
 	         }                                           \
 	    }\
+	    DELETE(iter);\
 }while(0)
 
 namespace ardb
 {
-	int ardb_compare_keys(const char* akbuf, size_t aksiz,
-				const char* bkbuf, size_t bksiz)
+	int ardb_compare_keys(const char* akbuf, size_t aksiz, const char* bkbuf,
+			size_t bksiz)
+	{
+		Buffer ak_buf(const_cast<char*>(akbuf), 0, aksiz);
+		Buffer bk_buf(const_cast<char*>(bkbuf), 0, bksiz);
+		uint8_t at, bt;
+		bool found_a = BufferHelper::ReadFixUInt8(ak_buf, at);
+		bool found_b = BufferHelper::ReadFixUInt8(bk_buf, bt);
+		COMPARE_EXIST(found_a, found_b);
+		RETURN_NONEQ_RESULT(at, bt);
+		Slice akey, bkey;
+		found_a = BufferHelper::ReadVarSlice(ak_buf, akey);
+		found_b = BufferHelper::ReadVarSlice(bk_buf, bkey);
+		COMPARE_EXIST(found_a, found_b);
+		int ret = akey.compare(bkey);
+		if (ret != 0)
 		{
-			Buffer ak_buf(const_cast<char*>(akbuf), 0, aksiz);
-			Buffer bk_buf(const_cast<char*>(bkbuf), 0, bksiz);
-			uint8_t at, bt;
-			bool found_a = BufferHelper::ReadFixUInt8(ak_buf, at);
-			bool found_b = BufferHelper::ReadFixUInt8(bk_buf, bt);
-			COMPARE_EXIST(found_a, found_b);
-			RETURN_NONEQ_RESULT(at, bt);
-			Slice akey, bkey;
-			found_a = BufferHelper::ReadVarSlice(ak_buf, akey);
-			found_b = BufferHelper::ReadVarSlice(bk_buf, bkey);
-			COMPARE_EXIST(found_a, found_b);
-			int ret = akey.compare(bkey);
-			if (ret != 0)
-			{
-				return ret;
-			}
+			return ret;
+		}
 
-			switch (at)
+		switch (at)
+		{
+			case HASH_FIELD:
 			{
-				case HASH_FIELD:
-				{
-					Slice af, bf;
-					found_a = BufferHelper::ReadVarSlice(ak_buf, af);
-					found_b = BufferHelper::ReadVarSlice(bk_buf, bf);
-					COMPARE_EXIST(found_a, found_b);
-					ret = af.compare(bf);
-					break;
-				}
-				case LIST_ELEMENT:
-				{
-					double ascore, bscore;
-					found_a = BufferHelper::ReadVarDouble(ak_buf, ascore);
-					found_b = BufferHelper::ReadVarDouble(bk_buf, bscore);
-					COMPARE_EXIST(found_a, found_b);
-					ret = COMPARE_NUMBER(ascore, bscore);
-					break;
-				}
-				case ZSET_ELEMENT_SCORE:
-				case SET_ELEMENT:
+				Slice af, bf;
+				found_a = BufferHelper::ReadVarSlice(ak_buf, af);
+				found_b = BufferHelper::ReadVarSlice(bk_buf, bf);
+				COMPARE_EXIST(found_a, found_b);
+				ret = af.compare(bf);
+				break;
+			}
+			case LIST_ELEMENT:
+			{
+				double ascore, bscore;
+				found_a = BufferHelper::ReadVarDouble(ak_buf, ascore);
+				found_b = BufferHelper::ReadVarDouble(bk_buf, bscore);
+				COMPARE_EXIST(found_a, found_b);
+				ret = COMPARE_NUMBER(ascore, bscore);
+				break;
+			}
+			case ZSET_ELEMENT_SCORE:
+			case SET_ELEMENT:
+			{
+				ValueObject av, bv;
+				found_a = decode_value(ak_buf, av);
+				found_b = decode_value(bk_buf, bv);
+				COMPARE_EXIST(found_a, found_b);
+				//DEBUG_LOG("#####A=%s b=%s", av.ToString().c_str(), bv.ToString().c_str());
+				ret = av.Compare(bv);
+				break;
+			}
+			case ZSET_ELEMENT:
+			{
+				double ascore, bscore;
+				found_a = BufferHelper::ReadVarDouble(ak_buf, ascore);
+				found_b = BufferHelper::ReadVarDouble(bk_buf, bscore);
+				ret = COMPARE_NUMBER(ascore, bscore);
+				if (ret == 0)
 				{
 					ValueObject av, bv;
 					found_a = decode_value(ak_buf, av);
 					found_b = decode_value(bk_buf, bv);
 					COMPARE_EXIST(found_a, found_b);
-					//DEBUG_LOG("#####A=%s b=%s", av.ToString().c_str(), bv.ToString().c_str());
 					ret = av.Compare(bv);
-					break;
 				}
-				case ZSET_ELEMENT:
-				{
-					double ascore, bscore;
-					found_a = BufferHelper::ReadVarDouble(ak_buf, ascore);
-					found_b = BufferHelper::ReadVarDouble(bk_buf, bscore);
-					ret = COMPARE_NUMBER(ascore, bscore);
-					if (ret == 0)
-					{
-						ValueObject av, bv;
-						found_a = decode_value(ak_buf, av);
-						found_b = decode_value(bk_buf, bv);
-						COMPARE_EXIST(found_a, found_b);
-						ret = av.Compare(bv);
-					}
-					break;
-				}
-				case SET_META:
-				case ZSET_META:
-				case LIST_META:
-				default:
-				{
-					break;
-				}
+				break;
 			}
-			return ret;
+			case SET_META:
+			case ZSET_META:
+			case LIST_META:
+			case TABLE_META:
+			default:
+			{
+				break;
+			}
 		}
+		return ret;
+	}
 
 	size_t Ardb::RealPosition(Buffer* buf, int pos)
 	{

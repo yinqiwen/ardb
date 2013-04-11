@@ -280,10 +280,31 @@ namespace ardb
 			}
 	};
 
-	enum OperationType
-	{
-		NOOP = 0, ADD = 1
-	};
+//	struct TableMetaKeyObject: public KeyObject
+//	{
+//			SliceArray primary_keys;
+//			uint32_t size;
+//			TableMetaKeyObject(const Slice& k, const SliceArray& pks) :
+//					KeyObject(k, TABLE_META),size(0)
+//			{
+//			}
+//	};
+//
+//	struct TableIndexKeyObject: public KeyObject
+//	{
+//
+//	};
+//
+//	struct TableRowKeyObject: public KeyObject
+//	{
+//			ValueArray primary_keys;
+//			Slice field;
+//			TableRowKeyObject(const Slice& k, const SliceArray& pks,
+//					const Slice& f) :
+//					KeyObject(k, TABLE_ROW)
+//			{
+//			}
+//	};
 
 	typedef uint64_t DBID;
 
@@ -298,6 +319,8 @@ namespace ardb
 	typedef std::deque<Slice> SliceArray;
 	typedef std::deque<std::string> StringArray;
 	typedef std::vector<uint32_t> WeightArray;
+
+	typedef std::map<std::string, Slice> KeyCondition;
 
 	void encode_key(Buffer& buf, const KeyObject& key);
 	KeyObject* decode_key(const Slice& key);

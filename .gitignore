@@ -3,7 +3,7 @@
 *.a
 /.svn
 /.libs
-leveldb
-kcdb
+leveldb-test
+kcdb-test
 ardb-server
 *.bak

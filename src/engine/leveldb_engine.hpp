@@ -9,6 +9,7 @@
 #include "leveldb/write_batch.h"
 #include "leveldb/comparator.h"
 #include "ardb.hpp"
+#include "util/config_helper.hpp"
 #include <stack>
 
 namespace ardb
@@ -73,6 +74,11 @@ namespace ardb
 			void FindShortSuccessor(std::string* key) const;
 	};
 
+	struct LevelDBConfig
+	{
+			std::string path;
+	};
+
 	class LevelDBEngine: public KeyValueEngine
 	{
 		private:
@@ -82,7 +88,7 @@ namespace ardb
 			std::stack<bool> m_batch_stack;
 		public:
 			LevelDBEngine();
-			int Init(const std::string& path);
+			int Init(const LevelDBConfig& cfg);
 			int Put(const Slice& key, const Slice& value);
 			int Get(const Slice& key, std::string* value);
 			int Del(const Slice& key);
@@ -95,9 +101,10 @@ namespace ardb
 	class LevelDBEngineFactory: public KeyValueEngineFactory
 	{
 		private:
-			std::string m_base_path;
+			LevelDBConfig m_cfg;
+			static void ParseConfig(const Properties& props, LevelDBConfig& cfg);
 		public:
-			LevelDBEngineFactory(const std::string& basepath);
+			LevelDBEngineFactory(const Properties& cfg);
 			KeyValueEngine* CreateDB(DBID db);
 			void DestroyDB(KeyValueEngine* engine);
 	};

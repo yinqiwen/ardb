@@ -10,6 +10,7 @@
 #include <string>
 #include "channel/all_includes.hpp"
 #include "ardb.hpp"
+#include "util/config_helper.hpp"
 
 using namespace ardb::codec;
 namespace ardb
@@ -63,6 +64,8 @@ namespace ardb
 		private:
 			ArdbServerConfig m_cfg;
 			ChannelService* m_service;
+			Ardb* m_db;
+			KeyValueEngineFactory* m_engine;
 			typedef int (ArdbServer::*RedisCommandHandler)(ArdbConnContext&,
 					ArgumentArray&);
 
@@ -70,7 +73,8 @@ namespace ardb
 			{
 					const char* name;
 					RedisCommandHandler handler;
-					int arity;
+					int min_arity;
+					int max_arity;
 			};
 			typedef std::map<std::string, RedisCommandHandlerSetting> RedisCommandHandlerSettingTable;
 			RedisCommandHandlerSettingTable m_handler_table;
@@ -81,11 +85,15 @@ namespace ardb
 			int Echo(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Select(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Quit(ArdbConnContext& ctx, ArgumentArray& cmd);
+
+			int Append(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Get(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Set(ArdbConnContext& ctx, ArgumentArray& cmd);
 		public:
-			static int ParseConfig(const std::string& file,
+			static int ParseConfig(const Properties& props,
 					ArdbServerConfig& cfg);
 			ArdbServer();
-			int Start(const ArdbServerConfig& cfg);
+			int Start(const Properties& props);
 			~ArdbServer();
 	};
 }

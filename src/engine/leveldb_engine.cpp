@@ -32,19 +32,29 @@ namespace ardb
 
 	}
 
-	LevelDBEngineFactory::LevelDBEngineFactory(const std::string& basepath) :
-			m_base_path(basepath)
+	LevelDBEngineFactory::LevelDBEngineFactory(const Properties& props)
 	{
-
+		ParseConfig(props, m_cfg);
 	}
+
+	void LevelDBEngineFactory::ParseConfig(const Properties& props,
+			LevelDBConfig& cfg)
+	{
+		cfg.path = ".";
+		conf_get_string(props, "dir", cfg.path);
+	}
+
 	KeyValueEngine* LevelDBEngineFactory::CreateDB(DBID db)
 	{
 		LevelDBEngine* engine = new LevelDBEngine();
-		char tmp[m_base_path.size() + 16];
-		sprintf(tmp, "%s/%lld", m_base_path.c_str(), db);
-		if (engine->Init(tmp) != 0)
+		LevelDBConfig cfg = m_cfg;
+		char tmp[cfg.path.size() + 16];
+		sprintf(tmp, "%s/%lld", cfg.path.c_str(), db);
+		cfg.path = tmp;
+		if (engine->Init(cfg) != 0)
 		{
 			DELETE(engine);
+			ERROR_LOG("Failed to create DB:%lld", db);
 			return NULL;
 		}
 		return engine;
@@ -81,13 +91,13 @@ namespace ardb
 
 	}
 
-	int LevelDBEngine::Init(const std::string& path)
+	int LevelDBEngine::Init(const LevelDBConfig& cfg)
 	{
 		leveldb::Options options;
 		options.create_if_missing = true;
 		options.comparator = &m_comparator;
-		make_dir(path);
-		leveldb::Status status = leveldb::DB::Open(options, path.c_str(),
+		make_dir(cfg.path);
+		leveldb::Status status = leveldb::DB::Open(options, cfg.path.c_str(),
 				&m_db);
 		if (!status.ok())
 		{

@@ -10,8 +10,8 @@
 int main(int argc, char** argv)
 {
 	ArdbServer server;
-	ArdbServerConfig cfg;
-	server.Start(cfg);
+	Properties props;
+	server.Start(props);
 	return 0;
 }
 

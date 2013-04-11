@@ -36,18 +36,21 @@ CHANNEL_OBJECTS := $(CHANNEL_OBJECTS) $(patsubst %.c, %.o, $(CHANNEL_CFILES))
 UTIL_VPATH=./util ./util/exception 
 UTIL_CPPFILES := $(foreach dir, $(UTIL_VPATH), $(wildcard $(dir)/*.cpp))
 UTIL_OBJECTS := $(patsubst %.cpp, %.o, $(UTIL_CPPFILES))
-CORE_OBJECTS := ardb.o ardb_data.o hash.o kv.o lists.o logger.o sets.o sorted_sets.o strings.o transactions.o \
+CORE_OBJECTS := ardb.o ardb_data.o hash.o kv.o lists.o logger.o sets.o \
+                sorted_sets.o strings.o transactions.o table.o\
                 $(UTIL_OBJECTS)
-                
-LEVELDB_OBJECTS := ../test/leveldb.o engine/leveldb_engine.o
-KCDB_OBJECTS := ../test/kcdb.o engine/kyotocabinet_engine.o
+
+LEVELDB_ENGINE :=  engine/leveldb_engine.o       
+KCDB_ENGINE :=  engine/kyotocabinet_engine.o         
+LEVELDB_TEST := ../test/leveldb.o 
+KCDB_TEST := ../test/kcdb.o
 
 SERVER_OBJECTS := ardb_server.o main.o
 
 #DIST_LIB = libardb.so
 DIST_LIBA = libardb.a
 
-all: lib leveldb kcdb server
+all: lib leveldb test
 
 $(DIST_LIB):$(CORE_OBJECTS)
 	${CXX} -shared -o $@ $^
@@ -58,13 +61,20 @@ $(DIST_LIBA):$(CORE_OBJECTS)
 lib:$(DIST_LIBA)
 
 server:$(SERVER_OBJECTS) $(CORE_OBJECTS) $(CHANNEL_OBJECTS)
-	${CXX} -o ardb-server $(SERVER_OBJECTS) $(CORE_OBJECTS) $(CHANNEL_OBJECTS) $(LIBS) $(LEVELDB_PATH)/libleveldb.a 
+
+leveldb:server $(LEVELDB_ENGINE)
+	${CXX} -o ardb-server $(SERVER_OBJECTS) $(LEVELDB_ENGINE) $(CORE_OBJECTS) $(CHANNEL_OBJECTS) $(LIBS) $(LEVELDB_PATH)/libleveldb.a 
+
+kcdb:server $(KCDB_ENGINE)
+	${CXX} -o ardb-server $(SERVER_OBJECTS) $(KCDB_ENGINE) $(CORE_OBJECTS) $(CHANNEL_OBJECTS) $(LIBS) ${KCDB_PATH}/libkyotocabinet.a -lz
+
+test:leveldb-test kcdb-test
+
+leveldb-test:$(LEVELDB_ENGINE) $(LEVELDB_TEST) $(CORE_OBJECTS) 
+	${CXX} -o leveldb-test $(LEVELDB_ENGINE) $(LEVELDB_TEST) $(CORE_OBJECTS) $(LIBS) $(LEVELDB_PATH)/libleveldb.a
 	
-leveldb:$(LEVELDB_OBJECTS) $(CORE_OBJECTS) 
-	${CXX} -o leveldb $(LEVELDB_OBJECTS) $(CORE_OBJECTS) $(LIBS) $(LEVELDB_PATH)/libleveldb.a
-	
-kcdb:$(KCDB_OBJECTS) $(CORE_OBJECTS) 
-	${CXX} -o kcdb $(KCDB_OBJECTS) $(CORE_OBJECTS) $(LIBS) ${KCDB_PATH}/libkyotocabinet.a -lz
+kcdb-test:$(KCDB_TEST) $(CORE_OBJECTS) $(KCDB_ENGINE)
+	${CXX} -o kcdb-test $(KCDB_TEST) $(KCDB_ENGINE) $(CORE_OBJECTS) $(LIBS) ${KCDB_PATH}/libkyotocabinet.a -lz
 
 clean:
-	rm -f ${CORE_OBJECTS} ${LEVELDB_OBJECTS} $(SERVER_OBJECTS) $(CHANNEL_OBJECTS) $(DIST_LIBA) $(DIST_LIB)  leveldb
+	rm -f ${CORE_OBJECTS} ${LEVELDB_OBJECTS} $(SERVER_OBJECTS) $(CHANNEL_OBJECTS) $(DIST_LIBA) $(DIST_LIB)  leveldb-test kcdb-test ardb-server

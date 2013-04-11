@@ -133,23 +133,6 @@ namespace ardb
 	{
 		Slice empty;
 		SetKeyObject sk(key, empty);
-//		KeyObject emptykey(empty);
-//		Iterator* iter = FindValue(db, emptykey);
-//		while (iter->Valid())
-//		{
-//			Slice k = iter->Key();
-//			KeyObject* kk = decode_key(k);
-//			if (NULL != kk)
-//			{
-//				if (kk->type == SET_ELEMENT)
-//				{
-//					SetKeyObject* sk = (SetKeyObject*) kk;
-//					//DEBUG_LOG(
-//					//		"###SetKey %d %s", sk->value.v.raw->ReadableBytes(), sk->value.v.raw->GetRawReadBuffer());
-//				}
-//			}
-//			iter->Next();
-//		}
 
 		struct SMembersWalk: public WalkHandler
 		{

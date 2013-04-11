@@ -19,17 +19,25 @@ namespace ardb
 		return ardb_compare_keys(akbuf, aksiz, bkbuf, bksiz);
 	}
 
-	KCDBEngineFactory::KCDBEngineFactory(const std::string& basepath) :
-			m_base_path(basepath)
+	KCDBEngineFactory::KCDBEngineFactory(const Properties& props)
 	{
+		ParseConfig(props, m_cfg);
+	}
 
+	void KCDBEngineFactory::ParseConfig(const Properties& props,
+			KCDBConfig& cfg)
+	{
+		cfg.path = ".";
+		conf_get_string(props, "dir", cfg.path);
 	}
 	KeyValueEngine* KCDBEngineFactory::CreateDB(DBID db)
 	{
 		KCDBEngine* engine = new KCDBEngine();
-		char tmp[m_base_path.size() + 16];
-		sprintf(tmp, "%s/%lld", m_base_path.c_str(), db);
-		if (engine->Init(tmp) != 0)
+		char tmp[m_cfg.path.size() + 16];
+		sprintf(tmp, "%s/%lld", m_cfg.path.c_str(), db);
+		KCDBConfig cfg = m_cfg;
+		cfg.path = tmp;
+		if (engine->Init(cfg) != 0)
 		{
 			DELETE(engine);
 			return NULL;
@@ -47,12 +55,12 @@ namespace ardb
 
 	}
 
-	int KCDBEngine::Init(const std::string& path)
+	int KCDBEngine::Init(const KCDBConfig& cfg)
 	{
-		make_file(path);
+		make_file(cfg.path);
 		m_db = new kyotocabinet::TreeDB;
 		m_db->tune_comparator(&m_comparator);
-		if (!m_db->open(path.c_str(),
+		if (!m_db->open(cfg.path.c_str(),
 				kyotocabinet::TreeDB::OWRITER | kyotocabinet::TreeDB::OCREATE))
 		{
 			ERROR_LOG("Unable to open DB");

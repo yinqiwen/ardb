@@ -129,8 +129,10 @@ namespace ardb
 			KeyValueEngine* GetDB(DBID db);
 
 			int SetExpiration(DBID db, const Slice& key, uint64_t expire);
-			int GetValue(DBID db, const KeyObject& key, ValueObject* v, uint64* expire = NULL);
-			int SetValue(DBID db, KeyObject& key, ValueObject& value, uint64 expire = 0);
+			int GetValue(DBID db, const KeyObject& key, ValueObject* v,
+					uint64* expire = NULL);
+			int SetValue(DBID db, KeyObject& key, ValueObject& value,
+					uint64 expire = 0);
 			int DelValue(DBID db, KeyObject& key);
 			Iterator* FindValue(DBID db, KeyObject& key);
 			int SetHashValue(DBID db, const Slice& key, const Slice& field,
@@ -164,7 +166,9 @@ namespace ardb
 			}
 		public:
 			Ardb(KeyValueEngineFactory* factory);
-			//static void ClearValueArray(ValueArray& array);
+			/*
+			 * Key-Value operations
+			 */
 			int Set(DBID db, const Slice& key, const Slice& value);
 			int Set(DBID db, const Slice& key, const Slice& value, int ex,
 					int px, int nxx);
@@ -218,6 +222,9 @@ namespace ardb
 			int BitOP(DBID db, const Slice& op, const Slice& dstkey,
 					SliceArray& keys);
 
+			/*
+			 * Hash operations
+			 */
 			int HSet(DBID db, const Slice& key, const Slice& field,
 					const Slice& value);
 			int HSetNX(DBID db, const Slice& key, const Slice& field,
@@ -241,6 +248,9 @@ namespace ardb
 			int HLen(DBID db, const Slice& key);
 			int HClear(DBID db, const Slice& key);
 
+			/*
+			 * List operations
+			 */
 			int LPush(DBID db, const Slice& key, const Slice& value);
 			int LPushx(DBID db, const Slice& key, const Slice& value);
 			int RPush(DBID db, const Slice& key, const Slice& value);
@@ -260,6 +270,9 @@ namespace ardb
 			int LClear(DBID db, const Slice& key);
 			int LLen(DBID db, const Slice& key);
 
+			/*
+			 * Sorted Set operations
+			 */
 			int ZAdd(DBID db, const Slice& key, double score,
 					const Slice& value);
 			int ZCard(DBID db, const Slice& key);
@@ -291,6 +304,9 @@ namespace ardb
 					WeightArray& weights, AggregateType type = AGGREGATE_SUM);
 			int ZClear(DBID db, const Slice& key);
 
+			/*
+			 * Set operations
+			 */
 			int SAdd(DBID db, const Slice& key, const Slice& value);
 			int SCard(DBID db, const Slice& key);
 			int SMembers(DBID db, const Slice& key, StringArray& values);
@@ -309,12 +325,29 @@ namespace ardb
 			int SUnionStore(DBID db, const Slice& dst, SliceArray& keys);
 			int SClear(DBID db, const Slice& key);
 
+			/*
+			 * Table operations
+			 */
+			int TCreate(DBID db, const Slice& tableName, SliceArray& keys);
+			int TGet(DBID db, const Slice& tableName, const SliceArray& fields,
+					KeyCondition& conds, StringArray& values);
+			int TSet(DBID db, const Slice& tableName, const SliceArray& fields,
+					KeyCondition& conds, const StringArray& values);
+			int TDel(DBID db, const Slice& tableName, const SliceArray& fields,
+					KeyCondition& conds, const StringArray& values);
+			int TClear(DBID db, const Slice& tableName);
+			int TCount(DBID db, const Slice& tableName);
+
+			/*
+			 * Batch operations
+			 */
 			int Discard(DBID db);
 			int Exec(DBID db);
 			int Multi(DBID db);
 
 			int Type(DBID db, const Slice& key);
-			int Sort(DBID db, const Slice& key, const StringArray& args, StringArray& values);
+			int Sort(DBID db, const Slice& key, const StringArray& args,
+					StringArray& values);
 
 	};
 }
