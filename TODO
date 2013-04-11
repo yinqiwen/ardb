@@ -149,7 +149,7 @@ INFO [section]                             NotYet
 LASTSAVE                                   Discard
 MONITOR                                    NotYet
 SAVE                                       Discard
-SHUTDOWN [NOSAVE] [SAVE]                   NotYet
+SHUTDOWN [NOSAVE] [SAVE]                   DONE
 SLAVEOF host port                          NotYet
 SLOWLOG subcommand [argument]              NotYet
 SYNC                                       Discard

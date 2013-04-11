@@ -40,7 +40,7 @@ namespace ardb
 		LIST_ELEMENT = 9,
 		TABLE_META = 10,
 		TABLE_INDEX = 11,
-		TABLE_ROW = 12,
+		TABLE_COL = 12,
 		KEY_END = 255,
 	};
 
@@ -116,19 +116,19 @@ namespace ardb
 						Buffer tmp(64);
 						tmp.Printf("%lld", v.int_v);
 						return std::string(tmp.GetRawReadBuffer(),
-								tmp.ReadableBytes());
+						        tmp.ReadableBytes());
 					}
 					case DOUBLE:
 					{
 						Buffer tmp(64);
 						tmp.Printf("%f", v.double_v);
 						return std::string(tmp.GetRawReadBuffer(),
-								tmp.ReadableBytes());
+						        tmp.ReadableBytes());
 					}
 					default:
 					{
 						return std::string(v.raw->GetRawReadBuffer(),
-								v.raw->ReadableBytes());
+						        v.raw->ReadableBytes());
 					}
 				}
 			}
@@ -165,7 +165,7 @@ namespace ardb
 					{
 						v.raw = new Buffer(other.v.raw->ReadableBytes());
 						v.raw->Write(other.v.raw->GetRawReadBuffer(),
-								other.v.raw->ReadableBytes());
+						        other.v.raw->ReadableBytes());
 						return;
 					}
 				}
@@ -193,9 +193,9 @@ namespace ardb
 					default:
 					{
 						Slice a(v.raw->GetRawReadBuffer(),
-								v.raw->ReadableBytes());
+						        v.raw->ReadableBytes());
 						Slice b(other.v.raw->GetRawReadBuffer(),
-								other.v.raw->ReadableBytes());
+						        other.v.raw->ReadableBytes());
 						return a.compare(b);
 					}
 				}
@@ -205,6 +205,30 @@ namespace ardb
 				Clear();
 			}
 	};
+
+	typedef std::string DBID;
+
+	typedef std::map<ValueObject, double> ValueScoreMap;
+
+	typedef std::set<ValueObject> ValueSet;
+	typedef std::tr1::unordered_map<std::string, ValueSet> KeyValueSet;
+
+	typedef std::deque<ValueObject> ValueArray;
+	typedef std::deque<Slice> SliceArray;
+	typedef std::deque<std::string> StringArray;
+	typedef std::set<std::string> StringSet;
+	typedef std::vector<uint32_t> WeightArray;
+
+	typedef std::map<std::string, Slice> KeyCondition;
+
+	struct Condition
+	{
+			std::string keyname;
+			std::string cmp;
+			Slice keyvalue;
+			std::string logicop;
+	};
+	typedef std::vector<Condition> Conditions;
 
 	struct ZSetKeyObject: public KeyObject
 	{
@@ -280,47 +304,65 @@ namespace ardb
 			}
 	};
 
-//	struct TableMetaKeyObject: public KeyObject
-//	{
-//			SliceArray primary_keys;
-//			uint32_t size;
-//			TableMetaKeyObject(const Slice& k, const SliceArray& pks) :
-//					KeyObject(k, TABLE_META),size(0)
-//			{
-//			}
-//	};
-//
-//	struct TableIndexKeyObject: public KeyObject
-//	{
-//
-//	};
-//
-//	struct TableRowKeyObject: public KeyObject
-//	{
-//			ValueArray primary_keys;
-//			Slice field;
-//			TableRowKeyObject(const Slice& k, const SliceArray& pks,
-//					const Slice& f) :
-//					KeyObject(k, TABLE_ROW)
-//			{
-//			}
-//	};
+	struct TableMetaValue
+	{
+			uint32_t size;
+			StringArray keynames;
+			TableMetaValue() :
+					size(0)
+			{
+			}
+	};
 
-	typedef std::string DBID;
+	struct TableIndexValue
+	{
+			ValueArray keyvals;
+	};
 
-	typedef std::map<ValueObject, double> ValueScoreMap;
+	struct TableIndexKeyObject: public KeyObject
+	{
+			Slice kname;
+			ValueObject keyvalue;
+			ValueArray keys;
+			TableIndexKeyObject(const Slice& tablename, const Slice& keyname,
+			        const Slice& v) :
+					KeyObject(tablename, TABLE_INDEX), kname(keyname)
+			{
+				smart_fill_value(v, keyvalue);
+			}
+	};
+
+	struct TableColKeyObject: public KeyObject
+	{
+			Slice col;
+			ValueArray keyvals;
+			TableColKeyObject(const Slice& tablename, const Slice& c) :
+					KeyObject(tablename, TABLE_COL), col(c)
+			{
+			}
+	};
+
+	enum AggregateType
+	{
+		AGGREGATE_SUM = 0, AGGREGATE_MIN = 1, AGGREGATE_MAX = 2,
+	};
+
+	struct QueryOptions
+	{
+			bool withscores;
+			bool withlimit;
+			int limit_offset;
+			int limit_count;
+			QueryOptions() :
+					withscores(false), withlimit(false), limit_offset(0), limit_count(
+					        0)
+			{
+			}
+	};
+
 	typedef std::vector<ZSetMetaValue> ZSetMetaValueArray;
 	typedef std::vector<SetMetaValue> SetMetaValueArray;
-	typedef std::set<ValueObject> ValueSet;
-	typedef std::set<std::string> StringSet;
-	typedef std::tr1::unordered_map<std::string, ValueSet> KeyValueSet;
-
-	typedef std::deque<ValueObject> ValueArray;
-	typedef std::deque<Slice> SliceArray;
-	typedef std::deque<std::string> StringArray;
-	typedef std::vector<uint32_t> WeightArray;
-
-	typedef std::map<std::string, Slice> KeyCondition;
+	typedef std::deque<TableIndexKeyObject> TableRowKeyArray;
 
 	void encode_key(Buffer& buf, const KeyObject& key);
 	KeyObject* decode_key(const Slice& key);

@@ -491,7 +491,7 @@ namespace ardb
 	}
 
 	int Ardb::ZRange(const DBID& db, const Slice& key, int start, int stop,
-	        StringArray& values, ArdbQueryOptions& options)
+	        StringArray& values, QueryOptions& options)
 	{
 		ZSetMetaValue meta;
 		if (0 != GetZSetMetaValue(db, key, meta))
@@ -519,7 +519,7 @@ namespace ardb
 				int z_start;
 				int z_stop;
 				StringArray& z_values;
-				ArdbQueryOptions& z_options;
+				QueryOptions& z_options;
 				int z_count;
 				int OnKeyValue(KeyObject* k, ValueObject* v)
 				{
@@ -543,7 +543,7 @@ namespace ardb
 					return 0;
 				}
 				ZRangeWalk(int start, int stop, StringArray& v,
-				        ArdbQueryOptions& options) :
+				        QueryOptions& options) :
 						rank(0), z_start(start), z_stop(stop), z_values(v), z_options(
 						        options), z_count(0)
 				{
@@ -555,7 +555,7 @@ namespace ardb
 
 	int Ardb::ZRangeByScore(const DBID& db, const Slice& key, const std::string& min,
 	        const std::string& max, StringArray& values,
-	        ArdbQueryOptions& options)
+	        QueryOptions& options)
 	{
 		ZSetMetaValue meta;
 		if (0 != GetZSetMetaValue(db, key, meta))
@@ -575,7 +575,7 @@ namespace ardb
 		struct ZRangeByScoreWalk: public WalkHandler
 		{
 				StringArray& z_values;
-				ArdbQueryOptions& z_options;
+				QueryOptions& z_options;
 				double z_min_score;
 				bool z_containmin;
 				bool z_containmax;
@@ -630,7 +630,7 @@ namespace ardb
 					}
 					return 0;
 				}
-				ZRangeByScoreWalk(StringArray& v, ArdbQueryOptions& options) :
+				ZRangeByScoreWalk(StringArray& v, QueryOptions& options) :
 						z_values(v), z_options(options), z_count(0)
 				{
 				}
@@ -644,7 +644,7 @@ namespace ardb
 	}
 
 	int Ardb::ZRevRange(const DBID& db, const Slice& key, int start, int stop,
-	        StringArray& values, ArdbQueryOptions& options)
+	        StringArray& values, QueryOptions& options)
 	{
 		ZSetMetaValue meta;
 		if (0 != GetZSetMetaValue(db, key, meta))
@@ -672,9 +672,9 @@ namespace ardb
 				int z_start;
 				int z_stop;
 				StringArray& z_values;
-				ArdbQueryOptions& z_options;
+				QueryOptions& z_options;
 				ZRevRangeWalk(int start, int stop, StringArray& values,
-				        ArdbQueryOptions& options) :
+				        QueryOptions& options) :
 						rank(0), count(0), z_start(start), z_stop(stop), z_values(
 						        values), z_options(options)
 				{
@@ -705,7 +705,7 @@ namespace ardb
 
 	int Ardb::ZRevRangeByScore(const DBID& db, const Slice& key,
 	        const std::string& max, const std::string& min, StringArray& values,
-	        ArdbQueryOptions& options)
+	        QueryOptions& options)
 	{
 		ZSetMetaValue meta;
 		if (0 != GetZSetMetaValue(db, key, meta))
@@ -725,7 +725,7 @@ namespace ardb
 		struct ZRangeByScoreWalk: public WalkHandler
 		{
 				StringArray& z_values;
-				ArdbQueryOptions& z_options;
+				QueryOptions& z_options;
 				double z_min_score;
 				bool z_containmin;
 				bool z_containmax;
@@ -780,7 +780,7 @@ namespace ardb
 					}
 					return 0;
 				}
-				ZRangeByScoreWalk(StringArray& v, ArdbQueryOptions& options) :
+				ZRangeByScoreWalk(StringArray& v, QueryOptions& options) :
 						z_values(v), z_options(options), z_count(0)
 				{
 				}

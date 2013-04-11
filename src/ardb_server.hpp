@@ -85,6 +85,8 @@ namespace ardb
 			int Echo(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Select(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Quit(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Slaveof(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Shutdown(ArdbConnContext& ctx, ArgumentArray& cmd);
 
 			int Append(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Get(ArdbConnContext& ctx, ArgumentArray& cmd);

@@ -134,6 +134,8 @@ namespace ardb
 				{ "ping", &ArdbServer::Ping, 0, 0 },
 				{ "echo", &ArdbServer::Echo, 1, 1 },
 		        { "quit", &ArdbServer::Quit, 0, 0 },
+		        { "shutdown", &ArdbServer::Shutdown, 0, 1 },
+		        { "slaveof", &ArdbServer::Slaveof, 2, 2 },
 		        { "select",&ArdbServer::Select, 1, 1 },
 		        { "append",&ArdbServer::Append, 2, 2 },
 		        { "get", &ArdbServer::Get,1, 1 },
@@ -338,6 +340,17 @@ namespace ardb
 	{
 		fill_status_reply(ctx.reply, "OK");
 		return -1;
+	}
+
+	int ArdbServer::Shutdown(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		m_service->Stop();
+		return -1;
+	}
+
+	int ArdbServer::Slaveof(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		return 0;
 	}
 
 	void ArdbServer::ProcessRedisCommand(ArdbConnContext& ctx,
