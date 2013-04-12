@@ -84,8 +84,7 @@ namespace ardb
 					if (m_success)
 					{
 						m_engine->CommitBatchWrite();
-					}
-					else
+					} else
 					{
 						m_engine->DiscardBatchWrite();
 					}
@@ -113,49 +112,50 @@ namespace ardb
 			KeyValueEngine* GetDB(const DBID& db);
 
 			int SetExpiration(const DBID& db, const Slice& key,
-			        uint64_t expire);
+					uint64_t expire);
 			int GetValue(const DBID& db, const KeyObject& key, ValueObject* v,
-			        uint64* expire = NULL);
+					uint64* expire = NULL);
 			int SetValue(const DBID& db, KeyObject& key, ValueObject& value,
-			        uint64 expire = 0);
+					uint64 expire = 0);
 			int DelValue(const DBID& db, KeyObject& key);
 			Iterator* FindValue(const DBID& db, KeyObject& key);
 			int SetHashValue(const DBID& db, const Slice& key,
-			        const Slice& field, ValueObject& value);
+					const Slice& field, ValueObject& value);
 			int ListPush(const DBID& db, const Slice& key, const Slice& value,
-			        bool athead, bool onlyexist, double withscore = DBL_MAX);
+					bool athead, bool onlyexist, double withscore = DBL_MAX);
 			int ListPop(const DBID& db, const Slice& key, bool athead,
-			        std::string& value);
+					std::string& value);
 			int GetZSetMetaValue(const DBID& db, const Slice& key,
-			        ZSetMetaValue& meta);
+					ZSetMetaValue& meta);
 			void SetZSetMetaValue(const DBID& db, const Slice& key,
-			        ZSetMetaValue& meta);
+					ZSetMetaValue& meta);
 			int GetSetMetaValue(const DBID& db, const Slice& key,
-			        SetMetaValue& meta);
+					SetMetaValue& meta);
 			void SetSetMetaValue(const DBID& db, const Slice& key,
-			        SetMetaValue& meta);
+					SetMetaValue& meta);
 			int GetTableMetaValue(const DBID& db, const Slice& key,
-			        TableMetaValue& meta);
+					TableMetaValue& meta);
 			void SetTableMetaValue(const DBID& db, const Slice& key,
-			        TableMetaValue& meta);
+					TableMetaValue& meta);
 			int HGetValue(const DBID& db, const Slice& key, const Slice& field,
-			        ValueObject* value);
-			int TGetRowKeys(const DBID& db, const Slice& tableName,
-					Condition& cond, TableMetaValue& meta, TableKeyIndexSet*& results,
-					TableKeyIndexSet*& current, Condition* lastcond);
-			int TGetCol(const DBID& db, const Slice& tableName,
-			        const Slice& col, Conditions& conds, TableMetaValue& meta,
-			        StringArray& values);
+					ValueObject* value);
+			int TInterRowKeys(const DBID& db, const Slice& tableName,
+					Condition& cond, TableKeyIndexSet& interset,
+					TableKeyIndexSet& results);
+			int TUnionRowKeys(const DBID& db, const Slice& tableName,
+					Condition& cond, TableKeyIndexSet& results);
+			int TGetIndexs(const DBID& db, const Slice& tableName,
+					Conditions& conds, TableKeyIndexSet*& indexs, TableKeyIndexSet*& temp);
 			struct WalkHandler
 			{
-					virtual int OnKeyValue(KeyObject* key,
-					        ValueObject* value) = 0;
+					virtual int OnKeyValue(KeyObject* key, ValueObject* value,
+							uint32 cursor) = 0;
 					virtual ~WalkHandler()
 					{
 					}
 			};
 			void Walk(const DBID& db, KeyObject& key, bool reverse,
-			        WalkHandler* handler);
+					WalkHandler* handler);
 			std::string m_err_cause;
 			void SetErrorCause(const std::string& cause)
 			{
@@ -168,14 +168,14 @@ namespace ardb
 			 */
 			int Set(const DBID& db, const Slice& key, const Slice& value);
 			int Set(const DBID& db, const Slice& key, const Slice& value,
-			        int ex, int px, int nxx);
+					int ex, int px, int nxx);
 			int MSet(const DBID& db, SliceArray& keys, SliceArray& values);
 			int MSetNX(const DBID& db, SliceArray& keys, SliceArray& value);
 			int SetNX(const DBID& db, const Slice& key, const Slice& value);
 			int SetEx(const DBID& db, const Slice& key, const Slice& value,
-			        uint32_t secs);
+					uint32_t secs);
 			int PSetEx(const DBID& db, const Slice& key, const Slice& value,
-			        uint32_t ms);
+					uint32_t ms);
 			int Get(const DBID& db, const Slice& key, std::string* value);
 			int MGet(const DBID& db, SliceArray& keys, StringArray& value);
 			int Del(const DBID& db, const Slice& key);
@@ -191,7 +191,7 @@ namespace ardb
 			int Rename(const DBID& db, const Slice& key1, const Slice& key2);
 			int RenameNX(const DBID& db, const Slice& key1, const Slice& key2);
 			int Keys(const DBID& db, const std::string& pattern,
-			        std::list<std::string>& ret)
+					std::list<std::string>& ret)
 			{
 				return -1;
 			}
@@ -200,47 +200,47 @@ namespace ardb
 			int Append(const DBID& db, const Slice& key, const Slice& value);
 			int Decr(const DBID& db, const Slice& key, int64_t& value);
 			int Decrby(const DBID& db, const Slice& key, int64_t decrement,
-			        int64_t& value);
+					int64_t& value);
 			int Incr(const DBID& db, const Slice& key, int64_t& value);
 			int XIncrby(const DBID& db, const Slice& key, int64_t increment);
 			int Incrby(const DBID& db, const Slice& key, int64_t increment,
-			        int64_t& value);
+					int64_t& value);
 			int IncrbyFloat(const DBID& db, const Slice& key, double increment,
-			        double& value);
+					double& value);
 			int GetRange(const DBID& db, const Slice& key, int start, int end,
-			        std::string& valueobj);
+					std::string& valueobj);
 			int SetRange(const DBID& db, const Slice& key, int start,
-			        const Slice& value);
+					const Slice& value);
 			int GetSet(const DBID& db, const Slice& key, const Slice& value,
-			        std::string& valueobj);
+					std::string& valueobj);
 			int BitCount(const DBID& db, const Slice& key, int start, int end);
 			int GetBit(const DBID& db, const Slice& key, int offset);
 			int SetBit(const DBID& db, const Slice& key, uint32_t offset,
-			        uint8_t value);
+					uint8_t value);
 			int BitOP(const DBID& db, const Slice& op, const Slice& dstkey,
-			        SliceArray& keys);
+					SliceArray& keys);
 
 			/*
 			 * Hash operations
 			 */
 			int HSet(const DBID& db, const Slice& key, const Slice& field,
-			        const Slice& value);
+					const Slice& value);
 			int HSetNX(const DBID& db, const Slice& key, const Slice& field,
-			        const Slice& value);
+					const Slice& value);
 			int HDel(const DBID& db, const Slice& key, const Slice& field);
 			bool HExists(const DBID& db, const Slice& key, const Slice& field);
 			int HGet(const DBID& db, const Slice& key, const Slice& field,
-			        std::string* value);
+					std::string* value);
 			int HIncrby(const DBID& db, const Slice& key, const Slice& field,
-			        int64_t increment, int64_t& value);
+					int64_t increment, int64_t& value);
 			int HIncrbyFloat(const DBID& db, const Slice& key,
-			        const Slice& field, double increment, double& value);
+					const Slice& field, double increment, double& value);
 			int HMGet(const DBID& db, const Slice& key,
-			        const SliceArray& fields, StringArray& values);
+					const SliceArray& fields, StringArray& values);
 			int HMSet(const DBID& db, const Slice& key,
-			        const SliceArray& fields, const SliceArray& values);
+					const SliceArray& fields, const SliceArray& values);
 			int HGetAll(const DBID& db, const Slice& key, StringArray& fields,
-			        StringArray& values);
+					StringArray& values);
 			int HKeys(const DBID& db, const Slice& key, StringArray& fields);
 			int HVals(const DBID& db, const Slice& key, StringArray& values);
 			int HLen(const DBID& db, const Slice& key);
@@ -256,15 +256,15 @@ namespace ardb
 			int LPop(const DBID& db, const Slice& key, std::string& v);
 			int RPop(const DBID& db, const Slice& key, std::string& v);
 			int LIndex(const DBID& db, const Slice& key, uint32_t index,
-			        std::string& v);
+					std::string& v);
 			int LInsert(const DBID& db, const Slice& key, const Slice& op,
-			        const Slice& pivot, const Slice& value);
+					const Slice& pivot, const Slice& value);
 			int LRange(const DBID& db, const Slice& key, int start, int end,
-			        StringArray& values);
+					StringArray& values);
 			int LRem(const DBID& db, const Slice& key, int count,
-			        const Slice& value);
+					const Slice& value);
 			int LSet(const DBID& db, const Slice& key, int index,
-			        const Slice& value);
+					const Slice& value);
 			int LTrim(const DBID& db, const Slice& key, int start, int stop);
 			int RPopLPush(const DBID& db, const Slice& key1, const Slice& key2);
 			int LClear(const DBID& db, const Slice& key);
@@ -274,35 +274,35 @@ namespace ardb
 			 * Sorted Set operations
 			 */
 			int ZAdd(const DBID& db, const Slice& key, double score,
-			        const Slice& value);
+					const Slice& value);
 			int ZCard(const DBID& db, const Slice& key);
 			int ZScore(const DBID& db, const Slice& key, const Slice& value,
-			        double& score);
+					double& score);
 			int ZRem(const DBID& db, const Slice& key, const Slice& value);
 			int ZCount(const DBID& db, const Slice& key, const std::string& min,
-			        const std::string& max);
+					const std::string& max);
 			int ZIncrby(const DBID& db, const Slice& key, double increment,
-			        const Slice& value, double& score);
+					const Slice& value, double& score);
 			int ZRank(const DBID& db, const Slice& key, const Slice& member);
 			int ZRevRank(const DBID& db, const Slice& key, const Slice& member);
 			int ZRemRangeByRank(const DBID& db, const Slice& key, int start,
-			        int stop);
+					int stop);
 			int ZRemRangeByScore(const DBID& db, const Slice& key,
-			        const std::string& min, const std::string& max);
+					const std::string& min, const std::string& max);
 			int ZRange(const DBID& db, const Slice& key, int start, int stop,
-			        StringArray& values, QueryOptions& options);
+					StringArray& values, QueryOptions& options);
 			int ZRangeByScore(const DBID& db, const Slice& key,
-			        const std::string& min, const std::string& max,
-			        StringArray& values, QueryOptions& options);
+					const std::string& min, const std::string& max,
+					StringArray& values, QueryOptions& options);
 			int ZRevRange(const DBID& db, const Slice& key, int start, int stop,
-			        StringArray& values, QueryOptions& options);
+					StringArray& values, QueryOptions& options);
 			int ZRevRangeByScore(const DBID& db, const Slice& key,
-			        const std::string& max, const std::string& min,
-			        StringArray& values, QueryOptions& options);
+					const std::string& max, const std::string& min,
+					StringArray& values, QueryOptions& options);
 			int ZUnionStore(const DBID& db, const Slice& dst, SliceArray& keys,
-			        WeightArray& weights, AggregateType type = AGGREGATE_SUM);
+					WeightArray& weights, AggregateType type = AGGREGATE_SUM);
 			int ZInterStore(const DBID& db, const Slice& dst, SliceArray& keys,
-			        WeightArray& weights, AggregateType type = AGGREGATE_SUM);
+					WeightArray& weights, AggregateType type = AGGREGATE_SUM);
 			int ZClear(const DBID& db, const Slice& key);
 
 			/*
@@ -316,13 +316,13 @@ namespace ardb
 			int SInter(const DBID& db, SliceArray& keys, StringArray& values);
 			int SInterStore(const DBID& db, const Slice& dst, SliceArray& keys);
 			bool SIsMember(const DBID& db, const Slice& key,
-			        const Slice& value);
+					const Slice& value);
 			int SRem(const DBID& db, const Slice& key, const Slice& value);
 			int SMove(const DBID& db, const Slice& src, const Slice& dst,
-			        const Slice& value);
+					const Slice& value);
 			int SPop(const DBID& db, const Slice& key, std::string& value);
 			int SRandMember(const DBID& db, const Slice& key,
-			        StringArray& values, int count = 1);
+					StringArray& values, int count = 1);
 			int SUnion(const DBID& db, SliceArray& keys, StringArray& values);
 			int SUnionStore(const DBID& db, const Slice& dst, SliceArray& keys);
 			int SClear(const DBID& db, const Slice& key);
@@ -331,16 +331,16 @@ namespace ardb
 			 * Table operations
 			 */
 			int TCreate(const DBID& db, const Slice& tableName,
-			        SliceArray& keys);
+					SliceArray& keys);
 			int TGet(const DBID& db, const Slice& tableName,
-			        const SliceArray& cols, Conditions& conds,
-			        StringArray& values);
-			int TSet(const DBID& db, const Slice& tableName,
-			        const SliceArray& fields, KeyCondition& conds,
-			        const StringArray& values);
+					const SliceArray& cols, Conditions& conds,
+					StringArray& values);
+			int TUpdate(const DBID& db, const Slice& tableName,
+					const SliceMap& colvals, Conditions& conds);
+			int TReplace(const DBID& db, const Slice& tableName,
+								const SliceMap& keyvals, const SliceMap& colvals);
 			int TDel(const DBID& db, const Slice& tableName,
-			        const SliceArray& fields, KeyCondition& conds,
-			        const StringArray& values);
+					const SliceArray& fields, Conditions& conds);
 			int TClear(const DBID& db, const Slice& tableName);
 			int TCount(const DBID& db, const Slice& tableName);
 
@@ -353,7 +353,7 @@ namespace ardb
 
 			int Type(const DBID& db, const Slice& key);
 			int Sort(const DBID& db, const Slice& key, const StringArray& args,
-			        StringArray& values);
+					StringArray& values);
 
 	};
 }

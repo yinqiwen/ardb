@@ -128,7 +128,7 @@ namespace ardb
 				double next_score;
 				bool found;
 				const Slice& cmp_value;
-				int OnKeyValue(KeyObject* k, ValueObject* v)
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					ListKeyObject* sek = (ListKeyObject*) k;
 					if (found && !before_pivot)
@@ -214,7 +214,7 @@ namespace ardb
 			struct LPopWalk: public WalkHandler
 			{
 					std::string pop_value;
-					int OnKeyValue(KeyObject* k, ValueObject* v)
+					int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 					{
 						pop_value.assign(v->ToString());
 						return -1;
@@ -252,7 +252,7 @@ namespace ardb
 				int cursor;
 				int index;
 				std::string& found_value;
-				int OnKeyValue(KeyObject* k, ValueObject* v)
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					ListKeyObject* lck = (ListKeyObject*)k;
 					if (cursor == index)
@@ -311,7 +311,7 @@ namespace ardb
 				int l_start;
 				int l_stop;
 				StringArray& found_values;
-				int OnKeyValue(KeyObject* k, ValueObject* v)
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					if (cursor >= l_start && cursor <= l_stop)
 					{
@@ -342,7 +342,7 @@ namespace ardb
 				Ardb* z_db;
 				DBID z_dbid;
 				int x;
-				int OnKeyValue(KeyObject* k, ValueObject* v)
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					ListKeyObject* sek = (ListKeyObject*) k;
 					z_db->DelValue(z_dbid, *sek);
@@ -393,7 +393,7 @@ namespace ardb
 				const Slice& cmp_value;
 				int remcount;
 				int rem_total;
-				int OnKeyValue(KeyObject* k, ValueObject* v)
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					ListKeyObject* sek = (ListKeyObject*) k;
 					Slice cmp(v->v.raw->GetRawReadBuffer(),
@@ -446,7 +446,7 @@ namespace ardb
 				const Slice& set_value;
 				int cursor;
 				int dst_idx;
-				int OnKeyValue(KeyObject* k, ValueObject* v)
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					ListKeyObject* sek = (ListKeyObject*) k;
 					if (cursor == dst_idx)

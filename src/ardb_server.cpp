@@ -6,7 +6,7 @@
  */
 #include "ardb_server.hpp"
 #include <stdarg.h>
-#define __USE_KYOTOCABINET__ 1
+//#define __USE_KYOTOCABINET__ 1
 #ifdef __USE_KYOTOCABINET__
 #include "engine/kyotocabinet_engine.hpp"
 #else
@@ -154,7 +154,7 @@ namespace ardb
 	}
 	ArdbServer::~ArdbServer()
 	{
-		DELETE(m_service);
+
 	}
 
 	int ArdbServer::Expire(ArdbConnContext& ctx, ArgumentArray& cmd)
@@ -498,6 +498,7 @@ namespace ardb
 		m_service->Start();
 		DELETE(m_engine);
 		DELETE(m_db);
+		DELETE(m_service);
 		return 0;
 	}
 }

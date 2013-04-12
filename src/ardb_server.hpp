@@ -54,7 +54,7 @@ namespace ardb
 			Channel* conn;
 			ArdbReply reply;
 			ArdbConnContext() :
-					currentDB(0), conn(NULL)
+					conn(NULL)
 			{
 			}
 	};

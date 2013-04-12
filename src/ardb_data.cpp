@@ -9,6 +9,7 @@
 
 namespace ardb
 {
+
 	SetKeyObject::SetKeyObject(const Slice& k, const ValueObject& v) :
 			KeyObject(k, SET_ELEMENT), value(v)
 	{

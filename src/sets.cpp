@@ -137,7 +137,7 @@ namespace ardb
 		struct SMembersWalk: public WalkHandler
 		{
 				StringArray& z_values;
-				int OnKeyValue(KeyObject* k, ValueObject* v)
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					SetKeyObject* sek = (SetKeyObject*) k;
 					z_values.push_back(sek->value.ToString());
@@ -160,7 +160,7 @@ namespace ardb
 		{
 				Ardb* z_db;
 				DBID z_dbid;
-				int OnKeyValue(KeyObject* k, ValueObject* v)
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					SetKeyObject* sek = (SetKeyObject*) k;
 					z_db->DelValue(z_dbid, *sek);
@@ -199,7 +199,7 @@ namespace ardb
 				int idx;
 				ValueSet& vset;
 				ValueObject vlimit;
-				int OnKeyValue(KeyObject* k, ValueObject* v)
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					SetKeyObject* sek = (SetKeyObject*) k;
 					if (idx == 0)
@@ -359,7 +359,7 @@ namespace ardb
 								NULL), current_max(NULL)
 				{
 				}
-				int OnKeyValue(KeyObject* k, ValueObject* value)
+				int OnKeyValue(KeyObject* k, ValueObject* value, uint32 cursor)
 				{
 					SetKeyObject* sk = (SetKeyObject*) k;
 					if (sk->value.Compare(s_min) < 0)

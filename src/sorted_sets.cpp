@@ -192,7 +192,7 @@ namespace ardb
 		{
 				Ardb* z_db;
 				DBID z_dbid;
-				int OnKeyValue(KeyObject* k, ValueObject* value)
+				int OnKeyValue(KeyObject* k, ValueObject* value, uint32 cursor)
 				{
 					ZSetKeyObject* sek = (ZSetKeyObject*) k;
 					ZSetScoreKeyObject tmp(sek->key, sek->value);
@@ -253,7 +253,7 @@ namespace ardb
 				double z_max_score;
 				bool z_containmax;
 				int count;
-				int OnKeyValue(KeyObject* k, ValueObject* v)
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					ZSetKeyObject* zko = (ZSetKeyObject*) k;
 					//DEBUG_LOG("Enter with %f %f ", zko->score, z_max_score);
@@ -299,7 +299,7 @@ namespace ardb
 				int rank;
 				ValueObject z_member;
 				int foundRank;
-				int OnKeyValue(KeyObject* k, ValueObject* v)
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					if (rank < 0)
 						rank = 0;
@@ -336,7 +336,7 @@ namespace ardb
 				int rank;
 				ValueObject z_member;
 				int foundRank;
-				int OnKeyValue(KeyObject* k, ValueObject* v)
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					if (rank < 0)
 						rank = 0;
@@ -390,7 +390,7 @@ namespace ardb
 				int z_stop;
 				ZSetMetaValue& z_meta;
 				int z_count;
-				int OnKeyValue(KeyObject* k, ValueObject* v)
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					ZSetKeyObject* zsk = (ZSetKeyObject*) k;
 					if (rank >= z_start && rank <= z_stop)
@@ -449,7 +449,7 @@ namespace ardb
 				double z_max_score;
 				ZSetMetaValue& z_meta;
 				int z_count;
-				int OnKeyValue(KeyObject* k, ValueObject* v)
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					ZSetKeyObject* zsk = (ZSetKeyObject*) k;
 					bool need_delete = false;
@@ -521,7 +521,7 @@ namespace ardb
 				StringArray& z_values;
 				QueryOptions& z_options;
 				int z_count;
-				int OnKeyValue(KeyObject* k, ValueObject* v)
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					ZSetKeyObject* zsk = (ZSetKeyObject*) k;
 					if (rank >= z_start && rank <= z_stop)
@@ -581,7 +581,7 @@ namespace ardb
 				bool z_containmax;
 				double z_max_score;
 				int z_count;
-				int OnKeyValue(KeyObject* k, ValueObject* v)
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					ZSetKeyObject* zsk = (ZSetKeyObject*) k;
 					bool inrange = false;
@@ -679,7 +679,7 @@ namespace ardb
 						        values), z_options(options)
 				{
 				}
-				int OnKeyValue(KeyObject* k, ValueObject* v)
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					ZSetKeyObject* zsk = (ZSetKeyObject*) k;
 					if (rank >= z_start && rank <= z_stop)
@@ -731,7 +731,7 @@ namespace ardb
 				bool z_containmax;
 				double z_max_score;
 				int z_count;
-				int OnKeyValue(KeyObject* k, ValueObject* v)
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					ZSetKeyObject* zsk = (ZSetKeyObject*) k;
 					bool inrange = false;
@@ -811,7 +811,7 @@ namespace ardb
 						z_weight(ws), z_vm(vm), z_aggre_type(type)
 				{
 				}
-				int OnKeyValue(KeyObject* k, ValueObject* value)
+				int OnKeyValue(KeyObject* k, ValueObject* value, uint32 cursor)
 				{
 					ZSetKeyObject* zsk = (ZSetKeyObject*) k;
 					double score = 0;
@@ -937,7 +937,7 @@ namespace ardb
 						        type)
 				{
 				}
-				int OnKeyValue(KeyObject* k, ValueObject* value)
+				int OnKeyValue(KeyObject* k, ValueObject* value, uint32 cursor)
 				{
 					ZSetKeyObject* zsk = (ZSetKeyObject*) k;
 					if ((&z_cmp != &z_result) && z_cmp.count(zsk->value) == 0)

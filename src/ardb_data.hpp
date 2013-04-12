@@ -46,7 +46,7 @@ namespace ardb
 
 	enum ValueDataType
 	{
-		EMPTY = 0, INTEGER = 1, DOUBLE = 2, RAW = 3
+		EMPTY = 0, INTEGER = 1, DOUBLE = 2, RAW = 3, VALUE_END = 255
 	};
 
 	struct KeyObject
@@ -54,8 +54,8 @@ namespace ardb
 			KeyType type;
 			Slice key;
 
-			KeyObject(const Slice& k, KeyType T = KV)
-					: type(T), key(k)
+			KeyObject(const Slice& k, KeyType T = KV) :
+					type(T), key(k)
 			{
 			}
 			virtual ~KeyObject()
@@ -73,23 +73,23 @@ namespace ardb
 					Buffer* raw;
 			} v;
 			//uint64_t expire;
-			ValueObject()
-					: type(EMPTY)
+			ValueObject() :
+					type(EMPTY)
 			{
 				v.int_v = 0;
 			}
-			ValueObject(int64_t iv)
-					: type(INTEGER)
+			ValueObject(int64_t iv) :
+					type(INTEGER)
 			{
 				v.int_v = iv;
 			}
-			ValueObject(double dv)
-					: type(DOUBLE)
+			ValueObject(double dv) :
+					type(DOUBLE)
 			{
 				v.double_v = dv;
 			}
-			ValueObject(const ValueObject& other)
-					: type(EMPTY)
+			ValueObject(const ValueObject& other) :
+					type(EMPTY)
 			{
 				v.int_v = 0;
 				Copy(other);
@@ -216,17 +216,57 @@ namespace ardb
 	typedef std::deque<ValueObject> ValueArray;
 	typedef std::deque<Slice> SliceArray;
 	typedef std::deque<std::string> StringArray;
+	typedef std::map<std::string, Slice> SliceMap;
 	typedef std::set<std::string> StringSet;
 	typedef std::vector<uint32_t> WeightArray;
 
-	typedef std::map<std::string, Slice> KeyCondition;
+	enum CompareOperator
+	{
+		CMP_EQAUL = 1,
+		CMP_GREATE = 2,
+		CMP_GREATE_EQ = 3,
+		CMP_LESS = 4,
+		CMP_LESS_EQ = 5,
+		CMP_NOTEQ = 6
+	};
+	enum LogicalOperator
+	{
+		LOGIC_AND = 1, LOGIC_OR = 2
+	};
 
 	struct Condition
 	{
 			std::string keyname;
-			std::string cmp;
-			Slice keyvalue;
-			std::string logicop;
+			CompareOperator cmp;
+			ValueObject keyvalue;
+			LogicalOperator logicop;
+
+			Condition(const std::string& name, const Slice& value,
+					CompareOperator compareop, LogicalOperator logic);
+
+			bool MatchValue(const ValueObject& v, int& cmpret)
+			{
+				int ret = keyvalue.Compare(v);
+				cmpret = ret;
+				switch (cmp)
+				{
+					case CMP_EQAUL:
+						return ret == 0;
+					case CMP_GREATE:
+						return ret > 0;
+					case CMP_GREATE_EQ:
+						return ret >= 0;
+					case CMP_LESS:
+						return ret < 0;
+					case CMP_LESS_EQ:
+						return ret <= 0;
+					case CMP_NOTEQ:
+						return ret != 0;
+					default:
+						return false;
+				}
+			}
+
 	};
 	typedef std::vector<Condition> Conditions;
 
@@ -251,8 +291,8 @@ namespace ardb
 			uint32_t size;
 			double min_score;
 			double max_score;
-			ZSetMetaValue()
-					: size(0), min_score(0), max_score(0)
+			ZSetMetaValue() :
+					size(0), min_score(0), max_score(0)
 			{
 			}
 	};
@@ -269,8 +309,8 @@ namespace ardb
 			uint32_t size;
 			ValueObject min;
 			ValueObject max;
-			SetMetaValue()
-					: size(0)
+			SetMetaValue() :
+					size(0)
 			{
 			}
 	};
@@ -278,8 +318,8 @@ namespace ardb
 	struct HashKeyObject: public KeyObject
 	{
 			Slice field;
-			HashKeyObject(const Slice& k, const Slice& f)
-					: KeyObject(k, HASH_FIELD), field(f)
+			HashKeyObject(const Slice& k, const Slice& f) :
+					KeyObject(k, HASH_FIELD), field(f)
 			{
 			}
 	};
@@ -287,8 +327,8 @@ namespace ardb
 	struct ListKeyObject: public KeyObject
 	{
 			double score;
-			ListKeyObject(const Slice& k, double s)
-					: KeyObject(k, LIST_ELEMENT), score(s)
+			ListKeyObject(const Slice& k, double s) :
+					KeyObject(k, LIST_ELEMENT), score(s)
 			{
 			}
 	};
@@ -298,8 +338,8 @@ namespace ardb
 			uint32_t size;
 			double min_score;
 			double max_score;
-			ListMetaValue()
-					: size(0), min_score(0), max_score(0)
+			ListMetaValue() :
+					size(0), min_score(0), max_score(0)
 			{
 			}
 	};
@@ -308,8 +348,8 @@ namespace ardb
 	{
 			uint32_t size;
 			StringArray keynames;
-			TableMetaValue()
-					: size(0)
+			TableMetaValue() :
+					size(0)
 			{
 			}
 	};
@@ -323,7 +363,7 @@ namespace ardb
 				{
 					return false;
 				}
-				for (int i = 0; i < keyvals.size(); i++)
+				for (uint32 i = 0; i < keyvals.size(); i++)
 				{
 					int cmp = keyvals[i].Compare(other.keyvals[i]);
 					if (cmp != 0)
@@ -341,10 +381,10 @@ namespace ardb
 			ValueObject keyvalue;
 			TableKeyIndex index;
 			TableIndexKeyObject(const Slice& tablename, const Slice& keyname,
-					const Slice& v)
-					: KeyObject(tablename, TABLE_INDEX), kname(keyname)
+					const ValueObject& v) :
+					KeyObject(tablename, TABLE_INDEX), kname(keyname), keyvalue(
+							v)
 			{
-				smart_fill_value(v, keyvalue);
 			}
 	};
 
@@ -352,8 +392,8 @@ namespace ardb
 	{
 			Slice col;
 			ValueArray keyvals;
-			TableColKeyObject(const Slice& tablename, const Slice& c)
-					: KeyObject(tablename, TABLE_COL), col(c)
+			TableColKeyObject(const Slice& tablename, const Slice& c) :
+					KeyObject(tablename, TABLE_COL), col(c)
 			{
 			}
 	};
@@ -369,8 +409,8 @@ namespace ardb
 			bool withlimit;
 			int limit_offset;
 			int limit_count;
-			QueryOptions()
-					: withscores(false), withlimit(false), limit_offset(0), limit_count(
+			QueryOptions() :
+					withscores(false), withlimit(false), limit_offset(0), limit_count(
 							0)
 			{
 			}

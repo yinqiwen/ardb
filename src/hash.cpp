@@ -106,7 +106,7 @@ namespace ardb
 		{
 				Ardb* z_db;
 				DBID z_dbid;
-				int OnKeyValue(KeyObject* k, ValueObject* v)
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					HashKeyObject* sek = (HashKeyObject*) k;
 					z_db->DelValue(z_dbid, *sek);

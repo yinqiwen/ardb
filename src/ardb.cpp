@@ -125,10 +125,12 @@ namespace ardb
 	{
 	}
 
-	void Ardb::Walk(const DBID& db, KeyObject& key, bool reverse, WalkHandler* handler)
+	void Ardb::Walk(const DBID& db, KeyObject& key, bool reverse,
+			WalkHandler* handler)
 	{
 		Iterator* iter = FindValue(db, key);
 		bool isFirstElement = true;
+		uint32 cursor = 0;
 		while (NULL != iter && iter->Valid())
 		{
 			Slice tmpkey = iter->Key();
@@ -150,7 +152,7 @@ namespace ardb
 			Buffer readbuf(const_cast<char*>(iter->Value().data()), 0,
 					iter->Value().size());
 			decode_value(readbuf, v);
-			int ret = handler->OnKeyValue(kk, &v);
+			int ret = handler->OnKeyValue(kk, &v, cursor++);
 			DELETE(kk);
 			if (ret < 0)
 			{
