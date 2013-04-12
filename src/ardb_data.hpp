@@ -54,8 +54,8 @@ namespace ardb
 			KeyType type;
 			Slice key;
 
-			KeyObject(const Slice& k, KeyType T = KV) :
-					type(T), key(k)
+			KeyObject(const Slice& k, KeyType T = KV)
+					: type(T), key(k)
 			{
 			}
 			virtual ~KeyObject()
@@ -73,23 +73,23 @@ namespace ardb
 					Buffer* raw;
 			} v;
 			//uint64_t expire;
-			ValueObject() :
-					type(EMPTY)
+			ValueObject()
+					: type(EMPTY)
 			{
 				v.int_v = 0;
 			}
-			ValueObject(int64_t iv) :
-					type(INTEGER)
+			ValueObject(int64_t iv)
+					: type(INTEGER)
 			{
 				v.int_v = iv;
 			}
-			ValueObject(double dv) :
-					type(DOUBLE)
+			ValueObject(double dv)
+					: type(DOUBLE)
 			{
 				v.double_v = dv;
 			}
-			ValueObject(const ValueObject& other) :
-					type(EMPTY)
+			ValueObject(const ValueObject& other)
+					: type(EMPTY)
 			{
 				v.int_v = 0;
 				Copy(other);
@@ -116,19 +116,19 @@ namespace ardb
 						Buffer tmp(64);
 						tmp.Printf("%lld", v.int_v);
 						return std::string(tmp.GetRawReadBuffer(),
-						        tmp.ReadableBytes());
+								tmp.ReadableBytes());
 					}
 					case DOUBLE:
 					{
 						Buffer tmp(64);
 						tmp.Printf("%f", v.double_v);
 						return std::string(tmp.GetRawReadBuffer(),
-						        tmp.ReadableBytes());
+								tmp.ReadableBytes());
 					}
 					default:
 					{
 						return std::string(v.raw->GetRawReadBuffer(),
-						        v.raw->ReadableBytes());
+								v.raw->ReadableBytes());
 					}
 				}
 			}
@@ -165,7 +165,7 @@ namespace ardb
 					{
 						v.raw = new Buffer(other.v.raw->ReadableBytes());
 						v.raw->Write(other.v.raw->GetRawReadBuffer(),
-						        other.v.raw->ReadableBytes());
+								other.v.raw->ReadableBytes());
 						return;
 					}
 				}
@@ -193,9 +193,9 @@ namespace ardb
 					default:
 					{
 						Slice a(v.raw->GetRawReadBuffer(),
-						        v.raw->ReadableBytes());
+								v.raw->ReadableBytes());
 						Slice b(other.v.raw->GetRawReadBuffer(),
-						        other.v.raw->ReadableBytes());
+								other.v.raw->ReadableBytes());
 						return a.compare(b);
 					}
 				}
@@ -251,8 +251,8 @@ namespace ardb
 			uint32_t size;
 			double min_score;
 			double max_score;
-			ZSetMetaValue() :
-					size(0), min_score(0), max_score(0)
+			ZSetMetaValue()
+					: size(0), min_score(0), max_score(0)
 			{
 			}
 	};
@@ -269,8 +269,8 @@ namespace ardb
 			uint32_t size;
 			ValueObject min;
 			ValueObject max;
-			SetMetaValue() :
-					size(0)
+			SetMetaValue()
+					: size(0)
 			{
 			}
 	};
@@ -278,8 +278,8 @@ namespace ardb
 	struct HashKeyObject: public KeyObject
 	{
 			Slice field;
-			HashKeyObject(const Slice& k, const Slice& f) :
-					KeyObject(k, HASH_FIELD), field(f)
+			HashKeyObject(const Slice& k, const Slice& f)
+					: KeyObject(k, HASH_FIELD), field(f)
 			{
 			}
 	};
@@ -287,8 +287,8 @@ namespace ardb
 	struct ListKeyObject: public KeyObject
 	{
 			double score;
-			ListKeyObject(const Slice& k, double s) :
-					KeyObject(k, LIST_ELEMENT), score(s)
+			ListKeyObject(const Slice& k, double s)
+					: KeyObject(k, LIST_ELEMENT), score(s)
 			{
 			}
 	};
@@ -298,8 +298,8 @@ namespace ardb
 			uint32_t size;
 			double min_score;
 			double max_score;
-			ListMetaValue() :
-					size(0), min_score(0), max_score(0)
+			ListMetaValue()
+					: size(0), min_score(0), max_score(0)
 			{
 			}
 	};
@@ -308,25 +308,41 @@ namespace ardb
 	{
 			uint32_t size;
 			StringArray keynames;
-			TableMetaValue() :
-					size(0)
+			TableMetaValue()
+					: size(0)
 			{
 			}
 	};
 
-	struct TableIndexValue
+	struct TableKeyIndex
 	{
 			ValueArray keyvals;
+			inline bool operator<(const TableKeyIndex& other) const
+			{
+				if (keyvals.size() > other.keyvals.size())
+				{
+					return false;
+				}
+				for (int i = 0; i < keyvals.size(); i++)
+				{
+					int cmp = keyvals[i].Compare(other.keyvals[i]);
+					if (cmp != 0)
+					{
+						return cmp > 0 ? false : true;
+					}
+				}
+				return false;
+			}
 	};
 
 	struct TableIndexKeyObject: public KeyObject
 	{
 			Slice kname;
 			ValueObject keyvalue;
-			ValueArray keys;
+			TableKeyIndex index;
 			TableIndexKeyObject(const Slice& tablename, const Slice& keyname,
-			        const Slice& v) :
-					KeyObject(tablename, TABLE_INDEX), kname(keyname)
+					const Slice& v)
+					: KeyObject(tablename, TABLE_INDEX), kname(keyname)
 			{
 				smart_fill_value(v, keyvalue);
 			}
@@ -336,8 +352,8 @@ namespace ardb
 	{
 			Slice col;
 			ValueArray keyvals;
-			TableColKeyObject(const Slice& tablename, const Slice& c) :
-					KeyObject(tablename, TABLE_COL), col(c)
+			TableColKeyObject(const Slice& tablename, const Slice& c)
+					: KeyObject(tablename, TABLE_COL), col(c)
 			{
 			}
 	};
@@ -353,16 +369,19 @@ namespace ardb
 			bool withlimit;
 			int limit_offset;
 			int limit_count;
-			QueryOptions() :
-					withscores(false), withlimit(false), limit_offset(0), limit_count(
-					        0)
+			QueryOptions()
+					: withscores(false), withlimit(false), limit_offset(0), limit_count(
+							0)
 			{
 			}
 	};
 
+	//typedef ValueArray TableKeyElement;
+
 	typedef std::vector<ZSetMetaValue> ZSetMetaValueArray;
 	typedef std::vector<SetMetaValue> SetMetaValueArray;
 	typedef std::deque<TableIndexKeyObject> TableRowKeyArray;
+	typedef std::set<TableKeyIndex> TableKeyIndexSet;
 
 	void encode_key(Buffer& buf, const KeyObject& key);
 	KeyObject* decode_key(const Slice& key);

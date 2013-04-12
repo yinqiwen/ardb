@@ -16,7 +16,7 @@ namespace ardb
 		}
 		uint32 len;
 		if (!BufferHelper::ReadVarUInt32(*(v.v.raw), meta.size)
-		        || !BufferHelper::ReadVarUInt32(*(v.v.raw), len))
+				|| !BufferHelper::ReadVarUInt32(*(v.v.raw), len))
 		{
 			return false;
 		}
@@ -49,10 +49,10 @@ namespace ardb
 	typedef std::map<std::string, TableMetaValue> TableMetaValueCache;
 	static TableMetaValueCache kMetaCache;
 	int Ardb::GetTableMetaValue(const DBID& db, const Slice& tableName,
-	        TableMetaValue& meta)
+			TableMetaValue& meta)
 	{
 		TableMetaValueCache::iterator found = kMetaCache.find(
-		        std::string(tableName.data(), tableName.size()));
+				std::string(tableName.data(), tableName.size()));
 		if (found != kMetaCache.end())
 		{
 			meta = found->second;
@@ -72,7 +72,7 @@ namespace ardb
 		return ERR_NOT_EXIST;
 	}
 	void Ardb::SetTableMetaValue(const DBID& db, const Slice& tableName,
-	        TableMetaValue& meta)
+			TableMetaValue& meta)
 	{
 		KeyObject k(tableName, TABLE_META);
 		ValueObject v;
@@ -81,7 +81,7 @@ namespace ardb
 	}
 
 	int Ardb::TCreate(const DBID& db, const Slice& tableName,
-	        SliceArray& keynames)
+			SliceArray& keynames)
 	{
 		TableMetaValue meta;
 		if (0 == GetTableMetaValue(db, tableName, meta))
@@ -100,58 +100,81 @@ namespace ardb
 	}
 
 	int Ardb::TGetRowKeys(const DBID& db, const Slice& tableName,
-	        Condition& cond, TableMetaValue& meta, TableRowKeyArray& ks)
+			Condition& cond, TableMetaValue& meta, TableKeyIndexSet*& results,
+			TableKeyIndexSet*& current, Condition* lastcond)
 	{
 		TableIndexKeyObject index(tableName, cond.keyname, cond.keyvalue);
+		bool interop = false;
+		if (NULL != lastcond && lastcond->logicop == "and" && current != results)
+		{
+			interop = true;
+		}
 		bool reverse = (cond.cmp == "<" || cond.cmp == "<=");
-		bool containmatch = (cond.cmp.find("=") != std::string::npos);
 		struct TIndexWalk: public WalkHandler
 		{
-				Slice kname;
-				TableRowKeyArray& t_ks;
+				Condition& icond;
+				ValueObject condStart;
+				ValueObject consEnd;
+				TableKeyIndexSet*& t_res;
+				TableKeyIndexSet*& t_cmp;
 				int OnKeyValue(KeyObject* k, ValueObject* v)
 				{
 					TableIndexKeyObject* sek = (TableIndexKeyObject*) k;
-					if (sek->kname.compare(kname) != 0)
+					if (sek->kname.compare(icond.keyname) != 0)
 					{
 						return -1;
 					}
-					ks.push_back(*sek);
+
+					if (interop)
+					{
+
+					}
+					if (icond.cmp == "==")
+					{
+						if (sek->keyvalue.Compare(condVal) == 0)
+						{
+							ks.push_back(*sek);
+						}
+						return -1;
+					} else if (icond.cmp == ">" || icond.cmp == "<")
+					{
+						if (sek->keyvalue.Compare(condVal) == 0)
+						{
+							return 0;
+						}
+					}
+					//t_res.push_back(sek->keyvalue);
 					return 0;
 				}
-				TIndexWalk(TableRowKeyArray& ks, const Slice& s) :
-						kname(s), t_ks(ks)
+				TIndexWalk(TableKeyIndexSet*& ks, TableKeyIndexSet*& cmp, Condition& c)
+						: icond(c), t_res(ks), t_cmp(cmp)
 				{
+					smart_fill_value(icond.keyvalue, condVal);
 				}
-		} walk(ks, cond.keyname);
+		} walk(results, current, cond);
 		Walk(db, index, reverse, &walk);
-		if(!containmatch && ks.size() > 0)
-		{
-			if(ks[0].keyvalue.Compare(index.keyvalue) == 0)
-			{
-				ks.pop_front();
-			}
-		}
 		return 0;
 	}
 
 	int Ardb::TGetCol(const DBID& db, const Slice& tableName, const Slice& col,
-	        Conditions& conds, TableMetaValue& meta, StringArray& values)
+			Conditions& conds, TableMetaValue& meta, StringArray& values)
 	{
-		Conditions::iterator it = conds.begin();
-		while (it != conds.end())
+		TableKeyIndexSet kss;
+		for (int i = 0; i < conds.size(); i++)
 		{
-			Condition& cond = *it;
-			//TableIndexKeyObject row(tableName, cond.keyname, cond.keyvalue);
-			//TGetRowKeys
-			it++;
+			Condition& cond = conds[i];
+			Condition* lastcond = NULL;
+			if (i > 0)
+			{
+				lastcond = conds[i - 1];
+			}
+			TGetRowKeys(db, tableName, cond, meta, kss, lastcond);
 		}
 
-		TableRowKeyArray result;
-		TableRowKeyArray::iterator vit = result.begin();
-		while (vit != result.end())
+		TableRowKeyArray::iterator vit = kss[0].begin();
+		while (vit != kss[kss.size() - 1].end())
 		{
-			TableIndexKeyObject& row = *it;
+			TableIndexKeyObject& row = *vit;
 			TableColKeyObject k(tableName, col);
 			k.keyvals = row.keys;
 			ValueObject v;
@@ -159,25 +182,24 @@ namespace ardb
 			values.push_back(v.ToString());
 			vit++;
 		}
-
 		return 0;
 	}
 
 	int Ardb::TGet(const DBID& db, const Slice& tableName,
-	        const SliceArray& cols, Conditions& conds, StringArray& values)
+			const SliceArray& cols, Conditions& conds, StringArray& values)
 	{
 
 		return 0;
 	}
 	int Ardb::TSet(const DBID& db, const Slice& tableName,
-	        const SliceArray& fields, KeyCondition& conds,
-	        const StringArray& values)
+			const SliceArray& fields, KeyCondition& conds,
+			const StringArray& values)
 	{
 		return 0;
 	}
 	int Ardb::TDel(const DBID& db, const Slice& tableName,
-	        const SliceArray& fields, KeyCondition& conds,
-	        const StringArray& values)
+			const SliceArray& fields, KeyCondition& conds,
+			const StringArray& values)
 	{
 		return 0;
 	}
@@ -187,9 +209,10 @@ namespace ardb
 	}
 	int Ardb::TCount(const DBID& db, const Slice& tableName)
 	{
-		//TableMetaKeyObject meta;
+		TableMetaValue meta;
+		GetTableMetaValue(db, tableName, meta);
 		//return meta.size;
-		return 0;
+		return meta.size;
 	}
 }
 

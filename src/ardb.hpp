@@ -141,7 +141,8 @@ namespace ardb
 			int HGetValue(const DBID& db, const Slice& key, const Slice& field,
 			        ValueObject* value);
 			int TGetRowKeys(const DBID& db, const Slice& tableName,
-			        Condition& cond, TableMetaValue& meta, TableRowKeyArray& ks);
+					Condition& cond, TableMetaValue& meta, TableKeyIndexSet*& results,
+					TableKeyIndexSet*& current, Condition* lastcond);
 			int TGetCol(const DBID& db, const Slice& tableName,
 			        const Slice& col, Conditions& conds, TableMetaValue& meta,
 			        StringArray& values);
