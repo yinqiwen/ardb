@@ -87,9 +87,17 @@ namespace ardb
 			int Quit(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Slaveof(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Shutdown(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Type(ArdbConnContext& ctx, ArgumentArray& cmd);
 
 			int Append(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Bitcount(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Bitop(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Decr(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Decrby(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Get(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int GetBit(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int GetRange(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int GetSet(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Set(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Del(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Exists(ArdbConnContext& ctx, ArgumentArray& cmd);

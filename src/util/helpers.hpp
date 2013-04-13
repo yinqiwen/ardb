@@ -158,8 +158,20 @@ namespace ardb
 		{
 			return false;
 		}
-		value = val;
-		return true;
+		bool founddot = false;
+		for(int i = 0; i<slen;i++)
+		{
+			if(str[i] == '.')
+			{
+				founddot = true;
+				break;
+			}
+		}
+		if(founddot)
+		{
+			value = val;
+		}
+		return founddot;
 	}
 }
 

@@ -210,6 +210,7 @@ namespace ardb
 	{
 		if (Get(db, key, &v) < 0)
 		{
+			Set(db, key, value);
 			return ERR_NOT_EXIST;
 		}
 		return Set(db, key, value);

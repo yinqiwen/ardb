@@ -281,6 +281,11 @@ namespace ardb
 				{
 					KeyObject lk(key, LIST_META);
 					GET_KEY_TYPE(db, lk, type);
+					if(type < 0)
+					{
+						KeyObject tk(key, TABLE_META);
+						GET_KEY_TYPE(db, tk, type);
+					}
 				}
 			}
 		}

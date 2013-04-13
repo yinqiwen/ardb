@@ -140,7 +140,15 @@ namespace ardb
 		                &ArdbServer::Exists, 1, 1 }, { "expire",
 		                &ArdbServer::Expire, 2, 2 }, { "expireat",
 		                &ArdbServer::Expireat, 2, 2 }, { "persist",
-				                &ArdbServer::Expireat, 1, 1 }};
+		                &ArdbServer::Persist, 1, 1 }, { "type",
+		                &ArdbServer::Type, 1, 1 }, { "bitcount",
+		                &ArdbServer::Bitcount, 1, 3 }, { "bitop",
+		                &ArdbServer::Bitop, 3, -1 }, { "decr",
+		                &ArdbServer::Decr, 1, 1 }, { "decrby",
+		                &ArdbServer::Decrby, 2, 2 }, { "getbit",
+		                &ArdbServer::GetBit, 2, 2 }, { "getrange",
+		                &ArdbServer::GetRange, 3, 3 }, { "getset",
+		                &ArdbServer::GetSet, 2, 2 } };
 
 		uint32 arraylen = arraysize(settingTable);
 		for (uint32 i = 0; i < arraylen; i++)
@@ -151,6 +159,50 @@ namespace ardb
 	ArdbServer::~ArdbServer()
 	{
 
+	}
+
+	int ArdbServer::Type(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		int ret = m_db->Type(ctx.currentDB, cmd[0]);
+		switch (ret)
+		{
+			case SET_ELEMENT:
+			{
+				fill_status_reply(ctx.reply, "set");
+				break;
+			}
+			case LIST_META:
+			{
+				fill_status_reply(ctx.reply, "list");
+				break;
+			}
+			case ZSET_ELEMENT_SCORE:
+			{
+				fill_status_reply(ctx.reply, "zset");
+				break;
+			}
+			case HASH_FIELD:
+			{
+				fill_status_reply(ctx.reply, "hash");
+				break;
+			}
+			case KV:
+			{
+				fill_status_reply(ctx.reply, "string");
+				break;
+			}
+			case TABLE_META:
+			{
+				fill_status_reply(ctx.reply, "table");
+				break;
+			}
+			default:
+			{
+				fill_status_reply(ctx.reply, "none");
+				break;
+			}
+		}
+		return 0;
 	}
 
 	int ArdbServer::Persist(ArdbConnContext& ctx, ArgumentArray& cmd)
@@ -295,6 +347,134 @@ namespace ardb
 		return 0;
 	}
 
+	int ArdbServer::GetSet(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		std::string v;
+		int ret = m_db->GetSet(ctx.currentDB, cmd[0], cmd[1], v);
+		if (ret < 0)
+		{
+			ctx.reply.type = REDIS_REPLY_NIL;
+		}
+		else
+		{
+			FILL_STR_REPLY(ctx.reply, v);
+		}
+		return 0;
+	}
+
+	int ArdbServer::GetRange(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		int32 start, end;
+		if (!string_toint32(cmd[1], start) || !string_toint32(cmd[2], end))
+		{
+			fill_error_reply(ctx.reply,
+			        "ERR value is not an integer or out of range");
+			return 0;
+		}
+		std::string v;
+		m_db->GetRange(ctx.currentDB, cmd[0], start, end, v);
+		FILL_STR_REPLY(ctx.reply, v);
+		return 0;
+	}
+
+	int ArdbServer::GetBit(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		int32 offset;
+		if (!string_toint32(cmd[1], offset))
+		{
+			fill_error_reply(ctx.reply,
+			        "ERR value is not an integer or out of range");
+			return 0;
+		}
+		int ret = m_db->GetBit(ctx.currentDB, cmd[0], offset);
+		fill_int_reply(ctx.reply, ret);
+		return 0;
+	}
+
+	int ArdbServer::Decrby(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		int64 decrement, val;
+		if (!string_toint64(cmd[1], decrement))
+		{
+			fill_error_reply(ctx.reply,
+			        "ERR value is not an integer or out of range");
+			return 0;
+		}
+		int ret = m_db->Decrby(ctx.currentDB, cmd[0], decrement, val);
+		if (ret == 0)
+		{
+			fill_int_reply(ctx.reply, val);
+		}
+		else
+		{
+			fill_error_reply(ctx.reply,
+			        "ERR value is not an integer or out of range");
+		}
+		return 0;
+	}
+
+	int ArdbServer::Decr(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		int64_t val;
+		int ret = m_db->Decr(ctx.currentDB, cmd[0], val);
+		if (ret == 0)
+		{
+			fill_int_reply(ctx.reply, val);
+		}
+		else
+		{
+			fill_error_reply(ctx.reply,
+			        "ERR value is not an integer or out of range");
+		}
+		return 0;
+	}
+
+	int ArdbServer::Bitop(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		SliceArray keys;
+		for (int i = 2; i < cmd.size(); i++)
+		{
+			keys.push_back(cmd[i]);
+		}
+		int ret = m_db->BitOP(ctx.currentDB, cmd[0], cmd[1], keys);
+		if (ret < 0)
+		{
+			fill_error_reply(ctx.reply, "ERR syntax error");
+		}
+		else
+		{
+			fill_int_reply(ctx.reply, ret);
+		}
+		return 0;
+	}
+
+	int ArdbServer::Bitcount(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		if (cmd.size() == 2)
+		{
+			fill_error_reply(ctx.reply, "ERR syntax error");
+			return 0;
+		}
+		int count = 0;
+		if (cmd.size() == 1)
+		{
+			count = m_db->BitCount(ctx.currentDB, cmd[0], 0, -1);
+		}
+		else
+		{
+			int32 start, end;
+			if (!string_toint32(cmd[1], start) || !string_toint32(cmd[2], end))
+			{
+				fill_error_reply(ctx.reply,
+				        "ERR value is not an integer or out of range");
+				return 0;
+			}
+			count = m_db->BitCount(ctx.currentDB, cmd[0], start, end);
+		}
+		fill_int_reply(ctx.reply, count);
+		return 0;
+	}
+
 	int ArdbServer::Append(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
 		const std::string& key = cmd[0];
@@ -325,17 +505,9 @@ namespace ardb
 	}
 	int ArdbServer::Select(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
-//		int64 idx = 0;
-//		if (!string_toint64(cmd[0], idx) || idx < 0)
-//		{
-//			fill_error_reply(ctx.reply, "ERR invalid DB index");
-//		}
-//		else
-		{
-			ctx.currentDB = cmd[0];
-			fill_status_reply(ctx.reply, "OK");
-			DEBUG_LOG("Select db is %s", cmd[0].c_str());
-		}
+		ctx.currentDB = cmd[0];
+		fill_status_reply(ctx.reply, "OK");
+		DEBUG_LOG("Select db is %s", cmd[0].c_str());
 		return 0;
 	}
 
