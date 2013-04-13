@@ -116,6 +116,20 @@ namespace ardb
 			int Expire(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Expireat(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Persist(ArdbConnContext& ctx, ArgumentArray& cmd);
+
+			int HDel(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HExists(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HGet(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HGetAll(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HIncrby(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HIncrbyFloat(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HKeys(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HLen(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HMGet(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HMSet(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HSet(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HSetNX(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HVals(ArdbConnContext& ctx, ArgumentArray& cmd);
 		public:
 			static int ParseConfig(const Properties& props,
 			        ArdbServerConfig& cfg);

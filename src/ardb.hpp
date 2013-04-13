@@ -230,6 +230,7 @@ namespace ardb
 			int HSetNX(const DBID& db, const Slice& key, const Slice& field,
 					const Slice& value);
 			int HDel(const DBID& db, const Slice& key, const Slice& field);
+			int HDel(const DBID& db, const Slice& key, const SliceArray& fields);
 			bool HExists(const DBID& db, const Slice& key, const Slice& field);
 			int HGet(const DBID& db, const Slice& key, const Slice& field,
 					std::string* value);
@@ -238,11 +239,11 @@ namespace ardb
 			int HIncrbyFloat(const DBID& db, const Slice& key,
 					const Slice& field, double increment, double& value);
 			int HMGet(const DBID& db, const Slice& key,
-					const SliceArray& fields, StringArray& values);
+					const SliceArray& fields, ValueArray& values);
 			int HMSet(const DBID& db, const Slice& key,
 					const SliceArray& fields, const SliceArray& values);
 			int HGetAll(const DBID& db, const Slice& key, StringArray& fields,
-					StringArray& values);
+					ValueArray& values);
 			int HKeys(const DBID& db, const Slice& key, StringArray& fields);
 			int HVals(const DBID& db, const Slice& key, StringArray& values);
 			int HLen(const DBID& db, const Slice& key);

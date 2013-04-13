@@ -19,7 +19,7 @@ namespace ardb
 	{
 		ValueObject valueobject;
 		smart_fill_value(value, valueobject);
-		return SetHashValue(db, key, field, valueobject);
+		return SetHashValue(db, key, field, valueobject) == 0 ? 1 : 0;
 	}
 
 	int Ardb::HSetNX(const DBID& db, const Slice& key, const Slice& field,
@@ -36,6 +36,18 @@ namespace ardb
 	{
 		HashKeyObject k(key, field);
 		return DelValue(db, k);
+	}
+
+	int Ardb::HDel(const DBID& db, const Slice& key, const SliceArray& fields)
+	{
+		BatchWriteGuard guard(GetDB(db));
+		SliceArray::const_iterator it = fields.begin();
+		while (it != fields.end())
+		{
+			HDel(db, key, *it);
+			it++;
+		}
+		return fields.size();
 	}
 
 	int Ardb::HGetValue(const DBID& db, const Slice& key, const Slice& field,
@@ -85,15 +97,17 @@ namespace ardb
 	}
 
 	int Ardb::HMGet(const DBID& db, const Slice& key, const SliceArray& fields,
-	        StringArray& values)
+	        ValueArray& values)
 	{
 		SliceArray::const_iterator it = fields.begin();
+		int i = 0;
 		while (it != fields.end())
 		{
-			std::string v;
-			HGet(db, key, *it, &v);
+			ValueObject v;
 			values.push_back(v);
+			HGetValue(db, key, *it, &values[i]);
 			it++;
+			i++;
 		}
 		return 0;
 	}
@@ -198,11 +212,12 @@ namespace ardb
 	}
 
 	int Ardb::HGetAll(const DBID& db, const Slice& key, StringArray& fields,
-	        StringArray& values)
+	        ValueArray& values)
 	{
 		Slice empty;
 		HashKeyObject k(key, empty);
 		Iterator* it = FindValue(db, k);
+		int i = 0;
 		while (NULL != it && it->Valid())
 		{
 			Slice tmpkey = it->Key();
@@ -219,10 +234,11 @@ namespace ardb
 			std::string filed(hk->field.data(), hk->field.size());
 			fields.push_back(filed);
 			ValueObject v;
+			values.push_back(v);
 			Buffer readbuf(const_cast<char*>(it->Value().data()), 0,
 			        it->Value().size());
-			decode_value(readbuf, v);
-			values.push_back(v.ToString());
+			decode_value(readbuf, values[i]);
+			i++;
 			it->Next();
 		}
 		DELETE(it);

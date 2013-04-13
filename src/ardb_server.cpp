@@ -74,6 +74,19 @@ namespace ardb
 		}
 	}
 
+	static inline void fill_str_array_reply(ArdbReply& reply, StringArray& v)
+	{
+		reply.type = REDIS_REPLY_ARRAY;
+		StringArray::iterator it = v.begin();
+		while (it != v.end())
+		{
+			ArdbReply r;
+			FILL_STR_REPLY(r, *it);
+			reply.elements.push_back(r);
+			it++;
+		}
+	}
+
 	static void encode_reply(Buffer& buf, ArdbReply& reply)
 	{
 		switch (reply.type)
@@ -179,7 +192,19 @@ namespace ardb
 		                &ArdbServer::SetEX, 3, 3 }, { "setnx",
 		                &ArdbServer::SetNX, 2, 2 }, { "setrange",
 		                &ArdbServer::SetRange, 3, 3 }, { "strlen",
-		                &ArdbServer::Strlen, 1, 1 } };
+		                &ArdbServer::Strlen, 1, 1 }, { "hdel",
+		                &ArdbServer::HDel, 2, -1 }, { "hexists",
+		                &ArdbServer::HExists, 2, 2 }, { "hget",
+		                &ArdbServer::HGet, 2, 2 }, { "hgetall",
+		                &ArdbServer::HGetAll, 1, 1 }, { "hincr",
+		                &ArdbServer::HIncrby, 3, 3 }, { "hincrbyfloat",
+		                &ArdbServer::HIncrbyFloat, 3, 3 }, { "hkeys",
+		                &ArdbServer::HKeys, 1, 1 }, { "hlen", &ArdbServer::HLen,
+		                1, 1 }, { "hvals", &ArdbServer::HVals, 1, 1 }, {
+		                "hmget", &ArdbServer::HMGet, 2, -1 }, { "hset",
+		                &ArdbServer::HSet, 3, 3 }, { "hsetnx",
+		                &ArdbServer::HSetNX, 3, 3 }, { "hmset",
+		                &ArdbServer::HMSet, 3, -1 } };
 
 		uint32 arraylen = arraysize(settingTable);
 		for (uint32 i = 0; i < arraylen; i++)
@@ -745,6 +770,154 @@ namespace ardb
 
 	int ArdbServer::Slaveof(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
+		return 0;
+	}
+
+	int ArdbServer::HMSet(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		if ((cmd.size() - 1) % 2 != 0)
+		{
+			fill_error_reply(ctx.reply,
+			        "ERR wrong number of arguments for HMSet");
+			return 0;
+		}
+		SliceArray fs;
+		SliceArray vals;
+		for (int i = 1; i < cmd.size(); i += 2)
+		{
+			fs.push_back(cmd[i]);
+			vals.push_back(cmd[i + 1]);
+		}
+		m_db->HMSet(ctx.currentDB, cmd[0], fs, vals);
+		fill_status_reply(ctx.reply, "OK");
+		return 0;
+	}
+	int ArdbServer::HSet(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		int ret = m_db->HSet(ctx.currentDB, cmd[0], cmd[1], cmd[2]);
+		fill_int_reply(ctx.reply, 1);
+		return 0;
+	}
+	int ArdbServer::HSetNX(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		int ret = m_db->HSetNX(ctx.currentDB, cmd[0], cmd[1], cmd[2]);
+		fill_int_reply(ctx.reply, ret);
+		return 0;
+	}
+	int ArdbServer::HVals(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		StringArray keys;
+		m_db->HVals(ctx.currentDB, cmd[0], keys);
+		fill_str_array_reply(ctx.reply, keys);
+		return 0;
+	}
+
+	int ArdbServer::HMGet(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		ValueArray vals;
+		SliceArray fs;
+		for (int i = 1; i < cmd.size(); i++)
+		{
+			fs.push_back(cmd[i]);
+		}
+		m_db->HMGet(ctx.currentDB, cmd[0], fs, vals);
+		fill_array_reply(ctx.reply, vals);
+		return 0;
+	}
+
+	int ArdbServer::HLen(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		int len = m_db->HLen(ctx.currentDB, cmd[0]);
+		fill_int_reply(ctx.reply, len);
+		return 0;
+	}
+
+	int ArdbServer::HKeys(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		StringArray keys;
+		m_db->HKeys(ctx.currentDB, cmd[0], keys);
+		fill_str_array_reply(ctx.reply, keys);
+		return 0;
+	}
+
+	int ArdbServer::HIncrbyFloat(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		double increment, val = 0;
+		if (!string_todouble(cmd[2], increment))
+		{
+			fill_error_reply(ctx.reply,
+			        "ERR value is not a float or out of range");
+			return 0;
+		}
+		m_db->HIncrbyFloat(ctx.currentDB, cmd[0], cmd[1], increment, val);
+		char tmp[256];
+		snprintf(tmp, sizeof(tmp) - 1, "%f", val);
+		FILL_STR_REPLY(ctx.reply, tmp);
+		return 0;
+	}
+
+	int ArdbServer::HIncrby(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		int64 increment, val = 0;
+		if (!string_toint64(cmd[2], increment))
+		{
+			fill_error_reply(ctx.reply,
+			        "ERR value is not an integer or out of range");
+			return 0;
+		}
+		m_db->HIncrby(ctx.currentDB, cmd[0], cmd[1], increment, val);
+		fill_int_reply(ctx.reply, val);
+		return 0;
+	}
+
+	int ArdbServer::HGetAll(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		StringArray fields;
+		ValueArray results;
+		int ret = m_db->HGetAll(ctx.currentDB, cmd[0], fields, results);
+		ctx.reply.type = REDIS_REPLY_ARRAY;
+		for (int i = 0; i < fields.size(); i++)
+		{
+			ArdbReply reply1, reply2;
+			FILL_STR_REPLY(reply1, fields[i]);
+			FILL_STR_REPLY(reply2, results[i].ToString());
+			ctx.reply.elements.push_back(reply1);
+			ctx.reply.elements.push_back(reply2);
+		}
+		return 0;
+	}
+
+	int ArdbServer::HGet(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		std::string v;
+		int ret = m_db->HGet(ctx.currentDB, cmd[0], cmd[1], &v);
+		if (ret < 0)
+		{
+			ctx.reply.type = REDIS_REPLY_NIL;
+		}
+		else
+		{
+			FILL_STR_REPLY(ctx.reply, v);
+		}
+		return 0;
+	}
+
+	int ArdbServer::HExists(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		int ret = m_db->HExists(ctx.currentDB, cmd[0], cmd[1]);
+		fill_int_reply(ctx.reply, ret);
+		return 0;
+	}
+
+	int ArdbServer::HDel(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		SliceArray fields;
+		for (int i = 1; i < cmd.size(); i++)
+		{
+			fields.push_back(cmd[i]);
+		}
+		int ret = m_db->HDel(ctx.currentDB, cmd[0], fields);
+		fill_int_reply(ctx.reply, ret);
 		return 0;
 	}
 
