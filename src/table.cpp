@@ -120,13 +120,17 @@ namespace ardb
 				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					TableIndexKeyObject* sek = (TableIndexKeyObject*) k;
-					if (sek->key.compare(icond.keyname) != 0)
+					DEBUG_LOG(
+					        "1##########%s  AND %s", sek->kname.data(), icond.keyname.c_str());
+					if (sek->kname.compare(icond.keyname) != 0)
 					{
 						return -1;
 					}
 					int cmp = 0;
 					if (!icond.MatchValue(sek->keyvalue, cmp))
 					{
+						DEBUG_LOG(
+						        "####Failed to cmp:%d between %s and %s", icond.cmp, sek->keyvalue.ToString().c_str(), icond.keyvalue.ToString().c_str());
 						switch (icond.cmp)
 						{
 							case CMP_NOTEQ:
@@ -173,7 +177,7 @@ namespace ardb
 				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					TableIndexKeyObject* sek = (TableIndexKeyObject*) k;
-					if (sek->key.compare(icond.keyname) != 0)
+					if (sek->kname.compare(icond.keyname) != 0)
 					{
 						return -1;
 					}
@@ -258,6 +262,7 @@ namespace ardb
 		TableKeyIndexSet* index = &set1;
 		TableKeyIndexSet* tmp = &set2;
 		TGetIndexs(db, tableName, conds, index, tmp);
+		DEBUG_LOG("###Found %d index", index->size());
 		SliceArray::const_iterator it = cols.begin();
 		while (it != cols.end())
 		{

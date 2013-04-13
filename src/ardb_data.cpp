@@ -31,6 +31,13 @@ namespace ardb
 		return compare_values(keyvals, other.keyvals) < 0 ? true : false;
 	}
 
+	Condition::Condition(const std::string& name, CompareOperator compareop,
+	        const Slice& value, LogicalOperator logic) :
+			keyname(name), cmp(compareop),logicop(logic)
+	{
+		smart_fill_value(value, keyvalue);
+	}
+
 	TableIndexKeyObject::TableIndexKeyObject(const Slice& tablename,
 	        const Slice& keyname, const Slice& v) :
 			KeyObject(tablename, TABLE_INDEX), kname(keyname)
@@ -114,7 +121,7 @@ namespace ardb
 			{
 				const TableIndexKeyObject& index =
 				        (const TableIndexKeyObject&) key;
-				BufferHelper::WriteVarSlice(buf, index.key);
+				BufferHelper::WriteVarSlice(buf, index.kname);
 				encode_value(buf, index.keyvalue);
 				BufferHelper::WriteVarUInt32(buf, index.index.keyvals.size());
 				ValueArray::const_iterator it = index.index.keyvals.begin();

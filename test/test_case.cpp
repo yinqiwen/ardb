@@ -9,6 +9,7 @@
 #include "sets_testcase.cpp"
 #include "hash_testcase.cpp"
 #include "zset_testcase.cpp"
+#include "table_testcase.cpp"
 
 void test_type(Ardb& db)
 {
@@ -33,5 +34,7 @@ void test_all(Ardb& db)
 	test_lists(db);
 	test_sets(db);
 	test_zsets(db);
+	test_tables(db);
 	test_type(db);
+	//db.PrintDB("0");
 }

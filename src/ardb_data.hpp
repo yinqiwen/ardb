@@ -231,7 +231,7 @@ namespace ardb
 	};
 	enum LogicalOperator
 	{
-		LOGIC_AND = 1, LOGIC_OR = 2
+		LOGIC_EMPTY = 0, LOGIC_AND = 1, LOGIC_OR = 2
 	};
 
 	struct Condition
@@ -241,12 +241,12 @@ namespace ardb
 			ValueObject keyvalue;
 			LogicalOperator logicop;
 
-			Condition(const std::string& name, const Slice& value,
-			        CompareOperator compareop, LogicalOperator logic);
+			Condition(const std::string& name, CompareOperator compareop,
+			        const Slice& value, LogicalOperator logic = LOGIC_EMPTY);
 
 			bool MatchValue(const ValueObject& v, int& cmpret)
 			{
-				int ret = keyvalue.Compare(v);
+				int ret = v.Compare(keyvalue);
 				cmpret = ret;
 				switch (cmp)
 				{
