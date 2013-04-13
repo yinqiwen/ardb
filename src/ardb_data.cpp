@@ -9,6 +9,34 @@
 
 namespace ardb
 {
+	int compare_values(const ValueArray& a, const ValueArray& b)
+	{
+		if (a.size() > b.size())
+		{
+			return 1;
+		}
+		for (uint32 i = 0; i < a.size(); i++)
+		{
+			int cmp = a[i].Compare(b[i]);
+			if (cmp != 0)
+			{
+				return cmp > 0 ? 1 : -1;
+			}
+		}
+		return 0;
+	}
+
+	bool TableKeyIndex::operator<(const TableKeyIndex& other) const
+	{
+		return compare_values(keyvals, other.keyvals) < 0 ? true : false;
+	}
+
+	TableIndexKeyObject::TableIndexKeyObject(const Slice& tablename,
+	        const Slice& keyname, const Slice& v) :
+			KeyObject(tablename, TABLE_INDEX), kname(keyname)
+	{
+		smart_fill_value(v, keyvalue);
+	}
 
 	SetKeyObject::SetKeyObject(const Slice& k, const ValueObject& v) :
 			KeyObject(k, SET_ELEMENT), value(v)
@@ -82,9 +110,38 @@ namespace ardb
 				encode_value(buf, zk.value);
 				break;
 			}
+			case TABLE_INDEX:
+			{
+				const TableIndexKeyObject& index =
+				        (const TableIndexKeyObject&) key;
+				BufferHelper::WriteVarSlice(buf, index.key);
+				encode_value(buf, index.keyvalue);
+				BufferHelper::WriteVarUInt32(buf, index.index.keyvals.size());
+				ValueArray::const_iterator it = index.index.keyvals.begin();
+				while (it != index.index.keyvals.end())
+				{
+					encode_value(buf, *it);
+					it++;
+				}
+				break;
+			}
+			case TABLE_COL:
+			{
+				const TableColKeyObject& col = (const TableColKeyObject&) key;
+				BufferHelper::WriteVarSlice(buf, col.col);
+				BufferHelper::WriteVarUInt32(buf, col.keyvals.size());
+				ValueArray::const_iterator it = col.keyvals.begin();
+				while (it != col.keyvals.end())
+				{
+					encode_value(buf, *it);
+					it++;
+				}
+				break;
+			}
 			case LIST_META:
 			case ZSET_META:
 			case SET_META:
+			case TABLE_META:
 			default:
 			{
 				break;
@@ -142,7 +199,7 @@ namespace ardb
 				ZSetKeyObject* zsk = new ZSetKeyObject(keystr, Slice(), 0);
 				double score;
 				if (!BufferHelper::ReadVarDouble(buf, score)
-						|| !decode_value(buf, zsk->value))
+				        || !decode_value(buf, zsk->value))
 				{
 					DELETE(zsk);
 					return NULL;
@@ -153,7 +210,7 @@ namespace ardb
 			case ZSET_ELEMENT_SCORE:
 			{
 				ZSetScoreKeyObject* zsk = new ZSetScoreKeyObject(keystr,
-						Slice());
+				        Slice());
 				if (!decode_value(buf, zsk->value))
 				{
 					DELETE(zsk);
@@ -161,9 +218,68 @@ namespace ardb
 				}
 				return zsk;
 			}
+			case TABLE_INDEX:
+			{
+				Slice kname;
+				if (!BufferHelper::ReadVarSlice(buf, kname))
+				{
+					return NULL;
+				}
+				TableIndexKeyObject* ik = new TableIndexKeyObject(keystr, kname,
+				        ValueObject());
+				if (!decode_value(buf, ik->keyvalue))
+				{
+					DELETE(ik);
+					return NULL;
+				}
+				uint32 len;
+				if (!BufferHelper::ReadVarUInt32(buf, len))
+				{
+					DELETE(ik);
+					return NULL;
+				}
+				for (uint32 i = 0; i < len; i++)
+				{
+					ValueObject v;
+					if (!decode_value(buf, v))
+					{
+						DELETE(ik);
+						return NULL;
+					}
+					ik->index.keyvals.push_back(v);
+				}
+				return ik;
+			}
+			case TABLE_COL:
+			{
+				Slice col;
+				if (!BufferHelper::ReadVarSlice(buf, col))
+				{
+					return NULL;
+				}
+				TableColKeyObject* tk = new TableColKeyObject(keystr, col);
+				uint32 len;
+				if (!BufferHelper::ReadVarUInt32(buf, len))
+				{
+					DELETE(tk);
+					return NULL;
+				}
+				for (uint32 i = 0; i < len; i++)
+				{
+					ValueObject v;
+					if (!decode_value(buf, v))
+					{
+						DELETE(tk);
+						return NULL;
+					}
+					tk->keyvals.push_back(v);
+				}
+				return tk;
+			}
 			case SET_META:
 			case ZSET_META:
 			case LIST_META:
+			case TABLE_META:
 			default:
 			{
 				return new KeyObject(keystr, (KeyType) type);
@@ -182,7 +298,8 @@ namespace ardb
 			if (v.type == INTEGER)
 			{
 				v.v.raw->Printf("%lld", iv);
-			} else if (v.type == DOUBLE)
+			}
+			else if (v.type == DOUBLE)
 			{
 				double min = -4503599627370495; /* (2^52)-1 */
 				double max = 4503599627370496; /* -(2^52) */
@@ -190,7 +307,8 @@ namespace ardb
 				if (dv > min && dv < max && dv == ((double) iv))
 				{
 					v.v.raw->Printf("%lld", iv);
-				} else
+				}
+				else
 				{
 					v.v.raw->Printf("%.17g", dv);
 				}
@@ -209,14 +327,15 @@ namespace ardb
 		int64_t intv;
 		double dv;
 		if (raw_toint64(v.v.raw->GetRawReadBuffer(), v.v.raw->ReadableBytes(),
-				intv))
+		        intv))
 		{
 			v.Clear();
 			v.type = INTEGER;
 			v.v.int_v = intv;
 			return 1;
-		} else if (raw_todouble(v.v.raw->GetRawReadBuffer(),
-				v.v.raw->ReadableBytes(), dv))
+		}
+		else if (raw_todouble(v.v.raw->GetRawReadBuffer(),
+		        v.v.raw->ReadableBytes(), dv))
 		{
 			v.Clear();
 			v.type = DOUBLE;
@@ -250,10 +369,11 @@ namespace ardb
 				if (NULL != value.v.raw)
 				{
 					BufferHelper::WriteVarUInt32(buf,
-							value.v.raw->ReadableBytes());
+					        value.v.raw->ReadableBytes());
 					buf.Write(value.v.raw->GetRawReadBuffer(),
-							value.v.raw->ReadableBytes());
-				} else
+					        value.v.raw->ReadableBytes());
+				}
+				else
 				{
 					BufferHelper::WriteVarInt64(buf, 0);
 				}
@@ -299,7 +419,7 @@ namespace ardb
 			{
 				uint32_t len;
 				if (!BufferHelper::ReadVarUInt32(buf, len)
-						|| buf.ReadableBytes() < len)
+				        || buf.ReadableBytes() < len)
 				{
 					return false;
 				}
@@ -325,11 +445,13 @@ namespace ardb
 		{
 			valueobject.type = INTEGER;
 			valueobject.v.int_v = intv;
-		} else if (raw_todouble(value.data(), value.size(), doublev))
+		}
+		else if (raw_todouble(value.data(), value.size(), doublev))
 		{
 			valueobject.type = DOUBLE;
 			valueobject.v.double_v = doublev;
-		} else
+		}
+		else
 		{
 			valueobject.type = RAW;
 			char* v = const_cast<char*>(value.data());

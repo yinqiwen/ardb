@@ -54,7 +54,7 @@ namespace ardb
 		if (engine->Init(cfg) != 0)
 		{
 			DELETE(engine);
-			ERROR_LOG("Failed to create DB:%lld", db);
+			ERROR_LOG("Failed to create DB:%s", db.c_str());
 			return NULL;
 		}
 		return engine;

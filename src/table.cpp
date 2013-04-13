@@ -16,7 +16,7 @@ namespace ardb
 		}
 		uint32 len;
 		if (!BufferHelper::ReadVarUInt32(*(v.v.raw), meta.size)
-				|| !BufferHelper::ReadVarUInt32(*(v.v.raw), len))
+		        || !BufferHelper::ReadVarUInt32(*(v.v.raw), len))
 		{
 			return false;
 		}
@@ -49,10 +49,10 @@ namespace ardb
 	typedef std::map<std::string, TableMetaValue> TableMetaValueCache;
 	static TableMetaValueCache kMetaCache;
 	int Ardb::GetTableMetaValue(const DBID& db, const Slice& tableName,
-			TableMetaValue& meta)
+	        TableMetaValue& meta)
 	{
 		TableMetaValueCache::iterator found = kMetaCache.find(
-				std::string(tableName.data(), tableName.size()));
+		        std::string(tableName.data(), tableName.size()));
 		if (found != kMetaCache.end())
 		{
 			meta = found->second;
@@ -72,7 +72,7 @@ namespace ardb
 		return ERR_NOT_EXIST;
 	}
 	void Ardb::SetTableMetaValue(const DBID& db, const Slice& tableName,
-			TableMetaValue& meta)
+	        TableMetaValue& meta)
 	{
 		KeyObject k(tableName, TABLE_META);
 		ValueObject v;
@@ -81,7 +81,7 @@ namespace ardb
 	}
 
 	int Ardb::TCreate(const DBID& db, const Slice& tableName,
-			SliceArray& keynames)
+	        SliceArray& keynames)
 	{
 		TableMetaValue meta;
 		if (0 == GetTableMetaValue(db, tableName, meta))
@@ -100,7 +100,7 @@ namespace ardb
 	}
 
 	int Ardb::TUnionRowKeys(const DBID& db, const Slice& tableName,
-			Condition& cond, TableKeyIndexSet& results)
+	        Condition& cond, TableKeyIndexSet& results)
 	{
 		TableIndexKeyObject index(tableName, cond.keyname, cond.keyvalue);
 		results.clear();
@@ -149,8 +149,8 @@ namespace ardb
 	}
 
 	int Ardb::TInterRowKeys(const DBID& db, const Slice& tableName,
-			Condition& cond, TableKeyIndexSet& interset,
-			TableKeyIndexSet& results)
+	        Condition& cond, TableKeyIndexSet& interset,
+	        TableKeyIndexSet& results)
 	{
 		TableIndexKeyObject index(tableName, cond.keyname, cond.keyvalue);
 		results.clear();
@@ -166,7 +166,7 @@ namespace ardb
 				TableKeyIndexSet& tres;
 				bool isReverse;
 				TInterIndexWalk(Condition& c, TableKeyIndexSet& i,
-						TableKeyIndexSet& r, bool isRev) :
+				        TableKeyIndexSet& r, bool isRev) :
 						icond(c), tinter(i), tres(r), isReverse(isRev)
 				{
 				}
@@ -200,13 +200,14 @@ namespace ardb
 
 					if (isReverse)
 					{
-						if (sek->index < *(tres.begin()))
+						if (sek->index < *(tinter.begin()))
 						{
 							return -1;
 						}
-					} else
+					}
+					else
 					{
-						if (*(tres.begin()) < sek->index)
+						if (*(tinter.begin()) < sek->index)
 						{
 							return -1;
 						}
@@ -219,8 +220,8 @@ namespace ardb
 	}
 
 	int Ardb::TGetIndexs(const DBID& db, const Slice& tableName,
-			Conditions& conds, TableKeyIndexSet*& indexs,
-			TableKeyIndexSet*& temp)
+	        Conditions& conds, TableKeyIndexSet*& indexs,
+	        TableKeyIndexSet*& temp)
 	{
 		TableKeyIndexSet* current = indexs;
 		TableKeyIndexSet* next = temp;
@@ -230,12 +231,14 @@ namespace ardb
 			if (i == 0)
 			{
 				TUnionRowKeys(db, tableName, cond, *current);
-			} else
+			}
+			else
 			{
 				if (conds[i - 1].logicop == LOGIC_OR)
 				{
 					TUnionRowKeys(db, tableName, cond, *current);
-				} else  //"and"
+				}
+				else //"and"
 				{
 					TInterRowKeys(db, tableName, cond, *current, *next);
 					TableKeyIndexSet* tmp = current;
@@ -249,7 +252,7 @@ namespace ardb
 	}
 
 	int Ardb::TGet(const DBID& db, const Slice& tableName,
-			const SliceArray& cols, Conditions& conds, StringArray& values)
+	        const SliceArray& cols, Conditions& conds, StringArray& values)
 	{
 		TableKeyIndexSet set1, set2;
 		TableKeyIndexSet* index = &set1;
@@ -273,7 +276,7 @@ namespace ardb
 		return 0;
 	}
 	int Ardb::TUpdate(const DBID& db, const Slice& tableName,
-			const SliceMap& colvals, Conditions& conds)
+	        const SliceMap& colvals, Conditions& conds)
 	{
 		TableKeyIndexSet set1, set2;
 		TableKeyIndexSet* index = &set1;
@@ -298,53 +301,223 @@ namespace ardb
 		return 0;
 	}
 	int Ardb::TReplace(const DBID& db, const Slice& tableName,
-			const SliceMap& keyvals, const SliceMap& colvals)
+	        const SliceMap& keyvals, const SliceMap& colvals)
 	{
 		TableMetaValue meta;
 		GetTableMetaValue(db, tableName, meta);
-		//TODO write index
-
-		ValueArray kvals;
+		if (meta.keynames.empty())
+		{
+			ERROR_LOG("Table %s is not created.", tableName.data());
+			return -1;
+		}
+		if (meta.keynames.size() != keyvals.size())
+		{
+			ERROR_LOG(
+			        "Table %s has different %d keys defined.", meta.keynames.size());
+			return -1;
+		}
+		//write index
+		TableKeyIndex index;
+		for (uint32 i = 0; i < meta.keynames.size(); i++)
+		{
+			ValueObject v;
+			SliceMap::const_iterator found = keyvals.find(meta.keynames[i]);
+			if (found == keyvals.end())
+			{
+				ERROR_LOG(
+				        "No key %s found in input.", meta.keynames[i].c_str());
+				return -1;
+			}
+			smart_fill_value(found->second, v);
+			index.keyvals.push_back(v);
+		}
+		BatchWriteGuard guard(GetDB(db));
+		SliceMap::const_iterator kit = keyvals.begin();
+		while (kit != keyvals.end())
+		{
+			TableIndexKeyObject tik(tableName, kit->first, kit->second);
+			tik.index = index;
+			ValueObject empty;
+			SetValue(db, tik, empty);
+			kit++;
+		}
+		//write value
+		bool hasrecord = false;
 		SliceMap::const_iterator it = colvals.begin();
 		while (it != colvals.end())
 		{
 			TableColKeyObject k(tableName, it->first);
-			k.keyvals = kvals;
-			if (0 != GetValue(db, k, NULL))
+			k.keyvals = index.keyvals;
+			if (!hasrecord && 0 == GetValue(db, k, NULL))
 			{
-				meta.size++;
-				SetTableMetaValue(db, tableName, meta);
+				hasrecord = true;
 			}
 			ValueObject v;
 			smart_fill_value(it->second, v);
 			SetValue(db, k, v);
 			it++;
 		}
+		if (hasrecord)
+		{
+			meta.size++;
+			SetTableMetaValue(db, tableName, meta);
+		}
 		return 0;
 	}
-	int Ardb::TDel(const DBID& db, const Slice& tableName,
-			const SliceArray& fields, Conditions& conds)
+
+	int Ardb::TDelCol(const DBID& db, const Slice& tableName, Conditions& conds,
+	        const Slice& col)
 	{
+		TableMetaValue meta;
+		GetTableMetaValue(db, tableName, meta);
+		if (meta.size == 0)
+		{
+			return 0;
+		}
+		std::string colstr(col.data(), col.size());
+		if (meta.valnames.erase(colstr) == 0)
+		{
+			return -1;
+		}
 		TableKeyIndexSet set1, set2;
 		TableKeyIndexSet* index = &set1;
 		TableKeyIndexSet* tmp = &set2;
 		TGetIndexs(db, tableName, conds, index, tmp);
 
+		struct TDelWalk: public WalkHandler
+		{
+				Ardb* tdb;
+				const DBID& tdbid;
+				const ValueArray& cmp;
+				TDelWalk(Ardb* d, const DBID& id, const ValueArray& c) :
+						tdb(d), tdbid(id), cmp(c)
+				{
+				}
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+				{
+					TableColKeyObject* ck = (TableColKeyObject*) k;
+					if (compare_values(ck->keyvals, cmp) == 0)
+					{
+						tdb->DelValue(tdbid, *ck);
+					}
+					return -1;
+				}
+		};
+
 		BatchWriteGuard guard(GetDB(db));
 		TableKeyIndexSet::iterator iit = index->begin();
 		while (iit != index->end())
 		{
-			Slice empty;
-			TableColKeyObject k(tableName, empty);
+			TableColKeyObject k(tableName, col);
 			k.keyvals = iit->keyvals;
-
-
+			for (uint32 i = 0; i < meta.keynames.size(); i++)
+			{
+				TableIndexKeyObject tik(tableName, meta.keynames[i],
+				        k.keyvals[i]);
+				tik.index.keyvals = k.keyvals;
+				DelValue(db, tik);
+			}
+			TDelWalk walk(this, db, k.keyvals);
+			Walk(db, k, false, &walk);
 			iit++;
 		}
+		SetTableMetaValue(db, tableName, meta);
+		return index->size();
+	}
+
+	int Ardb::TDel(const DBID& db, const Slice& tableName, Conditions& conds)
+	{
+		TableMetaValue meta;
+		GetTableMetaValue(db, tableName, meta);
+		if (meta.size == 0)
+		{
+			return 0;
+		}
+		TableKeyIndexSet set1, set2;
+		TableKeyIndexSet* index = &set1;
+		TableKeyIndexSet* tmp = &set2;
+		TGetIndexs(db, tableName, conds, index, tmp);
+
+		struct TDelWalk: public WalkHandler
+		{
+				Ardb* tdb;
+				const DBID& tdbid;
+				const ValueArray& cmp;
+				TDelWalk(Ardb* d, const DBID& id, const ValueArray& c) :
+						tdb(d), tdbid(id), cmp(c)
+				{
+				}
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+				{
+					TableColKeyObject* ck = (TableColKeyObject*) k;
+					if (compare_values(ck->keyvals, cmp) == 0)
+					{
+						tdb->DelValue(tdbid, *ck);
+					}
+					return -1;
+				}
+		};
+
+		BatchWriteGuard guard(GetDB(db));
+		StringSet::iterator colit = meta.valnames.begin();
+		while (colit != meta.valnames.end())
+		{
+			TableKeyIndexSet::iterator iit = index->begin();
+			while (iit != index->end())
+			{
+				TableColKeyObject k(tableName, *colit);
+				k.keyvals = iit->keyvals;
+				for (uint32 i = 0; i < meta.keynames.size(); i++)
+				{
+					TableIndexKeyObject tik(tableName, meta.keynames[i],
+					        k.keyvals[i]);
+					tik.index.keyvals = k.keyvals;
+					DelValue(db, tik);
+				}
+				TDelWalk walk(this, db, k.keyvals);
+				Walk(db, k, false, &walk);
+				iit++;
+			}
+			colit++;
+		}
+		meta.size -= index->size();
+		SetTableMetaValue(db, tableName, meta);
 		return 0;
 	}
 	int Ardb::TClear(const DBID& db, const Slice& tableName)
 	{
+		struct TClearWalk: public WalkHandler
+		{
+				Ardb* tdb;
+				const DBID& tdbid;
+				TClearWalk(Ardb* d, const DBID& id) :
+						tdb(d), tdbid(id)
+				{
+				}
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+				{
+					if (k->type == TABLE_COL)
+					{
+						TableColKeyObject* tk = (TableColKeyObject*) k;
+						tdb->DelValue(tdbid, *tk);
+					}
+					else if (k->type == TABLE_INDEX)
+					{
+						TableIndexKeyObject* tk = (TableIndexKeyObject*) k;
+						tdb->DelValue(tdbid, *tk);
+					}
+					return 0;
+				}
+		};
+		BatchWriteGuard guard(GetDB(db));
+		TClearWalk walk(this, db);
+		Slice empty;
+		TableIndexKeyObject istart(tableName, empty, empty);
+		TableColKeyObject cstart(tableName, empty);
+		Walk(db, istart, false, &walk);
+		Walk(db, cstart, false, &walk);
+		KeyObject k(tableName, TABLE_META);
+		DelValue(db, k);
 		return 0;
 	}
 	int Ardb::TCount(const DBID& db, const Slice& tableName)

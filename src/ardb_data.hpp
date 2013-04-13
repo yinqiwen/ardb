@@ -116,19 +116,19 @@ namespace ardb
 						Buffer tmp(64);
 						tmp.Printf("%lld", v.int_v);
 						return std::string(tmp.GetRawReadBuffer(),
-								tmp.ReadableBytes());
+						        tmp.ReadableBytes());
 					}
 					case DOUBLE:
 					{
 						Buffer tmp(64);
 						tmp.Printf("%f", v.double_v);
 						return std::string(tmp.GetRawReadBuffer(),
-								tmp.ReadableBytes());
+						        tmp.ReadableBytes());
 					}
 					default:
 					{
 						return std::string(v.raw->GetRawReadBuffer(),
-								v.raw->ReadableBytes());
+						        v.raw->ReadableBytes());
 					}
 				}
 			}
@@ -165,7 +165,7 @@ namespace ardb
 					{
 						v.raw = new Buffer(other.v.raw->ReadableBytes());
 						v.raw->Write(other.v.raw->GetRawReadBuffer(),
-								other.v.raw->ReadableBytes());
+						        other.v.raw->ReadableBytes());
 						return;
 					}
 				}
@@ -193,9 +193,9 @@ namespace ardb
 					default:
 					{
 						Slice a(v.raw->GetRawReadBuffer(),
-								v.raw->ReadableBytes());
+						        v.raw->ReadableBytes());
 						Slice b(other.v.raw->GetRawReadBuffer(),
-								other.v.raw->ReadableBytes());
+						        other.v.raw->ReadableBytes());
 						return a.compare(b);
 					}
 				}
@@ -242,7 +242,7 @@ namespace ardb
 			LogicalOperator logicop;
 
 			Condition(const std::string& name, const Slice& value,
-					CompareOperator compareop, LogicalOperator logic);
+			        CompareOperator compareop, LogicalOperator logic);
 
 			bool MatchValue(const ValueObject& v, int& cmpret)
 			{
@@ -348,6 +348,7 @@ namespace ardb
 	{
 			uint32_t size;
 			StringArray keynames;
+			StringSet valnames;
 			TableMetaValue() :
 					size(0)
 			{
@@ -357,22 +358,7 @@ namespace ardb
 	struct TableKeyIndex
 	{
 			ValueArray keyvals;
-			inline bool operator<(const TableKeyIndex& other) const
-			{
-				if (keyvals.size() > other.keyvals.size())
-				{
-					return false;
-				}
-				for (uint32 i = 0; i < keyvals.size(); i++)
-				{
-					int cmp = keyvals[i].Compare(other.keyvals[i]);
-					if (cmp != 0)
-					{
-						return cmp > 0 ? false : true;
-					}
-				}
-				return false;
-			}
+			bool operator<(const TableKeyIndex& other) const;
 	};
 
 	struct TableIndexKeyObject: public KeyObject
@@ -381,17 +367,19 @@ namespace ardb
 			ValueObject keyvalue;
 			TableKeyIndex index;
 			TableIndexKeyObject(const Slice& tablename, const Slice& keyname,
-					const ValueObject& v) :
+			        const ValueObject& v) :
 					KeyObject(tablename, TABLE_INDEX), kname(keyname), keyvalue(
-							v)
+					        v)
 			{
 			}
+			TableIndexKeyObject(const Slice& tablename, const Slice& keyname,
+			        const Slice& v);
 	};
 
 	struct TableColKeyObject: public KeyObject
 	{
-			Slice col;
 			ValueArray keyvals;
+			Slice col;
 			TableColKeyObject(const Slice& tablename, const Slice& c) :
 					KeyObject(tablename, TABLE_COL), col(c)
 			{
@@ -411,17 +399,17 @@ namespace ardb
 			int limit_count;
 			QueryOptions() :
 					withscores(false), withlimit(false), limit_offset(0), limit_count(
-							0)
+					        0)
 			{
 			}
 	};
-
-	//typedef ValueArray TableKeyElement;
 
 	typedef std::vector<ZSetMetaValue> ZSetMetaValueArray;
 	typedef std::vector<SetMetaValue> SetMetaValueArray;
 	typedef std::deque<TableIndexKeyObject> TableRowKeyArray;
 	typedef std::set<TableKeyIndex> TableKeyIndexSet;
+
+	int compare_values(const ValueArray& a, const ValueArray& b);
 
 	void encode_key(Buffer& buf, const KeyObject& key);
 	KeyObject* decode_key(const Slice& key);

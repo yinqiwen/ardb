@@ -54,7 +54,7 @@ namespace ardb
 			Channel* conn;
 			ArdbReply reply;
 			ArdbConnContext() :
-					conn(NULL)
+					currentDB("0"), conn(NULL)
 			{
 			}
 	};
@@ -67,7 +67,7 @@ namespace ardb
 			Ardb* m_db;
 			KeyValueEngineFactory* m_engine;
 			typedef int (ArdbServer::*RedisCommandHandler)(ArdbConnContext&,
-					ArgumentArray&);
+			        ArgumentArray&);
 
 			struct RedisCommandHandlerSetting
 			{
@@ -80,7 +80,7 @@ namespace ardb
 			RedisCommandHandlerSettingTable m_handler_table;
 
 			void ProcessRedisCommand(ArdbConnContext& ctx,
-					RedisCommandFrame& cmd);
+			        RedisCommandFrame& cmd);
 			int Ping(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Echo(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Select(ArdbConnContext& ctx, ArgumentArray& cmd);
@@ -95,9 +95,10 @@ namespace ardb
 			int Exists(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Expire(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Expireat(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Persist(ArdbConnContext& ctx, ArgumentArray& cmd);
 		public:
 			static int ParseConfig(const Properties& props,
-					ArdbServerConfig& cfg);
+			        ArdbServerConfig& cfg);
 			ArdbServer();
 			int Start(const Properties& props);
 			~ArdbServer();

@@ -23,6 +23,7 @@ namespace ardb
 {
 	 int ardb_compare_keys(const char* akbuf, size_t aksiz,
 			const char* bkbuf, size_t bksiz);
+
 }
 
 #endif /* COMPARATOR_HPP_ */

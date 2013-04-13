@@ -42,6 +42,7 @@ namespace ardb
 			DELETE(engine);
 			return NULL;
 		}
+		DEBUG_LOG("Create DB:%s at path:%s success", db.c_str(), tmp);
 		return engine;
 	}
 	void KCDBEngineFactory::DestroyDB(KeyValueEngine* engine)
@@ -63,10 +64,11 @@ namespace ardb
 		if (!m_db->open(cfg.path.c_str(),
 				kyotocabinet::TreeDB::OWRITER | kyotocabinet::TreeDB::OCREATE))
 		{
-			ERROR_LOG("Unable to open DB");
+			ERROR_LOG("Unable to open DB:%s", cfg.path.c_str());
 			DELETE(m_db);
 			return -1;
 		}
+		ERROR_LOG("Open DB:%s success", cfg.path.c_str());
 		return 0;
 	}
 
@@ -111,6 +113,7 @@ namespace ardb
 
 	int KCDBEngine::Put(const Slice& key, const Slice& value)
 	{
+		DEBUG_LOG("Put data:");
 		if (!m_batch_stack.empty())
 		{
 			std::string kstr(key.data(), key.size());

@@ -6,7 +6,6 @@
  */
 #include "ardb_server.hpp"
 #include <stdarg.h>
-//#define __USE_KYOTOCABINET__ 1
 #ifdef __USE_KYOTOCABINET__
 #include "engine/kyotocabinet_engine.hpp"
 #else
@@ -24,7 +23,6 @@
 	R.type = REDIS_REPLY_STRING;\
 	R.str = S;\
 }while(0)
-
 
 namespace ardb
 {
@@ -130,21 +128,19 @@ namespace ardb
 	ArdbServer::ArdbServer() :
 			m_service(NULL), m_db(NULL), m_engine(NULL)
 	{
-		struct RedisCommandHandlerSetting settingTable[] = {
-				{ "ping", &ArdbServer::Ping, 0, 0 },
-				{ "echo", &ArdbServer::Echo, 1, 1 },
-		        { "quit", &ArdbServer::Quit, 0, 0 },
-		        { "shutdown", &ArdbServer::Shutdown, 0, 1 },
-		        { "slaveof", &ArdbServer::Slaveof, 2, 2 },
-		        { "select",&ArdbServer::Select, 1, 1 },
-		        { "append",&ArdbServer::Append, 2, 2 },
-		        { "get", &ArdbServer::Get,1, 1 },
-		        { "set", &ArdbServer::Set, 2, 7 },
-		        { "del", &ArdbServer::Del, 1, -1 },
-		        { "exists", &ArdbServer::Exists, 1, 1 },
-		        { "expire", &ArdbServer::Expire, 2, 2 },
-		        { "expireat", &ArdbServer::Expireat, 2, 2 },
-		};
+		struct RedisCommandHandlerSetting settingTable[] = { { "ping",
+		        &ArdbServer::Ping, 0, 0 }, { "echo", &ArdbServer::Echo, 1, 1 },
+		        { "quit", &ArdbServer::Quit, 0, 0 }, { "shutdown",
+		                &ArdbServer::Shutdown, 0, 1 }, { "slaveof",
+		                &ArdbServer::Slaveof, 2, 2 }, { "select",
+		                &ArdbServer::Select, 1, 1 }, { "append",
+		                &ArdbServer::Append, 2, 2 }, { "get", &ArdbServer::Get,
+		                1, 1 }, { "set", &ArdbServer::Set, 2, 7 }, { "del",
+		                &ArdbServer::Del, 1, -1 }, { "exists",
+		                &ArdbServer::Exists, 1, 1 }, { "expire",
+		                &ArdbServer::Expire, 2, 2 }, { "expireat",
+		                &ArdbServer::Expireat, 2, 2 }, { "persist",
+				                &ArdbServer::Expireat, 1, 1 }};
 
 		uint32 arraylen = arraysize(settingTable);
 		for (uint32 i = 0; i < arraylen; i++)
@@ -155,6 +151,13 @@ namespace ardb
 	ArdbServer::~ArdbServer()
 	{
 
+	}
+
+	int ArdbServer::Persist(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		int ret = m_db->Persist(ctx.currentDB, cmd[0]);
+		fill_int_reply(ctx.reply, ret == 0 ? 1 : 0);
+		return 0;
 	}
 
 	int ArdbServer::Expire(ArdbConnContext& ctx, ArgumentArray& cmd)
@@ -172,7 +175,7 @@ namespace ardb
 	int ArdbServer::Exists(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
 		bool ret = m_db->Exists(ctx.currentDB, cmd[0]);
-		fill_int_reply(ctx.reply, ret?1:0);
+		fill_int_reply(ctx.reply, ret ? 1 : 0);
 		return 0;
 	}
 

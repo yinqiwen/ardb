@@ -25,7 +25,7 @@
 namespace ardb
 {
 	int ardb_compare_keys(const char* akbuf, size_t aksiz, const char* bkbuf,
-			size_t bksiz)
+	        size_t bksiz)
 	{
 		Buffer ak_buf(const_cast<char*>(akbuf), 0, aksiz);
 		Buffer bk_buf(const_cast<char*>(bkbuf), 0, bksiz);
@@ -91,6 +91,79 @@ namespace ardb
 				}
 				break;
 			}
+			case TABLE_INDEX:
+			{
+				Slice af, bf;
+				found_a = BufferHelper::ReadVarSlice(ak_buf, af);
+				found_b = BufferHelper::ReadVarSlice(bk_buf, bf);
+				COMPARE_EXIST(found_a, found_b);
+				ret = af.compare(bf);
+				if (ret == 0)
+				{
+					ValueObject kav, kbv;
+					found_a = decode_value(ak_buf, kav);
+					found_b = decode_value(bk_buf, kbv);
+					COMPARE_EXIST(found_a, found_b);
+					ret = kav.Compare(kbv);
+					if(ret != 0)
+					{
+						break;
+					}
+					uint32 alen, blen;
+					found_a = BufferHelper::ReadVarUInt32(ak_buf, alen);
+					found_b = BufferHelper::ReadVarUInt32(bk_buf, blen);
+					COMPARE_EXIST(found_a, found_b);
+					ret = COMPARE_NUMBER(alen, blen);
+					if (ret == 0)
+					{
+						for (uint32 i = 0; i < alen; i++)
+						{
+							ValueObject av, bv;
+							found_a = decode_value(ak_buf, av);
+							found_b = decode_value(bk_buf, bv);
+							COMPARE_EXIST(found_a, found_b);
+							ret = av.Compare(bv);
+							if (ret != 0)
+							{
+								break;
+							}
+						}
+					}
+				}
+				break;
+			}
+			case TABLE_COL:
+			{
+				Slice af, bf;
+				found_a = BufferHelper::ReadVarSlice(ak_buf, af);
+				found_b = BufferHelper::ReadVarSlice(bk_buf, bf);
+				COMPARE_EXIST(found_a, found_b);
+				ret = af.compare(bf);
+				if (ret == 0)
+				{
+					uint32 alen, blen;
+					found_a = BufferHelper::ReadVarUInt32(ak_buf, alen);
+					found_b = BufferHelper::ReadVarUInt32(bk_buf, blen);
+					COMPARE_EXIST(found_a, found_b);
+					ret = COMPARE_NUMBER(alen, blen);
+					if (ret == 0)
+					{
+						for (uint32 i = 0; i < alen; i++)
+						{
+							ValueObject av, bv;
+							found_a = decode_value(ak_buf, av);
+							found_b = decode_value(bk_buf, bv);
+							COMPARE_EXIST(found_a, found_b);
+							ret = av.Compare(bv);
+							if (ret != 0)
+							{
+								break;
+							}
+						}
+					}
+				}
+				break;
+			}
 			case SET_META:
 			case ZSET_META:
 			case LIST_META:
@@ -126,7 +199,7 @@ namespace ardb
 	}
 
 	void Ardb::Walk(const DBID& db, KeyObject& key, bool reverse,
-			WalkHandler* handler)
+	        WalkHandler* handler)
 	{
 		Iterator* iter = FindValue(db, key);
 		bool isFirstElement = true;
@@ -136,7 +209,7 @@ namespace ardb
 			Slice tmpkey = iter->Key();
 			KeyObject* kk = decode_key(tmpkey);
 			if (NULL == kk || kk->type != key.type
-					|| kk->key.compare(key.key) != 0)
+			        || kk->key.compare(key.key) != 0)
 			{
 				if (reverse && isFirstElement)
 				{
@@ -150,7 +223,7 @@ namespace ardb
 			}
 			ValueObject v;
 			Buffer readbuf(const_cast<char*>(iter->Value().data()), 0,
-					iter->Value().size());
+			        iter->Value().size());
 			decode_value(readbuf, v);
 			int ret = handler->OnKeyValue(kk, &v, cursor++);
 			DELETE(kk);
@@ -161,7 +234,8 @@ namespace ardb
 			if (reverse)
 			{
 				iter->Prev();
-			} else
+			}
+			else
 			{
 				iter->Next();
 			}
@@ -214,7 +288,7 @@ namespace ardb
 	}
 
 	int Ardb::Sort(const DBID& db, const Slice& key, const StringArray& args,
-			StringArray& values)
+	        StringArray& values)
 	{
 		struct SortOptions
 		{
@@ -227,6 +301,31 @@ namespace ardb
 		};
 
 		return 0;
+	}
+
+	void Ardb::PrintDB(const DBID& db)
+	{
+		Slice empty;
+		KeyObject start(empty);
+		Iterator* iter = FindValue(db, start);
+		while (NULL != iter && iter->Valid())
+		{
+			Slice tmpkey = iter->Key();
+			Slice tmpval = iter->Value();
+			KeyObject* kk = decode_key(tmpkey);
+			ValueObject v;
+			Buffer readbuf(const_cast<char*>(iter->Value().data()), 0,
+			        iter->Value().size());
+			decode_value(readbuf, v);
+			if (NULL != kk)
+			{
+				DEBUG_LOG(
+				        "[%d]Key=%s, Value=%s", kk->type, kk->key.data(), v.ToString().c_str());
+			}
+			iter->Next();
+		}
+		DELETE(iter);
+
 	}
 
 }

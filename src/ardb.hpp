@@ -339,8 +339,8 @@ namespace ardb
 					const SliceMap& colvals, Conditions& conds);
 			int TReplace(const DBID& db, const Slice& tableName,
 								const SliceMap& keyvals, const SliceMap& colvals);
-			int TDel(const DBID& db, const Slice& tableName,
-					const SliceArray& fields, Conditions& conds);
+			int TDel(const DBID& db, const Slice& tableName, Conditions& conds);
+			int TDelCol(const DBID& db, const Slice& tableName, Conditions& conds, const Slice& col);
 			int TClear(const DBID& db, const Slice& tableName);
 			int TCount(const DBID& db, const Slice& tableName);
 
@@ -354,6 +354,8 @@ namespace ardb
 			int Type(const DBID& db, const Slice& key);
 			int Sort(const DBID& db, const Slice& key, const StringArray& args,
 					StringArray& values);
+
+			void PrintDB(const DBID& db);
 
 	};
 }
