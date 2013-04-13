@@ -20,7 +20,9 @@ using namespace kyotocabinet;
 int main(int argc, char** argv)
 {
 	google::InitGoogleLogging(argv[0]);
-	KCDBEngineFactory factory("/tmp/ardb/kc/test");
+	Properties cfg;
+	cfg["dir"] = "/tmp/ardb/kc/test";
+	KCDBEngineFactory factory(cfg);
 	Ardb db(&factory);
 	test_all(db);
 

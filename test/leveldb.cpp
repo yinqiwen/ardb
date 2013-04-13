@@ -17,7 +17,9 @@ using namespace ardb;
 int main(int argc, char** argv)
 {
 	google::InitGoogleLogging(argv[0]);
-	LevelDBEngineFactory factory("/tmp/ardb/test");
+	Properties cfg;
+	cfg["dir"] = "/tmp/ardb/test";
+	LevelDBEngineFactory factory(cfg);
 	Ardb db(&factory);
 	test_all(db);
 	return 0;
