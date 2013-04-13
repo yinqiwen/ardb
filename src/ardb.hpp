@@ -113,6 +113,8 @@ namespace ardb
 
 			int SetExpiration(const DBID& db, const Slice& key,
 					uint64_t expire);
+
+			int GetValue(const DBID& db, const Slice& key, ValueObject* value);
 			int GetValue(const DBID& db, const KeyObject& key, ValueObject* v,
 					uint64* expire = NULL);
 			int SetValue(const DBID& db, KeyObject& key, ValueObject& value,
@@ -177,7 +179,7 @@ namespace ardb
 			int PSetEx(const DBID& db, const Slice& key, const Slice& value,
 					uint32_t ms);
 			int Get(const DBID& db, const Slice& key, std::string* value);
-			int MGet(const DBID& db, SliceArray& keys, StringArray& value);
+			int MGet(const DBID& db, SliceArray& keys, ValueArray& values);
 			int Del(const DBID& db, const Slice& key);
 			int Del(const DBID& db, const SliceArray& keys);
 			bool Exists(const DBID& db, const Slice& key);

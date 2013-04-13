@@ -11,7 +11,7 @@ namespace ardb
 {
 
 	int Ardb::GetValue(const DBID& db, const KeyObject& key, ValueObject* v,
-			uint64* expire)
+	        uint64* expire)
 	{
 		Buffer keybuf(key.key.size() + 16);
 		encode_key(keybuf, key);
@@ -37,7 +37,8 @@ namespace ardb
 				{
 					GetDB(db)->Del(k);
 					return ERR_NOT_EXIST;
-				} else
+				}
+				else
 				{
 					return ARDB_OK;
 				}
@@ -57,7 +58,7 @@ namespace ardb
 	}
 
 	int Ardb::SetValue(const DBID& db, KeyObject& key, ValueObject& value,
-			uint64 expire)
+	        uint64 expire)
 	{
 		Buffer keybuf(key.key.size() + 16);
 		encode_key(keybuf, key);
@@ -119,14 +120,19 @@ namespace ardb
 				smart_fill_value(*vit, valueobject);
 				SetValue(db, keyobject, valueobject);
 			}
+			else
+			{
+				guard.MarkFailed();
+				return -1;
+			}
 			kit++;
 			vit++;
 		}
-		return 0;
+		return keys.size();
 	}
 
-	int Ardb::Set(const DBID& db, const Slice& key, const Slice& value, int ex, int px,
-			int nxx)
+	int Ardb::Set(const DBID& db, const Slice& key, const Slice& value, int ex,
+	        int px, int nxx)
 	{
 		KeyObject k(key);
 		if (-1 == nxx)
@@ -135,7 +141,8 @@ namespace ardb
 			{
 				return ERR_KEY_EXIST;
 			}
-		} else if (1 == nxx)
+		}
+		else if (1 == nxx)
 		{
 			if (0 != GetValue(db, k, NULL))
 			{
@@ -170,11 +177,12 @@ namespace ardb
 	}
 
 	int Ardb::SetEx(const DBID& db, const Slice& key, const Slice& value,
-			uint32_t secs)
+	        uint32_t secs)
 	{
 		return PSetEx(db, key, value, secs * 1000);
 	}
-	int Ardb::PSetEx(const DBID& db, const Slice& key, const Slice& value, uint32_t ms)
+	int Ardb::PSetEx(const DBID& db, const Slice& key, const Slice& value,
+	        uint32_t ms)
 	{
 		KeyObject keyobject(key);
 		ValueObject valueobject;
@@ -188,11 +196,17 @@ namespace ardb
 		return SetValue(db, keyobject, valueobject, expire);
 	}
 
-	int Ardb::Get(const DBID& db, const Slice& key, std::string* value)
+	int Ardb::GetValue(const DBID& db, const Slice& key, ValueObject* value)
 	{
 		KeyObject keyobject(key);
+		int ret = GetValue(db, keyobject, value);
+		return ret;
+	}
+
+	int Ardb::Get(const DBID& db, const Slice& key, std::string* value)
+	{
 		ValueObject v;
-		int ret = GetValue(db, keyobject, &v);
+		int ret = GetValue(db, key, &v);
 		if (0 == ret)
 		{
 			if (NULL != value)
@@ -203,15 +217,17 @@ namespace ardb
 		return ret;
 	}
 
-	int Ardb::MGet(const DBID& db, SliceArray& keys, StringArray& value)
+	int Ardb::MGet(const DBID& db, SliceArray& keys, ValueArray& value)
 	{
 		SliceArray::iterator it = keys.begin();
+		int i = 0;
 		while (it != keys.end())
 		{
-			std::string v;
-			Get(db, *it, &v);
+			ValueObject v;
 			value.push_back(v);
+			GetValue(db, *it, &value[i]);
 			it++;
+			i++;
 		}
 		return 0;
 	}
@@ -231,7 +247,7 @@ namespace ardb
 	{
 		BatchWriteGuard guard(GetDB(db));
 		SliceArray::const_iterator it = keys.begin();
-		while(it != keys.end())
+		while (it != keys.end())
 		{
 			Del(db, *it);
 			it++;
@@ -262,7 +278,7 @@ namespace ardb
 		{
 			return v.size();
 		}
-		return ERR_NOT_EXIST;
+		return 0;
 	}
 	int Ardb::Expire(const DBID& db, const Slice& key, uint32_t secs)
 	{

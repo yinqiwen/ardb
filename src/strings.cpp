@@ -19,18 +19,18 @@ namespace ardb
 		unsigned char *p;
 		const uint32_t* p4 = (const uint32_t*) s;
 		static const unsigned char bitsinbyte[256] = { 0, 1, 1, 2, 1, 2, 2, 3,
-				1, 2, 2, 3, 2, 3, 3, 4, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3,
-				4, 4, 5, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3,
-				3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 1, 2, 2, 3, 2, 3, 3,
-				4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5,
-				4, 5, 5, 6, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 3,
-				4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, 1, 2, 2, 3, 2, 3,
-				3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4,
-				5, 4, 5, 5, 6, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
-				3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, 2, 3, 3, 4, 3,
-				4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5,
-				5, 6, 5, 6, 6, 7, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6,
-				7, 4, 5, 5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8 };
+		        1, 2, 2, 3, 2, 3, 3, 4, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3,
+		        4, 4, 5, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3,
+		        3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 1, 2, 2, 3, 2, 3, 3,
+		        4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5,
+		        4, 5, 5, 6, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 3,
+		        4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, 1, 2, 2, 3, 2, 3,
+		        3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4,
+		        5, 4, 5, 5, 6, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
+		        3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, 2, 3, 3, 4, 3,
+		        4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5,
+		        5, 6, 5, 6, 6, 7, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6,
+		        7, 4, 5, 5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8 };
 
 		/* Count bits 16 bytes at a time */
 		while (count >= 16)
@@ -52,13 +52,13 @@ namespace ardb
 			aux4 = aux4 - ((aux4 >> 1) & 0x55555555);
 			aux4 = (aux4 & 0x33333333) + ((aux4 >> 2) & 0x33333333);
 			bits +=
-					((((aux1 + (aux1 >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24)
-							+ ((((aux2 + (aux2 >> 4)) & 0x0F0F0F0F) * 0x01010101)
-									>> 24)
-							+ ((((aux3 + (aux3 >> 4)) & 0x0F0F0F0F) * 0x01010101)
-									>> 24)
-							+ ((((aux4 + (aux4 >> 4)) & 0x0F0F0F0F) * 0x01010101)
-									>> 24);
+			        ((((aux1 + (aux1 >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24)
+			                + ((((aux2 + (aux2 >> 4)) & 0x0F0F0F0F) * 0x01010101)
+			                        >> 24)
+			                + ((((aux3 + (aux3 >> 4)) & 0x0F0F0F0F) * 0x01010101)
+			                        >> 24)
+			                + ((((aux4 + (aux4 >> 4)) & 0x0F0F0F0F) * 0x01010101)
+			                        >> 24);
 		}
 		/* Count the remaining bytes */
 		p = (unsigned char*) p4;
@@ -75,8 +75,9 @@ namespace ardb
 		{
 			v.type = RAW;
 			v.v.raw = new Buffer(const_cast<char*>(value.data()), 0,
-					value.size());
-		} else
+			        value.size());
+		}
+		else
 		{
 			value_convert_to_raw(v);
 			v.v.raw->Write(value.data(), value.size());
@@ -102,7 +103,7 @@ namespace ardb
 		return Incrby(db, key, 1, value);
 	}
 	int Ardb::Incrby(const DBID& db, const Slice& key, int64_t increment,
-			int64_t& value)
+	        int64_t& value)
 	{
 		KeyObject k(key);
 		ValueObject v;
@@ -117,7 +118,8 @@ namespace ardb
 			SetValue(db, k, v);
 			value = v.v.int_v;
 			return 0;
-		} else
+		}
+		else
 		{
 			return -1;
 		}
@@ -129,13 +131,13 @@ namespace ardb
 	}
 
 	int Ardb::Decrby(const DBID& db, const Slice& key, int64_t decrement,
-			int64_t& value)
+	        int64_t& value)
 	{
 		return Incrby(db, key, 0 - decrement, value);
 	}
 
 	int Ardb::IncrbyFloat(const DBID& db, const Slice& key, double increment,
-			double& value)
+	        double& value)
 	{
 		KeyObject k(key);
 		ValueObject v;
@@ -156,14 +158,15 @@ namespace ardb
 			SetValue(db, k, v);
 			value = v.v.double_v;
 			return 0;
-		} else
+		}
+		else
 		{
 			return -1;
 		}
 	}
 
 	int Ardb::GetRange(const DBID& db, const Slice& key, int start, int end,
-			std::string& v)
+	        std::string& v)
 	{
 		KeyObject k(key);
 		ValueObject vo;
@@ -187,7 +190,8 @@ namespace ardb
 		return ARDB_OK;
 	}
 
-	int Ardb::SetRange(const DBID& db, const Slice& key, int start, const Slice& value)
+	int Ardb::SetRange(const DBID& db, const Slice& key, int start,
+	        const Slice& value)
 	{
 		KeyObject k(key);
 		ValueObject v;
@@ -202,11 +206,12 @@ namespace ardb
 		start = RealPosition(v.v.raw, start);
 		v.v.raw->SetWriteIndex(start);
 		v.v.raw->Write(value.data(), value.size());
-		return SetValue(db, k, v);
+		int len = v.v.raw->ReadableBytes();
+		return SetValue(db, k, v) == 0 ? len : 0;
 	}
 
 	int Ardb::GetSet(const DBID& db, const Slice& key, const Slice& value,
-			std::string& v)
+	        std::string& v)
 	{
 		if (Get(db, key, &v) < 0)
 		{
@@ -216,7 +221,8 @@ namespace ardb
 		return Set(db, key, value);
 	}
 
-	int Ardb::SetBit(const DBID& db, const Slice& key, uint32_t bitoffset, uint8_t value)
+	int Ardb::SetBit(const DBID& db, const Slice& key, uint32_t bitoffset,
+	        uint8_t value)
 	{
 		int byte, bit;
 		int byteval, bitval;
@@ -289,7 +295,7 @@ namespace ardb
 	}
 
 	int Ardb::BitOP(const DBID& db, const Slice& opstr, const Slice& dstkey,
-			SliceArray& keys)
+	        SliceArray& keys)
 	{
 		long op, j, numkeys;
 		unsigned char **src;
@@ -381,7 +387,8 @@ namespace ardb
 						j += sizeof(unsigned long) * 4;
 						minlen -= sizeof(unsigned long) * 4;
 					}
-				} else if (op == BITOP_OR)
+				}
+				else if (op == BITOP_OR)
 				{
 					while (minlen >= sizeof(unsigned long) * 4)
 					{
@@ -397,7 +404,8 @@ namespace ardb
 						j += sizeof(unsigned long) * 4;
 						minlen -= sizeof(unsigned long) * 4;
 					}
-				} else if (op == BITOP_XOR)
+				}
+				else if (op == BITOP_XOR)
 				{
 					while (minlen >= sizeof(unsigned long) * 4)
 					{
@@ -413,7 +421,8 @@ namespace ardb
 						j += sizeof(unsigned long) * 4;
 						minlen -= sizeof(unsigned long) * 4;
 					}
-				} else if (op == BITOP_NOT)
+				}
+				else if (op == BITOP_NOT)
 				{
 					while (minlen >= sizeof(unsigned long) * 4)
 					{

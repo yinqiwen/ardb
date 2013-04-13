@@ -53,6 +53,26 @@ namespace ardb
 		reply.type = REDIS_REPLY_INTEGER;
 		reply.integer = v;
 	}
+	static inline void fill_array_reply(ArdbReply& reply, ValueArray& v)
+	{
+		reply.type = REDIS_REPLY_ARRAY;
+		ValueArray::iterator it = v.begin();
+		while (it != v.end())
+		{
+			ValueObject& vo = *it;
+			ArdbReply r;
+			if (vo.type == EMPTY)
+			{
+				r.type = REDIS_REPLY_NIL;
+			}
+			else
+			{
+				FILL_STR_REPLY(r, vo.ToString());
+			}
+			reply.elements.push_back(r);
+			it++;
+		}
+	}
 
 	static void encode_reply(Buffer& buf, ArdbReply& reply)
 	{
@@ -148,7 +168,18 @@ namespace ardb
 		                &ArdbServer::Decrby, 2, 2 }, { "getbit",
 		                &ArdbServer::GetBit, 2, 2 }, { "getrange",
 		                &ArdbServer::GetRange, 3, 3 }, { "getset",
-		                &ArdbServer::GetSet, 2, 2 } };
+		                &ArdbServer::GetSet, 2, 2 }, { "incr",
+		                &ArdbServer::Incr, 1, 1 }, { "incrby",
+		                &ArdbServer::Incrby, 2, 2 }, { "incrbyfloat",
+		                &ArdbServer::IncrbyFloat, 2, 2 }, { "mget",
+		                &ArdbServer::MGet, 1, -1 }, { "mset", &ArdbServer::MSet,
+		                2, -1 }, { "msetnx", &ArdbServer::MSetNX, 2, -1 }, {
+		                "psetex", &ArdbServer::MSetNX, 3, 3 }, { "setbit",
+		                &ArdbServer::SetBit, 3, 3 }, { "setex",
+		                &ArdbServer::SetEX, 3, 3 }, { "setnx",
+		                &ArdbServer::SetNX, 2, 2 }, { "setrange",
+		                &ArdbServer::SetRange, 3, 3 }, { "strlen",
+		                &ArdbServer::Strlen, 1, 1 } };
 
 		uint32 arraylen = arraysize(settingTable);
 		for (uint32 i = 0; i < arraylen; i++)
@@ -343,6 +374,195 @@ namespace ardb
 		else
 		{
 			ctx.reply.type = REDIS_REPLY_NIL;
+		}
+		return 0;
+	}
+
+	int ArdbServer::SetEX(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		uint32 secs;
+		if (!string_touint32(cmd[1], secs))
+		{
+			fill_error_reply(ctx.reply,
+			        "ERR value is not an integer or out of range");
+			return 0;
+		}
+		m_db->SetEx(ctx.currentDB, cmd[0], cmd[2], secs);
+		fill_status_reply(ctx.reply, "OK");
+		return 0;
+	}
+	int ArdbServer::SetNX(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		int ret = m_db->SetNX(ctx.currentDB, cmd[0], cmd[1]);
+		fill_int_reply(ctx.reply, ret);
+		return 0;
+	}
+	int ArdbServer::SetRange(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		int32 offset;
+		if (!string_toint32(cmd[1], offset))
+		{
+			fill_error_reply(ctx.reply,
+			        "ERR value is not an integer or out of range");
+			return 0;
+		}
+		int ret = m_db->SetRange(ctx.currentDB, cmd[0], offset, cmd[2]);
+		fill_int_reply(ctx.reply, ret);
+		return 0;
+	}
+	int ArdbServer::Strlen(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		int ret = m_db->Strlen(ctx.currentDB, cmd[0]);
+		fill_int_reply(ctx.reply, ret);
+		return 0;
+	}
+
+	int ArdbServer::SetBit(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		int32 offset, val;
+		if (!string_toint32(cmd[1], offset))
+		{
+			fill_error_reply(ctx.reply,
+			        "ERR value is not an integer or out of range");
+			return 0;
+		}
+		if (cmd[2] != "1" && cmd[2] != "0")
+		{
+			fill_error_reply(ctx.reply,
+			        "ERR bit is not an integer or out of range");
+			return 0;
+		}
+		uint8 bit = cmd[2] != "1";
+		int ret = m_db->SetBit(ctx.currentDB, cmd[0], offset, bit);
+		fill_int_reply(ctx.reply, bit);
+		return 0;
+	}
+
+	int ArdbServer::PSetEX(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		uint32 mills;
+		if (!string_touint32(cmd[1], mills))
+		{
+			fill_error_reply(ctx.reply,
+			        "ERR value is not an integer or out of range");
+			return 0;
+		}
+		m_db->PSetEx(ctx.currentDB, cmd[0], cmd[2], mills);
+		fill_status_reply(ctx.reply, "OK");
+		return 0;
+	}
+
+	int ArdbServer::MSetNX(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		if (cmd.size() % 2 != 0)
+		{
+			fill_error_reply(ctx.reply,
+			        "ERR wrong number of arguments for MSETNX");
+			return 0;
+		}
+		SliceArray keys;
+		SliceArray vals;
+		for (int i = 0; i < cmd.size(); i += 2)
+		{
+			keys.push_back(cmd[i]);
+			vals.push_back(cmd[i + 1]);
+		}
+		int count = m_db->MSetNX(ctx.currentDB, keys, vals);
+		fill_int_reply(ctx.reply, count);
+		return 0;
+	}
+
+	int ArdbServer::MSet(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		if (cmd.size() % 2 != 0)
+		{
+			fill_error_reply(ctx.reply,
+			        "ERR wrong number of arguments for MSET");
+			return 0;
+		}
+		SliceArray keys;
+		SliceArray vals;
+		for (int i = 0; i < cmd.size(); i += 2)
+		{
+			keys.push_back(cmd[i]);
+			vals.push_back(cmd[i + 1]);
+		}
+		m_db->MSet(ctx.currentDB, keys, vals);
+		fill_status_reply(ctx.reply, "OK");
+		return 0;
+	}
+
+	int ArdbServer::MGet(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		SliceArray keys;
+		for (int i = 0; i < cmd.size(); i++)
+		{
+			keys.push_back(cmd[i]);
+		}
+		ValueArray res;
+		m_db->MGet(ctx.currentDB, keys, res);
+		fill_array_reply(ctx.reply, res);
+		return 0;
+	}
+
+	int ArdbServer::IncrbyFloat(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		double increment, val;
+		if (!string_todouble(cmd[1], increment))
+		{
+			fill_error_reply(ctx.reply,
+			        "ERR value is not a float or out of range");
+			return 0;
+		}
+		int ret = m_db->IncrbyFloat(ctx.currentDB, cmd[0], increment, val);
+		if (ret == 0)
+		{
+			char tmp[256];
+			snprintf(tmp, sizeof(tmp) - 1, "%f", val);
+			FILL_STR_REPLY(ctx.reply, tmp);
+		}
+		else
+		{
+			fill_error_reply(ctx.reply,
+			        "ERR value is not a float or out of range");
+		}
+		return 0;
+	}
+
+	int ArdbServer::Incrby(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		int64 increment, val;
+		if (!string_toint64(cmd[1], increment))
+		{
+			fill_error_reply(ctx.reply,
+			        "ERR value is not an integer or out of range");
+			return 0;
+		}
+		int ret = m_db->Incrby(ctx.currentDB, cmd[0], increment, val);
+		if (ret == 0)
+		{
+			fill_int_reply(ctx.reply, val);
+		}
+		else
+		{
+			fill_error_reply(ctx.reply,
+			        "ERR value is not an integer or out of range");
+		}
+		return 0;
+	}
+
+	int ArdbServer::Incr(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		int64_t val;
+		int ret = m_db->Incr(ctx.currentDB, cmd[0], val);
+		if (ret == 0)
+		{
+			fill_int_reply(ctx.reply, val);
+		}
+		else
+		{
+			fill_error_reply(ctx.reply,
+			        "ERR value is not an integer or out of range");
 		}
 		return 0;
 	}
