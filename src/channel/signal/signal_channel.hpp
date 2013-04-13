@@ -9,6 +9,7 @@
 #define SIGNAL_CHANNEL_HPP_
 #include "channel/channel.hpp"
 #include <vector>
+#include <signal.h>
 
 namespace ardb
 {

@@ -14,6 +14,7 @@
 #include <net/if.h>
 #include <string.h>
 #include <stdio.h>
+#include <unistd.h>
 
 namespace ardb
 {

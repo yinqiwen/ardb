@@ -410,7 +410,7 @@ namespace ardb
 				}
 				ZRemRangeByRankWalk(Ardb* db, const DBID& dbid, int start, int stop,
 				        ZSetMetaValue& meta) :
-						rank(0), z_db(db), z_dbid(z_dbid), z_start(start), z_stop(
+						rank(0), z_db(db), z_dbid(dbid), z_start(start), z_stop(
 						        stop), z_meta(meta), z_count(0)
 				{
 				}
@@ -477,7 +477,7 @@ namespace ardb
 					return 0;
 				}
 				ZRemRangeByScoreWalk(Ardb* db, const DBID& dbid, ZSetMetaValue& meta) :
-						z_db(db), z_dbid(z_dbid), z_meta(meta), z_count(0)
+						z_db(db), z_dbid(dbid), z_meta(meta), z_count(0)
 				{
 				}
 		} walk(this, db, meta);

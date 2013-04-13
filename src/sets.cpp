@@ -458,7 +458,7 @@ namespace ardb
 				}
 				it++;
 			}
-			SetSetMetaValue(0, dst, meta);
+			SetSetMetaValue(db, dst, meta);
 			return meta.size;
 		}
 		return 0;

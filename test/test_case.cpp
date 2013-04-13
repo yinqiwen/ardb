@@ -34,5 +34,4 @@ void test_all(Ardb& db)
 	test_sets(db);
 	test_zsets(db);
 	test_type(db);
-	DEBUG_LOG("Test finished!");
 }

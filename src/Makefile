@@ -17,7 +17,7 @@ LDFLAGS=-g
 
 INCS=-I./ -I./util -I${LEVELDB_PATH}/include -I${KCDB_PATH} -I${GLOG_PATH}/src
 
-LIBS=${GLOG_PATH}/.libs/libglog.a
+LIBS=${GLOG_PATH}/.libs/libglog.a -lpthread -lrt
 
 %.o : %.cpp
 	${CXX} -c ${CXXFLAGS} ${INCS} $< -o $@
@@ -77,4 +77,4 @@ kcdb-test:$(KCDB_TEST) $(CORE_OBJECTS) $(KCDB_ENGINE)
 	${CXX} -o kcdb-test $(KCDB_TEST) $(KCDB_ENGINE) $(CORE_OBJECTS) $(LIBS) ${KCDB_PATH}/libkyotocabinet.a -lz
 
 clean:
-	rm -f ${CORE_OBJECTS} ${LEVELDB_OBJECTS} $(SERVER_OBJECTS) $(CHANNEL_OBJECTS) $(DIST_LIBA) $(DIST_LIB)  leveldb-test kcdb-test ardb-server
+	rm -f $(LEVELDB_TEST) $(KCDB_TEST) ${CORE_OBJECTS} ${LEVELDB_OBJECTS} $(SERVER_OBJECTS) $(CHANNEL_OBJECTS) $(DIST_LIBA) $(DIST_LIB)  leveldb-test kcdb-test ardb-server
