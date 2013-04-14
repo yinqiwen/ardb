@@ -312,21 +312,23 @@ namespace ardb
 			 * Set operations
 			 */
 			int SAdd(const DBID& db, const Slice& key, const Slice& value);
+			int SAdd(const DBID& db, const Slice& key, const SliceArray& values);
 			int SCard(const DBID& db, const Slice& key);
-			int SMembers(const DBID& db, const Slice& key, StringArray& values);
-			int SDiff(const DBID& db, SliceArray& keys, StringArray& values);
+			int SMembers(const DBID& db, const Slice& key, ValueArray& values);
+			int SDiff(const DBID& db, SliceArray& keys, ValueSet& values);
 			int SDiffStore(const DBID& db, const Slice& dst, SliceArray& keys);
-			int SInter(const DBID& db, SliceArray& keys, StringArray& values);
+			int SInter(const DBID& db, SliceArray& keys, ValueSet& values);
 			int SInterStore(const DBID& db, const Slice& dst, SliceArray& keys);
 			bool SIsMember(const DBID& db, const Slice& key,
 					const Slice& value);
 			int SRem(const DBID& db, const Slice& key, const Slice& value);
+			int SRem(const DBID& db, const Slice& key, const SliceArray& values);
 			int SMove(const DBID& db, const Slice& src, const Slice& dst,
 					const Slice& value);
 			int SPop(const DBID& db, const Slice& key, std::string& value);
 			int SRandMember(const DBID& db, const Slice& key,
-					StringArray& values, int count = 1);
-			int SUnion(const DBID& db, SliceArray& keys, StringArray& values);
+					ValueArray& values, int count = 1);
+			int SUnion(const DBID& db, SliceArray& keys, ValueSet& values);
 			int SUnionStore(const DBID& db, const Slice& dst, SliceArray& keys);
 			int SClear(const DBID& db, const Slice& key);
 
