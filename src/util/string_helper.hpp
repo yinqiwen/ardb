@@ -96,6 +96,7 @@ namespace ardb
 		return str_todouble(str.c_str(), value);
 	}
 
+	void fast_dtoa(double value, int prec, std::string& result);
 	int fast_itoa(char* str, uint32 strlen, uint64 i);
 
 	bool has_prefix(const std::string& str, const std::string& prefix);

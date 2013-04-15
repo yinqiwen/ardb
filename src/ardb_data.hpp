@@ -120,10 +120,9 @@ namespace ardb
 					}
 					case DOUBLE:
 					{
-						Buffer tmp(64);
-						tmp.Printf("%f", v.double_v);
-						return std::string(tmp.GetRawReadBuffer(),
-						        tmp.ReadableBytes());
+						std::string dstr;
+						fast_dtoa(v.double_v, 10, dstr);
+						return dstr;
 					}
 					default:
 					{

@@ -293,10 +293,10 @@ namespace ardb
 			int ZRemRangeByScore(const DBID& db, const Slice& key,
 					const std::string& min, const std::string& max);
 			int ZRange(const DBID& db, const Slice& key, int start, int stop,
-					StringArray& values, QueryOptions& options);
+					ValueArray& values, QueryOptions& options);
 			int ZRangeByScore(const DBID& db, const Slice& key,
 					const std::string& min, const std::string& max,
-					StringArray& values, QueryOptions& options);
+					ValueArray& values, QueryOptions& options);
 			int ZRevRange(const DBID& db, const Slice& key, int start, int stop,
 					StringArray& values, QueryOptions& options);
 			int ZRevRangeByScore(const DBID& db, const Slice& key,

@@ -491,7 +491,7 @@ namespace ardb
 	}
 
 	int Ardb::ZRange(const DBID& db, const Slice& key, int start, int stop,
-	        StringArray& values, QueryOptions& options)
+			ValueArray& values, QueryOptions& options)
 	{
 		ZSetMetaValue meta;
 		if (0 != GetZSetMetaValue(db, key, meta))
@@ -518,7 +518,7 @@ namespace ardb
 				int rank;
 				int z_start;
 				int z_stop;
-				StringArray& z_values;
+				ValueArray& z_values;
 				QueryOptions& z_options;
 				int z_count;
 				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
@@ -526,12 +526,11 @@ namespace ardb
 					ZSetKeyObject* zsk = (ZSetKeyObject*) k;
 					if (rank >= z_start && rank <= z_stop)
 					{
-						z_values.push_back(zsk->value.ToString());
+						z_values.push_back(zsk->value);
 						if (z_options.withscores)
 						{
-							char tmp[128];
-							snprintf(tmp, sizeof(tmp) - 1, "%f", zsk->score);
-							z_values.push_back(tmp);
+							ValueObject scorev(zsk->score);
+							z_values.push_back(scorev);
 						}
 						z_count++;
 					}
@@ -542,7 +541,7 @@ namespace ardb
 					}
 					return 0;
 				}
-				ZRangeWalk(int start, int stop, StringArray& v,
+				ZRangeWalk(int start, int stop, ValueArray& v,
 				        QueryOptions& options) :
 						rank(0), z_start(start), z_stop(stop), z_values(v), z_options(
 						        options), z_count(0)
@@ -554,7 +553,7 @@ namespace ardb
 	}
 
 	int Ardb::ZRangeByScore(const DBID& db, const Slice& key, const std::string& min,
-	        const std::string& max, StringArray& values,
+	        const std::string& max, ValueArray& values,
 	        QueryOptions& options)
 	{
 		ZSetMetaValue meta;
@@ -574,7 +573,7 @@ namespace ardb
 		ZSetKeyObject tmp(key, empty, min_score);
 		struct ZRangeByScoreWalk: public WalkHandler
 		{
-				StringArray& z_values;
+				ValueArray& z_values;
 				QueryOptions& z_options;
 				double z_min_score;
 				bool z_containmin;
@@ -613,10 +612,10 @@ namespace ardb
 						z_count++;
 						if (inrange)
 						{
-							z_values.push_back(zsk->value.ToString());
+							z_values.push_back(zsk->value);
 							if (z_options.withscores)
 							{
-								z_values.push_back(double_tostring(zsk->score));
+								z_values.push_back(ValueObject(zsk->score));
 							}
 						}
 					}
@@ -630,7 +629,7 @@ namespace ardb
 					}
 					return 0;
 				}
-				ZRangeByScoreWalk(StringArray& v, QueryOptions& options) :
+				ZRangeByScoreWalk(ValueArray& v, QueryOptions& options) :
 						z_values(v), z_options(options), z_count(0)
 				{
 				}

@@ -15,142 +15,152 @@
 using namespace ardb::codec;
 namespace ardb
 {
-struct ArdbServerConfig
-{
-	bool daemonize;
-	std::string listen_host;
-	int64 listen_port;
-	std::string listen_unix_path;
-	int64 max_clients;
-	std::string data_base_path;
-	ArdbServerConfig() :
-			daemonize(false), listen_port(0), max_clients(10000)
+	struct ArdbServerConfig
 	{
-	}
-};
-
-struct ArdbReply
-{
-	int type;
-	std::string str;
-	int64_t integer;
-	std::deque<ArdbReply> elements;
-	ArdbReply() :
-			type(0), integer(0)
-	{
-	}
-	void Clear()
-	{
-		type = 0;
-		integer = 0;
-		str.clear();
-		elements.clear();
-	}
-};
-
-struct ArdbConnContext
-{
-	DBID currentDB;
-	Channel* conn;
-	ArdbReply reply;
-	ArdbConnContext() :
-			currentDB("0"), conn(NULL)
-	{
-	}
-};
-
-class ArdbServer
-{
-private:
-	ArdbServerConfig m_cfg;
-	ChannelService* m_service;
-	Ardb* m_db;
-	KeyValueEngineFactory* m_engine;
-	typedef int (ArdbServer::*RedisCommandHandler)(ArdbConnContext&,
-			ArgumentArray&);
-
-	struct RedisCommandHandlerSetting
-	{
-		const char* name;
-		RedisCommandHandler handler;
-		int min_arity;
-		int max_arity;
+			bool daemonize;
+			std::string listen_host;
+			int64 listen_port;
+			std::string listen_unix_path;
+			int64 max_clients;
+			std::string data_base_path;
+			ArdbServerConfig() :
+					daemonize(false), listen_port(0), max_clients(10000)
+			{
+			}
 	};
-	typedef std::map<std::string, RedisCommandHandlerSetting> RedisCommandHandlerSettingTable;
-	RedisCommandHandlerSettingTable m_handler_table;
 
-	void ProcessRedisCommand(ArdbConnContext& ctx, RedisCommandFrame& cmd);
-	int Ping(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int Echo(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int Select(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int Quit(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int Slaveof(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int Shutdown(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int Type(ArdbConnContext& ctx, ArgumentArray& cmd);
+	struct ArdbReply
+	{
+			int type;
+			std::string str;
+			int64_t integer;
+			double double_value;
+			std::deque<ArdbReply> elements;
+			ArdbReply() :
+					type(0), integer(0),double_value(0)
+			{
+			}
+			void Clear()
+			{
+				type = 0;
+				integer = 0;
+				double_value = 0;
+				str.clear();
+				elements.clear();
+			}
+	};
 
-	int Append(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int Bitcount(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int Bitop(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int Decr(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int Decrby(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int Get(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int GetBit(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int GetRange(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int GetSet(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int Incr(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int Incrby(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int IncrbyFloat(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int MGet(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int MSet(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int MSetNX(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int PSetEX(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int SetBit(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int SetEX(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int SetNX(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int SetRange(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int Strlen(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int Set(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int Del(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int Exists(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int Expire(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int Expireat(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int Persist(ArdbConnContext& ctx, ArgumentArray& cmd);
+	struct ArdbConnContext
+	{
+			DBID currentDB;
+			Channel* conn;
+			ArdbReply reply;
+			ArdbConnContext() :
+					currentDB("0"), conn(NULL)
+			{
+			}
+	};
 
-	int HDel(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int HExists(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int HGet(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int HGetAll(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int HIncrby(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int HIncrbyFloat(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int HKeys(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int HLen(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int HMGet(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int HMSet(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int HSet(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int HSetNX(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int HVals(ArdbConnContext& ctx, ArgumentArray& cmd);
+	class ArdbServer
+	{
+		private:
+			ArdbServerConfig m_cfg;
+			ChannelService* m_service;
+			Ardb* m_db;
+			KeyValueEngineFactory* m_engine;
+			typedef int (ArdbServer::*RedisCommandHandler)(ArdbConnContext&,
+					ArgumentArray&);
 
-	int SAdd(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int SCard(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int SDiff(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int SDiffStore(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int SInter(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int SInterStore(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int SIsMember(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int SMembers(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int SMove(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int SPop(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int SRandMember(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int SRem(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int SUnion(ArdbConnContext& ctx, ArgumentArray& cmd);
-	int SUnionStore(ArdbConnContext& ctx, ArgumentArray& cmd);
+			struct RedisCommandHandlerSetting
+			{
+					const char* name;
+					RedisCommandHandler handler;
+					int min_arity;
+					int max_arity;
+			};
+			typedef std::map<std::string, RedisCommandHandlerSetting> RedisCommandHandlerSettingTable;
+			RedisCommandHandlerSettingTable m_handler_table;
 
-public:
-	static int ParseConfig(const Properties& props, ArdbServerConfig& cfg);
-	ArdbServer();
-	int Start(const Properties& props);
-	~ArdbServer();
-};
+			void ProcessRedisCommand(ArdbConnContext& ctx,
+					RedisCommandFrame& cmd);
+			int Ping(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Echo(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Select(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Quit(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Slaveof(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Shutdown(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Type(ArdbConnContext& ctx, ArgumentArray& cmd);
+
+			int Append(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Bitcount(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Bitop(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Decr(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Decrby(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Get(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int GetBit(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int GetRange(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int GetSet(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Incr(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Incrby(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int IncrbyFloat(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int MGet(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int MSet(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int MSetNX(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int PSetEX(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int SetBit(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int SetEX(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int SetNX(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int SetRange(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Strlen(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Set(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Del(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Exists(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Expire(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Expireat(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Persist(ArdbConnContext& ctx, ArgumentArray& cmd);
+
+			int HDel(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HExists(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HGet(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HGetAll(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HIncrby(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HIncrbyFloat(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HKeys(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HLen(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HMGet(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HMSet(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HSet(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HSetNX(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HVals(ArdbConnContext& ctx, ArgumentArray& cmd);
+
+			int SAdd(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int SCard(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int SDiff(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int SDiffStore(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int SInter(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int SInterStore(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int SIsMember(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int SMembers(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int SMove(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int SPop(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int SRandMember(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int SRem(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int SUnion(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int SUnionStore(ArdbConnContext& ctx, ArgumentArray& cmd);
+
+			int ZAdd(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int ZCard(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int ZCount(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int ZIncrby(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int ZRange(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int ZScore(ArdbConnContext& ctx, ArgumentArray& cmd);
+		public:
+			static int ParseConfig(const Properties& props,
+					ArdbServerConfig& cfg);
+			ArdbServer();
+			int Start(const Properties& props);
+			~ArdbServer();
+	};
 }
 
 #endif /* ARDB_SERVER_HPP_ */

@@ -29,12 +29,12 @@ void test_zsets_addrem(Ardb& db)
 	db.ZRem("0", "myzset", "v2");
 	LOG_IF(FATAL, db.ZCard("0", "myzset") != 2)
 	        << "zrem myzset failed:" << db.ZCard("0", "myzset");
-	StringArray values;
+	ValueArray values;
 	QueryOptions options;
 	db.ZRange("0", "myzset", 0, -1, values, options);
 	LOG_IF(FATAL, values.size() != 2) << "Fail:" << values.size();
-	LOG_IF(FATAL, values[0] != "v1") << "Fail:" << values[0];
-	LOG_IF(FATAL, values[1] != "v0") << "Fail:" << values[1];
+	LOG_IF(FATAL, values[0].ToString() != "v1") << "Fail:" << values[0].ToString();
+	LOG_IF(FATAL, values[1].ToString() != "v0") << "Fail:" << values[1].ToString();
 }
 
 void test_zsets_zrange(Ardb& db)
@@ -46,20 +46,20 @@ void test_zsets_zrange(Ardb& db)
 	db.ZAdd("0", "myzset", 3, "two");
 	QueryOptions options;
 	options.withscores = true;
-	StringArray values;
+	ValueArray values;
 	db.ZRange("0", "myzset", 0, -1, values, options);
 	LOG_IF(FATAL, values.size() != 6) << "Fail:" << values.size();
-	LOG_IF(FATAL, values[0] != "one") << "Fail:" << values[0];
-	LOG_IF(FATAL, values[2] != "uno") << "Fail:" << values[1];
+	LOG_IF(FATAL, values[0].ToString() != "one") << "Fail:" << values[0].ToString();
+	LOG_IF(FATAL, values[2].ToString() != "uno") << "Fail:" << values[1].ToString();
 	values.clear();
 	db.ZRangeByScore("0", "myzset", "-inf", "+inf", values, options);
 	LOG_IF(FATAL, values.size() != 6) << "Fail:" << values.size();
-	LOG_IF(FATAL, values[0] != "one") << "Fail:" << values[0];
-	LOG_IF(FATAL, values[2] != "uno") << "Fail:" << values[1];
+	LOG_IF(FATAL, values[0].ToString() != "one") << "Fail:" << values[0].ToString();
+	LOG_IF(FATAL, values[2].ToString() != "uno") << "Fail:" << values[1].ToString();
 	values.clear();
 	db.ZRangeByScore("0", "myzset", "(1", "3", values, options);
 	LOG_IF(FATAL, values.size() != 2) << "Fail:" << values.size();
-	LOG_IF(FATAL, values[0] != "two") << "Fail:" << values[0];
+	LOG_IF(FATAL, values[0].ToString() != "two") << "Fail:" << values[0].ToString();
 }
 
 void test_zsets_zcount(Ardb& db)
@@ -137,10 +137,10 @@ void test_zsets_incr(Ardb& db)
 	db.ZIncrby("0", "myzset", 2, "one", score);
 	QueryOptions options;
 	options.withscores = true;
-	StringArray values;
+	ValueArray values;
 	db.ZRange("0", "myzset", 0, -1, values, options);
 	LOG_IF(FATAL, values.size() != 4) << "Fail:" << values.size();
-	LOG_IF(FATAL, values[0] != "two") << "Fail:" << values[0];
+	LOG_IF(FATAL, values[0].ToString() != "two") << "Fail:" << values[0].ToString();
 }
 
 void test_zsets_inter(Ardb& db)
@@ -163,10 +163,10 @@ void test_zsets_inter(Ardb& db)
 	LOG_IF(FATAL, db.ZCard("0", "myzset3") != 2) << "Fail:";
 	QueryOptions options;
 	options.withscores = true;
-	StringArray values;
+	ValueArray values;
 	db.ZRange("0", "myzset3", 0, -1, values, options);
 	LOG_IF(FATAL, values.size() != 4) << "Fail:" << values.size();
-	LOG_IF(FATAL, values[0] != "one") << "Fail:";
+	LOG_IF(FATAL, values[0].ToString() != "one") << "Fail:";
 }
 
 void test_zsets_union(Ardb& db)
@@ -189,12 +189,12 @@ void test_zsets_union(Ardb& db)
 	LOG_IF(FATAL, db.ZCard("0", "myzset3") != 3) << "Fail:";
 	QueryOptions options;
 	options.withscores = true;
-	StringArray values;
+	ValueArray values;
 	db.ZRange("0", "myzset3", 0, -1, values, options);
 	LOG_IF(FATAL, values.size() != 6) << "Fail:" << values.size();
-	LOG_IF(FATAL, values[0] != "three") << "Fail:" << values[0];
-	LOG_IF(FATAL, values[2] != "one") << "Fail:" << values[2];
-	LOG_IF(FATAL, values[4] != "two") << "Fail:" << values[4];
+	LOG_IF(FATAL, values[0].ToString() != "three") << "Fail:" << values[0].ToString();
+	LOG_IF(FATAL, values[2].ToString() != "one") << "Fail:" << values[2].ToString();
+	LOG_IF(FATAL, values[4].ToString() != "two") << "Fail:" << values[4].ToString();
 }
 
 void test_zsets(Ardb& db)

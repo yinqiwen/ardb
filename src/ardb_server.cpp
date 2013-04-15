@@ -19,10 +19,7 @@
 #define REDIS_REPLY_STATUS 5
 #define REDIS_REPLY_ERROR 6
 
-#define FILL_STR_REPLY(R, S) do{\
-	R.type = REDIS_REPLY_STRING;\
-	R.str = S;\
-}while(0)
+#define ARDB_REPLY_DOUBLE 106
 
 namespace ardb
 {
@@ -53,6 +50,18 @@ static inline void fill_int_reply(ArdbReply& reply, int64 v)
 	reply.type = REDIS_REPLY_INTEGER;
 	reply.integer = v;
 }
+static inline void fill_double_reply(ArdbReply& reply, double v)
+{
+	reply.type = ARDB_REPLY_DOUBLE;
+	reply.double_value = v;
+}
+
+static inline void fill_str_reply(ArdbReply& reply, const std::string& v)
+{
+	reply.type = REDIS_REPLY_STRING;
+	reply.str = v;
+}
+
 template<typename T>
 static inline void fill_array_reply(ArdbReply& reply, T& v)
 {
@@ -68,7 +77,7 @@ static inline void fill_array_reply(ArdbReply& reply, T& v)
 		}
 		else
 		{
-			FILL_STR_REPLY(r, vo.ToString());
+			fill_str_reply(r, vo.ToString());
 		}
 		reply.elements.push_back(r);
 		it++;
@@ -82,7 +91,7 @@ static inline void fill_str_array_reply(ArdbReply& reply, StringArray& v)
 	while (it != v.end())
 	{
 		ArdbReply r;
-		FILL_STR_REPLY(r, *it);
+		fill_str_reply(r, *it);
 		reply.elements.push_back(r);
 		it++;
 	}
@@ -118,6 +127,14 @@ static void encode_reply(Buffer& buf, ArdbReply& reply)
 	case REDIS_REPLY_INTEGER:
 	{
 		buf.Printf(":%lld\r\n", reply.integer);
+		break;
+	}
+	case ARDB_REPLY_DOUBLE:
+	{
+		std::string doubleStrValue;
+		fast_dtoa(reply.double_value, 9, doubleStrValue);
+		buf.Printf("$%d\r\n", doubleStrValue.size());
+		buf.Printf("%s\r\n", doubleStrValue.c_str());
 		break;
 	}
 	case REDIS_REPLY_ARRAY:
@@ -224,7 +241,11 @@ ArdbServer::ArdbServer() :
 	{ "sranmember", &ArdbServer::SRandMember, 1, 2 },
 	{ "srem", &ArdbServer::SRem, 2, -1 },
 	{ "sunion", &ArdbServer::SUnion, 2, -1 },
-	{ "sunionstore", &ArdbServer::SUnionStore, 3, -1 }, };
+	{ "sunionstore", &ArdbServer::SUnionStore, 3, -1 },
+	{ "zadd", &ArdbServer::ZAdd, 3, -1 },
+	{ "zcard", &ArdbServer::ZCard, 1, 1 },
+	{ "zcount", &ArdbServer::ZCount, 3, 3 },
+	{ "zscore", &ArdbServer::ZScore, 2, 2 },};
 
 	uint32 arraylen = arraysize(settingTable);
 	for (uint32 i = 0; i < arraylen; i++)
@@ -414,7 +435,7 @@ int ArdbServer::Get(ArdbConnContext& ctx, ArgumentArray& cmd)
 	std::string value;
 	if (0 == m_db->Get(ctx.currentDB, key, &value))
 	{
-		FILL_STR_REPLY(ctx.reply, value);
+		fill_str_reply(ctx.reply, value);
 	}
 	else
 	{
@@ -559,9 +580,7 @@ int ArdbServer::IncrbyFloat(ArdbConnContext& ctx, ArgumentArray& cmd)
 	int ret = m_db->IncrbyFloat(ctx.currentDB, cmd[0], increment, val);
 	if (ret == 0)
 	{
-		char tmp[256];
-		snprintf(tmp, sizeof(tmp) - 1, "%f", val);
-		FILL_STR_REPLY(ctx.reply, tmp);
+		fill_double_reply(ctx.reply, val);
 	}
 	else
 	{
@@ -618,7 +637,7 @@ int ArdbServer::GetSet(ArdbConnContext& ctx, ArgumentArray& cmd)
 	}
 	else
 	{
-		FILL_STR_REPLY(ctx.reply, v);
+		fill_str_reply(ctx.reply, v);
 	}
 	return 0;
 }
@@ -634,7 +653,7 @@ int ArdbServer::GetRange(ArdbConnContext& ctx, ArgumentArray& cmd)
 	}
 	std::string v;
 	m_db->GetRange(ctx.currentDB, cmd[0], start, end, v);
-	FILL_STR_REPLY(ctx.reply, v);
+	fill_str_reply(ctx.reply, v);
 	return 0;
 }
 
@@ -863,9 +882,7 @@ int ArdbServer::HIncrbyFloat(ArdbConnContext& ctx, ArgumentArray& cmd)
 		return 0;
 	}
 	m_db->HIncrbyFloat(ctx.currentDB, cmd[0], cmd[1], increment, val);
-	char tmp[256];
-	snprintf(tmp, sizeof(tmp) - 1, "%f", val);
-	FILL_STR_REPLY(ctx.reply, tmp);
+	fill_double_reply(ctx.reply, val);
 	return 0;
 }
 
@@ -892,8 +909,8 @@ int ArdbServer::HGetAll(ArdbConnContext& ctx, ArgumentArray& cmd)
 	for (int i = 0; i < fields.size(); i++)
 	{
 		ArdbReply reply1, reply2;
-		FILL_STR_REPLY(reply1, fields[i]);
-		FILL_STR_REPLY(reply2, results[i].ToString());
+		fill_str_reply(reply1, fields[i]);
+		fill_str_reply(reply2, results[i].ToString());
 		ctx.reply.elements.push_back(reply1);
 		ctx.reply.elements.push_back(reply2);
 	}
@@ -910,7 +927,7 @@ int ArdbServer::HGet(ArdbConnContext& ctx, ArgumentArray& cmd)
 	}
 	else
 	{
-		FILL_STR_REPLY(ctx.reply, v);
+		fill_str_reply(ctx.reply, v);
 	}
 	return 0;
 }
@@ -1032,7 +1049,7 @@ int ArdbServer::SPop(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
 	std::string res;
 	m_db->SPop(ctx.currentDB, cmd[0], res);
-	FILL_STR_REPLY(ctx.reply, res);
+	fill_str_reply(ctx.reply, res);
 	return 0;
 }
 
@@ -1090,6 +1107,84 @@ int ArdbServer::SUnionStore(ArdbConnContext& ctx, ArgumentArray& cmd)
 	ValueSet vs;
 	int ret = m_db->SUnionStore(ctx.currentDB, cmd[0], keys);
 	fill_int_reply(ctx.reply, ret);
+	return 0;
+}
+
+
+//===========================Sorted Sets cmds==============================
+int ArdbServer::ZAdd(ArdbConnContext& ctx, ArgumentArray& cmd)
+{
+	if ((cmd.size() - 1) % 2 != 0)
+	{
+		fill_error_reply(ctx.reply, "ERR wrong number of arguments for ZAdd");
+		return 0;
+	}
+	m_db->Multi(ctx.currentDB);
+	for(int i = 1 ; i < cmd.size(); i+=2){
+	    double score;
+	    if (!string_todouble(cmd[i], score))
+	    {
+			fill_error_reply(ctx.reply,
+					"ERR value is not a float or out of range");
+			m_db->Discard(ctx.currentDB);
+			return 0;
+		}
+	    m_db->ZAdd(ctx.currentDB, cmd[0], score, cmd[i+1]);
+	}
+	m_db->Exec(ctx.currentDB);
+	return 0;
+}
+
+int ArdbServer::ZCard(ArdbConnContext& ctx, ArgumentArray& cmd)
+{
+	int ret = m_db->ZCard(ctx.currentDB, cmd[0]);
+	fill_int_reply(ctx.reply, ret);
+	return 0;
+}
+
+int ArdbServer::ZCount(ArdbConnContext& ctx, ArgumentArray& cmd){
+    int ret = m_db->ZCount(ctx.currentDB, cmd[0], cmd[1], cmd[2]);
+    fill_int_reply(ctx.reply, ret);
+    	return 0;
+}
+
+int ArdbServer::ZIncrby(ArdbConnContext& ctx, ArgumentArray& cmd){
+	double increment, value;
+	m_db->ZIncrby(ctx.currentDB, cmd[0], increment, cmd[2], value);
+    return 0;
+}
+
+int ArdbServer::ZRange(ArdbConnContext& ctx, ArgumentArray& cmd){
+	bool withscores = false;
+	if(cmd.size() == 4){
+		if(string_tolower(cmd[3]) !=  "WITHSCORES"){
+			fill_error_reply(ctx.reply,
+								"ERR syntax error");
+			return 0;
+		}
+		withscores = true;
+	}
+	int start, stop;
+	if (!string_toint32(cmd[1], start) || !string_toint32(cmd[2], stop))
+	{
+		fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+		return 0;
+	}
+	QueryOptions options;
+	options.withscores = withscores;
+    ValueArray vs;
+	m_db->ZRange(ctx.currentDB, cmd[0], start, stop, vs, options);
+	return 0;
+}
+
+int ArdbServer::ZScore(ArdbConnContext& ctx, ArgumentArray& cmd){
+	double score ;
+	int ret = m_db->ZScore(ctx.currentDB, cmd[0], cmd[1], score);
+	if(ret < 0){
+		ctx.reply.type = REDIS_REPLY_NIL;
+	}else{
+		fill_double_reply(ctx.reply, score);
+	}
 	return 0;
 }
 
