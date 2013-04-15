@@ -254,7 +254,7 @@ namespace ardb
 				std::string& found_value;
 				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
-					ListKeyObject* lck = (ListKeyObject*)k;
+					//ListKeyObject* lck = (ListKeyObject*)k;
 					if (cursor == index)
 					{
 						found_value.assign(v->ToString());
@@ -308,8 +308,8 @@ namespace ardb
 		struct LRangeWalk: public WalkHandler
 		{
 				int cursor;
-				int l_start;
-				int l_stop;
+				uint32 l_start;
+				uint32 l_stop;
 				StringArray& found_values;
 				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{

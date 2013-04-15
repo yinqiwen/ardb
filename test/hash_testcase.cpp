@@ -37,14 +37,14 @@ void test_hash_hgetall(Ardb& db)
 	db.HSet("0", "myhash", "field1", "value1");
 	db.HSet("0", "myhash", "field2", "value2");
 	db.HSet("0", "myhash", "field3", "value3");
-	StringArray values;
+	ValueArray values;
 	StringArray fields;
 	db.HGetAll("0", "myhash", fields, values);
 	LOG_IF(FATAL, fields.size() != 3) << "hgetall myhash failed:"
 												<< fields.size();
 	LOG_IF(FATAL, fields[1].compare("field2") != 0) << "hgetall myhash failed:"
 															<< fields.size();
-	int ret = values[2].compare("value3");
+	int ret = values[2].ToString().compare("value3");
 	LOG_IF(FATAL, ret != 0) << "hgetall myhash failed:" << values.size();
 }
 

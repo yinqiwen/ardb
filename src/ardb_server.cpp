@@ -57,10 +57,10 @@ template<typename T>
 static inline void fill_array_reply(ArdbReply& reply, T& v)
 {
 	reply.type = REDIS_REPLY_ARRAY;
-	T::iterator it = v.begin();
+	typename T::iterator it = v.begin();
 	while (it != v.end())
 	{
-		ValueObject& vo = *it;
+		const ValueObject& vo = *it;
 		ArdbReply r;
 		if (vo.type == EMPTY)
 		{

@@ -17,7 +17,7 @@ LDFLAGS=-g
 
 INCS=-I./ -I./util -I${LEVELDB_PATH}/include -I${KCDB_PATH} -I${GLOG_PATH}/src
 
-LIBS=${GLOG_PATH}/.libs/libglog.a -lpthread -lrt
+LIBS=${GLOG_PATH}/.libs/libglog.a -lpthread 
 
 %.o : %.cpp
 	${CXX} -c ${CXXFLAGS} ${INCS} $< -o $@

@@ -159,7 +159,7 @@ namespace ardb
 			return false;
 		}
 		bool founddot = false;
-		for(int i = 0; i<slen;i++)
+		for(uint32 i = 0; i<slen;i++)
 		{
 			if(str[i] == '.')
 			{

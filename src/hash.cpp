@@ -29,7 +29,7 @@ namespace ardb
 		{
 			return 0;
 		}
-		return HSet(db, key, field, value) == 0 ? 1 : 0;
+		return HSet(db, key, field, value) > 0 ? 1 : 0;
 	}
 
 	int Ardb::HDel(const DBID& db, const Slice& key, const Slice& field)

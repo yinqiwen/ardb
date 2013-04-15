@@ -180,7 +180,7 @@ int Ardb::SMembers(const DBID& db, const Slice& key, ValueArray& values)
 			z_values.push_back(sek->value);
 			return 0;
 		}
-		SMembersWalk(StringArray& vs) :
+		SMembersWalk(ValueArray& vs) :
 				z_values(vs)
 		{
 		}
@@ -312,11 +312,11 @@ int Ardb::SDiffStore(const DBID& db, const Slice& dst, SliceArray& keys)
 		BatchWriteGuard guard(GetDB(db));
 		SClear(db, dst);
 		SetMetaValue meta;
-		StringArray::iterator it = vs.begin();
+		ValueSet::iterator it = vs.begin();
 		while (it != vs.end())
 		{
-			std::string& v = *it;
-			Slice sv(v.c_str(), v.size());
+			const ValueObject& v = *it;
+			Slice sv(v.ToString());
 			SetKeyObject sk(dst, sv);
 			ValueObject empty;
 			empty.type = EMPTY;
@@ -458,11 +458,11 @@ int Ardb::SInterStore(const DBID& db, const Slice& dst, SliceArray& keys)
 		BatchWriteGuard guard(GetDB(db));
 		SClear(db, dst);
 		SetMetaValue meta;
-		StringArray::iterator it = vs.begin();
+		ValueSet::iterator it = vs.begin();
 		while (it != vs.end())
 		{
-			std::string& v = *it;
-			Slice sv(v.c_str(), v.size());
+			const ValueObject& v = *it;
+			Slice sv(v.ToString());
 			SetKeyObject sk(dst, sv);
 			ValueObject empty;
 			empty.type = EMPTY;
@@ -586,11 +586,11 @@ int Ardb::SUnionStore(const DBID& db, const Slice& dst, SliceArray& keys)
 		BatchWriteGuard guard(GetDB(db));
 		SClear(db, dst);
 		SetMetaValue meta;
-		StringArray::iterator it = ss.begin();
+		ValueSet::iterator it = ss.begin();
 		while (it != ss.end())
 		{
-			std::string& v = *it;
-			Slice sv(v.c_str(), v.size());
+			const ValueObject& v = *it;
+			Slice sv(v.ToString());
 			SetKeyObject sk(dst, sv);
 			ValueObject empty;
 			empty.type = EMPTY;

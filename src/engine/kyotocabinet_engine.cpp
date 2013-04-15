@@ -113,7 +113,6 @@ namespace ardb
 
 	int KCDBEngine::Put(const Slice& key, const Slice& value)
 	{
-		DEBUG_LOG("Put data:");
 		if (!m_batch_stack.empty())
 		{
 			std::string kstr(key.data(), key.size());
