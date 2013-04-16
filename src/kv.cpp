@@ -52,7 +52,6 @@ namespace ardb
 		Buffer keybuf(key.key.size() + 16);
 		encode_key(keybuf, key);
 		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
-		std::string str;
 		Iterator* iter = GetDB(db)->Find(k);
 		return iter;
 	}

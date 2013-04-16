@@ -40,6 +40,8 @@ namespace ardb
 			virtual Slice Key() const = 0;
 			virtual Slice Value() const = 0;
 			virtual bool Valid() = 0;
+			virtual void SeekToFirst() = 0;
+			virtual void SeekToLast() = 0;
 			virtual ~Iterator()
 			{
 			}
@@ -127,6 +129,10 @@ namespace ardb
 					bool athead, bool onlyexist, double withscore = DBL_MAX);
 			int ListPop(const DBID& db, const Slice& key, bool athead,
 					std::string& value);
+			int GetListMetaValue(const DBID& db, const Slice& key,
+					ListMetaValue& meta);
+			void SetListMetaValue(const DBID& db, const Slice& key,
+					ListMetaValue& meta);
 			int GetZSetMetaValue(const DBID& db, const Slice& key,
 					ZSetMetaValue& meta);
 			void SetZSetMetaValue(const DBID& db, const Slice& key,
@@ -147,7 +153,8 @@ namespace ardb
 			int TUnionRowKeys(const DBID& db, const Slice& tableName,
 					Condition& cond, TableKeyIndexSet& results);
 			int TGetIndexs(const DBID& db, const Slice& tableName,
-					Conditions& conds, TableKeyIndexSet*& indexs, TableKeyIndexSet*& temp);
+					Conditions& conds, TableKeyIndexSet*& indexs,
+					TableKeyIndexSet*& temp);
 			struct WalkHandler
 			{
 					virtual int OnKeyValue(KeyObject* key, ValueObject* value,
@@ -230,7 +237,8 @@ namespace ardb
 			int HSetNX(const DBID& db, const Slice& key, const Slice& field,
 					const Slice& value);
 			int HDel(const DBID& db, const Slice& key, const Slice& field);
-			int HDel(const DBID& db, const Slice& key, const SliceArray& fields);
+			int HDel(const DBID& db, const Slice& key,
+					const SliceArray& fields);
 			bool HExists(const DBID& db, const Slice& key, const Slice& field);
 			int HGet(const DBID& db, const Slice& key, const Slice& field,
 					std::string* value);
@@ -269,7 +277,8 @@ namespace ardb
 			int LSet(const DBID& db, const Slice& key, int index,
 					const Slice& value);
 			int LTrim(const DBID& db, const Slice& key, int start, int stop);
-			int RPopLPush(const DBID& db, const Slice& key1, const Slice& key2, std::string& v);
+			int RPopLPush(const DBID& db, const Slice& key1, const Slice& key2,
+					std::string& v);
 			int LClear(const DBID& db, const Slice& key);
 			int LLen(const DBID& db, const Slice& key);
 
@@ -312,7 +321,8 @@ namespace ardb
 			 * Set operations
 			 */
 			int SAdd(const DBID& db, const Slice& key, const Slice& value);
-			int SAdd(const DBID& db, const Slice& key, const SliceArray& values);
+			int SAdd(const DBID& db, const Slice& key,
+					const SliceArray& values);
 			int SCard(const DBID& db, const Slice& key);
 			int SMembers(const DBID& db, const Slice& key, ValueArray& values);
 			int SDiff(const DBID& db, SliceArray& keys, ValueSet& values);
@@ -322,7 +332,8 @@ namespace ardb
 			bool SIsMember(const DBID& db, const Slice& key,
 					const Slice& value);
 			int SRem(const DBID& db, const Slice& key, const Slice& value);
-			int SRem(const DBID& db, const Slice& key, const SliceArray& values);
+			int SRem(const DBID& db, const Slice& key,
+					const SliceArray& values);
 			int SMove(const DBID& db, const Slice& src, const Slice& dst,
 					const Slice& value);
 			int SPop(const DBID& db, const Slice& key, std::string& value);
@@ -343,9 +354,10 @@ namespace ardb
 			int TUpdate(const DBID& db, const Slice& tableName,
 					const SliceMap& colvals, Conditions& conds);
 			int TReplace(const DBID& db, const Slice& tableName,
-								const SliceMap& keyvals, const SliceMap& colvals);
+					const SliceMap& keyvals, const SliceMap& colvals);
 			int TDel(const DBID& db, const Slice& tableName, Conditions& conds);
-			int TDelCol(const DBID& db, const Slice& tableName, Conditions& conds, const Slice& col);
+			int TDelCol(const DBID& db, const Slice& tableName,
+					Conditions& conds, const Slice& col);
 			int TClear(const DBID& db, const Slice& tableName);
 			int TCount(const DBID& db, const Slice& tableName);
 

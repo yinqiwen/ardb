@@ -201,8 +201,12 @@ namespace ardb
 	void Ardb::Walk(const DBID& db, KeyObject& key, bool reverse,
 	        WalkHandler* handler)
 	{
-		Iterator* iter = FindValue(db, key);
 		bool isFirstElement = true;
+		Iterator* iter = FindValue(db, key);
+		if(NULL != iter && !iter->Valid() && reverse){
+			iter->SeekToLast();
+			isFirstElement = false;
+		}
 		uint32 cursor = 0;
 		while (NULL != iter && iter->Valid())
 		{

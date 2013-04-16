@@ -77,11 +77,11 @@ namespace ardb
 	}\
 }while(0)
 
-#define INFO_LOG(...) do {\
-	if(INFO_ENABLED())\
-	{                 \
-		(*(ardb::ArdbLogger::GetLogHandler()))(ardb::INFO_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \                 \
-	}\
-}while(0)
+#define INFO_LOG(...)do {\
+		if(INFO_ENABLED())\
+	    {                 \
+			(*(ardb::ArdbLogger::GetLogHandler()))(ardb::INFO_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
+		}\
+	}while(0)
 
 #endif /* LOGGER_MACROS_HPP_ */

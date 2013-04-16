@@ -10,7 +10,7 @@
 
 #include "channel/all_includes.hpp"
 #include "channel/codec/frame_decoder.hpp"
-#include <deque>
+#include <vector>
 #include <string>
 
 namespace ardb
@@ -18,7 +18,7 @@ namespace ardb
 	namespace codec
 	{
 		class RedisFrameDecoder;
-		typedef std::deque<std::string> ArgumentArray;
+		typedef std::vector<std::string> ArgumentArray;
 		class RedisCommandFrame
 		{
 			private:

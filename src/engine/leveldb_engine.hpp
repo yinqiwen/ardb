@@ -23,6 +23,8 @@ namespace ardb
 			Slice Key() const;
 			Slice Value() const;
 			bool Valid();
+			void SeekToFirst();
+			void SeekToLast();
 		public:
 			LevelDBIterator(leveldb::Iterator* iter) :
 					m_iter(iter)

@@ -161,6 +161,15 @@ namespace ardb
 		return new KCDBIterator(cursor, ret);
 	}
 
+	void KCDBIterator::SeekToFirst()
+	{
+		m_valid = m_cursor->jump();
+	}
+	void KCDBIterator::SeekToLast()
+	{
+		m_valid = m_cursor->jump_back();
+	}
+
 	void KCDBIterator::Next()
 	{
 		m_valid = m_cursor->step();

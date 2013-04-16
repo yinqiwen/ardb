@@ -6,6 +6,7 @@
  */
 #include "ardb_server.hpp"
 #include <stdarg.h>
+//#define __USE_KYOTOCABINET__ 1
 #ifdef __USE_KYOTOCABINET__
 #include "engine/kyotocabinet_engine.hpp"
 #else
@@ -277,7 +278,17 @@ ArdbServer::ArdbServer() :
 	uint32 arraylen = arraysize(settingTable);
 	for (uint32 i = 0; i < arraylen; i++)
 	{
-		m_handler_table[settingTable[i].name] = settingTable[i];
+		if(strlen(settingTable[i].name) <= 4){
+			uint32 key = 0;
+			memcpy(&key, settingTable[i].name, strlen(settingTable[i].name));
+			m_4byte_handler_table[key] = settingTable[i];
+		}else if(strlen(settingTable[i].name) <= 8){
+			uint64 key = 0;
+			memcpy(&key, settingTable[i].name, strlen(settingTable[i].name));
+			m_8byte_handler_table[key] = settingTable[i];
+		}else{
+			m_handler_table[settingTable[i].name] = settingTable[i];
+		}
 	}
 }
 ArdbServer::~ArdbServer()
@@ -1468,6 +1479,7 @@ int ArdbServer::LInsert(ArdbConnContext& ctx, ArgumentArray& cmd){
 
 int ArdbServer::LLen(ArdbConnContext& ctx, ArgumentArray& cmd){
 	int ret = m_db->LLen(ctx.currentDB, cmd[0]);
+	fill_int_reply(ctx.reply, ret);
 	return 0;
 }
 
@@ -1592,65 +1604,88 @@ int ArdbServer::RPopLPush(ArdbConnContext& ctx, ArgumentArray& cmd){
 	return 0;
 }
 
+ArdbServer::RedisCommandHandlerSetting* ArdbServer::FindRedisCommandHandlerSetting(std::string* cmd){
+	if(cmd->size() <= 4){
+		uint32 index = 0;
+		memcpy(&index, cmd->c_str(), cmd->size());
+		RedisCommandHandlerSetting4BytesTable::iterator found = m_4byte_handler_table.find(index);
+		if(found != m_4byte_handler_table.end()){
+			return &(found->second);
+		}
+	}else if(cmd->size() <= 8){
+		uint64 index = 0;
+		memcpy(&index, cmd->c_str(), cmd->size());
+		RedisCommandHandlerSetting8BytesTable::iterator found = m_8byte_handler_table.find(index);
+		if(found != m_8byte_handler_table.end()){
+			return &(found->second);
+		}
+	}else{
+		RedisCommandHandlerSettingTable::iterator found = m_handler_table.find(
+						*cmd);
+		if(found != m_handler_table.end()){
+			return &(found->second);
+		}
+	}
+	return NULL;
+}
+
 void ArdbServer::ProcessRedisCommand(ArdbConnContext& ctx,
 		RedisCommandFrame& args)
 {
 	ctx.reply.Clear();
-	std::string* cmd = args.GetArgument(0);
-	if (NULL != cmd)
-	{
-		int ret = 0;
-		lower_string(*cmd);
-		RedisCommandHandlerSettingTable::iterator found = m_handler_table.find(
-				*cmd);
-		if (found != m_handler_table.end())
+	std::string& cmd = *(args.GetArgument(0));
+	//std::string& cmd = args.GetCommand();
+	int ret = 0;
+	lower_string(cmd);
+	RedisCommandHandlerSetting* setting = FindRedisCommandHandlerSetting(&cmd);
+	if(NULL != setting){
+	     RedisCommandHandler handler = setting->handler;
+		bool valid_cmd = true;
+		if (setting->min_arity > 0)
 		{
-			RedisCommandHandler handler = found->second.handler;
-			args.GetArguments().pop_front();
+			valid_cmd = args.GetArguments().size()
+							>= setting->min_arity;
+		}
+		if (setting->max_arity >= 0 && valid_cmd)
+		{
+			valid_cmd = args.GetArguments().size()
+							<= setting->max_arity;
+		}
 
-			bool valid_cmd = true;
-			if (found->second.min_arity >= 0)
-			{
-				valid_cmd = args.GetArguments().size()
-						>= found->second.min_arity;
-			}
-			if (found->second.max_arity >= 0 && valid_cmd)
-			{
-				valid_cmd = args.GetArguments().size()
-						<= found->second.max_arity;
-			}
-
-			if (!valid_cmd)
-			{
-				fill_error_reply(ctx.reply,
-						"ERR wrong number of arguments for '%s' command",
-						cmd->c_str());
+				if (!valid_cmd)
+				{
+					fill_error_reply(ctx.reply,
+							"ERR wrong number of arguments for '%s' command",
+							cmd.c_str());
+				}
+				else
+				{
+					uint64 start_time = get_current_epoch_millis();
+					ret = (this->*handler)(ctx, args.GetArguments());
+					uint64 stop_time = get_current_epoch_millis();
+					if((stop_time - start_time) > 10)
+					{
+						INFO_LOG("Cost %lldms to exec %s", (stop_time-start_time), cmd.c_str());
+					}
+				}
 			}
 			else
 			{
-				ret = (this->*handler)(ctx, args.GetArguments());
+				ERROR_LOG("No handler found for:%s", cmd.c_str());
+				fill_error_reply(ctx.reply, "ERR unknown command '%s'",
+						cmd.c_str());
 			}
 
-		}
-		else
-		{
-			ERROR_LOG("No handler found for:%s", cmd->c_str());
-			fill_error_reply(ctx.reply, "ERR unknown command '%s'",
-					cmd->c_str());
-		}
-
-		Buffer buf;
-		if (ctx.reply.type != 0)
-		{
-			Buffer buf;
-			encode_reply(buf, ctx.reply);
-			ctx.conn->Write(buf);
-		}
-		if (ret < 0)
-		{
-			ctx.conn->Close();
-		}
-	}
+			if (ctx.reply.type != 0)
+			{
+				static Buffer buf;
+				encode_reply(buf, ctx.reply);
+				ctx.conn->Write(buf);
+			}
+			if (ret < 0)
+			{
+				ctx.conn->Close();
+			}
 }
 
 static void ardb_pipeline_init(ChannelPipeline* pipeline, void* data)

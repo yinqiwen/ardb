@@ -9,6 +9,7 @@
 #include "ardb_data.hpp"
 #include "comparator.hpp"
 #include "util/helpers.hpp"
+#include "leveldb/cache.h"
 #include <string.h>
 
 #define LEVELDB_SLICE(slice) leveldb::Slice(slice.data(), slice.size())
@@ -17,13 +18,13 @@
 namespace ardb
 {
 	int LevelDBComparator::Compare(const leveldb::Slice& a,
-	        const leveldb::Slice& b) const
+			const leveldb::Slice& b) const
 	{
 		return ardb_compare_keys(a.data(), a.size(), b.data(), b.size());
 	}
 
 	void LevelDBComparator::FindShortestSeparator(std::string* start,
-	        const leveldb::Slice& limit) const
+			const leveldb::Slice& limit) const
 	{
 	}
 
@@ -38,7 +39,7 @@ namespace ardb
 	}
 
 	void LevelDBEngineFactory::ParseConfig(const Properties& props,
-	        LevelDBConfig& cfg)
+			LevelDBConfig& cfg)
 	{
 		cfg.path = ".";
 		conf_get_string(props, "dir", cfg.path);
@@ -63,7 +64,14 @@ namespace ardb
 	{
 		DELETE(engine);
 	}
-
+	void LevelDBIterator::SeekToFirst()
+	{
+		m_iter->SeekToFirst();
+	}
+	void LevelDBIterator::SeekToLast()
+	{
+		m_iter->SeekToLast();
+	}
 	void LevelDBIterator::Next()
 	{
 		m_iter->Next();
@@ -96,9 +104,13 @@ namespace ardb
 		leveldb::Options options;
 		options.create_if_missing = true;
 		options.comparator = &m_comparator;
+		leveldb::Cache* cache = leveldb::NewLRUCache(268435456);
+		options.block_cache = cache;
+		options.block_size = 268435456;
+		options.write_buffer_size = 268435456;
 		make_dir(cfg.path);
 		leveldb::Status status = leveldb::DB::Open(options, cfg.path.c_str(),
-		        &m_db);
+				&m_db);
 		if (!status.ok())
 		{
 			DEBUG_LOG("Failed to init engine:%s\n", status.ToString().c_str());
@@ -139,14 +151,14 @@ namespace ardb
 		else
 		{
 			s = m_db->Put(leveldb::WriteOptions(), LEVELDB_SLICE(key),
-			        LEVELDB_SLICE(value));
+					LEVELDB_SLICE(value));
 		}
 		return s.ok() ? 0 : -1;
 	}
 	int LevelDBEngine::Get(const Slice& key, std::string* value)
 	{
 		leveldb::Status s = m_db->Get(leveldb::ReadOptions(),
-		        LEVELDB_SLICE(key), value);
+		LEVELDB_SLICE(key), value);
 		if (!s.ok())
 		{
 			//DEBUG_LOG("Failed to find %s", s.ToString().c_str());
@@ -169,14 +181,14 @@ namespace ardb
 
 	Iterator* LevelDBEngine::Find(const Slice& findkey)
 	{
+		uint64 start_time = get_current_epoch_millis();
 		leveldb::ReadOptions options;
 		leveldb::Iterator* iter = m_db->NewIterator(options);
 		iter->Seek(LEVELDB_SLICE(findkey));
-		if (!iter->Valid())
-		{
-			iter->SeekToLast();
-		}
+		uint64 stop_time = get_current_epoch_millis();
+		//INFO_LOG("Cost %lldms to exec seek:%d", (stop_time-start_time),findkey.size());
 		return new LevelDBIterator(iter);
 	}
+
 }
 

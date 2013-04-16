@@ -22,8 +22,12 @@ static const char* kCRLF = "\r\n";
 void RedisCommandFrame::FillNextArgument(Buffer& buf, size_t len)
 {
 	const char* str = buf.GetRawReadBuffer();
-	m_args.push_back(std::string(str, len));
 	buf.AdvanceReadIndex(len);
+//	if(m_cmd.empty()){
+//		m_cmd.append(str, len);
+//		return;
+//	}
+	m_args.push_back(std::string(str, len));
 }
 
 std::string* RedisCommandFrame::GetArgument(uint32 index)
@@ -199,6 +203,7 @@ bool RedisFrameDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel,
 		}
 		else
 		{
+			msg.Clear();
 			if (0 == ret)
 			{
 				buffer.SetReadIndex(mark_read_index);
