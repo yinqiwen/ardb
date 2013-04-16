@@ -153,7 +153,32 @@ namespace ardb
 			int ZCount(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int ZIncrby(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int ZRange(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int ZRangeByScore(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int ZRank(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int ZRem(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int ZRemRangeByRank(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int ZRemRangeByScore(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int ZRevRange(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int ZRevRangeByScore(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int ZRevRank(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int ZInterStore(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int ZUnionStore(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int ZScore(ArdbConnContext& ctx, ArgumentArray& cmd);
+
+			int LIndex(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int LInsert(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int LLen(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int LPop(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int LPush(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int LPushx(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int LRange(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int LRem(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int LSet(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int LTrim(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int RPop(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int RPopLPush(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int RPush(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int RPushx(ArdbConnContext& ctx, ArgumentArray& cmd);
 		public:
 			static int ParseConfig(const Properties& props,
 					ArdbServerConfig& cfg);

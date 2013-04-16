@@ -258,18 +258,18 @@ namespace ardb
 			int RPushx(const DBID& db, const Slice& key, const Slice& value);
 			int LPop(const DBID& db, const Slice& key, std::string& v);
 			int RPop(const DBID& db, const Slice& key, std::string& v);
-			int LIndex(const DBID& db, const Slice& key, uint32_t index,
+			int LIndex(const DBID& db, const Slice& key, int index,
 					std::string& v);
 			int LInsert(const DBID& db, const Slice& key, const Slice& op,
 					const Slice& pivot, const Slice& value);
 			int LRange(const DBID& db, const Slice& key, int start, int end,
-					StringArray& values);
+					ValueArray& values);
 			int LRem(const DBID& db, const Slice& key, int count,
 					const Slice& value);
 			int LSet(const DBID& db, const Slice& key, int index,
 					const Slice& value);
 			int LTrim(const DBID& db, const Slice& key, int start, int stop);
-			int RPopLPush(const DBID& db, const Slice& key1, const Slice& key2);
+			int RPopLPush(const DBID& db, const Slice& key1, const Slice& key2, std::string& v);
 			int LClear(const DBID& db, const Slice& key);
 			int LLen(const DBID& db, const Slice& key);
 
@@ -298,10 +298,10 @@ namespace ardb
 					const std::string& min, const std::string& max,
 					ValueArray& values, QueryOptions& options);
 			int ZRevRange(const DBID& db, const Slice& key, int start, int stop,
-					StringArray& values, QueryOptions& options);
+					ValueArray& values, QueryOptions& options);
 			int ZRevRangeByScore(const DBID& db, const Slice& key,
 					const std::string& max, const std::string& min,
-					StringArray& values, QueryOptions& options);
+					ValueArray& values, QueryOptions& options);
 			int ZUnionStore(const DBID& db, const Slice& dst, SliceArray& keys,
 					WeightArray& weights, AggregateType type = AGGREGATE_SUM);
 			int ZInterStore(const DBID& db, const Slice& dst, SliceArray& keys,

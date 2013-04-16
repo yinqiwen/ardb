@@ -245,7 +245,34 @@ ArdbServer::ArdbServer() :
 	{ "zadd", &ArdbServer::ZAdd, 3, -1 },
 	{ "zcard", &ArdbServer::ZCard, 1, 1 },
 	{ "zcount", &ArdbServer::ZCount, 3, 3 },
-	{ "zscore", &ArdbServer::ZScore, 2, 2 },};
+	{ "zincrby", &ArdbServer::ZIncrby, 3, 3 },
+	{ "zrange", &ArdbServer::ZRange, 3, 4 },
+	{ "zrangebyscore", &ArdbServer::ZRangeByScore, 3, 7 },
+	{ "zrank", &ArdbServer::ZRank, 2, 2 },
+	{ "zrem", &ArdbServer::ZRem, 2, -1 },
+	{ "zremrangebyrank", &ArdbServer::ZRemRangeByRank, 3, 3 },
+	{ "zremrangebyscore", &ArdbServer::ZRemRangeByScore, 3, 3 },
+	{ "zrevrange", &ArdbServer::ZRevRange, 3, 4 },
+	{ "zrevrangebyscore", &ArdbServer::ZRevRangeByScore, 3, 7 },
+	{ "zinterstore", &ArdbServer::ZInterStore, 3, -1 },
+	{ "zunionstore", &ArdbServer::ZUnionStore, 3, -1 },
+	{ "zrevrank", &ArdbServer::ZRevRank, 2, 2 },
+	{ "zscore", &ArdbServer::ZScore, 2, 2 },
+	{ "lindex", &ArdbServer::LIndex, 2, 2 },
+	{ "linsert", &ArdbServer::LInsert, 4, 4 },
+	{ "llen", &ArdbServer::LLen, 1, 1 },
+	{ "lpop", &ArdbServer::LPop, 1, 1 },
+	{ "lpush", &ArdbServer::LPush, 2, -1 },
+	{ "lpushx", &ArdbServer::LPushx, 2, 2 },
+	{ "lrange", &ArdbServer::LRange, 3, 3 },
+	{ "lrem", &ArdbServer::LRem, 3, 3 },
+	{ "lset", &ArdbServer::LSet, 3, 3 },
+	{ "ltrim", &ArdbServer::LTrim, 3, 3 },
+	{ "rpop", &ArdbServer::RPop, 1, 1 },
+	{ "rpush", &ArdbServer::RPush, 2, -1 },
+	{ "rpushx", &ArdbServer::RPushx, 2, 2 },
+	{ "rpoplpush", &ArdbServer::RPopLPush, 2, 2 },
+	};
 
 	uint32 arraylen = arraysize(settingTable);
 	for (uint32 i = 0; i < arraylen; i++)
@@ -1174,8 +1201,235 @@ int ArdbServer::ZRange(ArdbConnContext& ctx, ArgumentArray& cmd){
 	options.withscores = withscores;
     ValueArray vs;
 	m_db->ZRange(ctx.currentDB, cmd[0], start, stop, vs, options);
+	fill_array_reply(ctx.reply, vs);
 	return 0;
 }
+
+static bool process_query_options(ArgumentArray& cmd, int idx,
+			QueryOptions& options)
+	{
+		if (cmd.size() > idx)
+		{
+			std::string optionstr = string_tolower(cmd[3]);
+			if (optionstr != "withscores" && optionstr != "limit")
+			{
+				return false;
+			}
+			if(optionstr == "withscores"){
+				options.withscores = true;
+				return process_query_options(cmd, idx + 1, options);
+			}else{
+				if(cmd.size() != idx + 3){
+					return false;
+				}
+				if (!string_toint32(cmd[idx+1], options.limit_offset)
+						|| !string_toint32(cmd[idx+2], options.limit_count))
+				{
+					return false;
+				}
+				options.withlimit = true;
+				return true;
+			}
+		} else
+		{
+			return false;
+		}
+	}
+
+	int ArdbServer::ZRangeByScore(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		QueryOptions options;
+		if (cmd.size() >= 4)
+		{
+			bool ret = process_query_options(cmd, 3, options);
+			if(!ret){
+				fill_error_reply(ctx.reply,
+												"ERR syntax error");
+				return 0;
+			}
+		}
+
+		ValueArray vs;
+		m_db->ZRangeByScore(ctx.currentDB, cmd[0], cmd[1], cmd[2], vs, options);
+		fill_array_reply(ctx.reply, vs);
+		return 0;
+	}
+
+	int ArdbServer::ZRank(ArdbConnContext& ctx, ArgumentArray& cmd){
+		int ret = m_db->ZRank(ctx.currentDB, cmd[0], cmd[1]);
+		if(ret < 0){
+			ctx.reply.type = REDIS_REPLY_NIL;
+		}else{
+			fill_int_reply(ctx.reply, ret);
+		}
+		return 0;
+	}
+
+	int ArdbServer::ZRem(ArdbConnContext& ctx, ArgumentArray& cmd){
+		int count = 0;
+		for(int i = 1; i < cmd.size(); i++){
+			count += m_db->ZRem(ctx.currentDB, cmd[0], cmd[i]);
+		}
+		fill_int_reply(ctx.reply, count);
+		return 0;
+	}
+
+	int ArdbServer::ZRemRangeByRank(ArdbConnContext& ctx, ArgumentArray& cmd){
+		int start, stop;
+		if (!string_toint32(cmd[1], start) || !string_toint32(cmd[2], stop))
+			{
+				fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+				return 0;
+			}
+		int count = m_db->ZRemRangeByRank(ctx.currentDB, cmd[0], start, stop);
+		fill_int_reply(ctx.reply, count);
+		return 0;
+	}
+
+	int ArdbServer::ZRemRangeByScore(ArdbConnContext& ctx, ArgumentArray& cmd){
+		int count = m_db->ZRemRangeByScore(ctx.currentDB, cmd[0], cmd[1], cmd[2]);
+				fill_int_reply(ctx.reply, count);
+				return 0;
+	}
+
+	int ArdbServer::ZRevRange(ArdbConnContext& ctx, ArgumentArray& cmd){
+		bool withscores = false;
+			if(cmd.size() == 4){
+				if(string_tolower(cmd[3]) !=  "WITHSCORES"){
+					fill_error_reply(ctx.reply,
+										"ERR syntax error");
+					return 0;
+				}
+				withscores = true;
+			}
+			int start, stop;
+			if (!string_toint32(cmd[1], start) || !string_toint32(cmd[2], stop))
+			{
+				fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+				return 0;
+			}
+			QueryOptions options;
+			options.withscores = withscores;
+		    ValueArray vs;
+			m_db->ZRevRange(ctx.currentDB, cmd[0], start, stop, vs, options);
+			fill_array_reply(ctx.reply, vs);
+			return 0;
+	}
+
+	int ArdbServer::ZRevRangeByScore(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		QueryOptions options;
+		if (cmd.size() >= 4)
+		{
+			bool ret = process_query_options(cmd, 3, options);
+			if(!ret){
+				fill_error_reply(ctx.reply,"ERR syntax error");
+				return 0;
+			}
+		}
+
+		ValueArray vs;
+		m_db->ZRevRangeByScore(ctx.currentDB, cmd[0], cmd[1], cmd[2], vs, options);
+		fill_array_reply(ctx.reply, vs);
+		return 0;
+	}
+
+	int ArdbServer::ZRevRank(ArdbConnContext& ctx, ArgumentArray& cmd){
+		int ret = m_db->ZRevRank(ctx.currentDB, cmd[0], cmd[1]);
+		if(ret < 0){
+			ctx.reply.type = REDIS_REPLY_NIL;
+		}else{
+			fill_int_reply(ctx.reply, ret);
+		}
+		return 0;
+	}
+
+	static bool process_zstore_args(ArgumentArray& cmd, SliceArray& keys, WeightArray& ws, AggregateType& type){
+		int numkeys;
+		if(!string_toint32(cmd[1], numkeys) || numkeys <= 0){
+			return false;
+		}
+		if(cmd.size() < numkeys + 2){
+			return false;
+		}
+		for(int i = 2; i < numkeys + 2; i++){
+			keys.push_back(cmd[i]);
+		}
+		if(cmd.size() > numkeys + 2){
+            int idx = numkeys + 2;
+            std::string opstr = string_tolower(cmd[numkeys + 2]);
+            if(opstr == "weights"){
+            	    if(cmd.size() < (numkeys*2) + 3){
+            	    	   return false;
+            	    }
+				uint32 weight;
+				for (int i = idx + 1; i < (numkeys * 2) + 3; i++)
+				{
+					if (!string_touint32(cmd[i], weight))
+					{
+						return false;
+					}
+					ws.push_back(weight);
+				}
+				idx = numkeys*2 + 3;
+				if (cmd.size() <= idx)
+				{
+					return true;
+				}
+				opstr = string_tolower(cmd[idx]);
+            }
+			if (cmd.size() > (idx + 1) && opstr == "aggregate")
+			{
+				std::string typestr = string_tolower(cmd[idx + 1]);
+				if (typestr == "sum")
+				{
+					type = AGGREGATE_SUM;
+				} else if (typestr == "max")
+				{
+					type = AGGREGATE_MAX;
+				} else if (typestr == "min")
+				{
+					type = AGGREGATE_MIN;
+				} else
+				{
+					return false;
+				}
+			} else
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	int ArdbServer::ZInterStore(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		SliceArray keys;
+		WeightArray ws;
+		AggregateType type = AGGREGATE_SUM;
+		if(!process_zstore_args(cmd, keys, ws, type))
+		{
+			fill_error_reply(ctx.reply,"ERR syntax error");
+			return 0;
+		}
+		int count = m_db->ZInterStore(ctx.currentDB,cmd[0], keys, ws, type);
+		fill_int_reply(ctx.reply, count);
+		return 0;
+	}
+	int ArdbServer::ZUnionStore(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		SliceArray keys;
+		WeightArray ws;
+		AggregateType type = AGGREGATE_SUM;
+		if(!process_zstore_args(cmd, keys, ws, type))
+		{
+			fill_error_reply(ctx.reply,"ERR syntax error");
+			return 0;
+		}
+		int count = m_db->ZUnionStore(ctx.currentDB,cmd[0], keys, ws, type);
+		fill_int_reply(ctx.reply, count);
+		return 0;
+	}
 
 int ArdbServer::ZScore(ArdbConnContext& ctx, ArgumentArray& cmd){
 	double score ;
@@ -1185,6 +1439,156 @@ int ArdbServer::ZScore(ArdbConnContext& ctx, ArgumentArray& cmd){
 	}else{
 		fill_double_reply(ctx.reply, score);
 	}
+	return 0;
+}
+
+//=========================Lists cmds================================
+int ArdbServer::LIndex(ArdbConnContext& ctx, ArgumentArray& cmd)
+{
+	int index;
+	if(!string_toint32(cmd[1], index)){
+		fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+		return 0;
+	}
+	std::string v;
+	int ret = m_db->LIndex(ctx.currentDB, cmd[0], index, v);
+	if(ret < 0){
+		ctx.reply.type = REDIS_REPLY_NIL;
+	}else{
+		fill_str_reply(ctx.reply, v);
+	}
+	return 0;
+}
+
+int ArdbServer::LInsert(ArdbConnContext& ctx, ArgumentArray& cmd){
+	int ret = m_db->LInsert(ctx.currentDB, cmd[0], cmd[1], cmd[2], cmd[3]);
+	fill_int_reply(ctx.reply, ret);
+	return 0;
+}
+
+int ArdbServer::LLen(ArdbConnContext& ctx, ArgumentArray& cmd){
+	int ret = m_db->LLen(ctx.currentDB, cmd[0]);
+	return 0;
+}
+
+int ArdbServer::LPop(ArdbConnContext& ctx, ArgumentArray& cmd)
+{
+	std::string v;
+	int ret = m_db->LPop(ctx.currentDB, cmd[0], v);
+	if(ret < 0){
+		ctx.reply.type = REDIS_REPLY_NIL;
+	}else{
+		fill_str_reply(ctx.reply, v);
+	}
+	return 0;
+}
+int ArdbServer::LPush(ArdbConnContext& ctx, ArgumentArray& cmd)
+{
+	int count = 0;
+	for(int i = 1; i < cmd.size(); i++){
+		count = m_db->LPush(ctx.currentDB, cmd[0], cmd[i]);
+	}
+	if(count < 0){
+		count = 0;
+	}
+	fill_int_reply(ctx.reply, count);
+	return 0;
+}
+int ArdbServer::LPushx(ArdbConnContext& ctx, ArgumentArray& cmd)
+{
+	int ret = m_db->LPushx(ctx.currentDB, cmd[0], cmd[1]);
+	fill_int_reply(ctx.reply, ret);
+	return 0;
+}
+
+int ArdbServer::LRange(ArdbConnContext& ctx, ArgumentArray& cmd)
+{
+	int start, stop;
+	if (!string_toint32(cmd[1], start) || !string_toint32(cmd[2], stop))
+	{
+		fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+		return 0;
+	}
+	ValueArray vs;
+	m_db->LRange(ctx.currentDB, cmd[0], start, stop, vs);
+	fill_array_reply(ctx.reply, vs);
+	return 0;
+}
+int ArdbServer::LRem(ArdbConnContext& ctx, ArgumentArray& cmd)
+{
+	int count;
+	if (!string_toint32(cmd[1], count))
+	{
+		fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+		return 0;
+	}
+	int ret = m_db->LRem(ctx.currentDB, cmd[0], count, cmd[2]);
+	fill_int_reply(ctx.reply, ret);
+	return 0;
+}
+int ArdbServer::LSet(ArdbConnContext& ctx, ArgumentArray& cmd)
+{
+	int index;
+	if (!string_toint32(cmd[1], index))
+	{
+		fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+		return 0;
+	}
+	int ret = m_db->LSet(ctx.currentDB, cmd[0],index, cmd[2]);
+	if(ret < 0){
+		fill_error_reply(ctx.reply, "ERR index out of range");
+	}else{
+		fill_status_reply(ctx.reply, "OK");
+	}
+	return 0;
+}
+
+int ArdbServer::LTrim(ArdbConnContext& ctx, ArgumentArray& cmd){
+	int start, stop;
+	if (!string_toint32(cmd[1], start) || !string_toint32(cmd[2], stop))
+	{
+		fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+		return 0;
+	}
+	m_db->LTrim(ctx.currentDB, cmd[0],start, stop);
+	fill_status_reply(ctx.reply, "OK");
+	return 0;
+}
+
+int ArdbServer::RPop(ArdbConnContext& ctx, ArgumentArray& cmd)
+{
+	std::string v;
+	int ret = m_db->RPop(ctx.currentDB, cmd[0], v);
+	if(ret < 0){
+		ctx.reply.type = REDIS_REPLY_NIL;
+	}else{
+		fill_str_reply(ctx.reply, v);
+	}
+	return 0;
+}
+int ArdbServer::RPush(ArdbConnContext& ctx, ArgumentArray& cmd)
+{
+	int count = 0;
+	for(int i = 1; i < cmd.size(); i++){
+		count = m_db->RPush(ctx.currentDB, cmd[0], cmd[i]);
+	}
+	if(count < 0){
+		count = 0;
+	}
+	fill_int_reply(ctx.reply, count);
+	return 0;
+}
+int ArdbServer::RPushx(ArdbConnContext& ctx, ArgumentArray& cmd)
+{
+	int ret = m_db->RPushx(ctx.currentDB, cmd[0], cmd[1]);
+	fill_int_reply(ctx.reply, ret);
+	return 0;
+}
+
+int ArdbServer::RPopLPush(ArdbConnContext& ctx, ArgumentArray& cmd){
+	std::string v;
+	int ret = m_db->RPopLPush(ctx.currentDB, cmd[0], cmd[1], v);
+	fill_str_reply(ctx.reply, v);
 	return 0;
 }
 

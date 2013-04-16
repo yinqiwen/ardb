@@ -244,9 +244,15 @@ namespace ardb
 		return ListPop(db, key, false, v);
 	}
 
-	int Ardb::LIndex(const DBID& db, const Slice& key, uint32_t index, std::string& v)
+	int Ardb::LIndex(const DBID& db, const Slice& key, int index, std::string& v)
 	{
 		ListKeyObject lk(key, -DBL_MAX);
+		bool reverse = false;
+		if(index < 0){
+			index = 0- index;
+			lk.score = DBL_MAX;
+			reverse = true;
+		}
 		struct LIndexWalk: public WalkHandler
 		{
 				int cursor;
@@ -268,7 +274,7 @@ namespace ardb
 				{
 				}
 		} walk(index, v);
-		Walk(db, lk, false, &walk);
+		Walk(db, lk, reverse, &walk);
 		if (walk.cursor == walk.index)
 		{
 			return 0;
@@ -277,7 +283,7 @@ namespace ardb
 	}
 
 	int Ardb::LRange(const DBID& db, const Slice& key, int start, int end,
-			StringArray& values)
+			ValueArray& values)
 	{
 		int len = LLen(db, key);
 		if (len < 0)
@@ -310,12 +316,12 @@ namespace ardb
 				int cursor;
 				uint32 l_start;
 				uint32 l_stop;
-				StringArray& found_values;
+				ValueArray& found_values;
 				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					if (cursor >= l_start && cursor <= l_stop)
 					{
-						found_values.push_back(v->ToString());
+						found_values.push_back(*v);
 					}
 					cursor++;
 					if (cursor > l_stop)
@@ -324,7 +330,7 @@ namespace ardb
 					}
 					return 0;
 				}
-				LRangeWalk(int start, int stop, StringArray& vs) :
+				LRangeWalk(int start, int stop, ValueArray& vs) :
 						cursor(0), l_start(start), l_stop(stop), found_values(
 								vs)
 				{
@@ -370,11 +376,11 @@ namespace ardb
 		{
 			if (!DecodeListMetaData(v, meta))
 			{
-				return ERR_INVALID_TYPE;
+				return 0;
 			}
 		} else
 		{
-			return ERR_NOT_EXIST;
+			return 0;
 		}
 
 		ListKeyObject lk(key, meta.min_score);
@@ -561,9 +567,8 @@ namespace ardb
 		}
 	}
 
-	int Ardb::RPopLPush(const DBID& db, const Slice& key1, const Slice& key2)
+	int Ardb::RPopLPush(const DBID& db, const Slice& key1, const Slice& key2, std::string& v)
 	{
-		std::string v;
 		if (0 == RPop(db, key1, v))
 		{
 			Slice sv(v.c_str(), v.size());

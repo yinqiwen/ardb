@@ -71,7 +71,7 @@ void test_lists_lrange(Ardb& db)
 	db.RPush("0", "mylist", "value3");
 	db.RPush("0", "mylist", "value4");
 
-	StringArray array;
+	ValueArray array;
 	db.LRange("0", "mylist", 1, 2, array);
 	LOG_IF(FATAL, array.size() != 2) << "lrange failed:";
 	array.clear();
