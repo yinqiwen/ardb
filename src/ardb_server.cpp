@@ -474,6 +474,7 @@ int ArdbServer::Get(ArdbConnContext& ctx, ArgumentArray& cmd)
 	if (0 == m_db->Get(ctx.currentDB, key, &value))
 	{
 		fill_str_reply(ctx.reply, value);
+		//ctx.reply.type = REDIS_REPLY_NIL;
 	}
 	else
 	{
@@ -1631,61 +1632,63 @@ ArdbServer::RedisCommandHandlerSetting* ArdbServer::FindRedisCommandHandlerSetti
 
 void ArdbServer::ProcessRedisCommand(ArdbConnContext& ctx,
 		RedisCommandFrame& args)
-{
-	ctx.reply.Clear();
-	std::string& cmd = *(args.GetArgument(0));
-	//std::string& cmd = args.GetCommand();
-	int ret = 0;
-	lower_string(cmd);
-	RedisCommandHandlerSetting* setting = FindRedisCommandHandlerSetting(&cmd);
-	if(NULL != setting){
-	     RedisCommandHandler handler = setting->handler;
-		bool valid_cmd = true;
-		if (setting->min_arity > 0)
+	{
+		ctx.reply.Clear();
+		//std::string& cmd = *(args.GetArgument(0));
+		std::string& cmd = args.GetCommand();
+		int ret = 0;
+		lower_string(cmd);
+		RedisCommandHandlerSetting* setting = FindRedisCommandHandlerSetting(
+		        &cmd);
+		if (NULL != setting)
 		{
-			valid_cmd = args.GetArguments().size()
-							>= setting->min_arity;
-		}
-		if (setting->max_arity >= 0 && valid_cmd)
-		{
-			valid_cmd = args.GetArguments().size()
-							<= setting->max_arity;
-		}
+			RedisCommandHandler handler = setting->handler;
+			bool valid_cmd = true;
+			if (setting->min_arity > 0)
+			{
+				valid_cmd = args.GetArguments().size() >= setting->min_arity;
+			}
+			if (setting->max_arity >= 0 && valid_cmd)
+			{
+				valid_cmd = args.GetArguments().size() <= setting->max_arity;
+			}
 
-				if (!valid_cmd)
-				{
-					fill_error_reply(ctx.reply,
-							"ERR wrong number of arguments for '%s' command",
-							cmd.c_str());
-				}
-				else
-				{
-					uint64 start_time = get_current_epoch_millis();
-					ret = (this->*handler)(ctx, args.GetArguments());
-					uint64 stop_time = get_current_epoch_millis();
-					if((stop_time - start_time) > 10)
-					{
-						INFO_LOG("Cost %lldms to exec %s", (stop_time-start_time), cmd.c_str());
-					}
-				}
+			if (!valid_cmd)
+			{
+				fill_error_reply(ctx.reply,
+				        "ERR wrong number of arguments for '%s' command",
+				        cmd.c_str());
 			}
 			else
 			{
-				ERROR_LOG("No handler found for:%s", cmd.c_str());
-				fill_error_reply(ctx.reply, "ERR unknown command '%s'",
-						cmd.c_str());
+				uint64 start_time = get_current_epoch_millis();
+				ret = (this->*handler)(ctx, args.GetArguments());
+				uint64 stop_time = get_current_epoch_millis();
+				if ((stop_time - start_time) > 10)
+				{
+					INFO_LOG(
+					        "Cost %lldms to exec %s", (stop_time-start_time), cmd.c_str());
+				}
 			}
+		}
+		else
+		{
+			ERROR_LOG("No handler found for:%s", cmd.c_str());
+			fill_error_reply(ctx.reply, "ERR unknown command '%s'",
+			        cmd.c_str());
+		}
 
-			if (ctx.reply.type != 0)
-			{
-				static Buffer buf;
-				encode_reply(buf, ctx.reply);
-				ctx.conn->Write(buf);
-			}
-			if (ret < 0)
-			{
-				ctx.conn->Close();
-			}
+		if (ctx.reply.type != 0)
+		{
+			static Buffer buf;
+			buf.Clear();
+			encode_reply(buf, ctx.reply);
+			ctx.conn->Write(buf);
+		}
+		if (ret < 0)
+		{
+			ctx.conn->Close();
+		}
 }
 
 static void ardb_pipeline_init(ChannelPipeline* pipeline, void* data)
@@ -1730,7 +1733,7 @@ int ArdbServer::Start(const Properties& props)
 	RedisRequestHandler handler(this);
 
 	ChannelOptions ops;
-	ops.tcp_nodelay = true;
+	ops.tcp_nodelay = false;
 	if (m_cfg.listen_host.empty() && m_cfg.listen_unix_path.empty())
 	{
 		m_cfg.listen_host = "0.0.0.0";

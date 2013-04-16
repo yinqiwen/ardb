@@ -13,6 +13,12 @@ namespace ardb
 	int Ardb::GetValue(const DBID& db, const KeyObject& key, ValueObject* v,
 	        uint64* expire)
 	{
+//		if(NULL != v)
+//		{
+//			v->type = INTEGER;
+//			v->v.int_v = 123;
+//		}
+//		return ARDB_OK;
 		Buffer keybuf(key.key.size() + 16);
 		encode_key(keybuf, key);
 		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
@@ -24,7 +30,7 @@ namespace ardb
 			{
 				return 0;
 			}
-			Buffer readbuf(const_cast<char*>(value.c_str()), 0, value.size());
+			Buffer readbuf(const_cast<char*>(value.data()), 0, value.size());
 			if (decode_value(readbuf, *v))
 			{
 				uint64 tmp = 0;
@@ -59,9 +65,13 @@ namespace ardb
 	int Ardb::SetValue(const DBID& db, KeyObject& key, ValueObject& value,
 	        uint64 expire)
 	{
-		Buffer keybuf(key.key.size() + 16);
+		static Buffer keybuf;
+		keybuf.Clear();
+		keybuf.EnsureWritableBytes(key.key.size() + 16);
 		encode_key(keybuf, key);
-		Buffer valuebuf(64);
+		static Buffer valuebuf;
+		valuebuf.EnsureWritableBytes(64);
+		valuebuf.Clear();
 		encode_value(valuebuf, value);
 		if (expire > 0)
 		{
@@ -198,7 +208,7 @@ namespace ardb
 	int Ardb::GetValue(const DBID& db, const Slice& key, ValueObject* value)
 	{
 		KeyObject keyobject(key);
-		int ret = GetValue(db, keyobject, value);
+		int ret = GetValue(db, keyobject, value, NULL);
 		return ret;
 	}
 
@@ -211,6 +221,7 @@ namespace ardb
 			if (NULL != value)
 			{
 				value->assign(v.ToString());
+				//value->assign("121321");
 			}
 		}
 		return ret;

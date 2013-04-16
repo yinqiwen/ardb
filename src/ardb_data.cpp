@@ -33,7 +33,7 @@ namespace ardb
 
 	Condition::Condition(const std::string& name, CompareOperator compareop,
 	        const Slice& value, LogicalOperator logic) :
-			keyname(name), cmp(compareop),logicop(logic)
+			keyname(name), cmp(compareop), logicop(logic)
 	{
 		smart_fill_value(value, keyvalue);
 	}
@@ -193,7 +193,7 @@ namespace ardb
 			case SET_ELEMENT:
 			{
 				SetKeyObject* sk = new SetKeyObject(keystr, Slice());
-				if (!decode_value(buf, sk->value))
+				if (!decode_value(buf, sk->value, false))
 				{
 					DELETE(sk);
 					return sk;
@@ -393,7 +393,7 @@ namespace ardb
 //		}
 	}
 
-	bool decode_value(Buffer& buf, ValueObject& value)
+	bool decode_value(Buffer& buf, ValueObject& value, bool copyRawValue)
 	{
 		value.Clear();
 		if (!BufferHelper::ReadFixUInt8(buf, value.type))
@@ -430,8 +430,18 @@ namespace ardb
 				{
 					return false;
 				}
-				value.v.raw = new Buffer(len);
-				buf.Read(value.v.raw, len);
+
+				if (copyRawValue)
+				{
+					value.v.raw = new Buffer(len);
+					buf.Read(value.v.raw, len);
+				}
+				else
+				{
+					const char* tmp = buf.GetRawReadBuffer();
+					value.v.raw = new Buffer(const_cast<char*>(tmp), 0, len);
+					buf.SkipBytes(len);
+				}
 				break;
 			}
 		}

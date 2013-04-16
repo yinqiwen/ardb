@@ -24,6 +24,7 @@ namespace ardb
 			private:
 				bool m_is_inline;
 				ArgumentArray m_args;
+				std::string m_cmd;
 				void FillNextArgument(Buffer& buf, size_t len);
 				friend class RedisFrameDecoder;
 			public:
@@ -38,6 +39,10 @@ namespace ardb
 				ArgumentArray& GetArguments()
 				{
 					return m_args;
+				}
+				std::string& GetCommand()
+				{
+					return m_cmd;
 				}
 				std::string* GetArgument(uint32 index);
 				void Clear();

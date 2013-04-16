@@ -68,8 +68,8 @@ namespace ardb
 			case SET_ELEMENT:
 			{
 				ValueObject av, bv;
-				found_a = decode_value(ak_buf, av);
-				found_b = decode_value(bk_buf, bv);
+				found_a = decode_value(ak_buf, av, false);
+				found_b = decode_value(bk_buf, bv, false);
 				COMPARE_EXIST(found_a, found_b);
 				//DEBUG_LOG("#####A=%s b=%s", av.ToString().c_str(), bv.ToString().c_str());
 				ret = av.Compare(bv);
@@ -215,20 +215,19 @@ namespace ardb
 			if (NULL == kk || kk->type != key.type
 			        || kk->key.compare(key.key) != 0)
 			{
+				DELETE(kk);
 				if (reverse && isFirstElement)
 				{
-					DELETE(kk);
 					iter->Prev();
 					isFirstElement = false;
 					continue;
 				}
-				DELETE(kk);
 				break;
 			}
 			ValueObject v;
 			Buffer readbuf(const_cast<char*>(iter->Value().data()), 0,
 			        iter->Value().size());
-			decode_value(readbuf, v);
+			decode_value(readbuf, v, false);
 			int ret = handler->OnKeyValue(kk, &v, cursor++);
 			DELETE(kk);
 			if (ret < 0)
@@ -325,7 +324,7 @@ namespace ardb
 			ValueObject v;
 			Buffer readbuf(const_cast<char*>(iter->Value().data()), 0,
 			        iter->Value().size());
-			decode_value(readbuf, v);
+			decode_value(readbuf, v, false);
 			if (NULL != kk)
 			{
 				DEBUG_LOG(

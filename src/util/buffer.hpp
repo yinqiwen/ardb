@@ -52,6 +52,12 @@ namespace ardb
 					        off), m_in_heap(false)
 			{
 			}
+			inline Buffer(size_t size) :
+					m_buffer(0), m_buffer_len(0), m_write_idx(0), m_read_idx(0), m_in_heap(
+					        true)
+			{
+				EnsureWritableBytes(size);
+			}
 			inline size_t GetReadIndex()
 			{
 				return m_read_idx;
@@ -333,11 +339,7 @@ namespace ardb
 			int VPrintf(const char *fmt, va_list ap);
 			int ReadFD(int fd, int& err);
 			int WriteFD(int fd, int& err);
-			inline Buffer(size_t size) :
-					m_buffer(0), m_buffer_len(0), m_write_idx(0), m_read_idx(0)
-			{
-				EnsureWritableBytes(size);
-			}
+
 
 			inline std::string AsString()
 			{
@@ -345,7 +347,7 @@ namespace ardb
 			}
 			inline ~Buffer()
 			{
-				if (!m_buffer && m_in_heap)
+				if (m_buffer!= NULL && m_in_heap)
 				{
 					free(m_buffer);
 				}

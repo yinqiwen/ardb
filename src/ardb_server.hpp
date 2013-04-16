@@ -43,7 +43,7 @@ namespace ardb
 			}
 			void Clear()
 			{
-				type = 0;
+				type = 4;
 				integer = 0;
 				double_value = 0;
 				str.clear();

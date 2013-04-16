@@ -11,6 +11,7 @@
 #include <string.h>
 #include <stdexcept>
 #include <stdlib.h>
+#include <stdio.h>
 
 namespace ardb
 {

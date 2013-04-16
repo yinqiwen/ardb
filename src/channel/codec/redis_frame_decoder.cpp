@@ -23,10 +23,10 @@ void RedisCommandFrame::FillNextArgument(Buffer& buf, size_t len)
 {
 	const char* str = buf.GetRawReadBuffer();
 	buf.AdvanceReadIndex(len);
-//	if(m_cmd.empty()){
-//		m_cmd.append(str, len);
-//		return;
-//	}
+	if(m_cmd.empty()){
+		m_cmd.append(str, len);
+		return;
+	}
 	m_args.push_back(std::string(str, len));
 }
 
@@ -42,6 +42,7 @@ std::string* RedisCommandFrame::GetArgument(uint32 index)
 void RedisCommandFrame::Clear()
 {
 	m_args.clear();
+	m_cmd.clear();
 }
 
 
