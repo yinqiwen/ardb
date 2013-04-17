@@ -1758,6 +1758,25 @@ int ArdbServer::Start(const Properties& props)
 		 setsid(); /* create a new session */
 	}
 
+#ifdef __USE_KYOTOCABINET__
+	m_engine = new KCDBEngineFactory(props);
+#else
+	m_engine = new LevelDBEngineFactory(props);
+#endif
+	m_db = new Ardb(m_engine);
+	m_service = new ChannelService(m_cfg.max_clients + 32);
+
+
+	ChannelOptions ops;
+	ops.tcp_nodelay = true;
+	if (m_cfg.listen_host.empty() && m_cfg.listen_unix_path.empty())
+	{
+		m_cfg.listen_host = "0.0.0.0";
+		if (m_cfg.listen_port == 0)
+		{
+			m_cfg.listen_port = 6379;
+		}
+	}
 	struct RedisRequestHandler: public ChannelUpstreamHandler<RedisCommandFrame>
 	{
 		ArdbServer* server;
@@ -1772,26 +1791,8 @@ int ArdbServer::Start(const Properties& props)
 				server(s)
 		{
 		}
-	};
-#ifdef __USE_KYOTOCABINET__
-	m_engine = new KCDBEngineFactory(props);
-#else
-	m_engine = new LevelDBEngineFactory(props);
-#endif
-	m_db = new Ardb(m_engine);
-	m_service = new ChannelService(m_cfg.max_clients + 32);
-	RedisRequestHandler handler(this);
+	}handler(this);
 
-	ChannelOptions ops;
-	ops.tcp_nodelay = true;
-	if (m_cfg.listen_host.empty() && m_cfg.listen_unix_path.empty())
-	{
-		m_cfg.listen_host = "0.0.0.0";
-		if (m_cfg.listen_port == 0)
-		{
-			m_cfg.listen_port = 6379;
-		}
-	}
 	if (!m_cfg.listen_host.empty())
 	{
 		SocketHostAddress address(m_cfg.listen_host.c_str(), m_cfg.listen_port);
