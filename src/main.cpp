@@ -54,7 +54,7 @@ int main(int argc, char** argv)
 	} else
 	{
 		printf(
-				"Warning: no config file specified, using the default config. In order to specify a config file use %s /path/to/ardb.conf",
+				"Warning: no config file specified, using the default config. In order to specify a config file use %s /path/to/ardb.conf\n",
 				argv[0]);
 	}
 	ArdbServer server;

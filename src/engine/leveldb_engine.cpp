@@ -10,6 +10,7 @@
 #include "comparator.hpp"
 #include "util/helpers.hpp"
 #include "leveldb/cache.h"
+#include "leveldb/filter_policy.h"
 #include <string.h>
 
 #define LEVELDB_SLICE(slice) leveldb::Slice(slice.data(), slice.size())
@@ -108,6 +109,7 @@ namespace ardb
 		options.block_cache = cache;
 //		options.block_size = 268435456;
 //		options.write_buffer_size = 268435456;
+		options.filter_policy = leveldb::NewBloomFilterPolicy(16);
 		make_dir(cfg.path);
 		leveldb::Status status = leveldb::DB::Open(options, cfg.path.c_str(),
 				&m_db);
