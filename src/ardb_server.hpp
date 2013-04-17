@@ -8,10 +8,11 @@
 #ifndef ARDB_SERVER_HPP_
 #define ARDB_SERVER_HPP_
 #include <string>
-#include <tr1/unordered_map>
+//#include <tr1/unordered_map>
 #include "channel/all_includes.hpp"
 #include "ardb.hpp"
 #include "util/config_helper.hpp"
+#include <btree_map.h>
 
 using namespace ardb::codec;
 namespace ardb
@@ -79,12 +80,12 @@ namespace ardb
 					int min_arity;
 					int max_arity;
 			};
-			typedef std::tr1::unordered_map<std::string, RedisCommandHandlerSetting> RedisCommandHandlerSettingTable;
-			typedef std::tr1::unordered_map<uint32, RedisCommandHandlerSetting> RedisCommandHandlerSetting4BytesTable;
-			typedef std::tr1::unordered_map<uint64, RedisCommandHandlerSetting> RedisCommandHandlerSetting8BytesTable;
+			typedef btree::btree_map<std::string, RedisCommandHandlerSetting> RedisCommandHandlerSettingTable;
+//			typedef std::tr1::unordered_map<uint32, RedisCommandHandlerSetting> RedisCommandHandlerSetting4BytesTable;
+//			typedef std::tr1::unordered_map<uint64, RedisCommandHandlerSetting> RedisCommandHandlerSetting8BytesTable;
 			RedisCommandHandlerSettingTable m_handler_table;
-			RedisCommandHandlerSetting4BytesTable m_4byte_handler_table;
-			RedisCommandHandlerSetting8BytesTable m_8byte_handler_table;
+//			RedisCommandHandlerSetting4BytesTable m_4byte_handler_table;
+//			RedisCommandHandlerSetting8BytesTable m_8byte_handler_table;
 
 			RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(std::string* cmd);
 			void ProcessRedisCommand(ArdbConnContext& ctx,

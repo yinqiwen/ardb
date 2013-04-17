@@ -109,7 +109,8 @@ namespace ardb
 		ValueObject v;
 		if (GetValue(db, k, &v) < 0)
 		{
-			return -1;
+			v.type = INTEGER;
+			v.v.int_v = 0;
 		}
 		value_convert_to_number(v);
 		if (v.type == INTEGER)

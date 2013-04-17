@@ -104,8 +104,8 @@ namespace ardb
 		leveldb::Options options;
 		options.create_if_missing = true;
 		options.comparator = &m_comparator;
-//		leveldb::Cache* cache = leveldb::NewLRUCache(268435456);
-//		options.block_cache = cache;
+		leveldb::Cache* cache = leveldb::NewLRUCache(268435456);
+		options.block_cache = cache;
 //		options.block_size = 268435456;
 //		options.write_buffer_size = 268435456;
 		make_dir(cfg.path);
@@ -183,7 +183,6 @@ namespace ardb
 	{
 		uint64 start_time = get_current_epoch_millis();
 		leveldb::ReadOptions options;
-		options.fill_cache = false;
 		leveldb::Iterator* iter = m_db->NewIterator(options);
 		iter->Seek(LEVELDB_SLICE(findkey));
 		uint64 stop_time = get_current_epoch_millis();

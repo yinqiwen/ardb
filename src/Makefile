@@ -16,9 +16,9 @@ CXXFLAGS=-Wall -Wno-format -g -O2 -D_FILE_OFFSET_BITS=64 -fPIC
 CCFLAGS=-Wall -std=gnu99 -O2 -pedantic -Wno-format -g -D_FILE_OFFSET_BITS=64 -fPIC
 LDFLAGS=-g 
 
-INCS=-I./ -I./util -I${LEVELDB_PATH}/include -I${KCDB_PATH} -I${GLOG_PATH}/src
+INCS=-I./ -I./util -I${LEVELDB_PATH}/include -I${KCDB_PATH} -I../deps/cpp-btree -I${GLOG_PATH}/src
 
-LIBS=${GLOG_PATH}/.libs/libglog.a -lpthread
+LIBS=${GLOG_PATH}/.libs/libglog.a ${SNAPPY_PATH}/.libs/libsnappy.a -lpthread
 
 %.o : %.cpp
 	${CXX} -c ${CXXFLAGS} ${INCS} $< -o $@

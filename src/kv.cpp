@@ -246,10 +246,11 @@ namespace ardb
 	{
 		KeyObject k(key);
 		DelValue(db, k);
-		//HClear(db, key);
-		//LClear(db, key);
-		//ZClear(db, key);
-		//SClear(db, key);
+//		HClear(db, key);
+//		LClear(db, key);
+//		ZClear(db, key);
+//		SClear(db, key);
+//		TClear(db, key);
 		return 0;
 	}
 

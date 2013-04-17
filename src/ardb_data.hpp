@@ -210,7 +210,6 @@ namespace ardb
 	typedef std::map<ValueObject, double> ValueScoreMap;
 
 	typedef std::set<ValueObject> ValueSet;
-	typedef std::tr1::unordered_map<std::string, ValueSet> KeyValueSet;
 
 	typedef std::deque<ValueObject> ValueArray;
 	typedef std::deque<Slice> SliceArray;

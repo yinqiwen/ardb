@@ -278,15 +278,16 @@ ArdbServer::ArdbServer() :
 	uint32 arraylen = arraysize(settingTable);
 	for (uint32 i = 0; i < arraylen; i++)
 	{
-		if(strlen(settingTable[i].name) <= 4){
-			uint32 key = 0;
-			memcpy(&key, settingTable[i].name, strlen(settingTable[i].name));
-			m_4byte_handler_table[key] = settingTable[i];
-		}else if(strlen(settingTable[i].name) <= 8){
-			uint64 key = 0;
-			memcpy(&key, settingTable[i].name, strlen(settingTable[i].name));
-			m_8byte_handler_table[key] = settingTable[i];
-		}else{
+//		if(strlen(settingTable[i].name) <= 4){
+//			uint32 key = 0;
+//			memcpy(&key, settingTable[i].name, strlen(settingTable[i].name));
+//			m_4byte_handler_table[key] = settingTable[i];
+//		}else if(strlen(settingTable[i].name) <= 8){
+//			uint64 key = 0;
+//			memcpy(&key, settingTable[i].name, strlen(settingTable[i].name));
+//			m_8byte_handler_table[key] = settingTable[i];
+//		}else
+		{
 			m_handler_table[settingTable[i].name] = settingTable[i];
 		}
 	}
@@ -812,7 +813,9 @@ int ArdbServer::Append(ArdbConnContext& ctx, ArgumentArray& cmd)
 
 int ArdbServer::Ping(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
-	fill_status_reply(ctx.reply, "PONG");
+	//fill_status_reply(ctx.reply, "PONG");
+	ctx.reply.str = "PONG";
+	ctx.reply.type = REDIS_REPLY_STATUS;
 	return 0;
 }
 int ArdbServer::Echo(ArdbConnContext& ctx, ArgumentArray& cmd)
@@ -1606,21 +1609,22 @@ int ArdbServer::RPopLPush(ArdbConnContext& ctx, ArgumentArray& cmd){
 }
 
 ArdbServer::RedisCommandHandlerSetting* ArdbServer::FindRedisCommandHandlerSetting(std::string* cmd){
-	if(cmd->size() <= 4){
-		uint32 index = 0;
-		memcpy(&index, cmd->c_str(), cmd->size());
-		RedisCommandHandlerSetting4BytesTable::iterator found = m_4byte_handler_table.find(index);
-		if(found != m_4byte_handler_table.end()){
-			return &(found->second);
-		}
-	}else if(cmd->size() <= 8){
-		uint64 index = 0;
-		memcpy(&index, cmd->c_str(), cmd->size());
-		RedisCommandHandlerSetting8BytesTable::iterator found = m_8byte_handler_table.find(index);
-		if(found != m_8byte_handler_table.end()){
-			return &(found->second);
-		}
-	}else{
+//	if(cmd->size() <= 4){
+//		uint32 index = 0;
+//		memcpy(&index, cmd->c_str(), cmd->size());
+//		RedisCommandHandlerSetting4BytesTable::iterator found = m_4byte_handler_table.find(index);
+//		if(found != m_4byte_handler_table.end()){
+//			return &(found->second);
+//		}
+//	}else if(cmd->size() <= 8){
+//		uint64 index = 0;
+//		memcpy(&index, cmd->c_str(), cmd->size());
+//		RedisCommandHandlerSetting8BytesTable::iterator found = m_8byte_handler_table.find(index);
+//		if(found != m_8byte_handler_table.end()){
+//			return &(found->second);
+//		}
+//	}else
+	{
 		RedisCommandHandlerSettingTable::iterator found = m_handler_table.find(
 						*cmd);
 		if(found != m_handler_table.end()){
@@ -1634,7 +1638,6 @@ void ArdbServer::ProcessRedisCommand(ArdbConnContext& ctx,
 		RedisCommandFrame& args)
 	{
 		ctx.reply.Clear();
-		//std::string& cmd = *(args.GetArgument(0));
 		std::string& cmd = args.GetCommand();
 		int ret = 0;
 		lower_string(cmd);
@@ -1643,6 +1646,7 @@ void ArdbServer::ProcessRedisCommand(ArdbConnContext& ctx,
 		if (NULL != setting)
 		{
 			RedisCommandHandler handler = setting->handler;
+
 			bool valid_cmd = true;
 			if (setting->min_arity > 0)
 			{
@@ -1661,13 +1665,14 @@ void ArdbServer::ProcessRedisCommand(ArdbConnContext& ctx,
 			}
 			else
 			{
-				uint64 start_time = get_current_epoch_millis();
+
+				uint64 start_time = get_current_epoch_micros();
 				ret = (this->*handler)(ctx, args.GetArguments());
-				uint64 stop_time = get_current_epoch_millis();
-				if ((stop_time - start_time) > 10)
+				uint64 stop_time = get_current_epoch_micros();
+				if ((stop_time - start_time) > 10000)
 				{
 					INFO_LOG(
-					        "Cost %lldms to exec %s", (stop_time-start_time), cmd.c_str());
+					        "Cost %lldus to exec %s", (stop_time-start_time), cmd.c_str());
 				}
 			}
 		}
@@ -1680,8 +1685,7 @@ void ArdbServer::ProcessRedisCommand(ArdbConnContext& ctx,
 
 		if (ctx.reply.type != 0)
 		{
-			static Buffer buf;
-			buf.Clear();
+		    Buffer buf;
 			encode_reply(buf, ctx.reply);
 			ctx.conn->Write(buf);
 		}

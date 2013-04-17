@@ -385,18 +385,18 @@ namespace ardb
 
 	uint64 get_current_epoch_millis()
 	{
-		struct timespec timeValue;
+		struct timeval timeValue;
 		get_current_epoch_time(timeValue);
 		uint64 ret = ((uint64) timeValue.tv_sec) * 1000;
-		ret += ((timeValue.tv_nsec) / 1000000);
+		ret += ((timeValue.tv_usec) / 1000);
 		return ret;
 	}
 	uint64 get_current_epoch_micros()
 	{
-		struct timespec timeValue;
+		struct timeval timeValue;
 		get_current_epoch_time(timeValue);
 		uint64 micros = ((uint64) timeValue.tv_sec) * 1000000;
-		micros += (timeValue.tv_nsec / 1000);
+		micros += (timeValue.tv_usec);
 		return micros;
 	}
 	uint64 get_current_epoch_nanos()

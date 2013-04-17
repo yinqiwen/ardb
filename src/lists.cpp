@@ -50,7 +50,10 @@ namespace ardb
 	void Ardb::SetListMetaValue(const DBID& db, const Slice& key,
 			ListMetaValue& meta)
 	{
-
+		ValueObject v;
+		EncodeListMetaData(v, meta);
+		KeyObject k(key, LIST_META);
+		SetValue(db, k, v);
 	}
 
 	int Ardb::ListPush(const DBID& db, const Slice& key, const Slice& value,
@@ -381,8 +384,8 @@ namespace ardb
 					}
 					return 0;
 				}
-				LRangeWalk(int start, int stop, ValueArray& vs) : l_start(start), l_stop(stop), found_values(
-								vs)
+				LRangeWalk(int start, int stop, ValueArray& vs) :
+						l_start(start), l_stop(stop), found_values(vs)
 				{
 				}
 		} walk(start, end, values);
@@ -420,20 +423,12 @@ namespace ardb
 	int Ardb::LRem(const DBID& db, const Slice& key, int count,
 			const Slice& value)
 	{
-		KeyObject k(key, LIST_META);
-		ValueObject v;
 		ListMetaValue meta;
-		if (0 == GetValue(db, k, &v))
-		{
-			if (!DecodeListMetaData(v, meta))
-			{
-				return 0;
-			}
-		} else
+		GetListMetaValue(db, key, meta);
+		if (0 == meta.size)
 		{
 			return 0;
 		}
-
 		ListKeyObject lk(key, meta.min_score);
 		int total = count;
 		bool fromhead = true;
@@ -475,8 +470,7 @@ namespace ardb
 		BatchWriteGuard guard(GetDB(db));
 		Walk(db, lk, !fromhead, &walk);
 		meta.size -= walk.remcount;
-		EncodeListMetaData(v, meta);
-		SetValue(db, k, v);
+		SetListMetaValue(db, key, meta);
 		return walk.remcount;
 	}
 
@@ -538,7 +532,7 @@ namespace ardb
 		int len = meta.size;
 		if (len <= 0)
 		{
-			return len;
+			return 0;
 		}
 		if (start < 0)
 		{
@@ -561,45 +555,45 @@ namespace ardb
 			return LClear(db, key);
 		}
 		ListKeyObject lk(key, meta.min_score);
-		uint32_t cursor = 0;
-		Iterator* iter = FindValue(db, lk);
-		KeyObject k(key, LIST_META);
-		ValueObject v;
-		BatchWriteGuard guard(GetDB(db));
-		while (NULL != iter && iter->Valid())
+
+		struct LTrimWalk: public WalkHandler
 		{
-			Slice tmpkey = iter->Key();
-			KeyObject* kk = decode_key(tmpkey);
-			if (NULL == kk || kk->type != LIST_ELEMENT
-					|| kk->key.compare(key) != 0)
-			{
-				DELETE(kk);
-				break;
-			}
-			ListKeyObject* lek = (ListKeyObject*) kk;
-			if (cursor >= start && cursor <= stop)
-			{
-				//keep
-				meta.size++;
-				if (lek->score < meta.min_score)
+				Ardb* ldb;
+				const DBID& dbid;
+				uint32 lstart, lstop;
+				ListMetaValue& lmeta;
+				LTrimWalk(Ardb* db, const DBID& id, int start, int stop,
+						ListMetaValue& meta) :
+						ldb(db), dbid(id), lstart(start), lstop(stop), lmeta(
+								meta)
 				{
-					meta.min_score = lek->score;
 				}
-				if (lek->score > meta.max_score)
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
-					meta.max_score = lek->score;
+					ListKeyObject* lek = (ListKeyObject*) k;
+					if (cursor >= lstart && cursor <= lstop)
+					{
+						if (lek->score < lmeta.min_score)
+						{
+							lmeta.min_score = lek->score;
+						}
+						if (lek->score > lmeta.max_score)
+						{
+							lmeta.max_score = lek->score;
+						}
+						return 0;
+					} else
+					{
+						lmeta.size--;
+						ldb->DelValue(dbid, *lek);
+					}
+					return 0;
 				}
-			} else
-			{
-				DelValue(db, *lek);
-			}
-			DELETE(kk);
-			cursor++;
-			iter->Next();
-		}
-		DELETE(iter);
-		EncodeListMetaData(v, meta);
-		return SetValue(db, k, v);;
+		} walk(this, db, start, stop, meta);
+		BatchWriteGuard guard(GetDB(db));
+		Walk(db, lk, false, &walk);
+		SetListMetaValue(db, key, meta);
+		return 0;
 	}
 
 	int Ardb::LLen(const DBID& db, const Slice& key)

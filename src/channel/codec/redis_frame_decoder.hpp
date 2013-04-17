@@ -23,13 +23,25 @@ namespace ardb
 		{
 			private:
 				bool m_is_inline;
-				ArgumentArray m_args;
+				bool m_cmd_seted;
 				std::string m_cmd;
-				void FillNextArgument(Buffer& buf, size_t len);
+				ArgumentArray m_args;
+				inline void FillNextArgument(Buffer& buf, size_t len){
+					const char* str = buf.GetRawReadBuffer();
+					buf.AdvanceReadIndex(len);
+					if (m_cmd_seted)
+					{
+						m_args.push_back(std::string(str, len));
+					} else
+					{
+						m_cmd.append(str, len);
+						m_cmd_seted = true;
+					}
+				}
 				friend class RedisFrameDecoder;
 			public:
 				RedisCommandFrame() :
-						m_is_inline(false)
+						m_is_inline(false),m_cmd_seted(false)
 				{
 				}
 				bool IsInLine()

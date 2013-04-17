@@ -60,6 +60,12 @@ namespace ardb
 	{
 		make_file(cfg.path);
 		m_db = new kyotocabinet::TreeDB;
+		int tune_options = kyotocabinet::TreeDB::TSMALL |kyotocabinet::TreeDB::TLINEAR;
+		 tune_options |= kyotocabinet::TreeDB::TCOMPRESS;
+		 m_db->tune_options(tune_options);
+		 m_db->tune_page_cache(4194304);
+		 m_db->tune_page(1024);
+		 m_db->tune_map(256LL<<20);
 		m_db->tune_comparator(&m_comparator);
 		if (!m_db->open(cfg.path.c_str(),
 				kyotocabinet::TreeDB::OWRITER | kyotocabinet::TreeDB::OCREATE))
