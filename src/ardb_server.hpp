@@ -186,6 +186,12 @@ namespace ardb
 			int RPopLPush(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int RPush(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int RPushx(ArdbConnContext& ctx, ArgumentArray& cmd);
+
+			int HClear(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int SClear(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int ZClear(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int LClear(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int TClear(ArdbConnContext& ctx, ArgumentArray& cmd);
 		public:
 			static int ParseConfig(const Properties& props,
 					ArdbServerConfig& cfg);

@@ -6,7 +6,6 @@
  */
 #include "ardb.hpp"
 #include <string>
-#include <glog/logging.h>
 
 using namespace ardb;
 
@@ -16,19 +15,19 @@ void test_hash_hgetset(Ardb& db)
 	db.HSet("0", "myhash", "field1", "value1");
 	std::string v;
 	db.HGet("0", "myhash", "field1", &v);
-	LOG_IF(FATAL, v != "value1") << "HGetSet failed:" << v;
+	CHECK_FATAL(v != "value1", "HGetSet failed:%s", v.c_str());
 }
 
 void test_hash_hexists(Ardb& db)
 {
 	db.HClear("0", "myhash");
 	bool ret = db.HExists("0", "myhash", "field1");
-	LOG_IF(FATAL, ret != false) << "HExists myhash failed:" << ret;
+	CHECK_FATAL(ret != false, "HExists myhash failed:%d", ret);
 	db.HSet("0", "myhash", "field1", "value1");
 	ret = db.HExists("0", "myhash", "field1");
-	LOG_IF(FATAL, ret != true) << "HExists myhash failed:" << ret;
+	CHECK_FATAL(ret != true, "HExists myhash failed:%d", ret);
 	ret = db.HExists("0", "myhash", "field2");
-	LOG_IF(FATAL, ret != false) << "HExists myhash failed:" << ret;
+	CHECK_FATAL( ret != false, "HExists myhash failed:%d", ret);
 }
 
 void test_hash_hgetall(Ardb& db)
@@ -40,12 +39,11 @@ void test_hash_hgetall(Ardb& db)
 	ValueArray values;
 	StringArray fields;
 	db.HGetAll("0", "myhash", fields, values);
-	LOG_IF(FATAL, fields.size() != 3) << "hgetall myhash failed:"
-												<< fields.size();
-	LOG_IF(FATAL, fields[1].compare("field2") != 0) << "hgetall myhash failed:"
-															<< fields.size();
+	CHECK_FATAL(fields.size() != 3, "hgetall myhash failed:%d", fields.size());
+	CHECK_FATAL(fields[1].compare("field2") != 0,
+			"hgetall myhash failed:%d", fields.size());
 	int ret = values[2].ToString().compare("value3");
-	LOG_IF(FATAL, ret != 0) << "hgetall myhash failed:" << values.size();
+	CHECK_FATAL(ret != 0, "hgetall myhash failed:%d", values.size());
 }
 
 void test_hash_hkeys(Ardb& db)
@@ -56,10 +54,9 @@ void test_hash_hkeys(Ardb& db)
 	db.HSet("0", "myhash", "field3", "value3");
 	StringArray fields;
 	db.HKeys("0", "myhash", fields);
-	LOG_IF(FATAL, fields.size() != 3) << "hgetall myhash failed:"
-												<< fields.size();
-	LOG_IF(FATAL, fields[1].compare("field2") != 0) << "hgetall myhash failed:"
-															<< fields.size();
+	CHECK_FATAL( fields.size() != 3, "hgetall myhash failed:%d", fields.size());
+	CHECK_FATAL(fields[1].compare("field2") != 0,
+			"hgetall myhash failed:%d", fields.size());
 }
 
 void test_hash_hvals(Ardb& db)
@@ -71,7 +68,7 @@ void test_hash_hvals(Ardb& db)
 	StringArray values;
 	db.HVals("0", "myhash", values);
 	int ret = values[2].compare("value3");
-	LOG_IF(FATAL, ret != 0) << "hgetall myhash failed:" << values.size();
+	CHECK_FATAL(ret != 0, "hgetall myhash failed:%d", values.size());
 }
 
 void test_hash_hlen(Ardb& db)
@@ -83,17 +80,17 @@ void test_hash_hlen(Ardb& db)
 	db.HSet("0", "myhash", "field4", "value3");
 	db.HSet("0", "myhash", "field5", "value3");
 
-	LOG_IF(FATAL, db.HLen("0", "myhash") != 5) << "hlen myhash failed:"
-														<< db.HLen("0", "myhash");
+	CHECK_FATAL( db.HLen("0", "myhash") != 5,
+			"hlen myhash failed:%d", db.HLen("0", "myhash"));
 }
 
 void test_hash_hsetnx(Ardb& db)
 {
 	db.HClear("0", "myhash");
 	int ret = db.HSetNX("0", "myhash", "field1", "value1");
-	LOG_IF(FATAL, ret != 1) << "hsetnx myhash failed:" << ret;
+	CHECK_FATAL( ret != 1, "hsetnx myhash failed:%d", ret);
 	ret = db.HSetNX("0", "myhash", "field1", "value2");
-	LOG_IF(FATAL, ret != 0) << "hsetnx myhash failed:" << ret;
+	CHECK_FATAL(ret != 0, "hsetnx myhash failed:%d", ret);
 }
 
 void test_hash_hincr(Ardb& db)
@@ -102,10 +99,10 @@ void test_hash_hincr(Ardb& db)
 	int ret = db.HSetNX("0", "myhash", "field1", "100");
 	int64_t intv = 0;
 	db.HIncrby("0", "myhash", "field1", 100, intv);
-	LOG_IF(FATAL, intv != 200) << "hincr myhash failed:" << intv;
+	CHECK_FATAL( intv != 200, "hincr myhash failed:%d", intv);
 	double dv = 0;
 	db.HIncrbyFloat("0", "myhash", "field1", 100.25, dv);
-	LOG_IF(FATAL, dv != 300.25) << "hincrbyfloat myhash failed:" << dv;
+	CHECK_FATAL(dv != 300.25, "hincrbyfloat myhash failed:%f", dv);
 }
 
 void test_hashs(Ardb& db)
@@ -118,6 +115,4 @@ void test_hashs(Ardb& db)
 	test_hash_hsetnx(db);
 	test_hash_hincr(db);
 }
-
-
 

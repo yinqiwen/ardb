@@ -42,7 +42,7 @@ namespace ardb
 #define FATAL_ENABLED() ((ardb::ArdbLogger::GetLogChecker())(ardb::FATAL_LOG_LEVEL))
 #define WARN_ENABLED() ((ardb::ArdbLogger::GetLogChecker())(ardb::WARN_LOG_LEVEL))
 
-#define DEBUG_LOG( ...) do {\
+#define DEBUG_LOG(...) do {\
    if(DEBUG_ENABLED())\
    {                 \
 	   (*(ardb::ArdbLogger::GetLogHandler()))(ardb::DEBUG_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \

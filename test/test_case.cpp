@@ -19,12 +19,11 @@ void test_type(Ardb& db)
 	db.HSet("0", "myhash", "field1", "value1");
 	db.Set("0", "skey", "abc");
 
-	LOG_IF(FATAL, db.Type("0", "myset") != SET_ELEMENT) << "type failed.";
-	LOG_IF(FATAL, db.Type("0", "mylist") != LIST_META) << "type failed.";
-	LOG_IF(FATAL, db.Type("0", "myzset1") != ZSET_ELEMENT_SCORE)
-																		<< "type failed.";
-	LOG_IF(FATAL, db.Type("0", "myhash") != HASH_FIELD) << "type failed.";
-	LOG_IF(FATAL, db.Type("0", "skey") != KV) << "type failed.";
+	CHECK_FATAL( db.Type("0", "myset") != SET_ELEMENT, "type failed.");
+	CHECK_FATAL( db.Type("0", "mylist") != LIST_META, "type failed.");
+	CHECK_FATAL( db.Type("0", "myzset1") != ZSET_ELEMENT_SCORE, "type failed.");
+	CHECK_FATAL( db.Type("0", "myhash") != HASH_FIELD, "type failed.");
+	CHECK_FATAL( db.Type("0", "skey") != KV, "type failed.");
 }
 
 void test_all(Ardb& db)

@@ -273,6 +273,12 @@ ArdbServer::ArdbServer() :
 	{ "rpush", &ArdbServer::RPush, 2, -1 },
 	{ "rpushx", &ArdbServer::RPushx, 2, 2 },
 	{ "rpoplpush", &ArdbServer::RPopLPush, 2, 2 },
+
+	{ "hclear", &ArdbServer::HClear, 1, 1 },
+	{ "zclear", &ArdbServer::ZClear, 1, 1 },
+	{ "sclear", &ArdbServer::SClear, 1, 1 },
+	{ "lclear", &ArdbServer::LClear, 1, 1 },
+	{ "tclear", &ArdbServer::TClear, 1, 1 },
 	};
 
 	uint32 arraylen = arraysize(settingTable);
@@ -295,6 +301,33 @@ ArdbServer::ArdbServer() :
 ArdbServer::~ArdbServer()
 {
 
+}
+
+int ArdbServer::HClear(ArdbConnContext& ctx, ArgumentArray& cmd)
+{
+	m_db->HClear(ctx.currentDB, cmd[0]);
+	fill_status_reply(ctx.reply, "OK");
+	return 0;
+}
+int ArdbServer::SClear(ArdbConnContext& ctx, ArgumentArray& cmd){
+	m_db->SClear(ctx.currentDB, cmd[0]);
+	fill_status_reply(ctx.reply, "OK");
+	return 0;
+}
+int ArdbServer::ZClear(ArdbConnContext& ctx, ArgumentArray& cmd){
+	m_db->ZClear(ctx.currentDB, cmd[0]);
+	fill_status_reply(ctx.reply, "OK");
+	return 0;
+}
+int ArdbServer::LClear(ArdbConnContext& ctx, ArgumentArray& cmd){
+	m_db->LClear(ctx.currentDB, cmd[0]);
+	fill_status_reply(ctx.reply, "OK");
+	return 0;
+}
+int ArdbServer::TClear(ArdbConnContext& ctx, ArgumentArray& cmd){
+	m_db->TClear(ctx.currentDB, cmd[0]);
+	fill_status_reply(ctx.reply, "OK");
+	return 0;
 }
 
 int ArdbServer::Type(ArdbConnContext& ctx, ArgumentArray& cmd)

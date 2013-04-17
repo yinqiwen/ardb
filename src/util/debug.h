@@ -7,6 +7,7 @@
 
 #ifndef DEBUG_H_
 #define DEBUG_H_
+#include <stdio.h>
 
 #define FORCE_CORE_DUMP() do {int *p = NULL; *p=0;} while(0)
 
@@ -29,6 +30,19 @@
             abort();                    \
         }                           \
     } while (0)
+
+#define CHECK_FATAL(cond, ...)  do{\
+	if(cond){\
+		 (void)fprintf(stderr,               \
+		                "[FAIL]%s:%d: Assertion %s failed in %s\n",     \
+		                __FILE__,__LINE__,#cond,__func__);      \
+         fprintf(stderr, __VA_ARGS__);\
+         fprintf(stderr, "\n"); \
+         exit(-1);\
+	}else{\
+		fprintf(stdout, "[PASS]%s:%d: Assertion %s\n", __FILE__,__LINE__,#cond);\
+	}\
+}while(0)
 
 
 #endif /* DEBUG_H_ */

@@ -6,7 +6,6 @@
  */
 #include "ardb.hpp"
 #include <string>
-#include <glog/logging.h>
 
 using namespace ardb;
 
@@ -16,11 +15,11 @@ void test_set_saddrem(Ardb& db)
 	db.SAdd("0", "myset", "123");
 	db.SAdd("0", "myset", "123");
 	db.SAdd("0", "myset", "1231");
-	LOG_IF(FATAL, db.SCard("0", "myset") != 2) << "sadd myset failed:"
-														<< db.SCard("0", "myset");
+	CHECK_FATAL( db.SCard("0", "myset") != 2,
+			"sadd myset failed:Dd", db.SCard("0", "myset"));
 	db.SRem("0", "myset", "1231");
-	LOG_IF(FATAL, db.SCard("0", "myset") != 1) << "srem myset failed:"
-														<< db.SCard("0", "myset");
+	CHECK_FATAL( db.SCard("0", "myset") != 1,
+			"srem myset failed:%d", db.SCard("0", "myset"));
 }
 
 void test_set_member(Ardb& db)
@@ -29,12 +28,12 @@ void test_set_member(Ardb& db)
 	db.SAdd("0", "myset", "v1");
 	db.SAdd("0", "myset", "v2");
 	db.SAdd("0", "myset", "v3");
-	LOG_IF(FATAL, db.SIsMember("0", "myset", "v0") != false)
-																	<< "SIsMember myset failed:";
+	CHECK_FATAL(db.SIsMember("0", "myset", "v0") != false,
+			"SIsMember myset failed:");
 	ValueArray members;
 	db.SMembers("0", "myset", members);
-	LOG_IF(FATAL, members.size() != 3) << "SMembers myset failed:";
-	LOG_IF(FATAL, members[0].ToString() != "v1") << "SMembers myset failed:";
+	CHECK_FATAL( members.size() != 3, "SMembers myset failed:");
+	CHECK_FATAL( members[0].ToString() != "v1", "SMembers myset failed:");
 }
 
 void test_set_diff(Ardb& db)
@@ -57,13 +56,13 @@ void test_set_diff(Ardb& db)
 	keys.push_back("myset3");
 	ValueSet values;
 	db.SDiff("0", keys, values);
-	LOG_IF(FATAL, values.size() != 2) << "Sdiff failed:";
-	LOG_IF(FATAL, values.begin()->ToString() != "b") << "Sdiff store failed:";
-	//LOG_IF(FATAL, values[1] != "d") << "Sdiff store failed:";
+	CHECK_FATAL( values.size() != 2, "Sdiff failed:");
+	CHECK_FATAL(values.begin()->ToString() != "b", "Sdiff store failed:");
+	//CHECK_FATAL(FATAL, values[1] != "d") << "Sdiff store failed:";
 	int len = db.SDiffStore("0", "myset2", keys);
-	LOG_IF(FATAL, len != 2) << "SDiffStore myset2 failed:"<<len;
-	len = db.SCard("0", "myset2") ;
-	LOG_IF(FATAL, len != 2) << "SDiffStore myset2 failed:"<<len;
+	CHECK_FATAL(len != 2, "SDiffStore myset2 failed:%d", len);
+	len = db.SCard("0", "myset2");
+	CHECK_FATAL(len != 2, "SDiffStore myset2 failed:%d", len);
 }
 
 void test_set_inter(Ardb& db)
@@ -86,10 +85,10 @@ void test_set_inter(Ardb& db)
 	keys.push_back("myset3");
 	ValueSet values;
 	db.SInter("0", keys, values);
-	LOG_IF(FATAL, values.size() != 1) << "Sinter failed:";
-	LOG_IF(FATAL, values.begin()->ToString() != "c") << "Sinter store failed:";
+	CHECK_FATAL( values.size() != 1, "Sinter failed:");
+	CHECK_FATAL(values.begin()->ToString() != "c", "Sinter store failed:");
 	db.SInterStore("0", "myset2", keys);
-	LOG_IF(FATAL, db.SCard("0", "myset2") != 1) << "SInterStore myset2 failed:";
+	CHECK_FATAL( db.SCard("0", "myset2") != 1, "SInterStore myset2 failed:");
 }
 
 void test_set_union(Ardb& db)
@@ -112,10 +111,10 @@ void test_set_union(Ardb& db)
 	keys.push_back("myset3");
 	ValueSet values;
 	db.SUnion("0", keys, values);
-	LOG_IF(FATAL, values.size() != 5) << "SUnion failed:";
-	LOG_IF(FATAL, values.begin()->ToString() != "a") << "SUnion store failed:";
+	CHECK_FATAL(values.size() != 5, "SUnion failed:");
+	CHECK_FATAL( values.begin()->ToString() != "a", "SUnion store failed:");
 	db.SUnionStore("0", "myset2", keys);
-	LOG_IF(FATAL, db.SCard("0", "myset2") != 5) << "SUnionStore myset2 failed:";
+	CHECK_FATAL(db.SCard("0", "myset2") != 5, "SUnionStore myset2 failed:");
 }
 
 void test_sets(Ardb& db)

@@ -9,7 +9,6 @@
 #include "engine/kyotocabinet_engine.hpp"
 #include <string>
 #include <iostream>
-#include <glog/logging.h>
 #include "test_case.cpp"
 #include <iostream>
 using namespace std;
@@ -19,7 +18,6 @@ using namespace kyotocabinet;
 
 int main(int argc, char** argv)
 {
-	google::InitGoogleLogging(argv[0]);
 	Properties cfg;
 	cfg["dir"] = "/tmp/ardb/kc/test";
 	KCDBEngineFactory factory(cfg);
