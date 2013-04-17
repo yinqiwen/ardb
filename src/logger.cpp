@@ -57,20 +57,19 @@ namespace ardb
 		uint32 mills = timestamp % 1000;
 		char timetag[256];
 		struct tm& tm = get_current_tm();
-		sprintf(timetag, "%u-%02u-%02u %02u:%02u:%02u", tm.tm_year + 1900,
+		sprintf(timetag, "%02u-%02u %02u:%02u:%02u",
 				tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 		FILE* out = stdout;
 		if (level <= WARN_LOG_LEVEL)
 		{
 			out = stderr;
 		}
-		fprintf(out, "[%s,%03u][%s][%u][%s:%u]%s\n", timetag, mills, levelstr,
-				getpid(), get_basename(filename).c_str(), line, record.c_str());
+		fprintf(out, "[%u] %s,%03u %s %s\n", getpid(), timetag, mills, levelstr,  record.c_str());
 	}
 
 	static bool default_logchcker(LogLevel level)
 	{
-		return level <= INFO_LOG_LEVEL;
+		return level <= DEBUG_LOG_LEVEL;
 	}
 
 	ArdbLogHandler* ArdbLogger::GetLogHandler()

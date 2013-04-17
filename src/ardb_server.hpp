@@ -81,13 +81,9 @@ namespace ardb
 					int max_arity;
 			};
 			typedef btree::btree_map<std::string, RedisCommandHandlerSetting> RedisCommandHandlerSettingTable;
-//			typedef std::tr1::unordered_map<uint32, RedisCommandHandlerSetting> RedisCommandHandlerSetting4BytesTable;
-//			typedef std::tr1::unordered_map<uint64, RedisCommandHandlerSetting> RedisCommandHandlerSetting8BytesTable;
 			RedisCommandHandlerSettingTable m_handler_table;
-//			RedisCommandHandlerSetting4BytesTable m_4byte_handler_table;
-//			RedisCommandHandlerSetting8BytesTable m_8byte_handler_table;
 
-			RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(std::string* cmd);
+			RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(std::string& cmd);
 			void ProcessRedisCommand(ArdbConnContext& ctx,
 					RedisCommandFrame& cmd);
 			int Ping(ArdbConnContext& ctx, ArgumentArray& cmd);
@@ -97,6 +93,9 @@ namespace ardb
 			int Slaveof(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Shutdown(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Type(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Move(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Rename(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int RenameNX(ArdbConnContext& ctx, ArgumentArray& cmd);
 
 			int Append(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Bitcount(ArdbConnContext& ctx, ArgumentArray& cmd);

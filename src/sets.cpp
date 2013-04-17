@@ -170,7 +170,6 @@ int Ardb::SMembers(const DBID& db, const Slice& key, ValueArray& values)
 {
 	Slice empty;
 	SetKeyObject sk(key, empty);
-
 	struct SMembersWalk: public WalkHandler
 	{
 		ValueArray& z_values;

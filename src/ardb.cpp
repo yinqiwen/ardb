@@ -330,6 +330,7 @@ namespace ardb
 				DEBUG_LOG(
 				        "[%d]Key=%s, Value=%s", kk->type, kk->key.data(), v.ToString().c_str());
 			}
+			DELETE(kk);
 			iter->Next();
 		}
 		DELETE(iter);

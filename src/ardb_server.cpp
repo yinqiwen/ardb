@@ -279,6 +279,9 @@ ArdbServer::ArdbServer() :
 	{ "sclear", &ArdbServer::SClear, 1, 1 },
 	{ "lclear", &ArdbServer::LClear, 1, 1 },
 	{ "tclear", &ArdbServer::TClear, 1, 1 },
+	{ "move", &ArdbServer::Move, 2, 2 },
+	{ "rename", &ArdbServer::Rename, 2, 2 },
+	{ "renamenx", &ArdbServer::RenameNX, 2, 2 },
 	};
 
 	uint32 arraylen = arraysize(settingTable);
@@ -327,6 +330,29 @@ int ArdbServer::LClear(ArdbConnContext& ctx, ArgumentArray& cmd){
 int ArdbServer::TClear(ArdbConnContext& ctx, ArgumentArray& cmd){
 	m_db->TClear(ctx.currentDB, cmd[0]);
 	fill_status_reply(ctx.reply, "OK");
+	return 0;
+}
+
+int ArdbServer::Rename(ArdbConnContext& ctx, ArgumentArray& cmd)
+{
+	int ret = m_db->Rename(ctx.currentDB, cmd[0], cmd[1]);
+	if(ret < 0){
+		fill_error_reply(ctx.reply, "ERR no such key");
+	}else{
+		fill_status_reply(ctx.reply, "OK");
+	}
+	return 0;
+}
+int ArdbServer::RenameNX(ArdbConnContext& ctx, ArgumentArray& cmd)
+{
+	int ret = m_db->RenameNX(ctx.currentDB, cmd[0], cmd[1]);
+	fill_int_reply(ctx.reply, ret < 0 ? 0:1);
+	return 0;
+}
+
+int ArdbServer::Move(ArdbConnContext& ctx, ArgumentArray& cmd){
+	int ret = m_db->Move(ctx.currentDB, cmd[0], cmd[1]);
+	fill_int_reply(ctx.reply, ret < 0 ? 0:1);
 	return 0;
 }
 
@@ -425,7 +451,7 @@ int ArdbServer::Set(ArdbConnContext& ctx, ArgumentArray& cmd)
 	}
 	else
 	{
-		int i = 0;
+		uint32 i = 0;
 		uint64 px = 0, ex = 0;
 		for (i = 2; i < cmd.size(); i++)
 		{
@@ -558,7 +584,7 @@ int ArdbServer::Strlen(ArdbConnContext& ctx, ArgumentArray& cmd)
 
 int ArdbServer::SetBit(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
-	int32 offset, val;
+	int32 offset;
 	if (!string_toint32(cmd[1], offset))
 	{
 		fill_error_reply(ctx.reply,
@@ -573,7 +599,7 @@ int ArdbServer::SetBit(ArdbConnContext& ctx, ArgumentArray& cmd)
 	}
 	uint8 bit = cmd[2] != "1";
 	int ret = m_db->SetBit(ctx.currentDB, cmd[0], offset, bit);
-	fill_int_reply(ctx.reply, bit);
+	fill_int_reply(ctx.reply, ret);
 	return 0;
 }
 
@@ -600,7 +626,7 @@ int ArdbServer::MSetNX(ArdbConnContext& ctx, ArgumentArray& cmd)
 	}
 	SliceArray keys;
 	SliceArray vals;
-	for (int i = 0; i < cmd.size(); i += 2)
+	for (uint32 i = 0; i < cmd.size(); i += 2)
 	{
 		keys.push_back(cmd[i]);
 		vals.push_back(cmd[i + 1]);
@@ -619,7 +645,7 @@ int ArdbServer::MSet(ArdbConnContext& ctx, ArgumentArray& cmd)
 	}
 	SliceArray keys;
 	SliceArray vals;
-	for (int i = 0; i < cmd.size(); i += 2)
+	for (uint32 i = 0; i < cmd.size(); i += 2)
 	{
 		keys.push_back(cmd[i]);
 		vals.push_back(cmd[i + 1]);
@@ -632,7 +658,7 @@ int ArdbServer::MSet(ArdbConnContext& ctx, ArgumentArray& cmd)
 int ArdbServer::MGet(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
 	SliceArray keys;
-	for (int i = 0; i < cmd.size(); i++)
+	for (uint32 i = 0; i < cmd.size(); i++)
 	{
 		keys.push_back(cmd[i]);
 	}
@@ -785,7 +811,7 @@ int ArdbServer::Decr(ArdbConnContext& ctx, ArgumentArray& cmd)
 int ArdbServer::Bitop(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
 	SliceArray keys;
-	for (int i = 2; i < cmd.size(); i++)
+	for (uint32 i = 2; i < cmd.size(); i++)
 	{
 		keys.push_back(cmd[i]);
 	}
@@ -891,7 +917,7 @@ int ArdbServer::HMSet(ArdbConnContext& ctx, ArgumentArray& cmd)
 	}
 	SliceArray fs;
 	SliceArray vals;
-	for (int i = 1; i < cmd.size(); i += 2)
+	for (uint32 i = 1; i < cmd.size(); i += 2)
 	{
 		fs.push_back(cmd[i]);
 		vals.push_back(cmd[i + 1]);
@@ -902,7 +928,7 @@ int ArdbServer::HMSet(ArdbConnContext& ctx, ArgumentArray& cmd)
 }
 int ArdbServer::HSet(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
-	int ret = m_db->HSet(ctx.currentDB, cmd[0], cmd[1], cmd[2]);
+	m_db->HSet(ctx.currentDB, cmd[0], cmd[1], cmd[2]);
 	fill_int_reply(ctx.reply, 1);
 	return 0;
 }
@@ -924,7 +950,7 @@ int ArdbServer::HMGet(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
 	ValueArray vals;
 	SliceArray fs;
-	for (int i = 1; i < cmd.size(); i++)
+	for (uint32 i = 1; i < cmd.size(); i++)
 	{
 		fs.push_back(cmd[i]);
 	}
@@ -979,9 +1005,9 @@ int ArdbServer::HGetAll(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
 	StringArray fields;
 	ValueArray results;
-	int ret = m_db->HGetAll(ctx.currentDB, cmd[0], fields, results);
+	m_db->HGetAll(ctx.currentDB, cmd[0], fields, results);
 	ctx.reply.type = REDIS_REPLY_ARRAY;
-	for (int i = 0; i < fields.size(); i++)
+	for (uint32 i = 0; i < fields.size(); i++)
 	{
 		ArdbReply reply1, reply2;
 		fill_str_reply(reply1, fields[i]);
@@ -1017,7 +1043,7 @@ int ArdbServer::HExists(ArdbConnContext& ctx, ArgumentArray& cmd)
 int ArdbServer::HDel(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
 	SliceArray fields;
-	for (int i = 1; i < cmd.size(); i++)
+	for (uint32 i = 1; i < cmd.size(); i++)
 	{
 		fields.push_back(cmd[i]);
 	}
@@ -1030,7 +1056,7 @@ int ArdbServer::HDel(ArdbConnContext& ctx, ArgumentArray& cmd)
 int ArdbServer::SAdd(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
 	SliceArray values;
-	for (int i = 1; i < cmd.size(); i++)
+	for (uint32 i = 1; i < cmd.size(); i++)
 	{
 		values.push_back(cmd[i]);
 	}
@@ -1049,7 +1075,7 @@ int ArdbServer::SCard(ArdbConnContext& ctx, ArgumentArray& cmd)
 int ArdbServer::SDiff(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
 	SliceArray keys;
-	for (int i = 0; i < cmd.size(); i++)
+	for (uint32 i = 0; i < cmd.size(); i++)
 	{
 		keys.push_back(cmd[i]);
 	}
@@ -1062,7 +1088,7 @@ int ArdbServer::SDiff(ArdbConnContext& ctx, ArgumentArray& cmd)
 int ArdbServer::SDiffStore(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
 	SliceArray keys;
-	for (int i = 1; i < cmd.size(); i++)
+	for (uint32 i = 1; i < cmd.size(); i++)
 	{
 		keys.push_back(cmd[i]);
 	}
@@ -1075,7 +1101,7 @@ int ArdbServer::SDiffStore(ArdbConnContext& ctx, ArgumentArray& cmd)
 int ArdbServer::SInter(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
 	SliceArray keys;
-	for (int i = 0; i < cmd.size(); i++)
+	for (uint32 i = 0; i < cmd.size(); i++)
 	{
 		keys.push_back(cmd[i]);
 	}
@@ -1088,7 +1114,7 @@ int ArdbServer::SInter(ArdbConnContext& ctx, ArgumentArray& cmd)
 int ArdbServer::SInterStore(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
 	SliceArray keys;
-	for (int i = 1; i < cmd.size(); i++)
+	for (uint32 i = 1; i < cmd.size(); i++)
 	{
 		keys.push_back(cmd[i]);
 	}
@@ -1149,7 +1175,7 @@ int ArdbServer::SRandMember(ArdbConnContext& ctx, ArgumentArray& cmd)
 int ArdbServer::SRem(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
 	SliceArray keys;
-	for (int i = 1; i < cmd.size(); i++)
+	for (uint32 i = 1; i < cmd.size(); i++)
 	{
 		keys.push_back(cmd[i]);
 	}
@@ -1162,7 +1188,7 @@ int ArdbServer::SRem(ArdbConnContext& ctx, ArgumentArray& cmd)
 int ArdbServer::SUnion(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
 	SliceArray keys;
-	for (int i = 0; i < cmd.size(); i++)
+	for (uint32 i = 0; i < cmd.size(); i++)
 	{
 		keys.push_back(cmd[i]);
 	}
@@ -1175,7 +1201,7 @@ int ArdbServer::SUnion(ArdbConnContext& ctx, ArgumentArray& cmd)
 int ArdbServer::SUnionStore(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
 	SliceArray keys;
-	for (int i = 1; i < cmd.size(); i++)
+	for (uint32 i = 1; i < cmd.size(); i++)
 	{
 		keys.push_back(cmd[i]);
 	}
@@ -1195,7 +1221,7 @@ int ArdbServer::ZAdd(ArdbConnContext& ctx, ArgumentArray& cmd)
 		return 0;
 	}
 	m_db->Multi(ctx.currentDB);
-	for(int i = 1 ; i < cmd.size(); i+=2){
+	for(uint32 i = 1 ; i < cmd.size(); i+=2){
 	    double score;
 	    if (!string_todouble(cmd[i], score))
 	    {
@@ -1253,7 +1279,7 @@ int ArdbServer::ZRange(ArdbConnContext& ctx, ArgumentArray& cmd){
 	return 0;
 }
 
-static bool process_query_options(ArgumentArray& cmd, int idx,
+static bool process_query_options(ArgumentArray& cmd, uint32 idx,
 			QueryOptions& options)
 	{
 		if (cmd.size() > idx)
@@ -1315,7 +1341,7 @@ static bool process_query_options(ArgumentArray& cmd, int idx,
 
 	int ArdbServer::ZRem(ArdbConnContext& ctx, ArgumentArray& cmd){
 		int count = 0;
-		for(int i = 1; i < cmd.size(); i++){
+		for(uint32 i = 1; i < cmd.size(); i++){
 			count += m_db->ZRem(ctx.currentDB, cmd[0], cmd[i]);
 		}
 		fill_int_reply(ctx.reply, count);
@@ -1397,17 +1423,17 @@ static bool process_query_options(ArgumentArray& cmd, int idx,
 		if(!string_toint32(cmd[1], numkeys) || numkeys <= 0){
 			return false;
 		}
-		if(cmd.size() < numkeys + 2){
+		if(cmd.size() < (uint32)numkeys + 2){
 			return false;
 		}
 		for(int i = 2; i < numkeys + 2; i++){
 			keys.push_back(cmd[i]);
 		}
-		if(cmd.size() > numkeys + 2){
-            int idx = numkeys + 2;
+		if(cmd.size() > (uint32)numkeys + 2){
+            uint32 idx = numkeys + 2;
             std::string opstr = string_tolower(cmd[numkeys + 2]);
             if(opstr == "weights"){
-            	    if(cmd.size() < (numkeys*2) + 3){
+            	    if(cmd.size() < ((uint32)numkeys*2) + 3){
             	    	   return false;
             	    }
 				uint32 weight;
@@ -1534,7 +1560,7 @@ int ArdbServer::LPop(ArdbConnContext& ctx, ArgumentArray& cmd)
 int ArdbServer::LPush(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
 	int count = 0;
-	for(int i = 1; i < cmd.size(); i++){
+	for(uint32 i = 1; i < cmd.size(); i++){
 		count = m_db->LPush(ctx.currentDB, cmd[0], cmd[i]);
 	}
 	if(count < 0){
@@ -1618,7 +1644,7 @@ int ArdbServer::RPop(ArdbConnContext& ctx, ArgumentArray& cmd)
 int ArdbServer::RPush(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
 	int count = 0;
-	for(int i = 1; i < cmd.size(); i++){
+	for(uint32 i = 1; i < cmd.size(); i++){
 		count = m_db->RPush(ctx.currentDB, cmd[0], cmd[i]);
 	}
 	if(count < 0){
@@ -1636,33 +1662,15 @@ int ArdbServer::RPushx(ArdbConnContext& ctx, ArgumentArray& cmd)
 
 int ArdbServer::RPopLPush(ArdbConnContext& ctx, ArgumentArray& cmd){
 	std::string v;
-	int ret = m_db->RPopLPush(ctx.currentDB, cmd[0], cmd[1], v);
+	m_db->RPopLPush(ctx.currentDB, cmd[0], cmd[1], v);
 	fill_str_reply(ctx.reply, v);
 	return 0;
 }
 
-ArdbServer::RedisCommandHandlerSetting* ArdbServer::FindRedisCommandHandlerSetting(std::string* cmd){
-//	if(cmd->size() <= 4){
-//		uint32 index = 0;
-//		memcpy(&index, cmd->c_str(), cmd->size());
-//		RedisCommandHandlerSetting4BytesTable::iterator found = m_4byte_handler_table.find(index);
-//		if(found != m_4byte_handler_table.end()){
-//			return &(found->second);
-//		}
-//	}else if(cmd->size() <= 8){
-//		uint64 index = 0;
-//		memcpy(&index, cmd->c_str(), cmd->size());
-//		RedisCommandHandlerSetting8BytesTable::iterator found = m_8byte_handler_table.find(index);
-//		if(found != m_8byte_handler_table.end()){
-//			return &(found->second);
-//		}
-//	}else
-	{
-		RedisCommandHandlerSettingTable::iterator found = m_handler_table.find(
-						*cmd);
-		if(found != m_handler_table.end()){
-			return &(found->second);
-		}
+ArdbServer::RedisCommandHandlerSetting* ArdbServer::FindRedisCommandHandlerSetting(std::string& cmd){
+	RedisCommandHandlerSettingTable::iterator found = m_handler_table.find(cmd);
+	if(found != m_handler_table.end()){
+		return &(found->second);
 	}
 	return NULL;
 }
@@ -1674,20 +1682,18 @@ void ArdbServer::ProcessRedisCommand(ArdbConnContext& ctx,
 		std::string& cmd = args.GetCommand();
 		int ret = 0;
 		lower_string(cmd);
-		RedisCommandHandlerSetting* setting = FindRedisCommandHandlerSetting(
-		        &cmd);
+		RedisCommandHandlerSetting* setting = FindRedisCommandHandlerSetting(cmd);
 		if (NULL != setting)
 		{
 			RedisCommandHandler handler = setting->handler;
-
 			bool valid_cmd = true;
 			if (setting->min_arity > 0)
 			{
-				valid_cmd = args.GetArguments().size() >= setting->min_arity;
+				valid_cmd = args.GetArguments().size() >= (uint32)setting->min_arity;
 			}
 			if (setting->max_arity >= 0 && valid_cmd)
 			{
-				valid_cmd = args.GetArguments().size() <= setting->max_arity;
+				valid_cmd = args.GetArguments().size() <= (uint32)setting->max_arity;
 			}
 
 			if (!valid_cmd)
@@ -1745,6 +1751,13 @@ static void ardb_pipeline_finallize(ChannelPipeline* pipeline, void* data)
 int ArdbServer::Start(const Properties& props)
 {
 	ParseConfig(props, m_cfg);
+	if(m_cfg.daemonize){
+		 if (fork() != 0){
+			 exit(0); /* parent exits */
+		 }
+		 setsid(); /* create a new session */
+	}
+
 	struct RedisRequestHandler: public ChannelUpstreamHandler<RedisCommandFrame>
 	{
 		ArdbServer* server;
@@ -1770,7 +1783,7 @@ int ArdbServer::Start(const Properties& props)
 	RedisRequestHandler handler(this);
 
 	ChannelOptions ops;
-	ops.tcp_nodelay = false;
+	ops.tcp_nodelay = true;
 	if (m_cfg.listen_host.empty() && m_cfg.listen_unix_path.empty())
 	{
 		m_cfg.listen_host = "0.0.0.0";
@@ -1787,7 +1800,7 @@ int ArdbServer::Start(const Properties& props)
 		{
 			ERROR_LOG(
 					"Failed to bind on %s:%d", m_cfg.listen_host.c_str(), m_cfg.listen_port);
-			return -1;
+			goto sexit;
 		}
 		server->Configure(ops);
 		server->SetChannelPipelineInitializor(ardb_pipeline_init, &handler);
@@ -1800,13 +1813,16 @@ int ArdbServer::Start(const Properties& props)
 		if (!server->Bind(&address))
 		{
 			ERROR_LOG( "Failed to bind on %s", m_cfg.listen_unix_path.c_str());
-			return -1;
+			goto sexit;
 		}
 		server->Configure(ops);
 		server->SetChannelPipelineInitializor(ardb_pipeline_init, &handler);
 		server->SetChannelPipelineFinalizer(ardb_pipeline_finallize, NULL);
 	}
+    INFO_LOG("Server started, Ardb version %s", ARDB_VERSION);
+    INFO_LOG("The server is now ready to accept connections on port %d", m_cfg.listen_port);
 	m_service->Start();
+sexit:
 	DELETE(m_engine);
 	DELETE(m_db);
 	DELETE(m_service);

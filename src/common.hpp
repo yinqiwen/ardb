@@ -127,4 +127,6 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 
 #include "logger.hpp"
 
+#define ARDB_VERSION "0.1.0"
+
 #endif /* COMMON_HPP_ */

@@ -37,6 +37,14 @@
 extern "C" {
 #endif
 
+#ifdef __linux__
+#define HAVE_EPOLL 1
+#endif
+
+#if (defined(__APPLE__) && defined(MAC_OS_X_VERSION_10_6)) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined (__NetBSD__)
+#define HAVE_KQUEUE 1
+#endif
+
 #define AE_SETSIZE (1024*10)    /* Max number of fd supported */
 
 #define AE_OK 0
