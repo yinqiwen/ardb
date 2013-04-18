@@ -15,7 +15,7 @@ RANDOMKEY                       Discard
 RENAME key newkey               DONE
 RENAMENX key newkey             DONE
 RESTORE key ttl serialized-value  Discard
-SORT key                        NotYet
+SORT key                        DONE
 TTL key                        DONE
 TYPE key                       DONE
 
@@ -126,10 +126,10 @@ SCRIPT KILL                                NotYet
 SCRIPT LOAD script                         NotYet
 
 AUTH password                              NotYet
-ECHO message                               NotYet
+ECHO message                               DONE
 PING                                       DONE
 QUIT                                       DONE
-SELECT index                               NotYet
+SELECT index                               DONE
 
 BGREWRITEAOF                               Discard
 BGSAVE                                     Discard

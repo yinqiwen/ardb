@@ -96,6 +96,7 @@ namespace ardb
 			int Move(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Rename(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int RenameNX(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Sort(ArdbConnContext& ctx, ArgumentArray& cmd);
 
 			int Append(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Bitcount(ArdbConnContext& ctx, ArgumentArray& cmd);

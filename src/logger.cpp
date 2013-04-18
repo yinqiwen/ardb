@@ -69,7 +69,7 @@ namespace ardb
 
 	static bool default_logchcker(LogLevel level)
 	{
-		return level <= DEBUG_LOG_LEVEL;
+		return level <= INFO_LOG_LEVEL;
 	}
 
 	ArdbLogHandler* ArdbLogger::GetLogHandler()

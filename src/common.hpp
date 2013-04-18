@@ -121,12 +121,10 @@ template <typename T, size_t N>
 char (&ArraySizeHelper(T (&array)[N]))[N];
 #define arraysize(array) (sizeof(ArraySizeHelper(array)))
 
+#include "constants.hpp"
 #include "util/address.hpp"
 #include "util/runnable.hpp"
 #include "util/debug.h"
-
 #include "logger.hpp"
-
-#define ARDB_VERSION "0.1.0"
 
 #endif /* COMMON_HPP_ */

@@ -295,21 +295,6 @@ namespace ardb
 		return type;
 	}
 
-	int Ardb::Sort(const DBID& db, const Slice& key, const StringArray& args,
-	        StringArray& values)
-	{
-		struct SortOptions
-		{
-				std::string by;
-				bool with_limit;
-				StringArray get_patterns;
-				bool is_desc;
-				bool with_alpha;
-				std::string store_dst;
-		};
-
-		return 0;
-	}
 
 	void Ardb::PrintDB(const DBID& db)
 	{

@@ -116,7 +116,7 @@ namespace ardb
 						Buffer tmp(64);
 						tmp.Printf("%lld", v.int_v);
 						return std::string(tmp.GetRawReadBuffer(),
-						        tmp.ReadableBytes());
+								tmp.ReadableBytes());
 					}
 					case DOUBLE:
 					{
@@ -127,7 +127,25 @@ namespace ardb
 					default:
 					{
 						return std::string(v.raw->GetRawReadBuffer(),
-						        v.raw->ReadableBytes());
+								v.raw->ReadableBytes());
+					}
+				}
+			}
+			double NumberValue()
+			{
+				switch (type)
+				{
+					case INTEGER:
+					{
+						return v.int_v;
+					}
+					case DOUBLE:
+					{
+						return v.double_v;
+					}
+					default:
+					{
+						return NAN;
 					}
 				}
 			}
@@ -164,7 +182,7 @@ namespace ardb
 					{
 						v.raw = new Buffer(other.v.raw->ReadableBytes());
 						v.raw->Write(other.v.raw->GetRawReadBuffer(),
-						        other.v.raw->ReadableBytes());
+								other.v.raw->ReadableBytes());
 						return;
 					}
 				}
@@ -192,9 +210,9 @@ namespace ardb
 					default:
 					{
 						Slice a(v.raw->GetRawReadBuffer(),
-						        v.raw->ReadableBytes());
+								v.raw->ReadableBytes());
 						Slice b(other.v.raw->GetRawReadBuffer(),
-						        other.v.raw->ReadableBytes());
+								other.v.raw->ReadableBytes());
 						return a.compare(b);
 					}
 				}
@@ -213,7 +231,7 @@ namespace ardb
 
 	typedef std::deque<ValueObject> ValueArray;
 	typedef std::deque<Slice> SliceArray;
-	typedef std::deque<std::string> StringArray;
+	typedef std::vector<std::string> StringArray;
 	typedef std::map<std::string, Slice> SliceMap;
 	typedef std::set<std::string> StringSet;
 	typedef std::vector<uint32_t> WeightArray;
@@ -240,7 +258,7 @@ namespace ardb
 			LogicalOperator logicop;
 
 			Condition(const std::string& name, CompareOperator compareop,
-			        const Slice& value, LogicalOperator logic = LOGIC_EMPTY);
+					const Slice& value, LogicalOperator logic = LOGIC_EMPTY);
 
 			bool MatchValue(const ValueObject& v, int& cmpret)
 			{
@@ -365,13 +383,13 @@ namespace ardb
 			ValueObject keyvalue;
 			TableKeyIndex index;
 			TableIndexKeyObject(const Slice& tablename, const Slice& keyname,
-			        const ValueObject& v) :
+					const ValueObject& v) :
 					KeyObject(tablename, TABLE_INDEX), kname(keyname), keyvalue(
-					        v)
+							v)
 			{
 			}
 			TableIndexKeyObject(const Slice& tablename, const Slice& keyname,
-			        const Slice& v);
+					const Slice& v);
 	};
 
 	struct TableColKeyObject: public KeyObject
@@ -397,7 +415,26 @@ namespace ardb
 			int limit_count;
 			QueryOptions() :
 					withscores(false), withlimit(false), limit_offset(0), limit_count(
-					        0)
+							0)
+			{
+			}
+	};
+
+	struct SortOptions
+	{
+			const char* by;
+			bool with_limit;
+			int32 limit_offset;
+			int32 limit_count;
+			std::vector<const char*> get_patterns;
+			bool is_desc;
+			bool with_alpha;
+			bool nosort;
+			const char* store_dst;
+			SortOptions() :
+					by(NULL), with_limit(false), limit_offset(0), limit_count(
+							0), is_desc(false), with_alpha(false), nosort(
+							false), store_dst(NULL)
 			{
 			}
 	};
@@ -413,7 +450,8 @@ namespace ardb
 	KeyObject* decode_key(const Slice& key);
 
 	void encode_value(Buffer& buf, const ValueObject& value);
-	bool decode_value(Buffer& buf, ValueObject& value, bool copyRawValue = true);
+	bool decode_value(Buffer& buf, ValueObject& value,
+			bool copyRawValue = true);
 	void fill_raw_value(const Slice& value, ValueObject& valueobject);
 	void smart_fill_value(const Slice& value, ValueObject& valueobject);
 	int value_convert_to_raw(ValueObject& v);

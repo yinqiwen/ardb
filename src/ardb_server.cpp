@@ -282,6 +282,7 @@ ArdbServer::ArdbServer() :
 	{ "move", &ArdbServer::Move, 2, 2 },
 	{ "rename", &ArdbServer::Rename, 2, 2 },
 	{ "renamenx", &ArdbServer::RenameNX, 2, 2 },
+	{ "sort", &ArdbServer::Sort, 1, -1 },
 	};
 
 	uint32 arraylen = arraysize(settingTable);
@@ -343,6 +344,14 @@ int ArdbServer::Rename(ArdbConnContext& ctx, ArgumentArray& cmd)
 	}
 	return 0;
 }
+
+int ArdbServer::Sort(ArdbConnContext& ctx, ArgumentArray& cmd)
+{
+	int ret = m_db->RenameNX(ctx.currentDB, cmd[0], cmd[1]);
+	fill_int_reply(ctx.reply, ret < 0 ? 0:1);
+	return 0;
+}
+
 int ArdbServer::RenameNX(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
 	int ret = m_db->RenameNX(ctx.currentDB, cmd[0], cmd[1]);

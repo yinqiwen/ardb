@@ -116,6 +116,7 @@ namespace ardb
 			int SetExpiration(const DBID& db, const Slice& key,
 					uint64_t expire);
 
+			int GetValueByPattern(const DBID& db, const Slice& pattern, ValueObject& subst, ValueObject& value);
 			int GetValue(const DBID& db, const Slice& key, ValueObject* value);
 			int GetValue(const DBID& db, const KeyObject& key, ValueObject* v,
 					uint64* expire = NULL);
@@ -370,7 +371,7 @@ namespace ardb
 
 			int Type(const DBID& db, const Slice& key);
 			int Sort(const DBID& db, const Slice& key, const StringArray& args,
-					StringArray& values);
+					ValueArray& values);
 
 			void PrintDB(const DBID& db);
 
