@@ -296,6 +296,10 @@ namespace ardb
 
 	int value_convert_to_raw(ValueObject& v)
 	{
+		if (v.type == EMPTY)
+		{
+			return -1;
+		}
 		if (v.type != RAW)
 		{
 			int64_t iv = v.v.int_v;
@@ -327,6 +331,10 @@ namespace ardb
 
 	int value_convert_to_number(ValueObject& v)
 	{
+		if (v.type == EMPTY)
+		{
+			return -1;
+		}
 		if (v.type != RAW)
 		{
 			return 0;

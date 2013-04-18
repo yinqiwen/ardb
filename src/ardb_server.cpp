@@ -347,8 +347,11 @@ int ArdbServer::Rename(ArdbConnContext& ctx, ArgumentArray& cmd)
 
 int ArdbServer::Sort(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
-	int ret = m_db->RenameNX(ctx.currentDB, cmd[0], cmd[1]);
-	fill_int_reply(ctx.reply, ret < 0 ? 0:1);
+	ValueArray vs;
+	std::string key = cmd[0];
+    cmd.pop_front();
+	int ret = m_db->Sort(ctx.currentDB, key, cmd, vs);
+	fill_array_reply(ctx.reply, vs);
 	return 0;
 }
 

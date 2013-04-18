@@ -231,7 +231,7 @@ namespace ardb
 
 	typedef std::deque<ValueObject> ValueArray;
 	typedef std::deque<Slice> SliceArray;
-	typedef std::vector<std::string> StringArray;
+	typedef std::deque<std::string> StringArray;
 	typedef std::map<std::string, Slice> SliceMap;
 	typedef std::set<std::string> StringSet;
 	typedef std::vector<uint32_t> WeightArray;

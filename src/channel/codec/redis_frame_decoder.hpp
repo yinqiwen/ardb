@@ -18,7 +18,7 @@ namespace ardb
 	namespace codec
 	{
 		class RedisFrameDecoder;
-		typedef std::vector<std::string> ArgumentArray;
+		typedef std::deque<std::string> ArgumentArray;
 		class RedisCommandFrame
 		{
 			private:
