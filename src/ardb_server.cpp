@@ -24,6 +24,7 @@
 
 namespace ardb
 {
+
 static inline void fill_error_reply(ArdbReply& reply, const char* fmt, ...)
 {
 	va_list ap;
@@ -183,6 +184,9 @@ ArdbServer::ArdbServer() :
 	struct RedisCommandHandlerSetting settingTable[] =
 	{
 	{ "ping", &ArdbServer::Ping, 0, 0 },
+	{ "flushdb", &ArdbServer::FlushDB, 0, 0 },
+	{ "flushall", &ArdbServer::FlushAll, 0, 0 },
+	{ "time", &ArdbServer::Time, 0, 0 },
 	{ "echo", &ArdbServer::Echo, 1, 1 },
 	{ "quit", &ArdbServer::Quit, 0, 0 },
 	{ "shutdown", &ArdbServer::Shutdown, 0, 1 },
@@ -331,6 +335,28 @@ int ArdbServer::LClear(ArdbConnContext& ctx, ArgumentArray& cmd){
 int ArdbServer::TClear(ArdbConnContext& ctx, ArgumentArray& cmd){
 	m_db->TClear(ctx.currentDB, cmd[0]);
 	fill_status_reply(ctx.reply, "OK");
+	return 0;
+}
+
+int ArdbServer::Time(ArdbConnContext& ctx, ArgumentArray& cmd)
+{
+	uint64 micros = get_current_epoch_micros();
+	ValueArray vs;
+	vs.push_back(ValueObject((int64)micros/1000000));
+	vs.push_back(ValueObject((int64)micros%1000000));
+	fill_array_reply(ctx.reply, vs);
+	return 0;
+}
+
+int ArdbServer::FlushDB(ArdbConnContext& ctx, ArgumentArray& cmd){
+	m_db->FlushDB(ctx.currentDB);
+	fill_status_reply(ctx.reply, "OK");
+	return 0;
+}
+
+int ArdbServer::FlushAll(ArdbConnContext& ctx, ArgumentArray& cmd){
+	m_db->FlushAll();
+    fill_status_reply(ctx.reply, "OK");
 	return 0;
 }
 

@@ -63,6 +63,15 @@ namespace ardb
 	}
 	void LevelDBEngineFactory::DestroyDB(KeyValueEngine* engine)
 	{
+		LevelDBEngine* leveldb = (LevelDBEngine*)engine;
+        std::string path = leveldb->m_db_path;
+		DELETE(engine);
+		leveldb::Options options;
+		leveldb::DestroyDB(path, options);
+	}
+
+	void LevelDBEngineFactory::CloseDB(KeyValueEngine* engine)
+	{
 		DELETE(engine);
 	}
 	void LevelDBIterator::SeekToFirst()
@@ -99,7 +108,10 @@ namespace ardb
 	{
 
 	}
-
+	LevelDBEngine::~LevelDBEngine()
+	{
+		DELETE(m_db);
+	}
 	int LevelDBEngine::Init(const LevelDBConfig& cfg)
 	{
 		leveldb::Options options;
@@ -111,6 +123,7 @@ namespace ardb
 //		options.write_buffer_size = 268435456;
 		options.filter_policy = leveldb::NewBloomFilterPolicy(16);
 		make_dir(cfg.path);
+		m_db_path = cfg.path;
 		leveldb::Status status = leveldb::DB::Open(options, cfg.path.c_str(),
 				&m_db);
 		if (!status.ok())

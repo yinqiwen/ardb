@@ -97,6 +97,7 @@ namespace ardb
 	struct KeyValueEngineFactory
 	{
 			virtual KeyValueEngine* CreateDB(const DBID& db) = 0;
+			virtual void CloseDB(KeyValueEngine* engine) = 0;
 			virtual void DestroyDB(KeyValueEngine* engine) = 0;
 			virtual ~KeyValueEngineFactory()
 			{
@@ -173,6 +174,7 @@ namespace ardb
 			}
 		public:
 			Ardb(KeyValueEngineFactory* factory);
+			~Ardb();
 			/*
 			 * Key-Value operations
 			 */
@@ -372,6 +374,8 @@ namespace ardb
 			int Type(const DBID& db, const Slice& key);
 			int Sort(const DBID& db, const Slice& key, const StringArray& args,
 					ValueArray& values);
+			int FlushDB(const DBID& db);
+			int FlushAll();
 
 			void PrintDB(const DBID& db);
 

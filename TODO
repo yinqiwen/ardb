@@ -143,8 +143,8 @@ CONFIG RESETSTAT                           NotYet
 DBSIZE                                     Discard
 DEBUG OBJECT key                           NotYet
 DEBUG SEGFAULT                             NotYet
-FLUSHALL                                   Discard
-FLUSHDB                                    Discard
+FLUSHALL                                   DONE
+FLUSHDB                                    DONE
 INFO [section]                             NotYet
 LASTSAVE                                   Discard
 MONITOR                                    NotYet
@@ -153,5 +153,5 @@ SHUTDOWN [NOSAVE] [SAVE]                   DONE
 SLAVEOF host port                          NotYet
 SLOWLOG subcommand [argument]              NotYet
 SYNC                                       Discard
-TIME                                       NotYet
+TIME                                       DONE
 

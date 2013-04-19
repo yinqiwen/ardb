@@ -198,6 +198,15 @@ namespace ardb
 	{
 	}
 
+	Ardb::~Ardb()
+	{
+		KeyValueEngineTable::iterator it = m_engine_table.begin();
+		while(it != m_engine_table.end()){
+			m_engine_factory->CloseDB(it->second);
+			it++;
+		}
+	}
+
 	void Ardb::Walk(const DBID& db, KeyObject& key, bool reverse,
 	        WalkHandler* handler)
 	{
@@ -320,6 +329,23 @@ namespace ardb
 		}
 		DELETE(iter);
 
+	}
+
+	int Ardb::FlushDB(const DBID& db){
+        m_engine_factory->DestroyDB(GetDB(db));
+        m_engine_table.erase(db);
+		return 0;
+	}
+
+	int Ardb::FlushAll()
+	{
+		KeyValueEngineTable::iterator it = m_engine_table.begin();
+		while(it != m_engine_table.end()){
+		     m_engine_factory->DestroyDB(it->second);
+			it++;
+		}
+		m_engine_table.clear();
+		return 0;
 	}
 
 }

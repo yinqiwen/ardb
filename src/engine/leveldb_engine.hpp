@@ -80,7 +80,7 @@ namespace ardb
 	{
 			std::string path;
 	};
-
+    class LevelDBEngineFactory;
 	class LevelDBEngine: public KeyValueEngine
 	{
 		private:
@@ -88,8 +88,11 @@ namespace ardb
 			LevelDBComparator m_comparator;
 			leveldb::WriteBatch m_batch;
 			std::stack<bool> m_batch_stack;
+			std::string m_db_path;
+			friend class LevelDBEngineFactory;
 		public:
 			LevelDBEngine();
+			~LevelDBEngine();
 			int Init(const LevelDBConfig& cfg);
 			int Put(const Slice& key, const Slice& value);
 			int Get(const Slice& key, std::string* value);
@@ -109,6 +112,7 @@ namespace ardb
 			LevelDBEngineFactory(const Properties& cfg);
 			KeyValueEngine* CreateDB(const DBID& db);
 			void DestroyDB(KeyValueEngine* engine);
+			void CloseDB(KeyValueEngine* engine);
 	};
 }
 

@@ -45,8 +45,18 @@ namespace ardb
 		DEBUG_LOG("Create DB:%s at path:%s success", db.c_str(), tmp);
 		return engine;
 	}
+	void KCDBEngineFactory::CloseDB(KeyValueEngine* engine)
+	{
+		DELETE(engine);
+	}
+
 	void KCDBEngineFactory::DestroyDB(KeyValueEngine* engine)
 	{
+		KCDBEngine* kcdb = (KCDBEngine*)engine;
+		if(NULL != kcdb)
+		{
+			kcdb->Clear();
+		}
 		DELETE(engine);
 	}
 
@@ -56,16 +66,38 @@ namespace ardb
 
 	}
 
+	KCDBEngine::~KCDBEngine()
+	{
+		Close();
+		DELETE(m_db);
+	}
+
+	void KCDBEngine::Clear()
+	{
+		if (NULL != m_db)
+		{
+			m_db->clear();
+		}
+	}
+	void KCDBEngine::Close()
+	{
+		if (NULL != m_db)
+		{
+			m_db->close();
+		}
+	}
+
 	int KCDBEngine::Init(const KCDBConfig& cfg)
 	{
 		make_file(cfg.path);
 		m_db = new kyotocabinet::TreeDB;
-		int tune_options = kyotocabinet::TreeDB::TSMALL |kyotocabinet::TreeDB::TLINEAR;
-		 tune_options |= kyotocabinet::TreeDB::TCOMPRESS;
-		 m_db->tune_options(tune_options);
-		 m_db->tune_page_cache(4194304);
-		 m_db->tune_page(1024);
-		 m_db->tune_map(256LL<<20);
+		int tune_options = kyotocabinet::TreeDB::TSMALL
+				| kyotocabinet::TreeDB::TLINEAR;
+		tune_options |= kyotocabinet::TreeDB::TCOMPRESS;
+		m_db->tune_options(tune_options);
+		m_db->tune_page_cache(4194304);
+		m_db->tune_page(1024);
+		m_db->tune_map(256LL << 20);
 		m_db->tune_comparator(&m_comparator);
 		if (!m_db->open(cfg.path.c_str(),
 				kyotocabinet::TreeDB::OWRITER | kyotocabinet::TreeDB::OCREATE))

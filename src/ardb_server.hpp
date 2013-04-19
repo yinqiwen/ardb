@@ -86,6 +86,11 @@ namespace ardb
 			RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(std::string& cmd);
 			void ProcessRedisCommand(ArdbConnContext& ctx,
 					RedisCommandFrame& cmd);
+
+			int Time(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int FlushDB(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int FlushAll(ArdbConnContext& ctx, ArgumentArray& cmd);
+
 			int Ping(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Echo(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Select(ArdbConnContext& ctx, ArgumentArray& cmd);

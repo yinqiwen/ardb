@@ -68,6 +68,9 @@ namespace ardb
 			std::map<std::string, std::string> m_bulk_set_kvs;
 		public:
 			KCDBEngine();
+			~KCDBEngine();
+			void Clear();
+			void Close();
 			int Init(const KCDBConfig& cfg);
 			int Put(const Slice& key, const Slice& value);
 			int Get(const Slice& key, std::string* value);
@@ -87,6 +90,7 @@ namespace ardb
 			KCDBEngineFactory(const Properties& cfg);
 			KeyValueEngine* CreateDB(const DBID& db);
 			void DestroyDB(KeyValueEngine* engine);
+			void CloseDB(KeyValueEngine* engine);
 	};
 }
 
