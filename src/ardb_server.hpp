@@ -67,6 +67,7 @@ namespace ardb
 	{
 		private:
 			ArdbServerConfig m_cfg;
+			Properties m_cfg_props;
 			ChannelService* m_service;
 			Ardb* m_db;
 			KeyValueEngineFactory* m_engine;
@@ -90,6 +91,9 @@ namespace ardb
 			int Time(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int FlushDB(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int FlushAll(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Info(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int DBSize(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Config(ArdbConnContext& ctx, ArgumentArray& cmd);
 
 			int Ping(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Echo(ArdbConnContext& ctx, ArgumentArray& cmd);

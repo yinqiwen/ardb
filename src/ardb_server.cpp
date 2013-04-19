@@ -168,12 +168,16 @@ int ArdbServer::ParseConfig(const Properties& props, ArdbServerConfig& cfg)
 	conf_get_int64(props, "port", cfg.listen_port);
 	conf_get_string(props, "bind", cfg.listen_host);
 	conf_get_string(props, "unixsocket", cfg.listen_unix_path);
+	conf_get_string(props, "dir", cfg.data_base_path);
 	std::string daemonize;
 	conf_get_string(props, "daemonize", daemonize);
 	daemonize = string_tolower(daemonize);
 	if (daemonize == "yes")
 	{
 		cfg.daemonize = true;
+	}
+	if(cfg.data_base_path.empty()){
+		cfg.data_base_path = ".";
 	}
 	return 0;
 }
@@ -184,6 +188,9 @@ ArdbServer::ArdbServer() :
 	struct RedisCommandHandlerSetting settingTable[] =
 	{
 	{ "ping", &ArdbServer::Ping, 0, 0 },
+	{ "info", &ArdbServer::Info, 0, 1 },
+	{ "dbsize", &ArdbServer::DBSize, 0, 0 },
+	{ "config", &ArdbServer::Config, 1, 3 },
 	{ "flushdb", &ArdbServer::FlushDB, 0, 0 },
 	{ "flushall", &ArdbServer::FlushAll, 0, 0 },
 	{ "time", &ArdbServer::Time, 0, 0 },
@@ -335,6 +342,54 @@ int ArdbServer::LClear(ArdbConnContext& ctx, ArgumentArray& cmd){
 int ArdbServer::TClear(ArdbConnContext& ctx, ArgumentArray& cmd){
 	m_db->TClear(ctx.currentDB, cmd[0]);
 	fill_status_reply(ctx.reply, "OK");
+	return 0;
+}
+
+int ArdbServer::Info(ArdbConnContext& ctx, ArgumentArray& cmd){
+	std::string info;
+	info.append("# Server\r\n");
+	info.append("ardb_version:").append(ARDB_VERSION).append("\r\n");
+	info.append("# Disk\r\n");
+	int64 filesize = file_size(m_cfg.data_base_path);
+	char tmp[256];
+	sprintf(tmp, "%lld",filesize);
+	info.append("db_used_space:").append(tmp).append("\r\n");
+	fill_str_reply(ctx.reply, info);
+	return 0;
+}
+
+int ArdbServer::DBSize(ArdbConnContext& ctx, ArgumentArray& cmd){
+    std::string path = m_cfg.data_base_path + "/" + ctx.currentDB;
+    fill_int_reply(ctx.reply, file_size(path));
+    return 0;
+}
+
+int ArdbServer::Config(ArdbConnContext& ctx, ArgumentArray& cmd){
+	std::string arg0 = string_tolower(cmd[0]);
+	if(arg0 != "get" && arg0 != "set" && arg0 != "resetstat"){
+		fill_error_reply(ctx.reply, "ERR CONFIG subcommand must be one of GET, SET, RESETSTAT");
+		return 0;
+	}
+	if(arg0 == "resetstat")
+	{
+		if(cmd.size() != 1){
+			fill_error_reply(ctx.reply, "RR Wrong number of arguments for CONFIG RESETSTAT");
+			return 0;
+		}
+	}
+	else if(arg0 == "get"){
+		if(cmd.size() != 2){
+			fill_error_reply(ctx.reply, "RR Wrong number of arguments for CONFIG GET");
+			return 0;
+		}
+
+	}else if(arg0 == "set"){
+		if(cmd.size() != 3){
+			fill_error_reply(ctx.reply, "RR Wrong number of arguments for CONFIG SET");
+			return 0;
+		}
+
+	}
 	return 0;
 }
 
@@ -1792,6 +1847,7 @@ static void ardb_pipeline_finallize(ChannelPipeline* pipeline, void* data)
 
 int ArdbServer::Start(const Properties& props)
 {
+	m_cfg_props = props;
 	ParseConfig(props, m_cfg);
 	if(m_cfg.daemonize){
 		 if (fork() != 0){

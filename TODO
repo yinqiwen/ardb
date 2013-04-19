@@ -140,12 +140,12 @@ CLIENT SETNAME connection-name             NotYet
 CONFIG GET parameter                       NotYet
 CONFIG SET parameter value                 NotYet
 CONFIG RESETSTAT                           NotYet
-DBSIZE                                     Discard
+DBSIZE                                     DONE(return disk space)
 DEBUG OBJECT key                           NotYet
 DEBUG SEGFAULT                             NotYet
 FLUSHALL                                   DONE
 FLUSHDB                                    DONE
-INFO [section]                             NotYet
+INFO [section]                             DONE
 LASTSAVE                                   Discard
 MONITOR                                    NotYet
 SAVE                                       Discard
