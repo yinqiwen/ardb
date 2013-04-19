@@ -10,7 +10,7 @@
 
 #include "channel/all_includes.hpp"
 #include "channel/codec/frame_decoder.hpp"
-#include <vector>
+#include <deque>
 #include <string>
 
 namespace ardb

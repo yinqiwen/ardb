@@ -351,7 +351,11 @@ int ArdbServer::Sort(ArdbConnContext& ctx, ArgumentArray& cmd)
 	std::string key = cmd[0];
     cmd.pop_front();
 	int ret = m_db->Sort(ctx.currentDB, key, cmd, vs);
-	fill_array_reply(ctx.reply, vs);
+	if(ret < 0){
+		fill_error_reply(ctx.reply,"Invalid SORT command or invalid state for SORT.");
+	}else{
+		fill_array_reply(ctx.reply, vs);
+	}
 	return 0;
 }
 

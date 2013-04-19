@@ -44,7 +44,7 @@ namespace ardb
 			{
 				options.is_desc = false;
 			}
-			else if (!strcasecmp(args[i].c_str(), "asc"))
+			else if (!strcasecmp(args[i].c_str(), "desc"))
 			{
 				options.is_desc = true;
 			}
@@ -72,6 +72,10 @@ namespace ardb
 			else if (!strcasecmp(args[i].c_str(), "by") && i < args.size() - 1)
 			{
 				options.by = args[i + 1].c_str();
+				if(!strcasecmp(options.by, "nosort")){
+					options.by = NULL;
+					options.nosort = true;
+				}
 				i++;
 			}
 			else if (!strcasecmp(args[i].c_str(), "get") && i < args.size() - 1)
@@ -116,7 +120,7 @@ namespace ardb
 		}
 		std::string vstr = subst.ToString();
 		std::string keystr(pattern.data(), pattern.size());
-		keystr = string_replace(keystr, "*", vstr);
+		string_replace(keystr, "*", vstr);
 		if (f == NULL)
 		{
 			KeyObject k(keystr);
@@ -166,7 +170,7 @@ namespace ardb
 			}
 		}
 
-		if (!sortvals.empty())
+		if (sortvals.empty())
 		{
 			return 0;
 		}
@@ -296,7 +300,7 @@ namespace ardb
 			}
 		}
 
-		if (options.store_dst != NULL && values.empty())
+		if (options.store_dst != NULL && !values.empty())
 		{
 			BatchWriteGuard guard(GetDB(db));
 			LClear(db, options.store_dst);
