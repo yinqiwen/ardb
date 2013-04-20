@@ -129,6 +129,7 @@ ArdbServer::ArdbServer() :
 	{ "slowlog", &ArdbServer::SlowLog, 1, 2 },
 	{ "dbsize", &ArdbServer::DBSize, 0, 0 },
 	{ "config", &ArdbServer::Config, 1, 3 },
+	{ "client", &ArdbServer::Client, 1, 3 },
 	{ "flushdb", &ArdbServer::FlushDB, 0, 0 },
 	{ "flushall", &ArdbServer::FlushAll, 0, 0 },
 	{ "time", &ArdbServer::Time, 0, 0 },
@@ -293,6 +294,72 @@ int ArdbServer::DBSize(ArdbConnContext& ctx, ArgumentArray& cmd){
     return 0;
 }
 
+int ArdbServer::Client(ArdbConnContext& ctx, ArgumentArray& cmd)
+{
+		std::string subcmd = string_tolower(cmd[0]);
+		if (subcmd == "kill")
+		{
+			if (cmd.size() != 2)
+			{
+				fill_error_reply(ctx.reply,
+				        "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name)");
+				return 0;
+			}
+			Channel* conn = m_clients_holder.GetConn(cmd[1]);
+			if(NULL == conn)
+			{
+				fill_error_reply(ctx.reply,"ERR No such client");
+				return 0;
+			}
+			fill_status_reply(ctx.reply, "OK");
+			if(conn == ctx.conn)
+			{
+				return -1;
+			}else{
+				conn->Close();
+				return 0;
+			}
+		}
+		else if (subcmd == "setname")
+		{
+			if(cmd.size() != 2)
+			{
+				fill_error_reply(ctx.reply, "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name)");
+				return 0;
+			}
+			m_clients_holder.SetName(ctx.conn, cmd[1]);
+			fill_status_reply(ctx.reply, "OK");
+			return 0;
+		}
+		else if (subcmd == "getname")
+		{
+			if (cmd.size() != 1)
+			{
+				fill_error_reply(ctx.reply, "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name)");
+				return 0;
+			}
+			fill_str_reply(ctx.reply, m_clients_holder.GetName(ctx.conn));
+			return 0;
+		}
+		else if (subcmd == "list")
+		{
+			if (cmd.size() != 1)
+			{
+				fill_error_reply(ctx.reply,
+				        "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name)");
+				return 0;
+			}
+			m_clients_holder.List(ctx.reply);
+			return 0;
+		}
+		else
+		{
+			fill_error_reply(ctx.reply,
+			        "ERR CLIENT subcommand must be one of LIST, GETNAME, SETNAME, KILL");
+		}
+	return 0;
+}
+
 int ArdbServer::SlowLog(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
 	std::string subcmd = string_tolower(cmd[0]);
@@ -395,7 +462,6 @@ int ArdbServer::Sort(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
 	ValueArray vs;
 	std::string key = cmd[0];
-    cmd.pop_front();
 	int ret = m_db->Sort(ctx.currentDB, key, cmd, vs);
 	if(ret < 0){
 		fill_error_reply(ctx.reply,"Invalid SORT command or invalid state for SORT.");
@@ -948,6 +1014,7 @@ int ArdbServer::Echo(ArdbConnContext& ctx, ArgumentArray& cmd)
 int ArdbServer::Select(ArdbConnContext& ctx, ArgumentArray& cmd)
 {
 	ctx.currentDB = cmd[0];
+	m_clients_holder.ChangeCurrentDB(ctx.conn, ctx.currentDB);
 	fill_status_reply(ctx.reply, "OK");
 	DEBUG_LOG("Select db is %s", cmd[0].c_str());
 	return 0;
@@ -1766,6 +1833,7 @@ void ArdbServer::ProcessRedisCommand(ArdbConnContext& ctx,
 			}
 			else
 			{
+				m_clients_holder.TouchConn(ctx.conn, cmd);
 				uint64 start_time = get_current_epoch_micros();
 				ret = (this->*handler)(ctx, args.GetArguments());
 				uint64 stop_time = get_current_epoch_micros();
@@ -1867,6 +1935,11 @@ int ArdbServer::Start(const Properties& props)
 		{
 			ardbctx.conn = ctx.GetChannel();
 			server->ProcessRedisCommand(ardbctx, *(e.GetMessage()));
+		}
+		void ChannelClosed(ChannelHandlerContext& ctx,
+							ChannelStateEvent& e)
+		{
+			server->m_clients_holder.EraseConn(ctx.GetChannel());
 		}
 		RedisRequestHandler(ArdbServer* s) :
 				server(s)

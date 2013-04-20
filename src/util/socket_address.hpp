@@ -9,6 +9,7 @@
 #define NOVA_SOCKETADDRESS_HPP_
 #include "socket_host_address.hpp"
 #include "socket_inet_address.hpp"
+#include "socket_unix_address.hpp"
 namespace ardb
 {
 

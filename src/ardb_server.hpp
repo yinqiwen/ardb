@@ -47,7 +47,37 @@ namespace ardb
 			}
 	};
 
-	class ArdbServer;
+	struct ArdbConncetion
+	{
+			Channel* conn;
+			std::string name;
+			std::string addr;
+			int fd;
+			uint32 birth;
+			uint32 lastTs;
+			std::string currentDB;
+			std::string lastCmd;
+			ArdbConncetion():currentDB("0"){}
+	};
+
+	class ClientConnHolder
+	{
+		private:
+			typedef btree::btree_map<uint32, ArdbConncetion> ArdbConncetionTable;
+			ArdbConncetionTable m_conn_table;
+		public:
+			void TouchConn(Channel* conn, const std::string& currentCmd);
+			void ChangeCurrentDB(Channel* conn, const std::string& dbid);
+			Channel* GetConn(const std::string& addr);
+			void SetName(Channel* conn, const std::string& name);
+			const std::string& GetName(Channel* conn);
+			void List(RedisReply& reply);
+			void EraseConn(Channel* conn)
+			{
+				m_conn_table.erase(conn->GetID());
+			}
+	};
+
 	class SlowLogHandler
 	{
 		private:
@@ -75,7 +105,6 @@ namespace ardb
 			{
 				return m_cmds.size();
 			}
-
 	};
 
 	class ArdbServer
@@ -99,6 +128,7 @@ namespace ardb
 			typedef btree::btree_map<std::string, RedisCommandHandlerSetting> RedisCommandHandlerSettingTable;
 			RedisCommandHandlerSettingTable m_handler_table;
 			SlowLogHandler m_slowlog_handler;
+			ClientConnHolder m_clients_holder;
 
 			RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(
 			        std::string& cmd);
@@ -112,6 +142,7 @@ namespace ardb
 			int DBSize(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Config(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int SlowLog(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Client(ArdbConnContext& ctx, ArgumentArray& cmd);
 
 			int Ping(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Echo(ArdbConnContext& ctx, ArgumentArray& cmd);

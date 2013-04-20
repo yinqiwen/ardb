@@ -6,7 +6,6 @@
  */
 #include "ardb.hpp"
 #include <algorithm>
-#include <functional>
 #include <vector>
 
 namespace ardb
@@ -38,7 +37,7 @@ namespace ardb
 
 	static int parse_sort_options(SortOptions& options, const StringArray& args)
 	{
-		for (uint32 i = 0; i < args.size(); i++)
+		for (uint32 i = 1; i < args.size(); i++)
 		{
 			if (!strcasecmp(args[i].c_str(), "asc"))
 			{

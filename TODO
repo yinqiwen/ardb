@@ -133,10 +133,10 @@ SELECT index                               DONE
 
 BGREWRITEAOF                               Discard
 BGSAVE                                     Discard
-CLIENT KILL ip:port                        NotYet
-CLIENT LIST                                NotYet
-CLIENT GETNAME                             NotYet
-CLIENT SETNAME connection-name             NotYet
+CLIENT KILL ip:port                        DONE
+CLIENT LIST                                DONE
+CLIENT GETNAME                             DONE
+CLIENT SETNAME connection-name             DONE
 CONFIG GET parameter                       DONE
 CONFIG SET parameter value                 DONE
 CONFIG RESETSTAT                           DONE
