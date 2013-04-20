@@ -137,9 +137,9 @@ CLIENT KILL ip:port                        NotYet
 CLIENT LIST                                NotYet
 CLIENT GETNAME                             NotYet
 CLIENT SETNAME connection-name             NotYet
-CONFIG GET parameter                       NotYet
-CONFIG SET parameter value                 NotYet
-CONFIG RESETSTAT                           NotYet
+CONFIG GET parameter                       DONE
+CONFIG SET parameter value                 DONE
+CONFIG RESETSTAT                           DONE
 DBSIZE                                     DONE(return disk space)
 DEBUG OBJECT key                           NotYet
 DEBUG SEGFAULT                             NotYet
@@ -151,7 +151,7 @@ MONITOR                                    NotYet
 SAVE                                       Discard
 SHUTDOWN [NOSAVE] [SAVE]                   DONE
 SLAVEOF host port                          NotYet
-SLOWLOG subcommand [argument]              NotYet
+SLOWLOG subcommand [argument]              DONE
 SYNC                                       Discard
 TIME                                       DONE
 
