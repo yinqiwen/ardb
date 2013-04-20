@@ -8,11 +8,10 @@
 #ifndef ARDB_SERVER_HPP_
 #define ARDB_SERVER_HPP_
 #include <string>
-//#include <tr1/unordered_map>
-#include "channel/all_includes.hpp"
-#include "ardb.hpp"
-#include "util/config_helper.hpp"
 #include <btree_map.h>
+#include "channel/all_includes.hpp"
+#include "util/config_helper.hpp"
+#include "ardb.hpp"
 
 using namespace ardb::codec;
 namespace ardb
@@ -33,8 +32,6 @@ namespace ardb
 			{
 			}
 	};
-
-
 
 	struct ArdbConnContext
 	{
