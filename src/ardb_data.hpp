@@ -8,6 +8,7 @@
 #ifndef ARDB_DATA_HPP_
 #define ARDB_DATA_HPP_
 #include <stdint.h>
+#include <math.h>
 #include <map>
 #include <set>
 #include <list>

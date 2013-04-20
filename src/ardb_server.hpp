@@ -14,6 +14,13 @@
 #include "util/config_helper.hpp"
 #include <btree_map.h>
 
+#define REDIS_REPLY_STRING 1
+#define REDIS_REPLY_ARRAY 2
+#define REDIS_REPLY_INTEGER 3
+#define REDIS_REPLY_NIL 4
+#define REDIS_REPLY_STATUS 5
+#define REDIS_REPLY_ERROR 6
+
 using namespace ardb::codec;
 namespace ardb
 {
@@ -25,8 +32,11 @@ namespace ardb
 			std::string listen_unix_path;
 			int64 max_clients;
 			std::string data_base_path;
+			int64 slowlog_log_slower_than;
+			int64 slowlog_max_len;
 			ArdbServerConfig() :
-					daemonize(false), listen_port(0), max_clients(10000)
+					daemonize(false), listen_port(0), max_clients(10000), slowlog_log_slower_than(
+					        10000), slowlog_max_len(128)
 			{
 			}
 	};
@@ -39,8 +49,19 @@ namespace ardb
 			double double_value;
 			std::deque<ArdbReply> elements;
 			ArdbReply() :
-					type(0), integer(0),double_value(0)
+					type(0), integer(0), double_value(0)
 			{
+			}
+			ArdbReply(uint64 v) :
+					type(REDIS_REPLY_INTEGER), integer(v), double_value(0)
+			{
+
+			}
+			ArdbReply(const std::string& v) :
+					type(REDIS_REPLY_STRING), str(v), integer(0), double_value(
+					        0)
+			{
+
 			}
 			void Clear()
 			{
@@ -63,6 +84,37 @@ namespace ardb
 			}
 	};
 
+	class ArdbServer;
+	class SlowLogHandler
+	{
+		private:
+			const ArdbServerConfig& m_cfg;
+			struct SlowLog
+			{
+					uint64 id;
+					uint64 ts;
+					uint64 costs;
+					RedisCommandFrame cmd;
+			};
+			std::deque<SlowLog> m_cmds;
+		public:
+			SlowLogHandler(const ArdbServerConfig& cfg) :
+					m_cfg(cfg)
+			{
+			}
+			void PushSlowCommand(const RedisCommandFrame& cmd, uint64 micros);
+			void GetSlowlog(uint32 len, ArdbReply& reply);
+			void Clear()
+			{
+				m_cmds.clear();
+			}
+			uint32 Size()
+			{
+				return m_cmds.size();
+			}
+
+	};
+
 	class ArdbServer
 	{
 		private:
@@ -72,7 +124,7 @@ namespace ardb
 			Ardb* m_db;
 			KeyValueEngineFactory* m_engine;
 			typedef int (ArdbServer::*RedisCommandHandler)(ArdbConnContext&,
-					ArgumentArray&);
+			        ArgumentArray&);
 
 			struct RedisCommandHandlerSetting
 			{
@@ -83,10 +135,12 @@ namespace ardb
 			};
 			typedef btree::btree_map<std::string, RedisCommandHandlerSetting> RedisCommandHandlerSettingTable;
 			RedisCommandHandlerSettingTable m_handler_table;
+			SlowLogHandler m_slowlog_handler;
 
-			RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(std::string& cmd);
+			RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(
+			        std::string& cmd);
 			void ProcessRedisCommand(ArdbConnContext& ctx,
-					RedisCommandFrame& cmd);
+			        RedisCommandFrame& cmd);
 
 			int Time(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int FlushDB(ArdbConnContext& ctx, ArgumentArray& cmd);
@@ -94,6 +148,7 @@ namespace ardb
 			int Info(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int DBSize(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Config(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int SlowLog(ArdbConnContext& ctx, ArgumentArray& cmd);
 
 			int Ping(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Echo(ArdbConnContext& ctx, ArgumentArray& cmd);
@@ -203,7 +258,7 @@ namespace ardb
 			int TClear(ArdbConnContext& ctx, ArgumentArray& cmd);
 		public:
 			static int ParseConfig(const Properties& props,
-					ArdbServerConfig& cfg);
+			        ArdbServerConfig& cfg);
 			ArdbServer();
 			int Start(const Properties& props);
 			~ArdbServer();

@@ -14,12 +14,6 @@
 #include "engine/leveldb_engine.hpp"
 #endif
 
-#define REDIS_REPLY_STRING 1
-#define REDIS_REPLY_ARRAY 2
-#define REDIS_REPLY_INTEGER 3
-#define REDIS_REPLY_NIL 4
-#define REDIS_REPLY_STATUS 5
-#define REDIS_REPLY_ERROR 6
 
 #define ARDB_REPLY_DOUBLE 106
 
@@ -167,6 +161,8 @@ static void encode_reply(Buffer& buf, ArdbReply& reply)
 int ArdbServer::ParseConfig(const Properties& props, ArdbServerConfig& cfg)
 {
 	conf_get_int64(props, "port", cfg.listen_port);
+	conf_get_int64(props, "slowlog-log-slower-than", cfg.slowlog_log_slower_than);
+	conf_get_int64(props, "slowlog-max-len", cfg.slowlog_max_len);
 	conf_get_string(props, "bind", cfg.listen_host);
 	conf_get_string(props, "unixsocket", cfg.listen_unix_path);
 	conf_get_string(props, "dir", cfg.data_base_path);
@@ -184,12 +180,13 @@ int ArdbServer::ParseConfig(const Properties& props, ArdbServerConfig& cfg)
 }
 
 ArdbServer::ArdbServer() :
-		m_service(NULL), m_db(NULL), m_engine(NULL)
+		m_service(NULL), m_db(NULL), m_engine(NULL),m_slowlog_handler(m_cfg)
 {
 	struct RedisCommandHandlerSetting settingTable[] =
 	{
 	{ "ping", &ArdbServer::Ping, 0, 0 },
 	{ "info", &ArdbServer::Info, 0, 1 },
+	{ "slowlog", &ArdbServer::SlowLog, 1, 2 },
 	{ "dbsize", &ArdbServer::DBSize, 0, 0 },
 	{ "config", &ArdbServer::Config, 1, 3 },
 	{ "flushdb", &ArdbServer::FlushDB, 0, 0 },
@@ -356,6 +353,31 @@ int ArdbServer::DBSize(ArdbConnContext& ctx, ArgumentArray& cmd){
     return 0;
 }
 
+int ArdbServer::SlowLog(ArdbConnContext& ctx, ArgumentArray& cmd)
+{
+	std::string subcmd = string_tolower(cmd[0]);
+    if(subcmd == "len")
+    {
+    	fill_int_reply(ctx.reply, m_slowlog_handler.Size());
+    }else if(subcmd == "reset"){
+    	fill_status_reply(ctx.reply, "OK");
+    }else if(subcmd == "get")
+    {
+        if(cmd.size() != 2){
+        	fill_error_reply(ctx.reply, "ERR Wrong number of arguments for SLOWLOG GET");
+        }
+        uint32 len = 0;
+        if(!string_touint32(cmd[1], len)){
+        	fill_error_reply(ctx.reply, "ERR value is not an integer or out of range.");
+        	return 0;
+        }
+        m_slowlog_handler.GetSlowlog(len, ctx.reply);
+    }else{
+    	fill_error_reply(ctx.reply, "ERR SLOWLOG subcommand must be one of GET, LEN, RESET");
+    }
+	return 0;
+}
+
 int ArdbServer::Config(ArdbConnContext& ctx, ArgumentArray& cmd){
 	std::string arg0 = string_tolower(cmd[0]);
 	if(arg0 != "get" && arg0 != "set" && arg0 != "resetstat"){
@@ -365,13 +387,13 @@ int ArdbServer::Config(ArdbConnContext& ctx, ArgumentArray& cmd){
 	if(arg0 == "resetstat")
 	{
 		if(cmd.size() != 1){
-			fill_error_reply(ctx.reply, "RR Wrong number of arguments for CONFIG RESETSTAT");
+			fill_error_reply(ctx.reply, "ERR Wrong number of arguments for CONFIG RESETSTAT");
 			return 0;
 		}
 	}
 	else if(arg0 == "get"){
 		if(cmd.size() != 2){
-			fill_error_reply(ctx.reply, "RR Wrong number of arguments for CONFIG GET");
+			fill_error_reply(ctx.reply, "ERR Wrong number of arguments for CONFIG GET");
 			return 0;
 		}
 		ValueArray vs;
@@ -1810,8 +1832,10 @@ void ArdbServer::ProcessRedisCommand(ArdbConnContext& ctx,
 				uint64 start_time = get_current_epoch_micros();
 				ret = (this->*handler)(ctx, args.GetArguments());
 				uint64 stop_time = get_current_epoch_micros();
-				if ((stop_time - start_time) > 10000)
+				if ( m_cfg.slowlog_log_slower_than &&
+						(stop_time - start_time) > m_cfg.slowlog_log_slower_than)
 				{
+					m_slowlog_handler.PushSlowCommand(args);
 					INFO_LOG(
 					        "Cost %lldus to exec %s", (stop_time-start_time), cmd.c_str());
 				}
