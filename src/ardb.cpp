@@ -220,6 +220,11 @@ namespace ardb
 		while (NULL != iter && iter->Valid())
 		{
 			Slice tmpkey = iter->Key();
+            //fast check key type
+			if(tmpkey.data()[0] != key.type)
+			{
+				break;
+			}
 			KeyObject* kk = decode_key(tmpkey);
 			if (NULL == kk || kk->type != key.type
 			        || kk->key.compare(key.key) != 0)

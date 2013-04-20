@@ -25,24 +25,24 @@ namespace ardb
 		m_cmds.push_back(log);
 	}
 
-	void SlowLogHandler::GetSlowlog(uint32 len, ArdbReply& reply)
+	void SlowLogHandler::GetSlowlog(uint32 len, RedisReply& reply)
 	{
 		reply.type = REDIS_REPLY_ARRAY;
 		for (uint32 i = 0; i < len && i < m_cmds.size(); i++)
 		{
 			SlowLog& cmd = m_cmds[i];
-			ArdbReply r;
+			RedisReply r;
 			r.type = REDIS_REPLY_ARRAY;
-			r.elements.push_back(ArdbReply(cmd.id));
-			r.elements.push_back(ArdbReply(cmd.ts));
-			r.elements.push_back(ArdbReply(cmd.costs));
-			ArdbReply cmdreply;
+			r.elements.push_back(RedisReply(cmd.id));
+			r.elements.push_back(RedisReply(cmd.ts));
+			r.elements.push_back(RedisReply(cmd.costs));
+			RedisReply cmdreply;
 			cmdreply.type = REDIS_REPLY_ARRAY;
-			cmdreply.elements.push_back(ArdbReply(cmd.cmd.GetCommand()));
+			cmdreply.elements.push_back(RedisReply(cmd.cmd.GetCommand()));
 			for (uint32 j = 0; j < cmd.cmd.GetArguments().size(); j++)
 			{
 				cmdreply.elements.push_back(
-				        ArdbReply(*(cmd.cmd.GetArgument(j))));
+				        RedisReply(*(cmd.cmd.GetArgument(j))));
 			}
 			r.elements.push_back(cmdreply);
 			reply.elements.push_back(r);

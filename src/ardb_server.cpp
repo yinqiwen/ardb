@@ -20,7 +20,7 @@
 namespace ardb
 {
 
-static inline void fill_error_reply(ArdbReply& reply, const char* fmt, ...)
+static inline void fill_error_reply(RedisReply& reply, const char* fmt, ...)
 {
 	va_list ap;
 	va_start(ap, fmt);
@@ -31,7 +31,7 @@ static inline void fill_error_reply(ArdbReply& reply, const char* fmt, ...)
 	reply.str = buf;
 }
 
-static inline void fill_status_reply(ArdbReply& reply, const char* fmt, ...)
+static inline void fill_status_reply(RedisReply& reply, const char* fmt, ...)
 {
 	va_list ap;
 	va_start(ap, fmt);
@@ -42,32 +42,32 @@ static inline void fill_status_reply(ArdbReply& reply, const char* fmt, ...)
 	reply.str = buf;
 }
 
-static inline void fill_int_reply(ArdbReply& reply, int64 v)
+static inline void fill_int_reply(RedisReply& reply, int64 v)
 {
 	reply.type = REDIS_REPLY_INTEGER;
 	reply.integer = v;
 }
-static inline void fill_double_reply(ArdbReply& reply, double v)
+static inline void fill_double_reply(RedisReply& reply, double v)
 {
 	reply.type = ARDB_REPLY_DOUBLE;
 	reply.double_value = v;
 }
 
-static inline void fill_str_reply(ArdbReply& reply, const std::string& v)
+static inline void fill_str_reply(RedisReply& reply, const std::string& v)
 {
 	reply.type = REDIS_REPLY_STRING;
 	reply.str = v;
 }
 
 template<typename T>
-static inline void fill_array_reply(ArdbReply& reply, T& v)
+static inline void fill_array_reply(RedisReply& reply, T& v)
 {
 	reply.type = REDIS_REPLY_ARRAY;
 	typename T::iterator it = v.begin();
 	while (it != v.end())
 	{
 		const ValueObject& vo = *it;
-		ArdbReply r;
+		RedisReply r;
 		if (vo.type == EMPTY)
 		{
 			r.type = REDIS_REPLY_NIL;
@@ -81,20 +81,20 @@ static inline void fill_array_reply(ArdbReply& reply, T& v)
 	}
 }
 
-static inline void fill_str_array_reply(ArdbReply& reply, StringArray& v)
+static inline void fill_str_array_reply(RedisReply& reply, StringArray& v)
 {
 	reply.type = REDIS_REPLY_ARRAY;
 	StringArray::iterator it = v.begin();
 	while (it != v.end())
 	{
-		ArdbReply r;
+		RedisReply r;
 		fill_str_reply(r, *it);
 		reply.elements.push_back(r);
 		it++;
 	}
 }
 
-static void encode_reply(Buffer& buf, ArdbReply& reply)
+static void encode_reply(Buffer& buf, RedisReply& reply)
 {
 	switch (reply.type)
 	{
@@ -1133,7 +1133,7 @@ int ArdbServer::HGetAll(ArdbConnContext& ctx, ArgumentArray& cmd)
 	ctx.reply.type = REDIS_REPLY_ARRAY;
 	for (uint32 i = 0; i < fields.size(); i++)
 	{
-		ArdbReply reply1, reply2;
+		RedisReply reply1, reply2;
 		fill_str_reply(reply1, fields[i]);
 		fill_str_reply(reply2, results[i].ToString());
 		ctx.reply.elements.push_back(reply1);

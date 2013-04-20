@@ -41,31 +41,30 @@ namespace ardb
 			}
 	};
 
-	struct ArdbReply
+	struct RedisReply
 	{
 			int type;
 			std::string str;
 			int64_t integer;
 			double double_value;
-			std::deque<ArdbReply> elements;
-			ArdbReply() :
+			std::deque<RedisReply> elements;
+			RedisReply() :
 					type(0), integer(0), double_value(0)
 			{
 			}
-			ArdbReply(uint64 v) :
+			RedisReply(uint64 v) :
 					type(REDIS_REPLY_INTEGER), integer(v), double_value(0)
 			{
 
 			}
-			ArdbReply(const std::string& v) :
+			RedisReply(const std::string& v) :
 					type(REDIS_REPLY_STRING), str(v), integer(0), double_value(
 					        0)
 			{
-
 			}
 			void Clear()
 			{
-				type = 4;
+				type = REDIS_REPLY_NIL;
 				integer = 0;
 				double_value = 0;
 				str.clear();
@@ -77,7 +76,7 @@ namespace ardb
 	{
 			DBID currentDB;
 			Channel* conn;
-			ArdbReply reply;
+			RedisReply reply;
 			ArdbConnContext() :
 					currentDB("0"), conn(NULL)
 			{
@@ -103,7 +102,7 @@ namespace ardb
 			{
 			}
 			void PushSlowCommand(const RedisCommandFrame& cmd, uint64 micros);
-			void GetSlowlog(uint32 len, ArdbReply& reply);
+			void GetSlowlog(uint32 len, RedisReply& reply);
 			void Clear()
 			{
 				m_cmds.clear();
