@@ -14,9 +14,6 @@
 #include "engine/leveldb_engine.hpp"
 #endif
 
-
-#define ARDB_REPLY_DOUBLE 106
-
 namespace ardb
 {
 
@@ -49,7 +46,7 @@ static inline void fill_int_reply(RedisReply& reply, int64 v)
 }
 static inline void fill_double_reply(RedisReply& reply, double v)
 {
-	reply.type = ARDB_REPLY_DOUBLE;
+	reply.type = REDIS_REPLY_DOUBLE;
 	reply.double_value = v;
 }
 
@@ -94,69 +91,7 @@ static inline void fill_str_array_reply(RedisReply& reply, StringArray& v)
 	}
 }
 
-static void encode_reply(Buffer& buf, RedisReply& reply)
-{
-	switch (reply.type)
-	{
-	case REDIS_REPLY_NIL:
-	{
-		buf.Printf("$-1\r\n");
-		break;
-	}
-	case REDIS_REPLY_STRING:
-	{
-		buf.Printf("$%d\r\n", reply.str.size());
-		if (reply.str.size() > 0)
-		{
-			buf.Printf("%s\r\n", reply.str.c_str());
-		}
-		else
-		{
-			buf.Printf("\r\n");
-		}
-		break;
-	}
-	case REDIS_REPLY_ERROR:
-	{
-		buf.Printf("-%s\r\n", reply.str.c_str());
-		break;
-	}
-	case REDIS_REPLY_INTEGER:
-	{
-		buf.Printf(":%lld\r\n", reply.integer);
-		break;
-	}
-	case ARDB_REPLY_DOUBLE:
-	{
-		std::string doubleStrValue;
-		fast_dtoa(reply.double_value, 9, doubleStrValue);
-		buf.Printf("$%d\r\n", doubleStrValue.size());
-		buf.Printf("%s\r\n", doubleStrValue.c_str());
-		break;
-	}
-	case REDIS_REPLY_ARRAY:
-	{
-		buf.Printf("*%d\r\n", reply.elements.size());
-		size_t i = 0;
-		while (i < reply.elements.size())
-		{
-			encode_reply(buf, reply.elements[i]);
-			i++;
-		}
-		break;
-	}
-	case REDIS_REPLY_STATUS:
-	{
-		buf.Printf("+%s\r\n", reply.str.c_str());
-		break;
-	}
-	default:
-	{
-		ERROR_LOG("Recv unexpected redis reply type:%d", reply.type);
-		break;
-	}
-	}
-}
+
 
 int ArdbServer::ParseConfig(const Properties& props, ArdbServerConfig& cfg)
 {
@@ -396,18 +331,16 @@ int ArdbServer::Config(ArdbConnContext& ctx, ArgumentArray& cmd){
 			fill_error_reply(ctx.reply, "ERR Wrong number of arguments for CONFIG GET");
 			return 0;
 		}
-		ValueArray vs;
+		ctx.reply.type = REDIS_REPLY_ARRAY;
 		Properties::iterator it = m_cfg_props.begin();
 		while(it != m_cfg_props.end())
 		{
 			if(fnmatch(cmd[1].c_str(), it->first.c_str(), 0) == 0){
-				vs.push_back(ValueObject(it->first));
-				vs.push_back(ValueObject(it->second));
+				ctx.reply.elements.push_back(RedisReply(it->first));
+				ctx.reply.elements.push_back(RedisReply(it->second));
 			}
 			it++;
 		}
-		fill_array_reply(ctx.reply, vs);
-
 	}else if(arg0 == "set"){
 		if(cmd.size() != 3){
 			fill_error_reply(ctx.reply, "RR Wrong number of arguments for CONFIG SET");
@@ -1828,14 +1761,13 @@ void ArdbServer::ProcessRedisCommand(ArdbConnContext& ctx,
 			}
 			else
 			{
-
 				uint64 start_time = get_current_epoch_micros();
 				ret = (this->*handler)(ctx, args.GetArguments());
 				uint64 stop_time = get_current_epoch_micros();
 				if ( m_cfg.slowlog_log_slower_than &&
 						(stop_time - start_time) > m_cfg.slowlog_log_slower_than)
 				{
-					m_slowlog_handler.PushSlowCommand(args);
+					m_slowlog_handler.PushSlowCommand(args, start_time);
 					INFO_LOG(
 					        "Cost %lldus to exec %s", (stop_time-start_time), cmd.c_str());
 				}
@@ -1850,9 +1782,7 @@ void ArdbServer::ProcessRedisCommand(ArdbConnContext& ctx,
 
 		if (ctx.reply.type != 0)
 		{
-		    Buffer buf;
-			encode_reply(buf, ctx.reply);
-			ctx.conn->Write(buf);
+			ctx.conn->Write(ctx.reply);
 		}
 		if (ret < 0)
 		{
@@ -1865,12 +1795,15 @@ static void ardb_pipeline_init(ChannelPipeline* pipeline, void* data)
 	ChannelUpstreamHandler<RedisCommandFrame>* handler =
 			(ChannelUpstreamHandler<RedisCommandFrame>*) data;
 	pipeline->AddLast("decoder", new RedisFrameDecoder);
+	pipeline->AddLast("encoder", new RedisReplyEncoder);
 	pipeline->AddLast("handler", handler);
 }
 
 static void ardb_pipeline_finallize(ChannelPipeline* pipeline, void* data)
 {
 	ChannelHandler* handler = pipeline->Get("decoder");
+	DELETE(handler);
+	handler = pipeline->Get("encoder");
 	DELETE(handler);
 }
 

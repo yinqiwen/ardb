@@ -72,7 +72,6 @@ namespace ardb
 				bool Decode(ChannelHandlerContext& ctx, Channel* channel,
 						Buffer& buffer, RedisCommandFrame& msg);
 			public:
-
 				RedisFrameDecoder()
 				{
 				}

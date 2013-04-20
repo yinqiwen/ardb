@@ -33,6 +33,7 @@
 #include "channel/codec/int_header_frame_decoder.hpp"
 #include "channel/codec/delimiter_frame_decoder.hpp"
 #include "channel/codec/redis_frame_decoder.hpp"
+#include "channel/codec/redis_reply_encoder.hpp"
 #include <errno.h>
 
 namespace ardb
