@@ -5,6 +5,9 @@
  *      Author: wqy
  */
 #include "ardb_server.hpp"
+#include<sys/types.h>
+#include<sys/stat.h>
+#include<fcntl.h>
 #include <stdarg.h>
 #include <fnmatch.h>
 //#define __USE_KYOTOCABINET__ 1
@@ -101,6 +104,8 @@ int ArdbServer::ParseConfig(const Properties& props, ArdbServerConfig& cfg)
 	conf_get_string(props, "bind", cfg.listen_host);
 	conf_get_string(props, "unixsocket", cfg.listen_unix_path);
 	conf_get_string(props, "dir", cfg.data_base_path);
+	conf_get_string(props, "loglevel", cfg.loglevel);
+	conf_get_string(props, "logfile", cfg.logfile);
 	std::string daemonize;
 	conf_get_string(props, "daemonize", daemonize);
 	daemonize = string_tolower(daemonize);
@@ -1767,7 +1772,7 @@ void ArdbServer::ProcessRedisCommand(ArdbConnContext& ctx,
 				if ( m_cfg.slowlog_log_slower_than &&
 						(stop_time - start_time) > m_cfg.slowlog_log_slower_than)
 				{
-					m_slowlog_handler.PushSlowCommand(args, start_time);
+					m_slowlog_handler.PushSlowCommand(args, stop_time - start_time);
 					INFO_LOG(
 					        "Cost %lldus to exec %s", (stop_time-start_time), cmd.c_str());
 				}
@@ -1807,15 +1812,31 @@ static void ardb_pipeline_finallize(ChannelPipeline* pipeline, void* data)
 	DELETE(handler);
 }
 
+static void daemonize(void) {
+    int fd;
+
+    if (fork() != 0)
+    {
+    	exit(0); /* parent exits */
+    }
+    setsid(); /* create a new session */
+
+    if ((fd = open("/dev/null", O_RDWR, 0)) != -1) {
+        dup2(fd, STDIN_FILENO);
+        dup2(fd, STDOUT_FILENO);
+        dup2(fd, STDERR_FILENO);
+        if (fd > STDERR_FILENO){
+        	close(fd);
+        }
+    }
+}
+
 int ArdbServer::Start(const Properties& props)
 {
 	m_cfg_props = props;
 	ParseConfig(props, m_cfg);
 	if(m_cfg.daemonize){
-		 if (fork() != 0){
-			 exit(0); /* parent exits */
-		 }
-		 setsid(); /* create a new session */
+		daemonize();
 	}
 
 #ifdef __USE_KYOTOCABINET__
@@ -1880,6 +1901,7 @@ int ArdbServer::Start(const Properties& props)
 		server->SetChannelPipelineInitializor(ardb_pipeline_init, &handler);
 		server->SetChannelPipelineFinalizer(ardb_pipeline_finallize, NULL);
 	}
+	ArdbLogger::InitDefaultLogger(m_cfg.loglevel, m_cfg.logfile);
     INFO_LOG("Server started, Ardb version %s", ARDB_VERSION);
     INFO_LOG("The server is now ready to accept connections on port %d", m_cfg.listen_port);
 	m_service->Start();
@@ -1887,6 +1909,7 @@ sexit:
 	DELETE(m_engine);
 	DELETE(m_db);
 	DELETE(m_service);
+	ArdbLogger::DestroyDefaultLogger();
 	return 0;
 }
 }

@@ -194,7 +194,7 @@ int32 Channel::ReadNow(Buffer* buffer)
 
 void Channel::Run()
 {
-	TRACE_LOG("Flush time task trigger.");
+	//TRACE_LOG("Flush time task trigger.");
 	m_flush_timertask_id = -1;
 	Flush();
 }
@@ -233,7 +233,7 @@ void Channel::CancelFlushTimerTask()
 {
 	if (m_flush_timertask_id > 0)
 	{
-		TRACE_LOG("Canecl flush time task.");
+		//TRACE_LOG("Canecl flush time task.");
 		m_service.GetTimer().Cancel(m_flush_timertask_id);
 		m_flush_timertask_id = -1;
 	}
@@ -245,16 +245,16 @@ void Channel::CreateFlushTimerTask()
 	{
 		m_flush_timertask_id = m_service.GetTimer().Schedule(this,
 		        m_options.user_write_buffer_flush_timeout_mills, -1, MILLIS);
-		TRACE_LOG(
-		        "Create flush task(%u) triggered after %ums.", m_flush_timertask_id, m_options.user_write_buffer_flush_timeout_mills);
+		//TRACE_LOG(
+		//        "Create flush task(%u) triggered after %ums.", m_flush_timertask_id, m_options.user_write_buffer_flush_timeout_mills);
 	}
 }
 
 int32 Channel::WriteNow(Buffer* buffer)
 {
 	uint32 buf_len = NULL != buffer ? buffer->ReadableBytes() : 0;
-	TRACE_LOG(
-	        "Write %u bytes for channel:channel id %u & type:%u", buf_len, GetID(), GetID() & 0xf);
+	//TRACE_LOG(
+	//        "Write %u bytes for channel:channel id %u & type:%u", buf_len, GetID(), GetID() & 0xf);
 	if (m_outputBuffer.Readable())
 	{
 		if (m_options.max_write_buffer_size > 0) //write buffer size limit enable
@@ -358,7 +358,7 @@ bool Channel::DoClose()
 
 bool Channel::DoFlush()
 {
-	TRACE_LOG("Flush %u bytes for channel.", m_outputBuffer.ReadableBytes());
+	//TRACE_LOG("Flush %u bytes for channel.", m_outputBuffer.ReadableBytes());
 	if (m_outputBuffer.Readable())
 	{
 		uint32 send_buf_len = m_outputBuffer.ReadableBytes();

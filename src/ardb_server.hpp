@@ -26,6 +26,9 @@ namespace ardb
 			std::string data_base_path;
 			int64 slowlog_log_slower_than;
 			int64 slowlog_max_len;
+
+			std::string loglevel;
+			std::string logfile;
 			ArdbServerConfig() :
 					daemonize(false), listen_port(0), max_clients(10000), slowlog_log_slower_than(
 					        10000), slowlog_max_len(128)

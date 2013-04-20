@@ -8,6 +8,8 @@
 #ifndef LOGGER_MACROS_HPP_
 #define LOGGER_MACROS_HPP_
 
+#include <string>
+
 namespace ardb
 {
 	enum LogLevel
@@ -32,6 +34,8 @@ namespace ardb
 			static ArdbLogHandler* GetLogHandler();
 			static IsLogEnable* GetLogChecker();
 			static void InstallLogHandler(ArdbLogHandler* h, IsLogEnable* c);
+			static void InitDefaultLogger(const std::string& level, const std::string& logfile);
+			static void DestroyDefaultLogger();
 	};
 }
 

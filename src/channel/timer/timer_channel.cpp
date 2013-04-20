@@ -30,8 +30,6 @@ void TimerChannel::OnScheduled(TimerTask* task)
 {
     //TimerTask* nearestTask = getNearestTimerTask();
     int64 nextTime = GetNearestTaskTriggerTime();
-    TRACE_LOG(
-            "Nearest task trigger time is %lld, task's trigger time is %lld in timer:%d ", nextTime, task->GetNextTriggerTime(), m_timer_id);
     if (nextTime < 0
             || static_cast<uint64>(nextTime) > task->GetNextTriggerTime())
     {
@@ -53,8 +51,7 @@ void TimerChannel::OnScheduled(TimerTask* task)
             {
                 aeDeleteTimeEvent(m_service.GetRawEventLoop(), m_timer_id);
                 m_timer_id = -1;
-            }TRACE_LOG(
-                    "Create time event with timeout value:%d", task->GetDelay());
+            }
             m_timer_id = aeCreateTimeEvent(m_service.GetRawEventLoop(),
                     task->GetDelay(), TimeoutCB, this, NULL);
         }
