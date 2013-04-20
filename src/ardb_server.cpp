@@ -6,6 +6,7 @@
  */
 #include "ardb_server.hpp"
 #include <stdarg.h>
+#include <fnmatch.h>
 //#define __USE_KYOTOCABINET__ 1
 #ifdef __USE_KYOTOCABINET__
 #include "engine/kyotocabinet_engine.hpp"
@@ -299,15 +300,6 @@ ArdbServer::ArdbServer() :
 	uint32 arraylen = arraysize(settingTable);
 	for (uint32 i = 0; i < arraylen; i++)
 	{
-//		if(strlen(settingTable[i].name) <= 4){
-//			uint32 key = 0;
-//			memcpy(&key, settingTable[i].name, strlen(settingTable[i].name));
-//			m_4byte_handler_table[key] = settingTable[i];
-//		}else if(strlen(settingTable[i].name) <= 8){
-//			uint64 key = 0;
-//			memcpy(&key, settingTable[i].name, strlen(settingTable[i].name));
-//			m_8byte_handler_table[key] = settingTable[i];
-//		}else
 		{
 			m_handler_table[settingTable[i].name] = settingTable[i];
 		}
@@ -382,13 +374,26 @@ int ArdbServer::Config(ArdbConnContext& ctx, ArgumentArray& cmd){
 			fill_error_reply(ctx.reply, "RR Wrong number of arguments for CONFIG GET");
 			return 0;
 		}
+		ValueArray vs;
+		Properties::iterator it = m_cfg_props.begin();
+		while(it != m_cfg_props.end())
+		{
+			if(fnmatch(cmd[1].c_str(), it->first.c_str(), 0) == 0){
+				vs.push_back(ValueObject(it->first));
+				vs.push_back(ValueObject(it->second));
+			}
+			it++;
+		}
+		fill_array_reply(ctx.reply, vs);
 
 	}else if(arg0 == "set"){
 		if(cmd.size() != 3){
 			fill_error_reply(ctx.reply, "RR Wrong number of arguments for CONFIG SET");
 			return 0;
 		}
-
+        m_cfg_props[cmd[1]] = cmd[2];
+        ParseConfig(m_cfg_props, m_cfg);
+        fill_status_reply(ctx.reply, "OK");
 	}
 	return 0;
 }
