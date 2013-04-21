@@ -87,7 +87,7 @@ namespace ardb
 			int64 bloom_bits;
 			LevelDBConfig() :
 					block_cache_size(0), write_buffer_size(0), max_open_files(
-					        1024),block_size(0),block_restart_interval(0),bloom_bits(16)
+					        1024),block_size(0),block_restart_interval(0),bloom_bits(10)
 			{
 			}
 	};

@@ -62,9 +62,6 @@
 #define CHANNEL_EVENT_TIMEOUT	0x40	/**< user specified timeout reached */
 #define CHANNEL_EVENT_CONNECTED	0x80	/**< connect operation finished. */
 
-//#define  CHANNEL_OPERATION_CONTINUE 0
-//#define  CHANNEL_OPERATION_BREAK -1
-//#define  CHANNEL_OPERATION_DELAY_READ -2
 
 namespace ardb
 {
@@ -73,7 +70,7 @@ namespace ardb
 			uint32 receive_buffer_size;
 			uint32 send_buffer_size;
 			bool tcp_nodelay;
-			bool keep_alive;
+			uint32 keep_alive;
 			bool reuse_address;
 			uint32 user_write_buffer_water_mark;
 			uint32 user_write_buffer_flush_timeout_mills;
@@ -81,7 +78,7 @@ namespace ardb
 
 			ChannelOptions() :
 					receive_buffer_size(0), send_buffer_size(0), tcp_nodelay(
-							true), keep_alive(true), reuse_address(true), user_write_buffer_water_mark(
+							true), keep_alive(0), reuse_address(true), user_write_buffer_water_mark(
 							0), user_write_buffer_flush_timeout_mills(0), max_write_buffer_size(
 							0)
 			{

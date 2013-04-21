@@ -2046,6 +2046,7 @@ namespace ardb
 
 		ChannelOptions ops;
 		ops.tcp_nodelay = true;
+		ops.keep_alive = true;
 		if (m_cfg.listen_host.empty() && m_cfg.listen_unix_path.empty())
 		{
 			m_cfg.listen_host = "0.0.0.0";

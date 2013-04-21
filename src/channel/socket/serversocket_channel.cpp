@@ -6,7 +6,6 @@
  */
 #include "channel/all_includes.hpp"
 #include "util/helpers.hpp"
-//#include "logger_macros.hpp"
 #include <netinet/tcp.h>
 #include <sys/types.h>
 #include <sys/socket.h>

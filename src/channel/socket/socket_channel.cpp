@@ -28,36 +28,77 @@ bool SocketChannel::DoConfigure(const ChannelOptions& options)
 	if (options.receive_buffer_size > 0)
 	{
 		int ret = setsockopt(m_fd, SOL_SOCKET, SO_RCVBUF,
-				(const char*) &options.receive_buffer_size, sizeof(int));
+		        (const char*) &options.receive_buffer_size, sizeof(int));
 		if (ret != 0)
 		{
 			WARN_LOG(
-					"Failed to set recv buf size(%u) for socket.", options.receive_buffer_size);
+			        "Failed to set recv buf size(%u) for socket.", options.receive_buffer_size);
 			//return false;
 		}
 	}
 	if (options.send_buffer_size > 0)
 	{
 		int ret = setsockopt(m_fd, SOL_SOCKET, SO_SNDBUF,
-				(const char*) &options.send_buffer_size, sizeof(int));
+		        (const char*) &options.send_buffer_size, sizeof(int));
 		if (ret != 0)
 		{
 			WARN_LOG(
-					"Failed to set send buf size(%u) for socket.", options.send_buffer_size);
+			        "Failed to set send buf size(%u) for socket.", options.send_buffer_size);
 			//return false;
 		}
 	}
 
 	int flag = 1;
 	if (options.tcp_nodelay
-			&& (setsockopt(m_fd, SOL_SOCKET, TCP_NODELAY, &flag, sizeof(flag))
-					< 0))
+	        && (setsockopt(m_fd, SOL_SOCKET, TCP_NODELAY, &flag, sizeof(flag))
+	                < 0))
 	{
 		WARN_LOG("init_sock_opt: could not disable Nagle: %s", strerror(errno));
 	}
 
-	return true;
+	if (options.keep_alive > 0)
+	{
+		if (setsockopt(m_fd, SOL_SOCKET, SO_KEEPALIVE, &flag, sizeof(flag)) < 0)
+		{
+			WARN_LOG(
+			        "init_sock_opt: could not set keepalive: %s", strerror(errno));
+			return false;
+		}
+#ifdef __linux__
+		/* Default settings are more or less garbage, with the keepalive time
+		 * set to 7200 by default on Linux. Modify settings to make the feature
+		 * actually useful. */
 
+		/* Send first probe after interval. */
+		int val = options.keep_alive;
+		if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &val, sizeof(val)) < 0)
+		{
+			WARN_LOG("setsockopt TCP_KEEPIDLE: %s", strerror(errno));
+			return false;
+		}
+
+		/* Send next probes after the specified interval. Note that we set the
+		 * delay as interval / 3, as we send three probes before detecting
+		 * an error (see the next setsockopt call). */
+		val = options.keep_alive/3;
+		if (val == 0) val = 1;
+		if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &val, sizeof(val)) < 0)
+		{
+			WARN_LOG("setsockopt TCP_KEEPINTVL: %s", strerror(errno));
+			return false;
+		}
+
+		/* Consider the socket in error state after three we send three ACK
+		 * probes without getting a reply. */
+		val = 3;
+		if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &val, sizeof(val)) < 0)
+		{
+			WARN_LOG("setsockopt TCP_KEEPCNT: %s", strerror(errno));
+			return false;
+		}
+#endif
+	}
+	return true;
 }
 
 int32 SocketChannel::HandleExceptionEvent(int32 event)
@@ -85,16 +126,19 @@ bool SocketChannel::DoBind(Address* local)
 	{
 		SocketHostAddress* host_addr = static_cast<SocketHostAddress*>(local);
 		addr = get_inet_address(host_addr->GetHost(), host_addr->GetPort());
-	} else if (InstanceOf<SocketInetAddress>(local).OK)
+	}
+	else if (InstanceOf<SocketInetAddress>(local).OK)
 	{
 		SocketInetAddress* inet_addr = static_cast<SocketInetAddress*>(local);
 		addr = (*inet_addr);
-	} else if (InstanceOf<SocketUnixAddress>(local).OK)
+	}
+	else if (InstanceOf<SocketUnixAddress>(local).OK)
 	{
 		SocketUnixAddress* unix_addr = (SocketUnixAddress*) local;
 		unlink(unix_addr->GetPath().c_str()); // in case it already exists
 		addr = get_inet_address(*unix_addr);
-	} else
+	}
+	else
 	{
 		return false;
 	}
@@ -124,31 +168,35 @@ bool SocketChannel::DoConnect(Address* remote)
 	{
 		SocketHostAddress* host_addr = static_cast<SocketHostAddress*>(remote);
 		addr = get_inet_address(host_addr->GetHost(), host_addr->GetPort());
-	} else if (InstanceOf<SocketInetAddress>(remote).OK)
+	}
+	else if (InstanceOf<SocketInetAddress>(remote).OK)
 	{
 		SocketInetAddress* inet_addr = static_cast<SocketInetAddress*>(remote);
 		addr = (*inet_addr);
-	} else if (InstanceOf<SocketUnixAddress>(remote).OK)
+	}
+	else if (InstanceOf<SocketUnixAddress>(remote).OK)
 	{
 		SocketUnixAddress* unix_addr = static_cast<SocketUnixAddress*>(remote);
 		addr = get_inet_address(*unix_addr);
-	} else
+	}
+	else
 	{
 		return false;
 	}
 	int fd = GetSocketFD(addr.GetDomain());
 	int ret = ::connect(fd, const_cast<sockaddr*>(&(addr.GetRawSockAddr())),
-			addr.GetRawSockAddrSize());
+	        addr.GetRawSockAddrSize());
 	if (ret < 0)
 	{
 		int e = errno;
 		if (((e) == EINTR || (e) == EINPROGRESS))
 		{
 			//connecting
-		} else
+		}
+		else
 		{
 			ERROR_LOG(
-					"Failed to connect remote server for reason:%s", strerror(e));
+			        "Failed to connect remote server for reason:%s", strerror(e));
 			return false;
 		}
 
@@ -171,12 +219,14 @@ const Address* SocketChannel::GetLocalAddress()
 			{
 				SocketUnixAddress local = get_unix_address(inet);
 				NEW(m_localAddr, SocketUnixAddress(local));
-			} else
+			}
+			else
 			{
 				SocketHostAddress local = get_host_address(inet);
 				NEW(m_localAddr, SocketHostAddress(local));
 			}
-		} catch (...)
+		}
+		catch (...)
 		{
 
 		}
@@ -195,13 +245,15 @@ const Address* SocketChannel::GetRemoteAddress()
 			{
 				SocketUnixAddress remote = get_unix_address(inet);
 				NEW(m_remoteAddr, SocketUnixAddress(remote));
-			} else
+			}
+			else
 			{
 				SocketHostAddress remote = get_host_address(inet);
 				NEW(m_remoteAddr, SocketHostAddress(remote));
 			}
 
-		} catch (...)
+		}
+		catch (...)
 		{
 
 		}
@@ -249,8 +301,8 @@ int SocketChannel::GetSocketFD(int domain)
 			return -1;
 		}
 		if (aeCreateFileEvent(m_service.GetRawEventLoop(), fd,
-				AE_READABLE | AE_WRITABLE, Channel::IOEventCallback,
-				this) == AE_ERR)
+		        AE_READABLE | AE_WRITABLE, Channel::IOEventCallback,
+		        this) == AE_ERR)
 		{
 			::close(fd);
 			return -1;
@@ -267,7 +319,8 @@ void SocketChannel::OnWrite()
 		aeDeleteFileEvent(m_service.GetRawEventLoop(), m_fd, AE_WRITABLE);
 		m_state = SOCK_CONNECTED;
 		fire_channel_connected(this);
-	} else
+	}
+	else
 	{
 		Channel::OnWrite();
 	}
