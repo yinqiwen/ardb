@@ -123,8 +123,8 @@ namespace ardb
 			        m_cfg)
 	{
 		struct RedisCommandHandlerSetting settingTable[] = {
-				{ "ping",&ArdbServer::Ping, 0, 0 },
-				{ "info", &ArdbServer::Info, 0, 1 },
+		        { "ping",&ArdbServer::Ping, 0, 0 },
+		        { "info", &ArdbServer::Info, 0, 1 },
 		        { "slowlog", &ArdbServer::SlowLog, 1, 2 },
 		        { "dbsize",&ArdbServer::DBSize, 0, 0 },
 		        { "config",&ArdbServer::Config, 1, 3 },
@@ -174,7 +174,7 @@ namespace ardb
 		        { "hkeys",&ArdbServer::HKeys, 1, 1 },
 		        { "hlen", &ArdbServer::HLen,1, 1 },
 		        { "hvals", &ArdbServer::HVals, 1, 1 },
-		        {"hmget", &ArdbServer::HMGet, 2, -1 },
+		        { "hmget", &ArdbServer::HMGet, 2, -1 },
 		        { "hset",&ArdbServer::HSet, 3, 3 },
 		        { "hsetnx", &ArdbServer::HSetNX, 3, 3 },
 		        { "hmset",&ArdbServer::HMSet, 3, -1 },
@@ -230,7 +230,8 @@ namespace ardb
 		        { "move", &ArdbServer::Move, 2, 2 },
 		        { "rename", &ArdbServer::Rename, 2, 2 },
 		        { "renamenx",&ArdbServer::RenameNX, 2, 2 },
-		        { "sort", &ArdbServer::Sort, 1, -1 }, };
+		        { "sort", &ArdbServer::Sort, 1, -1 },
+		};
 
 		uint32 arraylen = arraysize(settingTable);
 		for (uint32 i = 0; i < arraylen; i++)
