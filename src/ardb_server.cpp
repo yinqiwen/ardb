@@ -1999,7 +1999,7 @@ namespace ardb
 	{
 		ChannelUpstreamHandler<RedisCommandFrame>* handler =
 		        (ChannelUpstreamHandler<RedisCommandFrame>*) data;
-		pipeline->AddLast("decoder", new RedisFrameDecoder);
+		pipeline->AddLast("decoder", new RedisCommandDecoder);
 		pipeline->AddLast("encoder", new RedisReplyEncoder);
 		pipeline->AddLast("handler", handler);
 	}
