@@ -22,6 +22,7 @@ namespace ardb
 			std::string listen_host;
 			int64 listen_port;
 			std::string listen_unix_path;
+			int64 unixsocketperm;
 			int64 max_clients;
 			std::string data_base_path;
 			int64 slowlog_log_slower_than;
@@ -30,7 +31,7 @@ namespace ardb
 			std::string loglevel;
 			std::string logfile;
 			ArdbServerConfig() :
-					daemonize(false), listen_port(0), max_clients(10000), slowlog_log_slower_than(
+					daemonize(false), listen_port(0),unixsocketperm(755), max_clients(10000), slowlog_log_slower_than(
 					        10000), slowlog_max_len(128)
 			{
 			}

@@ -99,6 +99,7 @@ static inline void fill_str_array_reply(RedisReply& reply, StringArray& v)
 int ArdbServer::ParseConfig(const Properties& props, ArdbServerConfig& cfg)
 {
 	conf_get_int64(props, "port", cfg.listen_port);
+	conf_get_int64(props, "unixsocketperm", cfg.unixsocketperm);
 	conf_get_int64(props, "slowlog-log-slower-than", cfg.slowlog_log_slower_than);
 	conf_get_int64(props, "slowlog-max-len", cfg.slowlog_max_len);
 	conf_get_string(props, "bind", cfg.listen_host);
@@ -1973,6 +1974,7 @@ int ArdbServer::Start(const Properties& props)
 		server->Configure(ops);
 		server->SetChannelPipelineInitializor(ardb_pipeline_init, &handler);
 		server->SetChannelPipelineFinalizer(ardb_pipeline_finallize, NULL);
+		chmod(m_cfg.listen_unix_path.c_str(), m_cfg.unixsocketperm);
 	}
 	ArdbLogger::InitDefaultLogger(m_cfg.loglevel, m_cfg.logfile);
     INFO_LOG("Server started, Ardb version %s", ARDB_VERSION);

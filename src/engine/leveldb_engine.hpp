@@ -68,7 +68,7 @@ namespace ardb
 			// Simple comparator implementations may return with *start unchanged,
 			// i.e., an implementation of this method that does nothing is correct.
 			void FindShortestSeparator(std::string* start,
-					const leveldb::Slice& limit) const;
+			        const leveldb::Slice& limit) const;
 
 			// Changes *key to a short string >= *key.
 			// Simple comparator implementations may return with *key unchanged,
@@ -79,8 +79,18 @@ namespace ardb
 	struct LevelDBConfig
 	{
 			std::string path;
+			int64 block_cache_size;
+			int64 write_buffer_size;
+			int64 max_open_files;
+			int64 block_size;
+			int64 block_restart_interval;
+			LevelDBConfig() :
+					block_cache_size(0), write_buffer_size(0), max_open_files(
+					        1024),block_size(0),block_restart_interval(0)
+			{
+			}
 	};
-    class LevelDBEngineFactory;
+	class LevelDBEngineFactory;
 	class LevelDBEngine: public KeyValueEngine
 	{
 		private:
@@ -107,7 +117,8 @@ namespace ardb
 	{
 		private:
 			LevelDBConfig m_cfg;
-			static void ParseConfig(const Properties& props, LevelDBConfig& cfg);
+			static void ParseConfig(const Properties& props,
+			        LevelDBConfig& cfg);
 		public:
 			LevelDBEngineFactory(const Properties& cfg);
 			KeyValueEngine* CreateDB(const DBID& db);

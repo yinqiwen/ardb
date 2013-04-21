@@ -37,6 +37,7 @@ namespace ardb
 	LevelDBEngineFactory::LevelDBEngineFactory(const Properties& props)
 	{
 		ParseConfig(props, m_cfg);
+
 	}
 
 	void LevelDBEngineFactory::ParseConfig(const Properties& props,
@@ -44,6 +45,11 @@ namespace ardb
 	{
 		cfg.path = ".";
 		conf_get_string(props, "dir", cfg.path);
+		conf_get_int64(props, "leveldb.block_cache_size", cfg.block_cache_size);
+		conf_get_int64(props, "leveldb.write_buffer_size", cfg.write_buffer_size);
+		conf_get_int64(props, "leveldb.max_open_files", cfg.max_open_files);
+		conf_get_int64(props, "leveldb.block_size", cfg.block_size);
+		conf_get_int64(props, "leveldb.block_restart_interval", cfg.block_restart_interval);
 	}
 
 	KeyValueEngine* LevelDBEngineFactory::CreateDB(const DBID& db)
@@ -117,11 +123,26 @@ namespace ardb
 		leveldb::Options options;
 		options.create_if_missing = true;
 		options.comparator = &m_comparator;
-		leveldb::Cache* cache = leveldb::NewLRUCache(268435456);
-		options.block_cache = cache;
-//		options.block_size = 268435456;
-//		options.write_buffer_size = 268435456;
+		if(cfg.block_cache_size > 0)
+		{
+			leveldb::Cache* cache = leveldb::NewLRUCache(cfg.block_cache_size);
+			options.block_cache = cache;
+		}
+		if(cfg.block_size > 0)
+		{
+			options.block_size = cfg.block_size;
+		}
+		if(cfg.block_restart_interval > 0)
+		{
+			options.block_restart_interval = cfg.block_restart_interval;
+		}
+		if(cfg.write_buffer_size > 0)
+		{
+			options.write_buffer_size = cfg.write_buffer_size;
+		}
+		options.max_open_files = cfg.max_open_files;
 		options.filter_policy = leveldb::NewBloomFilterPolicy(16);
+
 		make_dir(cfg.path);
 		m_db_path = cfg.path;
 		leveldb::Status status = leveldb::DB::Open(options, cfg.path.c_str(),
