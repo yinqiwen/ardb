@@ -94,6 +94,7 @@ namespace ardb
 	int ArdbServer::ParseConfig(const Properties& props, ArdbServerConfig& cfg)
 	{
 		conf_get_int64(props, "port", cfg.listen_port);
+		conf_get_int64(props, "tcp-keepalive", cfg.tcp_keepalive);
 		conf_get_int64(props, "unixsocketperm", cfg.unixsocketperm);
 		conf_get_int64(props, "slowlog-log-slower-than",
 		        cfg.slowlog_log_slower_than);
@@ -2046,7 +2047,10 @@ namespace ardb
 
 		ChannelOptions ops;
 		ops.tcp_nodelay = true;
-		ops.keep_alive = true;
+		if(m_cfg.tcp_keepalive > 0)
+		{
+			ops.keep_alive = m_cfg.tcp_keepalive;
+		}
 		if (m_cfg.listen_host.empty() && m_cfg.listen_unix_path.empty())
 		{
 			m_cfg.listen_host = "0.0.0.0";
