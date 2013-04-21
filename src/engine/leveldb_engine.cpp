@@ -50,6 +50,7 @@ namespace ardb
 		conf_get_int64(props, "leveldb.max_open_files", cfg.max_open_files);
 		conf_get_int64(props, "leveldb.block_size", cfg.block_size);
 		conf_get_int64(props, "leveldb.block_restart_interval", cfg.block_restart_interval);
+		conf_get_int64(props, "leveldb.bloom_bits", cfg.bloom_bits);
 	}
 
 	KeyValueEngine* LevelDBEngineFactory::CreateDB(const DBID& db)
@@ -141,7 +142,10 @@ namespace ardb
 			options.write_buffer_size = cfg.write_buffer_size;
 		}
 		options.max_open_files = cfg.max_open_files;
-		options.filter_policy = leveldb::NewBloomFilterPolicy(16);
+		if(cfg.bloom_bits > 0)
+		{
+			options.filter_policy = leveldb::NewBloomFilterPolicy(cfg.bloom_bits);
+		}
 
 		make_dir(cfg.path);
 		m_db_path = cfg.path;
