@@ -31,8 +31,9 @@ namespace ardb
 			std::string loglevel;
 			std::string logfile;
 			ArdbServerConfig() :
-					daemonize(false), listen_port(0),unixsocketperm(755), max_clients(10000), slowlog_log_slower_than(
-					        10000), slowlog_max_len(128)
+					daemonize(false), listen_port(0), unixsocketperm(755), max_clients(
+					        10000), slowlog_log_slower_than(10000), slowlog_max_len(
+					        128)
 			{
 			}
 	};
@@ -58,7 +59,10 @@ namespace ardb
 			uint32 lastTs;
 			std::string currentDB;
 			std::string lastCmd;
-			ArdbConncetion():currentDB("0"){}
+			ArdbConncetion() :
+					currentDB("0")
+			{
+			}
 	};
 
 	class ClientConnHolder
