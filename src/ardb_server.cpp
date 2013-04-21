@@ -13,8 +13,10 @@
 //#define __USE_KYOTOCABINET__ 1
 #ifdef __USE_KYOTOCABINET__
 #include "engine/kyotocabinet_engine.hpp"
+typedef ardb::KCDBEngineFactory SelectedDBEngineFactory;
 #else
 #include "engine/leveldb_engine.hpp"
+typedef ardb::LevelDBEngineFactory SelectedDBEngineFactory;
 #endif
 
 namespace ardb
@@ -31,16 +33,10 @@ namespace ardb
 		reply.str = buf;
 	}
 
-	static inline void fill_status_reply(RedisReply& reply, const char* fmt,
-	        ...)
+	static inline void fill_status_reply(RedisReply& reply, const char* s)
 	{
-		va_list ap;
-		va_start(ap, fmt);
-		char buf[1024];
-		vsnprintf(buf, sizeof(buf) - 1, fmt, ap);
-		va_end(ap);
 		reply.type = REDIS_REPLY_STATUS;
-		reply.str = buf;
+		reply.str = s;
 	}
 
 	static inline void fill_int_reply(RedisReply& reply, int64 v)
@@ -2043,11 +2039,7 @@ namespace ardb
 			daemonize();
 		}
 
-#ifdef __USE_KYOTOCABINET__
-		m_engine = new KCDBEngineFactory(props);
-#else
-		m_engine = new LevelDBEngineFactory(props);
-#endif
+		m_engine = new SelectedDBEngineFactory(props);
 		m_db = new Ardb(m_engine);
 		m_service = new ChannelService(m_cfg.max_clients + 32);
 
