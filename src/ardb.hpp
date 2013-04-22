@@ -203,10 +203,7 @@ namespace ardb
 			int Rename(const DBID& db, const Slice& key1, const Slice& key2);
 			int RenameNX(const DBID& db, const Slice& key1, const Slice& key2);
 			int Keys(const DBID& db, const std::string& pattern,
-					std::list<std::string>& ret)
-			{
-				return -1;
-			}
+					StringSet& ret);
 			int Move(DBID srcdb, const Slice& key, DBID dstdb);
 
 			int Append(const DBID& db, const Slice& key, const Slice& value);

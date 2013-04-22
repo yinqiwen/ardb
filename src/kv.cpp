@@ -6,12 +6,13 @@
  */
 #include "ardb.hpp"
 #include <bitset>
+#include <fnmatch.h>
 
 namespace ardb
 {
 
 	int Ardb::GetValue(const DBID& db, const KeyObject& key, ValueObject* v,
-	        uint64* expire)
+			uint64* expire)
 	{
 //		if(NULL != v)
 //		{
@@ -39,12 +40,11 @@ namespace ardb
 				{
 					*expire = tmp;
 				}
-				if (tmp > 0 && get_current_epoch_nanos() >= tmp)
+				if (tmp > 0 && get_current_epoch_micros() >= tmp)
 				{
 					GetDB(db)->Del(k);
 					return ERR_NOT_EXIST;
-				}
-				else
+				} else
 				{
 					return ARDB_OK;
 				}
@@ -63,7 +63,7 @@ namespace ardb
 	}
 
 	int Ardb::SetValue(const DBID& db, KeyObject& key, ValueObject& value,
-	        uint64 expire)
+			uint64 expire)
 	{
 		static Buffer keybuf;
 		keybuf.Clear();
@@ -128,8 +128,7 @@ namespace ardb
 			{
 				smart_fill_value(*vit, valueobject);
 				SetValue(db, keyobject, valueobject);
-			}
-			else
+			} else
 			{
 				guard.MarkFailed();
 				return -1;
@@ -141,7 +140,7 @@ namespace ardb
 	}
 
 	int Ardb::Set(const DBID& db, const Slice& key, const Slice& value, int ex,
-	        int px, int nxx)
+			int px, int nxx)
 	{
 		KeyObject k(key);
 		if (-1 == nxx)
@@ -150,8 +149,7 @@ namespace ardb
 			{
 				return ERR_KEY_EXIST;
 			}
-		}
-		else if (1 == nxx)
+		} else if (1 == nxx)
 		{
 			if (0 != GetValue(db, k, NULL))
 			{
@@ -186,12 +184,12 @@ namespace ardb
 	}
 
 	int Ardb::SetEx(const DBID& db, const Slice& key, const Slice& value,
-	        uint32_t secs)
+			uint32_t secs)
 	{
 		return PSetEx(db, key, value, secs * 1000);
 	}
 	int Ardb::PSetEx(const DBID& db, const Slice& key, const Slice& value,
-	        uint32_t ms)
+			uint32_t ms)
 	{
 		KeyObject keyobject(key);
 		ValueObject valueobject;
@@ -199,8 +197,8 @@ namespace ardb
 		uint64_t expire = 0;
 		if (ms > 0)
 		{
-			uint64_t now = get_current_epoch_nanos();
-			expire = now + (uint64_t) ms * 1000000L;
+			uint64_t now = get_current_epoch_micros();
+			expire = now + (uint64_t) ms * 1000L;
 		}
 		return SetValue(db, keyobject, valueobject, expire);
 	}
@@ -293,14 +291,14 @@ namespace ardb
 	}
 	int Ardb::Expire(const DBID& db, const Slice& key, uint32_t secs)
 	{
-		uint64_t now = get_current_epoch_nanos();
-		uint64_t expire = now + (uint64_t) secs * 1000000000L;
+		uint64_t now = get_current_epoch_micros();
+		uint64_t expire = now + (uint64_t) secs * 1000000L;
 		return SetExpiration(db, key, expire);
 	}
 
 	int Ardb::Expireat(const DBID& db, const Slice& key, uint32_t ts)
 	{
-		uint64_t expire = (uint64_t) ts * 1000000000L;
+		uint64_t expire = (uint64_t) ts * 1000000L;
 		return SetExpiration(db, key, expire);
 	}
 
@@ -311,8 +309,8 @@ namespace ardb
 
 	int Ardb::Pexpire(const DBID& db, const Slice& key, uint32_t ms)
 	{
-		uint64_t now = get_current_epoch_nanos();
-		uint64_t expire = now + (uint64_t) ms * 1000000L;
+		uint64_t now = get_current_epoch_micros();
+		uint64_t expire = now + (uint64_t) ms * 1000;
 		return SetExpiration(db, key, expire);
 	}
 
@@ -326,10 +324,10 @@ namespace ardb
 			int ttl = 0;
 			if (expire > 0)
 			{
-				uint64_t now = get_current_epoch_nanos();
-				uint64_t ttlsns = expire - now;
-				ttl = ttlsns / 1000000L;
-				if (ttlsns % 1000000000L >= 500000L)
+				uint64_t now = get_current_epoch_micros();
+				uint64_t ttlsus = expire - now;
+				ttl = ttlsus / 1000;
+				if (ttlsus % 1000 >= 500)
 				{
 					ttl++;
 				}
@@ -393,6 +391,31 @@ namespace ardb
 			return Set(dstdb, key, v);
 		}
 		return ERR_NOT_EXIST;
+	}
+
+	int Ardb::Keys(const DBID& db, const std::string& pattern, StringSet& ret)
+	{
+		Slice empty;
+		KeyObject start(empty);
+		Iterator* iter = FindValue(db, start);
+		while (NULL != iter && iter->Valid())
+		{
+			Slice tmpkey = iter->Key();
+			KeyObject* kk = decode_key(tmpkey);
+			if (NULL != kk)
+			{
+				KeyType type = kk->type;
+				std::string key(kk->key.data(), kk->key.size());
+				if (fnmatch(pattern.c_str(), key.c_str(), 0) == 0)
+				{
+					ret.insert(key);
+				}
+				DELETE(kk);
+			}
+			iter->Next();
+		}
+		DELETE(iter);
+		return 0;
 	}
 }
 

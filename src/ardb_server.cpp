@@ -78,10 +78,11 @@ namespace ardb
 		}
 	}
 
-	static inline void fill_str_array_reply(RedisReply& reply, StringArray& v)
+	template<typename T>
+	static inline void fill_str_array_reply(RedisReply& reply, T& v)
 	{
 		reply.type = REDIS_REPLY_ARRAY;
-		StringArray::iterator it = v.begin();
+		typename T::iterator it = v.begin();
 		while (it != v.end())
 		{
 			RedisReply r;
@@ -183,7 +184,7 @@ namespace ardb
 		        { "sadd", &ArdbServer::SAdd,2, -1 },
 		        { "sdiff", &ArdbServer::SDiff, 2, -1 },
 		        { "sdiffstore", &ArdbServer::SDiffStore, 3, -1 },
-		        {"sinter", &ArdbServer::SInter, 2, -1 },
+		        { "sinter", &ArdbServer::SInter, 2, -1 },
 		        { "sinterstore",&ArdbServer::SInterStore, 3, -1 },
 		        { "sismember",&ArdbServer::SIsMember, 2, 2 },
 		        { "smembers", &ArdbServer::SMembers, 1, 1 },
@@ -232,6 +233,7 @@ namespace ardb
 		        { "rename", &ArdbServer::Rename, 2, 2 },
 		        { "renamenx",&ArdbServer::RenameNX, 2, 2 },
 		        { "sort", &ArdbServer::Sort, 1, -1 },
+		        { "keys", &ArdbServer::Keys, 1, 1 },
 		};
 
 		uint32 arraylen = arraysize(settingTable);
@@ -246,7 +248,13 @@ namespace ardb
 	{
 
 	}
-
+	int ArdbServer::Keys(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		StringSet keys;
+		m_db->Keys(ctx.currentDB, cmd[0], keys);
+        fill_str_array_reply(ctx.reply, keys);
+		return 0;
+	}
 	int ArdbServer::HClear(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
 		m_db->HClear(ctx.currentDB, cmd[0]);
@@ -1961,7 +1969,7 @@ namespace ardb
 			}
 			else
 			{
-				m_clients_holder.TouchConn(ctx.conn, cmd);
+				//m_clients_holder.TouchConn(ctx.conn, cmd);
 				uint64 start_time = get_current_epoch_micros();
 				ret = (this->*handler)(ctx, args.GetArguments());
 				uint64 stop_time = get_current_epoch_micros();

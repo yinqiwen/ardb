@@ -149,6 +149,7 @@ namespace ardb
 			int Config(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int SlowLog(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Client(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Keys(ArdbConnContext& ctx, ArgumentArray& cmd);
 
 			int Ping(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Echo(ArdbConnContext& ctx, ArgumentArray& cmd);

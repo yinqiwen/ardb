@@ -3,10 +3,10 @@ DUMP key                        Discard
 EXISTS key                      DONE
 EXPIRE key seconds              DONE
 EXPIREAT key timestamp          DONE
-KEYS pattern                    NotYet
+KEYS pattern                    DONE
 MIGRATE host port key destination-db timeout   Discard
 MOVE key db                     DONE
-OBJECT subcommand [arguments [arguments ...]]  Consider 
+OBJECT subcommand [arguments [arguments ...]]  Discard 
 PERSIST key                     DONE
 PEXPIRE key milliseconds        DONE
 PEXPIREAT key milliseconds-timestamp  DONE
