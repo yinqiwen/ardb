@@ -373,6 +373,7 @@ namespace ardb
 					ValueArray& values);
 			int FlushDB(const DBID& db);
 			int FlushAll();
+			int CloseAll();
 
 			void PrintDB(const DBID& db);
 

@@ -25,7 +25,7 @@
 namespace ardb
 {
 	int ardb_compare_keys(const char* akbuf, size_t aksiz, const char* bkbuf,
-	        size_t bksiz)
+			size_t bksiz)
 	{
 		Buffer ak_buf(const_cast<char*>(akbuf), 0, aksiz);
 		Buffer bk_buf(const_cast<char*>(bkbuf), 0, bksiz);
@@ -105,7 +105,7 @@ namespace ardb
 					found_b = decode_value(bk_buf, kbv);
 					COMPARE_EXIST(found_a, found_b);
 					ret = kav.Compare(kbv);
-					if(ret != 0)
+					if (ret != 0)
 					{
 						break;
 					}
@@ -201,18 +201,20 @@ namespace ardb
 	Ardb::~Ardb()
 	{
 		KeyValueEngineTable::iterator it = m_engine_table.begin();
-		while(it != m_engine_table.end()){
+		while (it != m_engine_table.end())
+		{
 			m_engine_factory->CloseDB(it->second);
 			it++;
 		}
 	}
 
 	void Ardb::Walk(const DBID& db, KeyObject& key, bool reverse,
-	        WalkHandler* handler)
+			WalkHandler* handler)
 	{
 		bool isFirstElement = true;
 		Iterator* iter = FindValue(db, key);
-		if(NULL != iter && !iter->Valid() && reverse){
+		if (NULL != iter && !iter->Valid() && reverse)
+		{
 			iter->SeekToLast();
 			isFirstElement = false;
 		}
@@ -220,14 +222,14 @@ namespace ardb
 		while (NULL != iter && iter->Valid())
 		{
 			Slice tmpkey = iter->Key();
-            //fast check key type
-			if(tmpkey.data()[0] != key.type)
+			//fast check key type
+			if (tmpkey.data()[0] != key.type)
 			{
 				break;
 			}
 			KeyObject* kk = decode_key(tmpkey);
 			if (NULL == kk || kk->type != key.type
-			        || kk->key.compare(key.key) != 0)
+					|| kk->key.compare(key.key) != 0)
 			{
 				DELETE(kk);
 				if (reverse && isFirstElement)
@@ -240,7 +242,7 @@ namespace ardb
 			}
 			ValueObject v;
 			Buffer readbuf(const_cast<char*>(iter->Value().data()), 0,
-			        iter->Value().size());
+					iter->Value().size());
 			decode_value(readbuf, v, false);
 			int ret = handler->OnKeyValue(kk, &v, cursor++);
 			DELETE(kk);
@@ -251,8 +253,7 @@ namespace ardb
 			if (reverse)
 			{
 				iter->Prev();
-			}
-			else
+			} else
 			{
 				iter->Next();
 			}
@@ -298,7 +299,7 @@ namespace ardb
 				{
 					KeyObject lk(key, LIST_META);
 					GET_KEY_TYPE(db, lk, type);
-					if(type < 0)
+					if (type < 0)
 					{
 						KeyObject tk(key, TABLE_META);
 						GET_KEY_TYPE(db, tk, type);
@@ -308,7 +309,6 @@ namespace ardb
 		}
 		return type;
 	}
-
 
 	void Ardb::PrintDB(const DBID& db)
 	{
@@ -322,12 +322,12 @@ namespace ardb
 			KeyObject* kk = decode_key(tmpkey);
 			ValueObject v;
 			Buffer readbuf(const_cast<char*>(iter->Value().data()), 0,
-			        iter->Value().size());
+					iter->Value().size());
 			decode_value(readbuf, v, false);
 			if (NULL != kk)
 			{
 				DEBUG_LOG(
-				        "[%d]Key=%s, Value=%s", kk->type, kk->key.data(), v.ToString().c_str());
+						"[%d]Key=%s, Value=%s", kk->type, kk->key.data(), v.ToString().c_str());
 			}
 			DELETE(kk);
 			iter->Next();
@@ -336,17 +336,31 @@ namespace ardb
 
 	}
 
-	int Ardb::FlushDB(const DBID& db){
-        m_engine_factory->DestroyDB(GetDB(db));
-        m_engine_table.erase(db);
+	int Ardb::FlushDB(const DBID& db)
+	{
+		m_engine_factory->DestroyDB(GetDB(db));
+		m_engine_table.erase(db);
 		return 0;
 	}
 
 	int Ardb::FlushAll()
 	{
 		KeyValueEngineTable::iterator it = m_engine_table.begin();
-		while(it != m_engine_table.end()){
-		     m_engine_factory->DestroyDB(it->second);
+		while (it != m_engine_table.end())
+		{
+			m_engine_factory->DestroyDB(it->second);
+			it++;
+		}
+		m_engine_table.clear();
+		return 0;
+	}
+
+	int Ardb::CloseAll()
+	{
+		KeyValueEngineTable::iterator it = m_engine_table.begin();
+		while (it != m_engine_table.end())
+		{
+			m_engine_factory->CloseDB(it->second);
 			it++;
 		}
 		m_engine_table.clear();

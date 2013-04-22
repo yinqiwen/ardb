@@ -146,6 +146,7 @@ namespace ardb
 					RedisCommandHandler handler;
 					int min_arity;
 					int max_arity;
+					int read_write_cmd;  //0:read 1:write 2:unknown
 			};
 			typedef btree::btree_map<std::string, RedisCommandHandlerSetting> RedisCommandHandlerSettingTable;
 			typedef btree::btree_set<DBID> DBIDSet;
@@ -179,6 +180,7 @@ namespace ardb
 			int Select(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Quit(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Slaveof(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Sync(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Shutdown(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Type(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Move(ArdbConnContext& ctx, ArgumentArray& cmd);

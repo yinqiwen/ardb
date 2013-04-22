@@ -53,7 +53,8 @@ namespace ardb
 		conf_get_int64(props, "leveldb.block_restart_interval",
 				cfg.block_restart_interval);
 		conf_get_int64(props, "leveldb.bloom_bits", cfg.bloom_bits);
-		conf_get_int64(props, "leveldb.batch_commit_watermark", cfg.batch_commit_watermark);
+		conf_get_int64(props, "leveldb.batch_commit_watermark",
+				cfg.batch_commit_watermark);
 	}
 
 	KeyValueEngine* LevelDBEngineFactory::CreateDB(const DBID& db)
@@ -170,7 +171,10 @@ namespace ardb
 	}
 	int LevelDBEngine::CommitBatchWrite()
 	{
-		m_batch_stack.pop();
+		if (!m_batch_stack.empty())
+		{
+			m_batch_stack.pop();
+		}
 		if (m_batch_stack.empty())
 		{
 			return FlushWriteBatch();
@@ -179,7 +183,10 @@ namespace ardb
 	}
 	int LevelDBEngine::DiscardBatchWrite()
 	{
-		m_batch_stack.pop();
+		if (!m_batch_stack.empty())
+		{
+			m_batch_stack.pop();
+		}
 		m_batch.Clear();
 		m_batch_size = 0;
 		return 0;
@@ -187,10 +194,14 @@ namespace ardb
 
 	int LevelDBEngine::FlushWriteBatch()
 	{
-		leveldb::Status s = m_db->Write(leveldb::WriteOptions(), &m_batch);
-		m_batch.Clear();
-		m_batch_size = 0;
-		return s.ok() ? 0 : -1;
+		if (m_batch_size > 0)
+		{
+			leveldb::Status s = m_db->Write(leveldb::WriteOptions(), &m_batch);
+			m_batch.Clear();
+			m_batch_size = 0;
+			return s.ok() ? 0 : -1;
+		}
+		return 0;
 	}
 
 	int LevelDBEngine::Put(const Slice& key, const Slice& value)
@@ -224,6 +235,11 @@ namespace ardb
 		if (!m_batch_stack.empty())
 		{
 			m_batch.Delete(LEVELDB_SLICE(key));
+			m_batch_size++;
+			if(m_batch_size >= m_cfg.batch_commit_watermark)
+			{
+				FlushWriteBatch();
+			}
 		}
 		else
 		{

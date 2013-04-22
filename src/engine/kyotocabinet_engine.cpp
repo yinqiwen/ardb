@@ -52,8 +52,8 @@ namespace ardb
 
 	void KCDBEngineFactory::DestroyDB(KeyValueEngine* engine)
 	{
-		KCDBEngine* kcdb = (KCDBEngine*)engine;
-		if(NULL != kcdb)
+		KCDBEngine* kcdb = (KCDBEngine*) engine;
+		if (NULL != kcdb)
 		{
 			kcdb->Clear();
 		}
@@ -117,7 +117,10 @@ namespace ardb
 	}
 	int KCDBEngine::CommitBatchWrite()
 	{
-		m_batch_stack.pop();
+		if (!m_batch_stack.empty())
+		{
+			m_batch_stack.pop();
+		}
 		if (m_batch_stack.empty())
 		{
 			if (!m_bulk_del_keys.empty())
@@ -143,7 +146,10 @@ namespace ardb
 	}
 	int KCDBEngine::DiscardBatchWrite()
 	{
-		m_batch_stack.pop();
+		if (!m_batch_stack.empty())
+		{
+			m_batch_stack.pop();
+		}
 		m_bulk_set_kvs.clear();
 		m_bulk_del_keys.clear();
 		return 0;
