@@ -31,7 +31,6 @@ namespace ardb
 			c.conn = conn;
 			c.birth = time(NULL);
 			c.lastTs = time(NULL);
-			c.fd = conn->GetReadFD();
 			c.lastCmd = currentCmd;
 			const Address* remote = conn->GetRemoteAddress();
 			if (InstanceOf<SocketUnixAddress>(remote).OK)
@@ -83,7 +82,7 @@ namespace ardb
 		while (it != m_conn_table.end())
 		{
 			ArdbConncetion& c = it->second;
-			ss << "addr=" << c.addr << " fd=" << c.fd;
+			ss << "addr=" << c.addr << " fd=" << c.conn->GetReadFD();
 			ss << " name=" << c.name << " age=" << now - c.birth;
 			ss << " idle=" << now - c.lastTs << " db=" << c.currentDB;
 			ss << " cmd=" << c.lastCmd << "\r\n";

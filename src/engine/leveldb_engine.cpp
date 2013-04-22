@@ -46,11 +46,14 @@ namespace ardb
 		cfg.path = ".";
 		conf_get_string(props, "dir", cfg.path);
 		conf_get_int64(props, "leveldb.block_cache_size", cfg.block_cache_size);
-		conf_get_int64(props, "leveldb.write_buffer_size", cfg.write_buffer_size);
+		conf_get_int64(props, "leveldb.write_buffer_size",
+				cfg.write_buffer_size);
 		conf_get_int64(props, "leveldb.max_open_files", cfg.max_open_files);
 		conf_get_int64(props, "leveldb.block_size", cfg.block_size);
-		conf_get_int64(props, "leveldb.block_restart_interval", cfg.block_restart_interval);
+		conf_get_int64(props, "leveldb.block_restart_interval",
+				cfg.block_restart_interval);
 		conf_get_int64(props, "leveldb.bloom_bits", cfg.bloom_bits);
+		conf_get_int64(props, "leveldb.batch_commit_watermark", cfg.batch_commit_watermark);
 	}
 
 	KeyValueEngine* LevelDBEngineFactory::CreateDB(const DBID& db)
@@ -70,8 +73,8 @@ namespace ardb
 	}
 	void LevelDBEngineFactory::DestroyDB(KeyValueEngine* engine)
 	{
-		LevelDBEngine* leveldb = (LevelDBEngine*)engine;
-        std::string path = leveldb->m_db_path;
+		LevelDBEngine* leveldb = (LevelDBEngine*) engine;
+		std::string path = leveldb->m_db_path;
 		DELETE(engine);
 		leveldb::Options options;
 		leveldb::DestroyDB(path, options);
@@ -111,7 +114,7 @@ namespace ardb
 	}
 
 	LevelDBEngine::LevelDBEngine() :
-			m_db(NULL)
+			m_db(NULL), m_batch_size(0)
 	{
 
 	}
@@ -121,30 +124,32 @@ namespace ardb
 	}
 	int LevelDBEngine::Init(const LevelDBConfig& cfg)
 	{
+		m_cfg = cfg;
 		leveldb::Options options;
 		options.create_if_missing = true;
 		options.comparator = &m_comparator;
-		if(cfg.block_cache_size > 0)
+		if (cfg.block_cache_size > 0)
 		{
 			leveldb::Cache* cache = leveldb::NewLRUCache(cfg.block_cache_size);
 			options.block_cache = cache;
 		}
-		if(cfg.block_size > 0)
+		if (cfg.block_size > 0)
 		{
 			options.block_size = cfg.block_size;
 		}
-		if(cfg.block_restart_interval > 0)
+		if (cfg.block_restart_interval > 0)
 		{
 			options.block_restart_interval = cfg.block_restart_interval;
 		}
-		if(cfg.write_buffer_size > 0)
+		if (cfg.write_buffer_size > 0)
 		{
 			options.write_buffer_size = cfg.write_buffer_size;
 		}
 		options.max_open_files = cfg.max_open_files;
-		if(cfg.bloom_bits > 0)
+		if (cfg.bloom_bits > 0)
 		{
-			options.filter_policy = leveldb::NewBloomFilterPolicy(cfg.bloom_bits);
+			options.filter_policy = leveldb::NewBloomFilterPolicy(
+					cfg.bloom_bits);
 		}
 
 		make_dir(cfg.path);
@@ -153,7 +158,7 @@ namespace ardb
 				&m_db);
 		if (!status.ok())
 		{
-			DEBUG_LOG("Failed to init engine:%s\n", status.ToString().c_str());
+			ERROR_LOG("Failed to init engine:%s", status.ToString().c_str());
 		}
 		return status.ok() ? 0 : -1;
 	}
@@ -168,9 +173,7 @@ namespace ardb
 		m_batch_stack.pop();
 		if (m_batch_stack.empty())
 		{
-			leveldb::Status s = m_db->Write(leveldb::WriteOptions(), &m_batch);
-			m_batch.Clear();
-			return s.ok() ? 0 : -1;
+			return FlushWriteBatch();
 		}
 		return 0;
 	}
@@ -178,7 +181,16 @@ namespace ardb
 	{
 		m_batch_stack.pop();
 		m_batch.Clear();
+		m_batch_size = 0;
 		return 0;
+	}
+
+	int LevelDBEngine::FlushWriteBatch()
+	{
+		leveldb::Status s = m_db->Write(leveldb::WriteOptions(), &m_batch);
+		m_batch.Clear();
+		m_batch_size = 0;
+		return s.ok() ? 0 : -1;
 	}
 
 	int LevelDBEngine::Put(const Slice& key, const Slice& value)
@@ -187,6 +199,11 @@ namespace ardb
 		if (!m_batch_stack.empty())
 		{
 			m_batch.Put(LEVELDB_SLICE(key), LEVELDB_SLICE(value));
+			m_batch_size++;
+			if(m_batch_size >= m_cfg.batch_commit_watermark)
+			{
+				FlushWriteBatch();
+			}
 		}
 		else
 		{
@@ -199,10 +216,6 @@ namespace ardb
 	{
 		leveldb::Status s = m_db->Get(leveldb::ReadOptions(),
 		LEVELDB_SLICE(key), value);
-		if (!s.ok())
-		{
-			//DEBUG_LOG("Failed to find %s", s.ToString().c_str());
-		}
 		return s.ok() ? 0 : -1;
 	}
 	int LevelDBEngine::Del(const Slice& key)

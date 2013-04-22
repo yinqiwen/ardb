@@ -100,6 +100,10 @@ namespace ardb
 		conf_get_int64(props, "slowlog-log-slower-than",
 		        cfg.slowlog_log_slower_than);
 		conf_get_int64(props, "slowlog-max-len", cfg.slowlog_max_len);
+		conf_get_int64(props, "batch_flush_period", cfg.batch_flush_period);
+		std::string on = "on";
+		conf_get_string(props, "batch_write_enable", on);
+		cfg.batch_write_enable = on == "on";
 		conf_get_int64(props, "maxclients", cfg.max_clients);
 		conf_get_string(props, "bind", cfg.listen_host);
 		conf_get_string(props, "unixsocket", cfg.listen_unix_path);
@@ -315,7 +319,7 @@ namespace ardb
 			if (cmd.size() != 2)
 			{
 				fill_error_reply(ctx.reply,
-				        "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name)");
+				        "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | STAT on/off)");
 				return 0;
 			}
 			Channel* conn = m_clients_holder.GetConn(cmd[1]);
@@ -332,7 +336,6 @@ namespace ardb
 			else
 			{
 				conn->Close();
-				return 0;
 			}
 		}
 		else if (subcmd == "setname")
@@ -340,7 +343,7 @@ namespace ardb
 			if (cmd.size() != 2)
 			{
 				fill_error_reply(ctx.reply,
-				        "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name)");
+				        "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | STAT on/off)");
 				return 0;
 			}
 			m_clients_holder.SetName(ctx.conn, cmd[1]);
@@ -352,27 +355,44 @@ namespace ardb
 			if (cmd.size() != 1)
 			{
 				fill_error_reply(ctx.reply,
-				        "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name)");
+				        "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | STAT on/off)");
 				return 0;
 			}
 			fill_str_reply(ctx.reply, m_clients_holder.GetName(ctx.conn));
-			return 0;
 		}
 		else if (subcmd == "list")
 		{
 			if (cmd.size() != 1)
 			{
 				fill_error_reply(ctx.reply,
-				        "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name)");
+				        "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | STAT on/off)");
 				return 0;
 			}
 			m_clients_holder.List(ctx.reply);
-			return 0;
+		}
+		else if (subcmd == "stat")
+		{
+			if (cmd.size() != 2)
+			{
+				fill_error_reply(ctx.reply,
+						  "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | STAT on/off)");
+			    return 0;
+			}
+			if(!strcasecmp(cmd[1].c_str(), "on")){
+				m_clients_holder.SetStatEnable(true);
+			}else if(!strcasecmp(cmd[1].c_str(), "on")){
+				m_clients_holder.SetStatEnable(false);
+			}else{
+				fill_error_reply(ctx.reply,
+						  "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | STAT on/off)");
+			    return 0;
+			}
+		    fill_status_reply(ctx.reply, "OK");
 		}
 		else
 		{
 			fill_error_reply(ctx.reply,
-			        "ERR CLIENT subcommand must be one of LIST, GETNAME, SETNAME, KILL");
+			        "ERR CLIENT subcommand must be one of LIST, GETNAME, SETNAME, KILL, STAT");
 		}
 		return 0;
 	}
@@ -1969,7 +1989,12 @@ namespace ardb
 			}
 			else
 			{
-				//m_clients_holder.TouchConn(ctx.conn, cmd);
+				if(m_clients_holder.IsStatEnable()){
+					m_clients_holder.TouchConn(ctx.conn, cmd);
+				}
+				if(m_cfg.batch_write_enable){
+                    InsertBatchWriteDBID(ctx.currentDB);
+				}
 				uint64 start_time = get_current_epoch_micros();
 				ret = (this->*handler)(ctx, args.GetArguments());
 				uint64 stop_time = get_current_epoch_micros();
@@ -2037,6 +2062,28 @@ namespace ardb
 			{
 				close(fd);
 			}
+		}
+	}
+
+	void ArdbServer::Run()
+	{
+		BatchWriteFlush();
+
+	}
+
+	void ArdbServer::BatchWriteFlush()
+	{
+		DBIDSet::iterator it = m_period_batch_dbids.begin();
+		while(it != m_period_batch_dbids.end()){
+			m_db->Exec(*it);
+			it++;
+		}
+	}
+
+	void ArdbServer::InsertBatchWriteDBID(const DBID& id){
+		bool isnew = m_period_batch_dbids.insert(id).second;
+		if(isnew){
+			m_db->Multi(id);
 		}
 	}
 
@@ -2123,6 +2170,9 @@ namespace ardb
 		INFO_LOG("Server started, Ardb version %s", ARDB_VERSION);
 		INFO_LOG(
 		        "The server is now ready to accept connections on port %d", m_cfg.listen_port);
+		if(m_cfg.batch_write_enable){
+			m_service->GetTimer().Schedule(this, m_cfg.batch_flush_period, m_cfg.batch_flush_period, SECONDS);
+		}
 		m_service->Start();
 		sexit:
 		DELETE(m_engine);

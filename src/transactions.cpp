@@ -17,12 +17,12 @@ namespace ardb
 
 	int Ardb::Exec(const DBID& db)
 	{
-		GetDB(db)->BeginBatchWrite();
+		GetDB(db)->CommitBatchWrite();
 		return 0;
 	}
 	int Ardb::Multi(const DBID& db)
 	{
-		GetDB(db)->CommitBatchWrite();
+		GetDB(db)->BeginBatchWrite();
 		return 0;
 	}
 }

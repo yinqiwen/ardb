@@ -68,7 +68,7 @@ namespace ardb
 			// Simple comparator implementations may return with *start unchanged,
 			// i.e., an implementation of this method that does nothing is correct.
 			void FindShortestSeparator(std::string* start,
-			        const leveldb::Slice& limit) const;
+					const leveldb::Slice& limit) const;
 
 			// Changes *key to a short string >= *key.
 			// Simple comparator implementations may return with *key unchanged,
@@ -85,9 +85,11 @@ namespace ardb
 			int64 block_size;
 			int64 block_restart_interval;
 			int64 bloom_bits;
+			int64 batch_commit_watermark;
 			LevelDBConfig() :
 					block_cache_size(0), write_buffer_size(0), max_open_files(
-					        1024),block_size(0),block_restart_interval(0),bloom_bits(10)
+							10240), block_size(0), block_restart_interval(0), bloom_bits(
+							10), batch_commit_watermark(30)
 			{
 			}
 	};
@@ -100,7 +102,11 @@ namespace ardb
 			leveldb::WriteBatch m_batch;
 			std::stack<bool> m_batch_stack;
 			std::string m_db_path;
+			uint32 m_batch_size;
+
+			LevelDBConfig m_cfg;
 			friend class LevelDBEngineFactory;
+			int FlushWriteBatch();
 		public:
 			LevelDBEngine();
 			~LevelDBEngine();
@@ -119,7 +125,7 @@ namespace ardb
 		private:
 			LevelDBConfig m_cfg;
 			static void ParseConfig(const Properties& props,
-			        LevelDBConfig& cfg);
+					LevelDBConfig& cfg);
 		public:
 			LevelDBEngineFactory(const Properties& cfg);
 			KeyValueEngine* CreateDB(const DBID& db);

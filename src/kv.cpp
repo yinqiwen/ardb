@@ -70,8 +70,8 @@ namespace ardb
 		keybuf.EnsureWritableBytes(key.key.size() + 16);
 		encode_key(keybuf, key);
 		static Buffer valuebuf;
-		valuebuf.EnsureWritableBytes(64);
 		valuebuf.Clear();
+		valuebuf.EnsureWritableBytes(64);
 		encode_value(valuebuf, value);
 		if (expire > 0)
 		{
@@ -201,6 +201,7 @@ namespace ardb
 			expire = now + (uint64_t) ms * 1000L;
 		}
 		return SetValue(db, keyobject, valueobject, expire);
+		//return 0;
 	}
 
 	int Ardb::GetValue(const DBID& db, const Slice& key, ValueObject* value)

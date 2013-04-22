@@ -9,6 +9,7 @@
 #define ARDB_SERVER_HPP_
 #include <string>
 #include <btree_map.h>
+#include <btree_set.h>
 #include "channel/all_includes.hpp"
 #include "util/config_helper.hpp"
 #include "ardb.hpp"
@@ -29,12 +30,15 @@ namespace ardb
 			int64 slowlog_log_slower_than;
 			int64 slowlog_max_len;
 
+			bool batch_write_enable;
+			int64 batch_flush_period;
 			std::string loglevel;
 			std::string logfile;
 			ArdbServerConfig() :
 					daemonize(false), listen_port(0), unixsocketperm(755), max_clients(
-					        10000), tcp_keepalive(0),slowlog_log_slower_than(10000), slowlog_max_len(
-					        128)
+							10000), tcp_keepalive(0), slowlog_log_slower_than(
+							10000), slowlog_max_len(128), batch_write_enable(
+							true), batch_flush_period(1)
 			{
 			}
 	};
@@ -55,13 +59,12 @@ namespace ardb
 			Channel* conn;
 			std::string name;
 			std::string addr;
-			int fd;
 			uint32 birth;
 			uint32 lastTs;
 			std::string currentDB;
 			std::string lastCmd;
 			ArdbConncetion() :
-					currentDB("0")
+					conn(NULL), birth(0), lastTs(0), currentDB("0")
 			{
 			}
 	};
@@ -71,7 +74,12 @@ namespace ardb
 		private:
 			typedef btree::btree_map<uint32, ArdbConncetion> ArdbConncetionTable;
 			ArdbConncetionTable m_conn_table;
+			bool m_stat_enable;
 		public:
+			ClientConnHolder() :
+					m_stat_enable(false)
+			{
+			}
 			void TouchConn(Channel* conn, const std::string& currentCmd);
 			void ChangeCurrentDB(Channel* conn, const std::string& dbid);
 			Channel* GetConn(const std::string& addr);
@@ -81,6 +89,14 @@ namespace ardb
 			void EraseConn(Channel* conn)
 			{
 				m_conn_table.erase(conn->GetID());
+			}
+			bool IsStatEnable()
+			{
+				return m_stat_enable;
+			}
+			void SetStatEnable(bool on)
+			{
+				m_stat_enable = on;
 			}
 	};
 
@@ -113,7 +129,7 @@ namespace ardb
 			}
 	};
 
-	class ArdbServer
+	class ArdbServer:public Runnable
 	{
 		private:
 			ArdbServerConfig m_cfg;
@@ -122,7 +138,7 @@ namespace ardb
 			Ardb* m_db;
 			KeyValueEngineFactory* m_engine;
 			typedef int (ArdbServer::*RedisCommandHandler)(ArdbConnContext&,
-			        ArgumentArray&);
+					ArgumentArray&);
 
 			struct RedisCommandHandlerSetting
 			{
@@ -132,14 +148,21 @@ namespace ardb
 					int max_arity;
 			};
 			typedef btree::btree_map<std::string, RedisCommandHandlerSetting> RedisCommandHandlerSettingTable;
+			typedef btree::btree_set<DBID> DBIDSet;
 			RedisCommandHandlerSettingTable m_handler_table;
 			SlowLogHandler m_slowlog_handler;
 			ClientConnHolder m_clients_holder;
 
+			DBIDSet m_period_batch_dbids;
+
 			RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(
-			        std::string& cmd);
+					std::string& cmd);
 			void ProcessRedisCommand(ArdbConnContext& ctx,
-			        RedisCommandFrame& cmd);
+					RedisCommandFrame& cmd);
+
+			void Run();
+			void BatchWriteFlush();
+			void InsertBatchWriteDBID(const DBID& id);
 
 			int Time(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int FlushDB(ArdbConnContext& ctx, ArgumentArray& cmd);
@@ -259,7 +282,7 @@ namespace ardb
 			int TClear(ArdbConnContext& ctx, ArgumentArray& cmd);
 		public:
 			static int ParseConfig(const Properties& props,
-			        ArdbServerConfig& cfg);
+					ArdbServerConfig& cfg);
 			ArdbServer();
 			int Start(const Properties& props);
 			~ArdbServer();
