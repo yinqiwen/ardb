@@ -673,7 +673,7 @@ namespace ardb
 			return ERR_INVALID_ARGS;
 		}
 		Slice empty;
-		ZSetKeyObject tmp(key, empty, meta.max_score + 1);
+		ZSetKeyObject tmp(key, empty, meta.max_score);
 		struct ZRevRangeWalk: public WalkHandler
 		{
 				int rank;
@@ -730,7 +730,8 @@ namespace ardb
 			return ERR_INVALID_ARGS;
 		}
 		Slice empty;
-		ZSetKeyObject tmp(key, empty, max_score + 1);
+
+		ZSetKeyObject tmp(key, empty, max_score);
 		struct ZRangeByScoreWalk: public WalkHandler
 		{
 				ValueArray& z_values;
@@ -743,6 +744,7 @@ namespace ardb
 				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					ZSetKeyObject* zsk = (ZSetKeyObject*) k;
+					INFO_LOG("Enter with %.2f", zsk->score);
 					bool inrange = false;
 					inrange =
 					        z_containmin ? zsk->score >= z_min_score :

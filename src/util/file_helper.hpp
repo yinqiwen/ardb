@@ -27,6 +27,8 @@ namespace ardb
 	int file_read_full(const std::string& path, Buffer& content);
 
 	int64 file_size(const std::string& path);
+
+	int sha1sum_file(const std::string& file, std::string& hash);
 }
 
 #endif /* FILEHELPER_HPP_ */

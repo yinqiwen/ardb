@@ -32,13 +32,17 @@ namespace ardb
 
 			bool batch_write_enable;
 			int64 batch_flush_period;
+
+			int64 checkpoint_interval;
+			std::string repl_data_dir;
+
 			std::string loglevel;
 			std::string logfile;
 			ArdbServerConfig() :
 					daemonize(false), listen_port(0), unixsocketperm(755), max_clients(
 							10000), tcp_keepalive(0), slowlog_log_slower_than(
 							10000), slowlog_max_len(128), batch_write_enable(
-							true), batch_flush_period(1)
+							true), batch_flush_period(1), checkpoint_interval(2)
 			{
 			}
 	};
@@ -74,10 +78,10 @@ namespace ardb
 		private:
 			typedef btree::btree_map<uint32, ArdbConncetion> ArdbConncetionTable;
 			ArdbConncetionTable m_conn_table;
-			bool m_stat_enable;
+			bool m_client_stat_enable;
 		public:
 			ClientConnHolder() :
-					m_stat_enable(false)
+					m_client_stat_enable(false)
 			{
 			}
 			void TouchConn(Channel* conn, const std::string& currentCmd);
@@ -92,11 +96,11 @@ namespace ardb
 			}
 			bool IsStatEnable()
 			{
-				return m_stat_enable;
+				return m_client_stat_enable;
 			}
 			void SetStatEnable(bool on)
 			{
-				m_stat_enable = on;
+				m_client_stat_enable = on;
 			}
 	};
 
@@ -129,7 +133,8 @@ namespace ardb
 			}
 	};
 
-	class ArdbServer:public Runnable
+	class ReplicationService;
+	class ArdbServer: public Runnable
 	{
 		private:
 			ArdbServerConfig m_cfg;
@@ -161,6 +166,8 @@ namespace ardb
 			void ProcessRedisCommand(ArdbConnContext& ctx,
 					RedisCommandFrame& cmd);
 
+
+			friend class ReplicationService;
 			void Run();
 			void BatchWriteFlush();
 			void InsertBatchWriteDBID(const DBID& id);
@@ -282,6 +289,8 @@ namespace ardb
 			int ZClear(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int LClear(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int TClear(ArdbConnContext& ctx, ArgumentArray& cmd);
+
+			Timer& GetTimer();
 		public:
 			static int ParseConfig(const Properties& props,
 					ArdbServerConfig& cfg);

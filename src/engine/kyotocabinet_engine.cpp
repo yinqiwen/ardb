@@ -93,7 +93,7 @@ namespace ardb
 		m_db = new kyotocabinet::TreeDB;
 		int tune_options = kyotocabinet::TreeDB::TSMALL
 				| kyotocabinet::TreeDB::TLINEAR;
-		tune_options |= kyotocabinet::TreeDB::TCOMPRESS;
+		//tune_options |= kyotocabinet::TreeDB::TCOMPRESS;
 		m_db->tune_options(tune_options);
 		m_db->tune_page_cache(4194304);
 		m_db->tune_page(1024);
@@ -106,7 +106,6 @@ namespace ardb
 			DELETE(m_db);
 			return -1;
 		}
-		ERROR_LOG("Open DB:%s success", cfg.path.c_str());
 		return 0;
 	}
 

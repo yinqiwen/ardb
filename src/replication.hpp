@@ -9,18 +9,28 @@
 #define REPLICATION_HPP_
 #include "channel/all_includes.hpp"
 #include "ardb.hpp"
+#include <stdio.h>
 
 using namespace ardb::codec;
 
 namespace ardb
 {
-	struct SlaveConn{
+	struct SlaveConn
+	{
 			Channel* conn;
 			uint32 synced_checkpoint;
 			uint32 synced_cmd_seq;
 	};
-    class ArdbServer;
-	class ReplicationService:public Thread
+
+	class BinLogWriter
+	{
+		private:
+			FILE* m_index_log;
+			FILE* m_bin_log;
+	};
+
+	class ArdbServer;
+	class ReplicationService: public Thread
 	{
 		private:
 			ChannelService m_serv;

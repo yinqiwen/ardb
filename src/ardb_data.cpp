@@ -198,7 +198,6 @@ namespace ardb
 					DELETE(sk);
 					return sk;
 				}
-				//DEBUG_LOG("sk type = %d", sk->value.type);
 				return sk;
 			}
 			case ZSET_ELEMENT:

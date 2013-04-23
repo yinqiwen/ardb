@@ -16,6 +16,7 @@
 #include <sys/ioctl.h>
 #include <stdio.h>
 #include <dirent.h>
+#include "sha1.h"
 
 namespace ardb
 {
@@ -201,5 +202,43 @@ namespace ardb
 			}
 		}
 		return filesize;
+	}
+
+	int sha1sum_file(const std::string& file, std::string& hash)
+	{
+		FILE *fp;
+		if ((fp = fopen(file.c_str(), "rb")) == NULL)
+		{
+			return -1;
+		}
+		SHA1_CTX ctx;
+		SHA1Init(&ctx);
+		const uint32 buf_size = 65536;
+		unsigned char buf[buf_size];
+		while (1)
+		{
+			int ret = fread(buf, 1, buf_size, fp);
+			if (ret > 0)
+			{
+				SHA1Update(&ctx, buf, ret);
+			}
+			if (ret < buf_size)
+			{
+				break;
+			}
+		}
+		fclose(fp);
+		unsigned char hashstr[20];
+		SHA1Final(hashstr, &ctx);
+
+		char result[256];
+		uint32 offset = 0;
+		for (uint32 i = 0; i < 20; i++)
+		{
+			int ret = sprintf(result + offset, "%02x", hash[i]);
+			offset += ret;
+		}
+		hash = result;
+		return 0;
 	}
 }

@@ -2092,6 +2092,10 @@ namespace ardb
 		}
 	}
 
+	Timer& ArdbServer::GetTimer(){
+		return m_service->GetTimer();
+	}
+
 	int ArdbServer::Start(const Properties& props)
 	{
 		m_cfg_props = props;

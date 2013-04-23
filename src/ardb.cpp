@@ -223,7 +223,7 @@ namespace ardb
 		{
 			Slice tmpkey = iter->Key();
 			//fast check key type
-			if (tmpkey.data()[0] != key.type)
+			if ((!reverse || !isFirstElement) && tmpkey.data()[0] != key.type)
 			{
 				break;
 			}

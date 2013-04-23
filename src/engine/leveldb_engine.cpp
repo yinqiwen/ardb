@@ -250,12 +250,11 @@ namespace ardb
 
 	Iterator* LevelDBEngine::Find(const Slice& findkey)
 	{
-		//uint64 start_time = get_current_epoch_millis();
-		leveldb::ReadOptions options;
-		leveldb::Iterator* iter = m_db->NewIterator(options);
+		leveldb::Iterator* iter = m_db->NewIterator(leveldb::ReadOptions());
+//		uint64 start_time = get_current_epoch_micros();
 		iter->Seek(LEVELDB_SLICE(findkey));
-		//uint64 stop_time = get_current_epoch_millis();
-		//INFO_LOG("Cost %lldms to exec seek:%d", (stop_time-start_time),findkey.size());
+//		uint64 stop_time = get_current_epoch_micros();
+//		INFO_LOG("Cost %lldus to exec seek:%d", (stop_time-start_time),findkey.size());
 		return new LevelDBIterator(iter);
 	}
 

@@ -378,7 +378,7 @@ namespace ardb
 					{
 						found_values.push_back(*v);
 					}
-					if (cursor > l_stop)
+					if (cursor >= l_stop)
 					{
 						return -1;
 					}
