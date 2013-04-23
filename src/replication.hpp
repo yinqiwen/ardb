@@ -35,15 +35,18 @@ namespace ardb
 		private:
 			ChannelService m_serv;
 			ArdbServer* m_server;
-			bool m_in_checkpoint;
+			bool m_in_backup;
 			void Run();
+			int Backup(const std::string& dstfile);
 		public:
 			ReplicationService(ArdbServer* serv);
+			int Start();
 			int CheckPoint();
 			int WriteBinLog(Channel* sourceConn, RedisCommandFrame& cmd);
 			int ServSync(Channel* conn, RedisCommandFrame& syncCmd);
 			void SyncMaster(const std::string& host, int port);
 			void HandleSyncedCommand(RedisCommandFrame& syncCmd);
+
 	};
 }
 

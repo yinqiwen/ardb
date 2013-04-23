@@ -12,10 +12,9 @@ namespace ardb
 {
 	static uint64 kBinLogIdSeed = 0;
 	ReplicationService::ReplicationService(ArdbServer* serv) :
-			m_server(serv), m_in_checkpoint(false)
+			m_server(serv), m_in_backup(false)
 	{
-		Start();
-		CheckPoint();
+
 	}
 
 	void ReplicationService::Run()
@@ -31,8 +30,15 @@ namespace ardb
 		m_serv.Start();
 	}
 
+	int ReplicationService::Start()
+	{
+		Start();
+		CheckPoint();
+		return 0;
+	}
+
 	static bool veify_checkpoint_file(const std::string& data_file,
-			const std::string& cksum_file)
+	        const std::string& cksum_file)
 	{
 		if (!is_file_exist(cksum_file) || !is_file_exist(data_file))
 		{
@@ -57,35 +63,71 @@ namespace ardb
 		if (sha1sum_str != sha1sum.AsString())
 		{
 			ERROR_LOG(
-					"Invalid check sum %s VS %s.", sha1sum_str.c_str(), sha1sum.AsString().c_str());
+			        "Invalid check sum %s VS %s.", sha1sum_str.c_str(), sha1sum.AsString().c_str());
 			return false;
 		}
 		return true;
 	}
 
-	int ReplicationService::CheckPoint()
+	int ReplicationService::Backup(const std::string& dstfile)
 	{
-		if (m_in_checkpoint)
+		if (m_in_backup)
 		{
 			return 1;
 		}
-		if (m_server->m_cfg.checkpoint_interval > 0)
+		struct BackupTask: public Thread
 		{
+				std::string dest;
+				ArdbServerConfig& cfg;
+				ReplicationService* serv;
+				BackupTask(ArdbServerConfig& c) :
+						cfg(c)
+				{
+				}
+				void Run()
+				{
+					char cmd[cfg.data_base_path.size() + 256];
+					sprintf(cmd, "tar cf %s %s;", dest.c_str(),
+					        cfg.data_base_path.c_str());
+					int ret = system(cmd);
+					if (-1 == ret)
+					{
+						ERROR_LOG(
+						        "Failed to create backup data archive:%s", dest.c_str());
+					}
+					else
+					{
+						std::string sha1sum_str;
+						ret = sha1sum_file(dest, sha1sum_str);
+						if (-1 == ret)
+						{
+							ERROR_LOG(
+							        "Failed to compute sha1sum for data archive:%s", dest.c_str());
+						}
+					}
+					serv->m_in_backup = false;
+					delete this;
+				}
+		};
+		BackupTask* task = new BackupTask(m_server->m_cfg);
+		task->Start();
+		return 0;
+	}
 
+	int ReplicationService::CheckPoint()
+	{
+		if (m_in_backup)
+		{
+			return 1;
 		}
 		m_server->m_db->CloseAll();
-		m_in_checkpoint = true;
+		m_in_backup = true;
 
-		char cmd[m_server->m_cfg.data_base_path.size() + 256];
-		sprintf(cmd, "tar cf %s %s;", m_server->m_cfg.data_base_path.c_str());
-		system(cmd);
-		//spawn a thread to create data tar file
-		//tar czf *.tar dir, checksum
 		return 0;
 	}
 
 	int ReplicationService::WriteBinLog(Channel* sourceConn,
-			RedisCommandFrame& cmd)
+	        RedisCommandFrame& cmd)
 	{
 		//Write bin log & log index
 		//Send to slave conns
