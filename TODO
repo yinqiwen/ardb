@@ -115,8 +115,8 @@ UNSUBSCRIBE [channel [channel ...]]        NotYet
 DISCARD                                    DONE
 EXEC                                       DONE
 MULTI                                      DONE
-UNWATCH                                    Discard
-WATCH key [key ...]                        Discard
+UNWATCH                                    DONE
+WATCH key [key ...]                        DONE
 
 EVAL script numkeys key [key ...] arg      NotYet
 EVALSHA sha1 numkeys key [key ...] arg     NotYet

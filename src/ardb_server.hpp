@@ -41,21 +41,30 @@ namespace ardb
 			std::string logfile;
 			ArdbServerConfig() :
 					daemonize(false), listen_port(0), unixsocketperm(755), max_clients(
-							10000), tcp_keepalive(0), slowlog_log_slower_than(
-							10000), slowlog_max_len(128), batch_write_enable(
-							true), batch_flush_period(1), checkpoint_interval(2)
+					        10000), tcp_keepalive(0), slowlog_log_slower_than(
+					        10000), slowlog_max_len(128), batch_write_enable(
+					        true), batch_flush_period(1), checkpoint_interval(2)
 			{
 			}
 	};
 
+	typedef std::deque<RedisCommandFrame> TransactionCommandQueue;
 	struct ArdbConnContext
 	{
 			DBID currentDB;
 			Channel* conn;
 			RedisReply reply;
+			bool in_transaction;
+			bool fail_transc;
+			TransactionCommandQueue* transaction_cmds;
 			ArdbConnContext() :
-					currentDB("0"), conn(NULL)
+					currentDB("0"), conn(NULL), in_transaction(false), fail_transc(
+					        false), transaction_cmds(NULL)
 			{
+			}
+			~ArdbConnContext()
+			{
+				DELETE(transaction_cmds);
 			}
 	};
 
@@ -144,7 +153,7 @@ namespace ardb
 			Ardb* m_db;
 			KeyValueEngineFactory* m_engine;
 			typedef int (ArdbServer::*RedisCommandHandler)(ArdbConnContext&,
-					ArgumentArray&);
+			        ArgumentArray&);
 
 			struct RedisCommandHandlerSetting
 			{
@@ -152,7 +161,7 @@ namespace ardb
 					RedisCommandHandler handler;
 					int min_arity;
 					int max_arity;
-					int read_write_cmd;  //0:read 1:write 2:unknown
+					int read_write_cmd; //0:read 1:write 2:unknown
 			};
 			typedef btree::btree_map<std::string, RedisCommandHandlerSetting> RedisCommandHandlerSettingTable;
 			typedef btree::btree_set<DBID> DBIDSet;
@@ -164,10 +173,9 @@ namespace ardb
 			DBIDSet m_period_batch_dbids;
 
 			RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(
-					std::string& cmd);
+			        std::string& cmd);
 			void ProcessRedisCommand(ArdbConnContext& ctx,
-					RedisCommandFrame& cmd);
-
+			        RedisCommandFrame& cmd);
 
 			friend class ReplicationService;
 			void Run();
@@ -186,6 +194,12 @@ namespace ardb
 			int SlowLog(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Client(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Keys(ArdbConnContext& ctx, ArgumentArray& cmd);
+
+			int Multi(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Discard(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Exec(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Watch(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int UnWatch(ArdbConnContext& ctx, ArgumentArray& cmd);
 
 			int Ping(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Echo(ArdbConnContext& ctx, ArgumentArray& cmd);
@@ -298,7 +312,7 @@ namespace ardb
 			Timer& GetTimer();
 		public:
 			static int ParseConfig(const Properties& props,
-					ArdbServerConfig& cfg);
+			        ArdbServerConfig& cfg);
 			ArdbServer();
 			int Start(const Properties& props);
 			~ArdbServer();

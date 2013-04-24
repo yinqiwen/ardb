@@ -367,5 +367,15 @@ namespace ardb
 		return 0;
 	}
 
+	int Ardb::Watch(const DBID& db, const Slice& key, KeyWatcher* watcher)
+	{
+		return 0;
+	}
+	int Ardb::UnWatch(const DBID& db, const Slice& key, KeyWatcher* watcher)
+	{
+		return 0;
+	}
+
+
 }
 

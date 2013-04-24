@@ -37,7 +37,7 @@ UTIL_VPATH=./util ./util/exception
 UTIL_CPPFILES := $(foreach dir, $(UTIL_VPATH), $(wildcard $(dir)/*.cpp))
 UTIL_OBJECTS := $(patsubst %.cpp, %.o, $(UTIL_CPPFILES)) ./util/sha1.o
 CORE_OBJECTS := ardb.o ardb_data.o hash.o kv.o lists.o logger.o sets.o \
-                zsets.o strings.o transactions.o table.o sort.o\
+                zsets.o strings.o  table.o sort.o\
                 $(UTIL_OBJECTS)
 
 LEVELDB_ENGINE :=  engine/leveldb_engine.o       

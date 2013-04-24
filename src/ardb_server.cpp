@@ -130,6 +130,11 @@ namespace ardb
 	{
 		struct RedisCommandHandlerSetting settingTable[] = {
 		        { "ping",&ArdbServer::Ping, 0, 0, 0 },
+		        { "multi",&ArdbServer::Multi, 0, 0, 1 },
+		        { "discard",&ArdbServer::Discard, 0, 0, 1 },
+		        { "exec",&ArdbServer::Exec, 0, 0, 1 },
+		        { "watch",&ArdbServer::Watch, 0, -1, 1 },
+		        { "unwatch",&ArdbServer::UnWatch, 0, 0, 1 },
 		        { "info", &ArdbServer::Info, 0, 1, 0 },
 		        { "save", &ArdbServer::Save, 0, 0, 0 },
 		        { "bgsave", &ArdbServer::BGSave, 0, 0, 0 },
@@ -256,6 +261,66 @@ namespace ardb
 	{
 
 	}
+
+	int ArdbServer::Multi(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		ctx.in_transaction = true;
+		if(NULL == ctx.transaction_cmds)
+		{
+			ctx.transaction_cmds = new TransactionCommandQueue;
+		}
+		fill_status_reply(ctx.reply, "OK");
+		return 0;
+	}
+
+	int ArdbServer::Discard(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		ctx.in_transaction = false;
+		DELETE(ctx.transaction_cmds);
+	    fill_status_reply(ctx.reply, "OK");
+		return 0;
+	}
+
+	int ArdbServer::Exec(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		if(ctx.fail_transc)
+		{
+			ctx.reply.type = REDIS_REPLY_NIL;
+		    return 0;
+		}
+		RedisReply r;
+		r.type = REDIS_REPLY_ARRAY;
+		if(NULL != ctx.transaction_cmds)
+		{
+			for(uint32 i = 0; i < ctx.transaction_cmds->size(); i++)
+			{
+				ProcessRedisCommand(ctx, ctx.transaction_cmds->at(i));
+				r.elements.push_back(ctx.reply);
+			}
+		}
+		ctx.reply = r;
+		ctx.in_transaction = false;
+		DELETE(ctx.transaction_cmds);
+		return 0;
+	}
+
+	static int watched_key_updated(uint32 watchID, const Slice& key, void* arg)
+	{
+		ArdbConnContext* ctx = (ArdbConnContext*)arg;
+		ctx->fail_transc = true;
+	}
+
+	int ArdbServer::Watch(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		fill_status_reply(ctx.reply, "OK");
+		return 0;
+	}
+	int ArdbServer::UnWatch(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		fill_status_reply(ctx.reply, "OK");
+		return 0;
+	}
+
 	int ArdbServer::Keys(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
 		StringSet keys;
@@ -1461,7 +1526,7 @@ namespace ardb
 			return 0;
 		}
 		int count = 0;
-		m_db->Multi(ctx.currentDB);
+
 		for (uint32 i = 1; i < cmd.size(); i += 2)
 		{
 			double score;
@@ -1469,12 +1534,10 @@ namespace ardb
 			{
 				fill_error_reply(ctx.reply,
 				        "ERR value is not a float or out of range");
-				m_db->Discard(ctx.currentDB);
 				return 0;
 			}
 			count += m_db->ZAdd(ctx.currentDB, cmd[0], score, cmd[i + 1]);
 		}
-		m_db->Exec(ctx.currentDB);
 		fill_int_reply(ctx.reply, count);
 		return 0;
 	}
@@ -1998,8 +2061,14 @@ namespace ardb
 	{
 		ctx.reply.Clear();
 		std::string& cmd = args.GetCommand();
-		int ret = 0;
 		lower_string(cmd);
+		if(ctx.in_transaction && NULL != ctx.transaction_cmds && (cmd != "exec" && cmd != "discard"))
+		{
+			ctx.transaction_cmds->push_back(args);
+			fill_status_reply(ctx.reply, "QUEUED");
+			return;
+		}
+		int ret = 0;
 		RedisCommandHandlerSetting* setting = FindRedisCommandHandlerSetting(
 		        cmd);
 		if (NULL != setting)
@@ -2077,6 +2146,8 @@ namespace ardb
 		DELETE(handler);
 		handler = pipeline->Get("encoder");
 		DELETE(handler);
+		handler = pipeline->Get("handler");
+		DELETE(handler);
 	}
 
 	static void daemonize(void)
@@ -2110,7 +2181,7 @@ namespace ardb
 	{
 		DBIDSet::iterator it = m_period_batch_dbids.begin();
 		while(it != m_period_batch_dbids.end()){
-			m_db->Exec(*it);
+			m_db->GetDB(*it)->CommitBatchWrite();
 			it++;
 		}
 		m_period_batch_dbids.clear();
@@ -2119,7 +2190,7 @@ namespace ardb
 	void ArdbServer::InsertBatchWriteDBID(const DBID& id){
 		bool isnew = m_period_batch_dbids.insert(id).second;
 		if(isnew){
-			m_db->Multi(id);
+			m_db->GetDB(id)->BeginBatchWrite();
 		}
 	}
 
@@ -2178,7 +2249,7 @@ namespace ardb
 						server(s)
 				{
 				}
-		} handler(this);
+		};
 
 		if (!m_cfg.listen_host.empty())
 		{
@@ -2192,7 +2263,7 @@ namespace ardb
 				goto sexit;
 			}
 			server->Configure(ops);
-			server->SetChannelPipelineInitializor(ardb_pipeline_init, &handler);
+			server->SetChannelPipelineInitializor(ardb_pipeline_init, new RedisRequestHandler(this));
 			server->SetChannelPipelineFinalizer(ardb_pipeline_finallize, NULL);
 		}
 		if (!m_cfg.listen_unix_path.empty())
@@ -2206,7 +2277,7 @@ namespace ardb
 				goto sexit;
 			}
 			server->Configure(ops);
-			server->SetChannelPipelineInitializor(ardb_pipeline_init, &handler);
+			server->SetChannelPipelineInitializor(ardb_pipeline_init, new RedisRequestHandler(this));
 			server->SetChannelPipelineFinalizer(ardb_pipeline_finallize, NULL);
 			chmod(m_cfg.listen_unix_path.c_str(), m_cfg.unixsocketperm);
 		}

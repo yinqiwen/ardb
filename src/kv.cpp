@@ -12,7 +12,7 @@ namespace ardb
 {
 
 	int Ardb::GetValue(const DBID& db, const KeyObject& key, ValueObject* v,
-			uint64* expire)
+	        uint64* expire)
 	{
 //		if(NULL != v)
 //		{
@@ -44,7 +44,8 @@ namespace ardb
 				{
 					GetDB(db)->Del(k);
 					return ERR_NOT_EXIST;
-				} else
+				}
+				else
 				{
 					return ARDB_OK;
 				}
@@ -63,7 +64,7 @@ namespace ardb
 	}
 
 	int Ardb::SetValue(const DBID& db, KeyObject& key, ValueObject& value,
-			uint64 expire)
+	        uint64 expire)
 	{
 		static Buffer keybuf;
 		keybuf.Clear();
@@ -128,7 +129,8 @@ namespace ardb
 			{
 				smart_fill_value(*vit, valueobject);
 				SetValue(db, keyobject, valueobject);
-			} else
+			}
+			else
 			{
 				guard.MarkFailed();
 				return -1;
@@ -140,7 +142,7 @@ namespace ardb
 	}
 
 	int Ardb::Set(const DBID& db, const Slice& key, const Slice& value, int ex,
-			int px, int nxx)
+	        int px, int nxx)
 	{
 		KeyObject k(key);
 		if (-1 == nxx)
@@ -149,7 +151,8 @@ namespace ardb
 			{
 				return ERR_KEY_EXIST;
 			}
-		} else if (1 == nxx)
+		}
+		else if (1 == nxx)
 		{
 			if (0 != GetValue(db, k, NULL))
 			{
@@ -184,12 +187,12 @@ namespace ardb
 	}
 
 	int Ardb::SetEx(const DBID& db, const Slice& key, const Slice& value,
-			uint32_t secs)
+	        uint32_t secs)
 	{
 		return PSetEx(db, key, value, secs * 1000);
 	}
 	int Ardb::PSetEx(const DBID& db, const Slice& key, const Slice& value,
-			uint32_t ms)
+	        uint32_t ms)
 	{
 		KeyObject keyobject(key);
 		ValueObject valueobject;
