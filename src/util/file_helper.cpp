@@ -151,6 +151,18 @@ namespace ardb
 		return n;
 	}
 
+	int file_write_content(const std::string& path, std::string& content)
+	{
+		FILE *fp;
+		if ((fp = fopen(path.c_str(), "wb")) == NULL)
+		{
+			return -1;
+		}
+		fwrite(content.c_str(), 1, content.size(), fp);
+		fclose(fp);
+		return 0;
+	}
+
 	int file_read_full(const std::string& path, Buffer& content)
 	{
 		FILE *fp;
@@ -235,7 +247,7 @@ namespace ardb
 		uint32 offset = 0;
 		for (uint32 i = 0; i < 20; i++)
 		{
-			int ret = sprintf(result + offset, "%02x", hash[i]);
+			int ret = sprintf(result + offset, "%02x", hashstr[i]);
 			offset += ret;
 		}
 		hash = result;

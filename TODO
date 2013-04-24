@@ -132,7 +132,7 @@ QUIT                                       DONE
 SELECT index                               DONE
 
 BGREWRITEAOF                               Discard
-BGSAVE                                     Discard
+BGSAVE                                     DONE
 CLIENT KILL ip:port                        DONE
 CLIENT LIST                                DONE
 CLIENT GETNAME                             DONE
@@ -140,18 +140,18 @@ CLIENT SETNAME connection-name             DONE
 CONFIG GET parameter                       DONE
 CONFIG SET parameter value                 DONE
 CONFIG RESETSTAT                           DONE
-DBSIZE                                     DONE(return disk space)
+DBSIZE                                     DONE(return disk used space)
 DEBUG OBJECT key                           NotYet
 DEBUG SEGFAULT                             NotYet
 FLUSHALL                                   DONE
 FLUSHDB                                    DONE
 INFO [section]                             DONE
-LASTSAVE                                   Discard
+LASTSAVE                                   DONE
 MONITOR                                    NotYet
-SAVE                                       Discard
+SAVE                                       DONE
 SHUTDOWN [NOSAVE] [SAVE]                   DONE
 SLAVEOF host port                          NotYet
 SLOWLOG subcommand [argument]              DONE
-SYNC                                       Discard
+SYNC                                       NotYet
 TIME                                       DONE
 

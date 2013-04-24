@@ -25,6 +25,7 @@ namespace ardb
 	int get_n_bytes_readable_on_socket(int fd);
 
 	int file_read_full(const std::string& path, Buffer& content);
+	int file_write_content(const std::string& path, std::string& content);
 
 	int64 file_size(const std::string& path);
 

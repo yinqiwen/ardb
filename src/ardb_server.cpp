@@ -126,11 +126,14 @@ namespace ardb
 
 	ArdbServer::ArdbServer() :
 			m_service(NULL), m_db(NULL), m_engine(NULL), m_slowlog_handler(
-			        m_cfg)
+			        m_cfg),m_repli_serv(this)
 	{
 		struct RedisCommandHandlerSetting settingTable[] = {
 		        { "ping",&ArdbServer::Ping, 0, 0, 0 },
 		        { "info", &ArdbServer::Info, 0, 1, 0 },
+		        { "save", &ArdbServer::Save, 0, 0, 0 },
+		        { "bgsave", &ArdbServer::BGSave, 0, 0, 0 },
+		        { "lastsave", &ArdbServer::LastSave, 0, 0, 0 },
 		        { "slowlog", &ArdbServer::SlowLog, 1, 2, 0 },
 		        { "dbsize",&ArdbServer::DBSize, 0, 0, 0 },
 		        { "config",&ArdbServer::Config, 1, 3, 0 },
@@ -140,7 +143,7 @@ namespace ardb
 		        { "time", &ArdbServer::Time, 0, 0, 0 },
 		        { "echo", &ArdbServer::Echo,1, 1, 0 },
 		        { "quit", &ArdbServer::Quit, 0, 0, 0 },
-		        {"shutdown", &ArdbServer::Shutdown, 0, 1, 0 },
+		        { "shutdown", &ArdbServer::Shutdown, 0, 1, 0 },
 		        { "slaveof", &ArdbServer::Slaveof, 2, 2, 0 },
 		        { "sync", &ArdbServer::Sync, 0, 2, 0 },
 		        { "select",&ArdbServer::Select, 1, 1, 1 },
@@ -288,6 +291,32 @@ namespace ardb
 	{
 		m_db->TClear(ctx.currentDB, cmd[0]);
 		fill_status_reply(ctx.reply, "OK");
+		return 0;
+	}
+
+	int ArdbServer::Save(ArdbConnContext& ctx, ArgumentArray& cmd){
+		int ret = m_repli_serv.Save();
+		if(ret == 0){
+			fill_status_reply(ctx.reply, "OK");
+		}else{
+			fill_error_reply(ctx.reply, "ERR Save error");
+		}
+		return 0;
+	}
+
+	int ArdbServer::LastSave(ArdbConnContext& ctx, ArgumentArray& cmd){
+		int ret = m_repli_serv.LastSave();
+		fill_int_reply(ctx.reply, ret);
+		return 0;
+	}
+
+	int ArdbServer::BGSave(ArdbConnContext& ctx, ArgumentArray& cmd){
+		int ret = m_repli_serv.BGSave();
+		if(ret == 0){
+			fill_status_reply(ctx.reply, "OK");
+		}else{
+			fill_error_reply(ctx.reply, "ERR Save error");
+		}
 		return 0;
 	}
 

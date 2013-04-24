@@ -13,6 +13,7 @@
 #include "channel/all_includes.hpp"
 #include "util/config_helper.hpp"
 #include "ardb.hpp"
+#include "replication.hpp"
 
 using namespace ardb::codec;
 namespace ardb
@@ -158,6 +159,7 @@ namespace ardb
 			RedisCommandHandlerSettingTable m_handler_table;
 			SlowLogHandler m_slowlog_handler;
 			ClientConnHolder m_clients_holder;
+			ReplicationService m_repli_serv;
 
 			DBIDSet m_period_batch_dbids;
 
@@ -175,6 +177,9 @@ namespace ardb
 			int Time(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int FlushDB(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int FlushAll(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Save(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int LastSave(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int BGSave(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Info(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int DBSize(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Config(ArdbConnContext& ctx, ArgumentArray& cmd);
