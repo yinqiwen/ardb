@@ -1431,6 +1431,7 @@ namespace ardb
 			        "ERR wrong number of arguments for ZAdd");
 			return 0;
 		}
+		int count = 0;
 		m_db->Multi(ctx.currentDB);
 		for (uint32 i = 1; i < cmd.size(); i += 2)
 		{
@@ -1442,9 +1443,10 @@ namespace ardb
 				m_db->Discard(ctx.currentDB);
 				return 0;
 			}
-			m_db->ZAdd(ctx.currentDB, cmd[0], score, cmd[i + 1]);
+			count += m_db->ZAdd(ctx.currentDB, cmd[0], score, cmd[i + 1]);
 		}
 		m_db->Exec(ctx.currentDB);
+		fill_int_reply(ctx.reply, count);
 		return 0;
 	}
 
