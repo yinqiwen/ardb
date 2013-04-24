@@ -2101,7 +2101,11 @@ namespace ardb
 	int ArdbServer::Start(const Properties& props)
 	{
 		m_cfg_props = props;
-		ParseConfig(props, m_cfg);
+		if(ParseConfig(props, m_cfg) < 0)
+		{
+			ERROR_LOG("Failed to parse configurations.");
+			return -1;
+		}
 		if (m_cfg.daemonize)
 		{
 			daemonize();
