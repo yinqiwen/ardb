@@ -194,7 +194,7 @@ namespace ardb
 	}
 
 	Ardb::Ardb(KeyValueEngineFactory* engine) :
-			m_engine_factory(engine)
+			m_engine_factory(engine),m_key_watcher(NULL)
 	{
 	}
 
@@ -340,6 +340,9 @@ namespace ardb
 	{
 		m_engine_factory->DestroyDB(GetDB(db));
 		m_engine_table.erase(db);
+		if(NULL != m_key_watcher){
+			m_key_watcher->OnAllKeyUpdated(db);
+		}
 		return 0;
 	}
 
@@ -348,6 +351,9 @@ namespace ardb
 		KeyValueEngineTable::iterator it = m_engine_table.begin();
 		while (it != m_engine_table.end())
 		{
+			if(NULL != m_key_watcher){
+				m_key_watcher->OnAllKeyUpdated(it->first);
+			}
 			m_engine_factory->DestroyDB(it->second);
 			it++;
 		}
@@ -366,16 +372,5 @@ namespace ardb
 		m_engine_table.clear();
 		return 0;
 	}
-
-	int Ardb::Watch(const DBID& db, const Slice& key, KeyWatcher* watcher)
-	{
-		return 0;
-	}
-	int Ardb::UnWatch(const DBID& db, const Slice& key, KeyWatcher* watcher)
-	{
-		return 0;
-	}
-
-
 }
 

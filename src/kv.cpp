@@ -66,6 +66,10 @@ namespace ardb
 	int Ardb::SetValue(const DBID& db, KeyObject& key, ValueObject& value,
 	        uint64 expire)
 	{
+		if(NULL != m_key_watcher)
+		{
+			m_key_watcher->OnKeyUpdated(db, key.key);
+		}
 		static Buffer keybuf;
 		keybuf.Clear();
 		keybuf.EnsureWritableBytes(key.key.size() + 16);
@@ -85,6 +89,10 @@ namespace ardb
 
 	int Ardb::DelValue(const DBID& db, KeyObject& key)
 	{
+		if(NULL != m_key_watcher)
+		{
+			m_key_watcher->OnKeyUpdated(db, key.key);
+		}
 		Buffer keybuf(key.key.size() + 16);
 		encode_key(keybuf, key);
 		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());

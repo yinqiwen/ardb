@@ -108,28 +108,13 @@ namespace ardb
 	struct KeyWatcher
 	{
 			virtual int OnKeyUpdated(const DBID& db, const Slice& key) = 0;
+			virtual int OnAllKeyUpdated(const DBID& dbid) = 0;
 			virtual ~KeyWatcher()
 			{
 			}
 	};
 
-	struct WatchKey
-	{
-			DBID db;
-			std::string key;
-			inline bool operator<(const WatchKey& other) const
-			{
-				if (db > other.db)
-				{
-					return false;
-				}
-				if (db == other.db)
-				{
-					return key < other.key;
-				}
-				return true;
-			}
-	};
+
 
 	class Ardb
 	{
@@ -139,9 +124,7 @@ namespace ardb
 			KeyValueEngineFactory* m_engine_factory;
 			typedef std::map<DBID, KeyValueEngine*> KeyValueEngineTable;
 			KeyValueEngineTable m_engine_table;
-//			typedef std::set<KeyWatcher*> KeyWatcherSet;
-//			typedef std::map<WatchKey, KeyWatcherSet> KeyWatcherTable;
-//			KeyWatcherTable m_key_watch_table;
+			KeyWatcher* m_key_watcher;
 			int SetExpiration(const DBID& db, const Slice& key,
 			        uint64_t expire);
 
@@ -390,9 +373,6 @@ namespace ardb
 			int TClear(const DBID& db, const Slice& tableName);
 			int TCount(const DBID& db, const Slice& tableName);
 
-			int Watch(const DBID& db, const Slice& key, KeyWatcher* watcher);
-			int UnWatch(const DBID& db, const Slice& key, KeyWatcher* watcher);
-
 			int Type(const DBID& db, const Slice& key);
 			int Sort(const DBID& db, const Slice& key, const StringArray& args,
 			        ValueArray& values);
@@ -402,6 +382,10 @@ namespace ardb
 
 			void PrintDB(const DBID& db);
 			KeyValueEngine* GetDB(const DBID& db);
+			void RegisterKeyWatcher(KeyWatcher* w)
+			{
+				m_key_watcher = w;
+			}
 
 	};
 }

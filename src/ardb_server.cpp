@@ -126,7 +126,7 @@ namespace ardb
 
 	ArdbServer::ArdbServer() :
 			m_service(NULL), m_db(NULL), m_engine(NULL), m_slowlog_handler(
-			        m_cfg),m_repli_serv(this)
+			        m_cfg),m_repli_serv(this),m_current_ctx(NULL)
 	{
 		struct RedisCommandHandlerSetting settingTable[] = {
 		        { "ping",&ArdbServer::Ping, 0, 0, 0 },
@@ -283,41 +283,131 @@ namespace ardb
 
 	int ArdbServer::Exec(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
-		if(ctx.fail_transc)
+		if(ctx.fail_transc || !ctx.in_transaction)
 		{
 			ctx.reply.type = REDIS_REPLY_NIL;
-		    return 0;
-		}
-		RedisReply r;
-		r.type = REDIS_REPLY_ARRAY;
-		if(NULL != ctx.transaction_cmds)
-		{
-			for(uint32 i = 0; i < ctx.transaction_cmds->size(); i++)
+		}else{
+			RedisReply r;
+			r.type = REDIS_REPLY_ARRAY;
+			if(NULL != ctx.transaction_cmds)
 			{
-				ProcessRedisCommand(ctx, ctx.transaction_cmds->at(i));
-				r.elements.push_back(ctx.reply);
+				for(uint32 i = 0; i < ctx.transaction_cmds->size(); i++)
+				{
+					DoRedisCommand(ctx, ctx.transaction_cmds->at(i));
+					r.elements.push_back(ctx.reply);
+				}
 			}
+			ctx.reply = r;
 		}
-		ctx.reply = r;
 		ctx.in_transaction = false;
 		DELETE(ctx.transaction_cmds);
+		ClearWatchKeys(ctx);
 		return 0;
 	}
 
-	static int watched_key_updated(uint32 watchID, const Slice& key, void* arg)
+
+	void ArdbServer::ClearWatchKeys(ArdbConnContext& ctx)
 	{
-		ArdbConnContext* ctx = (ArdbConnContext*)arg;
-		ctx->fail_transc = true;
+		if(NULL != ctx.watch_key_set)
+		{
+			WatchKeySet::iterator it = ctx.watch_key_set->begin();
+			while(it != ctx.watch_key_set->end()){
+				WatchKeyContextTable::iterator found = m_watch_context_table.find(*it);
+				if(found != m_watch_context_table.end())
+				{
+					ContextList& list = found->second;
+					ContextList::iterator lit = list.begin();
+					while(lit != list.end()){
+					    if(*lit == &ctx){
+						    list.erase(lit);
+						    break;
+					    }
+					    lit++;
+				    }
+					if(list.empty()){
+						m_watch_context_table.erase(found);
+					}
+			    }
+		        it++;
+		    }
+			if(m_watch_context_table.empty()){
+				m_db->RegisterKeyWatcher(NULL);
+			}
+		}
+		DELETE(ctx.watch_key_set);
+	}
+
+	int ArdbServer::OnKeyUpdated(const DBID& dbid, const Slice& key)
+	{
+		if(!m_watch_context_table.empty()){
+			WatchKey k(dbid, std::string(key.data(), key.size()));
+			WatchKeyContextTable::iterator found = m_watch_context_table.find(k);
+			if(found != m_watch_context_table.end()){
+				ContextList& list = found->second;
+				ContextList::iterator lit = list.begin();
+				while(lit != list.end()){
+					if(*lit != m_current_ctx){
+					    (*lit)->fail_transc = true;
+					}
+				    lit++;
+				}
+			}
+		}
+		return 0;
+	}
+	int ArdbServer::OnAllKeyUpdated(const DBID& dbid)
+	{
+		WatchKeyContextTable::iterator it = m_watch_context_table.begin();
+		while(it != m_watch_context_table.end())
+		{
+			if(it->first.db == dbid)
+			{
+				OnKeyUpdated(it->first.db, it->first.key);
+			}
+			it++;
+		}
+		return 0;
 	}
 
 	int ArdbServer::Watch(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
 		fill_status_reply(ctx.reply, "OK");
+		m_db->RegisterKeyWatcher(this);
+		if(NULL == ctx.watch_key_set)
+		{
+			ctx.watch_key_set = new WatchKeySet;
+		}
+		ArgumentArray::iterator it = cmd.begin();
+		while(it != cmd.end())
+		{
+			WatchKey k(ctx.currentDB, *it);
+			ctx.watch_key_set->insert(k);
+			WatchKeyContextTable::iterator found = m_watch_context_table.find(k);
+			if(found  == m_watch_context_table.end())
+			{
+				ContextList list;
+				list.push_back(&ctx);
+				m_watch_context_table.insert(WatchKeyContextTable::value_type(k, list));
+			}else{
+				ContextList& list = found->second;
+				ContextList::iterator lit = list.begin();
+				while(lit != list.end()){
+					if(*lit == &ctx){
+					    list.erase(lit);
+						break;
+					}
+					lit++;
+				}
+				list.push_back(&ctx);
+			}
+			it++;
+		}
 		return 0;
 	}
 	int ArdbServer::UnWatch(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
 		fill_status_reply(ctx.reply, "OK");
+		ClearWatchKeys(ctx);
 		return 0;
 	}
 
@@ -2056,18 +2146,40 @@ namespace ardb
 		return NULL;
 	}
 
+	static bool is_transaction_cmd(const std::string& cmd){
+		return cmd == "exec" || cmd == "multi" || cmd == "discard" || cmd == "watch" || cmd == "unwatch";
+	}
+
 	void ArdbServer::ProcessRedisCommand(ArdbConnContext& ctx,
+				        RedisCommandFrame& args)
+	{
+		m_current_ctx = &ctx;
+		std::string& cmd = args.GetCommand();
+		lower_string(cmd);
+		if(ctx.in_transaction && NULL != ctx.transaction_cmds && !is_transaction_cmd(cmd))
+		{
+			ctx.reply.Clear();
+			ctx.transaction_cmds->push_back(args);
+			fill_status_reply(ctx.reply, "QUEUED");
+			ctx.conn->Write(ctx.reply);
+			return;
+		}
+		int ret = DoRedisCommand(ctx, args);
+		if (ctx.reply.type != 0)
+		{
+			ctx.conn->Write(ctx.reply);
+		}
+		if (ret < 0)
+		{
+			ctx.conn->Close();
+		}
+	}
+
+	int ArdbServer::DoRedisCommand(ArdbConnContext& ctx,
 	        RedisCommandFrame& args)
 	{
 		ctx.reply.Clear();
 		std::string& cmd = args.GetCommand();
-		lower_string(cmd);
-		if(ctx.in_transaction && NULL != ctx.transaction_cmds && (cmd != "exec" && cmd != "discard"))
-		{
-			ctx.transaction_cmds->push_back(args);
-			fill_status_reply(ctx.reply, "QUEUED");
-			return;
-		}
 		int ret = 0;
 		RedisCommandHandlerSetting* setting = FindRedisCommandHandlerSetting(
 		        cmd);
@@ -2120,24 +2232,17 @@ namespace ardb
 			fill_error_reply(ctx.reply, "ERR unknown command '%s'",
 			        cmd.c_str());
 		}
-
-		if (ctx.reply.type != 0)
-		{
-			ctx.conn->Write(ctx.reply);
-		}
-		if (ret < 0)
-		{
-			ctx.conn->Close();
-		}
+		return ret;
 	}
+
+	typedef ChannelUpstreamHandler<RedisCommandFrame>* handler_creater();
 
 	static void ardb_pipeline_init(ChannelPipeline* pipeline, void* data)
 	{
-		ChannelUpstreamHandler<RedisCommandFrame>* handler =
-		        (ChannelUpstreamHandler<RedisCommandFrame>*) data;
+		ArdbServer* serv = (ArdbServer*) data;
 		pipeline->AddLast("decoder", new RedisCommandDecoder);
 		pipeline->AddLast("encoder", new RedisReplyEncoder);
-		pipeline->AddLast("handler", handler);
+		pipeline->AddLast("handler", new RedisRequestHandler(serv));
 	}
 
 	static void ardb_pipeline_finallize(ChannelPipeline* pipeline, void* data)
@@ -2148,6 +2253,18 @@ namespace ardb
 		DELETE(handler);
 		handler = pipeline->Get("handler");
 		DELETE(handler);
+	}
+
+	void RedisRequestHandler::MessageReceived(ChannelHandlerContext& ctx,
+			MessageEvent<RedisCommandFrame>& e)
+	{
+		ardbctx.conn = ctx.GetChannel();
+		server->ProcessRedisCommand(ardbctx, *(e.GetMessage()));
+	}
+	void RedisRequestHandler::ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e)
+	{
+		server->m_clients_holder.EraseConn(ctx.GetChannel());
+		server->ClearWatchKeys(ardbctx);
 	}
 
 	static void daemonize(void)
@@ -2229,27 +2346,6 @@ namespace ardb
 				m_cfg.listen_port = 6379;
 			}
 		}
-		struct RedisRequestHandler: public ChannelUpstreamHandler<
-		        RedisCommandFrame>
-		{
-				ArdbServer* server;
-				ArdbConnContext ardbctx;
-				void MessageReceived(ChannelHandlerContext& ctx,
-				        MessageEvent<RedisCommandFrame>& e)
-				{
-					ardbctx.conn = ctx.GetChannel();
-					server->ProcessRedisCommand(ardbctx, *(e.GetMessage()));
-				}
-				void ChannelClosed(ChannelHandlerContext& ctx,
-				        ChannelStateEvent& e)
-				{
-					server->m_clients_holder.EraseConn(ctx.GetChannel());
-				}
-				RedisRequestHandler(ArdbServer* s) :
-						server(s)
-				{
-				}
-		};
 
 		if (!m_cfg.listen_host.empty())
 		{
@@ -2263,7 +2359,7 @@ namespace ardb
 				goto sexit;
 			}
 			server->Configure(ops);
-			server->SetChannelPipelineInitializor(ardb_pipeline_init, new RedisRequestHandler(this));
+			server->SetChannelPipelineInitializor(ardb_pipeline_init, this);
 			server->SetChannelPipelineFinalizer(ardb_pipeline_finallize, NULL);
 		}
 		if (!m_cfg.listen_unix_path.empty())
@@ -2277,7 +2373,7 @@ namespace ardb
 				goto sexit;
 			}
 			server->Configure(ops);
-			server->SetChannelPipelineInitializor(ardb_pipeline_init, new RedisRequestHandler(this));
+			server->SetChannelPipelineInitializor(ardb_pipeline_init, this);
 			server->SetChannelPipelineFinalizer(ardb_pipeline_finallize, NULL);
 			chmod(m_cfg.listen_unix_path.c_str(), m_cfg.unixsocketperm);
 		}
@@ -2296,5 +2392,6 @@ namespace ardb
 		ArdbLogger::DestroyDefaultLogger();
 		return 0;
 	}
+
 }
 

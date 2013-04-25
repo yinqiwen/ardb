@@ -41,14 +41,41 @@ namespace ardb
 			std::string logfile;
 			ArdbServerConfig() :
 					daemonize(false), listen_port(0), unixsocketperm(755), max_clients(
-					        10000), tcp_keepalive(0), slowlog_log_slower_than(
-					        10000), slowlog_max_len(128), batch_write_enable(
-					        true), batch_flush_period(1), checkpoint_interval(2)
+							10000), tcp_keepalive(0), slowlog_log_slower_than(
+							10000), slowlog_max_len(128), batch_write_enable(
+							true), batch_flush_period(1), checkpoint_interval(2)
 			{
 			}
 	};
 
+	struct WatchKey
+	{
+			DBID db;
+			std::string key;
+			WatchKey()
+			{
+			}
+			WatchKey(const DBID& id, const std::string& k) :
+					db(id), key(k)
+			{
+			}
+			inline bool operator<(const WatchKey& other) const
+			{
+				if (db > other.db)
+				{
+					return false;
+				}
+				if (db == other.db)
+				{
+					return key < other.key;
+				}
+				return true;
+			}
+	};
+
 	typedef std::deque<RedisCommandFrame> TransactionCommandQueue;
+	typedef std::set<WatchKey> WatchKeySet;
+
 	struct ArdbConnContext
 	{
 			DBID currentDB;
@@ -57,14 +84,16 @@ namespace ardb
 			bool in_transaction;
 			bool fail_transc;
 			TransactionCommandQueue* transaction_cmds;
+			WatchKeySet* watch_key_set;
 			ArdbConnContext() :
 					currentDB("0"), conn(NULL), in_transaction(false), fail_transc(
-					        false), transaction_cmds(NULL)
+							false), transaction_cmds(NULL), watch_key_set(NULL)
 			{
 			}
 			~ArdbConnContext()
 			{
 				DELETE(transaction_cmds);
+				DELETE(watch_key_set);
 			}
 	};
 
@@ -143,8 +172,22 @@ namespace ardb
 			}
 	};
 
+	class ArdbServer;
+	struct RedisRequestHandler: public ChannelUpstreamHandler<RedisCommandFrame>
+	{
+			ArdbServer* server;
+			ArdbConnContext ardbctx;
+			void MessageReceived(ChannelHandlerContext& ctx,
+					MessageEvent<RedisCommandFrame>& e);
+			void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e);
+			RedisRequestHandler(ArdbServer* s) :
+					server(s)
+			{
+			}
+	};
+
 	class ReplicationService;
-	class ArdbServer: public Runnable
+	class ArdbServer: public Runnable, public KeyWatcher
 	{
 		private:
 			ArdbServerConfig m_cfg;
@@ -153,7 +196,7 @@ namespace ardb
 			Ardb* m_db;
 			KeyValueEngineFactory* m_engine;
 			typedef int (ArdbServer::*RedisCommandHandler)(ArdbConnContext&,
-			        ArgumentArray&);
+					ArgumentArray&);
 
 			struct RedisCommandHandlerSetting
 			{
@@ -165,22 +208,32 @@ namespace ardb
 			};
 			typedef btree::btree_map<std::string, RedisCommandHandlerSetting> RedisCommandHandlerSettingTable;
 			typedef btree::btree_set<DBID> DBIDSet;
+			typedef std::list<ArdbConnContext*> ContextList;
+			typedef btree::btree_map<WatchKey, ContextList> WatchKeyContextTable;
+
 			RedisCommandHandlerSettingTable m_handler_table;
 			SlowLogHandler m_slowlog_handler;
 			ClientConnHolder m_clients_holder;
 			ReplicationService m_repli_serv;
 
 			DBIDSet m_period_batch_dbids;
+			WatchKeyContextTable m_watch_context_table;
+			ArdbConnContext* m_current_ctx;
 
 			RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(
-			        std::string& cmd);
+					std::string& cmd);
+			int DoRedisCommand(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			void ProcessRedisCommand(ArdbConnContext& ctx,
-			        RedisCommandFrame& cmd);
+					RedisCommandFrame& cmd);
 
 			friend class ReplicationService;
+			friend class RedisRequestHandler;
 			void Run();
 			void BatchWriteFlush();
 			void InsertBatchWriteDBID(const DBID& id);
+			int OnKeyUpdated(const DBID& dbid, const Slice& key);
+			int OnAllKeyUpdated(const DBID& dbid);
+			void ClearWatchKeys(ArdbConnContext& ctx);
 
 			int Time(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int FlushDB(ArdbConnContext& ctx, ArgumentArray& cmd);
@@ -312,7 +365,7 @@ namespace ardb
 			Timer& GetTimer();
 		public:
 			static int ParseConfig(const Properties& props,
-			        ArdbServerConfig& cfg);
+					ArdbServerConfig& cfg);
 			ArdbServer();
 			int Start(const Properties& props);
 			~ArdbServer();
