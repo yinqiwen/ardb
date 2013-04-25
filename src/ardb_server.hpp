@@ -205,6 +205,7 @@ namespace ardb
 					int min_arity;
 					int max_arity;
 					int read_write_cmd; //0:read 1:write 2:unknown
+					int tranction_queueable_cmd; //can be queued if transaction enable
 			};
 			typedef btree::btree_map<std::string, RedisCommandHandlerSetting> RedisCommandHandlerSettingTable;
 			typedef btree::btree_set<DBID> DBIDSet;
@@ -222,7 +223,7 @@ namespace ardb
 
 			RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(
 					std::string& cmd);
-			int DoRedisCommand(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int DoRedisCommand(ArdbConnContext& ctx, RedisCommandHandlerSetting* setting, RedisCommandFrame& cmd);
 			void ProcessRedisCommand(ArdbConnContext& ctx,
 					RedisCommandFrame& cmd);
 

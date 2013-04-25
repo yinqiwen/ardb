@@ -129,124 +129,124 @@ namespace ardb
 			        m_cfg),m_repli_serv(this),m_current_ctx(NULL)
 	{
 		struct RedisCommandHandlerSetting settingTable[] = {
-		        { "ping",&ArdbServer::Ping, 0, 0, 0 },
-		        { "multi",&ArdbServer::Multi, 0, 0, 1 },
-		        { "discard",&ArdbServer::Discard, 0, 0, 1 },
-		        { "exec",&ArdbServer::Exec, 0, 0, 1 },
-		        { "watch",&ArdbServer::Watch, 0, -1, 1 },
-		        { "unwatch",&ArdbServer::UnWatch, 0, 0, 1 },
-		        { "info", &ArdbServer::Info, 0, 1, 0 },
-		        { "save", &ArdbServer::Save, 0, 0, 0 },
-		        { "bgsave", &ArdbServer::BGSave, 0, 0, 0 },
-		        { "lastsave", &ArdbServer::LastSave, 0, 0, 0 },
-		        { "slowlog", &ArdbServer::SlowLog, 1, 2, 0 },
-		        { "dbsize",&ArdbServer::DBSize, 0, 0, 0 },
-		        { "config",&ArdbServer::Config, 1, 3, 0 },
-		        { "client",&ArdbServer::Client, 1, 3, 0 },
-		        { "flushdb",&ArdbServer::FlushDB, 0, 0, 1 },
-		        { "flushall",&ArdbServer::FlushAll, 0, 0, 1 },
-		        { "time", &ArdbServer::Time, 0, 0, 0 },
-		        { "echo", &ArdbServer::Echo,1, 1, 0 },
-		        { "quit", &ArdbServer::Quit, 0, 0, 0 },
-		        { "shutdown", &ArdbServer::Shutdown, 0, 1, 0 },
-		        { "slaveof", &ArdbServer::Slaveof, 2, 2, 0 },
-		        { "sync", &ArdbServer::Sync, 0, 2, 0 },
-		        { "select",&ArdbServer::Select, 1, 1, 1 },
+		        { "ping",&ArdbServer::Ping, 0, 0, 0, 1 },
+		        { "multi",&ArdbServer::Multi, 0, 0, 1, 0 },
+		        { "discard",&ArdbServer::Discard, 0, 0, 1, 0 },
+		        { "exec",&ArdbServer::Exec, 0, 0, 1, 0 },
+		        { "watch",&ArdbServer::Watch, 0, -1, 1, 0 },
+		        { "unwatch",&ArdbServer::UnWatch, 0, 0, 1, 0 },
+		        { "info", &ArdbServer::Info, 0, 1, 0, 1 },
+		        { "save", &ArdbServer::Save, 0, 0, 0, 1 },
+		        { "bgsave", &ArdbServer::BGSave, 0, 0, 0, 1 },
+		        { "lastsave", &ArdbServer::LastSave, 0, 0, 0, 1 },
+		        { "slowlog", &ArdbServer::SlowLog, 1, 2, 0, 1 },
+		        { "dbsize",&ArdbServer::DBSize, 0, 0, 0, 1 },
+		        { "config",&ArdbServer::Config, 1, 3, 0, 1 },
+		        { "client",&ArdbServer::Client, 1, 3, 0, 1 },
+		        { "flushdb",&ArdbServer::FlushDB, 0, 0, 1, 1 },
+		        { "flushall",&ArdbServer::FlushAll, 0, 0, 1, 1 },
+		        { "time", &ArdbServer::Time, 0, 0, 0, 1 },
+		        { "echo", &ArdbServer::Echo,1, 1, 0, 1 },
+		        { "quit", &ArdbServer::Quit, 0, 0, 0, 0 },
+		        { "shutdown", &ArdbServer::Shutdown, 0, 1, 0, 1 },
+		        { "slaveof", &ArdbServer::Slaveof, 2, 2, 0, 1 },
+		        { "sync", &ArdbServer::Sync, 0, 2, 0, 1 },
+		        { "select",&ArdbServer::Select, 1, 1, 1, 1 },
 		        { "append",&ArdbServer::Append, 2, 2, 1 },
-		        { "get", &ArdbServer::Get,1, 1, 0 },
-		        { "set", &ArdbServer::Set, 2, 7, 1 },
-		        { "del", &ArdbServer::Del, 1, -1, 1 },
-		        { "exists",&ArdbServer::Exists, 1, 1, 0 },
-		        { "expire",&ArdbServer::Expire, 2, 2, 1 },
-		        { "expireat", &ArdbServer::Expireat, 2, 2, 1 },
-		        { "persist",&ArdbServer::Persist, 1, 1, 1 },
-		        { "type",&ArdbServer::Type, 1, 1, 0 },
-		        { "bitcount",&ArdbServer::Bitcount, 1, 3, 0 },
-		        { "bitop", &ArdbServer::Bitop, 3, -1, 1 },
-		        { "decr",&ArdbServer::Decr, 1, 1, 1 },
-		        { "decrby", &ArdbServer::Decrby, 2, 2, 1 },
-		        { "getbit",&ArdbServer::GetBit, 2, 2, 0 },
-		        { "getrange",&ArdbServer::GetRange, 3, 3, 0 },
-		        { "getset", &ArdbServer::GetSet, 2, 2, 1 },
-		        { "incr",&ArdbServer::Incr, 1, 1, 1 },
-		        { "incrby", &ArdbServer::Incrby, 2, 2, 1 },
-		        { "incrbyfloat",&ArdbServer::IncrbyFloat, 2, 2, 1 },
-		        { "mget",&ArdbServer::MGet, 1, -1, 0 },
-		        { "mset", &ArdbServer::MSet, 2, -1, 1 },
-		        { "msetnx", &ArdbServer::MSetNX, 2, -1, 1 },
-		        { "psetex", &ArdbServer::MSetNX, 3, 3, 1 },
-		        { "setbit",&ArdbServer::SetBit, 3, 3, 1 },
-		        { "setex", &ArdbServer::SetEX, 3, 3, 1 },
-		        { "setnx", &ArdbServer::SetNX, 2, 2, 1 },
-		        { "setrange",&ArdbServer::SetRange, 3, 3, 1 },
-		        { "strlen",&ArdbServer::Strlen, 1, 1, 0 },
-		        { "hdel",&ArdbServer::HDel, 2, -1, 1 },
-		        { "hexists", &ArdbServer::HExists, 2, 2, 0 },
-		        { "hget",&ArdbServer::HGet, 2, 2, 0 },
-		        { "hgetall",&ArdbServer::HGetAll, 1, 1, 0 },
-		        { "hincr",&ArdbServer::HIncrby, 3, 3, 1 },
-		        { "hincrbyfloat",&ArdbServer::HIncrbyFloat, 3, 3, 1 },
-		        { "hkeys",&ArdbServer::HKeys, 1, 1, 0 },
-		        { "hlen", &ArdbServer::HLen,1, 1, 0 },
-		        { "hvals", &ArdbServer::HVals, 1, 1, 0 },
-		        { "hmget", &ArdbServer::HMGet, 2, -1, 0 },
-		        { "hset",&ArdbServer::HSet, 3, 3, 1 },
-		        { "hsetnx", &ArdbServer::HSetNX, 3, 3, 1 },
-		        { "hmset",&ArdbServer::HMSet, 3, -1, 1 },
-		        { "scard",&ArdbServer::SCard, 1, 1, 0 },
-		        { "sadd", &ArdbServer::SAdd,2, -1, 1 },
-		        { "sdiff", &ArdbServer::SDiff, 2, -1, 0 },
-		        { "sdiffstore", &ArdbServer::SDiffStore, 3, -1, 1 },
-		        { "sinter", &ArdbServer::SInter, 2, -1, 0 },
-		        { "sinterstore",&ArdbServer::SInterStore, 3, -1, 1 },
-		        { "sismember",&ArdbServer::SIsMember, 2, 2, 0 },
-		        { "smembers", &ArdbServer::SMembers, 1, 1, 0 },
-		        { "smove",&ArdbServer::SMove, 3, 3, 1 },
-		        { "spop", &ArdbServer::SPop,1, 1, 1 },
-		        { "sranmember", &ArdbServer::SRandMember, 1, 2, 0 },
-		        { "srem", &ArdbServer::SRem, 2, -1, 1 },
-		        { "sunion", &ArdbServer::SUnion, 2, -1, 0 },
-		        { "sunionstore",&ArdbServer::SUnionStore, 3, -1, 1 },
-		        { "zadd",&ArdbServer::ZAdd, 3, -1, 1 },
-		        { "zcard",&ArdbServer::ZCard, 1, 1, 0 },
-		        { "zcount",&ArdbServer::ZCount, 3, 3, 0 },
-		        { "zincrby", &ArdbServer::ZIncrby, 3, 3, 1 },
-		        { "zrange",&ArdbServer::ZRange, 3, 4, 0 },
-		        { "zrangebyscore",&ArdbServer::ZRangeByScore, 3, 7, 0 },
-		        { "zrank",&ArdbServer::ZRank, 2, 2, 0 },
-		        { "zrem", &ArdbServer::ZRem, 2, -1, 1 },
-		        { "zremrangebyrank",&ArdbServer::ZRemRangeByRank, 3, 3, 1 },
-		        { "zremrangebyscore", &ArdbServer::ZRemRangeByScore, 3, 3, 1 },
-		        { "zrevrange", &ArdbServer::ZRevRange, 3, 4, 0 },
-		        { "zrevrangebyscore", &ArdbServer::ZRevRangeByScore, 3, 7, 0 },
-		        { "zinterstore", &ArdbServer::ZInterStore, 3, -1, 1 },
-		        { "zunionstore", &ArdbServer::ZUnionStore, 3, -1, 1 },
-		        { "zrevrank", &ArdbServer::ZRevRank, 2, 2, 0 },
-		        { "zscore", &ArdbServer::ZScore, 2, 2, 0 },
-		        { "lindex", &ArdbServer::LIndex, 2, 2, 0 },
-		        { "linsert", &ArdbServer::LInsert, 4, 4, 1 },
-		        { "llen",&ArdbServer::LLen, 1, 1, 0 },
-		        { "lpop", &ArdbServer::LPop,1, 1, 1 },
-		        { "lpush", &ArdbServer::LPush, 2, -1, 1 },
-		        { "lpushx", &ArdbServer::LPushx, 2, 2, 1 },
-		        { "lrange", &ArdbServer::LRange, 3, 3, 0 },
-		        { "lrem", &ArdbServer::LRem, 3, 3, 1 },
-		        { "lset", &ArdbServer::LSet, 3, 3, 1 },
-		        { "ltrim", &ArdbServer::LTrim, 3, 3, 1 },
-		        { "rpop", &ArdbServer::RPop, 1, 1, 1 },
-		        { "rpush",&ArdbServer::RPush, 2, -1, 1 },
-		        { "rpushx",&ArdbServer::RPushx, 2, 2, 1 },
-		        { "rpoplpush",&ArdbServer::RPopLPush, 2, 2, 1 },
-		        { "hclear", &ArdbServer::HClear, 1, 1, 1 },
-		        { "zclear",&ArdbServer::ZClear, 1, 1, 1 },
-		        { "sclear", &ArdbServer::SClear, 1, 1, 1 },
-		        { "lclear",&ArdbServer::LClear, 1, 1, 1 },
-		        { "tclear",&ArdbServer::TClear, 1, 1, 1 },
-		        { "move", &ArdbServer::Move, 2, 2, 1 },
-		        { "rename", &ArdbServer::Rename, 2, 2, 1 },
-		        { "renamenx",&ArdbServer::RenameNX, 2, 2, 1 },
-		        { "sort", &ArdbServer::Sort, 1, -1, 2 },
-		        { "keys", &ArdbServer::Keys, 1, 1, 0 },
+		        { "get", &ArdbServer::Get,1, 1, 0, 1 },
+		        { "set", &ArdbServer::Set, 2, 7, 1, 1 },
+		        { "del", &ArdbServer::Del, 1, -1, 1, 1 },
+		        { "exists",&ArdbServer::Exists, 1, 1, 0, 1 },
+		        { "expire",&ArdbServer::Expire, 2, 2, 1, 1 },
+		        { "expireat", &ArdbServer::Expireat, 2, 2, 1, 1 },
+		        { "persist",&ArdbServer::Persist, 1, 1, 1, 1 },
+		        { "type",&ArdbServer::Type, 1, 1, 0, 1 },
+		        { "bitcount",&ArdbServer::Bitcount, 1, 3, 0, 1 },
+		        { "bitop", &ArdbServer::Bitop, 3, -1, 1, 1 },
+		        { "decr",&ArdbServer::Decr, 1, 1, 1, 1 },
+		        { "decrby", &ArdbServer::Decrby, 2, 2, 1, 1 },
+		        { "getbit",&ArdbServer::GetBit, 2, 2, 0, 1 },
+		        { "getrange",&ArdbServer::GetRange, 3, 3, 0, 1 },
+		        { "getset", &ArdbServer::GetSet, 2, 2, 1, 1 },
+		        { "incr",&ArdbServer::Incr, 1, 1, 1, 1 },
+		        { "incrby", &ArdbServer::Incrby, 2, 2, 1, 1 },
+		        { "incrbyfloat",&ArdbServer::IncrbyFloat, 2, 2, 1, 1 },
+		        { "mget",&ArdbServer::MGet, 1, -1, 0, 1 },
+		        { "mset", &ArdbServer::MSet, 2, -1, 1, 1 },
+		        { "msetnx", &ArdbServer::MSetNX, 2, -1, 1, 1 },
+		        { "psetex", &ArdbServer::MSetNX, 3, 3, 1, 1 },
+		        { "setbit",&ArdbServer::SetBit, 3, 3, 1, 1 },
+		        { "setex", &ArdbServer::SetEX, 3, 3, 1, 1 },
+		        { "setnx", &ArdbServer::SetNX, 2, 2, 1, 1 },
+		        { "setrange",&ArdbServer::SetRange, 3, 3, 1, 1 },
+		        { "strlen",&ArdbServer::Strlen, 1, 1, 0, 1 },
+		        { "hdel",&ArdbServer::HDel, 2, -1, 1, 1 },
+		        { "hexists", &ArdbServer::HExists, 2, 2, 0, 1 },
+		        { "hget",&ArdbServer::HGet, 2, 2, 0, 1 },
+		        { "hgetall",&ArdbServer::HGetAll, 1, 1, 0, 1 },
+		        { "hincr",&ArdbServer::HIncrby, 3, 3, 1, 1 },
+		        { "hincrbyfloat",&ArdbServer::HIncrbyFloat, 3, 3, 1, 1 },
+		        { "hkeys",&ArdbServer::HKeys, 1, 1, 0, 1 },
+		        { "hlen", &ArdbServer::HLen,1, 1, 0, 1 },
+		        { "hvals", &ArdbServer::HVals, 1, 1, 0, 1 },
+		        { "hmget", &ArdbServer::HMGet, 2, -1, 0, 1 },
+		        { "hset",&ArdbServer::HSet, 3, 3, 1, 1 },
+		        { "hsetnx", &ArdbServer::HSetNX, 3, 3, 1, 1 },
+		        { "hmset",&ArdbServer::HMSet, 3, -1, 1, 1 },
+		        { "scard",&ArdbServer::SCard, 1, 1, 0, 1 },
+		        { "sadd", &ArdbServer::SAdd,2, -1, 1, 1 },
+		        { "sdiff", &ArdbServer::SDiff, 2, -1, 0, 1 },
+		        { "sdiffstore", &ArdbServer::SDiffStore, 3, -1, 1, 1 },
+		        { "sinter", &ArdbServer::SInter, 2, -1, 0, 1 },
+		        { "sinterstore",&ArdbServer::SInterStore, 3, -1, 1, 1 },
+		        { "sismember",&ArdbServer::SIsMember, 2, 2, 0, 1 },
+		        { "smembers", &ArdbServer::SMembers, 1, 1, 0, 1 },
+		        { "smove",&ArdbServer::SMove, 3, 3, 1, 1 },
+		        { "spop", &ArdbServer::SPop,1, 1, 1, 1 },
+		        { "sranmember", &ArdbServer::SRandMember, 1, 2, 0, 1 },
+		        { "srem", &ArdbServer::SRem, 2, -1, 1, 1 },
+		        { "sunion", &ArdbServer::SUnion, 2, -1, 0, 1 },
+		        { "sunionstore",&ArdbServer::SUnionStore, 3, -1, 1, 1 },
+		        { "zadd",&ArdbServer::ZAdd, 3, -1, 1, 1 },
+		        { "zcard",&ArdbServer::ZCard, 1, 1, 0, 1 },
+		        { "zcount",&ArdbServer::ZCount, 3, 3, 0, 1 },
+		        { "zincrby", &ArdbServer::ZIncrby, 3, 3, 1, 1 },
+		        { "zrange",&ArdbServer::ZRange, 3, 4, 0, 1 },
+		        { "zrangebyscore",&ArdbServer::ZRangeByScore, 3, 7, 0, 1 },
+		        { "zrank",&ArdbServer::ZRank, 2, 2, 0, 1 },
+		        { "zrem", &ArdbServer::ZRem, 2, -1, 1, 1 },
+		        { "zremrangebyrank",&ArdbServer::ZRemRangeByRank, 3, 3, 1, 1 },
+		        { "zremrangebyscore", &ArdbServer::ZRemRangeByScore, 3, 3, 1, 1 },
+		        { "zrevrange", &ArdbServer::ZRevRange, 3, 4, 0, 1 },
+		        { "zrevrangebyscore", &ArdbServer::ZRevRangeByScore, 3, 7, 0, 1 },
+		        { "zinterstore", &ArdbServer::ZInterStore, 3, -1, 1, 1 },
+		        { "zunionstore", &ArdbServer::ZUnionStore, 3, -1, 1, 1 },
+		        { "zrevrank", &ArdbServer::ZRevRank, 2, 2, 0, 1 },
+		        { "zscore", &ArdbServer::ZScore, 2, 2, 0, 1 },
+		        { "lindex", &ArdbServer::LIndex, 2, 2, 0, 1 },
+		        { "linsert", &ArdbServer::LInsert, 4, 4, 1, 1 },
+		        { "llen",&ArdbServer::LLen, 1, 1, 0, 1 },
+		        { "lpop", &ArdbServer::LPop,1, 1, 1, 1 },
+		        { "lpush", &ArdbServer::LPush, 2, -1, 1, 1 },
+		        { "lpushx", &ArdbServer::LPushx, 2, 2, 1, 1 },
+		        { "lrange", &ArdbServer::LRange, 3, 3, 0, 1 },
+		        { "lrem", &ArdbServer::LRem, 3, 3, 1, 1 },
+		        { "lset", &ArdbServer::LSet, 3, 3, 1, 1 },
+		        { "ltrim", &ArdbServer::LTrim, 3, 3, 1, 1 },
+		        { "rpop", &ArdbServer::RPop, 1, 1, 1, 1 },
+		        { "rpush",&ArdbServer::RPush, 2, -1, 1, 1 },
+		        { "rpushx",&ArdbServer::RPushx, 2, 2, 1, 1 },
+		        { "rpoplpush",&ArdbServer::RPopLPush, 2, 2, 1, 1 },
+		        { "hclear", &ArdbServer::HClear, 1, 1, 1, 1 },
+		        { "zclear",&ArdbServer::ZClear, 1, 1, 1, 1 },
+		        { "sclear", &ArdbServer::SClear, 1, 1, 1, 1 },
+		        { "lclear",&ArdbServer::LClear, 1, 1, 1, 1 },
+		        { "tclear",&ArdbServer::TClear, 1, 1, 1, 1 },
+		        { "move", &ArdbServer::Move, 2, 2, 1, 1 },
+		        { "rename", &ArdbServer::Rename, 2, 2, 1, 1 },
+		        { "renamenx",&ArdbServer::RenameNX, 2, 2, 1, 1 },
+		        { "sort", &ArdbServer::Sort, 1, -1, 2, 1 },
+		        { "keys", &ArdbServer::Keys, 1, 1, 0, 1 },
 		};
 
 		uint32 arraylen = arraysize(settingTable);
@@ -293,7 +293,8 @@ namespace ardb
 			{
 				for(uint32 i = 0; i < ctx.transaction_cmds->size(); i++)
 				{
-					DoRedisCommand(ctx, ctx.transaction_cmds->at(i));
+					RedisCommandFrame& cmd = ctx.transaction_cmds->at(i);
+					DoRedisCommand(ctx, FindRedisCommandHandlerSetting(cmd.GetCommand()),cmd);
 					r.elements.push_back(ctx.reply);
 				}
 			}
@@ -1260,15 +1261,12 @@ namespace ardb
 
 	int ArdbServer::Ping(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
-		//fill_status_reply(ctx.reply, "PONG");
-		ctx.reply.str = "PONG";
-		ctx.reply.type = REDIS_REPLY_STATUS;
+		fill_status_reply(ctx.reply, "PONG");
 		return 0;
 	}
 	int ArdbServer::Echo(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
-		ctx.reply.str = cmd[0];
-		ctx.reply.type = REDIS_REPLY_STRING;
+		fill_str_reply(ctx.reply, cmd[0]);
 		return 0;
 	}
 	int ArdbServer::Select(ArdbConnContext& ctx, ArgumentArray& cmd)
@@ -2146,25 +2144,52 @@ namespace ardb
 		return NULL;
 	}
 
-	static bool is_transaction_cmd(const std::string& cmd){
-		return cmd == "exec" || cmd == "multi" || cmd == "discard" || cmd == "watch" || cmd == "unwatch";
-	}
-
 	void ArdbServer::ProcessRedisCommand(ArdbConnContext& ctx,
 				        RedisCommandFrame& args)
 	{
 		m_current_ctx = &ctx;
 		std::string& cmd = args.GetCommand();
 		lower_string(cmd);
-		if(ctx.in_transaction && NULL != ctx.transaction_cmds && !is_transaction_cmd(cmd))
+		RedisCommandHandlerSetting* setting = FindRedisCommandHandlerSetting(
+				        cmd);
+		int ret = 0;
+		if (NULL != setting)
 		{
-			ctx.reply.Clear();
-			ctx.transaction_cmds->push_back(args);
-			fill_status_reply(ctx.reply, "QUEUED");
-			ctx.conn->Write(ctx.reply);
-			return;
+			bool valid_cmd = true;
+			if (setting->min_arity > 0)
+			{
+				valid_cmd = args.GetArguments().size()
+						>= (uint32) setting->min_arity;
+			}
+			if (setting->max_arity >= 0 && valid_cmd)
+			{
+				valid_cmd = args.GetArguments().size()
+						<= (uint32) setting->max_arity;
+			}
+
+			if (!valid_cmd)
+			{
+				fill_error_reply(ctx.reply,
+						"ERR wrong number of arguments for '%s' command",
+						cmd.c_str());
+			}else{
+				if (ctx.in_transaction && NULL != ctx.transaction_cmds
+						&& setting->tranction_queueable_cmd)
+				{
+					ctx.transaction_cmds->push_back(args);
+					fill_status_reply(ctx.reply, "QUEUED");
+					ctx.conn->Write(ctx.reply);
+					return;
+				}else{
+					ret = DoRedisCommand(ctx, setting, args);
+				}
+			}
 		}
-		int ret = DoRedisCommand(ctx, args);
+		else{
+			ERROR_LOG("No handler found for:%s", cmd.c_str());
+			fill_error_reply(ctx.reply, "ERR unknown command '%s'",
+						        cmd.c_str());
+		}
 		if (ctx.reply.type != 0)
 		{
 			ctx.conn->Write(ctx.reply);
@@ -2175,62 +2200,27 @@ namespace ardb
 		}
 	}
 
-	int ArdbServer::DoRedisCommand(ArdbConnContext& ctx,
+	int ArdbServer::DoRedisCommand(ArdbConnContext& ctx,RedisCommandHandlerSetting* setting,
 	        RedisCommandFrame& args)
 	{
-		ctx.reply.Clear();
 		std::string& cmd = args.GetCommand();
-		int ret = 0;
-		RedisCommandHandlerSetting* setting = FindRedisCommandHandlerSetting(
-		        cmd);
-		if (NULL != setting)
+		if (m_clients_holder.IsStatEnable())
 		{
-			RedisCommandHandler handler = setting->handler;
-			bool valid_cmd = true;
-			if (setting->min_arity > 0)
-			{
-				valid_cmd = args.GetArguments().size()
-				        >= (uint32) setting->min_arity;
-			}
-			if (setting->max_arity >= 0 && valid_cmd)
-			{
-				valid_cmd = args.GetArguments().size()
-				        <= (uint32) setting->max_arity;
-			}
-
-			if (!valid_cmd)
-			{
-				fill_error_reply(ctx.reply,
-				        "ERR wrong number of arguments for '%s' command",
-				        cmd.c_str());
-			}
-			else
-			{
-				if(m_clients_holder.IsStatEnable()){
-					m_clients_holder.TouchConn(ctx.conn, cmd);
-				}
-				if(m_cfg.batch_write_enable){
-                    InsertBatchWriteDBID(ctx.currentDB);
-				}
-				uint64 start_time = get_current_epoch_micros();
-				ret = (this->*handler)(ctx, args.GetArguments());
-				uint64 stop_time = get_current_epoch_micros();
-				if (m_cfg.slowlog_log_slower_than
-				        && (stop_time - start_time)
-				                > m_cfg.slowlog_log_slower_than)
-				{
-					m_slowlog_handler.PushSlowCommand(args,
-					        stop_time - start_time);
-					INFO_LOG(
-					        "Cost %lldus to exec %s", (stop_time-start_time), cmd.c_str());
-				}
-			}
+			m_clients_holder.TouchConn(ctx.conn, cmd);
 		}
-		else
+		if (m_cfg.batch_write_enable)
 		{
-			ERROR_LOG("No handler found for:%s", cmd.c_str());
-			fill_error_reply(ctx.reply, "ERR unknown command '%s'",
-			        cmd.c_str());
+			InsertBatchWriteDBID(ctx.currentDB);
+		}
+		uint64 start_time = get_current_epoch_micros();
+		int ret = (this->*(setting->handler))(ctx, args.GetArguments());
+		uint64 stop_time = get_current_epoch_micros();
+		if (m_cfg.slowlog_log_slower_than
+				&& (stop_time - start_time) > m_cfg.slowlog_log_slower_than)
+		{
+			m_slowlog_handler.PushSlowCommand(args, stop_time - start_time);
+			INFO_LOG(
+					"Cost %lldus to exec %s", (stop_time-start_time), cmd.c_str());
 		}
 		return ret;
 	}

@@ -17,7 +17,7 @@ LDFLAGS=-g
 
 INCS=-I./ -I./util -I${LEVELDB_PATH}/include -I${KCDB_PATH} -I../deps/cpp-btree 
 
-LIBS= ${SNAPPY_PATH}/.libs/libsnappy.a -lpthread
+LIBS= ${SNAPPY_PATH}/.libs/libsnappy.a -lpthread ${JEMALLOC_PATH}/lib/libjemalloc.a
 
 %.o : %.cpp
 	${CXX} -c ${CXXFLAGS} ${INCS} $< -o $@
