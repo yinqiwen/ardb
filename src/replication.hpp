@@ -23,7 +23,7 @@ namespace ardb
 			uint32 synced_cmd_seq;
 	};
 
-	class BinLogWriter:public Runnable
+	class BinLogWriter: public Runnable
 	{
 		private:
 			FILE* m_index_log;
@@ -51,7 +51,8 @@ namespace ardb
 //			void HandleSyncedCommand(RedisCommandFrame& syncCmd);
 			int Save();
 			int BGSave();
-			uint32 LastSave(){
+			uint32 LastSave()
+			{
 				return m_last_save;
 			}
 	};

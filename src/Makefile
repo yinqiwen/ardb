@@ -17,7 +17,7 @@ LDFLAGS=-g
 
 INCS=-I./ -I./util -I${LEVELDB_PATH}/include -I${KCDB_PATH} -I../deps/cpp-btree 
 
-LIBS= ${SNAPPY_PATH}/.libs/libsnappy.a -lpthread ${JEMALLOC_PATH}/lib/libjemalloc.a
+LIBS= ${SNAPPY_PATH}/.libs/libsnappy.a -lpthread
 
 %.o : %.cpp
 	${CXX} -c ${CXXFLAGS} ${INCS} $< -o $@
@@ -45,7 +45,7 @@ KCDB_ENGINE :=  engine/kyotocabinet_engine.o
 LEVELDB_TEST := ../test/leveldb.o 
 KCDB_TEST := ../test/kcdb.o
 
-SERVER_OBJECTS := ardb_server.o slowlog.o clients.o replication.o main.o
+SERVER_OBJECTS := ardb_server.o slowlog.o clients.o replication.o pubsub.o main.o
 
 #DIST_LIB = libardb.so
 DIST_LIBA = libardb.a

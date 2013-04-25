@@ -136,6 +136,11 @@ namespace ardb
 		        { "exec",&ArdbServer::Exec, 0, 0, 1, 0 },
 		        { "watch",&ArdbServer::Watch, 0, -1, 1, 0 },
 		        { "unwatch",&ArdbServer::UnWatch, 0, 0, 1, 0 },
+		        { "subscribe",&ArdbServer::Subscribe, 1, -1, 0, 1 },
+		        { "psubscribe",&ArdbServer::PSubscribe, 1, -1, 0, 1 },
+		        { "unsubscribe",&ArdbServer::UnSubscribe, 0, -1, 0, 1 },
+		        { "punsubscribe",&ArdbServer::PUnSubscribe, 0, -1, 0, 1 },
+		        { "publish",&ArdbServer::Publish, 2, 2, 0, 1 },
 		        { "info", &ArdbServer::Info, 0, 1, 0, 1 },
 		        { "save", &ArdbServer::Save, 0, 0, 0, 1 },
 		        { "bgsave", &ArdbServer::BGSave, 0, 0, 0, 1 },
@@ -317,8 +322,8 @@ namespace ardb
 				WatchKeyContextTable::iterator found = m_watch_context_table.find(*it);
 				if(found != m_watch_context_table.end())
 				{
-					ContextList& list = found->second;
-					ContextList::iterator lit = list.begin();
+					ContextSet& list = found->second;
+					ContextSet::iterator lit = list.begin();
 					while(lit != list.end()){
 					    if(*lit == &ctx){
 						    list.erase(lit);
@@ -345,8 +350,8 @@ namespace ardb
 			WatchKey k(dbid, std::string(key.data(), key.size()));
 			WatchKeyContextTable::iterator found = m_watch_context_table.find(k);
 			if(found != m_watch_context_table.end()){
-				ContextList& list = found->second;
-				ContextList::iterator lit = list.begin();
+				ContextSet& list = found->second;
+				ContextSet::iterator lit = list.begin();
 				while(lit != list.end()){
 					if(*lit != m_current_ctx){
 					    (*lit)->fail_transc = true;
@@ -387,20 +392,20 @@ namespace ardb
 			WatchKeyContextTable::iterator found = m_watch_context_table.find(k);
 			if(found  == m_watch_context_table.end())
 			{
-				ContextList list;
-				list.push_back(&ctx);
-				m_watch_context_table.insert(WatchKeyContextTable::value_type(k, list));
+				ContextSet set;
+				set.insert(&ctx);
+				m_watch_context_table.insert(WatchKeyContextTable::value_type(k, set));
 			}else{
-				ContextList& list = found->second;
-				ContextList::iterator lit = list.begin();
-				while(lit != list.end()){
+				ContextSet& set = found->second;
+				ContextSet::iterator lit = set.begin();
+				while(lit != set.end()){
 					if(*lit == &ctx){
-					    list.erase(lit);
+					    set.erase(lit);
 						break;
 					}
 					lit++;
 				}
-				list.push_back(&ctx);
+				set.insert(&ctx);
 			}
 			it++;
 		}
@@ -1296,7 +1301,8 @@ namespace ardb
 		return 0;
 	}
 
-	int ArdbServer::Sync(ArdbConnContext& ctx, ArgumentArray& cmd){
+	int ArdbServer::Sync(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
 		return 0;
 	}
 
@@ -2256,6 +2262,7 @@ namespace ardb
 	{
 		server->m_clients_holder.EraseConn(ctx.GetChannel());
 		server->ClearWatchKeys(ardbctx);
+		server->ClearSubscribes(ardbctx);
 	}
 
 	static void daemonize(void)

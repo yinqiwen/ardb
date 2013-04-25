@@ -106,11 +106,11 @@ ZREVRANK key member                        DONE
 ZSCORE key member                          DONE
 ZUNIONSTORE destination numkeys key        DONE
 
-PSUBSCRIBE pattern [pattern ...]           NotYet
-PUBLISH channel message                    NotYet
-PUNSUBSCRIBE [pattern [pattern ...]]       NotYet
-SUBSCRIBE channel [channel ...]            NotYet
-UNSUBSCRIBE [channel [channel ...]]        NotYet
+PSUBSCRIBE pattern [pattern ...]           DONE
+PUBLISH channel message                    DONE
+PUNSUBSCRIBE [pattern [pattern ...]]       DONE
+SUBSCRIBE channel [channel ...]            DONE
+UNSUBSCRIBE [channel [channel ...]]        DONE
 
 DISCARD                                    DONE
 EXEC                                       DONE
