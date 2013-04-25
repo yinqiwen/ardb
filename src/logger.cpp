@@ -58,7 +58,7 @@ namespace ardb
 
 			source_oss << kLogFilePath << "." << i;
 			target_oss << kLogFilePath << "." << (i + 1);
-			if(is_file_exist(source_oss.str()))
+			if (is_file_exist(source_oss.str()))
 			{
 				remove(target_oss.str().c_str());
 				rename(source_oss.str().c_str(), target_oss.str().c_str());
@@ -160,27 +160,32 @@ namespace ardb
 		kLogChecker = c;
 	}
 
-	void ArdbLogger::InitDefaultLogger(const std::string& level,
-	        const std::string& logfile)
+	void ArdbLogger::SetLogLevel(const std::string& level)
 	{
-		if(!logfile.empty() && (logfile != "stdout" && logfile != "stderr"))
-		{
-			kLogFilePath = logfile;
-			reopen_default_logfile();
-		}
 		std::string level_str = string_toupper(level);
 		for (uint32 i = 0; (i + 1) < ALL_LOG_LEVEL; i++)
 		{
 			if (level_str == kLogLevelNames[i])
 			{
-				kDeafultLevel = (LogLevel)(i + 1);
+				kDeafultLevel = (LogLevel) (i + 1);
 			}
 		}
 	}
 
+	void ArdbLogger::InitDefaultLogger(const std::string& level,
+	        const std::string& logfile)
+	{
+		if (!logfile.empty() && (logfile != "stdout" && logfile != "stderr"))
+		{
+			kLogFilePath = logfile;
+			reopen_default_logfile();
+		}
+		SetLogLevel(level);
+	}
+
 	void ArdbLogger::DestroyDefaultLogger()
 	{
-		if(kLogFile != stdout)
+		if (kLogFile != stdout)
 		{
 			fclose(kLogFile);
 		}

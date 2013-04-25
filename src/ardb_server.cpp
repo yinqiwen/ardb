@@ -121,6 +121,7 @@ namespace ardb
 		{
 			cfg.data_base_path = ".";
 		}
+		ArdbLogger::SetLogLevel(cfg.loglevel);
 		return 0;
 	}
 

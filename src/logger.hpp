@@ -35,6 +35,7 @@ namespace ardb
 			static IsLogEnable* GetLogChecker();
 			static void InstallLogHandler(ArdbLogHandler* h, IsLogEnable* c);
 			static void InitDefaultLogger(const std::string& level, const std::string& logfile);
+			static void SetLogLevel(const std::string& level);
 			static void DestroyDefaultLogger();
 	};
 }
