@@ -50,7 +50,7 @@ namespace ardb
 				}
 				void Clear()
 				{
-					type = REDIS_REPLY_NIL;
+					type = 0;
 					integer = 0;
 					double_value = 0;
 					str.clear();

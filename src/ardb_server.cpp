@@ -2187,7 +2187,15 @@ namespace ardb
 					fill_status_reply(ctx.reply, "QUEUED");
 					ctx.conn->Write(ctx.reply);
 					return;
-				}else{
+				} else if (ctx.IsSubscribedConn()
+						&& (cmd != "subscribe" && cmd != "psubscribe"
+								&& cmd != "unsubscribe" && cmd != "punsubscribe"
+								&& cmd != "quit"))
+				{
+					fill_error_reply(ctx.reply,
+							"ERR only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context");
+				}
+				else{
 					ret = DoRedisCommand(ctx, setting, args);
 				}
 			}
@@ -2200,6 +2208,7 @@ namespace ardb
 		if (ctx.reply.type != 0)
 		{
 			ctx.conn->Write(ctx.reply);
+			ctx.reply.Clear();
 		}
 		if (ret < 0)
 		{
