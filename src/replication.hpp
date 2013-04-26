@@ -32,6 +32,21 @@ namespace ardb
 	};
 
 	class ArdbServer;
+
+	class SlaveClient: public ChannelUpstreamHandler<RedisCommandFrame>
+	{
+		private:
+			ArdbServer* m_serv;
+			Channel* m_client;
+			void MessageReceived(ChannelHandlerContext& ctx,
+								MessageEvent<RedisCommandFrame>& e);
+		public:
+			SlaveClient(ArdbServer* serv) :
+					m_serv(serv), m_client(NULL)
+			{
+			}
+	};
+
 	class ReplicationService: public Thread
 	{
 		private:
@@ -49,6 +64,7 @@ namespace ardb
 //			int ServSync(Channel* conn, RedisCommandFrame& syncCmd);
 //			void SyncMaster(const std::string& host, int port);
 //			void HandleSyncedCommand(RedisCommandFrame& syncCmd);
+			int Slaveof(const std::string& host, int port);
 			int Save();
 			int BGSave();
 			uint32 LastSave()

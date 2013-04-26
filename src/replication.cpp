@@ -11,6 +11,20 @@
 namespace ardb
 {
 	static uint64 kBinLogIdSeed = 0;
+
+	int ArdbServer::SlaveOf(const std::string& host, uint32 port)
+	{
+		SocketHostAddress addr(host, port);
+		if(m_master_addr == addr)
+		{
+			return 0;
+		}
+		Channel* ch = m_service->NewClientSocketChannel();
+		m_master_addr = addr;
+		ch->Connect(&addr);
+		return 0;
+	}
+
 	ReplicationService::ReplicationService(ArdbServer* serv) :
 			m_server(serv), m_is_saving(false), m_last_save(0)
 	{
@@ -19,7 +33,6 @@ namespace ardb
 
 	void ReplicationService::Run()
 	{
-
 		m_serv.Start();
 	}
 //
@@ -30,7 +43,7 @@ namespace ardb
 //	}
 
 	static bool veify_checkpoint_file(const std::string& data_file,
-	        const std::string& cksum_file)
+			const std::string& cksum_file)
 	{
 		if (!is_file_exist(cksum_file) || !is_file_exist(data_file))
 		{
@@ -55,7 +68,7 @@ namespace ardb
 		if (sha1sum_str != sha1sum.AsString())
 		{
 			ERROR_LOG(
-			        "Invalid check sum %s VS %s.", sha1sum_str.c_str(), sha1sum.AsString().c_str());
+					"Invalid check sum %s VS %s.", sha1sum_str.c_str(), sha1sum.AsString().c_str());
 			return false;
 		}
 		return true;
@@ -133,38 +146,47 @@ namespace ardb
 //		return 0;
 //	}
 
+	int ReplicationService::Slaveof(const std::string& host, int port)
+	{
+
+		return 0;
+	}
+
 	int ReplicationService::Save()
 	{
 		if (m_is_saving)
 		{
 			return 1;
 		}
+		if (m_server->m_cfg.backup_dir.empty())
+		{
+			ERROR_LOG("Empty bakup dir for backup.");
+			return -1;
+		}
 		m_server->m_db->CloseAll();
 		m_is_saving = true;
 		int ret = 0;
 		char cmd[m_server->m_cfg.data_base_path.size() + 256];
-		m_server->m_cfg.repl_data_dir = "./repl";
-		make_dir(m_server->m_cfg.repl_data_dir);
-		std::string dest = m_server->m_cfg.repl_data_dir + "/ardb_data.save";
-		std::string shasumfile = m_server->m_cfg.repl_data_dir
-		        + "/ardb_data.sha1sum";
+		make_dir(m_server->m_cfg.backup_dir);
+		std::string dest = m_server->m_cfg.backup_dir
+				+ "/ardb_all_data.save.tar";
+		std::string shasumfile = m_server->m_cfg.backup_dir
+				+ "/ardb_all_data.sha1sum";
 		sprintf(cmd, "tar cf %s %s;", dest.c_str(),
-		        m_server->m_cfg.data_base_path.c_str());
+				m_server->m_cfg.data_base_path.c_str());
 		ret = system(cmd);
 		if (-1 == ret)
 		{
 			ERROR_LOG( "Failed to create backup data archive:%s", dest.c_str());
-		}
-		else
+		} else
 		{
 			std::string sha1sum_str;
 			ret = sha1sum_file(dest, sha1sum_str);
 			if (-1 == ret)
 			{
 				ERROR_LOG(
-				        "Failed to compute sha1sum for data archive:%s", dest.c_str());
-			}
-			else
+						"Failed to compute sha1sum for data archive:%s", dest.c_str());
+			} else
 			{
 				INFO_LOG("Save file SHA1sum is %s", sha1sum_str.c_str());
 				file_write_content(shasumfile, sha1sum_str);

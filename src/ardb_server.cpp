@@ -108,6 +108,7 @@ namespace ardb
 		conf_get_string(props, "bind", cfg.listen_host);
 		conf_get_string(props, "unixsocket", cfg.listen_unix_path);
 		conf_get_string(props, "dir", cfg.data_base_path);
+		conf_get_string(props, "backup-dir", cfg.backup_dir);
 		conf_get_string(props, "loglevel", cfg.loglevel);
 		conf_get_string(props, "logfile", cfg.logfile);
 		std::string daemonize;
@@ -1298,6 +1299,14 @@ namespace ardb
 
 	int ArdbServer::Slaveof(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
+		const std::string& host = cmd[0];
+		uint32 port = 0;
+		if(!string_touint32(cmd[1], port)){
+			fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+			return 0;
+		}
+
+        fill_status_reply(ctx.reply, "OK");
 		return 0;
 	}
 
@@ -2243,7 +2252,7 @@ namespace ardb
 
 	typedef ChannelUpstreamHandler<RedisCommandFrame>* handler_creater();
 
-	static void ardb_pipeline_init(ChannelPipeline* pipeline, void* data)
+	static void conn_pipeline_init(ChannelPipeline* pipeline, void* data)
 	{
 		ArdbServer* serv = (ArdbServer*) data;
 		pipeline->AddLast("decoder", new RedisCommandDecoder);
@@ -2251,7 +2260,7 @@ namespace ardb
 		pipeline->AddLast("handler", new RedisRequestHandler(serv));
 	}
 
-	static void ardb_pipeline_finallize(ChannelPipeline* pipeline, void* data)
+	static void conn_pipeline_finallize(ChannelPipeline* pipeline, void* data)
 	{
 		ChannelHandler* handler = pipeline->Get("decoder");
 		DELETE(handler);
@@ -2366,8 +2375,8 @@ namespace ardb
 				goto sexit;
 			}
 			server->Configure(ops);
-			server->SetChannelPipelineInitializor(ardb_pipeline_init, this);
-			server->SetChannelPipelineFinalizer(ardb_pipeline_finallize, NULL);
+			server->SetChannelPipelineInitializor(conn_pipeline_init, this);
+			server->SetChannelPipelineFinalizer(conn_pipeline_finallize, NULL);
 		}
 		if (!m_cfg.listen_unix_path.empty())
 		{
@@ -2380,8 +2389,8 @@ namespace ardb
 				goto sexit;
 			}
 			server->Configure(ops);
-			server->SetChannelPipelineInitializor(ardb_pipeline_init, this);
-			server->SetChannelPipelineFinalizer(ardb_pipeline_finallize, NULL);
+			server->SetChannelPipelineInitializor(conn_pipeline_init, this);
+			server->SetChannelPipelineFinalizer(conn_pipeline_finallize, NULL);
 			chmod(m_cfg.listen_unix_path.c_str(), m_cfg.unixsocketperm);
 		}
 		ArdbLogger::InitDefaultLogger(m_cfg.loglevel, m_cfg.logfile);
@@ -2399,6 +2408,5 @@ namespace ardb
 		ArdbLogger::DestroyDefaultLogger();
 		return 0;
 	}
-
 }
 

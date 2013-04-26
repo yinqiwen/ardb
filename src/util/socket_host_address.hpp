@@ -46,6 +46,10 @@ namespace ardb
 			{
 				return m_port;
 			}
+			bool operator==(const SocketHostAddress& other) const
+			{
+				return m_port == other.m_port && m_host == other.m_host;
+			}
 			bool operator<(const SocketHostAddress& other) const
 			{
 				if (m_port < other.m_port)

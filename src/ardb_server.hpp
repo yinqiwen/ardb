@@ -36,6 +36,7 @@ namespace ardb
 
 			int64 checkpoint_interval;
 			std::string repl_data_dir;
+			std::string backup_dir;
 
 			std::string loglevel;
 			std::string logfile;
@@ -251,6 +252,8 @@ namespace ardb
 			PubSubContextTable m_pattern_pubsub_context_table;
 			ArdbConnContext* m_current_ctx;
 
+			SlaveClient m_slave_client;
+
 			RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(
 					std::string& cmd);
 			int DoRedisCommand(ArdbConnContext& ctx,
@@ -258,6 +261,8 @@ namespace ardb
 					RedisCommandFrame& cmd);
 			void ProcessRedisCommand(ArdbConnContext& ctx,
 					RedisCommandFrame& cmd);
+
+			int SlaveOf(const std::string& host, uint32 port);
 
 			friend class ReplicationService;
 			friend class RedisRequestHandler;
