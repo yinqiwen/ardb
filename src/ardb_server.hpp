@@ -266,6 +266,7 @@ namespace ardb
 
 			friend class ReplicationService;
 			friend class RedisRequestHandler;
+			friend class SlaveClient;
 			void Run();
 			void BatchWriteFlush();
 			void InsertBatchWriteDBID(const DBID& id);

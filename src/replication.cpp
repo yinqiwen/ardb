@@ -38,13 +38,17 @@ namespace ardb
 			return 0;
 		}
 		CloseSlave();
-
+		m_master_addr = addr;
 		return 0;
 	}
 
 	void SlaveClient::CloseSlave()
 	{
-
+		if(NULL != m_client)
+		{
+			m_client->Close();
+			m_client = NULL;
+		}
 	}
 
 	ReplicationService::ReplicationService(ArdbServer* serv) :
