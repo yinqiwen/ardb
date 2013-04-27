@@ -33,18 +33,27 @@ namespace ardb
 
 	class ArdbServer;
 
-	class SlaveClient: public ChannelUpstreamHandler<RedisCommandFrame>
+	class SlaveClient: public ChannelUpstreamHandler<RedisCommandFrame>,
+			public ChannelUpstreamHandler<Buffer>
 	{
 		private:
 			ArdbServer* m_serv;
 			Channel* m_client;
+			SocketHostAddress m_master_addr;
+			int m_state;
 			void MessageReceived(ChannelHandlerContext& ctx,
-								MessageEvent<RedisCommandFrame>& e);
+					MessageEvent<RedisCommandFrame>& e);
+			void MessageReceived(ChannelHandlerContext& ctx,
+					MessageEvent<Buffer>& e);
+			void ChannelClosed(ChannelHandlerContext& ctx,
+								ChannelStateEvent& e);
 		public:
 			SlaveClient(ArdbServer* serv) :
-					m_serv(serv), m_client(NULL)
+					m_serv(serv), m_client(NULL), m_state(0)
 			{
 			}
+			int ConnectMaster(const std::string& host, uint32 port);
+			void CloseSlave();
 	};
 
 	class ReplicationService: public Thread

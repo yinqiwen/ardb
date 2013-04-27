@@ -250,7 +250,9 @@ namespace ardb
 
 	Iterator* LevelDBEngine::Find(const Slice& findkey)
 	{
-		leveldb::Iterator* iter = m_db->NewIterator(leveldb::ReadOptions());
+		leveldb::ReadOptions options;
+		options.fill_cache = false;
+		leveldb::Iterator* iter = m_db->NewIterator(options);
 //		uint64 start_time = get_current_epoch_micros();
 		iter->Seek(LEVELDB_SLICE(findkey));
 //		uint64 stop_time = get_current_epoch_micros();

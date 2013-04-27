@@ -262,7 +262,7 @@ namespace ardb
 			void ProcessRedisCommand(ArdbConnContext& ctx,
 					RedisCommandFrame& cmd);
 
-			int SlaveOf(const std::string& host, uint32 port);
+
 
 			friend class ReplicationService;
 			friend class RedisRequestHandler;

@@ -12,17 +12,39 @@ namespace ardb
 {
 	static uint64 kBinLogIdSeed = 0;
 
-	int ArdbServer::SlaveOf(const std::string& host, uint32 port)
+	void SlaveClient::MessageReceived(ChannelHandlerContext& ctx,
+			MessageEvent<RedisCommandFrame>& e)
+	{
+
+	}
+
+	void SlaveClient::MessageReceived(ChannelHandlerContext& ctx,
+			MessageEvent<Buffer>& e)
+	{
+
+	}
+
+	void SlaveClient::ChannelClosed(ChannelHandlerContext& ctx,
+			ChannelStateEvent& e)
+	{
+
+	}
+
+	int SlaveClient::ConnectMaster(const std::string& host, uint32 port)
 	{
 		SocketHostAddress addr(host, port);
-		if(m_master_addr == addr)
+		if (m_master_addr == addr)
 		{
 			return 0;
 		}
-		Channel* ch = m_service->NewClientSocketChannel();
-		m_master_addr = addr;
-		ch->Connect(&addr);
+		CloseSlave();
+
 		return 0;
+	}
+
+	void SlaveClient::CloseSlave()
+	{
+
 	}
 
 	ReplicationService::ReplicationService(ArdbServer* serv) :
