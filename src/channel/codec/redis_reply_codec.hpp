@@ -20,7 +20,7 @@ namespace ardb
 		{
 			protected:
 				bool Decode(ChannelHandlerContext& ctx, Channel* channel,
-				        Buffer& buffer, RedisReply& msg);
+						Buffer& buffer, RedisReply& msg);
 			public:
 				RedisReplyDecoder()
 				{
@@ -31,9 +31,19 @@ namespace ardb
 		{
 			private:
 				bool WriteRequested(ChannelHandlerContext& ctx,
-				        MessageEvent<RedisReply>& e);
+						MessageEvent<RedisReply>& e);
 			public:
 				static bool Encode(Buffer& buf, RedisReply& reply);
+		};
+
+		class NullRedisReplyEncoder: public ChannelDownstreamHandler<RedisReply>
+		{
+			private:
+				bool WriteRequested(ChannelHandlerContext& ctx,
+						MessageEvent<RedisReply>& e)
+				{
+					return true;
+				}
 		};
 	}
 }

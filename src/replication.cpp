@@ -11,40 +11,138 @@
 namespace ardb
 {
 	static uint64 kBinLogIdSeed = 0;
+	static const uint32 kSlaveStateConnecting = 1;
+	static const uint32 kSlaveStateConnected = 2;
+	static const uint32 kSlaveStateSyncing = 3;
+	static const uint32 kSlaveStateSynced = 4;
 
 	void SlaveClient::MessageReceived(ChannelHandlerContext& ctx,
 			MessageEvent<RedisCommandFrame>& e)
 	{
-
+		DEBUG_LOG("Recv master cmd %s", e.GetMessage()->GetCommand().c_str());
+		ArdbConnContext actx;
+		actx.conn = ctx.GetChannel();
+		m_serv->ProcessRedisCommand(actx, *(e.GetMessage()));
 	}
 
 	void SlaveClient::MessageReceived(ChannelHandlerContext& ctx,
 			MessageEvent<Buffer>& e)
 	{
+		Buffer* msg = e.GetMessage();
+		if (m_slave_state == kSlaveStateConnected)
+		{
+			int index = msg->IndexOf("\r\n", 2);
+			if (index != -1)
+			{
+				char tmp;
+				msg->ReadByte(tmp);
+				if (tmp != '$')
+				{
+					ERROR_LOG("Expected char '$'.");
+					return;
+				}
+				char buf[index];
+				msg->Read(buf, index - 1);
+				buf[index - 1] = 0;
+				if (!str_touint32(buf, m_chunk_len))
+				{
+					ERROR_LOG("Invalid lenght %s.", buf);
+					return;
+				}
+				msg->SkipBytes(2);
+				DEBUG_LOG("Sync bulk %d bytes", m_chunk_len);
+				m_slave_state = kSlaveStateSyncing;
+			} else
+			{
+				return;
+			}
+		}
 
+		//discard synced  chunk
+		uint32 bytes = msg->ReadableBytes();
+		if (bytes < m_chunk_len)
+		{
+			m_chunk_len -= msg->ReadableBytes();
+			msg->Clear();
+		} else
+		{
+			msg->SkipBytes(m_chunk_len);
+			m_chunk_len = 0;
+			m_client->GetPipeline().Remove("handler");
+			m_client->GetPipeline().AddLast("decoder", &m_decoder);
+			m_client->GetPipeline().AddLast("encoder", &m_encoder);
+			ChannelUpstreamHandler<RedisCommandFrame>* handler = this;
+			m_client->GetPipeline().AddLast("handler", handler);
+			m_slave_state = kSlaveStateSynced;
+		}
 	}
 
 	void SlaveClient::ChannelClosed(ChannelHandlerContext& ctx,
 			ChannelStateEvent& e)
 	{
+		m_client = NULL;
+		//reconnect master after 500ms
+		m_serv->GetTimer().Schedule(this, 500, -1);
+	}
 
+	void SlaveClient::Run()
+	{
+		if (NULL == m_client && !m_master_addr.GetHost().empty())
+		{
+			ConnectMaster(m_master_addr.GetHost(), m_master_addr.GetPort());
+		} else
+		{
+			if (m_slave_state == kSlaveStateSynced)
+			{
+				//do nothing
+			}
+		}
+	}
+
+	void SlaveClient::ChannelConnected(ChannelHandlerContext& ctx,
+			ChannelStateEvent& e)
+	{
+		Buffer sync;
+		sync.Printf("sync\r\n");
+		ctx.GetChannel()->Write(sync);
+		m_slave_state = kSlaveStateConnected;
 	}
 
 	int SlaveClient::ConnectMaster(const std::string& host, uint32 port)
 	{
+		if (!m_cron_inited)
+		{
+			m_cron_inited = true;
+			m_serv->GetTimer().Schedule(this,
+					m_serv->m_cfg.repl_ping_slave_period,
+					m_serv->m_cfg.repl_ping_slave_period, SECONDS);
+		}
 		SocketHostAddress addr(host, port);
-		if (m_master_addr == addr)
+		if (m_master_addr == addr && NULL != m_client)
 		{
 			return 0;
 		}
-		CloseSlave();
+		Close();
 		m_master_addr = addr;
+		m_client = m_serv->m_service->NewClientSocketChannel();
+		ChannelUpstreamHandler<Buffer>* handler = this;
+		m_client->GetPipeline().AddLast("handler", handler);
+		m_client->Connect(&m_master_addr);
+		m_slave_state = kSlaveStateConnecting;
 		return 0;
 	}
 
-	void SlaveClient::CloseSlave()
+	void SlaveClient::Stop()
 	{
-		if(NULL != m_client)
+		SocketHostAddress empty;
+		m_master_addr = empty;
+		m_slave_state = 0;
+		Close();
+	}
+
+	void SlaveClient::Close()
+	{
+		if (NULL != m_client)
 		{
 			m_client->Close();
 			m_client = NULL;
@@ -171,12 +269,6 @@ namespace ardb
 //		//send latest binlog
 //		return 0;
 //	}
-
-	int ReplicationService::Slaveof(const std::string& host, int port)
-	{
-
-		return 0;
-	}
 
 	int ReplicationService::Save()
 	{

@@ -38,13 +38,16 @@ namespace ardb
 			std::string repl_data_dir;
 			std::string backup_dir;
 
+			int64 repl_ping_slave_period;
+
 			std::string loglevel;
 			std::string logfile;
 			ArdbServerConfig() :
 					daemonize(false), listen_port(0), unixsocketperm(755), max_clients(
 							10000), tcp_keepalive(0), slowlog_log_slower_than(
 							10000), slowlog_max_len(128), batch_write_enable(
-							true), batch_flush_period(1), checkpoint_interval(2)
+							true), batch_flush_period(1), checkpoint_interval(
+							2), repl_ping_slave_period(10)
 			{
 			}
 	};
@@ -262,8 +265,6 @@ namespace ardb
 			void ProcessRedisCommand(ArdbConnContext& ctx,
 					RedisCommandFrame& cmd);
 
-
-
 			friend class ReplicationService;
 			friend class RedisRequestHandler;
 			friend class SlaveClient;
@@ -306,6 +307,7 @@ namespace ardb
 			int Quit(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Slaveof(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Sync(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int ReplConf(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Shutdown(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Type(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Move(ArdbConnContext& ctx, ArgumentArray& cmd);

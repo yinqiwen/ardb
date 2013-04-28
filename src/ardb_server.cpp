@@ -113,6 +113,8 @@ namespace ardb
 		conf_get_string(props, "logfile", cfg.logfile);
 		std::string daemonize;
 		conf_get_string(props, "daemonize", daemonize);
+
+		conf_get_int64(props, "repl-ping-slave-period", cfg.repl_ping_slave_period);
 		daemonize = string_tolower(daemonize);
 		if (daemonize == "yes")
 		{
@@ -128,7 +130,7 @@ namespace ardb
 
 	ArdbServer::ArdbServer() :
 			m_service(NULL), m_db(NULL), m_engine(NULL), m_slowlog_handler(
-			        m_cfg),m_repli_serv(this),m_current_ctx(NULL)
+			        m_cfg),m_repli_serv(this),m_current_ctx(NULL),m_slave_client(this)
 	{
 		struct RedisCommandHandlerSetting settingTable[] = {
 		        { "ping",&ArdbServer::Ping, 0, 0, 0, 1 },
@@ -157,6 +159,7 @@ namespace ardb
 		        { "quit", &ArdbServer::Quit, 0, 0, 0, 0 },
 		        { "shutdown", &ArdbServer::Shutdown, 0, 1, 0, 1 },
 		        { "slaveof", &ArdbServer::Slaveof, 2, 2, 0, 1 },
+		        { "replconf", &ArdbServer::ReplConf, 0, -1, 0, 1 },
 		        { "sync", &ArdbServer::Sync, 0, 2, 0, 1 },
 		        { "select",&ArdbServer::Select, 1, 1, 1, 1 },
 		        { "append",&ArdbServer::Append, 2, 2, 1 },
@@ -1302,16 +1305,33 @@ namespace ardb
 		const std::string& host = cmd[0];
 		uint32 port = 0;
 		if(!string_touint32(cmd[1], port)){
+			if(!strcasecmp(cmd[0].c_str(), "no") && !strcasecmp(cmd[1].c_str(), "one"))
+			{
+				 fill_status_reply(ctx.reply, "OK");
+				 m_slave_client.Stop();
+				 return 0 ;
+			}
 			fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
 			return 0;
 		}
-
+        m_slave_client.ConnectMaster(host, port);
         fill_status_reply(ctx.reply, "OK");
+		return 0;
+	}
+
+	int ArdbServer::ReplConf(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		fill_status_reply(ctx.reply, "OK");
 		return 0;
 	}
 
 	int ArdbServer::Sync(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
+		//empty redis dump without cksm
+		Buffer content;
+		content.Printf("REDIS0004");
+		content.WriteByte((char)255);
+		fill_str_reply(ctx.reply, content.AsString());
 		return 0;
 	}
 
@@ -2168,6 +2188,7 @@ namespace ardb
 		lower_string(cmd);
 		RedisCommandHandlerSetting* setting = FindRedisCommandHandlerSetting(
 				        cmd);
+		DEBUG_LOG("Process recved cmd:%s", cmd.c_str());
 		int ret = 0;
 		if (NULL != setting)
 		{

@@ -150,7 +150,7 @@ LASTSAVE                                   DONE
 MONITOR                                    NotYet
 SAVE                                       DONE
 SHUTDOWN [NOSAVE] [SAVE]                   DONE
-SLAVEOF host port                          NotYet
+SLAVEOF host port                          DONE
 SLOWLOG subcommand [argument]              DONE
 SYNC                                       NotYet
 TIME                                       DONE
