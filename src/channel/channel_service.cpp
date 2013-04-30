@@ -70,16 +70,26 @@ Channel* ChannelService::GetChannel(uint32_t channelID)
     return NULL;
 }
 
-bool ChannelService::DetachChannel(Channel* ch)
+bool ChannelService::DetachChannel(Channel* ch, bool remove)
 {
     RETURN_FALSE_IF_NULL(ch);
     ch->DetachFD();
+    if(remove)
+    {
+    	m_channel_table.erase(ch->GetID());
+    }
     return true;
 }
 
-Channel* ChannelService::AttachChannel(Channel* ch)
+Channel* ChannelService::AttachChannel(Channel* ch, bool transfer_service_only)
 {
     RETURN_FALSE_IF_NULL(ch);
+    if(transfer_service_only)
+    {
+    	ch->m_service = this;
+    	ch->AttachFD();
+    	return ch;
+    }
     if (m_channel_table.count(ch->GetID()) > 0)
     {
         return false;

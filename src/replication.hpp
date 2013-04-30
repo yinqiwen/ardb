@@ -9,7 +9,9 @@
 #define REPLICATION_HPP_
 #include "channel/all_includes.hpp"
 #include "ardb.hpp"
-#include "util/thread.hpp"
+#include "util/thread/thread.hpp"
+#include "util/thread/thread_mutex_lock.hpp"
+#include "util/thread/lock_guard.hpp"
 #include <stdio.h>
 
 using namespace ardb::codec;
@@ -19,23 +21,35 @@ namespace ardb
 	struct SlaveConn
 	{
 			Channel* conn;
-			uint32 synced_checkpoint;
 			uint32 synced_cmd_seq;
+			uint32 state;
 	};
 
-	class BinLogWriter: public Runnable
+	struct RedisCommandFrameFeed
+	{
+
+			RedisCommandFrame cmd;
+			uint32 cmd_seq;
+			RedisCommandFrameFeed(RedisCommandFrame& c, uint32 seq) :
+					cmd(c), cmd_seq(seq)
+			{
+			}
+	};
+
+	class SyncCommandQueue
 	{
 		private:
-			FILE* m_index_log;
-			FILE* m_bin_log;
-			void Run();
+			typedef std::deque<RedisCommandFrameFeed*> MemCommandQueue;
+			MemCommandQueue m_mem_queue;
+		public:
+			void Offer(RedisCommandFrame& cmd, uint32 seq);
 	};
 
 	class ArdbServer;
 
 	class SlaveClient: public ChannelUpstreamHandler<RedisCommandFrame>,
-			public ChannelUpstreamHandler<Buffer>,
-			public Runnable
+	        public ChannelUpstreamHandler<Buffer>,
+	        public Runnable
 	{
 		private:
 			ArdbServer* m_serv;
@@ -44,21 +58,23 @@ namespace ardb
 			uint32 m_chunk_len;
 			int m_slave_state;
 			bool m_cron_inited;
+			bool m_ping_recved;
 			RedisCommandDecoder m_decoder;
 			NullRedisReplyEncoder m_encoder;
 			void MessageReceived(ChannelHandlerContext& ctx,
-					MessageEvent<RedisCommandFrame>& e);
+			        MessageEvent<RedisCommandFrame>& e);
 			void MessageReceived(ChannelHandlerContext& ctx,
-					MessageEvent<Buffer>& e);
+			        MessageEvent<Buffer>& e);
 			void ChannelClosed(ChannelHandlerContext& ctx,
-					ChannelStateEvent& e);
+			        ChannelStateEvent& e);
 			void ChannelConnected(ChannelHandlerContext& ctx,
-					ChannelStateEvent& e);
+			        ChannelStateEvent& e);
+			void Timeout();
 			void Run();
 		public:
 			SlaveClient(ArdbServer* serv) :
 					m_serv(serv), m_client(NULL), m_chunk_len(0), m_slave_state(
-							0), m_cron_inited(false)
+					        0), m_cron_inited(false), m_ping_recved(false)
 			{
 			}
 			int ConnectMaster(const std::string& host, uint32 port);
@@ -66,29 +82,41 @@ namespace ardb
 			void Stop();
 	};
 
-//	class MasterConn:public Runnable
-//	{
-//		private:
-//			void Run();
-//	};
-
-	class ReplicationService: public Thread
+	class ReplicationService: public Thread,
+	        public SoftSignalHandler,
+	        public ChannelUpstreamHandler<Buffer>
 	{
 		private:
 			ChannelService m_serv;
 			ArdbServer* m_server;
 			bool m_is_saving;
 			uint32 m_last_save;
+			DBID m_current_db;
 			void Run();
-//			int Backup(const std::string& dstfile);
+			typedef std::deque<Channel*> SyncClientQueue;
+
+			typedef std::map<uint32, SlaveConn> SlaveConnTable;
+			SyncClientQueue m_waiting_slaves;
+			ThreadMutexLock m_slaves_lock;
+			SlaveConnTable m_slaves;
+
+			SoftSignalChannel* m_soft_signal;
+
+			SyncCommandQueue m_sync_queue;
+			void Routine();
+			void PingSlaves();
+			void OnSoftSignal(uint32 soft_signo, uint32 appendinfo);
+			void ChannelClosed(ChannelHandlerContext& ctx,
+			        ChannelStateEvent& e);
+			void MessageReceived(ChannelHandlerContext& ctx,
+			        MessageEvent<Buffer>& e)
+			{
+
+			}
 		public:
 			ReplicationService(ArdbServer* serv);
-//			int Start();
-//			int CheckPoint();
-//			int WriteBinLog(Channel* sourceConn, RedisCommandFrame& cmd);
-//			int ServSync(Channel* conn, RedisCommandFrame& syncCmd);
-//			void SyncMaster(const std::string& host, int port);
-//			void HandleSyncedCommand(RedisCommandFrame& syncCmd);
+			void ServSlaveClient(Channel* client);
+			void FeedSlaves(const DBID& dbid, RedisCommandFrame& syncCmd);
 			int Save();
 			int BGSave();
 			uint32 LastSave()

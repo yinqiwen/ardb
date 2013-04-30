@@ -134,7 +134,7 @@ bool ServerSocketChannel::DoBind(Address* local)
 		::close(fd);
 		return false;
 	}
-	if (aeCreateFileEvent(m_service.GetRawEventLoop(), fd, AE_READABLE,
+	if (aeCreateFileEvent(GetService().GetRawEventLoop(), fd, AE_READABLE,
 			Channel::IOEventCallback, this) == AE_ERR)
 	{
 		::close(fd);
@@ -209,14 +209,14 @@ void ServerSocketChannel::OnRead()
 				return;
 			}
 		}
-		ClientSocketChannel * ch = m_service.NewClientSocketChannel();
-		if (aeCreateFileEvent(m_service.GetRawEventLoop(), fd, AE_READABLE,
+		ClientSocketChannel * ch = GetService().NewClientSocketChannel();
+		if (aeCreateFileEvent(GetService().GetRawEventLoop(), fd, AE_READABLE,
 				Channel::IOEventCallback, ch) == AE_ERR)
 		{
 			int err = errno;
 			ERROR_LOG(
 					"Failed to add event for accepted client for fd:%d for reason:%s", fd, strerror(err));
-			m_service.DeleteChannel(ch);
+			GetService().DeleteChannel(ch);
 			::close(fd);
 			return;
 		}

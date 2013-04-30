@@ -44,6 +44,13 @@ namespace ardb
 						m_is_inline(false), m_cmd_seted(false)
 				{
 				}
+				RedisCommandFrame(ArgumentArray& cmd) :
+						m_is_inline(false), m_cmd_seted(false)
+				{
+					m_cmd = cmd.front();
+					cmd.pop_front();
+					m_args = cmd;
+				}
 				bool IsInLine()
 				{
 					return m_is_inline;

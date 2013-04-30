@@ -135,7 +135,7 @@ bool SoftSignalChannel::DoOpen()
     {
         m_event_fd.OpenNonBlock();
     }
-    aeCreateFileEvent(m_service.GetRawEventLoop(), m_event_fd.read_fd,
+    aeCreateFileEvent(GetService().GetRawEventLoop(), m_event_fd.read_fd,
             AE_READABLE, Channel::IOEventCallback, this);
     return true;
 }

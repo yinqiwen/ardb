@@ -97,8 +97,8 @@ namespace ardb
 			ServerSocketChannel* NewServerSocketChannel();
 			DatagramChannel* NewDatagramSocketChannel();
 
-			Channel* AttachChannel(Channel* ch);
-			bool DetachChannel(Channel* ch);
+			Channel* AttachChannel(Channel* ch, bool transfer_service_only = false);
+			bool DetachChannel(Channel* ch, bool remove = false);
 
 			//In most time , you should not invoke this method
 			inline aeEventLoop* GetRawEventLoop()

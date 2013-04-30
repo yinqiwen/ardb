@@ -32,7 +32,7 @@ void Channel::IOEventCallback(struct aeEventLoop *eventLoop, int fd,
 
 Channel::Channel(Channel* parent, ChannelService& service) :
 		m_user_configed(false), m_has_removed(false), m_parent_id(0), m_service(
-		        service), m_id(0), m_fd(-1), m_flush_timertask_id(-1), m_pipeline_initializor(
+		        &service), m_id(0), m_fd(-1), m_flush_timertask_id(-1), m_pipeline_initializor(
 		        NULL), m_pipeline_initailizor_user_data(NULL), m_pipeline_finallizer(
 		        NULL), m_pipeline_finallizer_user_data(NULL), m_detached(false), m_writable(
 		        true), m_close_after_write(false)
@@ -63,7 +63,7 @@ int Channel::GetReadFD()
 
 bool Channel::AttachFD()
 {
-	if (aeCreateFileEvent(m_service.GetRawEventLoop(), GetReadFD(), AE_READABLE,
+	if (aeCreateFileEvent(GetService().GetRawEventLoop(), GetReadFD(), AE_READABLE,
 	        Channel::IOEventCallback, this) == AE_ERR)
 	{
 		::close(GetReadFD());
@@ -82,7 +82,7 @@ bool Channel::AttachFD(int fd)
 		ERROR_LOG("Failed to attach FD since current fd is not -1");
 		return false;
 	}
-	if (aeCreateFileEvent(m_service.GetRawEventLoop(), fd, AE_READABLE,
+	if (aeCreateFileEvent(GetService().GetRawEventLoop(), fd, AE_READABLE,
 	        Channel::IOEventCallback, this) == AE_ERR)
 	{
 		::close(fd);
@@ -108,7 +108,7 @@ bool Channel::SetIOEventCallback(ChannelIOEventCallback* cb, int mask,
 
 	if (rd_fd == wr_fd)
 	{
-		if (aeCreateFileEvent(m_service.GetRawEventLoop(), rd_fd, mask, cb,
+		if (aeCreateFileEvent(GetService().GetRawEventLoop(), rd_fd, mask, cb,
 		        data) == AE_ERR)
 		{
 			::close(rd_fd);
@@ -120,7 +120,7 @@ bool Channel::SetIOEventCallback(ChannelIOEventCallback* cb, int mask,
 	{
 		if (mask & AE_READABLE)
 		{
-			if (aeCreateFileEvent(m_service.GetRawEventLoop(), rd_fd,
+			if (aeCreateFileEvent(GetService().GetRawEventLoop(), rd_fd,
 			        AE_READABLE, cb, data) == AE_ERR)
 			{
 				::close(rd_fd);
@@ -130,7 +130,7 @@ bool Channel::SetIOEventCallback(ChannelIOEventCallback* cb, int mask,
 		}
 		else if (mask & AE_WRITABLE)
 		{
-			if (aeCreateFileEvent(m_service.GetRawEventLoop(), wr_fd,
+			if (aeCreateFileEvent(GetService().GetRawEventLoop(), wr_fd,
 			        AE_WRITABLE, cb, data) == AE_ERR)
 			{
 				::close(wr_fd);
@@ -146,10 +146,10 @@ bool Channel::SetIOEventCallback(ChannelIOEventCallback* cb, int mask,
 
 void Channel::DetachFD()
 {
-	if (GetReadFD() > 0)
+	if (GetReadFD() > 0 && !m_detached)
 	{
 		DEBUG_LOG("Detach fd(%d) from event loop.", GetReadFD());
-		aeDeleteFileEvent(m_service.GetRawEventLoop(), GetReadFD(),
+		aeDeleteFileEvent(GetService().GetRawEventLoop(), GetReadFD(),
 		        AE_WRITABLE | AE_READABLE);
 		m_detached = true;
 	}
@@ -205,7 +205,7 @@ void Channel::EnableWriting()
 	if (write_fd > 0)
 	{
 		m_writable = false;
-		aeCreateFileEvent(m_service.GetRawEventLoop(), GetWriteFD(),
+		aeCreateFileEvent(GetService().GetRawEventLoop(), GetWriteFD(),
 		        AE_WRITABLE, Channel::IOEventCallback, this);
 	}
 	else
@@ -220,7 +220,7 @@ void Channel::DisableWriting()
 	if (write_fd > 0)
 	{
 		m_writable = true;
-		aeDeleteFileEvent(m_service.GetRawEventLoop(), write_fd, AE_WRITABLE);
+		aeDeleteFileEvent(GetService().GetRawEventLoop(), write_fd, AE_WRITABLE);
 	}
 	else
 	{
@@ -234,7 +234,7 @@ void Channel::CancelFlushTimerTask()
 	if (m_flush_timertask_id > 0)
 	{
 		//TRACE_LOG("Canecl flush time task.");
-		m_service.GetTimer().Cancel(m_flush_timertask_id);
+		GetService().GetTimer().Cancel(m_flush_timertask_id);
 		m_flush_timertask_id = -1;
 	}
 }
@@ -243,7 +243,7 @@ void Channel::CreateFlushTimerTask()
 {
 	if (-1 == m_flush_timertask_id)
 	{
-		m_flush_timertask_id = m_service.GetTimer().Schedule(this,
+		m_flush_timertask_id = GetService().GetTimer().Schedule(this,
 		        m_options.user_write_buffer_flush_timeout_mills, -1, MILLIS);
 		//TRACE_LOG(
 		//        "Create flush task(%u) triggered after %ums.", m_flush_timertask_id, m_options.user_write_buffer_flush_timeout_mills);
@@ -500,13 +500,13 @@ bool Channel::DoClose(bool inDestructor)
 	//int mask = AE_READABLE | AE_WRITABLE;
 	if (read_fd > 0)
 	{
-		aeDeleteFileEvent(m_service.GetRawEventLoop(), read_fd,
+		aeDeleteFileEvent(GetService().GetRawEventLoop(), read_fd,
 		        AE_READABLE | AE_WRITABLE);
 		hasfd = true;
 	}
 	if (read_fd != write_fd && write_fd > 0)
 	{
-		aeDeleteFileEvent(m_service.GetRawEventLoop(), write_fd, AE_WRITABLE);
+		aeDeleteFileEvent(GetService().GetRawEventLoop(), write_fd, AE_WRITABLE);
 		hasfd = true;
 	}
 	CancelFlushTimerTask();
@@ -517,7 +517,7 @@ bool Channel::DoClose(bool inDestructor)
 		ret = fire_channel_closed(this);
 		if (0 != m_parent_id)
 		{
-			Channel* parent = m_service.GetChannel(m_parent_id);
+			Channel* parent = GetService().GetChannel(m_parent_id);
 			if (NULL != parent)
 			{
 				parent->OnChildClose(this);
@@ -528,7 +528,7 @@ bool Channel::DoClose(bool inDestructor)
 	if (!m_has_removed && !inDestructor)
 	{
 		m_has_removed = true;
-		m_service.RemoveChannel(this);
+		GetService().RemoveChannel(this);
 	}
 	return ret;
 }

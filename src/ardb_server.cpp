@@ -114,7 +114,10 @@ namespace ardb
 		std::string daemonize;
 		conf_get_string(props, "daemonize", daemonize);
 
-		conf_get_int64(props, "repl-ping-slave-period", cfg.repl_ping_slave_period);
+		conf_get_int64(props, "repl-ping-slave-period",
+		        cfg.repl_ping_slave_period);
+		conf_get_int64(props, "repl-timeout",
+				        cfg.repl_timeout);
 		daemonize = string_tolower(daemonize);
 		if (daemonize == "yes")
 		{
@@ -130,134 +133,136 @@ namespace ardb
 
 	ArdbServer::ArdbServer() :
 			m_service(NULL), m_db(NULL), m_engine(NULL), m_slowlog_handler(
-			        m_cfg),m_repli_serv(this),m_current_ctx(NULL),m_slave_client(this)
+			        m_cfg), m_repli_serv(this), m_current_ctx(NULL), m_slave_client(
+			        this)
 	{
-		struct RedisCommandHandlerSetting settingTable[] = {
-		        { "ping",&ArdbServer::Ping, 0, 0, 0, 1 },
-		        { "multi",&ArdbServer::Multi, 0, 0, 1, 0 },
-		        { "discard",&ArdbServer::Discard, 0, 0, 1, 0 },
-		        { "exec",&ArdbServer::Exec, 0, 0, 1, 0 },
-		        { "watch",&ArdbServer::Watch, 0, -1, 1, 0 },
-		        { "unwatch",&ArdbServer::UnWatch, 0, 0, 1, 0 },
-		        { "subscribe",&ArdbServer::Subscribe, 1, -1, 0, 1 },
-		        { "psubscribe",&ArdbServer::PSubscribe, 1, -1, 0, 1 },
-		        { "unsubscribe",&ArdbServer::UnSubscribe, 0, -1, 0, 1 },
-		        { "punsubscribe",&ArdbServer::PUnSubscribe, 0, -1, 0, 1 },
-		        { "publish",&ArdbServer::Publish, 2, 2, 0, 1 },
-		        { "info", &ArdbServer::Info, 0, 1, 0, 1 },
-		        { "save", &ArdbServer::Save, 0, 0, 0, 1 },
-		        { "bgsave", &ArdbServer::BGSave, 0, 0, 0, 1 },
-		        { "lastsave", &ArdbServer::LastSave, 0, 0, 0, 1 },
-		        { "slowlog", &ArdbServer::SlowLog, 1, 2, 0, 1 },
-		        { "dbsize",&ArdbServer::DBSize, 0, 0, 0, 1 },
-		        { "config",&ArdbServer::Config, 1, 3, 0, 1 },
-		        { "client",&ArdbServer::Client, 1, 3, 0, 1 },
-		        { "flushdb",&ArdbServer::FlushDB, 0, 0, 1, 1 },
-		        { "flushall",&ArdbServer::FlushAll, 0, 0, 1, 1 },
-		        { "time", &ArdbServer::Time, 0, 0, 0, 1 },
-		        { "echo", &ArdbServer::Echo,1, 1, 0, 1 },
-		        { "quit", &ArdbServer::Quit, 0, 0, 0, 0 },
-		        { "shutdown", &ArdbServer::Shutdown, 0, 1, 0, 1 },
-		        { "slaveof", &ArdbServer::Slaveof, 2, 2, 0, 1 },
-		        { "replconf", &ArdbServer::ReplConf, 0, -1, 0, 1 },
-		        { "sync", &ArdbServer::Sync, 0, 2, 0, 1 },
-		        { "select",&ArdbServer::Select, 1, 1, 1, 1 },
-		        { "append",&ArdbServer::Append, 2, 2, 1 },
-		        { "get", &ArdbServer::Get,1, 1, 0, 1 },
-		        { "set", &ArdbServer::Set, 2, 7, 1, 1 },
-		        { "del", &ArdbServer::Del, 1, -1, 1, 1 },
-		        { "exists",&ArdbServer::Exists, 1, 1, 0, 1 },
-		        { "expire",&ArdbServer::Expire, 2, 2, 1, 1 },
-		        { "expireat", &ArdbServer::Expireat, 2, 2, 1, 1 },
-		        { "persist",&ArdbServer::Persist, 1, 1, 1, 1 },
-		        { "type",&ArdbServer::Type, 1, 1, 0, 1 },
-		        { "bitcount",&ArdbServer::Bitcount, 1, 3, 0, 1 },
-		        { "bitop", &ArdbServer::Bitop, 3, -1, 1, 1 },
-		        { "decr",&ArdbServer::Decr, 1, 1, 1, 1 },
-		        { "decrby", &ArdbServer::Decrby, 2, 2, 1, 1 },
-		        { "getbit",&ArdbServer::GetBit, 2, 2, 0, 1 },
-		        { "getrange",&ArdbServer::GetRange, 3, 3, 0, 1 },
-		        { "getset", &ArdbServer::GetSet, 2, 2, 1, 1 },
-		        { "incr",&ArdbServer::Incr, 1, 1, 1, 1 },
-		        { "incrby", &ArdbServer::Incrby, 2, 2, 1, 1 },
-		        { "incrbyfloat",&ArdbServer::IncrbyFloat, 2, 2, 1, 1 },
-		        { "mget",&ArdbServer::MGet, 1, -1, 0, 1 },
-		        { "mset", &ArdbServer::MSet, 2, -1, 1, 1 },
-		        { "msetnx", &ArdbServer::MSetNX, 2, -1, 1, 1 },
-		        { "psetex", &ArdbServer::MSetNX, 3, 3, 1, 1 },
-		        { "setbit",&ArdbServer::SetBit, 3, 3, 1, 1 },
-		        { "setex", &ArdbServer::SetEX, 3, 3, 1, 1 },
-		        { "setnx", &ArdbServer::SetNX, 2, 2, 1, 1 },
-		        { "setrange",&ArdbServer::SetRange, 3, 3, 1, 1 },
-		        { "strlen",&ArdbServer::Strlen, 1, 1, 0, 1 },
-		        { "hdel",&ArdbServer::HDel, 2, -1, 1, 1 },
-		        { "hexists", &ArdbServer::HExists, 2, 2, 0, 1 },
-		        { "hget",&ArdbServer::HGet, 2, 2, 0, 1 },
-		        { "hgetall",&ArdbServer::HGetAll, 1, 1, 0, 1 },
-		        { "hincr",&ArdbServer::HIncrby, 3, 3, 1, 1 },
-		        { "hincrbyfloat",&ArdbServer::HIncrbyFloat, 3, 3, 1, 1 },
-		        { "hkeys",&ArdbServer::HKeys, 1, 1, 0, 1 },
-		        { "hlen", &ArdbServer::HLen,1, 1, 0, 1 },
-		        { "hvals", &ArdbServer::HVals, 1, 1, 0, 1 },
-		        { "hmget", &ArdbServer::HMGet, 2, -1, 0, 1 },
-		        { "hset",&ArdbServer::HSet, 3, 3, 1, 1 },
-		        { "hsetnx", &ArdbServer::HSetNX, 3, 3, 1, 1 },
-		        { "hmset",&ArdbServer::HMSet, 3, -1, 1, 1 },
-		        { "scard",&ArdbServer::SCard, 1, 1, 0, 1 },
-		        { "sadd", &ArdbServer::SAdd,2, -1, 1, 1 },
-		        { "sdiff", &ArdbServer::SDiff, 2, -1, 0, 1 },
-		        { "sdiffstore", &ArdbServer::SDiffStore, 3, -1, 1, 1 },
-		        { "sinter", &ArdbServer::SInter, 2, -1, 0, 1 },
-		        { "sinterstore",&ArdbServer::SInterStore, 3, -1, 1, 1 },
-		        { "sismember",&ArdbServer::SIsMember, 2, 2, 0, 1 },
-		        { "smembers", &ArdbServer::SMembers, 1, 1, 0, 1 },
-		        { "smove",&ArdbServer::SMove, 3, 3, 1, 1 },
-		        { "spop", &ArdbServer::SPop,1, 1, 1, 1 },
-		        { "sranmember", &ArdbServer::SRandMember, 1, 2, 0, 1 },
-		        { "srem", &ArdbServer::SRem, 2, -1, 1, 1 },
-		        { "sunion", &ArdbServer::SUnion, 2, -1, 0, 1 },
-		        { "sunionstore",&ArdbServer::SUnionStore, 3, -1, 1, 1 },
-		        { "zadd",&ArdbServer::ZAdd, 3, -1, 1, 1 },
-		        { "zcard",&ArdbServer::ZCard, 1, 1, 0, 1 },
-		        { "zcount",&ArdbServer::ZCount, 3, 3, 0, 1 },
-		        { "zincrby", &ArdbServer::ZIncrby, 3, 3, 1, 1 },
-		        { "zrange",&ArdbServer::ZRange, 3, 4, 0, 1 },
-		        { "zrangebyscore",&ArdbServer::ZRangeByScore, 3, 7, 0, 1 },
-		        { "zrank",&ArdbServer::ZRank, 2, 2, 0, 1 },
-		        { "zrem", &ArdbServer::ZRem, 2, -1, 1, 1 },
-		        { "zremrangebyrank",&ArdbServer::ZRemRangeByRank, 3, 3, 1, 1 },
-		        { "zremrangebyscore", &ArdbServer::ZRemRangeByScore, 3, 3, 1, 1 },
-		        { "zrevrange", &ArdbServer::ZRevRange, 3, 4, 0, 1 },
-		        { "zrevrangebyscore", &ArdbServer::ZRevRangeByScore, 3, 7, 0, 1 },
-		        { "zinterstore", &ArdbServer::ZInterStore, 3, -1, 1, 1 },
-		        { "zunionstore", &ArdbServer::ZUnionStore, 3, -1, 1, 1 },
-		        { "zrevrank", &ArdbServer::ZRevRank, 2, 2, 0, 1 },
-		        { "zscore", &ArdbServer::ZScore, 2, 2, 0, 1 },
-		        { "lindex", &ArdbServer::LIndex, 2, 2, 0, 1 },
-		        { "linsert", &ArdbServer::LInsert, 4, 4, 1, 1 },
-		        { "llen",&ArdbServer::LLen, 1, 1, 0, 1 },
-		        { "lpop", &ArdbServer::LPop,1, 1, 1, 1 },
-		        { "lpush", &ArdbServer::LPush, 2, -1, 1, 1 },
-		        { "lpushx", &ArdbServer::LPushx, 2, 2, 1, 1 },
-		        { "lrange", &ArdbServer::LRange, 3, 3, 0, 1 },
-		        { "lrem", &ArdbServer::LRem, 3, 3, 1, 1 },
-		        { "lset", &ArdbServer::LSet, 3, 3, 1, 1 },
-		        { "ltrim", &ArdbServer::LTrim, 3, 3, 1, 1 },
-		        { "rpop", &ArdbServer::RPop, 1, 1, 1, 1 },
-		        { "rpush",&ArdbServer::RPush, 2, -1, 1, 1 },
-		        { "rpushx",&ArdbServer::RPushx, 2, 2, 1, 1 },
-		        { "rpoplpush",&ArdbServer::RPopLPush, 2, 2, 1, 1 },
-		        { "hclear", &ArdbServer::HClear, 1, 1, 1, 1 },
-		        { "zclear",&ArdbServer::ZClear, 1, 1, 1, 1 },
-		        { "sclear", &ArdbServer::SClear, 1, 1, 1, 1 },
-		        { "lclear",&ArdbServer::LClear, 1, 1, 1, 1 },
-		        { "tclear",&ArdbServer::TClear, 1, 1, 1, 1 },
-		        { "move", &ArdbServer::Move, 2, 2, 1, 1 },
-		        { "rename", &ArdbServer::Rename, 2, 2, 1, 1 },
-		        { "renamenx",&ArdbServer::RenameNX, 2, 2, 1, 1 },
-		        { "sort", &ArdbServer::Sort, 1, -1, 2, 1 },
-		        { "keys", &ArdbServer::Keys, 1, 1, 0, 1 },
-		};
+		struct RedisCommandHandlerSetting settingTable[] =
+			{
+				{ "ping", &ArdbServer::Ping, 0, 0, 0 },
+				{ "multi", &ArdbServer::Multi, 0, 0, 0 },
+				{ "discard", &ArdbServer::Discard, 0, 0, 0 },
+				{ "exec", &ArdbServer::Exec, 0, 0, 0 },
+				{ "watch", &ArdbServer::Watch, 0, -1, 0 },
+				{ "unwatch", &ArdbServer::UnWatch, 0, 0, 0 },
+				{ "subscribe", &ArdbServer::Subscribe, 1, -1, 0 },
+				{ "psubscribe", &ArdbServer::PSubscribe, 1, -1, 0 },
+				{ "unsubscribe", &ArdbServer::UnSubscribe, 0, -1, 0 },
+				{ "punsubscribe", &ArdbServer::PUnSubscribe, 0, -1, 0 },
+				{ "publish", &ArdbServer::Publish, 2, 2, 0 },
+				{ "info", &ArdbServer::Info, 0, 1, 0 },
+				{ "save", &ArdbServer::Save, 0, 0, 0 },
+				{ "bgsave", &ArdbServer::BGSave, 0, 0, 0 },
+				{ "lastsave", &ArdbServer::LastSave, 0, 0, 0 },
+				{ "slowlog", &ArdbServer::SlowLog, 1, 2, 0 },
+				{ "dbsize", &ArdbServer::DBSize, 0, 0, 0 },
+				{ "config", &ArdbServer::Config, 1, 3, 0 },
+				{ "client", &ArdbServer::Client, 1, 3, 0 },
+				{ "flushdb", &ArdbServer::FlushDB, 0, 0, 1 },
+				{ "flushall", &ArdbServer::FlushAll, 0, 0, 1 },
+				{ "time", &ArdbServer::Time, 0, 0, 0 },
+				{ "echo", &ArdbServer::Echo, 1, 1, 0 },
+				{ "quit", &ArdbServer::Quit, 0, 0, 0 },
+				{ "shutdown", &ArdbServer::Shutdown, 0, 1, 0 },
+				{ "slaveof", &ArdbServer::Slaveof, 2, 2, 0 },
+				{ "replconf", &ArdbServer::ReplConf, 0, -1, 0 },
+				{ "sync", &ArdbServer::Sync, 0, 2, 0 },
+				{ "arsync", &ArdbServer::ARSync, 0, -1, 0 },
+				{ "select", &ArdbServer::Select, 1, 1, 1 },
+				{ "append", &ArdbServer::Append, 2, 2 },
+				{ "get", &ArdbServer::Get, 1, 1, 0 },
+				{ "set", &ArdbServer::Set, 2, 7, 1 },
+				{ "del", &ArdbServer::Del, 1, -1, 1 },
+				{ "exists", &ArdbServer::Exists, 1, 1, 0 },
+				{ "expire", &ArdbServer::Expire, 2, 2, 1 },
+				{ "expireat", &ArdbServer::Expireat, 2, 2, 1 },
+				{ "persist", &ArdbServer::Persist, 1, 1, 1 },
+				{ "type", &ArdbServer::Type, 1, 1, 0 },
+				{ "bitcount", &ArdbServer::Bitcount, 1, 3, 0 },
+				{ "bitop", &ArdbServer::Bitop, 3, -1, 1 },
+				{ "decr", &ArdbServer::Decr, 1, 1, 1 },
+				{ "decrby", &ArdbServer::Decrby, 2, 2, 1 },
+				{ "getbit", &ArdbServer::GetBit, 2, 2, 0 },
+				{ "getrange", &ArdbServer::GetRange, 3, 3, 0 },
+				{ "getset", &ArdbServer::GetSet, 2, 2, 1 },
+				{ "incr", &ArdbServer::Incr, 1, 1, 1 },
+				{ "incrby", &ArdbServer::Incrby, 2, 2, 1 },
+				{ "incrbyfloat", &ArdbServer::IncrbyFloat, 2, 2, 1 },
+				{ "mget", &ArdbServer::MGet, 1, -1, 0 },
+				{ "mset", &ArdbServer::MSet, 2, -1, 1 },
+				{ "msetnx", &ArdbServer::MSetNX, 2, -1, 1 },
+				{ "psetex", &ArdbServer::MSetNX, 3, 3, 1 },
+				{ "setbit", &ArdbServer::SetBit, 3, 3, 1 },
+				{ "setex", &ArdbServer::SetEX, 3, 3, 1 },
+				{ "setnx", &ArdbServer::SetNX, 2, 2, 1 },
+				{ "setrange", &ArdbServer::SetRange, 3, 3, 1 },
+				{ "strlen", &ArdbServer::Strlen, 1, 1, 0 },
+				{ "hdel", &ArdbServer::HDel, 2, -1, 1 },
+				{ "hexists", &ArdbServer::HExists, 2, 2, 0 },
+				{ "hget", &ArdbServer::HGet, 2, 2, 0 },
+				{ "hgetall", &ArdbServer::HGetAll, 1, 1, 0 },
+				{ "hincr", &ArdbServer::HIncrby, 3, 3, 1 },
+				{ "hincrbyfloat", &ArdbServer::HIncrbyFloat, 3, 3, 1 },
+				{ "hkeys", &ArdbServer::HKeys, 1, 1, 0 },
+				{ "hlen", &ArdbServer::HLen, 1, 1, 0 },
+				{ "hvals", &ArdbServer::HVals, 1, 1, 0 },
+				{ "hmget", &ArdbServer::HMGet, 2, -1, 0 },
+				{ "hset", &ArdbServer::HSet, 3, 3, 1 },
+				{ "hsetnx", &ArdbServer::HSetNX, 3, 3, 1 },
+				{ "hmset", &ArdbServer::HMSet, 3, -1, 1 },
+				{ "scard", &ArdbServer::SCard, 1, 1, 0 },
+				{ "sadd", &ArdbServer::SAdd, 2, -1, 1 },
+				{ "sdiff", &ArdbServer::SDiff, 2, -1, 0 },
+				{ "sdiffstore", &ArdbServer::SDiffStore, 3, -1, 1 },
+				{ "sinter", &ArdbServer::SInter, 2, -1, 0 },
+				{ "sinterstore", &ArdbServer::SInterStore, 3, -1, 1 },
+				{ "sismember", &ArdbServer::SIsMember, 2, 2, 0 },
+				{ "smembers", &ArdbServer::SMembers, 1, 1, 0 },
+				{ "smove", &ArdbServer::SMove, 3, 3, 1 },
+				{ "spop", &ArdbServer::SPop, 1, 1, 1 },
+				{ "sranmember", &ArdbServer::SRandMember, 1, 2, 0 },
+				{ "srem", &ArdbServer::SRem, 2, -1, 1 },
+				{ "sunion", &ArdbServer::SUnion, 2, -1, 0 },
+				{ "sunionstore", &ArdbServer::SUnionStore, 3, -1, 1 },
+				{ "zadd", &ArdbServer::ZAdd, 3, -1, 1 },
+				{ "zcard", &ArdbServer::ZCard, 1, 1, 0 },
+				{ "zcount", &ArdbServer::ZCount, 3, 3, 0 },
+				{ "zincrby", &ArdbServer::ZIncrby, 3, 3, 1 },
+				{ "zrange", &ArdbServer::ZRange, 3, 4, 0 },
+				{ "zrangebyscore", &ArdbServer::ZRangeByScore, 3, 7, 0 },
+				{ "zrank", &ArdbServer::ZRank, 2, 2, 0 },
+				{ "zrem", &ArdbServer::ZRem, 2, -1, 1 },
+				{ "zremrangebyrank", &ArdbServer::ZRemRangeByRank, 3, 3, 1 },
+				{ "zremrangebyscore", &ArdbServer::ZRemRangeByScore, 3, 3, 1 },
+				{ "zrevrange", &ArdbServer::ZRevRange, 3, 4, 0 },
+				{ "zrevrangebyscore", &ArdbServer::ZRevRangeByScore, 3, 7, 0 },
+				{ "zinterstore", &ArdbServer::ZInterStore, 3, -1, 1 },
+				{ "zunionstore", &ArdbServer::ZUnionStore, 3, -1, 1 },
+				{ "zrevrank", &ArdbServer::ZRevRank, 2, 2, 0 },
+				{ "zscore", &ArdbServer::ZScore, 2, 2, 0 },
+				{ "lindex", &ArdbServer::LIndex, 2, 2, 0 },
+				{ "linsert", &ArdbServer::LInsert, 4, 4, 1 },
+				{ "llen", &ArdbServer::LLen, 1, 1, 0 },
+				{ "lpop", &ArdbServer::LPop, 1, 1, 1 },
+				{ "lpush", &ArdbServer::LPush, 2, -1, 1 },
+				{ "lpushx", &ArdbServer::LPushx, 2, 2, 1 },
+				{ "lrange", &ArdbServer::LRange, 3, 3, 0 },
+				{ "lrem", &ArdbServer::LRem, 3, 3, 1 },
+				{ "lset", &ArdbServer::LSet, 3, 3, 1 },
+				{ "ltrim", &ArdbServer::LTrim, 3, 3, 1 },
+				{ "rpop", &ArdbServer::RPop, 1, 1, 1 },
+				{ "rpush", &ArdbServer::RPush, 2, -1, 1 },
+				{ "rpushx", &ArdbServer::RPushx, 2, 2, 1 },
+				{ "rpoplpush", &ArdbServer::RPopLPush, 2, 2, 1 },
+				{ "hclear", &ArdbServer::HClear, 1, 1, 1 },
+				{ "zclear", &ArdbServer::ZClear, 1, 1, 1 },
+				{ "sclear", &ArdbServer::SClear, 1, 1, 1 },
+				{ "lclear", &ArdbServer::LClear, 1, 1, 1 },
+				{ "tclear", &ArdbServer::TClear, 1, 1, 1 },
+				{ "move", &ArdbServer::Move, 2, 2, 1 },
+				{ "rename", &ArdbServer::Rename, 2, 2, 1 },
+				{ "renamenx", &ArdbServer::RenameNX, 2, 2, 1 },
+				{ "sort", &ArdbServer::Sort, 1, -1, 2 },
+				{ "keys", &ArdbServer::Keys, 1, 1, 0 }, };
 
 		uint32 arraylen = arraysize(settingTable);
 		for (uint32 i = 0; i < arraylen; i++)
@@ -275,7 +280,7 @@ namespace ardb
 	int ArdbServer::Multi(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
 		ctx.in_transaction = true;
-		if(NULL == ctx.transaction_cmds)
+		if (NULL == ctx.transaction_cmds)
 		{
 			ctx.transaction_cmds = new TransactionCommandQueue;
 		}
@@ -287,24 +292,28 @@ namespace ardb
 	{
 		ctx.in_transaction = false;
 		DELETE(ctx.transaction_cmds);
-	    fill_status_reply(ctx.reply, "OK");
+		fill_status_reply(ctx.reply, "OK");
 		return 0;
 	}
 
 	int ArdbServer::Exec(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
-		if(ctx.fail_transc || !ctx.in_transaction)
+		if (ctx.fail_transc || !ctx.in_transaction)
 		{
 			ctx.reply.type = REDIS_REPLY_NIL;
-		}else{
+		}
+		else
+		{
 			RedisReply r;
 			r.type = REDIS_REPLY_ARRAY;
-			if(NULL != ctx.transaction_cmds)
+			if (NULL != ctx.transaction_cmds)
 			{
-				for(uint32 i = 0; i < ctx.transaction_cmds->size(); i++)
+				for (uint32 i = 0; i < ctx.transaction_cmds->size(); i++)
 				{
 					RedisCommandFrame& cmd = ctx.transaction_cmds->at(i);
-					DoRedisCommand(ctx, FindRedisCommandHandlerSetting(cmd.GetCommand()),cmd);
+					DoRedisCommand(ctx,
+					        FindRedisCommandHandlerSetting(cmd.GetCommand()),
+					        cmd);
 					r.elements.push_back(ctx.reply);
 				}
 			}
@@ -316,32 +325,37 @@ namespace ardb
 		return 0;
 	}
 
-
 	void ArdbServer::ClearWatchKeys(ArdbConnContext& ctx)
 	{
-		if(NULL != ctx.watch_key_set)
+		if (NULL != ctx.watch_key_set)
 		{
 			WatchKeySet::iterator it = ctx.watch_key_set->begin();
-			while(it != ctx.watch_key_set->end()){
-				WatchKeyContextTable::iterator found = m_watch_context_table.find(*it);
-				if(found != m_watch_context_table.end())
+			while (it != ctx.watch_key_set->end())
+			{
+				WatchKeyContextTable::iterator found =
+				        m_watch_context_table.find(*it);
+				if (found != m_watch_context_table.end())
 				{
 					ContextSet& list = found->second;
 					ContextSet::iterator lit = list.begin();
-					while(lit != list.end()){
-					    if(*lit == &ctx){
-						    list.erase(lit);
-						    break;
-					    }
-					    lit++;
-				    }
-					if(list.empty()){
+					while (lit != list.end())
+					{
+						if (*lit == &ctx)
+						{
+							list.erase(lit);
+							break;
+						}
+						lit++;
+					}
+					if (list.empty())
+					{
 						m_watch_context_table.erase(found);
 					}
-			    }
-		        it++;
-		    }
-			if(m_watch_context_table.empty()){
+				}
+				it++;
+			}
+			if (m_watch_context_table.empty())
+			{
 				m_db->RegisterKeyWatcher(NULL);
 			}
 		}
@@ -350,17 +364,22 @@ namespace ardb
 
 	int ArdbServer::OnKeyUpdated(const DBID& dbid, const Slice& key)
 	{
-		if(!m_watch_context_table.empty()){
+		if (!m_watch_context_table.empty())
+		{
 			WatchKey k(dbid, std::string(key.data(), key.size()));
-			WatchKeyContextTable::iterator found = m_watch_context_table.find(k);
-			if(found != m_watch_context_table.end()){
+			WatchKeyContextTable::iterator found = m_watch_context_table.find(
+			        k);
+			if (found != m_watch_context_table.end())
+			{
 				ContextSet& list = found->second;
 				ContextSet::iterator lit = list.begin();
-				while(lit != list.end()){
-					if(*lit != m_current_ctx){
-					    (*lit)->fail_transc = true;
+				while (lit != list.end())
+				{
+					if (*lit != m_current_ctx)
+					{
+						(*lit)->fail_transc = true;
 					}
-				    lit++;
+					lit++;
 				}
 			}
 		}
@@ -369,9 +388,9 @@ namespace ardb
 	int ArdbServer::OnAllKeyUpdated(const DBID& dbid)
 	{
 		WatchKeyContextTable::iterator it = m_watch_context_table.begin();
-		while(it != m_watch_context_table.end())
+		while (it != m_watch_context_table.end())
 		{
-			if(it->first.db == dbid)
+			if (it->first.db == dbid)
 			{
 				OnKeyUpdated(it->first.db, it->first.key);
 			}
@@ -384,27 +403,33 @@ namespace ardb
 	{
 		fill_status_reply(ctx.reply, "OK");
 		m_db->RegisterKeyWatcher(this);
-		if(NULL == ctx.watch_key_set)
+		if (NULL == ctx.watch_key_set)
 		{
 			ctx.watch_key_set = new WatchKeySet;
 		}
 		ArgumentArray::iterator it = cmd.begin();
-		while(it != cmd.end())
+		while (it != cmd.end())
 		{
 			WatchKey k(ctx.currentDB, *it);
 			ctx.watch_key_set->insert(k);
-			WatchKeyContextTable::iterator found = m_watch_context_table.find(k);
-			if(found  == m_watch_context_table.end())
+			WatchKeyContextTable::iterator found = m_watch_context_table.find(
+			        k);
+			if (found == m_watch_context_table.end())
 			{
 				ContextSet set;
 				set.insert(&ctx);
-				m_watch_context_table.insert(WatchKeyContextTable::value_type(k, set));
-			}else{
+				m_watch_context_table.insert(
+				        WatchKeyContextTable::value_type(k, set));
+			}
+			else
+			{
 				ContextSet& set = found->second;
 				ContextSet::iterator lit = set.begin();
-				while(lit != set.end()){
-					if(*lit == &ctx){
-					    set.erase(lit);
+				while (lit != set.end())
+				{
+					if (*lit == &ctx)
+					{
+						set.erase(lit);
 						break;
 					}
 					lit++;
@@ -426,7 +451,7 @@ namespace ardb
 	{
 		StringSet keys;
 		m_db->Keys(ctx.currentDB, cmd[0], keys);
-        fill_str_array_reply(ctx.reply, keys);
+		fill_str_array_reply(ctx.reply, keys);
 		return 0;
 	}
 	int ArdbServer::HClear(ArdbConnContext& ctx, ArgumentArray& cmd)
@@ -460,27 +485,36 @@ namespace ardb
 		return 0;
 	}
 
-	int ArdbServer::Save(ArdbConnContext& ctx, ArgumentArray& cmd){
+	int ArdbServer::Save(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
 		int ret = m_repli_serv.Save();
-		if(ret == 0){
+		if (ret == 0)
+		{
 			fill_status_reply(ctx.reply, "OK");
-		}else{
+		}
+		else
+		{
 			fill_error_reply(ctx.reply, "ERR Save error");
 		}
 		return 0;
 	}
 
-	int ArdbServer::LastSave(ArdbConnContext& ctx, ArgumentArray& cmd){
+	int ArdbServer::LastSave(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
 		int ret = m_repli_serv.LastSave();
 		fill_int_reply(ctx.reply, ret);
 		return 0;
 	}
 
-	int ArdbServer::BGSave(ArdbConnContext& ctx, ArgumentArray& cmd){
+	int ArdbServer::BGSave(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
 		int ret = m_repli_serv.BGSave();
-		if(ret == 0){
+		if (ret == 0)
+		{
 			fill_status_reply(ctx.reply, "OK");
-		}else{
+		}
+		else
+		{
 			fill_error_reply(ctx.reply, "ERR Save error");
 		}
 		return 0;
@@ -571,19 +605,24 @@ namespace ardb
 			if (cmd.size() != 2)
 			{
 				fill_error_reply(ctx.reply,
-						  "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | STAT on/off)");
-			    return 0;
+				        "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | STAT on/off)");
+				return 0;
 			}
-			if(!strcasecmp(cmd[1].c_str(), "on")){
+			if (!strcasecmp(cmd[1].c_str(), "on"))
+			{
 				m_clients_holder.SetStatEnable(true);
-			}else if(!strcasecmp(cmd[1].c_str(), "on")){
-				m_clients_holder.SetStatEnable(false);
-			}else{
-				fill_error_reply(ctx.reply,
-						  "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | STAT on/off)");
-			    return 0;
 			}
-		    fill_status_reply(ctx.reply, "OK");
+			else if (!strcasecmp(cmd[1].c_str(), "on"))
+			{
+				m_clients_holder.SetStatEnable(false);
+			}
+			else
+			{
+				fill_error_reply(ctx.reply,
+				        "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | STAT on/off)");
+				return 0;
+			}
+			fill_status_reply(ctx.reply, "OK");
 		}
 		else
 		{
@@ -1304,18 +1343,21 @@ namespace ardb
 	{
 		const std::string& host = cmd[0];
 		uint32 port = 0;
-		if(!string_touint32(cmd[1], port)){
-			if(!strcasecmp(cmd[0].c_str(), "no") && !strcasecmp(cmd[1].c_str(), "one"))
+		if (!string_touint32(cmd[1], port))
+		{
+			if (!strcasecmp(cmd[0].c_str(), "no")
+			        && !strcasecmp(cmd[1].c_str(), "one"))
 			{
-				 fill_status_reply(ctx.reply, "OK");
-				 m_slave_client.Stop();
-				 return 0 ;
+				fill_status_reply(ctx.reply, "OK");
+				m_slave_client.Stop();
+				return 0;
 			}
-			fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+			fill_error_reply(ctx.reply,
+			        "ERR value is not an integer or out of range");
 			return 0;
 		}
-        m_slave_client.ConnectMaster(host, port);
-        fill_status_reply(ctx.reply, "OK");
+		m_slave_client.ConnectMaster(host, port);
+		fill_status_reply(ctx.reply, "OK");
 		return 0;
 	}
 
@@ -1327,11 +1369,12 @@ namespace ardb
 
 	int ArdbServer::Sync(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
-		//empty redis dump without cksm
-		Buffer content;
-		content.Printf("REDIS0004");
-		content.WriteByte((char)255);
-		fill_str_reply(ctx.reply, content.AsString());
+		m_repli_serv.ServSlaveClient(ctx.conn);
+		return 0;
+	}
+
+	int ArdbServer::ARSync(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
 		return 0;
 	}
 
@@ -2181,13 +2224,13 @@ namespace ardb
 	}
 
 	void ArdbServer::ProcessRedisCommand(ArdbConnContext& ctx,
-				        RedisCommandFrame& args)
+	        RedisCommandFrame& args)
 	{
 		m_current_ctx = &ctx;
 		std::string& cmd = args.GetCommand();
 		lower_string(cmd);
 		RedisCommandHandlerSetting* setting = FindRedisCommandHandlerSetting(
-				        cmd);
+		        cmd);
 		DEBUG_LOG("Process recved cmd:%s", cmd.c_str());
 		int ret = 0;
 		if (NULL != setting)
@@ -2196,44 +2239,50 @@ namespace ardb
 			if (setting->min_arity > 0)
 			{
 				valid_cmd = args.GetArguments().size()
-						>= (uint32) setting->min_arity;
+				        >= (uint32) setting->min_arity;
 			}
 			if (setting->max_arity >= 0 && valid_cmd)
 			{
 				valid_cmd = args.GetArguments().size()
-						<= (uint32) setting->max_arity;
+				        <= (uint32) setting->max_arity;
 			}
 
 			if (!valid_cmd)
 			{
 				fill_error_reply(ctx.reply,
-						"ERR wrong number of arguments for '%s' command",
-						cmd.c_str());
-			}else{
-				if (ctx.in_transaction && NULL != ctx.transaction_cmds
-						&& setting->tranction_queueable_cmd)
+				        "ERR wrong number of arguments for '%s' command",
+				        cmd.c_str());
+			}
+			else
+			{
+				if (ctx.IsInTransaction()
+				        && (cmd != "multi" && cmd != "exec" && cmd != "discard"
+				                && cmd != "quit"))
 				{
 					ctx.transaction_cmds->push_back(args);
 					fill_status_reply(ctx.reply, "QUEUED");
 					ctx.conn->Write(ctx.reply);
 					return;
-				} else if (ctx.IsSubscribedConn()
-						&& (cmd != "subscribe" && cmd != "psubscribe"
-								&& cmd != "unsubscribe" && cmd != "punsubscribe"
-								&& cmd != "quit"))
+				}
+				else if (ctx.IsSubscribedConn()
+				        && (cmd != "subscribe" && cmd != "psubscribe"
+				                && cmd != "unsubscribe" && cmd != "punsubscribe"
+				                && cmd != "quit"))
 				{
 					fill_error_reply(ctx.reply,
-							"ERR only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context");
+					        "ERR only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context");
 				}
-				else{
+				else
+				{
 					ret = DoRedisCommand(ctx, setting, args);
 				}
 			}
 		}
-		else{
+		else
+		{
 			ERROR_LOG("No handler found for:%s", cmd.c_str());
 			fill_error_reply(ctx.reply, "ERR unknown command '%s'",
-						        cmd.c_str());
+			        cmd.c_str());
 		}
 		if (ctx.reply.type != 0)
 		{
@@ -2246,8 +2295,25 @@ namespace ardb
 		}
 	}
 
-	int ArdbServer::DoRedisCommand(ArdbConnContext& ctx,RedisCommandHandlerSetting* setting,
-	        RedisCommandFrame& args)
+	static bool is_sort_write_cmd(RedisCommandFrame& cmd)
+	{
+		if (cmd.GetCommand() == "sort")
+		{
+			ArgumentArray::iterator it = cmd.GetArguments().begin();
+			while (it != cmd.GetArguments().end())
+			{
+				if (*it == "store")
+				{
+					return true;
+				}
+				it++;
+			}
+		}
+		return false;
+	}
+
+	int ArdbServer::DoRedisCommand(ArdbConnContext& ctx,
+	        RedisCommandHandlerSetting* setting, RedisCommandFrame& args)
 	{
 		std::string& cmd = args.GetCommand();
 		if (m_clients_holder.IsStatEnable())
@@ -2261,12 +2327,18 @@ namespace ardb
 		uint64 start_time = get_current_epoch_micros();
 		int ret = (this->*(setting->handler))(ctx, args.GetArguments());
 		uint64 stop_time = get_current_epoch_micros();
+		if (setting->read_write_cmd == 1
+		        || (setting->read_write_cmd == 2 && is_sort_write_cmd(args)))
+		{
+			m_repli_serv.FeedSlaves(ctx.currentDB, args);
+		}
+
 		if (m_cfg.slowlog_log_slower_than
-				&& (stop_time - start_time) > m_cfg.slowlog_log_slower_than)
+		        && (stop_time - start_time) > m_cfg.slowlog_log_slower_than)
 		{
 			m_slowlog_handler.PushSlowCommand(args, stop_time - start_time);
 			INFO_LOG(
-					"Cost %lldus to exec %s", (stop_time-start_time), cmd.c_str());
+			        "Cost %lldus to exec %s", (stop_time-start_time), cmd.c_str());
 		}
 		return ret;
 	}
@@ -2292,12 +2364,13 @@ namespace ardb
 	}
 
 	void RedisRequestHandler::MessageReceived(ChannelHandlerContext& ctx,
-			MessageEvent<RedisCommandFrame>& e)
+	        MessageEvent<RedisCommandFrame>& e)
 	{
 		ardbctx.conn = ctx.GetChannel();
 		server->ProcessRedisCommand(ardbctx, *(e.GetMessage()));
 	}
-	void RedisRequestHandler::ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e)
+	void RedisRequestHandler::ChannelClosed(ChannelHandlerContext& ctx,
+	        ChannelStateEvent& e)
 	{
 		server->m_clients_holder.EraseConn(ctx.GetChannel());
 		server->ClearWatchKeys(ardbctx);
@@ -2334,28 +2407,32 @@ namespace ardb
 	void ArdbServer::BatchWriteFlush()
 	{
 		DBIDSet::iterator it = m_period_batch_dbids.begin();
-		while(it != m_period_batch_dbids.end()){
+		while (it != m_period_batch_dbids.end())
+		{
 			m_db->GetDB(*it)->CommitBatchWrite();
 			it++;
 		}
 		m_period_batch_dbids.clear();
 	}
 
-	void ArdbServer::InsertBatchWriteDBID(const DBID& id){
+	void ArdbServer::InsertBatchWriteDBID(const DBID& id)
+	{
 		bool isnew = m_period_batch_dbids.insert(id).second;
-		if(isnew){
+		if (isnew)
+		{
 			m_db->GetDB(id)->BeginBatchWrite();
 		}
 	}
 
-	Timer& ArdbServer::GetTimer(){
+	Timer& ArdbServer::GetTimer()
+	{
 		return m_service->GetTimer();
 	}
 
 	int ArdbServer::Start(const Properties& props)
 	{
 		m_cfg_props = props;
-		if(ParseConfig(props, m_cfg) < 0)
+		if (ParseConfig(props, m_cfg) < 0)
 		{
 			ERROR_LOG("Failed to parse configurations.");
 			return -1;
@@ -2371,7 +2448,7 @@ namespace ardb
 
 		ChannelOptions ops;
 		ops.tcp_nodelay = true;
-		if(m_cfg.tcp_keepalive > 0)
+		if (m_cfg.tcp_keepalive > 0)
 		{
 			ops.keep_alive = m_cfg.tcp_keepalive;
 		}
@@ -2418,9 +2495,12 @@ namespace ardb
 		INFO_LOG("Server started, Ardb version %s", ARDB_VERSION);
 		INFO_LOG(
 		        "The server is now ready to accept connections on port %d", m_cfg.listen_port);
-		if(m_cfg.batch_write_enable){
-			m_service->GetTimer().Schedule(this, m_cfg.batch_flush_period, m_cfg.batch_flush_period, SECONDS);
+		if (m_cfg.batch_write_enable)
+		{
+			m_service->GetTimer().Schedule(this, m_cfg.batch_flush_period,
+			        m_cfg.batch_flush_period, SECONDS);
 		}
+		m_repli_serv.Start();
 		m_service->Start();
 		sexit:
 		DELETE(m_engine);

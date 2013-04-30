@@ -61,7 +61,7 @@ bool SignalChannel::DoOpen()
     m_self_write_pipe_fd = pipefd[1];
     ardb::make_fd_nonblocking(m_self_read_pipe_fd);
     ardb::make_fd_nonblocking(m_self_write_pipe_fd);
-    aeCreateFileEvent(m_service.GetRawEventLoop(), m_self_read_pipe_fd,
+    aeCreateFileEvent(GetService().GetRawEventLoop(), m_self_read_pipe_fd,
             AE_READABLE, Channel::IOEventCallback, this);
     m_singleton_instance = this;
     return true;

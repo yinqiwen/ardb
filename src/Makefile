@@ -33,7 +33,7 @@ CHANNEL_CFILES := $(foreach dir, $(CHANNEL_C_VPATH), $(wildcard $(dir)/*.c))
 CHANNEL_OBJECTS := $(patsubst %.cpp, %.o, $(CHANNEL_CPPFILES))
 CHANNEL_OBJECTS := $(CHANNEL_OBJECTS) $(patsubst %.c, %.o, $(CHANNEL_CFILES))
 
-UTIL_VPATH=./util ./util/exception 
+UTIL_VPATH=./util ./util/exception  ./util/thread
 UTIL_CPPFILES := $(foreach dir, $(UTIL_VPATH), $(wildcard $(dir)/*.cpp))
 UTIL_OBJECTS := $(patsubst %.cpp, %.o, $(UTIL_CPPFILES)) ./util/sha1.o
 CORE_OBJECTS := ardb.o ardb_data.o hash.o kv.o lists.o logger.o sets.o \

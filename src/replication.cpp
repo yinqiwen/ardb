@@ -6,7 +6,7 @@
  */
 #include "replication.hpp"
 #include "ardb_server.hpp"
-#include "util/thread.hpp"
+#include <algorithm>
 
 namespace ardb
 {
@@ -17,16 +17,22 @@ namespace ardb
 	static const uint32 kSlaveStateSynced = 4;
 
 	void SlaveClient::MessageReceived(ChannelHandlerContext& ctx,
-			MessageEvent<RedisCommandFrame>& e)
+	        MessageEvent<RedisCommandFrame>& e)
 	{
 		DEBUG_LOG("Recv master cmd %s", e.GetMessage()->GetCommand().c_str());
+		RedisCommandFrame* cmd = e.GetMessage();
+		if (!strcasecmp(cmd->GetCommand().c_str(), "ping"))
+		{
+			m_ping_recved = true;
+			return;
+		}
 		ArdbConnContext actx;
 		actx.conn = ctx.GetChannel();
-		m_serv->ProcessRedisCommand(actx, *(e.GetMessage()));
+		m_serv->ProcessRedisCommand(actx, *cmd);
 	}
 
 	void SlaveClient::MessageReceived(ChannelHandlerContext& ctx,
-			MessageEvent<Buffer>& e)
+	        MessageEvent<Buffer>& e)
 	{
 		Buffer* msg = e.GetMessage();
 		if (m_slave_state == kSlaveStateConnected)
@@ -52,19 +58,21 @@ namespace ardb
 				msg->SkipBytes(2);
 				DEBUG_LOG("Sync bulk %d bytes", m_chunk_len);
 				m_slave_state = kSlaveStateSyncing;
-			} else
+			}
+			else
 			{
 				return;
 			}
 		}
 
-		//discard synced  chunk
+		//discard redis synced  chunk
 		uint32 bytes = msg->ReadableBytes();
 		if (bytes < m_chunk_len)
 		{
 			m_chunk_len -= msg->ReadableBytes();
 			msg->Clear();
-		} else
+		}
+		else
 		{
 			msg->SkipBytes(m_chunk_len);
 			m_chunk_len = 0;
@@ -78,11 +86,16 @@ namespace ardb
 	}
 
 	void SlaveClient::ChannelClosed(ChannelHandlerContext& ctx,
-			ChannelStateEvent& e)
+	        ChannelStateEvent& e)
 	{
 		m_client = NULL;
 		//reconnect master after 500ms
 		m_serv->GetTimer().Schedule(this, 500, -1);
+	}
+
+	void SlaveClient::Timeout()
+	{
+		Close();
 	}
 
 	void SlaveClient::Run()
@@ -90,22 +103,29 @@ namespace ardb
 		if (NULL == m_client && !m_master_addr.GetHost().empty())
 		{
 			ConnectMaster(m_master_addr.GetHost(), m_master_addr.GetPort());
-		} else
+		}
+		else
 		{
 			if (m_slave_state == kSlaveStateSynced)
 			{
 				//do nothing
+				if (!m_ping_recved)
+				{
+					Timeout();
+				}
+				m_ping_recved = false;
 			}
 		}
 	}
 
 	void SlaveClient::ChannelConnected(ChannelHandlerContext& ctx,
-			ChannelStateEvent& e)
+	        ChannelStateEvent& e)
 	{
 		Buffer sync;
 		sync.Printf("sync\r\n");
 		ctx.GetChannel()->Write(sync);
 		m_slave_state = kSlaveStateConnected;
+		m_ping_recved = true;
 	}
 
 	int SlaveClient::ConnectMaster(const std::string& host, uint32 port)
@@ -113,17 +133,16 @@ namespace ardb
 		if (!m_cron_inited)
 		{
 			m_cron_inited = true;
-			m_serv->GetTimer().Schedule(this,
-					m_serv->m_cfg.repl_ping_slave_period,
-					m_serv->m_cfg.repl_ping_slave_period, SECONDS);
+			m_serv->GetTimer().Schedule(this, m_serv->m_cfg.repl_timeout,
+			        m_serv->m_cfg.repl_timeout, SECONDS);
 		}
 		SocketHostAddress addr(host, port);
 		if (m_master_addr == addr && NULL != m_client)
 		{
 			return 0;
 		}
-		Close();
 		m_master_addr = addr;
+		Close();
 		m_client = m_serv->m_service->NewClientSocketChannel();
 		ChannelUpstreamHandler<Buffer>* handler = this;
 		m_client->GetPipeline().AddLast("handler", handler);
@@ -149,25 +168,136 @@ namespace ardb
 		}
 	}
 
+	void SyncCommandQueue::Offer(RedisCommandFrame& cmd, uint32 seq)
+	{
+		m_mem_queue.push_back(new RedisCommandFrameFeed(cmd, seq));
+	}
+
 	ReplicationService::ReplicationService(ArdbServer* serv) :
-			m_server(serv), m_is_saving(false), m_last_save(0)
+			m_server(serv), m_is_saving(false), m_last_save(0), m_soft_signal(
+			        NULL)
 	{
 
+	}
+
+	void ReplicationService::OnSoftSignal(uint32 soft_signo, uint32 appendinfo)
+	{
+		Routine();
+	}
+
+	void ReplicationService::PingSlaves()
+	{
+		INFO_LOG("Send ping to slaves");
+		SlaveConnTable::iterator it = m_slaves.begin();
+		while (it != m_slaves.end())
+		{
+			Buffer tmp;
+			tmp.Write("PING\r\n", 6);
+			it->second.conn->Write(tmp);
+			it++;
+		}
+	}
+
+	void ReplicationService::Routine()
+	{
+		LockGuard<ThreadMutexLock> guard(m_slaves_lock);
+		while (!m_waiting_slaves.empty())
+		{
+			Channel* ch = m_waiting_slaves.front();
+			m_serv.AttachChannel(ch, true);
+			//empty fake rdb dump
+			Buffer content;
+			content.Printf("$10\r\nREDIS0004");
+			content.WriteByte((char) 255);
+			ch->Write(content);
+			SlaveConn c;
+			c.conn = ch;
+			c.state = kSlaveStateSynced;
+			m_slaves[ch->GetID()] = c;
+			m_waiting_slaves.pop_front();
+		}
 	}
 
 	void ReplicationService::Run()
 	{
+		struct HeartbeatTask: public Runnable
+		{
+				ReplicationService* serv;
+				HeartbeatTask(ReplicationService* s) :
+						serv(s)
+				{
+				}
+				void Run()
+				{
+					serv->PingSlaves();
+				}
+		};
+		m_soft_signal = m_serv.NewSoftSignalChannel();
+		m_soft_signal->Register(1, this);
+		m_serv.GetTimer().ScheduleHeapTask(new HeartbeatTask(this),
+		        m_server->m_cfg.repl_ping_slave_period,
+		        m_server->m_cfg.repl_ping_slave_period, SECONDS);
 		m_serv.Start();
 	}
-//
-//	int ReplicationService::Start()
+
+//	static void slave_pipeline_init(ChannelPipeline* pipeline, void* data)
 //	{
-//		Start();
-//		return 0;
+//		ArdbServer* serv = (ArdbServer*) data;
+//		pipeline->AddLast("encoder", new RedisCommandEncoder);
+//	}
+//
+//	static void slave_pipeline_finallize(ChannelPipeline* pipeline, void* data)
+//	{
+//		ChannelHandler* handler = pipeline->Get("encoder");
+//		DELETE(handler);
 //	}
 
+	void ReplicationService::ChannelClosed(ChannelHandlerContext& ctx,
+	        ChannelStateEvent& e)
+	{
+		m_slaves.erase(ctx.GetChannel()->GetID());
+	}
+
+	void ReplicationService::ServSlaveClient(Channel* client)
+	{
+		m_server->m_service->DetachChannel(client, true);
+		client->ClearPipeline();
+//		client->SetChannelPipelineInitializor(slave_pipeline_init);
+//		client->SetChannelPipelineFinalizer(slave_pipeline_finallize);
+		{
+			LockGuard<ThreadMutexLock> guard(m_slaves_lock);
+			m_waiting_slaves.push_back(client);
+		}
+		if (NULL != m_soft_signal)
+		{
+			m_soft_signal->FireSoftSignal(1, 1);
+		}
+
+	}
+
+	void ReplicationService::FeedSlaves(const DBID& dbid,
+	        RedisCommandFrame& syncCmd)
+	{
+		LockGuard<ThreadMutexLock> guard(m_slaves_lock);
+		if (m_current_db != dbid)
+		{
+			//generate 'select' cmd
+			m_current_db = dbid;
+			ArgumentArray strs;
+			strs.push_back("select");
+			strs.push_back(m_current_db);
+			RedisCommandFrame select(strs);
+			m_sync_queue.Offer(select, kBinLogIdSeed++);
+		}
+		m_sync_queue.Offer(syncCmd, kBinLogIdSeed++);
+		if (NULL != m_soft_signal)
+		{
+			m_soft_signal->FireSoftSignal(1, 1);
+		}
+	}
+
 	static bool veify_checkpoint_file(const std::string& data_file,
-			const std::string& cksum_file)
+	        const std::string& cksum_file)
 	{
 		if (!is_file_exist(cksum_file) || !is_file_exist(data_file))
 		{
@@ -192,83 +322,11 @@ namespace ardb
 		if (sha1sum_str != sha1sum.AsString())
 		{
 			ERROR_LOG(
-					"Invalid check sum %s VS %s.", sha1sum_str.c_str(), sha1sum.AsString().c_str());
+			        "Invalid check sum %s VS %s.", sha1sum_str.c_str(), sha1sum.AsString().c_str());
 			return false;
 		}
 		return true;
 	}
-
-//	int ReplicationService::Backup(const std::string& dstfile)
-//	{
-//		if (m_is_saving)
-//		{
-//			return 1;
-//		}
-//		struct BackupTask: public Thread
-//		{
-//				std::string dest;
-//				ArdbServerConfig& cfg;
-//				ReplicationService* serv;
-//				BackupTask(ArdbServerConfig& c) :
-//						cfg(c)
-//				{
-//				}
-//				void Run()
-//				{
-//					char cmd[cfg.data_base_path.size() + 256];
-//					sprintf(cmd, "tar cf %s %s;", dest.c_str(),
-//							cfg.data_base_path.c_str());
-//					int ret = system(cmd);
-//					if (-1 == ret)
-//					{
-//						ERROR_LOG(
-//								"Failed to create backup data archive:%s", dest.c_str());
-//					} else
-//					{
-//						std::string sha1sum_str;
-//						ret = sha1sum_file(dest, sha1sum_str);
-//						if (-1 == ret)
-//						{
-//							ERROR_LOG(
-//									"Failed to compute sha1sum for data archive:%s", dest.c_str());
-//						}
-//					}
-//					serv->m_is_saving = false;
-//					delete this;
-//				}
-//		};
-//		BackupTask* task = new BackupTask(m_server->m_cfg);
-//		task->Start();
-//		return 0;
-//	}
-//
-//	int ReplicationService::CheckPoint()
-//	{
-//		if (m_is_saving)
-//		{
-//			return 1;
-//		}
-//		m_server->m_db->CloseAll();
-//		m_is_saving = true;
-//
-//		return 0;
-//	}
-//
-//	int ReplicationService::WriteBinLog(Channel* sourceConn,
-//			RedisCommandFrame& cmd)
-//	{
-//		//Write bin log & log index
-//		//Send to slave conns
-//		return 0;
-//	}
-//
-//	int ReplicationService::ServSync(Channel* conn, RedisCommandFrame& syncCmd)
-//	{
-//		//conn->DetachFD();
-//		//send latest checkpoint file
-//		//send latest binlog
-//		return 0;
-//	}
 
 	int ReplicationService::Save()
 	{
@@ -287,24 +345,26 @@ namespace ardb
 		char cmd[m_server->m_cfg.data_base_path.size() + 256];
 		make_dir(m_server->m_cfg.backup_dir);
 		std::string dest = m_server->m_cfg.backup_dir
-				+ "/ardb_all_data.save.tar";
+		        + "/ardb_all_data.save.tar";
 		std::string shasumfile = m_server->m_cfg.backup_dir
-				+ "/ardb_all_data.sha1sum";
+		        + "/ardb_all_data.sha1sum";
 		sprintf(cmd, "tar cf %s %s;", dest.c_str(),
-				m_server->m_cfg.data_base_path.c_str());
+		        m_server->m_cfg.data_base_path.c_str());
 		ret = system(cmd);
 		if (-1 == ret)
 		{
 			ERROR_LOG( "Failed to create backup data archive:%s", dest.c_str());
-		} else
+		}
+		else
 		{
 			std::string sha1sum_str;
 			ret = sha1sum_file(dest, sha1sum_str);
 			if (-1 == ret)
 			{
 				ERROR_LOG(
-						"Failed to compute sha1sum for data archive:%s", dest.c_str());
-			} else
+				        "Failed to compute sha1sum for data archive:%s", dest.c_str());
+			}
+			else
 			{
 				INFO_LOG("Save file SHA1sum is %s", sha1sum_str.c_str());
 				file_write_content(shasumfile, sha1sum_str);

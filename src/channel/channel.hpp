@@ -106,7 +106,7 @@ namespace ardb
 			bool m_has_removed;
 			uint32 m_parent_id;
 			ChannelPipeline m_pipeline;
-			ChannelService& m_service;
+			ChannelService* m_service;
 			/**
 			 *  Channel ID
 			 *  ==============
@@ -175,7 +175,7 @@ namespace ardb
 			}
 			inline ChannelService& GetService()
 			{
-				return m_service;
+				return *m_service;
 			}
 
 			inline uint32 WritableBytes()
@@ -240,6 +240,16 @@ namespace ardb
 				ASSERT(NULL != finallizer);
 				m_pipeline_finallizer = finallizer;
 				m_pipeline_finallizer_user_data = data;
+			}
+
+			inline void ClearPipeline()
+			{
+				if(NULL != m_pipeline_finallizer)
+				{
+					m_pipeline_finallizer(&m_pipeline, m_pipeline_finallizer_user_data);
+					m_pipeline_initializor = NULL;
+					m_pipeline_finallizer = NULL;
+				}
 			}
 
 //                virtual void SetChannelAcceptOperationBarrierHook(

@@ -71,7 +71,7 @@ bool SocketChannel::DoConfigure(const ChannelOptions& options)
 
 		/* Send first probe after interval. */
 		int val = options.keep_alive;
-		if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &val, sizeof(val)) < 0)
+		if (setsockopt(m_fd, IPPROTO_TCP, TCP_KEEPIDLE, &val, sizeof(val)) < 0)
 		{
 			WARN_LOG("setsockopt TCP_KEEPIDLE: %s", strerror(errno));
 			return false;
@@ -82,7 +82,7 @@ bool SocketChannel::DoConfigure(const ChannelOptions& options)
 		 * an error (see the next setsockopt call). */
 		val = options.keep_alive/3;
 		if (val == 0) val = 1;
-		if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &val, sizeof(val)) < 0)
+		if (setsockopt(m_fd, IPPROTO_TCP, TCP_KEEPINTVL, &val, sizeof(val)) < 0)
 		{
 			WARN_LOG("setsockopt TCP_KEEPINTVL: %s", strerror(errno));
 			return false;
@@ -91,7 +91,7 @@ bool SocketChannel::DoConfigure(const ChannelOptions& options)
 		/* Consider the socket in error state after three we send three ACK
 		 * probes without getting a reply. */
 		val = 3;
-		if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &val, sizeof(val)) < 0)
+		if (setsockopt(m_fd, IPPROTO_TCP, TCP_KEEPCNT, &val, sizeof(val)) < 0)
 		{
 			WARN_LOG("setsockopt TCP_KEEPCNT: %s", strerror(errno));
 			return false;
@@ -300,7 +300,7 @@ int SocketChannel::GetSocketFD(int domain)
 			::close(fd);
 			return -1;
 		}
-		if (aeCreateFileEvent(m_service.GetRawEventLoop(), fd,
+		if (aeCreateFileEvent(GetService().GetRawEventLoop(), fd,
 		        AE_READABLE | AE_WRITABLE, Channel::IOEventCallback,
 		        this) == AE_ERR)
 		{
@@ -316,7 +316,7 @@ void SocketChannel::OnWrite()
 {
 	if (SOCK_CONNECTING == m_state)
 	{
-		aeDeleteFileEvent(m_service.GetRawEventLoop(), m_fd, AE_WRITABLE);
+		aeDeleteFileEvent(GetService().GetRawEventLoop(), m_fd, AE_WRITABLE);
 		m_state = SOCK_CONNECTED;
 		fire_channel_connected(this);
 	}

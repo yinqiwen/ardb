@@ -37,7 +37,7 @@ void TimerChannel::OnScheduled(TimerTask* task)
         {
             if (nextTime > 0)
             {
-                aeModifyTimeEvent(m_service.GetRawEventLoop(), m_timer_id,
+                aeModifyTimeEvent(GetService().GetRawEventLoop(), m_timer_id,
                         task->GetDelay());
             }
             else
@@ -49,10 +49,10 @@ void TimerChannel::OnScheduled(TimerTask* task)
         {
             if (-1 != m_timer_id)
             {
-                aeDeleteTimeEvent(m_service.GetRawEventLoop(), m_timer_id);
+                aeDeleteTimeEvent(GetService().GetRawEventLoop(), m_timer_id);
                 m_timer_id = -1;
             }
-            m_timer_id = aeCreateTimeEvent(m_service.GetRawEventLoop(),
+            m_timer_id = aeCreateTimeEvent(GetService().GetRawEventLoop(),
                     task->GetDelay(), TimeoutCB, this, NULL);
         }
     }
@@ -62,6 +62,6 @@ TimerChannel::~TimerChannel()
 {
     if (-1 != m_timer_id)
     {
-        aeDeleteTimeEvent(m_service.GetRawEventLoop(), m_timer_id);
+        aeDeleteTimeEvent(GetService().GetRawEventLoop(), m_timer_id);
     }
 }

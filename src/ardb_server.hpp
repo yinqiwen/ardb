@@ -39,15 +39,18 @@ namespace ardb
 			std::string backup_dir;
 
 			int64 repl_ping_slave_period;
+			int64 repl_timeout;
+			int64 rep_backlog_size;
 
 			std::string loglevel;
 			std::string logfile;
 			ArdbServerConfig() :
 					daemonize(false), listen_port(0), unixsocketperm(755), max_clients(
-							10000), tcp_keepalive(0), slowlog_log_slower_than(
-							10000), slowlog_max_len(128), batch_write_enable(
-							true), batch_flush_period(1), checkpoint_interval(
-							2), repl_ping_slave_period(10)
+					        10000), tcp_keepalive(0), slowlog_log_slower_than(
+					        10000), slowlog_max_len(128), batch_write_enable(
+					        true), batch_flush_period(1), checkpoint_interval(
+					        2), repl_ping_slave_period(10), repl_timeout(60), rep_backlog_size(
+					        1000000)
 			{
 			}
 	};
@@ -94,8 +97,8 @@ namespace ardb
 			PubSubChannelSet* pattern_pubsub_channle_set;
 			ArdbConnContext() :
 					currentDB("0"), conn(NULL), in_transaction(false), fail_transc(
-							false), transaction_cmds(NULL), watch_key_set(NULL), pubsub_channle_set(
-							NULL), pattern_pubsub_channle_set(NULL)
+					        false), transaction_cmds(NULL), watch_key_set(NULL), pubsub_channle_set(
+					        NULL), pattern_pubsub_channle_set(NULL)
 			{
 			}
 			uint64 SubChannelSize()
@@ -114,7 +117,11 @@ namespace ardb
 			bool IsSubscribedConn()
 			{
 				return NULL != pubsub_channle_set
-						|| NULL != pattern_pubsub_channle_set;
+				        || NULL != pattern_pubsub_channle_set;
+			}
+			bool IsInTransaction()
+			{
+				return in_transaction && NULL != transaction_cmds;
 			}
 			~ArdbConnContext()
 			{
@@ -208,9 +215,9 @@ namespace ardb
 			ArdbServer* server;
 			ArdbConnContext ardbctx;
 			void MessageReceived(ChannelHandlerContext& ctx,
-					MessageEvent<RedisCommandFrame>& e);
+			        MessageEvent<RedisCommandFrame>& e);
 			void ChannelClosed(ChannelHandlerContext& ctx,
-					ChannelStateEvent& e);
+			        ChannelStateEvent& e);
 			RedisRequestHandler(ArdbServer* s) :
 					server(s)
 			{
@@ -227,7 +234,7 @@ namespace ardb
 			Ardb* m_db;
 			KeyValueEngineFactory* m_engine;
 			typedef int (ArdbServer::*RedisCommandHandler)(ArdbConnContext&,
-					ArgumentArray&);
+			        ArgumentArray&);
 
 			struct RedisCommandHandlerSetting
 			{
@@ -236,7 +243,6 @@ namespace ardb
 					int min_arity;
 					int max_arity;
 					int read_write_cmd; //0:read 1:write 2:unknown
-					int tranction_queueable_cmd; //can be queued if transaction enable
 			};
 			typedef btree::btree_map<std::string, RedisCommandHandlerSetting> RedisCommandHandlerSettingTable;
 			typedef btree::btree_set<DBID> DBIDSet;
@@ -258,12 +264,12 @@ namespace ardb
 			SlaveClient m_slave_client;
 
 			RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(
-					std::string& cmd);
+			        std::string& cmd);
 			int DoRedisCommand(ArdbConnContext& ctx,
-					RedisCommandHandlerSetting* setting,
-					RedisCommandFrame& cmd);
+			        RedisCommandHandlerSetting* setting,
+			        RedisCommandFrame& cmd);
 			void ProcessRedisCommand(ArdbConnContext& ctx,
-					RedisCommandFrame& cmd);
+			        RedisCommandFrame& cmd);
 
 			friend class ReplicationService;
 			friend class RedisRequestHandler;
@@ -307,6 +313,7 @@ namespace ardb
 			int Quit(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Slaveof(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Sync(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int ARSync(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int ReplConf(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Shutdown(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Type(ArdbConnContext& ctx, ArgumentArray& cmd);
@@ -413,7 +420,7 @@ namespace ardb
 			Timer& GetTimer();
 		public:
 			static int ParseConfig(const Properties& props,
-					ArdbServerConfig& cfg);
+			        ArdbServerConfig& cfg);
 			ArdbServer();
 			int Start(const Properties& props);
 			~ArdbServer();
