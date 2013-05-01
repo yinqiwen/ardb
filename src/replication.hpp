@@ -36,21 +36,37 @@ namespace ardb
 			}
 	};
 
+	struct OpKey
+	{
+			DBID db;
+			std::string key;
+			OpKey(const DBID& id, const std::string& k);
+			bool operator<(const OpKey& other) const;
+	};
 
-	class OpLogs:public Thread
+	class OpLogs: public Thread
 	{
 		private:
 			ArdbServerConfig& m_cfg;
 			uint64 m_min_seq;
 			uint64 m_max_seq;
 			FILE* m_op_log_file;
+			ThreadMutexLock m_lock;
+			DBID m_current_db;
 			typedef std::map<uint64, RedisCommandFrame*> RedisCommandFrameTable;
+			typedef std::map<OpKey, uint64> OpKeyIndexTable;
 			RedisCommandFrameTable m_mem_op_logs;
-            void Run();
-            void Load();
+			OpKeyIndexTable m_mem_op_idx;
+			void Run();
+			void Load();
+			void CheckCurrentDB(const DBID& db);
+			void SaveCmdOp(RedisCommandFrame* cmd);
 		public:
-            OpLogs(ArdbServerConfig& cfg);
-            void Save(RedisCommandFrame* cmd);
+			OpLogs(ArdbServerConfig& cfg);
+			void SaveSetOp(const DBID& db, const Slice& key,
+					const Slice& value);
+			void SaveDeleteOp(const DBID& db, const Slice& key);
+			void SaveFlushOp(const DBID& db);
 	};
 
 	class ArdbServer;
@@ -100,7 +116,7 @@ namespace ardb
 			ArdbServer* m_server;
 			bool m_is_saving;
 			uint32 m_last_save;
-			DBID m_current_db;
+
 			void Run();
 			typedef std::deque<Channel*> SyncClientQueue;
 
@@ -123,11 +139,11 @@ namespace ardb
 
 			}
 			void FullSync(Channel* client);
-			void RecordOp(const DBID& db, RedisCommandFrame& cmd);
 		public:
 			ReplicationService(ArdbServer* serv);
 			void ServSlaveClient(Channel* client);
-			void RecordChangedKeyValue(const DBID& db, const Slice& key, const Slice& value);
+			void RecordChangedKeyValue(const DBID& db, const Slice& key,
+					const Slice& value);
 			void RecordDeletedKey(const DBID& db, const Slice& key);
 			void RecordFlushDB(const DBID& db);
 			int Save();

@@ -166,11 +166,6 @@ namespace ardb
 		}
 	}
 
-	void SyncCommandQueue::Offer(RedisCommandFrame& cmd, uint32 seq)
-	{
-		m_mem_queue.push_back(new RedisCommandFrameFeed(cmd, seq));
-	}
-
 	ReplicationService::ReplicationService(ArdbServer* serv) :
 			m_server(serv), m_is_saving(false), m_last_save(0), m_soft_signal(
 					NULL)
@@ -282,48 +277,17 @@ namespace ardb
 	void ReplicationService::RecordChangedKeyValue(const DBID& db,
 			const Slice& key, const Slice& value)
 	{
-		ArgumentArray strs;
-		strs.push_back("__set__");
-		strs.push_back(std::string(key.data(), key.size()));
-		strs.push_back(std::string(value.data(), key.size()));
-		RedisCommandFrame cmd(strs);
-		RecordOp(db, cmd);
+		m_oplogs.SaveSetOp(db, key, value);
 	}
 	void ReplicationService::RecordDeletedKey(const DBID& db, const Slice& key)
 	{
-		ArgumentArray strs;
-		strs.push_back("__del__");
-		strs.push_back(std::string(key.data(), key.size()));
-		RedisCommandFrame cmd(strs);
-		RecordOp(db, cmd);
+		m_oplogs.SaveDeleteOp(db, key);
 	}
 	void ReplicationService::RecordFlushDB(const DBID& db)
 	{
-		ArgumentArray strs;
-		strs.push_back("flushdb");
-		RedisCommandFrame cmd(strs);
-		RecordOp(db, cmd);
+		m_oplogs.SaveFlushOp(db);
 	}
 
-	void ReplicationService::RecordOp(const DBID& dbid,
-			RedisCommandFrame& syncCmd)
-	{
-		LockGuard<ThreadMutexLock> guard(m_slaves_lock);
-		if (m_current_db != dbid)
-		{
-			//generate 'select' cmd
-			m_current_db = dbid;
-			ArgumentArray strs;
-			strs.push_back("select");
-			strs.push_back(m_current_db);
-			m_oplogs.Save(new RedisCommandFrame(strs));
-		}
-		m_oplogs.Save(new RedisCommandFrame(syncCmd));
-		if (NULL != m_soft_signal)
-		{
-			m_soft_signal->FireSoftSignal(1, 1);
-		}
-	}
 
 	int ReplicationService::Save()
 	{
