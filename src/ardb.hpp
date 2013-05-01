@@ -187,6 +187,9 @@ namespace ardb
 		public:
 			Ardb(KeyValueEngineFactory* factory);
 			~Ardb();
+
+			int RawSet(const DBID& db, const Slice& key, const Slice& value);
+			int RawDel(const DBID& db, const Slice& key);
 			/*
 			 * Key-Value operations
 			 */

@@ -36,20 +36,28 @@ namespace ardb
 			}
 	};
 
-	class SyncCommandQueue
+
+	class OpLogs:public Thread
 	{
 		private:
-			typedef std::deque<RedisCommandFrameFeed*> MemCommandQueue;
-			MemCommandQueue m_mem_queue;
+			ArdbServerConfig& m_cfg;
+			uint64 m_min_seq;
+			uint64 m_max_seq;
+			FILE* m_op_log_file;
+			typedef std::map<uint64, RedisCommandFrame*> RedisCommandFrameTable;
+			RedisCommandFrameTable m_mem_op_logs;
+            void Run();
+            void Load();
 		public:
-			void Offer(RedisCommandFrame& cmd, uint32 seq);
+            OpLogs(ArdbServerConfig& cfg);
+            void Save(RedisCommandFrame* cmd);
 	};
 
 	class ArdbServer;
 
 	class SlaveClient: public ChannelUpstreamHandler<RedisCommandFrame>,
-	        public ChannelUpstreamHandler<Buffer>,
-	        public Runnable
+			public ChannelUpstreamHandler<Buffer>,
+			public Runnable
 	{
 		private:
 			ArdbServer* m_serv;
@@ -61,20 +69,21 @@ namespace ardb
 			bool m_ping_recved;
 			RedisCommandDecoder m_decoder;
 			NullRedisReplyEncoder m_encoder;
+
 			void MessageReceived(ChannelHandlerContext& ctx,
-			        MessageEvent<RedisCommandFrame>& e);
+					MessageEvent<RedisCommandFrame>& e);
 			void MessageReceived(ChannelHandlerContext& ctx,
-			        MessageEvent<Buffer>& e);
+					MessageEvent<Buffer>& e);
 			void ChannelClosed(ChannelHandlerContext& ctx,
-			        ChannelStateEvent& e);
+					ChannelStateEvent& e);
 			void ChannelConnected(ChannelHandlerContext& ctx,
-			        ChannelStateEvent& e);
+					ChannelStateEvent& e);
 			void Timeout();
 			void Run();
 		public:
 			SlaveClient(ArdbServer* serv) :
 					m_serv(serv), m_client(NULL), m_chunk_len(0), m_slave_state(
-					        0), m_cron_inited(false), m_ping_recved(false)
+							0), m_cron_inited(false), m_ping_recved(false)
 			{
 			}
 			int ConnectMaster(const std::string& host, uint32 port);
@@ -83,8 +92,8 @@ namespace ardb
 	};
 
 	class ReplicationService: public Thread,
-	        public SoftSignalHandler,
-	        public ChannelUpstreamHandler<Buffer>
+			public SoftSignalHandler,
+			public ChannelUpstreamHandler<Buffer>
 	{
 		private:
 			ChannelService m_serv;
@@ -101,22 +110,26 @@ namespace ardb
 			SlaveConnTable m_slaves;
 
 			SoftSignalChannel* m_soft_signal;
+			OpLogs m_oplogs;
 
-			SyncCommandQueue m_sync_queue;
 			void Routine();
 			void PingSlaves();
 			void OnSoftSignal(uint32 soft_signo, uint32 appendinfo);
 			void ChannelClosed(ChannelHandlerContext& ctx,
-			        ChannelStateEvent& e);
+					ChannelStateEvent& e);
 			void MessageReceived(ChannelHandlerContext& ctx,
-			        MessageEvent<Buffer>& e)
+					MessageEvent<Buffer>& e)
 			{
 
 			}
+			void FullSync(Channel* client);
+			void RecordOp(const DBID& db, RedisCommandFrame& cmd);
 		public:
 			ReplicationService(ArdbServer* serv);
 			void ServSlaveClient(Channel* client);
-			void FeedSlaves(const DBID& dbid, RedisCommandFrame& syncCmd);
+			void RecordChangedKeyValue(const DBID& db, const Slice& key, const Slice& value);
+			void RecordDeletedKey(const DBID& db, const Slice& key);
+			void RecordFlushDB(const DBID& db);
 			int Save();
 			int BGSave();
 			uint32 LastSave()

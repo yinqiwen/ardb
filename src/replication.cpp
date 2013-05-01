@@ -17,7 +17,7 @@ namespace ardb
 	static const uint32 kSlaveStateSynced = 4;
 
 	void SlaveClient::MessageReceived(ChannelHandlerContext& ctx,
-	        MessageEvent<RedisCommandFrame>& e)
+			MessageEvent<RedisCommandFrame>& e)
 	{
 		DEBUG_LOG("Recv master cmd %s", e.GetMessage()->GetCommand().c_str());
 		RedisCommandFrame* cmd = e.GetMessage();
@@ -32,7 +32,7 @@ namespace ardb
 	}
 
 	void SlaveClient::MessageReceived(ChannelHandlerContext& ctx,
-	        MessageEvent<Buffer>& e)
+			MessageEvent<Buffer>& e)
 	{
 		Buffer* msg = e.GetMessage();
 		if (m_slave_state == kSlaveStateConnected)
@@ -58,8 +58,7 @@ namespace ardb
 				msg->SkipBytes(2);
 				DEBUG_LOG("Sync bulk %d bytes", m_chunk_len);
 				m_slave_state = kSlaveStateSyncing;
-			}
-			else
+			} else
 			{
 				return;
 			}
@@ -71,8 +70,7 @@ namespace ardb
 		{
 			m_chunk_len -= msg->ReadableBytes();
 			msg->Clear();
-		}
-		else
+		} else
 		{
 			msg->SkipBytes(m_chunk_len);
 			m_chunk_len = 0;
@@ -86,7 +84,7 @@ namespace ardb
 	}
 
 	void SlaveClient::ChannelClosed(ChannelHandlerContext& ctx,
-	        ChannelStateEvent& e)
+			ChannelStateEvent& e)
 	{
 		m_client = NULL;
 		//reconnect master after 500ms
@@ -95,6 +93,7 @@ namespace ardb
 
 	void SlaveClient::Timeout()
 	{
+		WARN_LOG("Master connection timeout.");
 		Close();
 	}
 
@@ -103,8 +102,7 @@ namespace ardb
 		if (NULL == m_client && !m_master_addr.GetHost().empty())
 		{
 			ConnectMaster(m_master_addr.GetHost(), m_master_addr.GetPort());
-		}
-		else
+		} else
 		{
 			if (m_slave_state == kSlaveStateSynced)
 			{
@@ -119,7 +117,7 @@ namespace ardb
 	}
 
 	void SlaveClient::ChannelConnected(ChannelHandlerContext& ctx,
-	        ChannelStateEvent& e)
+			ChannelStateEvent& e)
 	{
 		Buffer sync;
 		sync.Printf("sync\r\n");
@@ -134,7 +132,7 @@ namespace ardb
 		{
 			m_cron_inited = true;
 			m_serv->GetTimer().Schedule(this, m_serv->m_cfg.repl_timeout,
-			        m_serv->m_cfg.repl_timeout, SECONDS);
+					m_serv->m_cfg.repl_timeout, SECONDS);
 		}
 		SocketHostAddress addr(host, port);
 		if (m_master_addr == addr && NULL != m_client)
@@ -175,7 +173,7 @@ namespace ardb
 
 	ReplicationService::ReplicationService(ArdbServer* serv) :
 			m_server(serv), m_is_saving(false), m_last_save(0), m_soft_signal(
-			        NULL)
+					NULL)
 	{
 
 	}
@@ -216,6 +214,7 @@ namespace ardb
 			m_slaves[ch->GetID()] = c;
 			m_waiting_slaves.pop_front();
 		}
+
 	}
 
 	void ReplicationService::Run()
@@ -235,8 +234,8 @@ namespace ardb
 		m_soft_signal = m_serv.NewSoftSignalChannel();
 		m_soft_signal->Register(1, this);
 		m_serv.GetTimer().ScheduleHeapTask(new HeartbeatTask(this),
-		        m_server->m_cfg.repl_ping_slave_period,
-		        m_server->m_cfg.repl_ping_slave_period, SECONDS);
+				m_server->m_cfg.repl_ping_slave_period,
+				m_server->m_cfg.repl_ping_slave_period, SECONDS);
 		m_serv.Start();
 	}
 
@@ -253,7 +252,7 @@ namespace ardb
 //	}
 
 	void ReplicationService::ChannelClosed(ChannelHandlerContext& ctx,
-	        ChannelStateEvent& e)
+			ChannelStateEvent& e)
 	{
 		m_slaves.erase(ctx.GetChannel()->GetID());
 	}
@@ -275,8 +274,39 @@ namespace ardb
 
 	}
 
-	void ReplicationService::FeedSlaves(const DBID& dbid,
-	        RedisCommandFrame& syncCmd)
+	void ReplicationService::FullSync(Channel* client)
+	{
+
+	}
+
+	void ReplicationService::RecordChangedKeyValue(const DBID& db,
+			const Slice& key, const Slice& value)
+	{
+		ArgumentArray strs;
+		strs.push_back("__set__");
+		strs.push_back(std::string(key.data(), key.size()));
+		strs.push_back(std::string(value.data(), key.size()));
+		RedisCommandFrame cmd(strs);
+		RecordOp(db, cmd);
+	}
+	void ReplicationService::RecordDeletedKey(const DBID& db, const Slice& key)
+	{
+		ArgumentArray strs;
+		strs.push_back("__del__");
+		strs.push_back(std::string(key.data(), key.size()));
+		RedisCommandFrame cmd(strs);
+		RecordOp(db, cmd);
+	}
+	void ReplicationService::RecordFlushDB(const DBID& db)
+	{
+		ArgumentArray strs;
+		strs.push_back("flushdb");
+		RedisCommandFrame cmd(strs);
+		RecordOp(db, cmd);
+	}
+
+	void ReplicationService::RecordOp(const DBID& dbid,
+			RedisCommandFrame& syncCmd)
 	{
 		LockGuard<ThreadMutexLock> guard(m_slaves_lock);
 		if (m_current_db != dbid)
@@ -286,46 +316,13 @@ namespace ardb
 			ArgumentArray strs;
 			strs.push_back("select");
 			strs.push_back(m_current_db);
-			RedisCommandFrame select(strs);
-			m_sync_queue.Offer(select, kBinLogIdSeed++);
+			m_oplogs.Save(new RedisCommandFrame(strs));
 		}
-		m_sync_queue.Offer(syncCmd, kBinLogIdSeed++);
+		m_oplogs.Save(new RedisCommandFrame(syncCmd));
 		if (NULL != m_soft_signal)
 		{
 			m_soft_signal->FireSoftSignal(1, 1);
 		}
-	}
-
-	static bool veify_checkpoint_file(const std::string& data_file,
-	        const std::string& cksum_file)
-	{
-		if (!is_file_exist(cksum_file) || !is_file_exist(data_file))
-		{
-			remove(cksum_file.c_str());
-			remove(data_file.c_str());
-			return false;
-		}
-		Buffer sha1sum;
-		int ret = file_read_full(cksum_file, sha1sum);
-		if (ret < 0)
-		{
-			ERROR_LOG("Failed to read chepoint sha1sum file.");
-			return false;
-		}
-		std::string sha1sum_str;
-		ret = sha1sum_file(data_file, sha1sum_str);
-		if (ret < 0)
-		{
-			ERROR_LOG("Failed to compute chepoint sha1sum.");
-			return false;
-		}
-		if (sha1sum_str != sha1sum.AsString())
-		{
-			ERROR_LOG(
-			        "Invalid check sum %s VS %s.", sha1sum_str.c_str(), sha1sum.AsString().c_str());
-			return false;
-		}
-		return true;
 	}
 
 	int ReplicationService::Save()
@@ -345,26 +342,24 @@ namespace ardb
 		char cmd[m_server->m_cfg.data_base_path.size() + 256];
 		make_dir(m_server->m_cfg.backup_dir);
 		std::string dest = m_server->m_cfg.backup_dir
-		        + "/ardb_all_data.save.tar";
+				+ "/ardb_all_data.save.tar";
 		std::string shasumfile = m_server->m_cfg.backup_dir
-		        + "/ardb_all_data.sha1sum";
+				+ "/ardb_all_data.sha1sum";
 		sprintf(cmd, "tar cf %s %s;", dest.c_str(),
-		        m_server->m_cfg.data_base_path.c_str());
+				m_server->m_cfg.data_base_path.c_str());
 		ret = system(cmd);
 		if (-1 == ret)
 		{
 			ERROR_LOG( "Failed to create backup data archive:%s", dest.c_str());
-		}
-		else
+		} else
 		{
 			std::string sha1sum_str;
 			ret = sha1sum_file(dest, sha1sum_str);
 			if (-1 == ret)
 			{
 				ERROR_LOG(
-				        "Failed to compute sha1sum for data archive:%s", dest.c_str());
-			}
-			else
+						"Failed to compute sha1sum for data archive:%s", dest.c_str());
+			} else
 			{
 				INFO_LOG("Save file SHA1sum is %s", sha1sum_str.c_str());
 				file_write_content(shasumfile, sha1sum_str);

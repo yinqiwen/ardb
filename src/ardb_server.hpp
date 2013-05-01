@@ -301,6 +301,9 @@ namespace ardb
 			int Watch(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int UnWatch(ArdbConnContext& ctx, ArgumentArray& cmd);
 
+			int RawSet(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int RawDel(ArdbConnContext& ctx, ArgumentArray& cmd);
+
 			int Subscribe(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int UnSubscribe(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int PSubscribe(ArdbConnContext& ctx, ArgumentArray& cmd);
