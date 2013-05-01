@@ -10,7 +10,6 @@
 
 namespace ardb
 {
-	static uint64 kBinLogIdSeed = 0;
 	static const uint32 kSlaveStateConnecting = 1;
 	static const uint32 kSlaveStateConnected = 2;
 	static const uint32 kSlaveStateSyncing = 3;

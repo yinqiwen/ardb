@@ -53,16 +53,20 @@ namespace ardb
 			FILE* m_op_log_file;
 			ThreadMutexLock m_lock;
 			DBID m_current_db;
+			typedef std::list<Runnable*> TaskList;
 			typedef std::map<uint64, RedisCommandFrame*> RedisCommandFrameTable;
 			typedef std::map<OpKey, uint64> OpKeyIndexTable;
 			RedisCommandFrameTable m_mem_op_logs;
 			OpKeyIndexTable m_mem_op_idx;
+			TaskList m_tasks;
 			void Run();
+			void PostTask(Runnable* r);
 			void Load();
 			void CheckCurrentDB(const DBID& db);
 			void SaveCmdOp(RedisCommandFrame* cmd);
 		public:
 			OpLogs(ArdbServerConfig& cfg);
+			int LoadOpLog(uint64& seq, RedisCommandFrame*& cmd);
 			void SaveSetOp(const DBID& db, const Slice& key,
 					const Slice& value);
 			void SaveDeleteOp(const DBID& db, const Slice& key);

@@ -32,9 +32,42 @@ namespace ardb
 
 	}
 
+	void OpLogs::Load()
+	{
+
+	}
+
 	void OpLogs::Run()
 	{
 		Load();
+		while(true)
+		{
+			Runnable* task = NULL;
+			{
+				LockGuard<ThreadMutexLock> guard(m_lock);
+				while (m_tasks.empty())
+				{
+					m_lock.Wait(1000);
+				}
+				if(!m_tasks.empty())
+				{
+					task = m_tasks.front();
+					m_tasks.pop_front();
+				}
+			}
+			if(NULL != task)
+			{
+				task->Run();
+			}
+		}
+
+	}
+
+	void OpLogs::PostTask(Runnable* r)
+	{
+		LockGuard<ThreadMutexLock> guard(m_lock);
+		m_tasks.push_back(r);
+		m_lock.Notify();
 	}
 
 	void OpLogs::CheckCurrentDB(const DBID& db)
@@ -55,6 +88,14 @@ namespace ardb
 
 	}
 
+	int OpLogs::LoadOpLog(uint64 seq)
+	{
+		if(seq < m_min_seq)
+		{
+			return -1;
+		}
+	}
+
 	void OpLogs::SaveSetOp(const DBID& db, const Slice& key, const Slice& value)
 	{
 		CheckCurrentDB(db);
@@ -65,6 +106,10 @@ namespace ardb
 	}
 	void OpLogs::SaveFlushOp(const DBID& db)
 	{
+		CheckCurrentDB(db);
+		ArgumentArray strs;
+		strs.push_back("flushdb");
+		SaveCmdOp(new RedisCommandFrame(strs));
 	}
 }
 
