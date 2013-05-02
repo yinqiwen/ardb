@@ -152,6 +152,6 @@ SAVE                                       DONE
 SHUTDOWN [NOSAVE] [SAVE]                   DONE
 SLAVEOF host port                          DONE
 SLOWLOG subcommand [argument]              DONE
-SYNC                                       NotYet
+SYNC                                       DONE(Fake empty rdb dump response)
 TIME                                       DONE
 

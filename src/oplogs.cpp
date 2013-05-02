@@ -379,10 +379,13 @@ namespace ardb
 		}
 		while (seq < m_max_seq)
 		{
-			CachedOpTable::iterator fit = m_mem_op_logs.find(seq++);
+			uint64 current_seq = seq;
+			char seqbuf[256];
+			sprintf(seqbuf, "%llu", current_seq);
+			seq++;
+			CachedOpTable::iterator fit = m_mem_op_logs.find(current_seq);
 			if (fit != m_mem_op_logs.end())
 			{
-				seq++;
 				CachedOp* op = fit->second;
 				if (op->type == kOtherOpType)
 				{
@@ -403,11 +406,15 @@ namespace ardb
 						}
 						strs.push_back(v);
 					}
+					//push seq at last
+                    strs.push_back(seqbuf);
 					RedisCommandFrame cmd(strs);
 					RedisCommandEncoder::Encode(buf, cmd);
 				} else
 				{
 					CachedCmdOp* cmdop = (CachedCmdOp*) op;
+					//push seq at last
+					cmdop->cmd->GetArguments().push_back(seqbuf);
 					RedisCommandEncoder::Encode(buf, *(cmdop->cmd));
 				}
 				return 1;
@@ -425,10 +432,6 @@ namespace ardb
 			CachedOpTable::iterator fit = m_mem_op_logs.find(seq);
 			if (fit != m_mem_op_logs.end())
 			{
-				if (m_min_seq == seq)
-				{
-					m_min_seq++;
-				}
 				CachedOp* op = fit->second;
 				DELETE(op);
 				m_mem_op_logs.erase(fit);
@@ -502,6 +505,11 @@ namespace ardb
 				}
 		};
 		PostTask(new FlushTask(this, db));
+	}
+
+	bool OpLogs::VerifyClient(const std::string& serverKey, uint64 seq)
+	{
+		return false;
 	}
 }
 

@@ -26,7 +26,7 @@ namespace ardb
 			uint32 state;
 			uint8 type;
 			SlaveConn(Channel* c = NULL);
-			SlaveConn(Channel* c,const std::string& key, uint64 seq);
+			SlaveConn(Channel* c, const std::string& key, uint64 seq);
 	};
 
 	struct OpKey
@@ -79,6 +79,9 @@ namespace ardb
 			Buffer m_op_log_buffer;
 			uint32 m_current_oplog_record_size;
 			time_t m_last_flush_time;
+
+			std::string m_server_key;
+
 			ThreadMutexLock m_lock;
 			DBID m_current_db;
 			typedef std::list<Runnable*> TaskList;
@@ -111,6 +114,11 @@ namespace ardb
 					const Slice& value);
 			void SaveDeleteOp(const DBID& db, const Slice& key);
 			void SaveFlushOp(const DBID& db);
+			bool VerifyClient(const std::string& serverKey, uint64 seq);
+			const std::string& GetServerKey()
+			{
+				return m_server_key;
+			}
 	};
 
 	class SlaveClient: public ChannelUpstreamHandler<RedisCommandFrame>,
@@ -128,6 +136,10 @@ namespace ardb
 			RedisCommandDecoder m_decoder;
 			NullRedisReplyEncoder m_encoder;
 
+			uint8 m_server_type;
+			std::string m_server_key;
+			uint64 m_sync_seq;
+
 			void MessageReceived(ChannelHandlerContext& ctx,
 					MessageEvent<RedisCommandFrame>& e);
 			void MessageReceived(ChannelHandlerContext& ctx,
@@ -141,7 +153,8 @@ namespace ardb
 		public:
 			SlaveClient(ArdbServer* serv) :
 					m_serv(serv), m_client(NULL), m_chunk_len(0), m_slave_state(
-							0), m_cron_inited(false), m_ping_recved(false)
+							0), m_cron_inited(false), m_ping_recved(false), m_chunk_len(
+							0), m_server_type(0), m_server_key("-"), m_sync_seq(0)
 			{
 			}
 			int ConnectMaster(const std::string& host, uint32 port);
@@ -180,11 +193,13 @@ namespace ardb
 			{
 
 			}
+			void CheckSlaveQueue();
 			void FullSync(Channel* client);
 		public:
 			ReplicationService(ArdbServer* serv);
 			void ServSlaveClient(Channel* client);
-			void ServARSlaveClient(Channel* client, const std::string& serverKey, uint64 seq);
+			void ServARSlaveClient(Channel* client,
+					const std::string& serverKey, uint64 seq);
 			void RecordChangedKeyValue(const DBID& db, const Slice& key,
 					const Slice& value);
 			void RecordDeletedKey(const DBID& db, const Slice& key);

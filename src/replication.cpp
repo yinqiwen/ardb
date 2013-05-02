@@ -15,18 +15,18 @@ namespace ardb
 	static const uint32 kSlaveStateSyncing = 3;
 	static const uint32 kSlaveStateSynced = 4;
 
-	static const uint8 kSlaveRedisTestType = 1;
-	static const uint8 kSlaveArdbType = 2;
+	static const uint8 kRedisTestDB = 1;
+	static const uint8 kArdbDB = 2;
 
 	SlaveConn::SlaveConn(Channel* c) :
 			conn(c), synced_cmd_seq(0), state(kSlaveStateConnected), type(
-					kSlaveRedisTestType)
+					kRedisTestDB)
 	{
 
 	}
 	SlaveConn::SlaveConn(Channel* c, const std::string& key, uint64 seq) :
 			conn(c), server_key(key), synced_cmd_seq(seq), state(
-					kSlaveStateConnected), type(kSlaveArdbType)
+					kSlaveStateConnected), type(kArdbDB)
 	{
 	}
 
@@ -39,7 +39,24 @@ namespace ardb
 		{
 			m_ping_recved = true;
 			return;
+		} else if (!strcasecmp(cmd->GetCommand().c_str(), "arsynced"))
+		{
+			m_server_key = *(cmd->GetArgument(0));
+			m_slave_state = kSlaveStateSynced;
+			uint64 seq;
+			string_touint64(*(cmd->GetArgument(1)), seq);
+			m_sync_seq = seq;
+			return;
 		}
+
+		if (m_slave_state == kSlaveStateSynced)
+		{
+			//extract sequence from last part
+			const std::string& seq = cmd->GetArguments().back();
+			string_touint64(seq, m_sync_seq);
+			cmd->GetArguments().pop_back();
+		}
+
 		ArdbConnContext actx;
 		actx.conn = ctx.GetChannel();
 		m_serv->ProcessRedisCommand(actx, *cmd);
@@ -69,6 +86,14 @@ namespace ardb
 					ERROR_LOG("Invalid lenght %s.", buf);
 					return;
 				}
+				if (m_chunk_len == 0)
+				{
+					//just check first response chunk length to distinguish server(redis/ardb)
+					m_server_type = kArdbDB;
+				} else
+				{
+					m_server_type = kRedisTestDB;
+				}
 				msg->SkipBytes(2);
 				DEBUG_LOG("Sync bulk %d bytes", m_chunk_len);
 				m_slave_state = kSlaveStateSyncing;
@@ -93,7 +118,12 @@ namespace ardb
 			m_client->GetPipeline().AddLast("encoder", &m_encoder);
 			ChannelUpstreamHandler<RedisCommandFrame>* handler = this;
 			m_client->GetPipeline().AddLast("handler", handler);
-			m_slave_state = kSlaveStateSynced;
+
+			//ardb server would send 'arsynced' after all data synced
+			if (m_server_type == kRedisTestDB)
+			{
+				m_slave_state = kSlaveStateSynced;
+			}
 		}
 	}
 
@@ -134,7 +164,7 @@ namespace ardb
 			ChannelStateEvent& e)
 	{
 		Buffer sync;
-		sync.Printf("arsync weqrqw 0\r\n");
+		sync.Printf("arsync %s %lld\r\n", m_server_key.c_str(), m_sync_seq);
 		ctx.GetChannel()->Write(sync);
 		m_slave_state = kSlaveStateConnected;
 		m_ping_recved = true;
@@ -204,16 +234,16 @@ namespace ardb
 		}
 	}
 
-	void ReplicationService::Routine()
+	void ReplicationService::CheckSlaveQueue()
 	{
 		LockGuard<ThreadMutexLock> guard(m_slaves_lock);
 		while (!m_waiting_slaves.empty())
 		{
 			SlaveConn& ch = m_waiting_slaves.front();
 			m_serv.AttachChannel(ch.conn, true);
-			if (ch.type == kSlaveRedisTestType)
+			if (ch.type == kRedisTestDB)
 			{
-				//empty fake rdb dump
+				//empty fake rdb dump response
 				Buffer content;
 				content.Printf("$10\r\nREDIS0004");
 				content.WriteByte((char) 255);
@@ -222,11 +252,50 @@ namespace ardb
 				m_slaves[ch.conn->GetID()] = ch;
 			} else
 			{
-
+				//empty first response chunk
+				Buffer content;
+				content.Printf("$0\r\n");
+				ch.conn->Write(content);
+				content.Clear();
+				if (m_oplogs.VerifyClient(ch.server_key, ch.synced_cmd_seq))
+				{
+					content.Printf("arsynced %s %llu",
+							m_oplogs.GetServerKey().c_str(), ch.synced_cmd_seq);
+					ch.conn->Write(content);
+					ch.state = kSlaveStateSynced;
+				} else
+				{
+					ch.state = kSlaveStateSyncing;
+					FullSync(ch.conn);
+				}
+				m_slaves[ch.conn->GetID()] = ch;
 			}
 			m_waiting_slaves.pop_front();
 		}
+	}
 
+	void ReplicationService::Routine()
+	{
+		CheckSlaveQueue();
+		Buffer tmp;
+		SlaveConnTable::iterator it = m_slaves.begin();
+		while (it != m_slaves.end())
+		{
+			SlaveConn& conn = it->second;
+			if (conn.state == kSlaveStateSynced)
+			{
+				tmp.Clear();
+				while (m_oplogs.LoadOpLog(conn.synced_cmd_seq, tmp) == 1)
+				{
+					conn.conn->Write(tmp);
+				}
+				if (tmp.Readable())
+				{
+					conn.conn->Write(tmp);
+				}
+			}
+			it++;
+		}
 	}
 
 	void ReplicationService::Run()
