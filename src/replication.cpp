@@ -167,9 +167,8 @@ namespace ardb
 
 	ReplicationService::ReplicationService(ArdbServer* serv) :
 			m_server(serv), m_is_saving(false), m_last_save(0), m_soft_signal(
-					NULL)
+					NULL), m_oplogs(serv->m_cfg, serv->m_db)
 	{
-
 	}
 
 	void ReplicationService::OnSoftSignal(uint32 soft_signo, uint32 appendinfo)
@@ -230,6 +229,7 @@ namespace ardb
 		m_serv.GetTimer().ScheduleHeapTask(new HeartbeatTask(this),
 				m_server->m_cfg.repl_ping_slave_period,
 				m_server->m_cfg.repl_ping_slave_period, SECONDS);
+		m_oplogs.Start();
 		m_serv.Start();
 	}
 
@@ -286,7 +286,6 @@ namespace ardb
 	{
 		m_oplogs.SaveFlushOp(db);
 	}
-
 
 	int ReplicationService::Save()
 	{

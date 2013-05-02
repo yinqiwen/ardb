@@ -285,6 +285,11 @@ namespace ardb
 		return GetDB(db)->Del(key);
 	}
 
+	int Ardb::RawGet(const DBID& db, const Slice& key, std::string* value)
+	{
+		return GetDB(db)->Get(key, value);
+	}
+
 	int Ardb::Type(const DBID& db, const Slice& key)
 	{
 		if (Exists(db, key))

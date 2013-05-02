@@ -190,6 +190,7 @@ namespace ardb
 
 			int RawSet(const DBID& db, const Slice& key, const Slice& value);
 			int RawDel(const DBID& db, const Slice& key);
+			int RawGet(const DBID& db, const Slice& key, std::string* value);
 			/*
 			 * Key-Value operations
 			 */

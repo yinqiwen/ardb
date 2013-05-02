@@ -45,7 +45,7 @@ KCDB_ENGINE :=  engine/kyotocabinet_engine.o
 LEVELDB_TEST := ../test/leveldb.o 
 KCDB_TEST := ../test/kcdb.o
 
-SERVER_OBJECTS := ardb_server.o slowlog.o clients.o replication.o pubsub.o main.o
+SERVER_OBJECTS := ardb_server.o slowlog.o clients.o replication.o pubsub.o oplogs.o main.o
 
 #DIST_LIB = libardb.so
 DIST_LIBA = libardb.a

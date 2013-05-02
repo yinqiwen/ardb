@@ -25,55 +25,88 @@ namespace ardb
 			uint32 state;
 	};
 
-	struct RedisCommandFrameFeed
-	{
-
-			RedisCommandFrame cmd;
-			uint32 cmd_seq;
-			RedisCommandFrameFeed(RedisCommandFrame& c, uint32 seq) :
-					cmd(c), cmd_seq(seq)
-			{
-			}
-	};
-
 	struct OpKey
 	{
 			DBID db;
 			std::string key;
 			OpKey(const DBID& id, const std::string& k);
 			bool operator<(const OpKey& other) const;
+			bool Empty()
+			{
+				return db.empty();
+			}
 	};
+
+	struct CachedOp
+	{
+			uint8 type;
+			CachedOp(uint8 t) :
+					type(t)
+			{
+			}
+			virtual ~CachedOp()
+			{
+			}
+	};
+	struct CachedWriteOp: public CachedOp
+	{
+			OpKey key;
+			CachedWriteOp(uint8 t,OpKey& k);
+	};
+	struct CachedCmdOp: public CachedOp
+	{
+			RedisCommandFrame* cmd;
+			CachedCmdOp(RedisCommandFrame* c);
+			~CachedCmdOp();
+	};
+
+	class Ardb;
+	class ArdbServer;
+	class ArdbServerConfig;
 
 	class OpLogs: public Thread
 	{
 		private:
 			ArdbServerConfig& m_cfg;
+			Ardb* m_db;
 			uint64 m_min_seq;
 			uint64 m_max_seq;
 			FILE* m_op_log_file;
+			Buffer m_op_log_buffer;
+			uint32 m_current_oplog_record_size;
+			time_t m_last_flush_time;
 			ThreadMutexLock m_lock;
 			DBID m_current_db;
 			typedef std::list<Runnable*> TaskList;
-			typedef std::map<uint64, RedisCommandFrame*> RedisCommandFrameTable;
+			typedef std::map<uint64, CachedOp*> CachedOpTable;
 			typedef std::map<OpKey, uint64> OpKeyIndexTable;
-			RedisCommandFrameTable m_mem_op_logs;
+			CachedOpTable m_mem_op_logs;
 			OpKeyIndexTable m_mem_op_idx;
 			TaskList m_tasks;
+
 			void Run();
+			void Routine();
 			void PostTask(Runnable* r);
+			void LoadCachedOpLog(Buffer & buf);
+			void LoadCachedOpLog(const std::string& file);
 			void Load();
+			void RemoveExistOp(OpKey& key);
+			void RemoveOldestOp();
 			void CheckCurrentDB(const DBID& db);
-			void SaveCmdOp(RedisCommandFrame* cmd);
+			void ReOpenOpLog();
+			void RollbackOpLogs();
+			void FlushOpLog();
+			void WriteCachedOp(uint64 seq, CachedOp* op);
+			uint64 SaveCmdOp(RedisCommandFrame* cmd, bool writeOpLog = true);
+			uint64 SaveWriteOp(OpKey& opkey, uint8 type, bool writeOpLog = true);
 		public:
-			OpLogs(ArdbServerConfig& cfg);
-			int LoadOpLog(uint64& seq, RedisCommandFrame*& cmd);
+			OpLogs(ArdbServerConfig& cfg,Ardb* db);
+			int LoadOpLog(uint64& seq, Buffer& cmd);
 			void SaveSetOp(const DBID& db, const Slice& key,
 					const Slice& value);
 			void SaveDeleteOp(const DBID& db, const Slice& key);
 			void SaveFlushOp(const DBID& db);
 	};
-
-	class ArdbServer;
 
 	class SlaveClient: public ChannelUpstreamHandler<RedisCommandFrame>,
 			public ChannelUpstreamHandler<Buffer>,

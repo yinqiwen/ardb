@@ -2463,6 +2463,7 @@ namespace ardb
 		m_repli_serv.Start();
 		m_service->Start();
 		sexit:
+		m_repli_serv.Stop();
 		DELETE(m_engine);
 		DELETE(m_db);
 		DELETE(m_service);
