@@ -21,8 +21,12 @@ namespace ardb
 	struct SlaveConn
 	{
 			Channel* conn;
-			uint32 synced_cmd_seq;
+			std::string server_key;
+			uint64 synced_cmd_seq;
 			uint32 state;
+			uint8 type;
+			SlaveConn(Channel* c = NULL);
+			SlaveConn(Channel* c,const std::string& key, uint64 seq);
 	};
 
 	struct OpKey
@@ -51,7 +55,7 @@ namespace ardb
 	struct CachedWriteOp: public CachedOp
 	{
 			OpKey key;
-			CachedWriteOp(uint8 t,OpKey& k);
+			CachedWriteOp(uint8 t, OpKey& k);
 	};
 	struct CachedCmdOp: public CachedOp
 	{
@@ -98,9 +102,10 @@ namespace ardb
 			void FlushOpLog();
 			void WriteCachedOp(uint64 seq, CachedOp* op);
 			uint64 SaveCmdOp(RedisCommandFrame* cmd, bool writeOpLog = true);
-			uint64 SaveWriteOp(OpKey& opkey, uint8 type, bool writeOpLog = true);
+			uint64 SaveWriteOp(OpKey& opkey, uint8 type,
+					bool writeOpLog = true);
 		public:
-			OpLogs(ArdbServerConfig& cfg,Ardb* db);
+			OpLogs(ArdbServerConfig& cfg, Ardb* db);
 			int LoadOpLog(uint64& seq, Buffer& cmd);
 			void SaveSetOp(const DBID& db, const Slice& key,
 					const Slice& value);
@@ -155,7 +160,7 @@ namespace ardb
 			uint32 m_last_save;
 
 			void Run();
-			typedef std::deque<Channel*> SyncClientQueue;
+			typedef std::deque<SlaveConn> SyncClientQueue;
 
 			typedef std::map<uint32, SlaveConn> SlaveConnTable;
 			SyncClientQueue m_waiting_slaves;
@@ -179,6 +184,7 @@ namespace ardb
 		public:
 			ReplicationService(ArdbServer* serv);
 			void ServSlaveClient(Channel* client);
+			void ServARSlaveClient(Channel* client, const std::string& serverKey, uint64 seq);
 			void RecordChangedKeyValue(const DBID& db, const Slice& key,
 					const Slice& value);
 			void RecordDeletedKey(const DBID& db, const Slice& key);

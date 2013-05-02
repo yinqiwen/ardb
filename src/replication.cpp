@@ -15,6 +15,21 @@ namespace ardb
 	static const uint32 kSlaveStateSyncing = 3;
 	static const uint32 kSlaveStateSynced = 4;
 
+	static const uint8 kSlaveRedisTestType = 1;
+	static const uint8 kSlaveArdbType = 2;
+
+	SlaveConn::SlaveConn(Channel* c) :
+			conn(c), synced_cmd_seq(0), state(kSlaveStateConnected), type(
+					kSlaveRedisTestType)
+	{
+
+	}
+	SlaveConn::SlaveConn(Channel* c, const std::string& key, uint64 seq) :
+			conn(c), server_key(key), synced_cmd_seq(seq), state(
+					kSlaveStateConnected), type(kSlaveArdbType)
+	{
+	}
+
 	void SlaveClient::MessageReceived(ChannelHandlerContext& ctx,
 			MessageEvent<RedisCommandFrame>& e)
 	{
@@ -119,7 +134,7 @@ namespace ardb
 			ChannelStateEvent& e)
 	{
 		Buffer sync;
-		sync.Printf("sync\r\n");
+		sync.Printf("arsync weqrqw 0\r\n");
 		ctx.GetChannel()->Write(sync);
 		m_slave_state = kSlaveStateConnected;
 		m_ping_recved = true;
@@ -194,17 +209,21 @@ namespace ardb
 		LockGuard<ThreadMutexLock> guard(m_slaves_lock);
 		while (!m_waiting_slaves.empty())
 		{
-			Channel* ch = m_waiting_slaves.front();
-			m_serv.AttachChannel(ch, true);
-			//empty fake rdb dump
-			Buffer content;
-			content.Printf("$10\r\nREDIS0004");
-			content.WriteByte((char) 255);
-			ch->Write(content);
-			SlaveConn c;
-			c.conn = ch;
-			c.state = kSlaveStateSynced;
-			m_slaves[ch->GetID()] = c;
+			SlaveConn& ch = m_waiting_slaves.front();
+			m_serv.AttachChannel(ch.conn, true);
+			if (ch.type == kSlaveRedisTestType)
+			{
+				//empty fake rdb dump
+				Buffer content;
+				content.Printf("$10\r\nREDIS0004");
+				content.WriteByte((char) 255);
+				ch.conn->Write(content);
+				ch.state = kSlaveStateSynced;
+				m_slaves[ch.conn->GetID()] = ch;
+			} else
+			{
+
+			}
 			m_waiting_slaves.pop_front();
 		}
 
@@ -251,15 +270,30 @@ namespace ardb
 		m_slaves.erase(ctx.GetChannel()->GetID());
 	}
 
+	void ReplicationService::ServARSlaveClient(Channel* client,
+			const std::string& serverKey, uint64 seq)
+	{
+		SlaveConn slave(client, serverKey, seq);
+		m_server->m_service->DetachChannel(client, true);
+		client->ClearPipeline();
+		{
+			LockGuard<ThreadMutexLock> guard(m_slaves_lock);
+			m_waiting_slaves.push_back(slave);
+		}
+		if (NULL != m_soft_signal)
+		{
+			m_soft_signal->FireSoftSignal(1, 1);
+		}
+	}
+
 	void ReplicationService::ServSlaveClient(Channel* client)
 	{
 		m_server->m_service->DetachChannel(client, true);
 		client->ClearPipeline();
-//		client->SetChannelPipelineInitializor(slave_pipeline_init);
-//		client->SetChannelPipelineFinalizer(slave_pipeline_finallize);
+		SlaveConn slave(client);
 		{
 			LockGuard<ThreadMutexLock> guard(m_slaves_lock);
-			m_waiting_slaves.push_back(client);
+			m_waiting_slaves.push_back(slave);
 		}
 		if (NULL != m_soft_signal)
 		{

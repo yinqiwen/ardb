@@ -164,7 +164,7 @@ namespace ardb
 				{ "slaveof", &ArdbServer::Slaveof, 2, 2, 0 },
 				{ "replconf", &ArdbServer::ReplConf, 0, -1, 0 },
 				{ "sync", &ArdbServer::Sync, 0, 2, 0 },
-				{ "arsync", &ArdbServer::ARSync, 0, -1, 0 },
+				{ "arsync", &ArdbServer::ARSync, 2, 2, 0 },
 				{ "select", &ArdbServer::Select, 1, 1, 1 },
 				{ "append", &ArdbServer::Append, 2, 2 },
 				{ "get", &ArdbServer::Get, 1, 1, 0 },
@@ -262,8 +262,7 @@ namespace ardb
 				{ "sort", &ArdbServer::Sort, 1, -1, 2 },
 				{ "keys", &ArdbServer::Keys, 1, 1, 0 },
 				{ "__set__", &ArdbServer::RawSet, 2, 2, 1 },
-				{ "__del__", &ArdbServer::RawDel, 1, 1, 1 },
-			};
+				{ "__del__", &ArdbServer::RawDel, 1, 1, 1 }, };
 
 		uint32 arraylen = arraysize(settingTable);
 		for (uint32 i = 0; i < arraylen; i++)
@@ -1353,6 +1352,15 @@ namespace ardb
 
 	int ArdbServer::ARSync(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
+		std::string& serverKey = cmd[0];
+		uint64 seq;
+		if (!string_touint64(cmd[1], seq))
+		{
+			fill_error_reply(ctx.reply,
+					"ERR value is not an integer or out of range");
+			return 0;
+		}
+		m_repli_serv.ServARSlaveClient(ctx.conn, serverKey, seq);
 		return 0;
 	}
 
@@ -2462,8 +2470,7 @@ namespace ardb
 		}
 		m_repli_serv.Start();
 		m_service->Start();
-		sexit:
-		m_repli_serv.Stop();
+		sexit: m_repli_serv.Stop();
 		DELETE(m_engine);
 		DELETE(m_db);
 		DELETE(m_service);
