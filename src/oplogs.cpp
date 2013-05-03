@@ -51,19 +51,7 @@ namespace ardb
 			m_cfg(cfg), m_db(db), m_min_seq(0), m_max_seq(0), m_op_log_file(
 					NULL), m_current_oplog_record_size(0), m_last_flush_time(0)
 	{
-		Buffer keybuf;
-		std::string serverkey_path = cfg.repl_data_dir + "/repl.key";
-		if(file_read_full(serverkey_path, keybuf) == 0)
-		{
-			m_server_key = keybuf.AsString();
-		}else
-		{
-			m_server_key = random_string(16);
-			file_write_content(serverkey_path, m_server_key);
-			DEBUG_LOG("Write to %s", serverkey_path.c_str());
-		}
 
-		DEBUG_LOG("Server key is %s", m_server_key.c_str());
 	}
 
 	void OpLogs::LoadCachedOpLog(Buffer & buf)
@@ -158,6 +146,17 @@ namespace ardb
 
 	void OpLogs::Load()
 	{
+		Buffer keybuf;
+		std::string serverkey_path = m_cfg.repl_data_dir + "/repl.key";
+		if (file_read_full(serverkey_path, keybuf) == 0)
+		{
+			m_server_key = keybuf.AsString();
+		} else
+		{
+			m_server_key = random_string(16);
+			file_write_content(serverkey_path, m_server_key);
+		}
+		INFO_LOG("Server replication key is %s", m_server_key.c_str());
 		std::string filename = m_cfg.repl_data_dir + "/repl.oplog.1";
 		if (is_file_exist(filename))
 		{
@@ -165,7 +164,10 @@ namespace ardb
 		}
 		m_current_oplog_record_size = 0;
 		filename = m_cfg.repl_data_dir + "/repl.oplog";
-		LoadCachedOpLog(filename);
+		if (is_file_exist(filename))
+		{
+			LoadCachedOpLog(filename);
+		}
 		ReOpenOpLog();
 	}
 

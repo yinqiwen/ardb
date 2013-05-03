@@ -269,7 +269,7 @@ namespace ardb
 
 	void ReplicationService::PingSlaves()
 	{
-		INFO_LOG("Send ping to slaves");
+		DEBUG_LOG("Send ping to slaves");
 		SlaveConnTable::iterator it = m_slaves.begin();
 		while (it != m_slaves.end())
 		{
