@@ -153,6 +153,7 @@ namespace ardb
 
 	int file_write_content(const std::string& path, std::string& content)
 	{
+		make_file(path);
 		FILE *fp;
 		if ((fp = fopen(path.c_str(), "wb")) == NULL)
 		{

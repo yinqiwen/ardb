@@ -141,6 +141,35 @@ namespace ardb
 		Close();
 	}
 
+	void SlaveClient::LoadSyncState()
+	{
+		std::string path = m_serv->m_cfg.repl_data_dir + "/repl.sync.state";
+		Buffer content;
+		if (file_read_full(path, content) == 0)
+		{
+			std::string str = content.AsString();
+			std::vector<std::string> ss = split_string(str, " ");
+			if (ss.size() >= 2)
+			{
+				m_server_key = ss[0];
+				string_touint64(ss[1], m_sync_seq);
+			}
+		}
+	}
+
+	void SlaveClient::PersistSyncState()
+	{
+		if(m_server_key == "-")
+		{
+			return;
+		}
+		char syncState[1024];
+		sprintf(syncState, "%s %llu", m_server_key.c_str(), m_sync_seq);
+		std::string path = m_serv->m_cfg.repl_data_dir + "/repl.sync.state";
+		std::string content = syncState;
+		file_write_content(path, content);
+	}
+
 	void SlaveClient::Run()
 	{
 		if (NULL == m_client && !m_master_addr.GetHost().empty())
@@ -157,6 +186,7 @@ namespace ardb
 				}
 				m_ping_recved = false;
 			}
+
 		}
 	}
 
@@ -177,6 +207,22 @@ namespace ardb
 			m_cron_inited = true;
 			m_serv->GetTimer().Schedule(this, m_serv->m_cfg.repl_timeout,
 					m_serv->m_cfg.repl_timeout, SECONDS);
+			LoadSyncState();
+			struct PersistTask: public Runnable
+			{
+					SlaveClient* c;
+					PersistTask(SlaveClient* cc) :
+							c(cc)
+					{
+					}
+					void Run()
+					{
+						c->PersistSyncState();
+					}
+			};
+			m_serv->GetTimer().ScheduleHeapTask(new PersistTask(this),
+					m_serv->m_cfg.repl_syncstate_persist_period,
+					m_serv->m_cfg.repl_syncstate_persist_period, SECONDS);
 		}
 		SocketHostAddress addr(host, port);
 		if (m_master_addr == addr && NULL != m_client)
@@ -284,10 +330,10 @@ namespace ardb
 			SlaveConn& conn = it->second;
 			if (conn.state == kSlaveStateSynced)
 			{
-				tmp.Clear();
 				while (m_oplogs.LoadOpLog(conn.synced_cmd_seq, tmp) == 1)
 				{
 					conn.conn->Write(tmp);
+					tmp.Clear();
 				}
 				if (tmp.Readable())
 				{

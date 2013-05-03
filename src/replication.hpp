@@ -150,11 +150,13 @@ namespace ardb
 					ChannelStateEvent& e);
 			void Timeout();
 			void Run();
+			void PersistSyncState();
+			void LoadSyncState();
 		public:
 			SlaveClient(ArdbServer* serv) :
 					m_serv(serv), m_client(NULL), m_chunk_len(0), m_slave_state(
-							0), m_cron_inited(false), m_ping_recved(false), m_chunk_len(
-							0), m_server_type(0), m_server_key("-"), m_sync_seq(0)
+							0), m_cron_inited(false), m_ping_recved(false), m_server_type(
+							0), m_server_key("-"), m_sync_seq(0)
 			{
 			}
 			int ConnectMaster(const std::string& host, uint32 port);

@@ -310,15 +310,16 @@ namespace ardb
 		{
 			int pos = slen;
 			slen *= 2;
-			str = (char*)realloc(str, slen);
+			str = (char*) realloc(str, slen);
 			wstr = str + pos;
 		}
 	}
 
 	void fast_dtoa(double value, int prec, std::string& result)
 	{
-		static const double powers_of_10[] = { 1, 10, 100, 1000, 10000, 100000,
-				1000000, 10000000, 100000000, 1000000000 };
+		static const double powers_of_10[] =
+			{ 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000,
+					1000000000 };
 		/* Hacky test for NaN
 		 * under -fast-math this won't work, but then you also won't
 		 * have correct nan values anyways.  The alternative is
@@ -331,11 +332,11 @@ namespace ardb
 //			str[1] = 'a';
 //			str[2] = 'n';
 //			str[3] = '\0';
-			result ="nan";
+			result = "nan";
 			return;
 		}
 		int slen = 256;
-		char* str = (char*)malloc(slen);
+		char* str = (char*) malloc(slen);
 		/* if input is larger than thres_max, revert to exponential */
 		const double thres_max = (double) (0x7FFFFFFF);
 
@@ -390,12 +391,12 @@ namespace ardb
 		 */
 		if (value > thres_max)
 		{
-			while(snprintf(str, slen, "%e", neg ? -value : value) < 0)
+			while (snprintf(str, slen, "%e", neg ? -value : value) < 0)
 			{
 				slen *= 2;
-				str = (char*)realloc(str, slen);
+				str = (char*) realloc(str, slen);
 			}
-			result.assign(str, (wstr-str));
+			result.assign(str, (wstr - str));
 			free(str);
 			return;
 		}
@@ -436,7 +437,8 @@ namespace ardb
 				*wstr++ = (char) (48 + (frac % 10));
 			} while (frac /= 10);
 			// add extra 0s
-			while (count-- > 0){
+			while (count-- > 0)
+			{
 				ensure_space(str, slen, wstr);
 				*wstr++ = '0';
 			}
@@ -461,7 +463,7 @@ namespace ardb
 		ensure_space(str, slen, wstr);
 		*wstr = '\0';
 		strreverse(str, wstr - 1);
-		result.assign(str, (wstr-str));
+		result.assign(str, (wstr - str));
 		free(str);
 		return;
 	}
@@ -499,5 +501,19 @@ namespace ardb
 			dst[next - 1] = digits[i];
 		}
 		return length;
+	}
+
+	std::string random_string(uint32 len)
+	{
+		static const char alphanum[] = "0123456789"
+				"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+				"abcdefghijklmnopqrstuvwxyz";
+		srand(time(NULL));
+		char buf[len];
+		for (int i = 0; i < len; ++i)
+		{
+			buf[i] = alphanum[rand() % (sizeof(alphanum) - 1)];
+		}
+		return std::string(buf, len);
 	}
 }

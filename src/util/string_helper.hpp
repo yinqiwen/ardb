@@ -101,6 +101,8 @@ namespace ardb
 
 	bool has_prefix(const std::string& str, const std::string& prefix);
 	bool has_suffix(const std::string& str, const std::string& suffix);
+
+	std::string random_string(uint32 len);
 }
 
 #endif /* STRING_HELPER_HPP_ */

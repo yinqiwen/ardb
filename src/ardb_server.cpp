@@ -108,6 +108,7 @@ namespace ardb
 		conf_get_string(props, "unixsocket", cfg.listen_unix_path);
 		conf_get_string(props, "dir", cfg.data_base_path);
 		conf_get_string(props, "backup-dir", cfg.backup_dir);
+		conf_get_string(props, "repl-dir", cfg.repl_data_dir);
 		conf_get_string(props, "loglevel", cfg.loglevel);
 		conf_get_string(props, "logfile", cfg.logfile);
 		std::string daemonize;
@@ -116,6 +117,9 @@ namespace ardb
 		conf_get_int64(props, "repl-ping-slave-period",
 				cfg.repl_ping_slave_period);
 		conf_get_int64(props, "repl-timeout", cfg.repl_timeout);
+		conf_get_int64(props, "repl-sync-state-persist-period",
+				cfg.repl_syncstate_persist_period);
+
 		daemonize = string_tolower(daemonize);
 		if (daemonize == "yes")
 		{
