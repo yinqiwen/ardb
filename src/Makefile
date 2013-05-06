@@ -26,7 +26,7 @@ LIBS= ${SNAPPY_PATH}/.libs/libsnappy.a -lpthread
 	${CC} -c ${CCFLAGS} ${INCS} $< -o $@
 
 
-CHANNEL_CPP_VPATH=channel channel/socket channel/codec channel/timer channel/signal
+CHANNEL_CPP_VPATH=channel channel/socket channel/fifo channel/codec channel/timer channel/signal
 CHANNEL_C_VPATH=channel/redis 
 CHANNEL_CPPFILES := $(foreach dir, $(CHANNEL_CPP_VPATH), $(wildcard $(dir)/*.cpp))
 CHANNEL_CFILES := $(foreach dir, $(CHANNEL_C_VPATH), $(wildcard $(dir)/*.c))

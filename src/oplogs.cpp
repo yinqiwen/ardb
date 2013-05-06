@@ -17,8 +17,12 @@ namespace ardb
 	static const uint32 k_max_rolling_index = 3;
 
 	CachedWriteOp::CachedWriteOp(uint8 t, OpKey& k) :
-			CachedOp(t), key(k)
+			CachedOp(t), key(k), v(NULL)
 	{
+	}
+	CachedWriteOp::~CachedWriteOp()
+	{
+		DELETE(v);
 	}
 	CachedCmdOp::CachedCmdOp(RedisCommandFrame* c) :
 			CachedOp(kOtherOpType), cmd(c)
@@ -40,15 +44,15 @@ namespace ardb
 		{
 			return false;
 		}
-		if (key == other.key)
+		if (db == other.db)
 		{
 			return key < other.key;
 		}
 		return true;
 	}
 
-	OpLogs::OpLogs(ArdbServerConfig& cfg, Ardb* db) :
-			m_cfg(cfg), m_db(db), m_min_seq(0), m_max_seq(0), m_op_log_file(
+	OpLogs::OpLogs(ReplicationService& repl, ArdbServer* server) :
+			m_repl_serv(repl), m_server(server), m_min_seq(0), m_max_seq(0), m_op_log_file(
 					NULL), m_current_oplog_record_size(0), m_last_flush_time(0)
 	{
 
@@ -78,7 +82,17 @@ namespace ardb
 					break;
 				}
 				OpKey ok(m_current_db, key);
-				SaveWriteOp(ok, type, false);
+				if (type == kSetOpType)
+				{
+					std::string v;
+					if (0 == m_server->m_db->RawGet(m_current_db, key, &v))
+					{
+						SaveWriteOp(ok, type, false, &v);
+					}
+				} else
+				{
+					SaveWriteOp(ok, type, false);
+				}
 			} else
 			{
 				uint32 size;
@@ -99,7 +113,7 @@ namespace ardb
 				RedisCommandFrame* cmd = new RedisCommandFrame(strs);
 				if (!strcasecmp(cmd->GetCommand().c_str(), "select"))
 				{
-					m_current_db = *(cmd->GetArgument(1));
+					m_current_db = *(cmd->GetArgument(0));
 				}
 				SaveCmdOp(cmd, false);
 			}
@@ -147,7 +161,8 @@ namespace ardb
 	void OpLogs::Load()
 	{
 		Buffer keybuf;
-		std::string serverkey_path = m_cfg.repl_data_dir + "/repl.key";
+		std::string serverkey_path = m_server->GetServerConfig().repl_data_dir
+				+ "/repl.key";
 		if (file_read_full(serverkey_path, keybuf) == 0)
 		{
 			m_server_key = keybuf.AsString();
@@ -157,18 +172,23 @@ namespace ardb
 			file_write_content(serverkey_path, m_server_key);
 		}
 		INFO_LOG("Server replication key is %s", m_server_key.c_str());
-		std::string filename = m_cfg.repl_data_dir + "/repl.oplog.1";
+		uint64 start = get_current_epoch_millis();
+		std::string filename = m_server->GetServerConfig().repl_data_dir
+				+ "/repl.oplog.1";
 		if (is_file_exist(filename))
 		{
 			LoadCachedOpLog(filename);
 		}
 		m_current_oplog_record_size = 0;
-		filename = m_cfg.repl_data_dir + "/repl.oplog";
+		filename = m_server->GetServerConfig().repl_data_dir + "/repl.oplog";
 		if (is_file_exist(filename))
 		{
 			LoadCachedOpLog(filename);
 		}
+		uint64 end = get_current_epoch_millis();
 		ReOpenOpLog();
+		INFO_LOG(
+				"Cost %llums to load all oplogs, min seq = %llu, max seq = %llu", (end- start), m_min_seq, m_max_seq);
 	}
 
 	void OpLogs::Routine()
@@ -184,7 +204,8 @@ namespace ardb
 	{
 		if (NULL == m_op_log_file)
 		{
-			std::string oplog_file_path = m_cfg.repl_data_dir + "/repl.oplog";
+			std::string oplog_file_path =
+					m_server->GetServerConfig().repl_data_dir + "/repl.oplog";
 			m_op_log_file = fopen(oplog_file_path.c_str(), "a+");
 			if (NULL == m_op_log_file)
 			{
@@ -201,7 +222,8 @@ namespace ardb
 			fclose(m_op_log_file);
 			m_op_log_file = NULL;
 		}
-		std::string oplog_file_path = m_cfg.repl_data_dir + "/repl.oplog";
+		std::string oplog_file_path = m_server->GetServerConfig().repl_data_dir
+				+ "/repl.oplog";
 		std::stringstream oldest_file(
 				std::stringstream::in | std::stringstream::out);
 		oldest_file << oplog_file_path << "." << k_max_rolling_index;
@@ -238,7 +260,8 @@ namespace ardb
 					m_op_log_buffer.ReadableBytes(), m_op_log_file);
 			fflush(m_op_log_file);
 			m_op_log_buffer.Clear();
-			if (m_current_oplog_record_size >= m_cfg.rep_backlog_size)
+			if (m_current_oplog_record_size
+					>= m_server->GetServerConfig().rep_backlog_size)
 			{
 				//rollback op logs
 				RollbackOpLogs();
@@ -260,6 +283,7 @@ namespace ardb
 		if (optype == kSetOpType || optype == kDelOpType)
 		{
 			CachedWriteOp* writeOp = (CachedWriteOp*) op;
+			//only key is persisted
 			BufferHelper::WriteVarString(tmp, writeOp->key.key);
 		} else
 		{
@@ -288,15 +312,14 @@ namespace ardb
 		{
 			Runnable* task = NULL;
 			{
-				LockGuard<ThreadMutexLock> guard(m_lock);
-				while (m_tasks.empty())
+				//LockGuard<ThreadMutexLock> guard(m_lock);
+				if (!m_tasks.check_read())
 				{
-					m_lock.Wait(1000);
-				}
-				if (!m_tasks.empty())
-				{
-					task = m_tasks.front();
-					m_tasks.pop_front();
+					//INFO_LOG("$$$$$");
+					usleep(1000);
+					//m_lock.Wait(1000);
+				}else{
+					m_tasks.read(&task);
 				}
 			}
 			if (NULL != task)
@@ -309,9 +332,12 @@ namespace ardb
 
 	void OpLogs::PostTask(Runnable* r)
 	{
-		LockGuard<ThreadMutexLock> guard(m_lock);
-		m_tasks.push_back(r);
-		m_lock.Notify();
+		m_tasks.write(r, false);
+		m_tasks.flush();
+		//LockGuard<ThreadMutexLock> guard(m_lock);
+		//m_tasks.push_back(r);
+		//m_lock.Notify();
+		//delete r;
 	}
 
 	void OpLogs::CheckCurrentDB(const DBID& db)
@@ -349,10 +375,12 @@ namespace ardb
 	uint64 OpLogs::SaveCmdOp(RedisCommandFrame* cmd, bool writeOpLog)
 	{
 		LockGuard<ThreadMutexLock> guard(m_lock);
-		uint64 seq = m_max_seq++;
+		uint64 seq = m_max_seq;
+		m_max_seq++;
 		CachedCmdOp* op = new CachedCmdOp(cmd);
 		m_mem_op_logs[seq] = op;
-		if (m_mem_op_logs.size() >= m_cfg.rep_backlog_size)
+		while (m_mem_op_logs.size()
+				>= m_server->GetServerConfig().rep_backlog_size)
 		{
 			//rm head cached op
 			RemoveOldestOp();
@@ -361,19 +389,26 @@ namespace ardb
 		{
 			WriteCachedOp(seq, op);
 		}
-
+		m_repl_serv.FireSyncEvent();
 		return seq;
 	}
 
-	uint64 OpLogs::SaveWriteOp(OpKey& opkey, uint8 type, bool writeOpLog)
+	uint64 OpLogs::SaveWriteOp(OpKey& opkey, uint8 type, bool writeOpLog,
+			std::string* v)
 	{
 		LockGuard<ThreadMutexLock> guard(m_lock);
 		RemoveExistOp(opkey);
-		uint64 seq = m_max_seq++;
-		CachedWriteOp*op = new CachedWriteOp(type, opkey);
+		uint64 seq = m_max_seq;
+		m_max_seq++;
+		CachedWriteOp* op = new CachedWriteOp(type, opkey);
+		if (type == kSetOpType && NULL != v)
+		{
+			op->v = new std::string(*v);
+		}
 		m_mem_op_logs[seq] = op;
 		m_mem_op_idx[opkey] = seq;
-		if (m_mem_op_logs.size() >= m_cfg.rep_backlog_size)
+		while (m_mem_op_logs.size()
+				>= m_server->GetServerConfig().rep_backlog_size)
 		{
 			//rm head cached op
 			RemoveOldestOp();
@@ -382,6 +417,7 @@ namespace ardb
 		{
 			WriteCachedOp(seq, op);
 		}
+		m_repl_serv.FireSyncEvent();
 		return seq;
 	}
 
@@ -390,6 +426,7 @@ namespace ardb
 		LockGuard<ThreadMutexLock> guard(m_lock);
 		if (seq < m_min_seq || seq > m_max_seq)
 		{
+			DEBUG_LOG("Expect seq:%llu, current seq:%llu", seq, m_max_seq);
 			return -1;
 		}
 		while (seq < m_max_seq)
@@ -402,24 +439,16 @@ namespace ardb
 			if (fit != m_mem_op_logs.end())
 			{
 				CachedOp* op = fit->second;
-				if (op->type == kOtherOpType)
+				if (op->type != kOtherOpType)
 				{
 					CachedWriteOp* writeOp = (CachedWriteOp*) op;
 					ArgumentArray strs;
 					strs.push_back(
 							op->type == kSetOpType ? "__set__" : "__del__");
 					strs.push_back(writeOp->key.key);
-					if (op->type == kSetOpType)
+					if (op->type == kSetOpType && NULL != writeOp->v)
 					{
-						//retrive value from db
-						std::string v;
-						if (0
-								!= m_db->RawGet(writeOp->key.db,
-										writeOp->key.key, &v))
-						{
-							continue;
-						}
-						strs.push_back(v);
+						strs.push_back(*(writeOp->v));
 					}
 					//push seq at last
 					strs.push_back(seqbuf);
@@ -473,7 +502,7 @@ namespace ardb
 				{
 					m_op->CheckCurrentDB(dbid);
 					OpKey ok(dbid, k);
-					m_op->SaveWriteOp(ok, kSetOpType);
+					m_op->SaveWriteOp(ok, kSetOpType, true, &v);
 					delete this;
 				}
 		};
@@ -494,7 +523,7 @@ namespace ardb
 				{
 					m_op->CheckCurrentDB(dbid);
 					OpKey ok(dbid, k);
-					m_op->SaveWriteOp(ok, kDelOpType);
+					m_op->SaveWriteOp(ok, kDelOpType, true, NULL);
 					delete this;
 				}
 		};
@@ -524,6 +553,10 @@ namespace ardb
 
 	bool OpLogs::VerifyClient(const std::string& serverKey, uint64 seq)
 	{
+		if (m_server_key == serverKey && seq >= m_min_seq && seq <= m_max_seq)
+		{
+			return true;
+		}
 		return false;
 	}
 }

@@ -10,6 +10,7 @@
 #include "common.hpp"
 #include "buffer.hpp"
 #include <string>
+#include <deque>
 
 namespace ardb
 {
@@ -26,6 +27,9 @@ namespace ardb
 
 	int file_read_full(const std::string& path, Buffer& content);
 	int file_write_content(const std::string& path, std::string& content);
+
+	int list_subdirs(const std::string& path, std::deque<std::string>& dirs);
+	int list_subfiles(const std::string& path, std::deque<std::string>& fs);
 
 	int64 file_size(const std::string& path);
 

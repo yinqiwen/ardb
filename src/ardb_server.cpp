@@ -5,11 +5,12 @@
  *      Author: wqy
  */
 #include "ardb_server.hpp"
-#include<sys/types.h>
-#include<sys/stat.h>
-#include<fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <stdarg.h>
 #include <fnmatch.h>
+#include <sstream>
 //#define __USE_KYOTOCABINET__ 1
 #ifdef __USE_KYOTOCABINET__
 #include "engine/kyotocabinet_engine.hpp"
@@ -111,8 +112,9 @@ namespace ardb
 		conf_get_string(props, "repl-dir", cfg.repl_data_dir);
 		conf_get_string(props, "loglevel", cfg.loglevel);
 		conf_get_string(props, "logfile", cfg.logfile);
-		std::string daemonize;
+		std::string daemonize, single;
 		conf_get_string(props, "daemonize", daemonize);
+		conf_get_string(props, "single", single);
 
 		conf_get_int64(props, "repl-ping-slave-period",
 				cfg.repl_ping_slave_period);
@@ -120,10 +122,32 @@ namespace ardb
 		conf_get_int64(props, "repl-sync-state-persist-period",
 				cfg.repl_syncstate_persist_period);
 
+		std::string slaveof;
+		if (conf_get_string(props, "slaveof", slaveof))
+		{
+			std::vector<std::string> ss = split_string(slaveof, ":");
+			if (ss.size() == 2)
+			{
+				cfg.master_host = ss[0];
+				if (!string_touint32(ss[1], cfg.master_port))
+				{
+					cfg.master_host = "";
+					ERROR_LOG("Invalid 'slaveof' config.");
+				}
+			} else
+			{
+				ERROR_LOG("Invalid 'slaveof' config.");
+			}
+		}
+
 		daemonize = string_tolower(daemonize);
 		if (daemonize == "yes")
 		{
 			cfg.daemonize = true;
+		}
+		if (single == "yes")
+		{
+			cfg.single = true;
 		}
 		if (cfg.data_base_path.empty())
 		{
@@ -399,7 +423,7 @@ namespace ardb
 		}
 		return 0;
 	}
-	int ArdbServer::OnAllKeyUpdated(const DBID& dbid)
+	int ArdbServer::OnAllKeyDeleted(const DBID& dbid)
 	{
 		WatchKeyContextTable::iterator it = m_watch_context_table.begin();
 		while (it != m_watch_context_table.end())
@@ -541,6 +565,15 @@ namespace ardb
 		char tmp[256];
 		sprintf(tmp, "%lld", filesize);
 		info.append("db_used_space:").append(tmp).append("\r\n");
+
+		if (!m_cfg.single)
+		{
+			info.append("# Oplogs\r\n");
+			std::ostringstream oss;
+			oss << m_repli_serv.GetOpLogs().MemCacheSize();
+			info.append("oplogs_cache_size:").append(oss.str()).append("\r\n");
+		}
+
 		fill_str_reply(ctx.reply, info);
 		return 0;
 	}
@@ -2472,7 +2505,17 @@ namespace ardb
 			m_service->GetTimer().Schedule(this, m_cfg.batch_flush_period,
 					m_cfg.batch_flush_period, SECONDS);
 		}
-		m_repli_serv.Start();
+		if (!m_cfg.single)
+		{
+			m_repli_serv.Init();
+			m_repli_serv.Start();
+			m_db->RegisterRawKeyListener(&m_repli_serv);
+			if (!m_cfg.master_host.empty())
+			{
+				m_slave_client.ConnectMaster(m_cfg.master_host,
+						m_cfg.master_port);
+			}
+		}
 		m_service->Start();
 		sexit: m_repli_serv.Stop();
 		DELETE(m_engine);

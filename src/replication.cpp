@@ -30,6 +30,14 @@ namespace ardb
 	{
 	}
 
+	void SlaveConn::WriteRedisCommand(RedisCommandFrame& cmd)
+	{
+		static Buffer buf;
+		buf.Clear();
+		RedisCommandEncoder::Encode(buf, cmd);
+		conn->Write(buf);
+	}
+
 	void SlaveClient::MessageReceived(ChannelHandlerContext& ctx,
 			MessageEvent<RedisCommandFrame>& e)
 	{
@@ -95,7 +103,7 @@ namespace ardb
 					m_server_type = kRedisTestDB;
 				}
 				msg->SkipBytes(2);
-				DEBUG_LOG("Sync bulk %d bytes", m_chunk_len);
+				//DEBUG_LOG("Sync bulk %d bytes", m_chunk_len);
 				m_slave_state = kSlaveStateSyncing;
 			} else
 			{
@@ -154,12 +162,14 @@ namespace ardb
 				m_server_key = ss[0];
 				string_touint64(ss[1], m_sync_seq);
 			}
+			DEBUG_LOG(
+					"Load repl state %s:%u", m_server_key.c_str(), m_sync_seq);
 		}
 	}
 
 	void SlaveClient::PersistSyncState()
 	{
-		if(m_server_key == "-")
+		if (m_server_key == "-")
 		{
 			return;
 		}
@@ -258,8 +268,13 @@ namespace ardb
 
 	ReplicationService::ReplicationService(ArdbServer* serv) :
 			m_server(serv), m_is_saving(false), m_last_save(0), m_soft_signal(
-					NULL), m_oplogs(serv->m_cfg, serv->m_db)
+					NULL), m_oplogs(*this, serv)
 	{
+	}
+
+	int ReplicationService::Init()
+	{
+		return 0;
 	}
 
 	void ReplicationService::OnSoftSignal(uint32 soft_signo, uint32 appendinfo)
@@ -269,7 +284,6 @@ namespace ardb
 
 	void ReplicationService::PingSlaves()
 	{
-		DEBUG_LOG("Send ping to slaves");
 		SlaveConnTable::iterator it = m_slaves.begin();
 		while (it != m_slaves.end())
 		{
@@ -305,14 +319,16 @@ namespace ardb
 				content.Clear();
 				if (m_oplogs.VerifyClient(ch.server_key, ch.synced_cmd_seq))
 				{
-					content.Printf("arsynced %s %llu",
+					content.Printf("arsynced %s %llu\r\n",
 							m_oplogs.GetServerKey().c_str(), ch.synced_cmd_seq);
 					ch.conn->Write(content);
 					ch.state = kSlaveStateSynced;
+					//increase sequence since the cmd already synced
+					ch.synced_cmd_seq++;
 				} else
 				{
 					ch.state = kSlaveStateSyncing;
-					FullSync(ch.conn);
+					FullSync(ch);
 				}
 				m_slaves[ch.conn->GetID()] = ch;
 			}
@@ -332,7 +348,11 @@ namespace ardb
 			{
 				while (m_oplogs.LoadOpLog(conn.synced_cmd_seq, tmp) == 1)
 				{
-					conn.conn->Write(tmp);
+					if (tmp.Readable())
+					{
+						//DEBUG_LOG("Synced %s", tmp.AsString().c_str());
+						conn.conn->Write(tmp);
+					}
 					tmp.Clear();
 				}
 				if (tmp.Readable())
@@ -367,18 +387,6 @@ namespace ardb
 		m_serv.Start();
 	}
 
-//	static void slave_pipeline_init(ChannelPipeline* pipeline, void* data)
-//	{
-//		ArdbServer* serv = (ArdbServer*) data;
-//		pipeline->AddLast("encoder", new RedisCommandEncoder);
-//	}
-//
-//	static void slave_pipeline_finallize(ChannelPipeline* pipeline, void* data)
-//	{
-//		ChannelHandler* handler = pipeline->Get("encoder");
-//		DELETE(handler);
-//	}
-
 	void ReplicationService::ChannelClosed(ChannelHandlerContext& ctx,
 			ChannelStateEvent& e)
 	{
@@ -391,6 +399,7 @@ namespace ardb
 		SlaveConn slave(client, serverKey, seq);
 		m_server->m_service->DetachChannel(client, true);
 		client->ClearPipeline();
+		client->GetPipeline().AddLast("handler", this);
 		{
 			LockGuard<ThreadMutexLock> guard(m_slaves_lock);
 			m_waiting_slaves.push_back(slave);
@@ -410,16 +419,50 @@ namespace ardb
 			LockGuard<ThreadMutexLock> guard(m_slaves_lock);
 			m_waiting_slaves.push_back(slave);
 		}
-		if (NULL != m_soft_signal)
-		{
-			m_soft_signal->FireSoftSignal(1, 1);
-		}
-
+		FireSyncEvent();
 	}
 
-	void ReplicationService::FullSync(Channel* client)
+	void ReplicationService::FullSync(SlaveConn& conn)
 	{
+		INFO_LOG("Start full sync to client.");
+		struct VisitorTask: public RawValueVisitor
+		{
+				SlaveConn& c;
+				VisitorTask(SlaveConn& cc) :
+						c(cc)
+				{
+				}
+				int OnRawKeyValue(const DBID& db, const Slice& key,
+						const Slice& value)
+				{
+					ArgumentArray strs;
+					strs.push_back("__set__");
+					strs.push_back(std::string(key.data(), key.size()));
+					strs.push_back(std::string(value.data(), value.size()));
+					RedisCommandFrame cmd(strs);
+					c.WriteRedisCommand(cmd);
+					return 0;
+				}
+		} visitor(conn);
+		m_server->m_db->VisitAllDB(&visitor);
+		conn.synced_cmd_seq = m_oplogs.GetMaxSeq();
+		Buffer content;
+		content.Printf("arsynced %s %llu\r\n", m_oplogs.GetServerKey().c_str(),
+				conn.synced_cmd_seq);
+		conn.conn->Write(content);
+		conn.state = kSlaveStateSynced;
+	}
 
+	int ReplicationService::OnKeyUpdated(const DBID& db, const Slice& key,
+			const Slice& value)
+	{
+		RecordChangedKeyValue(db, key, value);
+		return 0;
+	}
+	int ReplicationService::OnKeyDeleted(const DBID& db, const Slice& key)
+	{
+		RecordDeletedKey(db, key);
+		return 0;
 	}
 
 	void ReplicationService::RecordChangedKeyValue(const DBID& db,
@@ -434,6 +477,15 @@ namespace ardb
 	void ReplicationService::RecordFlushDB(const DBID& db)
 	{
 		m_oplogs.SaveFlushOp(db);
+	}
+
+	void ReplicationService::FireSyncEvent()
+	{
+		if (NULL != m_soft_signal)
+		{
+			//DEBUG_LOG("Fire sync event.");
+			m_soft_signal->FireSoftSignal(1, 1);
+		}
 	}
 
 	int ReplicationService::Save()

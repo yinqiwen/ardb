@@ -183,6 +183,86 @@ namespace ardb
 		return 0;
 	}
 
+	int list_subdirs(const std::string& path, std::deque<std::string>& dirs)
+	{
+		struct stat buf;
+		int ret = stat(path.c_str(), &buf);
+		int64 filesize = 0;
+		if (0 == ret)
+		{
+			if (S_ISDIR(buf.st_mode))
+			{
+				DIR* dir = opendir(path.c_str());
+				if (NULL != dir)
+				{
+					struct dirent * ptr;
+					while ((ptr = readdir(dir)) != NULL)
+					{
+						if (!strcmp(ptr->d_name, ".")
+								|| !strcmp(ptr->d_name, ".."))
+						{
+							continue;
+						}
+						std::string file_path = path;
+						file_path.append("/").append(ptr->d_name);
+						memset(&buf, 0, sizeof(buf));
+						ret = stat(path.c_str(), &buf);
+						if (ret == 0)
+						{
+							if (S_ISDIR(buf.st_mode))
+							{
+								dirs.push_back(ptr->d_name);
+							}
+						}
+					}
+					closedir(dir);
+					return 0;
+				}
+			}
+		}
+		return -1;
+	}
+
+	int list_subfiles(const std::string& path, std::deque<std::string>& fs)
+	{
+		struct stat buf;
+		int ret = stat(path.c_str(), &buf);
+		int64 filesize = 0;
+		if (0 == ret)
+		{
+			if (S_ISDIR(buf.st_mode))
+			{
+				DIR* dir = opendir(path.c_str());
+				if (NULL != dir)
+				{
+					struct dirent * ptr;
+					while ((ptr = readdir(dir)) != NULL)
+					{
+						if (!strcmp(ptr->d_name, ".")
+								|| !strcmp(ptr->d_name, ".."))
+						{
+							continue;
+						}
+						std::string file_path = path;
+						file_path.append("/").append(ptr->d_name);
+						memset(&buf, 0, sizeof(buf));
+						ret = stat(path.c_str(), &buf);
+						if (ret == 0)
+						{
+							if (S_ISREG(buf.st_mode))
+							{
+								fs.push_back(ptr->d_name);
+							}
+						}
+					}
+					closedir(dir);
+					return 0;
+				}
+			}
+		}
+		return -1;
+	}
+
 	int64 file_size(const std::string& path)
 	{
 		struct stat buf;

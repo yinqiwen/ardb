@@ -31,6 +31,15 @@
         }                           \
     } while (0)
 
+#define ALLOC_ASSERT(x) \
+    do {\
+        if (__UNLIKELY (!x)) {\
+            fprintf (stderr, "FATAL ERROR: OUT OF MEMORY (%s:%d)\n",\
+                __FILE__, __LINE__);\
+            abort();\
+        }\
+    } while (false)
+
 #define CHECK_FATAL(cond, ...)  do{\
 	if(cond){\
 		 (void)fprintf(stderr,               \

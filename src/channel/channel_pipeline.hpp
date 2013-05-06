@@ -78,7 +78,7 @@ namespace ardb
 			map<string, ChannelHandlerContext*> m_name2ctx;
 			ChannelHandlerContext* Init(const string& name,
 					ChannelHandler* handler);
-			void Clear();
+
 			bool CheckDuplicateName(const string& name);
 			ChannelHandler* Remove(ChannelHandlerContext* ctx);
 			ChannelHandlerContext* GetActualUpstreamContext(
@@ -119,6 +119,8 @@ namespace ardb
 				assert(NULL != channel);
 				m_channel = channel;
 			}
+
+			void Clear();
 
 			ChannelHandler* Remove(ChannelHandler* handler);
 			ChannelHandler* Remove(const string& name);

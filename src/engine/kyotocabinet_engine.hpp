@@ -91,6 +91,7 @@ namespace ardb
 			KeyValueEngine* CreateDB(const DBID& db);
 			void DestroyDB(KeyValueEngine* engine);
 			void CloseDB(KeyValueEngine* engine);
+			void ListAllDB(DBIDSet& dbs);
 	};
 }
 

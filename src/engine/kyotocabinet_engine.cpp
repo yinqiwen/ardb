@@ -45,6 +45,19 @@ namespace ardb
 		DEBUG_LOG("Create DB:%s at path:%s success", db.c_str(), tmp);
 		return engine;
 	}
+
+	void KCDBEngineFactory::ListAllDB(DBIDSet& dbs)
+	{
+		std::deque<std::string> dirs;
+		list_subfiles(m_cfg.path, dirs);
+		std::deque<std::string>::iterator it = dirs.begin();
+		while(it != dirs.end())
+		{
+			dbs.insert(*it);
+			it++;
+		}
+	}
+
 	void KCDBEngineFactory::CloseDB(KeyValueEngine* engine)
 	{
 		DELETE(engine);

@@ -12,6 +12,7 @@
 #include "util/thread/thread.hpp"
 #include "util/thread/thread_mutex_lock.hpp"
 #include "util/thread/lock_guard.hpp"
+#include "util/zmq/ypipe.hpp"
 #include <stdio.h>
 
 using namespace ardb::codec;
@@ -27,6 +28,7 @@ namespace ardb
 			uint8 type;
 			SlaveConn(Channel* c = NULL);
 			SlaveConn(Channel* c, const std::string& key, uint64 seq);
+			void WriteRedisCommand(RedisCommandFrame& cmd);
 	};
 
 	struct OpKey
@@ -55,7 +57,9 @@ namespace ardb
 	struct CachedWriteOp: public CachedOp
 	{
 			OpKey key;
+			std::string* v;
 			CachedWriteOp(uint8 t, OpKey& k);
+			~CachedWriteOp();
 	};
 	struct CachedCmdOp: public CachedOp
 	{
@@ -68,11 +72,12 @@ namespace ardb
 	class ArdbServer;
 	class ArdbServerConfig;
 
+	class ReplicationService;
 	class OpLogs: public Thread
 	{
 		private:
-			ArdbServerConfig& m_cfg;
-			Ardb* m_db;
+			ReplicationService& m_repl_serv;
+			ArdbServer* m_server;
 			uint64 m_min_seq;
 			uint64 m_max_seq;
 			FILE* m_op_log_file;
@@ -84,7 +89,7 @@ namespace ardb
 
 			ThreadMutexLock m_lock;
 			DBID m_current_db;
-			typedef std::list<Runnable*> TaskList;
+			typedef zmq::ypipe_t<Runnable*, 100> TaskList;
 			typedef std::map<uint64, CachedOp*> CachedOpTable;
 			typedef std::map<OpKey, uint64> OpKeyIndexTable;
 			CachedOpTable m_mem_op_logs;
@@ -105,11 +110,23 @@ namespace ardb
 			void FlushOpLog();
 			void WriteCachedOp(uint64 seq, CachedOp* op);
 			uint64 SaveCmdOp(RedisCommandFrame* cmd, bool writeOpLog = true);
-			uint64 SaveWriteOp(OpKey& opkey, uint8 type,
-					bool writeOpLog = true);
+			uint64 SaveWriteOp(OpKey& opkey, uint8 type, bool writeOpLog = true,
+					std::string* v = NULL);
 		public:
-			OpLogs(ArdbServerConfig& cfg, Ardb* db);
+			OpLogs(ReplicationService& repl, ArdbServer* server);
+			int MemCacheSize()
+			{
+				return m_mem_op_logs.size();
+			}
 			int LoadOpLog(uint64& seq, Buffer& cmd);
+			uint64 GetMaxSeq()
+			{
+				return m_max_seq;
+			}
+			uint64 GetMinSeq()
+			{
+				return m_min_seq;
+			}
 			void SaveSetOp(const DBID& db, const Slice& key,
 					const Slice& value);
 			void SaveDeleteOp(const DBID& db, const Slice& key);
@@ -166,7 +183,8 @@ namespace ardb
 
 	class ReplicationService: public Thread,
 			public SoftSignalHandler,
-			public ChannelUpstreamHandler<Buffer>
+			public ChannelUpstreamHandler<Buffer>,
+			public RawKeyListener
 	{
 		private:
 			ChannelService m_serv;
@@ -196,9 +214,14 @@ namespace ardb
 
 			}
 			void CheckSlaveQueue();
-			void FullSync(Channel* client);
+			void FullSync(SlaveConn& client);
+
+			int OnKeyUpdated(const DBID& db, const Slice& key,
+					const Slice& value);
+			int OnKeyDeleted(const DBID& db, const Slice& key);
 		public:
 			ReplicationService(ArdbServer* serv);
+			int Init();
 			void ServSlaveClient(Channel* client);
 			void ServARSlaveClient(Channel* client,
 					const std::string& serverKey, uint64 seq);
@@ -206,6 +229,11 @@ namespace ardb
 					const Slice& value);
 			void RecordDeletedKey(const DBID& db, const Slice& key);
 			void RecordFlushDB(const DBID& db);
+			void FireSyncEvent();
+			OpLogs& GetOpLogs()
+			{
+				return m_oplogs;
+			}
 			int Save();
 			int BGSave();
 			uint32 LastSave()

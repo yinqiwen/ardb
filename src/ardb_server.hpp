@@ -42,6 +42,10 @@ namespace ardb
 			int64 rep_backlog_size;
 			int64 repl_syncstate_persist_period;
 
+			std::string master_host;
+			uint32 master_port;
+
+			bool single;
 			std::string loglevel;
 			std::string logfile;
 			ArdbServerConfig() :
@@ -51,7 +55,7 @@ namespace ardb
 							true), batch_flush_period(1), repl_data_dir(
 							"./repl"), backup_dir("./backup"), repl_ping_slave_period(
 							10), repl_timeout(60), rep_backlog_size(1000000), repl_syncstate_persist_period(
-							1)
+							1), master_port(0), single(false), loglevel("INFO")
 			{
 			}
 	};
@@ -226,6 +230,7 @@ namespace ardb
 	};
 
 	class ReplicationService;
+	class OpLogs;
 	class ArdbServer: public Runnable, public KeyWatcher
 	{
 		private:
@@ -273,13 +278,14 @@ namespace ardb
 					RedisCommandFrame& cmd);
 
 			friend class ReplicationService;
+			friend class OpLogs;
 			friend class RedisRequestHandler;
 			friend class SlaveClient;
 			void Run();
 			void BatchWriteFlush();
 			void InsertBatchWriteDBID(const DBID& id);
 			int OnKeyUpdated(const DBID& dbid, const Slice& key);
-			int OnAllKeyUpdated(const DBID& dbid);
+			int OnAllKeyDeleted(const DBID& dbid);
 			void ClearWatchKeys(ArdbConnContext& ctx);
 			void ClearSubscribes(ArdbConnContext& ctx);
 
@@ -426,6 +432,10 @@ namespace ardb
 			static int ParseConfig(const Properties& props,
 					ArdbServerConfig& cfg);
 			ArdbServer();
+			const ArdbServerConfig& GetServerConfig()
+			{
+				return m_cfg;
+			}
 			int Start(const Properties& props);
 			~ArdbServer();
 	};

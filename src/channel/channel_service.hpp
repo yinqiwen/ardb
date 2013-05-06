@@ -16,6 +16,7 @@
 #include "channel/socket/clientsocket_channel.hpp"
 #include "channel/socket/datagram_channel.hpp"
 #include "channel/socket/serversocket_channel.hpp"
+#include "channel/fifo/fifo_channel.hpp"
 #include "timer/timer.hpp"
 #include <map>
 #include <list>
@@ -95,6 +96,7 @@ namespace ardb
 
 			ClientSocketChannel* NewClientSocketChannel();
 			ServerSocketChannel* NewServerSocketChannel();
+			PipeChannel* NewPipeChannel(int readFd, int writeFD);
 			DatagramChannel* NewDatagramSocketChannel();
 
 			Channel* AttachChannel(Channel* ch, bool transfer_service_only = false);

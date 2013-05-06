@@ -249,6 +249,7 @@ namespace ardb
 					m_pipeline_finallizer(&m_pipeline, m_pipeline_finallizer_user_data);
 					m_pipeline_initializor = NULL;
 					m_pipeline_finallizer = NULL;
+					m_pipeline.Clear();
 				}
 			}
 

@@ -190,11 +190,13 @@ bool RedisCommandEncoder::Encode(Buffer& buf, RedisCommandFrame& cmd)
 	buf.Printf("*%d\r\n", cmd.GetArguments().size() + 1);
 	buf.Printf("$%d\r\n", cmd.GetCommand().size());
 	buf.Write(cmd.GetCommand().data(), cmd.GetCommand().size());
+	buf.Write("\r\n", 2);
 	for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
 	{
 		std::string* arg = cmd.GetArgument(i);
 		buf.Printf("$%d\r\n", arg->size());
 		buf.Write(arg->data(), arg->size());
+		buf.Write("\r\n", 2);
 	}
 	return true;
 }

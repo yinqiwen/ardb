@@ -194,7 +194,8 @@ namespace ardb
 	}
 
 	Ardb::Ardb(KeyValueEngineFactory* engine) :
-			m_engine_factory(engine), m_key_watcher(NULL)
+			m_engine_factory(engine), m_key_watcher(NULL), m_raw_key_listener(
+					NULL)
 	{
 	}
 
@@ -278,11 +279,21 @@ namespace ardb
 
 	int Ardb::RawSet(const DBID& db, const Slice& key, const Slice& value)
 	{
-		return GetDB(db)->Put(key, value);
+		int ret = GetDB(db)->Put(key, value);
+		if (ret == 0 && NULL != m_raw_key_listener)
+		{
+			m_raw_key_listener->OnKeyUpdated(db, key, value);
+		}
+		return ret;
 	}
 	int Ardb::RawDel(const DBID& db, const Slice& key)
 	{
-		return GetDB(db)->Del(key);
+		int ret = GetDB(db)->Del(key);
+		if (ret == 0 && NULL != m_raw_key_listener)
+		{
+			m_raw_key_listener->OnKeyDeleted(db, key);
+		}
+		return ret;
 	}
 
 	int Ardb::RawGet(const DBID& db, const Slice& key, std::string* value)
@@ -324,6 +335,29 @@ namespace ardb
 		return type;
 	}
 
+	void Ardb::VisitDB(const DBID& db, RawValueVisitor* visitor)
+	{
+		Slice empty;
+		Iterator* iter = GetDB(db)->Find(empty);
+		while (NULL != iter && iter->Valid())
+		{
+			visitor->OnRawKeyValue(db, iter->Key(), iter->Value());
+			iter->Next();
+		}
+		DELETE(iter);
+	}
+	void Ardb::VisitAllDB(RawValueVisitor* visitor)
+	{
+		DBIDSet sets;
+		ListAllDB(sets);
+		DBIDSet::iterator it = sets.begin();
+		while (it != sets.end())
+		{
+			VisitDB(*it, visitor);
+			it++;
+		}
+	}
+
 	void Ardb::PrintDB(const DBID& db)
 	{
 		Slice empty;
@@ -347,7 +381,11 @@ namespace ardb
 			iter->Next();
 		}
 		DELETE(iter);
+	}
 
+	void Ardb::ListAllDB(DBIDSet& alldb)
+	{
+		m_engine_factory->ListAllDB(alldb);
 	}
 
 	int Ardb::FlushDB(const DBID& db)
@@ -356,21 +394,23 @@ namespace ardb
 		m_engine_table.erase(db);
 		if (NULL != m_key_watcher)
 		{
-			m_key_watcher->OnAllKeyUpdated(db);
+			m_key_watcher->OnAllKeyDeleted(db);
 		}
 		return 0;
 	}
 
 	int Ardb::FlushAll()
 	{
-		KeyValueEngineTable::iterator it = m_engine_table.begin();
-		while (it != m_engine_table.end())
+		DBIDSet sets;
+		ListAllDB(sets);
+		DBIDSet::iterator it = sets.begin();
+		while (it != sets.end())
 		{
 			if (NULL != m_key_watcher)
 			{
-				m_key_watcher->OnAllKeyUpdated(it->first);
+				m_key_watcher->OnAllKeyDeleted(*it);
 			}
-			m_engine_factory->DestroyDB(it->second);
+			FlushDB(*it);
 			it++;
 		}
 		m_engine_table.clear();
