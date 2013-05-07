@@ -243,6 +243,7 @@ namespace ardb
 			PipeChannel* m_notify_channel;
 			ReplInstructionEncoder m_inst_encoder;
 			ReplInstructionDecoder m_inst_decoder;
+
 			void Routine();
 			void PingSlaves();
 			void ChannelClosed(ChannelHandlerContext& ctx,
@@ -268,7 +269,6 @@ namespace ardb
 			void ServARSlaveClient(Channel* client,
 					const std::string& serverKey, uint64 seq);
 			void RecordFlushDB(const DBID& db);
-			void FireSyncEvent();
 			OpLogs& GetOpLogs()
 			{
 				return m_oplogs;

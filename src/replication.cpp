@@ -212,7 +212,6 @@ namespace ardb
 				}
 				m_ping_recved = false;
 			}
-
 		}
 	}
 
