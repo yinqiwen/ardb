@@ -514,6 +514,7 @@ namespace ardb
 				}
 		} visitor(conn);
 		uint64 start = get_current_epoch_millis();
+		//TODO: This step is not threading-safe, consider a safe way.
 		m_server->m_db->VisitAllDB(&visitor);
 		conn.synced_cmd_seq = m_oplogs.GetMaxSeq();
 		Buffer content;
