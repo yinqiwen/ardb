@@ -8,7 +8,6 @@
 #ifndef NOVA_FIFOCHANNEL_HPP_
 #define NOVA_FIFOCHANNEL_HPP_
 #include "channel/channel.hpp"
-#include "pipe.hpp"
 #include <unistd.h>
 #include <string>
 namespace ardb

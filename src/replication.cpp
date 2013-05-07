@@ -15,8 +15,24 @@ namespace ardb
 	static const uint32 kSlaveStateSyncing = 3;
 	static const uint32 kSlaveStateSynced = 4;
 
+	static const uint8 kInstrctionSlaveClientQueue = 1;
+	static const uint8 kInstrctionRecordSetCmd = 2;
+	static const uint8 kInstrctionRecordDelCmd = 3;
+	static const uint8 kInstrctionRecordRedisCmd = 4;
+
 	static const uint8 kRedisTestDB = 1;
 	static const uint8 kArdbDB = 2;
+
+	struct kTriplePtr
+	{
+			void* ptr1;
+			void* ptr2;
+			void* ptr3;
+			kTriplePtr(void* p1, void* p2, void* p3) :
+					ptr1(p1), ptr2(p2), ptr3(p3)
+			{
+			}
+	};
 
 	SlaveConn::SlaveConn(Channel* c) :
 			conn(c), synced_cmd_seq(0), state(kSlaveStateConnected), type(
@@ -267,19 +283,30 @@ namespace ardb
 	}
 
 	ReplicationService::ReplicationService(ArdbServer* serv) :
-			m_server(serv), m_is_saving(false), m_last_save(0), m_soft_signal(
-					NULL), m_oplogs(*this, serv)
+			m_server(serv), m_is_saving(false), m_last_save(0), m_oplogs(serv), m_input_channel(
+					NULL), m_notify_channel(NULL)
 	{
 	}
 
 	int ReplicationService::Init()
 	{
-		return 0;
-	}
+		m_oplogs.Load();
+		int fds[2];
+		pipe(fds);
+		//Main server thead hold write channel
+		m_notify_channel = m_server->m_service->NewPipeChannel(-1, fds[1]);
+		ChannelOptions options;
+		options.user_write_buffer_water_mark = 8192;
+		options.user_write_buffer_flush_timeout_mills = 1;
+		m_notify_channel->Configure(options);
+		m_notify_channel->GetPipeline().AddLast("encoder", &m_inst_encoder);
 
-	void ReplicationService::OnSoftSignal(uint32 soft_signo, uint32 appendinfo)
-	{
-		Routine();
+		//Replication thead hold read channel
+		m_input_channel = m_serv.NewPipeChannel(fds[0], -1);
+		m_input_channel->GetPipeline().AddLast("decoder", &m_inst_decoder);
+		ChannelUpstreamHandler<ReplInstruction>* handler = this;
+		m_input_channel->GetPipeline().AddLast("handler", handler);
+		return 0;
 	}
 
 	void ReplicationService::PingSlaves()
@@ -296,7 +323,6 @@ namespace ardb
 
 	void ReplicationService::CheckSlaveQueue()
 	{
-		LockGuard<ThreadMutexLock> guard(m_slaves_lock);
 		while (!m_waiting_slaves.empty())
 		{
 			SlaveConn& ch = m_waiting_slaves.front();
@@ -336,9 +362,8 @@ namespace ardb
 		}
 	}
 
-	void ReplicationService::Routine()
+	void ReplicationService::FeedSlaves()
 	{
-		CheckSlaveQueue();
 		Buffer tmp;
 		SlaveConnTable::iterator it = m_slaves.begin();
 		while (it != m_slaves.end())
@@ -350,7 +375,6 @@ namespace ardb
 				{
 					if (tmp.Readable())
 					{
-						//DEBUG_LOG("Synced %s", tmp.AsString().c_str());
 						conn.conn->Write(tmp);
 					}
 					tmp.Clear();
@@ -362,6 +386,11 @@ namespace ardb
 			}
 			it++;
 		}
+	}
+
+	void ReplicationService::Routine()
+	{
+		CheckSlaveQueue();
 	}
 
 	void ReplicationService::Run()
@@ -378,12 +407,9 @@ namespace ardb
 					serv->PingSlaves();
 				}
 		};
-		m_soft_signal = m_serv.NewSoftSignalChannel();
-		m_soft_signal->Register(1, this);
 		m_serv.GetTimer().ScheduleHeapTask(new HeartbeatTask(this),
 				m_server->m_cfg.repl_ping_slave_period,
 				m_server->m_cfg.repl_ping_slave_period, SECONDS);
-		m_oplogs.Start();
 		m_serv.Start();
 	}
 
@@ -393,33 +419,77 @@ namespace ardb
 		m_slaves.erase(ctx.GetChannel()->GetID());
 	}
 
+	void ReplicationService::MessageReceived(ChannelHandlerContext& ctx,
+			MessageEvent<ReplInstruction>& e)
+	{
+		//Warning: All instructions are pointers.
+		ReplInstruction* instruction = e.GetMessage();
+		switch (instruction->type)
+		{
+			case kInstrctionSlaveClientQueue:
+			{
+				SlaveConn* conn = (SlaveConn*) (instruction->ptr);
+				m_waiting_slaves.push_back(*conn);
+				DELETE(conn);
+				CheckSlaveQueue();
+				break;
+			}
+			case kInstrctionRecordSetCmd:
+			{
+				kTriplePtr* tp = (kTriplePtr*) (instruction->ptr);
+				DBID* db = (DBID*) tp->ptr1;
+				std::string* k = (std::string*) tp->ptr2;
+				std::string* v = (std::string*) tp->ptr3;
+				m_oplogs.SaveSetOp(*db, *k, v);
+				DELETE(db);
+				DELETE(k);
+				//DELETE(v);
+				DELETE(tp);
+				FeedSlaves();
+				break;
+			}
+			case kInstrctionRecordDelCmd:
+			{
+				std::pair<void*, void*>* ptr =
+						(std::pair<void*, void*>*) (instruction->ptr);
+				DBID* db = (DBID*) ptr->first;
+				std::string* k = (std::string*) ptr->second;
+				m_oplogs.SaveDeleteOp(*db, *k);
+				DELETE(db);
+				DELETE(k);
+				DELETE(ptr);
+				FeedSlaves();
+				break;
+			}
+			default:
+			{
+				ERROR_LOG("Unknown instruct type:%d", instruction->type);
+				break;
+			}
+		}
+	}
+
 	void ReplicationService::ServARSlaveClient(Channel* client,
 			const std::string& serverKey, uint64 seq)
 	{
-		SlaveConn slave(client, serverKey, seq);
 		m_server->m_service->DetachChannel(client, true);
 		client->ClearPipeline();
-		client->GetPipeline().AddLast("handler", this);
-		{
-			LockGuard<ThreadMutexLock> guard(m_slaves_lock);
-			m_waiting_slaves.push_back(slave);
-		}
-		if (NULL != m_soft_signal)
-		{
-			m_soft_signal->FireSoftSignal(1, 1);
-		}
+		ChannelUpstreamHandler<Buffer>* handler = this;
+		client->GetPipeline().AddLast("handler", handler);
+		ReplInstruction instrct(kInstrctionSlaveClientQueue,
+				new SlaveConn(client, serverKey, seq));
+		m_notify_channel->Write(instrct);
 	}
 
 	void ReplicationService::ServSlaveClient(Channel* client)
 	{
 		m_server->m_service->DetachChannel(client, true);
 		client->ClearPipeline();
-		SlaveConn slave(client);
-		{
-			LockGuard<ThreadMutexLock> guard(m_slaves_lock);
-			m_waiting_slaves.push_back(slave);
-		}
-		FireSyncEvent();
+		ChannelUpstreamHandler<Buffer>* handler = this;
+		client->GetPipeline().AddLast("handler", handler);
+		ReplInstruction instrct(kInstrctionSlaveClientQueue,
+				new SlaveConn(client));
+		m_notify_channel->Write(instrct);
 	}
 
 	void ReplicationService::FullSync(SlaveConn& conn)
@@ -444,6 +514,7 @@ namespace ardb
 					return 0;
 				}
 		} visitor(conn);
+		uint64 start = get_current_epoch_millis();
 		m_server->m_db->VisitAllDB(&visitor);
 		conn.synced_cmd_seq = m_oplogs.GetMaxSeq();
 		Buffer content;
@@ -451,41 +522,35 @@ namespace ardb
 				conn.synced_cmd_seq);
 		conn.conn->Write(content);
 		conn.state = kSlaveStateSynced;
+		uint64 end = get_current_epoch_millis();
+		INFO_LOG("Cost %llums to sync all data to slave.", (end-start));
 	}
 
 	int ReplicationService::OnKeyUpdated(const DBID& db, const Slice& key,
 			const Slice& value)
 	{
-		RecordChangedKeyValue(db, key, value);
+		DBID* newdb = new DBID(db);
+		std::string* nk = new std::string(key.data(), key.size());
+		std::string* nv = new std::string(value.data(), value.size());
+		ReplInstruction instrct(kInstrctionRecordSetCmd,
+				new kTriplePtr(newdb, nk, nv));
+		m_notify_channel->Write(instrct);
 		return 0;
 	}
 	int ReplicationService::OnKeyDeleted(const DBID& db, const Slice& key)
 	{
-		RecordDeletedKey(db, key);
+		//m_oplogs.SaveDeleteOp(db, key);
+		DBID* newdb = new DBID(db);
+		std::string* nk = new std::string(key.data(), key.size());
+		ReplInstruction instrct(kInstrctionRecordDelCmd,
+				new std::pair<void*, void*>(newdb, nk));
+		m_notify_channel->Write(instrct);
 		return 0;
 	}
 
-	void ReplicationService::RecordChangedKeyValue(const DBID& db,
-			const Slice& key, const Slice& value)
-	{
-		m_oplogs.SaveSetOp(db, key, value);
-	}
-	void ReplicationService::RecordDeletedKey(const DBID& db, const Slice& key)
-	{
-		m_oplogs.SaveDeleteOp(db, key);
-	}
 	void ReplicationService::RecordFlushDB(const DBID& db)
 	{
-		m_oplogs.SaveFlushOp(db);
-	}
-
-	void ReplicationService::FireSyncEvent()
-	{
-		if (NULL != m_soft_signal)
-		{
-			//DEBUG_LOG("Fire sync event.");
-			m_soft_signal->FireSoftSignal(1, 1);
-		}
+		//m_oplogs.SaveFlushOp(db);
 	}
 
 	int ReplicationService::Save()

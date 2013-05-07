@@ -2497,9 +2497,7 @@ namespace ardb
 			chmod(m_cfg.listen_unix_path.c_str(), m_cfg.unixsocketperm);
 		}
 		ArdbLogger::InitDefaultLogger(m_cfg.loglevel, m_cfg.logfile);
-		INFO_LOG("Server started, Ardb version %s", ARDB_VERSION);
-		INFO_LOG(
-				"The server is now ready to accept connections on port %d", m_cfg.listen_port);
+
 		if (m_cfg.batch_write_enable)
 		{
 			m_service->GetTimer().Schedule(this, m_cfg.batch_flush_period,
@@ -2516,6 +2514,9 @@ namespace ardb
 						m_cfg.master_port);
 			}
 		}
+		INFO_LOG("Server started, Ardb version %s", ARDB_VERSION);
+		INFO_LOG(
+				"The server is now ready to accept connections on port %d", m_cfg.listen_port);
 		m_service->Start();
 		sexit: m_repli_serv.Stop();
 		DELETE(m_engine);

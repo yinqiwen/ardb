@@ -6,6 +6,7 @@
  */
 
 #include "ardb_server.hpp"
+#include <signal.h>
 
 void version()
 {
@@ -25,6 +26,11 @@ void usage()
 	fprintf(stderr, "       ./ardb-server /etc/ardb/16379.conf\n");
 	fprintf(stderr, "       ./ardb-server /etc/myredis.conf \n\n");
 	exit(1);
+}
+
+int signal_setting()
+{
+	signal(SIGPIPE, SIG_IGN);
 }
 
 int main(int argc, char** argv)
@@ -57,6 +63,7 @@ int main(int argc, char** argv)
 				"Warning: no config file specified, using the default config. In order to specify a config file use %s /path/to/ardb.conf\n",
 				argv[0]);
 	}
+	signal_setting();
 	ArdbServer server;
 	server.Start(props);
 	return 0;

@@ -51,9 +51,9 @@ namespace ardb
 		return true;
 	}
 
-	OpLogs::OpLogs(ReplicationService& repl, ArdbServer* server) :
-			m_repl_serv(repl), m_server(server), m_min_seq(0), m_max_seq(0), m_op_log_file(
-					NULL), m_current_oplog_record_size(0), m_last_flush_time(0)
+	OpLogs::OpLogs(ArdbServer* server) :
+			m_server(server), m_min_seq(0), m_max_seq(0), m_op_log_file(NULL), m_current_oplog_record_size(
+					0), m_last_flush_time(0)
 	{
 
 	}
@@ -84,10 +84,12 @@ namespace ardb
 				OpKey ok(m_current_db, key);
 				if (type == kSetOpType)
 				{
-					std::string v;
-					if (0 == m_server->m_db->RawGet(m_current_db, key, &v))
+					std::string* v = new std::string;
+					if (0 == m_server->m_db->RawGet(m_current_db, key, v))
 					{
-						SaveWriteOp(ok, type, false, &v);
+						SaveWriteOp(ok, type, false, v);
+					}else{
+						DELETE(v);
 					}
 				} else
 				{
@@ -160,6 +162,7 @@ namespace ardb
 
 	void OpLogs::Load()
 	{
+		INFO_LOG("Start loading oplogs.");
 		Buffer keybuf;
 		std::string serverkey_path = m_server->GetServerConfig().repl_data_dir
 				+ "/repl.key";
@@ -305,41 +308,6 @@ namespace ardb
 		}
 	}
 
-	void OpLogs::Run()
-	{
-		Load();
-		while (true)
-		{
-			Runnable* task = NULL;
-			{
-				//LockGuard<ThreadMutexLock> guard(m_lock);
-				if (!m_tasks.check_read())
-				{
-					//INFO_LOG("$$$$$");
-					usleep(1000);
-					//m_lock.Wait(1000);
-				}else{
-					m_tasks.read(&task);
-				}
-			}
-			if (NULL != task)
-			{
-				task->Run();
-			}
-			Routine();
-		}
-	}
-
-	void OpLogs::PostTask(Runnable* r)
-	{
-		m_tasks.write(r, false);
-		m_tasks.flush();
-		//LockGuard<ThreadMutexLock> guard(m_lock);
-		//m_tasks.push_back(r);
-		//m_lock.Notify();
-		//delete r;
-	}
-
 	void OpLogs::CheckCurrentDB(const DBID& db)
 	{
 		if (m_current_db != db)
@@ -374,7 +342,6 @@ namespace ardb
 
 	uint64 OpLogs::SaveCmdOp(RedisCommandFrame* cmd, bool writeOpLog)
 	{
-		LockGuard<ThreadMutexLock> guard(m_lock);
 		uint64 seq = m_max_seq;
 		m_max_seq++;
 		CachedCmdOp* op = new CachedCmdOp(cmd);
@@ -389,21 +356,19 @@ namespace ardb
 		{
 			WriteCachedOp(seq, op);
 		}
-		m_repl_serv.FireSyncEvent();
 		return seq;
 	}
 
 	uint64 OpLogs::SaveWriteOp(OpKey& opkey, uint8 type, bool writeOpLog,
 			std::string* v)
 	{
-		LockGuard<ThreadMutexLock> guard(m_lock);
 		RemoveExistOp(opkey);
 		uint64 seq = m_max_seq;
 		m_max_seq++;
 		CachedWriteOp* op = new CachedWriteOp(type, opkey);
 		if (type == kSetOpType && NULL != v)
 		{
-			op->v = new std::string(*v);
+			op->v = v;
 		}
 		m_mem_op_logs[seq] = op;
 		m_mem_op_idx[opkey] = seq;
@@ -417,13 +382,11 @@ namespace ardb
 		{
 			WriteCachedOp(seq, op);
 		}
-		m_repl_serv.FireSyncEvent();
 		return seq;
 	}
 
 	int OpLogs::LoadOpLog(uint64& seq, Buffer& buf)
 	{
-		LockGuard<ThreadMutexLock> guard(m_lock);
 		if (seq < m_min_seq || seq > m_max_seq)
 		{
 			DEBUG_LOG("Expect seq:%llu, current seq:%llu", seq, m_max_seq);
@@ -484,71 +447,25 @@ namespace ardb
 		}
 	}
 
-	void OpLogs::SaveSetOp(const DBID& db, const Slice& key, const Slice& value)
+	void OpLogs::SaveSetOp(const DBID& db, const std::string& key, std::string* value)
 	{
-		struct SaveTask: public Runnable
-		{
-				OpLogs* m_op;
-				DBID dbid;
-				std::string k;
-				std::string v;
-				SaveTask(OpLogs* op, const DBID& id, const Slice& ks,
-						const Slice& vs) :
-						m_op(op), dbid(id), k(ks.data(), ks.size()), v(
-								vs.data(), vs.size())
-				{
-				}
-				void Run()
-				{
-					m_op->CheckCurrentDB(dbid);
-					OpKey ok(dbid, k);
-					m_op->SaveWriteOp(ok, kSetOpType, true, &v);
-					delete this;
-				}
-		};
-		PostTask(new SaveTask(this, db, key, value));
+		CheckCurrentDB(db);
+		OpKey ok(db, key);
+		SaveWriteOp(ok, kSetOpType, true, value);
 	}
-	void OpLogs::SaveDeleteOp(const DBID& db, const Slice& key)
+	void OpLogs::SaveDeleteOp(const DBID& db, const std::string& key)
 	{
-		struct DelTask: public Runnable
-		{
-				OpLogs* m_op;
-				DBID dbid;
-				std::string k;
-				DelTask(OpLogs* op, const DBID& id, const Slice& ks) :
-						m_op(op), dbid(id), k(ks.data(), ks.size())
-				{
-				}
-				void Run()
-				{
-					m_op->CheckCurrentDB(dbid);
-					OpKey ok(dbid, k);
-					m_op->SaveWriteOp(ok, kDelOpType, true, NULL);
-					delete this;
-				}
-		};
-		PostTask(new DelTask(this, db, key));
+		CheckCurrentDB(db);
+		OpKey ok(db, key);
+		SaveWriteOp(ok, kDelOpType, true, NULL);
+
 	}
 	void OpLogs::SaveFlushOp(const DBID& db)
 	{
-		struct FlushTask: public Runnable
-		{
-				OpLogs* m_op;
-				DBID dbid;
-				FlushTask(OpLogs* op, const DBID& id) :
-						m_op(op), dbid(id)
-				{
-				}
-				void Run()
-				{
-					m_op->CheckCurrentDB(dbid);
-					ArgumentArray strs;
-					strs.push_back("flushdb");
-					m_op->SaveCmdOp(new RedisCommandFrame(strs));
-					delete this;
-				}
-		};
-		PostTask(new FlushTask(this, db));
+		CheckCurrentDB(db);
+		ArgumentArray strs;
+		strs.push_back("flushdb");
+		SaveCmdOp(new RedisCommandFrame(strs));
 	}
 
 	bool OpLogs::VerifyClient(const std::string& serverKey, uint64 seq)

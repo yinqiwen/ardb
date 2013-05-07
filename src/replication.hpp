@@ -10,10 +10,9 @@
 #include "channel/all_includes.hpp"
 #include "ardb.hpp"
 #include "util/thread/thread.hpp"
-#include "util/thread/thread_mutex_lock.hpp"
-#include "util/thread/lock_guard.hpp"
-#include "util/zmq/ypipe.hpp"
 #include <stdio.h>
+#include <btree_map.h>
+#include <btree_set.h>
 
 using namespace ardb::codec;
 
@@ -35,6 +34,7 @@ namespace ardb
 	{
 			DBID db;
 			std::string key;
+			OpKey(){}
 			OpKey(const DBID& id, const std::string& k);
 			bool operator<(const OpKey& other) const;
 			bool Empty()
@@ -68,15 +68,57 @@ namespace ardb
 			~CachedCmdOp();
 	};
 
+	struct ReplInstruction
+	{
+			uint8 type;
+			void* ptr;
+			ReplInstruction(uint8 t = 0, void* p = NULL) :
+					type(t), ptr(p)
+			{
+			}
+			size_t Size()
+			{
+				return sizeof(type) + sizeof(ptr);
+			}
+	};
+
+	struct ReplInstructionDecoder: public ardb::codec::StackFrameDecoder<
+			ReplInstruction>
+	{
+			bool Decode(ChannelHandlerContext& ctx, Channel* channel,
+					Buffer& buffer, ReplInstruction& msg)
+			{
+				if (buffer.ReadableBytes() < msg.Size())
+				{
+					return false;
+				}
+				BufferHelper::ReadFixUInt8(buffer, msg.type);
+				buffer.Read(&msg.ptr, sizeof(msg.ptr));
+				return true;
+			}
+	};
+
+	struct ReplInstructionEncoder: public ChannelDownstreamHandler<
+			ReplInstruction>
+	{
+			bool WriteRequested(ChannelHandlerContext& ctx,
+					MessageEvent<ReplInstruction>& e)
+			{
+				static Buffer buffer(e.GetMessage()->Size());
+				buffer.Clear();
+				BufferHelper::WriteFixUInt8(buffer, e.GetMessage()->type);
+				buffer.Write(&(e.GetMessage()->ptr), sizeof(e.GetMessage()->ptr));
+				return ctx.GetChannel()->Write(buffer);
+			}
+	};
+
 	class Ardb;
 	class ArdbServer;
 	class ArdbServerConfig;
 
-	class ReplicationService;
-	class OpLogs: public Thread
+	class OpLogs
 	{
 		private:
-			ReplicationService& m_repl_serv;
 			ArdbServer* m_server;
 			uint64 m_min_seq;
 			uint64 m_max_seq;
@@ -87,21 +129,16 @@ namespace ardb
 
 			std::string m_server_key;
 
-			ThreadMutexLock m_lock;
 			DBID m_current_db;
-			typedef zmq::ypipe_t<Runnable*, 100> TaskList;
-			typedef std::map<uint64, CachedOp*> CachedOpTable;
-			typedef std::map<OpKey, uint64> OpKeyIndexTable;
+			typedef btree::btree_map<uint64, CachedOp*> CachedOpTable;
+			typedef btree::btree_map<OpKey, uint64> OpKeyIndexTable;
 			CachedOpTable m_mem_op_logs;
 			OpKeyIndexTable m_mem_op_idx;
-			TaskList m_tasks;
 
-			void Run();
 			void Routine();
-			void PostTask(Runnable* r);
 			void LoadCachedOpLog(Buffer & buf);
 			void LoadCachedOpLog(const std::string& file);
-			void Load();
+
 			void RemoveExistOp(OpKey& key);
 			void RemoveOldestOp();
 			void CheckCurrentDB(const DBID& db);
@@ -113,7 +150,8 @@ namespace ardb
 			uint64 SaveWriteOp(OpKey& opkey, uint8 type, bool writeOpLog = true,
 					std::string* v = NULL);
 		public:
-			OpLogs(ReplicationService& repl, ArdbServer* server);
+			OpLogs(ArdbServer* server);
+			void Load();
 			int MemCacheSize()
 			{
 				return m_mem_op_logs.size();
@@ -127,9 +165,9 @@ namespace ardb
 			{
 				return m_min_seq;
 			}
-			void SaveSetOp(const DBID& db, const Slice& key,
-					const Slice& value);
-			void SaveDeleteOp(const DBID& db, const Slice& key);
+			void SaveSetOp(const DBID& db, const std::string& key,
+					std::string* value);
+			void SaveDeleteOp(const DBID& db, const std::string& key);
 			void SaveFlushOp(const DBID& db);
 			bool VerifyClient(const std::string& serverKey, uint64 seq);
 			const std::string& GetServerKey()
@@ -182,8 +220,8 @@ namespace ardb
 	};
 
 	class ReplicationService: public Thread,
-			public SoftSignalHandler,
 			public ChannelUpstreamHandler<Buffer>,
+			public ChannelUpstreamHandler<ReplInstruction>,
 			public RawKeyListener
 	{
 		private:
@@ -194,18 +232,19 @@ namespace ardb
 
 			void Run();
 			typedef std::deque<SlaveConn> SyncClientQueue;
-
 			typedef std::map<uint32, SlaveConn> SlaveConnTable;
 			SyncClientQueue m_waiting_slaves;
-			ThreadMutexLock m_slaves_lock;
 			SlaveConnTable m_slaves;
 
-			SoftSignalChannel* m_soft_signal;
 			OpLogs m_oplogs;
 
+			//Use pipe to transfer instructions and data
+			PipeChannel* m_input_channel;
+			PipeChannel* m_notify_channel;
+			ReplInstructionEncoder m_inst_encoder;
+			ReplInstructionDecoder m_inst_decoder;
 			void Routine();
 			void PingSlaves();
-			void OnSoftSignal(uint32 soft_signo, uint32 appendinfo);
 			void ChannelClosed(ChannelHandlerContext& ctx,
 					ChannelStateEvent& e);
 			void MessageReceived(ChannelHandlerContext& ctx,
@@ -213,7 +252,10 @@ namespace ardb
 			{
 
 			}
+			void MessageReceived(ChannelHandlerContext& ctx,
+					MessageEvent<ReplInstruction>& e);
 			void CheckSlaveQueue();
+			void FeedSlaves();
 			void FullSync(SlaveConn& client);
 
 			int OnKeyUpdated(const DBID& db, const Slice& key,
@@ -225,9 +267,6 @@ namespace ardb
 			void ServSlaveClient(Channel* client);
 			void ServARSlaveClient(Channel* client,
 					const std::string& serverKey, uint64 seq);
-			void RecordChangedKeyValue(const DBID& db, const Slice& key,
-					const Slice& value);
-			void RecordDeletedKey(const DBID& db, const Slice& key);
 			void RecordFlushDB(const DBID& db);
 			void FireSyncEvent();
 			OpLogs& GetOpLogs()

@@ -63,7 +63,8 @@ int Channel::GetReadFD()
 
 bool Channel::AttachFD()
 {
-	if (aeCreateFileEvent(GetService().GetRawEventLoop(), GetReadFD(), AE_READABLE,
+	int fd =  GetReadFD();
+	if (fd != -1 && aeCreateFileEvent(GetService().GetRawEventLoop(), fd, AE_READABLE,
 	        Channel::IOEventCallback, this) == AE_ERR)
 	{
 		::close(GetReadFD());
