@@ -82,6 +82,7 @@ namespace ardb
 		}
 
 		ArdbConnContext actx;
+		actx.is_slave_conn = true;
 		actx.conn = ctx.GetChannel();
 		m_serv->ProcessRedisCommand(actx, *cmd);
 	}
@@ -90,21 +91,28 @@ namespace ardb
 			MessageEvent<Buffer>& e)
 	{
 		Buffer* msg = e.GetMessage();
-		if (m_slave_state == kSlaveStateConnected)
+		__process_buf: if (m_slave_state == kSlaveStateConnected)
 		{
 			int index = msg->IndexOf("\r\n", 2);
 			if (index != -1)
 			{
 				char tmp;
 				msg->ReadByte(tmp);
-				if (tmp != '$')
+				if (tmp != '$' && tmp != '+')
 				{
-					ERROR_LOG("Expected char '$'.");
+					ERROR_LOG("Expected char '$' or '+' : %d", tmp);
 					return;
 				}
+
 				char buf[index];
 				msg->Read(buf, index - 1);
 				buf[index - 1] = 0;
+				if (tmp == '+')
+				{
+					DEBUG_LOG("Recv status:%s", buf);
+					msg->SkipBytes(2);
+					goto __process_buf;
+				}
 				if (!str_touint32(buf, m_chunk_len))
 				{
 					ERROR_LOG("Invalid lenght %s.", buf);
@@ -219,6 +227,8 @@ namespace ardb
 			ChannelStateEvent& e)
 	{
 		Buffer sync;
+		sync.Printf("replconf listening-port %u\r\n",
+				m_serv->GetServerConfig().listen_port);
 		sync.Printf("arsync %s %lld\r\n", m_server_key.c_str(), m_sync_seq);
 		ctx.GetChannel()->Write(sync);
 		m_slave_state = kSlaveStateConnected;
@@ -539,7 +549,6 @@ namespace ardb
 	}
 	int ReplicationService::OnKeyDeleted(const DBID& db, const Slice& key)
 	{
-		//m_oplogs.SaveDeleteOp(db, key);
 		DBID* newdb = new DBID(db);
 		std::string* nk = new std::string(key.data(), key.size());
 		ReplInstruction instrct(kInstrctionRecordDelCmd,

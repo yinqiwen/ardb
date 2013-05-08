@@ -96,13 +96,15 @@ namespace ardb
 			RedisReply reply;
 			bool in_transaction;
 			bool fail_transc;
+			bool is_slave_conn;
 			TransactionCommandQueue* transaction_cmds;
 			WatchKeySet* watch_key_set;
 			PubSubChannelSet* pubsub_channle_set;
 			PubSubChannelSet* pattern_pubsub_channle_set;
 			ArdbConnContext() :
 					currentDB("0"), conn(NULL), in_transaction(false), fail_transc(
-							false), transaction_cmds(NULL), watch_key_set(NULL), pubsub_channle_set(
+							false), is_slave_conn(false), transaction_cmds(
+							NULL), watch_key_set(NULL), pubsub_channle_set(
 							NULL), pattern_pubsub_channle_set(NULL)
 			{
 			}
@@ -437,6 +439,10 @@ namespace ardb
 			const ArdbServerConfig& GetServerConfig()
 			{
 				return m_cfg;
+			}
+			ArdbConnContext* GetCurrentContext()
+			{
+				return m_current_ctx;
 			}
 			int Start(const Properties& props);
 			~ArdbServer();

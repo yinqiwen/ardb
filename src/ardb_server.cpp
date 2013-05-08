@@ -1392,6 +1392,7 @@ namespace ardb
 
 	int ArdbServer::ReplConf(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
+		//INFO_LOG("%s %s", cmd[0].c_str(), cmd[1].c_str());
 		fill_status_reply(ctx.reply, "OK");
 		return 0;
 	}
