@@ -116,7 +116,7 @@ namespace ardb
 			 * ÍË³öEvent loop
 			 */
 			void Stop();
-			void CloseAllChannels();
+			void CloseAllChannels(bool fireCloseEvent = true);
 			void CloseAllChannelFD(std::set<Channel*>& exceptions);
 			~ChannelService();
 	};

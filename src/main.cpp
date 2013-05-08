@@ -31,6 +31,7 @@ void usage()
 int signal_setting()
 {
 	signal(SIGPIPE, SIG_IGN);
+	return 0;
 }
 
 int main(int argc, char** argv)

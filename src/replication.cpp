@@ -617,4 +617,13 @@ namespace ardb
 		task->Start();
 		return 0;
 	}
+
+	ReplicationService::~ReplicationService()
+	{
+//		//Avoid onClose callback
+//		if(NULL != m_input_channel)
+//		{
+//			m_input_channel->ClearPipeline();
+//		}
+	}
 }

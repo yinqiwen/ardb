@@ -279,6 +279,7 @@ namespace ardb
 			{
 				return m_last_save;
 			}
+			~ReplicationService();
 	};
 }
 

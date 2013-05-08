@@ -88,7 +88,8 @@ namespace ardb
 					if (0 == m_server->m_db->RawGet(m_current_db, key, v))
 					{
 						SaveWriteOp(ok, type, false, v);
-					}else{
+					} else
+					{
 						DELETE(v);
 					}
 				} else
@@ -136,9 +137,10 @@ namespace ardb
 			ERROR_LOG("Failed to open oplog file:%s", file.c_str());
 			return;
 		}
-		Buffer buffer(1024 * 1024);
+		Buffer buffer;
 		while (true)
 		{
+			buffer.EnsureWritableBytes(10 * 1024 * 1024);
 			char* tmpbuf = const_cast<char*>(buffer.GetRawWriteBuffer());
 			uint32 tmpbufsize = buffer.WriteableBytes();
 			size_t ret = fread(tmpbuf, 1, tmpbufsize, cacheOpFile);
@@ -447,7 +449,8 @@ namespace ardb
 		}
 	}
 
-	void OpLogs::SaveSetOp(const DBID& db, const std::string& key, std::string* value)
+	void OpLogs::SaveSetOp(const DBID& db, const std::string& key,
+			std::string* value)
 	{
 		CheckCurrentDB(db);
 		OpKey ok(db, key);

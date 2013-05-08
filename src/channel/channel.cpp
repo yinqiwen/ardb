@@ -525,7 +525,6 @@ bool Channel::DoClose(bool inDestructor)
 			}
 		}
 	}
-	//DEBUG_LOG("After close channel, read fd:%d, write fd:%d", GetReadFD(),  GetWriteFD());
 	if (!m_has_removed && !inDestructor)
 	{
 		m_has_removed = true;
@@ -548,6 +547,7 @@ bool Channel::Close()
 Channel::~Channel()
 {
 	DoClose(true);
+	m_has_removed = true;
 	if (NULL != m_pipeline_finallizer)
 	{
 		m_pipeline_finallizer(&m_pipeline, m_pipeline_finallizer_user_data);

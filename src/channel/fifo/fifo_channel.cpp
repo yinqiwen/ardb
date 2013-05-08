@@ -61,5 +61,5 @@ int PipeChannel::GetReadFD()
 
 PipeChannel::~PipeChannel()
 {
-	Close();
+
 }

@@ -381,7 +381,7 @@ void ChannelService::CloseAllChannelFD(std::set<Channel*>& exceptions)
 	}
 }
 
-void ChannelService::CloseAllChannels()
+void ChannelService::CloseAllChannels(bool fireCloseEvent)
 {
 	ChannelTable::iterator it = m_channel_table.begin();
 	std::list<Channel*> temp;
@@ -395,7 +395,10 @@ void ChannelService::CloseAllChannels()
 	while (tit != temp.end())
 	{
 		Channel* ch = *tit;
-		ch->Close();
+		if(fireCloseEvent)
+		{
+			ch->Close();
+		}
 		DeleteChannel(ch);
 		tit++;
 	}
@@ -403,6 +406,6 @@ void ChannelService::CloseAllChannels()
 
 ChannelService::~ChannelService()
 {
-	CloseAllChannels();
+	CloseAllChannels(false);
 	aeDeleteEventLoop(m_eventLoop);
 }
