@@ -138,6 +138,7 @@ namespace ardb
 			void Routine();
 			void LoadCachedOpLog(Buffer & buf);
 			void LoadCachedOpLog(const std::string& file);
+			void FillCacheValue();
 
 			void RemoveExistOp(OpKey& key);
 			void RemoveOldestOp();

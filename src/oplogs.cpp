@@ -58,6 +58,29 @@ namespace ardb
 
 	}
 
+	void OpLogs::FillCacheValue()
+	{
+		//load value in db for '__set__' cmd
+		CachedOpTable::iterator it = m_mem_op_logs.begin();
+		while (it != m_mem_op_logs.end())
+		{
+			CachedOp* op = it->second;
+			if (op->type == kSetOpType)
+			{
+				CachedWriteOp* wop = (CachedWriteOp*)op;
+				std::string* v = new std::string;
+				if (0 == m_server->m_db->RawGet(wop->key.db, wop->key.key, v))
+				{
+					wop->v = v;
+				} else
+				{
+					DELETE(v);
+				}
+			}
+			it++;
+		}
+	}
+
 	void OpLogs::LoadCachedOpLog(Buffer & buf)
 	{
 		uint32 mark = buf.GetReadIndex();
@@ -82,20 +105,7 @@ namespace ardb
 					break;
 				}
 				OpKey ok(m_current_db, key);
-				if (type == kSetOpType)
-				{
-					std::string* v = new std::string;
-					if (0 == m_server->m_db->RawGet(m_current_db, key, v))
-					{
-						SaveWriteOp(ok, type, false, v);
-					} else
-					{
-						DELETE(v);
-					}
-				} else
-				{
-					SaveWriteOp(ok, type, false);
-				}
+				SaveWriteOp(ok, type, false, NULL);
 			} else
 			{
 				uint32 size;
@@ -140,7 +150,7 @@ namespace ardb
 		Buffer buffer;
 		while (true)
 		{
-			buffer.EnsureWritableBytes(10 * 1024 * 1024);
+			buffer.EnsureWritableBytes(20 * 1024 * 1024);
 			char* tmpbuf = const_cast<char*>(buffer.GetRawWriteBuffer());
 			uint32 tmpbufsize = buffer.WriteableBytes();
 			size_t ret = fread(tmpbuf, 1, tmpbufsize, cacheOpFile);
@@ -190,6 +200,7 @@ namespace ardb
 		{
 			LoadCachedOpLog(filename);
 		}
+		FillCacheValue();
 		uint64 end = get_current_epoch_millis();
 		ReOpenOpLog();
 		INFO_LOG(
@@ -411,9 +422,15 @@ namespace ardb
 					strs.push_back(
 							op->type == kSetOpType ? "__set__" : "__del__");
 					strs.push_back(writeOp->key.key);
-					if (op->type == kSetOpType && NULL != writeOp->v)
+					if (op->type == kSetOpType)
 					{
-						strs.push_back(*(writeOp->v));
+						if(NULL != writeOp->v)
+						{
+							strs.push_back(*(writeOp->v));
+						}else
+						{
+							continue;
+						}
 					}
 					//push seq at last
 					strs.push_back(seqbuf);
