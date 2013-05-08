@@ -620,10 +620,5 @@ namespace ardb
 
 	ReplicationService::~ReplicationService()
 	{
-//		//Avoid onClose callback
-//		if(NULL != m_input_channel)
-//		{
-//			m_input_channel->ClearPipeline();
-//		}
 	}
 }

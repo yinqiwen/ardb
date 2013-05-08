@@ -133,7 +133,6 @@ namespace ardb
 			}
 	};
 
-
 	class Ardb
 	{
 		private:
@@ -279,6 +278,8 @@ namespace ardb
 					std::string* value);
 			int HIncrby(const DBID& db, const Slice& key, const Slice& field,
 					int64_t increment, int64_t& value);
+			int HMIncrby(const DBID& db, const Slice& key, const SliceArray& fields,
+					const Int64Array& increments, Int64Array& vs);
 			int HIncrbyFloat(const DBID& db, const Slice& key,
 					const Slice& field, double increment, double& value);
 			int HMGet(const DBID& db, const Slice& key,
@@ -406,7 +407,7 @@ namespace ardb
 			void ListAllDB(DBIDSet& alldb);
 			void PrintDB(const DBID& db);
 			void VisitDB(const DBID& db, RawValueVisitor* visitor);
-			void VisitAllDB( RawValueVisitor* visitor);
+			void VisitAllDB(RawValueVisitor* visitor);
 			KeyValueEngine* GetDB(const DBID& db);
 			void RegisterKeyWatcher(KeyWatcher* w)
 			{

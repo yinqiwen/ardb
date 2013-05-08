@@ -92,6 +92,20 @@ namespace ardb
 		}
 	}
 
+	template<typename T>
+	static inline void fill_int_array_reply(RedisReply& reply, T& v)
+	{
+		reply.type = REDIS_REPLY_ARRAY;
+		typename T::iterator it = v.begin();
+		while (it != v.end())
+		{
+			RedisReply r;
+			fill_int_reply(r, *it);
+			reply.elements.push_back(r);
+			it++;
+		}
+	}
+
 	int ArdbServer::ParseConfig(const Properties& props, ArdbServerConfig& cfg)
 	{
 		conf_get_int64(props, "port", cfg.listen_port);
@@ -227,6 +241,7 @@ namespace ardb
 				{ "hget", &ArdbServer::HGet, 2, 2, 0 },
 				{ "hgetall", &ArdbServer::HGetAll, 1, 1, 0 },
 				{ "hincr", &ArdbServer::HIncrby, 3, 3, 1 },
+				{ "hmincr", &ArdbServer::HMIncrby, 3, -1, 1 },
 				{ "hincrbyfloat", &ArdbServer::HIncrbyFloat, 3, 3, 1 },
 				{ "hkeys", &ArdbServer::HKeys, 1, 1, 0 },
 				{ "hlen", &ArdbServer::HLen, 1, 1, 0 },
@@ -1479,6 +1494,34 @@ namespace ardb
 		}
 		m_db->HIncrbyFloat(ctx.currentDB, cmd[0], cmd[1], increment, val);
 		fill_double_reply(ctx.reply, val);
+		return 0;
+	}
+
+	int ArdbServer::HMIncrby(ArdbConnContext& ctx, ArgumentArray& cmd)
+	{
+		if ((cmd.size() - 1) % 2 != 0)
+		{
+			fill_error_reply(ctx.reply,
+					"ERR wrong number of arguments for HMIncrby");
+			return 0;
+		}
+		SliceArray fs;
+		Int64Array incs;
+		for (uint32 i = 1; i < cmd.size(); i += 2)
+		{
+			fs.push_back(cmd[i]);
+			int64 v = 0;
+			if (!string_toint64(cmd[i + 1], v))
+			{
+				fill_error_reply(ctx.reply,
+						"ERR value is not a integer or out of range");
+				return 0;
+			}
+			incs.push_back(v);
+		}
+		Int64Array vs;
+		m_db->HMIncrby(ctx.currentDB, cmd[0], fs, incs, vs);
+		fill_int_array_reply(ctx.reply, vs);
 		return 0;
 	}
 

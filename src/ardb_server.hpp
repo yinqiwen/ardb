@@ -308,23 +308,24 @@ namespace ardb
 			int Watch(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int UnWatch(ArdbConnContext& ctx, ArgumentArray& cmd);
 
-			int RawSet(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int RawDel(ArdbConnContext& ctx, ArgumentArray& cmd);
-
 			int Subscribe(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int UnSubscribe(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int PSubscribe(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int PUnSubscribe(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Publish(ArdbConnContext& ctx, ArgumentArray& cmd);
 
-			int Ping(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Echo(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Select(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Quit(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Slaveof(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Sync(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int ARSync(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int ReplConf(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int RawSet(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int RawDel(ArdbConnContext& ctx, ArgumentArray& cmd);
+
+			int Ping(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Echo(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Select(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Quit(ArdbConnContext& ctx, ArgumentArray& cmd);
+
 			int Shutdown(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Type(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Move(ArdbConnContext& ctx, ArgumentArray& cmd);
@@ -365,6 +366,7 @@ namespace ardb
 			int HGet(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int HGetAll(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int HIncrby(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HMIncrby(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int HIncrbyFloat(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int HKeys(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int HLen(ArdbConnContext& ctx, ArgumentArray& cmd);

@@ -9,13 +9,13 @@
 namespace ardb
 {
 	int Ardb::SetHashValue(const DBID& db, const Slice& key, const Slice& field,
-	        ValueObject& value)
+			ValueObject& value)
 	{
 		HashKeyObject k(key, field);
 		return SetValue(db, k, value);
 	}
 	int Ardb::HSet(const DBID& db, const Slice& key, const Slice& field,
-	        const Slice& value)
+			const Slice& value)
 	{
 		ValueObject valueobject;
 		smart_fill_value(value, valueobject);
@@ -23,7 +23,7 @@ namespace ardb
 	}
 
 	int Ardb::HSetNX(const DBID& db, const Slice& key, const Slice& field,
-	        const Slice& value)
+			const Slice& value)
 	{
 		if (HExists(db, key, field))
 		{
@@ -51,7 +51,7 @@ namespace ardb
 	}
 
 	int Ardb::HGetValue(const DBID& db, const Slice& key, const Slice& field,
-	        ValueObject* value)
+			ValueObject* value)
 	{
 		HashKeyObject k(key, field);
 		if (0 == GetValue(db, k, value))
@@ -62,7 +62,7 @@ namespace ardb
 	}
 
 	int Ardb::HGet(const DBID& db, const Slice& key, const Slice& field,
-	        std::string* value)
+			std::string* value)
 	{
 		HashKeyObject k(key, field);
 		ValueObject v;
@@ -78,7 +78,7 @@ namespace ardb
 	}
 
 	int Ardb::HMSet(const DBID& db, const Slice& key, const SliceArray& fields,
-	        const SliceArray& values)
+			const SliceArray& values)
 	{
 		if (fields.size() != values.size())
 		{
@@ -97,7 +97,7 @@ namespace ardb
 	}
 
 	int Ardb::HMGet(const DBID& db, const Slice& key, const SliceArray& fields,
-	        ValueArray& values)
+			ValueArray& values)
 	{
 		SliceArray::const_iterator it = fields.begin();
 		int i = 0;
@@ -146,7 +146,7 @@ namespace ardb
 			Slice tmpkey = it->Key();
 			KeyObject* kk = decode_key(tmpkey);
 			if (NULL == kk || kk->type != HASH_FIELD
-			        || kk->key.compare(key) != 0)
+					|| kk->key.compare(key) != 0)
 			{
 				DELETE(kk);
 				break;
@@ -172,7 +172,7 @@ namespace ardb
 			Slice tmpkey = it->Key();
 			KeyObject* kk = decode_key(tmpkey);
 			if (NULL == kk || kk->type != HASH_FIELD
-			        || kk->key.compare(key) != 0)
+					|| kk->key.compare(key) != 0)
 			{
 				break;
 			}
@@ -194,14 +194,14 @@ namespace ardb
 			Slice tmpkey = it->Key();
 			KeyObject* kk = decode_key(tmpkey);
 			if (NULL == kk || kk->type != HASH_FIELD
-			        || kk->key.compare(key) != 0)
+					|| kk->key.compare(key) != 0)
 			{
 				DELETE(kk);
 				break;
 			}
 			ValueObject v;
 			Buffer readbuf(const_cast<char*>(it->Value().data()), 0,
-			        it->Value().size());
+					it->Value().size());
 			decode_value(readbuf, v);
 			values.push_back(v.ToString());
 			it->Next();
@@ -212,7 +212,7 @@ namespace ardb
 	}
 
 	int Ardb::HGetAll(const DBID& db, const Slice& key, StringArray& fields,
-	        ValueArray& values)
+			ValueArray& values)
 	{
 		Slice empty;
 		HashKeyObject k(key, empty);
@@ -236,7 +236,7 @@ namespace ardb
 			ValueObject v;
 			values.push_back(v);
 			Buffer readbuf(const_cast<char*>(it->Value().data()), 0,
-			        it->Value().size());
+					it->Value().size());
 			decode_value(readbuf, values[i]);
 			i++;
 			it->Next();
@@ -251,7 +251,7 @@ namespace ardb
 	}
 
 	int Ardb::HIncrby(const DBID& db, const Slice& key, const Slice& field,
-	        int64_t increment, int64_t& value)
+			int64_t increment, int64_t& value)
 	{
 		ValueObject v;
 		v.type = INTEGER;
@@ -266,8 +266,30 @@ namespace ardb
 		return SetHashValue(db, key, field, v);
 	}
 
+	int Ardb::HMIncrby(const DBID& db, const Slice& key, const SliceArray& fields,
+			const Int64Array& increments, Int64Array& vs)
+	{
+		if (fields.size() != increments.size())
+		{
+			return ERR_INVALID_ARGS;
+		}
+		vs.clear();
+		BatchWriteGuard guard(GetDB(db));
+		SliceArray::const_iterator it = fields.begin();
+		Int64Array::const_iterator sit = increments.begin();
+		while (it != fields.end())
+		{
+			int64 v = 0;
+			HIncrby(db, key, *it, *sit, v);
+			vs.push_back(v);
+			it++;
+			sit++;
+		}
+		return 0;
+	}
+
 	int Ardb::HIncrbyFloat(const DBID& db, const Slice& key, const Slice& field,
-	        double increment, double& value)
+			double increment, double& value)
 	{
 		ValueObject v;
 		v.type = DOUBLE;
