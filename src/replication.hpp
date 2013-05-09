@@ -34,7 +34,9 @@ namespace ardb
 	{
 			DBID db;
 			std::string key;
-			OpKey(){}
+			OpKey()
+			{
+			}
 			OpKey(const DBID& id, const std::string& k);
 			bool operator<(const OpKey& other) const;
 			bool Empty()
@@ -46,8 +48,9 @@ namespace ardb
 	struct CachedOp
 	{
 			uint8 type;
+			bool from_master;
 			CachedOp(uint8 t) :
-					type(t)
+					type(t),from_master(false)
 			{
 			}
 			virtual ~CachedOp()
@@ -107,7 +110,8 @@ namespace ardb
 				static Buffer buffer(e.GetMessage()->Size());
 				buffer.Clear();
 				BufferHelper::WriteFixUInt8(buffer, e.GetMessage()->type);
-				buffer.Write(&(e.GetMessage()->ptr), sizeof(e.GetMessage()->ptr));
+				buffer.Write(&(e.GetMessage()->ptr),
+						sizeof(e.GetMessage()->ptr));
 				return ctx.GetChannel()->Write(buffer);
 			}
 	};
@@ -166,11 +170,15 @@ namespace ardb
 			{
 				return m_min_seq;
 			}
+			DBID& GetCurrentDBID()
+			{
+				return m_current_db;
+			}
 			void SaveSetOp(const DBID& db, const std::string& key,
 					std::string* value);
 			void SaveDeleteOp(const DBID& db, const std::string& key);
 			void SaveFlushOp(const DBID& db);
-			bool VerifyClient(const std::string& serverKey, uint64 seq);
+			bool VerifyClient(const std::string& serverKey, uint64 seq, DBID& dbid);
 			const std::string& GetServerKey()
 			{
 				return m_server_key;
@@ -215,7 +223,12 @@ namespace ardb
 							0), m_server_key("-"), m_sync_seq(0)
 			{
 			}
+			const SocketHostAddress& GetMasterAddress()
+			{
+				return m_master_addr;
+			}
 			int ConnectMaster(const std::string& host, uint32 port);
+
 			void Close();
 			void Stop();
 	};
@@ -245,6 +258,8 @@ namespace ardb
 			ReplInstructionEncoder m_inst_encoder;
 			ReplInstructionDecoder m_inst_decoder;
 
+			//connection id for the connection that is master-slave
+			uint32 m_master_slave_id;
 			void Routine();
 			void PingSlaves();
 			void ChannelClosed(ChannelHandlerContext& ctx,
@@ -273,6 +288,10 @@ namespace ardb
 			OpLogs& GetOpLogs()
 			{
 				return m_oplogs;
+			}
+			void MarkMasterSlave(Channel* conn)
+			{
+				m_master_slave_id = conn->GetID();
 			}
 			int Save();
 			int BGSave();

@@ -67,7 +67,7 @@ namespace ardb
 			CachedOp* op = it->second;
 			if (op->type == kSetOpType)
 			{
-				CachedWriteOp* wop = (CachedWriteOp*)op;
+				CachedWriteOp* wop = (CachedWriteOp*) op;
 				std::string* v = new std::string;
 				if (0 == m_server->m_db->RawGet(wop->key.db, wop->key.key, v))
 				{
@@ -424,10 +424,10 @@ namespace ardb
 					strs.push_back(writeOp->key.key);
 					if (op->type == kSetOpType)
 					{
-						if(NULL != writeOp->v)
+						if (NULL != writeOp->v)
 						{
 							strs.push_back(*(writeOp->v));
-						}else
+						} else
 						{
 							continue;
 						}
@@ -488,10 +488,30 @@ namespace ardb
 		SaveCmdOp(new RedisCommandFrame(strs));
 	}
 
-	bool OpLogs::VerifyClient(const std::string& serverKey, uint64 seq)
+	bool OpLogs::VerifyClient(const std::string& serverKey, uint64 seq,
+			DBID& dbid)
 	{
 		if (m_server_key == serverKey && seq >= m_min_seq && seq <= m_max_seq)
 		{
+			while (seq <= m_max_seq)
+			{
+				CachedOpTable::iterator it = m_mem_op_logs.find(seq);
+				if (it != m_mem_op_logs.end())
+				{
+					CachedOp* op = it->second;
+					if (op->type == kDelOpType || op->type == kSetOpType)
+					{
+						CachedWriteOp* wop = (CachedWriteOp*) op;
+						dbid = wop->key.db;
+					} else
+					{
+						seq++;
+					}
+				} else
+				{
+					seq++;
+				}
+			}
 			return true;
 		}
 		return false;

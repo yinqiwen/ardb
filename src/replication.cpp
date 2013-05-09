@@ -23,13 +23,12 @@ namespace ardb
 	static const uint8 kRedisTestDB = 1;
 	static const uint8 kArdbDB = 2;
 
-	struct kTriplePtr
+	struct kWriteReplInstructionData
 	{
-			void* ptr1;
-			void* ptr2;
-			void* ptr3;
-			kTriplePtr(void* p1, void* p2, void* p3) :
-					ptr1(p1), ptr2(p2), ptr3(p3)
+			std::vector<void*> ptrs;
+			bool from_master;
+			kWriteReplInstructionData() :
+					from_master(false)
 			{
 			}
 	};
@@ -120,7 +119,7 @@ namespace ardb
 				}
 				if (m_chunk_len == 0)
 				{
-					//just check first response chunk length to distinguish server(redis/ardb)
+					//just check first response chunk length to distinguish servers(redis/ardb)
 					m_server_type = kArdbDB;
 				} else
 				{
@@ -293,7 +292,7 @@ namespace ardb
 
 	ReplicationService::ReplicationService(ArdbServer* serv) :
 			m_server(serv), m_is_saving(false), m_last_save(0), m_oplogs(serv), m_input_channel(
-					NULL), m_notify_channel(NULL)
+					NULL), m_notify_channel(NULL), m_master_slave_id(0)
 	{
 	}
 
@@ -352,8 +351,13 @@ namespace ardb
 				content.Printf("$0\r\n");
 				ch.conn->Write(content);
 				content.Clear();
-				if (m_oplogs.VerifyClient(ch.server_key, ch.synced_cmd_seq))
+				DBID dbid;
+				if (m_oplogs.VerifyClient(ch.server_key, ch.synced_cmd_seq,dbid))
 				{
+					if(!dbid.empty())
+					{
+						content.Printf("select %s\r\n", dbid.c_str());
+					}
 					content.Printf("arsynced %s %llu\r\n",
 							m_oplogs.GetServerKey().c_str(), ch.synced_cmd_seq);
 					ch.conn->Write(content);
@@ -445,10 +449,11 @@ namespace ardb
 			}
 			case kInstrctionRecordSetCmd:
 			{
-				kTriplePtr* tp = (kTriplePtr*) (instruction->ptr);
-				DBID* db = (DBID*) tp->ptr1;
-				std::string* k = (std::string*) tp->ptr2;
-				std::string* v = (std::string*) tp->ptr3;
+				kWriteReplInstructionData* tp =
+						(kWriteReplInstructionData*) (instruction->ptr);
+				DBID* db = (DBID*) tp->ptrs[0];
+				std::string* k = (std::string*) tp->ptrs[1];
+				std::string* v = (std::string*) tp->ptrs[2];
 				m_oplogs.SaveSetOp(*db, *k, v);
 				DELETE(db);
 				DELETE(k);
@@ -459,14 +464,14 @@ namespace ardb
 			}
 			case kInstrctionRecordDelCmd:
 			{
-				std::pair<void*, void*>* ptr =
-						(std::pair<void*, void*>*) (instruction->ptr);
-				DBID* db = (DBID*) ptr->first;
-				std::string* k = (std::string*) ptr->second;
+				kWriteReplInstructionData* tp =
+						(kWriteReplInstructionData*) (instruction->ptr);
+				DBID* db = (DBID*) tp->ptrs[0];
+				std::string* k = (std::string*) tp->ptrs[1];
 				m_oplogs.SaveDeleteOp(*db, *k);
 				DELETE(db);
 				DELETE(k);
-				DELETE(ptr);
+				DELETE(tp);
 				FeedSlaves();
 				break;
 			}
@@ -507,6 +512,7 @@ namespace ardb
 		struct VisitorTask: public RawValueVisitor
 		{
 				SlaveConn& c;
+				DBID dbid;
 				VisitorTask(SlaveConn& cc) :
 						c(cc)
 				{
@@ -514,6 +520,15 @@ namespace ardb
 				int OnRawKeyValue(const DBID& db, const Slice& key,
 						const Slice& value)
 				{
+					if (dbid != db)
+					{
+						dbid = db;
+						ArgumentArray select;
+						select.push_back("select");
+						select.push_back(db);
+						RedisCommandFrame select_cmd(select);
+						c.WriteRedisCommand(select_cmd);
+					}
 					ArgumentArray strs;
 					strs.push_back("__set__");
 					strs.push_back(std::string(key.data(), key.size()));
@@ -528,6 +543,7 @@ namespace ardb
 		m_server->m_db->VisitAllDB(&visitor);
 		conn.synced_cmd_seq = m_oplogs.GetMaxSeq();
 		Buffer content;
+		content.Printf("select %s\r\n", m_oplogs.GetCurrentDBID().c_str());
 		content.Printf("arsynced %s %llu\r\n", m_oplogs.GetServerKey().c_str(),
 				conn.synced_cmd_seq);
 		conn.conn->Write(content);
@@ -542,8 +558,16 @@ namespace ardb
 		DBID* newdb = new DBID(db);
 		std::string* nk = new std::string(key.data(), key.size());
 		std::string* nv = new std::string(value.data(), value.size());
-		ReplInstruction instrct(kInstrctionRecordSetCmd,
-				new kTriplePtr(newdb, nk, nv));
+		kWriteReplInstructionData* data = new kWriteReplInstructionData;
+		data->ptrs.push_back(newdb);
+		data->ptrs.push_back(nk);
+		data->ptrs.push_back(nv);
+		if (NULL != m_server->GetCurrentContext())
+		{
+			data->from_master = m_server->GetCurrentContext()->is_slave_conn;
+		}
+
+		ReplInstruction instrct(kInstrctionRecordSetCmd, data);
 		m_notify_channel->Write(instrct);
 		return 0;
 	}
@@ -551,8 +575,14 @@ namespace ardb
 	{
 		DBID* newdb = new DBID(db);
 		std::string* nk = new std::string(key.data(), key.size());
-		ReplInstruction instrct(kInstrctionRecordDelCmd,
-				new std::pair<void*, void*>(newdb, nk));
+		kWriteReplInstructionData* data = new kWriteReplInstructionData;
+		data->ptrs.push_back(newdb);
+		data->ptrs.push_back(nk);
+		if (NULL != m_server->GetCurrentContext())
+		{
+			data->from_master = m_server->GetCurrentContext()->is_slave_conn;
+		}
+		ReplInstruction instrct(kInstrctionRecordDelCmd, data);
 		m_notify_channel->Write(instrct);
 		return 0;
 	}
