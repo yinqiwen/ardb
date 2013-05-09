@@ -353,7 +353,7 @@ namespace ardb
 		}
 	}
 
-	uint64 OpLogs::SaveCmdOp(RedisCommandFrame* cmd, bool writeOpLog)
+	CachedOp* OpLogs::SaveCmdOp(RedisCommandFrame* cmd, bool writeOpLog)
 	{
 		uint64 seq = m_max_seq;
 		m_max_seq++;
@@ -369,10 +369,10 @@ namespace ardb
 		{
 			WriteCachedOp(seq, op);
 		}
-		return seq;
+		return op;
 	}
 
-	uint64 OpLogs::SaveWriteOp(OpKey& opkey, uint8 type, bool writeOpLog,
+	CachedOp* OpLogs::SaveWriteOp(OpKey& opkey, uint8 type, bool writeOpLog,
 			std::string* v)
 	{
 		RemoveExistOp(opkey);
@@ -395,10 +395,10 @@ namespace ardb
 		{
 			WriteCachedOp(seq, op);
 		}
-		return seq;
+		return op;
 	}
 
-	int OpLogs::LoadOpLog(uint64& seq, Buffer& buf)
+	int OpLogs::LoadOpLog(uint64& seq, Buffer& buf, bool is_master_slave)
 	{
 		if (seq < m_min_seq || seq > m_max_seq)
 		{
@@ -415,6 +415,10 @@ namespace ardb
 			if (fit != m_mem_op_logs.end())
 			{
 				CachedOp* op = fit->second;
+				if(is_master_slave && op->from_master)
+				{
+					continue;
+				}
 				if (op->type != kOtherOpType)
 				{
 					CachedWriteOp* writeOp = (CachedWriteOp*) op;
@@ -466,26 +470,26 @@ namespace ardb
 		}
 	}
 
-	void OpLogs::SaveSetOp(const DBID& db, const std::string& key,
+	CachedOp* OpLogs::SaveSetOp(const DBID& db, const std::string& key,
 			std::string* value)
 	{
 		CheckCurrentDB(db);
 		OpKey ok(db, key);
-		SaveWriteOp(ok, kSetOpType, true, value);
+		return SaveWriteOp(ok, kSetOpType, true, value);
 	}
-	void OpLogs::SaveDeleteOp(const DBID& db, const std::string& key)
+	CachedOp* OpLogs::SaveDeleteOp(const DBID& db, const std::string& key)
 	{
 		CheckCurrentDB(db);
 		OpKey ok(db, key);
-		SaveWriteOp(ok, kDelOpType, true, NULL);
+		return SaveWriteOp(ok, kDelOpType, true, NULL);
 
 	}
-	void OpLogs::SaveFlushOp(const DBID& db)
+	CachedOp* OpLogs::SaveFlushOp(const DBID& db)
 	{
 		CheckCurrentDB(db);
 		ArgumentArray strs;
 		strs.push_back("flushdb");
-		SaveCmdOp(new RedisCommandFrame(strs));
+		return SaveCmdOp(new RedisCommandFrame(strs));
 	}
 
 	bool OpLogs::VerifyClient(const std::string& serverKey, uint64 seq,

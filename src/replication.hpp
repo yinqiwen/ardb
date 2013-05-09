@@ -151,8 +151,8 @@ namespace ardb
 			void RollbackOpLogs();
 			void FlushOpLog();
 			void WriteCachedOp(uint64 seq, CachedOp* op);
-			uint64 SaveCmdOp(RedisCommandFrame* cmd, bool writeOpLog = true);
-			uint64 SaveWriteOp(OpKey& opkey, uint8 type, bool writeOpLog = true,
+			CachedOp* SaveCmdOp(RedisCommandFrame* cmd, bool writeOpLog = true);
+			CachedOp* SaveWriteOp(OpKey& opkey, uint8 type, bool writeOpLog = true,
 					std::string* v = NULL);
 		public:
 			OpLogs(ArdbServer* server);
@@ -161,7 +161,7 @@ namespace ardb
 			{
 				return m_mem_op_logs.size();
 			}
-			int LoadOpLog(uint64& seq, Buffer& cmd);
+			int LoadOpLog(uint64& seq, Buffer& cmd, bool is_master_slave);
 			uint64 GetMaxSeq()
 			{
 				return m_max_seq;
@@ -174,10 +174,10 @@ namespace ardb
 			{
 				return m_current_db;
 			}
-			void SaveSetOp(const DBID& db, const std::string& key,
+			CachedOp* SaveSetOp(const DBID& db, const std::string& key,
 					std::string* value);
-			void SaveDeleteOp(const DBID& db, const std::string& key);
-			void SaveFlushOp(const DBID& db);
+			CachedOp* SaveDeleteOp(const DBID& db, const std::string& key);
+			CachedOp* SaveFlushOp(const DBID& db);
 			bool VerifyClient(const std::string& serverKey, uint64 seq, DBID& dbid);
 			const std::string& GetServerKey()
 			{
