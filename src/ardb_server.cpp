@@ -1392,7 +1392,35 @@ namespace ardb
 
 	int ArdbServer::ReplConf(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
-		//INFO_LOG("%s %s", cmd[0].c_str(), cmd[1].c_str());
+		INFO_LOG("%s %s", cmd[0].c_str(), cmd[1].c_str());
+		if (cmd.size() % 2 != 0)
+		{
+			fill_error_reply(ctx.reply,
+					"ERR wrong number of arguments for ReplConf");
+			return 0;
+		}
+		for (uint32 i = 0; i < cmd.size(); i += 2)
+		{
+			if (cmd[i] == "listening-port")
+			{
+				uint32 port = 0;
+				string_touint32(cmd[i + 1], port);
+				Address* addr =
+						const_cast<Address*>(ctx.conn->GetRemoteAddress());
+				if (InstanceOf<SocketHostAddress>(addr).OK)
+				{
+					SocketHostAddress* tmp = (SocketHostAddress*) addr;
+					const SocketHostAddress& master_addr =
+							m_slave_client.GetMasterAddress();
+					if (master_addr.GetHost() == tmp->GetHost()
+							&& master_addr.GetPort() == port)
+					{
+						m_repli_serv.MarkMasterSlave(ctx.conn);
+					}
+				}
+
+			}
+		}
 		fill_status_reply(ctx.reply, "OK");
 		return 0;
 	}
