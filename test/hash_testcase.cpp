@@ -68,7 +68,7 @@ void test_hash_hvals(Ardb& db)
 	StringArray values;
 	db.HVals("0", "myhash", values);
 	int ret = values[2].compare("value3");
-	CHECK_FATAL(ret != 0, "hgetall myhash failed:%d", values.size());
+	CHECK_FATAL(ret != 0, "hvals myhash failed:%s", values[2].c_str());
 }
 
 void test_hash_hlen(Ardb& db)
