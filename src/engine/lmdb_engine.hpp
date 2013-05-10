@@ -18,7 +18,11 @@ namespace ardb
 	class LMDBIterator: public Iterator
 	{
 		private:
+			MDB_txn *m_txn;
 			MDB_cursor * m_cursor;
+			MDB_val m_key;
+			MDB_val m_value;
+			bool m_valid;
 			void Next();
 			void Prev();
 			Slice Key() const;
@@ -27,31 +31,28 @@ namespace ardb
 			void SeekToFirst();
 			void SeekToLast();
 		public:
-			LMDBIterator(MDB_cursor* iter) :
-					m_cursor(iter)
+			LMDBIterator(MDB_txn *txn, MDB_cursor* iter, bool valid = true) :
+					m_txn(txn), m_cursor(iter), m_valid(valid)
 			{
-
+				if(valid)
+				{
+					int rc = mdb_cursor_get(m_cursor, &m_key, &m_value, MDB_GET_CURRENT);
+					m_valid = rc == 0;
+				}
 			}
 			~LMDBIterator()
 			{
 				mdb_cursor_close(m_cursor);
+				mdb_txn_abort (m_txn);
 			}
 	};
 
 	struct LMDBConfig
 	{
 			std::string path;
-			int64 block_cache_size;
-			int64 write_buffer_size;
-			int64 max_open_files;
-			int64 block_size;
-			int64 block_restart_interval;
-			int64 bloom_bits;
-			int64 batch_commit_watermark;
+			int64 max_db;
 			LMDBConfig() :
-					block_cache_size(0), write_buffer_size(0), max_open_files(
-					        10240), block_size(0), block_restart_interval(0), bloom_bits(
-					        10), batch_commit_watermark(30)
+					max_db(1024)
 			{
 			}
 	};
@@ -64,7 +65,6 @@ namespace ardb
 			MDB_txn *m_txn;
 			std::stack<bool> m_batch_stack;
 			std::string m_db_path;
-			uint32 m_batch_size;
 
 			LMDBConfig m_cfg;
 			friend class LevelDBEngineFactory;
@@ -72,7 +72,7 @@ namespace ardb
 		public:
 			LMDBEngine();
 			~LMDBEngine();
-			int Init(const LMDBConfig& cfg, MDB_env *env);
+			int Init(const LMDBConfig& cfg, MDB_env *env, const DBID& db);
 			int Put(const Slice& key, const Slice& value);
 			int Get(const Slice& key, std::string* value);
 			int Del(const Slice& key);
@@ -90,6 +90,7 @@ namespace ardb
 		private:
 			LMDBConfig m_cfg;
 			MDB_env *m_env;
+			bool m_env_opened;
 			static void ParseConfig(const Properties& props, LMDBConfig& cfg);
 		public:
 			LMDBEngineFactory(const Properties& cfg);
@@ -97,6 +98,7 @@ namespace ardb
 			void DestroyDB(KeyValueEngine* engine);
 			void CloseDB(KeyValueEngine* engine);
 			void ListAllDB(DBIDSet& dbs);
+			~LMDBEngineFactory();
 	};
 }
 

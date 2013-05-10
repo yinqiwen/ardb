@@ -9,13 +9,14 @@ CC=gcc
 SNAPPY_PATH=../deps/snappy
 LEVELDB_PATH=../deps/leveldb
 KCDB_PATH=../deps/kyotocabinet-1.2.76
+LMDB_PATH=../deps/mdb/libraries/liblmdb
 JEMALLOC_PATH=../deps/jemalloc-3.3.1
 
-CXXFLAGS=-Wall -Wno-format -g -O2 -D_FILE_OFFSET_BITS=64 -fPIC
+CXXFLAGS=-Wall -Wno-format -g  -D_FILE_OFFSET_BITS=64 -fPIC
 CCFLAGS=-Wall -std=gnu99 -O2 -pedantic -Wno-format -g -D_FILE_OFFSET_BITS=64 -fPIC
 LDFLAGS=-g 
 
-INCS=-I./ -I./util -I${LEVELDB_PATH}/include -I${KCDB_PATH} -I../deps/cpp-btree 
+INCS=-I./ -I./util -I${LEVELDB_PATH}/include -I${KCDB_PATH} -I${LMDB_PATH} -I../deps/cpp-btree 
 
 LIBS= ${SNAPPY_PATH}/.libs/libsnappy.a -lpthread
 
@@ -41,9 +42,11 @@ CORE_OBJECTS := ardb.o ardb_data.o hash.o kv.o lists.o logger.o sets.o \
                 $(UTIL_OBJECTS)
 
 LEVELDB_ENGINE :=  engine/leveldb_engine.o       
-KCDB_ENGINE :=  engine/kyotocabinet_engine.o         
+KCDB_ENGINE :=  engine/kyotocabinet_engine.o     
+LMDB_ENGINE :=  engine/lmdb_engine.o     
 LEVELDB_TEST := ../test/leveldb.o 
 KCDB_TEST := ../test/kcdb.o
+LMDB_TEST := ../test/lmdb.o
 
 SERVER_OBJECTS := ardb_server.o slowlog.o clients.o replication.o pubsub.o oplogs.o main.o
 
@@ -68,7 +71,10 @@ leveldb:server $(LEVELDB_ENGINE)
 kcdb:server $(KCDB_ENGINE)
 	${CXX} -o ardb-server $(SERVER_OBJECTS) $(KCDB_ENGINE) $(CORE_OBJECTS) $(CHANNEL_OBJECTS) $(LIBS) -L/usr/local/lib -lkyotocabinet -lz
 
-test:leveldb-test kcdb-test
+lmdb:server $(LMDB_ENGINE)
+	${CXX} -o ardb-server $(SERVER_OBJECTS) $(LMDB_ENGINE) $(CORE_OBJECTS) $(CHANNEL_OBJECTS) $(LIBS) ${LMDB_PATH}/liblmdb.a
+
+test:leveldb-test kcdb-test lmdb-test
 
 leveldb-test:$(LEVELDB_ENGINE) $(LEVELDB_TEST) $(CORE_OBJECTS) 
 	${CXX} -o leveldb-test $(LEVELDB_ENGINE) $(LEVELDB_TEST) $(CORE_OBJECTS) $(LIBS) $(LEVELDB_PATH)/libleveldb.a
@@ -76,7 +82,10 @@ leveldb-test:$(LEVELDB_ENGINE) $(LEVELDB_TEST) $(CORE_OBJECTS)
 kcdb-test:$(KCDB_TEST) $(CORE_OBJECTS) $(KCDB_ENGINE)
 	${CXX} -o kcdb-test $(KCDB_TEST) $(KCDB_ENGINE) $(CORE_OBJECTS) $(LIBS) ${KCDB_PATH}/libkyotocabinet.a -lz
 
+lmdb-test:$(LMDB_TEST) $(CORE_OBJECTS) $(LMDB_ENGINE)
+	${CXX} -o lmdb-test $(LMDB_TEST) $(LMDB_ENGINE) $(CORE_OBJECTS) $(LIBS) ${LMDB_PATH}/liblmdb.a
+
 clean:
 	rm -f $(LEVELDB_TEST) $(KCDB_TEST) ${CORE_OBJECTS} ${LEVELDB_OBJECTS} \
 	      $(SERVER_OBJECTS) $(CHANNEL_OBJECTS) $(DIST_LIBA) $(DIST_LIB)   \
-	      $(LEVELDB_ENGINE) $(KCDB_ENGINE) leveldb-test kcdb-test ardb-server
+	      $(LEVELDB_ENGINE) $(KCDB_ENGINE) leveldb-test kcdb-test lmdb-test ardb-server

@@ -12,9 +12,13 @@
 #include <fnmatch.h>
 #include <sstream>
 //#define __USE_KYOTOCABINET__ 1
+#define __USE_LMDB__ 1
 #ifdef __USE_KYOTOCABINET__
 #include "engine/kyotocabinet_engine.hpp"
 typedef ardb::KCDBEngineFactory SelectedDBEngineFactory;
+#elif defined __USE_LMDB__
+#include "engine/lmdb_engine.hpp"
+typedef ardb::LMDBEngineFactory SelectedDBEngineFactory;
 #else
 #include "engine/leveldb_engine.hpp"
 typedef ardb::LevelDBEngineFactory SelectedDBEngineFactory;

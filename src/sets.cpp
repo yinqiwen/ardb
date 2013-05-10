@@ -502,6 +502,7 @@ int Ardb::SPop(const DBID& db, const Slice& key, std::string& value)
 	Slice empty;
 	SetKeyObject sk(key, empty);
 	Iterator* iter = FindValue(db, sk);
+
 	while (iter != NULL && iter->Valid())
 	{
 		Slice tmpkey = iter->Key();
@@ -517,6 +518,7 @@ int Ardb::SPop(const DBID& db, const Slice& key, std::string& value)
 		DELETE(kk);
 		return 0;
 	}
+	DELETE(iter);
 	return -1;
 }
 

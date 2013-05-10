@@ -5,5 +5,7 @@
 /.libs
 leveldb-test
 kcdb-test
+lmdb-test
 ardb-server
 *.bak
+.*
