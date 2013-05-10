@@ -164,25 +164,10 @@ static void aeGetTime(long *seconds, long *milliseconds)
 //	*seconds = tv.tv_sec;
 //	*milliseconds = tv.tv_usec / 1000;
 
-
-	struct timespec tv;
-#ifdef ARCH_HAS_CLOCK_MONOTONIC_RAW
-	clock_gettime(4, &tv);
-#else
-#ifdef __MACH__ // OS X does not have clock_gettime, use clock_get_time
-		clock_serv_t cclock;
-		mach_timespec_t mts;
-		host_get_clock_service(mach_host_self(), SYSTEM_CLOCK, &cclock);
-		clock_get_time(cclock, &mts);
-		mach_port_deallocate(mach_task_self(), cclock);
-		tv.tv_sec = mts.tv_sec;
-		tv.tv_nsec = mts.tv_nsec;
-#else
-		clock_gettime(CLOCK_MONOTONIC, &tv);
-#endif
-#endif
-	*seconds = tv.tv_sec;
-	*milliseconds = (tv.tv_nsec / 1000000);
+	struct timeval val;
+	gettimeofday(&val, 0);
+	*seconds = val.tv_sec;
+	*milliseconds = (val.tv_usec / 1000);
 }
 
 static void aeAddMillisecondsToNow(long long milliseconds, long *sec, long *ms)

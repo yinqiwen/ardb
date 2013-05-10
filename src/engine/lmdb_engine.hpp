@@ -15,10 +15,11 @@
 
 namespace ardb
 {
+	class LMDBEngine;
 	class LMDBIterator: public Iterator
 	{
 		private:
-			MDB_txn *m_txn;
+			LMDBEngine *m_engine;
 			MDB_cursor * m_cursor;
 			MDB_val m_key;
 			MDB_val m_value;
@@ -31,20 +32,18 @@ namespace ardb
 			void SeekToFirst();
 			void SeekToLast();
 		public:
-			LMDBIterator(MDB_txn *txn, MDB_cursor* iter, bool valid = true) :
-					m_txn(txn), m_cursor(iter), m_valid(valid)
+			LMDBIterator(LMDBEngine *engine, MDB_cursor* iter,
+			        bool valid = true) :
+					m_engine(engine), m_cursor(iter), m_valid(valid)
 			{
-				if(valid)
+				if (valid)
 				{
-					int rc = mdb_cursor_get(m_cursor, &m_key, &m_value, MDB_GET_CURRENT);
+					int rc = mdb_cursor_get(m_cursor, &m_key, &m_value,
+					        MDB_GET_CURRENT);
 					m_valid = rc == 0;
 				}
 			}
-			~LMDBIterator()
-			{
-				mdb_cursor_close(m_cursor);
-				mdb_txn_abort (m_txn);
-			}
+			~LMDBIterator();
 	};
 
 	struct LMDBConfig

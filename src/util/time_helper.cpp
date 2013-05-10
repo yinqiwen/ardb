@@ -340,48 +340,6 @@ namespace ardb
 		}
 	}
 
-	uint64 get_current_monotonic_micros()
-	{
-		//timeval timeValue;
-		//gettimeofday(&timeValue, NULL);
-		struct timespec timeValue;
-		get_current_monotonic_time(timeValue);
-		uint64 micros = ((uint64) timeValue.tv_sec) * 1000000;
-		micros += (timeValue.tv_nsec / 1000);
-		return micros;
-	}
-
-	uint64 get_current_monotonic_millis()
-	{
-		//timeval timeValue;
-		//gettimeofday(&timeValue, NULL);
-		struct timespec timeValue;
-		get_current_monotonic_time(timeValue);
-		uint64 ret = ((uint64) timeValue.tv_sec) * 1000;
-		ret += ((timeValue.tv_nsec) / 1000000);
-		//			if (timeValue.tv_usec % 1000 > 500)
-		//			{
-		//				ret++;
-		//			}
-		return ret;
-	}
-
-	uint32 get_current_monotonic_seconds()
-	{
-		struct timespec timeValue;
-		get_current_monotonic_time(timeValue);
-		uint32 ret = timeValue.tv_sec;
-		return ret;
-	}
-
-	uint64 get_current_monotonic_nanos()
-	{
-		struct timespec timeValue;
-		get_current_monotonic_time(timeValue);
-		uint64 ret = ((uint64) timeValue.tv_sec) * 1000000000;
-		ret += timeValue.tv_nsec;
-		return ret;
-	}
 
 	uint64 get_current_epoch_millis()
 	{
@@ -398,14 +356,6 @@ namespace ardb
 		uint64 micros = ((uint64) timeValue.tv_sec) * 1000000;
 		micros += (timeValue.tv_usec);
 		return micros;
-	}
-	uint64 get_current_epoch_nanos()
-	{
-		struct timespec timeValue;
-		get_current_epoch_time(timeValue);
-		uint64 ret = ((uint64) timeValue.tv_sec) * 1000000000;
-		ret += timeValue.tv_nsec;
-		return ret;
 	}
 
 	uint32 get_current_epoch_seconds()

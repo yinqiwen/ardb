@@ -88,4 +88,5 @@ lmdb-test:$(LMDB_TEST) $(CORE_OBJECTS) $(LMDB_ENGINE)
 clean:
 	rm -f $(LEVELDB_TEST) $(KCDB_TEST) ${CORE_OBJECTS} ${LEVELDB_OBJECTS} \
 	      $(SERVER_OBJECTS) $(CHANNEL_OBJECTS) $(DIST_LIBA) $(DIST_LIB)   \
-	      $(LEVELDB_ENGINE) $(KCDB_ENGINE) leveldb-test kcdb-test lmdb-test ardb-server
+	      $(LEVELDB_ENGINE) $(KCDB_ENGINE) $(LMDB_ENGINE) \
+	      leveldb-test kcdb-test lmdb-test ardb-server

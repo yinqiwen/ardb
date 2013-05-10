@@ -17,7 +17,7 @@ namespace ardb
 	static int LMDBCompareFunc(const MDB_val *a, const MDB_val *b)
 	{
 		return ardb_compare_keys((const char*) a->mv_data, a->mv_size,
-				(const char*) b->mv_data, b->mv_size);
+		        (const char*) b->mv_data, b->mv_size);
 	}
 	LMDBEngineFactory::LMDBEngineFactory(const Properties& props) :
 			m_env(NULL), m_env_opened(false)
@@ -33,7 +33,7 @@ namespace ardb
 	}
 
 	void LMDBEngineFactory::ParseConfig(const Properties& props,
-			LMDBConfig& cfg)
+	        LMDBConfig& cfg)
 	{
 		cfg.path = ".";
 		conf_get_string(props, "dir", cfg.path);
@@ -58,20 +58,13 @@ namespace ardb
 			return NULL;
 		}
 		DEBUG_LOG(
-				"Create DB:%s at path:%s success", db.c_str(), cfg.path.c_str());
+		        "Create DB:%s at path:%s success", db.c_str(), cfg.path.c_str());
 		return engine;
 	}
 
 	void LMDBEngineFactory::ListAllDB(DBIDSet& dbs)
 	{
-		std::deque<std::string> dirs;
-		list_subfiles(m_cfg.path, dirs);
-		std::deque<std::string>::iterator it = dirs.begin();
-		while (it != dirs.end())
-		{
-			dbs.insert(*it);
-			it++;
-		}
+		//TODO: find a way to retrive all db names
 	}
 
 	void LMDBEngineFactory::CloseDB(KeyValueEngine* engine)
@@ -98,21 +91,27 @@ namespace ardb
 	LMDBEngine::~LMDBEngine()
 	{
 		Close();
-		//DELETE(m_db);
 	}
 
 	void LMDBEngine::Clear()
 	{
 		if (0 != m_dbi)
 		{
-			//m_db->clear();
+			MDB_txn* txn = m_txn;
+			if (NULL == txn)
+			{
+				mdb_txn_begin(m_env, NULL, 0, &txn);
+				mdb_drop(txn, m_dbi, 1);
+				Close();
+			}
 		}
 	}
 	void LMDBEngine::Close()
 	{
 		if (0 != m_dbi)
 		{
-			//m_db->close();
+			mdb_dbi_close(m_env, m_dbi);
+			m_dbi = 0;
 		}
 	}
 
@@ -125,7 +124,7 @@ namespace ardb
 		if (rc != 0)
 		{
 			ERROR_LOG(
-					"Failed to open mdb:%s for reason:%s\n", db.c_str(), mdb_strerror(rc));
+			        "Failed to open mdb:%s for reason:%s\n", db.c_str(), mdb_strerror(rc));
 			return -1;
 		}
 		mdb_set_compare(txn, m_dbi, LMDBCompareFunc);
@@ -161,7 +160,7 @@ namespace ardb
 		{
 			m_batch_stack.pop();
 		}
-		if (NULL != m_txn)
+		if (m_batch_stack.empty() && NULL != m_txn)
 		{
 			mdb_txn_abort(m_txn);
 			m_txn = NULL;
@@ -179,9 +178,10 @@ namespace ardb
 		if (NULL != m_txn)
 		{
 			mdb_put(m_txn, m_dbi, &k, &v, 0);
-		} else
+		}
+		else
 		{
-			MDB_txn *txn;
+			MDB_txn *txn = NULL;
 			mdb_txn_begin(m_env, NULL, 0, &txn);
 			mdb_put(txn, m_dbi, &k, &v, 0);
 			mdb_txn_commit(txn);
@@ -197,9 +197,10 @@ namespace ardb
 		if (NULL != m_txn)
 		{
 			rc = mdb_get(m_txn, m_dbi, &k, &v);
-		} else
+		}
+		else
 		{
-			MDB_txn *txn;
+			MDB_txn *txn = NULL;
 			mdb_txn_begin(m_env, NULL, 0, &txn);
 			rc = mdb_get(txn, m_dbi, &k, &v);
 			mdb_txn_commit(txn);
@@ -218,7 +219,8 @@ namespace ardb
 		if (NULL != m_txn)
 		{
 			mdb_del(m_txn, m_dbi, &k, NULL);
-		} else
+		}
+		else
 		{
 			MDB_txn *txn;
 			mdb_txn_begin(m_env, NULL, 0, &txn);
@@ -233,17 +235,19 @@ namespace ardb
 		MDB_val k, data;
 		k.mv_data = const_cast<char*>(findkey.data());
 		k.mv_size = findkey.size();
-		MDB_txn *txn;
-		MDB_cursor *cursor;
-		int rc = mdb_txn_begin(m_env, NULL, MDB_RDONLY, &txn);
-		if(rc != 0)
+		MDB_txn *txn = NULL;
+		MDB_cursor *cursor = NULL;
+		int rc = 0;
+		BeginBatchWrite();
+		if (NULL == m_txn)
 		{
-			//ERROR_LOG("Failed to create cursor:%s", mdb_strerror(rc));
+			ERROR_LOG("Failed to create cursor:%s", mdb_strerror(rc));
 			return NULL;
 		}
-		rc = mdb_cursor_open(txn, m_dbi, &cursor);
+
+		rc = mdb_cursor_open(m_txn, m_dbi, &cursor);
 		rc = mdb_cursor_get(cursor, &k, &data, MDB_SET_RANGE);
-		return new LMDBIterator(txn, cursor, rc == 0);
+		return new LMDBIterator(this, cursor, rc == 0);
 	}
 
 	void LMDBIterator::SeekToFirst()
@@ -278,6 +282,12 @@ namespace ardb
 	bool LMDBIterator::Valid()
 	{
 		return m_valid;
+	}
+
+	LMDBIterator::~LMDBIterator()
+	{
+		mdb_cursor_close(m_cursor);
+		m_engine->CommitBatchWrite();
 	}
 }
 

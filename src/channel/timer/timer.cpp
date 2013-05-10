@@ -16,41 +16,8 @@ Timer::Timer()
 
 }
 
-//void Timer::RemoveMin()
-//{
-//    m_task_queue.RemoveMin();
-//}
-
-//bool Timer::LessTimerTaskCompare(const TimerTask* task1, const TimerTask* task2)
-//{
-//    return task1->m_nextTriggerTime < task2->m_nextTriggerTime;
-//}
-
-//Timer::TimerTaskQueue::iterator Timer::FindMatchedTaskInQueue(
-//        TimerTaskQueue::iterator first, TimerTaskQueue::iterator last,
-//        const TimerTask* task1)
-//{
-//    Timer::TimerTaskQueue::iterator result = std::lower_bound(first, last, task1,
-//            LessTimerTaskCompare);
-//    while (result != last)
-//    {
-//        TimerTask* task = *result;
-//        if (task == task1)
-//        {
-//            break;
-//        }
-//        result++;
-//    }
-//    return result;
-//}
-
 TimerTask* Timer::GetNearestTimerTask()
 {
-    //    if (!m_task_queue.empty())
-    //    {
-    //        return m_task_queue.front();
-    //    }
-    //    return NULL;
     return m_task_queue.GetMin();
 }
 
@@ -82,7 +49,6 @@ void Timer::DoTerminated(TimerTask* task, bool eraseFromTable)
         m_task_table.erase(task->GetID());
     }
     OnTerminated(task);
-    //m_task_pool.destroy(task);
     DELETE(task);
 }
 
@@ -90,16 +56,6 @@ void Timer::DoFinalSchedule(TimerTask* task)
 {
     BeforeScheduled(task);
     OnScheduled(task);
-    //    TimerTaskQueue::iterator it = std::lower_bound(m_task_queue.begin(),
-    //            m_task_queue.end(), task, LessTimerTaskCompare);
-    //    if (it != m_task_queue.end())
-    //    {
-    //        m_task_queue.insert(it, task);
-    //    }
-    //    else
-    //    {
-    //        m_task_queue.push_back(task);
-    //    }
     m_task_queue.Add(task);
     AfterScheduled(task);
 }
@@ -111,8 +67,8 @@ void Timer::DoSchedule(TimerTask* task, int64 delay, int64 period,
     task->m_period = period;
     task->m_unit = unit;
     task->m_state = SCHEDULED;
-    task->m_nextTriggerTime = get_current_monotonic_millis() + millistime(delay, unit);
-    //task->m_nextTriggerTime = getCu + time2millis(delay, unit);
+    //task->m_nextTriggerTime = get_current_monotonic_millis() + millistime(delay, unit);
+    task->m_nextTriggerTime = get_current_epoch_millis() + millistime(delay, unit);
     DoFinalSchedule(task);
 }
 
@@ -189,14 +145,6 @@ bool Timer::AdjustNextTriggerTime(uint32 taskID, int64 value, TimeUnit unit)
     if (found != m_task_table.end())
     {
         TimerTask* task = found->second;
-
-        //m_task_table.erase(found);
-        //        TimerTaskQueue::iterator found = FindMatchedTaskInQueue(
-        //                m_task_queue.begin(), m_task_queue.end(), task);
-        //        if (found != m_task_queue.end())
-        //        {
-        //            m_task_queue.erase(found);
-        //        }
         uint64 temp = llabs(value);
         uint64 adjustvalue = millistime(temp, unit);
         uint64 newTime = task->m_nextTriggerTime;
@@ -226,7 +174,8 @@ int64 Timer::Routine()
         ret = -1;
         //TimerTask* task = m_task_queue.front();
         TimerTask* task = m_task_queue.GetMin();
-        uint64 now = get_current_monotonic_millis();
+        //uint64 now = get_current_monotonic_millis();
+        uint64 now = get_current_epoch_millis();
         if (task->m_nextTriggerTime > now)
         {
             ret = task->m_nextTriggerTime - now;
@@ -246,7 +195,7 @@ int64 Timer::Routine()
                         //task->m_delay = task->m_period;
                         //DoSchedule(task, task->m_delay, task->m_period,
                         //        task->m_unit);
-                        m_task_queue.RescheduleMin(get_current_monotonic_millis()
+                        m_task_queue.RescheduleMin(get_current_epoch_millis()
                                 + millistime(task->m_period, task->m_unit));
                         continue;
                     }

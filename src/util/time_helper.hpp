@@ -43,52 +43,14 @@ namespace ardb
 	//int64_t toMillis(int64_t time, TimeUnit unit);
 	//timeval plusTimeval(const timeval& time1, const timeval& time2);
 
-	inline void get_current_monotonic_time(struct timespec& val)
-	{
-#ifdef ARCH_HAS_CLOCK_MONOTONIC_RAW
-		clock_gettime(4, &val);
-#else
-#ifdef __MACH__ // OS X does not have clock_gettime, use clock_get_time
-		clock_serv_t cclock;
-		mach_timespec_t mts;
-		host_get_clock_service(mach_host_self(), SYSTEM_CLOCK, &cclock);
-		clock_get_time(cclock, &mts);
-		mach_port_deallocate(mach_task_self(), cclock);
-		val.tv_sec = mts.tv_sec;
-		val.tv_nsec = mts.tv_nsec;
-#else
-		clock_gettime(CLOCK_MONOTONIC, &val);
-#endif
-#endif
-	}
 
 	inline void get_current_epoch_time(struct timeval& val)
 	{
 		gettimeofday(&val, NULL);
 	}
 
-	inline void get_current_epoch_time(struct timespec& val)
-	{
-#ifdef __MACH__ // OS X does not have clock_gettime, use clock_get_time
-		clock_serv_t cclock;
-		mach_timespec_t mts;
-		host_get_clock_service(mach_host_self(), CALENDAR_CLOCK, &cclock);
-		clock_get_time(cclock, &mts);
-		mach_port_deallocate(mach_task_self(), cclock);
-		val.tv_sec = mts.tv_sec;
-		val.tv_nsec = mts.tv_nsec;
-#else
-		clock_gettime(CLOCK_REALTIME, &val);
-#endif
-	}
-	uint64 get_current_monotonic_millis();
-	uint64 get_current_monotonic_micros();
-	uint64 get_current_monotonic_nanos();
-	uint32 get_current_monotonic_seconds();
-
 	uint64 get_current_epoch_millis();
 	uint64 get_current_epoch_micros();
-	uint64 get_current_epoch_nanos();
 	uint32 get_current_epoch_seconds();
 
 	uint32 get_current_year_day();
