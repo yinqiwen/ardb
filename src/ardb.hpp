@@ -97,7 +97,6 @@ namespace ardb
 
 	struct KeyValueEngineFactory
 	{
-			virtual void ListAllDB(DBIDSet& dbs) = 0;
 			virtual KeyValueEngine* CreateDB(const DBID& db) = 0;
 			virtual void CloseDB(KeyValueEngine* engine) = 0;
 			virtual void DestroyDB(KeyValueEngine* engine) = 0;
@@ -144,6 +143,12 @@ namespace ardb
 			KeyValueEngineTable m_engine_table;
 			KeyWatcher* m_key_watcher;
 			RawKeyListener* m_raw_key_listener;
+
+			std::string m_path;
+			DBIDSet m_all_dbs;
+
+			void LoadAllDBNames();
+			void StoreDBNames();
 			int SetExpiration(const DBID& db, const Slice& key,
 					uint64_t expire);
 
@@ -204,7 +209,7 @@ namespace ardb
 				m_err_cause = cause;
 			}
 		public:
-			Ardb(KeyValueEngineFactory* factory);
+			Ardb(KeyValueEngineFactory* factory, const std::string& path);
 			~Ardb();
 
 			int RawSet(const DBID& db, const Slice& key, const Slice& value);

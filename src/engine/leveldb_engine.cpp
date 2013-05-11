@@ -81,18 +81,6 @@ namespace ardb
 		leveldb::DestroyDB(path, options);
 	}
 
-	void LevelDBEngineFactory::ListAllDB(DBIDSet& dbs)
-	{
-		std::deque<std::string> dirs;
-		list_subdirs(m_cfg.path, dirs);
-		std::deque<std::string>::iterator it = dirs.begin();
-		while(it != dirs.end())
-		{
-			dbs.insert(*it);
-			it++;
-		}
-	}
-
 	void LevelDBEngineFactory::CloseDB(KeyValueEngine* engine)
 	{
 		DELETE(engine);

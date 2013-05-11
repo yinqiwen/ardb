@@ -91,15 +91,11 @@ namespace ardb
 			MDB_env *m_env;
 			bool m_env_opened;
 			static void ParseConfig(const Properties& props, LMDBConfig& cfg);
-			DBIDSet m_all_dbs;
-			void LoadAllDBNames();
-			void StoreDBNames();
 		public:
 			LMDBEngineFactory(const Properties& cfg);
 			KeyValueEngine* CreateDB(const DBID& db);
 			void DestroyDB(KeyValueEngine* engine);
 			void CloseDB(KeyValueEngine* engine);
-			void ListAllDB(DBIDSet& dbs);
 			~LMDBEngineFactory();
 	};
 }

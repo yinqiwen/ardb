@@ -11,7 +11,6 @@
 #include "comparator.hpp"
 #include "util/helpers.hpp"
 #include <string.h>
-#include <sstream>
 
 namespace ardb
 {
@@ -61,43 +60,7 @@ namespace ardb
 		}
 		DEBUG_LOG(
 		        "Create DB:%s at path:%s success", db.c_str(), cfg.path.c_str());
-		m_all_dbs.insert(db);
-		StoreDBNames();
 		return engine;
-	}
-
-	void LMDBEngineFactory::LoadAllDBNames()
-	{
-		std::string file = m_cfg.path + "/.db_names";
-		Buffer content;
-		file_read_full(file, content);
-		std::string str = content.AsString();
-		std::vector<std::string> ss = split_string(str, "\n");
-		for(uint32 i = 0; i < ss.size(); i++)
-		{
-			if(!ss[i].empty())
-			{
-				m_all_dbs.insert(ss[i]);
-			}
-		}
-	}
-	void LMDBEngineFactory::StoreDBNames()
-	{
-		std::stringstream ss(std::stringstream::in | std::stringstream::out);
-		DBIDSet::iterator it = m_all_dbs.begin();
-		while (it != m_all_dbs.end())
-		{
-			ss << *it << "\n";
-			it++;
-		}
-		std::string file = m_cfg.path + "/.db_names";
-		std::string content = ss.str();
-		file_write_content(file, content);
-	}
-
-	void LMDBEngineFactory::ListAllDB(DBIDSet& dbs)
-	{
-		dbs = m_all_dbs;
 	}
 
 	void LMDBEngineFactory::CloseDB(KeyValueEngine* engine)
@@ -107,14 +70,12 @@ namespace ardb
 
 	void LMDBEngineFactory::DestroyDB(KeyValueEngine* engine)
 	{
-		m_all_dbs.erase(engine->id);
 		LMDBEngine* kcdb = (LMDBEngine*) engine;
 		if (NULL != kcdb)
 		{
 			kcdb->Clear();
 		}
 		DELETE(engine);
-		StoreDBNames();
 	}
 
 	LMDBEngine::LMDBEngine() :
