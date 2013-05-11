@@ -49,6 +49,7 @@ namespace ardb
 
 	struct KeyValueEngine
 	{
+			DBID id;
 			virtual int Get(const Slice& key, std::string* value) = 0;
 			virtual int Put(const Slice& key, const Slice& value) = 0;
 			virtual int Del(const Slice& key) = 0;

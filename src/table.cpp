@@ -525,7 +525,6 @@ namespace ardb
 	{
 		TableMetaValue meta;
 		GetTableMetaValue(db, tableName, meta);
-		//return meta.size;
 		return meta.size;
 	}
 }

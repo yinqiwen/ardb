@@ -272,6 +272,7 @@ namespace ardb
 		KeyValueEngine* engine = m_engine_factory->CreateDB(db);
 		if (NULL != engine)
 		{
+			engine->id = db;
 			m_engine_table[db] = engine;
 		}
 		return engine;
