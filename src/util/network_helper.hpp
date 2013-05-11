@@ -37,7 +37,6 @@ namespace ardb
 	uint64 ntohll(uint64 v);
 	uint64 htonll(uint64 v);
 
-
 	int get_ip_by_nic_name(const std::string& ifName, std::string& ip);
 	int get_local_host_ip_list(std::vector<std::string>& iplist);
 }

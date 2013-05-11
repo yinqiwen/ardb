@@ -9,20 +9,8 @@
 #define NOVA_TIMEHELPER_HPP_
 #include "common.hpp"
 #include "time_unit.hpp"
-#if defined(__linux__)
-# if !defined(ARCH_HAS_CLOCK_MONOTONIC_RAW)
-#  include <linux/version.h>
-#  if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,28)
-# define ARCH_HAS_CLOCK_MONOTONIC_RAW
-#endif // LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22)
-#endif // !defined(ARCH_HAS_EVENTFD)
-#endif // defined(linux)
 #include <sys/time.h>
 #include <time.h>
-#ifdef __MACH__
-#include <mach/clock.h>
-#include <mach/mach.h>
-#endif
 namespace ardb
 {
 	void init_timespec(uint64 time, TimeUnit unit, struct timespec& val);
@@ -37,12 +25,6 @@ namespace ardb
 
 	void add_micros(struct timeval& val, uint64 micros);
 	void add_millis(struct timeval& val, uint64 millis);
-
-	//void toTimeval(int64_t time, TimeUnit unit, timeval& val);
-	//int64_t toMicros(int64_t time, TimeUnit unit);
-	//int64_t toMillis(int64_t time, TimeUnit unit);
-	//timeval plusTimeval(const timeval& time1, const timeval& time2);
-
 
 	inline void get_current_epoch_time(struct timeval& val)
 	{
