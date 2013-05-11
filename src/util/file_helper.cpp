@@ -143,14 +143,6 @@ namespace ardb
 		return setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(yes));
 	}
 
-	int get_n_bytes_readable_on_socket(int fd)
-	{
-		int n = 4096;
-		if (ioctl(fd, FIONREAD, &n) < 0)
-			return -1;
-		return n;
-	}
-
 	int file_write_content(const std::string& path, std::string& content)
 	{
 		make_file(path);

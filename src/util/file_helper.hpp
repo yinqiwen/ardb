@@ -23,8 +23,6 @@ namespace ardb
 	int make_fd_blocking(int fd);
 	int make_tcp_nodelay(int fd);
 
-	int get_n_bytes_readable_on_socket(int fd);
-
 	int file_read_full(const std::string& path, Buffer& content);
 	int file_write_content(const std::string& path, std::string& content);
 
