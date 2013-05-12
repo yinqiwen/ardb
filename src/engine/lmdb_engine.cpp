@@ -25,7 +25,6 @@ namespace ardb
 		ParseConfig(props, m_cfg);
 		mdb_env_create(&m_env);
 		mdb_env_set_maxdbs(m_env, m_cfg.max_db);
-		LoadAllDBNames();
 	}
 
 	LMDBEngineFactory::~LMDBEngineFactory()
@@ -231,7 +230,6 @@ namespace ardb
 		MDB_val k, data;
 		k.mv_data = const_cast<char*>(findkey.data());
 		k.mv_size = findkey.size();
-		MDB_txn *txn = NULL;
 		MDB_cursor *cursor = NULL;
 		int rc = 0;
 		BeginBatchWrite();

@@ -253,7 +253,6 @@ namespace ardb
 					int read_write_cmd; //0:read 1:write 2:unknown
 			};
 			typedef btree::btree_map<std::string, RedisCommandHandlerSetting> RedisCommandHandlerSettingTable;
-			typedef btree::btree_set<DBID> DBIDSet;
 
 			typedef btree::btree_map<WatchKey, ContextSet> WatchKeyContextTable;
 			typedef btree::btree_map<std::string, ContextSet> PubSubContextTable;

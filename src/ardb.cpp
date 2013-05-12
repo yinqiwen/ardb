@@ -300,11 +300,14 @@ KeyValueEngine* Ardb::GetDB(const DBID& db)
 	{
 		return found->second;
 	}
+
 	KeyValueEngine* engine = m_engine_factory->CreateDB(db);
 	if (NULL != engine)
 	{
 		engine->id = db;
 		m_engine_table[db] = engine;
+		m_all_dbs.insert(db);
+		StoreDBNames();
 	}
 	return engine;
 }
