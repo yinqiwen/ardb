@@ -1,19 +1,36 @@
 # Ardb
-============================================================
+===================================
 Ardb is a redis-protocol compatible persistent storage server, it support different storage engines. Currently LevelDB/KyotoCabinet/LMDB are supported. 
 
 ## Overview
 TODO
 
+## Features
+- Full redis-protocol compatibel
+- Most redis commands supported
+- Different storage engine supported(LevelDB/KyotoCabinet/LMDB)
+- Replication(Master-Slave/Master-Master)
+- Backup data online
+- Simple Table data structure supported
+
 ## Client API
-Since ardb is a full redis-protocol compatible server, you can use any redis client to connect it.
+Since ardb is a full redis-protocol compatible server, you can use any redis client to connect it. Here lists all redis clients. <http://www.redis.io/clients>
 
 ## Benchmark
-TODO
+All benchmark tests are tested by 'redis-benchmark'.
+
+    Ping: 50 parallel clients, 10000000 requests
+        Ardb:  100432.87 requests per second 
+        Redis: 100294.87 requests per second
+    Set: 50 parallel clients, 10000000 requests
+        ./redis-benchmark -t set -n 10000000 -r 10000000
+        Redis:         88436.88 requests per second
+        Ardb-LevelDB:  70885.79 requests per second
+        Ardb-Kyoto:    35439.25 requests per second
+         
 
 ## Redis COMMAND Supported
-------------------------------------------------------------
-
+------------------------------------------
 * keys:
   - del/exists/expire/expireat
   - pexpire/pexpireat/pttl/rename/renameex
