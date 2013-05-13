@@ -131,6 +131,10 @@ namespace ardb
 			KeyValueEngine* CreateDB(const DBID& db);
 			void DestroyDB(KeyValueEngine* engine);
 			void CloseDB(KeyValueEngine* engine);
+			const std::string GetName()
+			{
+				return "LevelDB";
+			}
 	};
 }
 

@@ -316,9 +316,7 @@ namespace ardb
 		uint32 arraylen = arraysize(settingTable);
 		for (uint32 i = 0; i < arraylen; i++)
 		{
-			{
-				m_handler_table[settingTable[i].name] = settingTable[i];
-			}
+			m_handler_table[settingTable[i].name] = settingTable[i];
 		}
 	}
 	ArdbServer::~ArdbServer()
@@ -585,6 +583,7 @@ namespace ardb
 		std::string info;
 		info.append("# Server\r\n");
 		info.append("ardb_version:").append(ARDB_VERSION).append("\r\n");
+		info.append("engine:").append(m_engine->GetName()).append("\r\n");
 		info.append("# Databases\r\n");
 		DBIDSet dbs;
 		m_db->ListAllDB(dbs);

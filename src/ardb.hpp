@@ -97,6 +97,7 @@ namespace ardb
 
 	struct KeyValueEngineFactory
 	{
+			virtual const std::string GetName() = 0;
 			virtual KeyValueEngine* CreateDB(const DBID& db) = 0;
 			virtual void CloseDB(KeyValueEngine* engine) = 0;
 			virtual void DestroyDB(KeyValueEngine* engine) = 0;
