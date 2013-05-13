@@ -12,7 +12,7 @@
 #include <fnmatch.h>
 #include <sstream>
 //#define __USE_KYOTOCABINET__ 1
-//#define __USE_LMDB__ 1
+#define __USE_LMDB__ 1
 #ifdef __USE_KYOTOCABINET__
 #include "engine/kyotocabinet_engine.hpp"
 typedef ardb::KCDBEngineFactory SelectedDBEngineFactory;

@@ -27,6 +27,7 @@ All benchmark tests are tested by 'redis-benchmark'.
         Redis:         88436.88 requests per second
         Ardb-LevelDB:  70885.79 requests per second
         Ardb-Kyoto:    35439.25 requests per second
+        Ardb-LMDB:     44725.12 requests per second
          
 
 ## Redis COMMAND Supported

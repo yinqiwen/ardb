@@ -17,13 +17,14 @@ namespace ardb
 	static int LMDBCompareFunc(const MDB_val *a, const MDB_val *b)
 	{
 		return ardb_compare_keys((const char*) a->mv_data, a->mv_size,
-		        (const char*) b->mv_data, b->mv_size);
+				(const char*) b->mv_data, b->mv_size);
 	}
 	LMDBEngineFactory::LMDBEngineFactory(const Properties& props) :
 			m_env(NULL), m_env_opened(false)
 	{
 		ParseConfig(props, m_cfg);
 		mdb_env_create(&m_env);
+		mdb_env_set_mapsize(m_env, 100000000 * 100 * 32L / 10);
 		mdb_env_set_maxdbs(m_env, m_cfg.max_db);
 	}
 
@@ -33,7 +34,7 @@ namespace ardb
 	}
 
 	void LMDBEngineFactory::ParseConfig(const Properties& props,
-	        LMDBConfig& cfg)
+			LMDBConfig& cfg)
 	{
 		cfg.path = ".";
 		conf_get_string(props, "dir", cfg.path);
@@ -43,7 +44,8 @@ namespace ardb
 		if (!m_env_opened)
 		{
 			make_dir(m_cfg.path);
-			int rc = mdb_env_open(m_env, m_cfg.path.c_str(), 0, 0664);
+			int env_opt = MDB_NOSYNC | MDB_NOMETASYNC | MDB_NOMETASYNC;
+			int rc = mdb_env_open(m_env, m_cfg.path.c_str(),env_opt, 0664);
 			if (rc != 0)
 			{
 				ERROR_LOG("Failed to open mdb:%s\n", mdb_strerror(rc));
@@ -58,7 +60,7 @@ namespace ardb
 			return NULL;
 		}
 		DEBUG_LOG(
-		        "Create DB:%s at path:%s success", db.c_str(), cfg.path.c_str());
+				"Create DB:%s at path:%s success", db.c_str(), cfg.path.c_str());
 		return engine;
 	}
 
@@ -78,7 +80,7 @@ namespace ardb
 	}
 
 	LMDBEngine::LMDBEngine() :
-			m_env(NULL), m_dbi(0), m_txn(NULL)
+			m_env(NULL), m_dbi(0), m_txn(NULL), m_batch_size(0)
 	{
 
 	}
@@ -119,11 +121,26 @@ namespace ardb
 		if (rc != 0)
 		{
 			ERROR_LOG(
-			        "Failed to open mdb:%s for reason:%s\n", db.c_str(), mdb_strerror(rc));
+					"Failed to open mdb:%s for reason:%s\n", db.c_str(), mdb_strerror(rc));
 			return -1;
 		}
 		mdb_set_compare(txn, m_dbi, LMDBCompareFunc);
 		mdb_txn_commit(txn);
+		return 0;
+	}
+
+	int LMDBEngine::FlushWriteBatch()
+	{
+		if (m_batch_size > 0)
+		{
+			int n = mdb_txn_commit(m_txn);
+			if (n != 0)
+			{
+				ERROR_LOG("Failed to commit since :%s", mdb_strerror(n));
+			}
+			mdb_txn_begin(m_env, NULL, 0, &m_txn);
+			m_batch_size = 0;
+		}
 		return 0;
 	}
 
@@ -146,6 +163,7 @@ namespace ardb
 		{
 			mdb_txn_commit(m_txn);
 			m_txn = NULL;
+			m_batch_size = 0;
 		}
 		return 0;
 	}
@@ -160,6 +178,7 @@ namespace ardb
 			mdb_txn_abort(m_txn);
 			m_txn = NULL;
 		}
+		m_batch_size = 0;
 		return 0;
 	}
 
@@ -173,8 +192,12 @@ namespace ardb
 		if (NULL != m_txn)
 		{
 			mdb_put(m_txn, m_dbi, &k, &v, 0);
-		}
-		else
+			m_batch_size++;
+			if (m_batch_size >= 50)
+			{
+				FlushWriteBatch();
+			}
+		} else
 		{
 			MDB_txn *txn = NULL;
 			mdb_txn_begin(m_env, NULL, 0, &txn);
@@ -192,8 +215,7 @@ namespace ardb
 		if (NULL != m_txn)
 		{
 			rc = mdb_get(m_txn, m_dbi, &k, &v);
-		}
-		else
+		} else
 		{
 			MDB_txn *txn = NULL;
 			mdb_txn_begin(m_env, NULL, 0, &txn);
@@ -214,8 +236,12 @@ namespace ardb
 		if (NULL != m_txn)
 		{
 			mdb_del(m_txn, m_dbi, &k, NULL);
-		}
-		else
+			m_batch_size++;
+			if (m_batch_size >= 50)
+			{
+				FlushWriteBatch();
+			}
+		} else
 		{
 			MDB_txn *txn;
 			mdb_txn_begin(m_env, NULL, 0, &txn);

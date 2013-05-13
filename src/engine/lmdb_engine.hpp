@@ -62,6 +62,7 @@ namespace ardb
 			MDB_env *m_env;
 			MDB_dbi m_dbi;
 			MDB_txn *m_txn;
+			uint32 m_batch_size;
 			std::stack<bool> m_batch_stack;
 			std::string m_db_path;
 

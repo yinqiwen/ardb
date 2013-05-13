@@ -12,7 +12,7 @@ KCDB_PATH=../deps/kyotocabinet-1.2.76
 LMDB_PATH=../deps/mdb/libraries/liblmdb
 JEMALLOC_PATH=../deps/jemalloc-3.3.1
 
-CXXFLAGS=-Wall -Wno-format -g  -D_FILE_OFFSET_BITS=64 -fPIC
+CXXFLAGS=-Wall -Wno-format -g -O2  -D_FILE_OFFSET_BITS=64 -fPIC
 CCFLAGS=-Wall -std=gnu99 -O2 -pedantic -Wno-format -g -D_FILE_OFFSET_BITS=64 -fPIC
 LDFLAGS=-g 
 
