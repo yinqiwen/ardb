@@ -119,9 +119,9 @@ namespace ardb
 		conf_get_int64(props, "slowlog-log-slower-than",
 		        cfg.slowlog_log_slower_than);
 		conf_get_int64(props, "slowlog-max-len", cfg.slowlog_max_len);
-		conf_get_int64(props, "batch_flush_period", cfg.batch_flush_period);
+		conf_get_int64(props, "auto_batch_flush_period", cfg.batch_flush_period);
 		std::string on = "on";
-		conf_get_string(props, "batch_write_enable", on);
+		conf_get_string(props, "auto_batch_write_enable", on);
 		cfg.batch_write_enable = on == "on";
 		conf_get_int64(props, "maxclients", cfg.max_clients);
 		conf_get_string(props, "bind", cfg.listen_host);
@@ -2373,6 +2373,23 @@ namespace ardb
 		return NULL;
 	}
 
+	static bool is_sort_write_cmd(RedisCommandFrame& cmd)
+	{
+		if (cmd.GetCommand() == "sort")
+		{
+			ArgumentArray::iterator it = cmd.GetArguments().begin();
+			while (it != cmd.GetArguments().end())
+			{
+				if (*it == "store")
+				{
+					return true;
+				}
+				it++;
+			}
+		}
+		return false;
+	}
+
 	void ArdbServer::ProcessRedisCommand(ArdbConnContext& ctx,
 	        RedisCommandFrame& args)
 	{
@@ -2385,6 +2402,15 @@ namespace ardb
 		int ret = 0;
 		if (NULL != setting)
 		{
+			/**
+			 * Return error if ardb is saving data
+			 */
+			if(setting->read_write_cmd == 1 || (setting->read_write_cmd == 2 && is_sort_write_cmd(args)))
+			{
+				fill_error_reply(ctx.reply, "ERR server is saving data");
+				goto _exit;
+			}
+
 			bool valid_cmd = true;
 			if (setting->min_arity > 0)
 			{
@@ -2434,6 +2460,8 @@ namespace ardb
 			fill_error_reply(ctx.reply, "ERR unknown command '%s'",
 			        cmd.c_str());
 		}
+
+		_exit:
 		if (ctx.reply.type != 0)
 		{
 			ctx.conn->Write(ctx.reply);
@@ -2445,22 +2473,7 @@ namespace ardb
 		}
 	}
 
-	static bool is_sort_write_cmd(RedisCommandFrame& cmd)
-	{
-		if (cmd.GetCommand() == "sort")
-		{
-			ArgumentArray::iterator it = cmd.GetArguments().begin();
-			while (it != cmd.GetArguments().end())
-			{
-				if (*it == "store")
-				{
-					return true;
-				}
-				it++;
-			}
-		}
-		return false;
-	}
+
 
 	int ArdbServer::DoRedisCommand(ArdbConnContext& ctx,
 	        RedisCommandHandlerSetting* setting, RedisCommandFrame& args)

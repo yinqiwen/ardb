@@ -14,12 +14,6 @@ namespace ardb
 	int Ardb::GetValue(const DBID& db, const KeyObject& key, ValueObject* v,
 			uint64* expire)
 	{
-//		if(NULL != v)
-//		{
-//			v->type = INTEGER;
-//			v->v.int_v = 123;
-//		}
-//		return ARDB_OK;
 		Buffer keybuf(key.key.size() + 16);
 		encode_key(keybuf, key);
 		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
