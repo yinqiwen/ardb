@@ -18,7 +18,7 @@ LDFLAGS=-g
 
 INCS=-I./ -I./util -I${LEVELDB_PATH}/include -I${KCDB_PATH} -I${LMDB_PATH} -I../deps/cpp-btree 
 
-LIBS= ${SNAPPY_PATH}/.libs/libsnappy.a -lpthread
+LIBS= ${SNAPPY_PATH}/.libs/libsnappy.a ${JEMALLOC_PATH}/lib/libjemalloc.a -lpthread
 
 %.o : %.cpp
 	${CXX} -c ${CXXFLAGS} ${INCS} $< -o $@
@@ -66,7 +66,7 @@ lib:$(DIST_LIBA)
 server:$(SERVER_OBJECTS) $(CORE_OBJECTS) $(CHANNEL_OBJECTS)
 
 leveldb:server $(LEVELDB_ENGINE)
-	${CXX} -o ardb-server $(SERVER_OBJECTS) $(LEVELDB_ENGINE) $(CORE_OBJECTS) $(CHANNEL_OBJECTS) $(LIBS) $(LEVELDB_PATH)/libleveldb.a 
+	${CXX} -o ardb-server $(SERVER_OBJECTS) $(LEVELDB_ENGINE) $(CORE_OBJECTS) $(CHANNEL_OBJECTS) $(LEVELDB_PATH)/libleveldb.a $(LIBS)  
 
 kcdb:server $(KCDB_ENGINE)
 	${CXX} -o ardb-server $(SERVER_OBJECTS) $(KCDB_ENGINE) $(CORE_OBJECTS) $(CHANNEL_OBJECTS) $(LIBS) -L/usr/local/lib -lkyotocabinet -lz

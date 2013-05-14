@@ -17,17 +17,16 @@ TODO
 Since ardb is a full redis-protocol compatible server, you can use any redis client to connect it. Here lists all redis clients. <http://www.redis.io/clients>
 
 ## Benchmark
-All benchmark tests are tested by 'redis-benchmark'.
+Benchmarks were all performed on a four-core Intel(R) Xeon(R) CPU X3440 @ 2.53GHz, with 8 GB of DDR3 RAM.
+The benchmark tool is 'redis-benchmark' from redis.
 
     Ping: 50 parallel clients, 10000000 requests
-        Ardb:  100432.87 requests per second 
-        Redis: 100294.87 requests per second
+        Ardb:  161759.95 requests per second 
+        Redis: 158914.30 requests per second
     Set: 50 parallel clients, 10000000 requests
         ./redis-benchmark -t set -n 10000000 -r 10000000
-        Redis:         88436.88 requests per second
-        Ardb-LevelDB:  70885.79 requests per second
-        Ardb-Kyoto:    35439.25 requests per second
-        Ardb-LMDB:     44725.12 requests per second
+        Redis:         146515.86 requests per second
+        Ardb-LevelDB:  62638.98 requests per second
          
 
 ## Redis COMMAND Supported
@@ -75,6 +74,7 @@ All benchmark tests are tested by 'redis-benchmark'.
   - sdiff/sdiffstore
   - sinter/sinterstore
   - sunion/sunionstore
+  - sintercount/suinioncount/sdiffcount
   - sismember/smembers
   - smove/srem
   
