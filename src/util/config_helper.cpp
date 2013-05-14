@@ -62,7 +62,26 @@ namespace ardb
 		{
 			return ignore_nonexist;
 		}
-		return string_toint64(found->second, value);
+		if (string_toint64(found->second, value))
+		{
+			return true;
+		}
+		std::string size_str = string_toupper(found->second);
+		value = atoll(size_str.c_str());
+		if (size_str.find("M") == (size_str.size() - 1))
+		{
+			value *= (1024 * 1024); // convert to megabytes
+		} else if (size_str.find("G") == (size_str.size() - 1))
+		{
+			value *= (1024 * 1024 * 1024); // convert to kilobytes
+		} else if (size_str.find("K") == (size_str.size() - 1))
+		{
+			value *= 1024; // convert to kilobytes
+		} else
+		{
+			return false;
+		}
+		return true;
 	}
 	bool conf_get_string(const Properties& conf, const std::string& name,
 			std::string& value, bool ignore_nonexist)

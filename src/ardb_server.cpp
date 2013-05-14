@@ -12,7 +12,7 @@
 #include <fnmatch.h>
 #include <sstream>
 //#define __USE_KYOTOCABINET__ 1
-#define __USE_LMDB__ 1
+//#define __USE_LMDB__ 1
 #ifdef __USE_KYOTOCABINET__
 #include "engine/kyotocabinet_engine.hpp"
 typedef ardb::KCDBEngineFactory SelectedDBEngineFactory;
@@ -2405,12 +2405,14 @@ namespace ardb
 			/**
 			 * Return error if ardb is saving data
 			 */
-			if(setting->read_write_cmd == 1 || (setting->read_write_cmd == 2 && is_sort_write_cmd(args)))
+			if(m_repli_serv.IsSavingData())
 			{
-				fill_error_reply(ctx.reply, "ERR server is saving data");
-				goto _exit;
+				if(setting->read_write_cmd == 1 || (setting->read_write_cmd == 2 && is_sort_write_cmd(args)))
+				{
+					fill_error_reply(ctx.reply, "ERR server is saving data");
+					goto _exit;
+				}
 			}
-
 			bool valid_cmd = true;
 			if (setting->min_arity > 0)
 			{
@@ -2500,8 +2502,8 @@ namespace ardb
 		        && (stop_time - start_time) > m_cfg.slowlog_log_slower_than)
 		{
 			m_slowlog_handler.PushSlowCommand(args, stop_time - start_time);
-			INFO_LOG(
-			        "Cost %lldus to exec %s", (stop_time-start_time), cmd.c_str());
+			//INFO_LOG(
+			//        "Cost %lldus to exec %s", (stop_time-start_time), cmd.c_str());
 		}
 		return ret;
 	}
