@@ -311,8 +311,8 @@ namespace ardb
 			}
 			else if (v.type == DOUBLE)
 			{
-				double min = -4503599627370495; /* (2^52)-1 */
-				double max = 4503599627370496; /* -(2^52) */
+				double min = -4503599627370495LL; /* (2^52)-1 */
+				double max = 4503599627370496LL; /* -(2^52) */
 				iv = (int64_t) dv;
 				if (dv > min && dv < max && dv == ((double) iv))
 				{

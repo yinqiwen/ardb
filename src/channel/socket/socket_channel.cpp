@@ -50,7 +50,7 @@ bool SocketChannel::DoConfigure(const ChannelOptions& options)
 
 	int flag = 1;
 	if (options.tcp_nodelay
-	        && (setsockopt(m_fd, SOL_SOCKET, TCP_NODELAY, &flag, sizeof(flag))
+	        && (setsockopt(m_fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag))
 	                < 0))
 	{
 		WARN_LOG("init_sock_opt: could not disable Nagle: %s", strerror(errno));

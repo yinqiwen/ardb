@@ -106,8 +106,8 @@ namespace ardb
 
 	inline std::string double_tostring(double d)
 	{
-		double min = -4503599627370495; /* (2^52)-1 */
-		double max = 4503599627370496; /* -(2^52) */
+		double min = -4503599627370495LL; /* (2^52)-1 */
+		double max = 4503599627370496LL; /* -(2^52) */
 		int64_t iv = (int64_t) d;
 		if (d > min && d < max && d == ((double) iv))
 		{
