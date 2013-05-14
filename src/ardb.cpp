@@ -79,8 +79,8 @@ namespace ardb
 			case ZSET_ELEMENT:
 			{
 				double ascore, bscore;
-				found_a = BufferHelper::ReadVarDouble(ak_buf, ascore);
-				found_b = BufferHelper::ReadVarDouble(bk_buf, bscore);
+				found_a = BufferHelper::ReadFixDouble(ak_buf, ascore);
+				found_b = BufferHelper::ReadFixDouble(bk_buf, bscore);
 				ret = COMPARE_NUMBER(ascore, bscore);
 				if (ret == 0)
 				{

@@ -216,6 +216,17 @@ namespace ardb
 		return 0;
 	}
 
+	int Ardb::SDiffCount(const DBID& db, SliceArray& keys, uint32& count)
+	{
+		ValueSet cs;
+		int ret = SDiff(db, keys, cs);
+		if(ret == 0)
+		{
+			count = cs.size();
+		}
+		return ret;
+	}
+
 	int Ardb::SDiff(const DBID& db, SliceArray& keys, ValueSet& values)
 	{
 		if (keys.size() < 2)
@@ -339,6 +350,17 @@ namespace ardb
 		}
 		return 0;
 
+	}
+
+	int Ardb::SInterCount(const DBID& db, SliceArray& keys, uint32& count)
+	{
+		ValueSet vs;
+		int ret = SInter(db, keys, vs);
+		if(ret == 0)
+		{
+			count = vs.size();
+		}
+		return ret;
 	}
 
 	int Ardb::SInter(const DBID& db, SliceArray& keys, ValueSet& values)
@@ -573,6 +595,17 @@ namespace ardb
 			values.push_back(values.front());
 		}
 		return 0;
+	}
+
+	int Ardb::SUnionCount(const DBID& db, SliceArray& keys, uint32& count)
+	{
+		ValueSet cs;
+		int ret = SUnion(db, keys, cs);
+		if(ret == 0)
+		{
+			count = cs.size();
+		}
+		return ret;
 	}
 
 	int Ardb::SUnion(const DBID& db, SliceArray& keys, ValueSet& values)

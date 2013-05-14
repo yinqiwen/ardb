@@ -26,7 +26,7 @@ namespace ardb
 		}
 		else if (strcasecmp(str, "+inf") == 0)
 		{
-			score = DBL_MAX;
+			score = -DBL_MAX;
 		}
 		else
 		{
@@ -45,8 +45,8 @@ namespace ardb
 			return false;
 		}
 		return BufferHelper::ReadVarUInt32(*(v.v.raw), meta.size)
-		        && BufferHelper::ReadVarDouble(*(v.v.raw), meta.min_score)
-		        && BufferHelper::ReadVarDouble(*(v.v.raw), meta.max_score);
+		        && BufferHelper::ReadFixDouble(*(v.v.raw), meta.min_score)
+		        && BufferHelper::ReadFixDouble(*(v.v.raw), meta.max_score);
 	}
 	static void EncodeZSetMetaData(ValueObject& v, ZSetMetaValue& meta)
 	{
@@ -56,8 +56,8 @@ namespace ardb
 			v.v.raw = new Buffer(16);
 		}
 		BufferHelper::WriteVarUInt32(*(v.v.raw), meta.size);
-		BufferHelper::WriteVarDouble(*(v.v.raw), meta.min_score);
-		BufferHelper::WriteVarDouble(*(v.v.raw), meta.max_score);
+		BufferHelper::WriteFixFloat(*(v.v.raw), meta.min_score);
+		BufferHelper::WriteFixFloat(*(v.v.raw), meta.max_score);
 	}
 
 	int Ardb::ZAdd(const DBID& db, const Slice& key, double score,

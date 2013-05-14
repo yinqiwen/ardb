@@ -32,14 +32,14 @@ namespace ardb
 	}
 
 	Condition::Condition(const std::string& name, CompareOperator compareop,
-	        const Slice& value, LogicalOperator logic) :
+			const Slice& value, LogicalOperator logic) :
 			keyname(name), cmp(compareop), logicop(logic)
 	{
 		smart_fill_value(value, keyvalue);
 	}
 
 	TableIndexKeyObject::TableIndexKeyObject(const Slice& tablename,
-	        const Slice& keyname, const Slice& v) :
+			const Slice& keyname, const Slice& v) :
 			KeyObject(tablename, TABLE_INDEX), kname(keyname)
 	{
 		smart_fill_value(v, keyvalue);
@@ -120,7 +120,7 @@ namespace ardb
 			case TABLE_INDEX:
 			{
 				const TableIndexKeyObject& index =
-				        (const TableIndexKeyObject&) key;
+						(const TableIndexKeyObject&) key;
 				BufferHelper::WriteVarSlice(buf, index.kname);
 				encode_value(buf, index.keyvalue);
 				BufferHelper::WriteVarUInt32(buf, index.index.keyvals.size());
@@ -204,8 +204,8 @@ namespace ardb
 			{
 				ZSetKeyObject* zsk = new ZSetKeyObject(keystr, Slice(), 0);
 				double score;
-				if (!BufferHelper::ReadVarDouble(buf, score)
-				        || !decode_value(buf, zsk->value))
+				if (!BufferHelper::ReadFixDouble(buf, score)
+						|| !decode_value(buf, zsk->value))
 				{
 					DELETE(zsk);
 					return NULL;
@@ -216,7 +216,7 @@ namespace ardb
 			case ZSET_ELEMENT_SCORE:
 			{
 				ZSetScoreKeyObject* zsk = new ZSetScoreKeyObject(keystr,
-				        Slice());
+						Slice());
 				if (!decode_value(buf, zsk->value))
 				{
 					DELETE(zsk);
@@ -232,7 +232,7 @@ namespace ardb
 					return NULL;
 				}
 				TableIndexKeyObject* ik = new TableIndexKeyObject(keystr, kname,
-				        ValueObject());
+						ValueObject());
 				if (!decode_value(buf, ik->keyvalue))
 				{
 					DELETE(ik);
@@ -308,8 +308,7 @@ namespace ardb
 			if (v.type == INTEGER)
 			{
 				v.v.raw->Printf("%lld", iv);
-			}
-			else if (v.type == DOUBLE)
+			} else if (v.type == DOUBLE)
 			{
 				double min = -4503599627370495LL; /* (2^52)-1 */
 				double max = 4503599627370496LL; /* -(2^52) */
@@ -317,8 +316,7 @@ namespace ardb
 				if (dv > min && dv < max && dv == ((double) iv))
 				{
 					v.v.raw->Printf("%lld", iv);
-				}
-				else
+				} else
 				{
 					v.v.raw->Printf("%.17g", dv);
 				}
@@ -341,15 +339,14 @@ namespace ardb
 		int64_t intv;
 		double dv;
 		if (raw_toint64(v.v.raw->GetRawReadBuffer(), v.v.raw->ReadableBytes(),
-		        intv))
+				intv))
 		{
 			v.Clear();
 			v.type = INTEGER;
 			v.v.int_v = intv;
 			return 1;
-		}
-		else if (raw_todouble(v.v.raw->GetRawReadBuffer(),
-		        v.v.raw->ReadableBytes(), dv))
+		} else if (raw_todouble(v.v.raw->GetRawReadBuffer(),
+				v.v.raw->ReadableBytes(), dv))
 		{
 			v.Clear();
 			v.type = DOUBLE;
@@ -375,7 +372,7 @@ namespace ardb
 			}
 			case DOUBLE:
 			{
-				BufferHelper::WriteVarDouble(buf, value.v.double_v);
+				BufferHelper::WriteFixDouble(buf, value.v.double_v);
 				break;
 			}
 			default:
@@ -383,21 +380,16 @@ namespace ardb
 				if (NULL != value.v.raw)
 				{
 					BufferHelper::WriteVarUInt32(buf,
-					        value.v.raw->ReadableBytes());
+							value.v.raw->ReadableBytes());
 					buf.Write(value.v.raw->GetRawReadBuffer(),
-					        value.v.raw->ReadableBytes());
-				}
-				else
+							value.v.raw->ReadableBytes());
+				} else
 				{
 					BufferHelper::WriteVarInt64(buf, 0);
 				}
 				break;
 			}
 		}
-//		if (value.expire > 0)
-//		{
-//			BufferHelper::WriteVarUInt64(buf, value.expire);
-//		}
 	}
 
 	bool decode_value(Buffer& buf, ValueObject& value, bool copyRawValue)
@@ -423,7 +415,7 @@ namespace ardb
 			}
 			case DOUBLE:
 			{
-				if (!BufferHelper::ReadVarDouble(buf, value.v.double_v))
+				if (!BufferHelper::ReadFixDouble(buf, value.v.double_v))
 				{
 					return false;
 				}
@@ -433,7 +425,7 @@ namespace ardb
 			{
 				uint32_t len;
 				if (!BufferHelper::ReadVarUInt32(buf, len)
-				        || buf.ReadableBytes() < len)
+						|| buf.ReadableBytes() < len)
 				{
 					return false;
 				}
@@ -442,8 +434,7 @@ namespace ardb
 				{
 					value.v.raw = new Buffer(len);
 					buf.Read(value.v.raw, len);
-				}
-				else
+				} else
 				{
 					const char* tmp = buf.GetRawReadBuffer();
 					value.v.raw = new Buffer(const_cast<char*>(tmp), 0, len);
@@ -452,8 +443,6 @@ namespace ardb
 				break;
 			}
 		}
-//		value.expire = 0;
-//		BufferHelper::ReadVarUInt64(buf, value.expire);
 		return true;
 	}
 	void smart_fill_value(const Slice& value, ValueObject& valueobject)
@@ -465,22 +454,31 @@ namespace ardb
 		}
 		int64_t intv;
 		double doublev;
-		if (raw_toint64(value.data(), value.size(), intv))
-		{
-			valueobject.type = INTEGER;
-			valueobject.v.int_v = intv;
-		}
-		else if (raw_todouble(value.data(), value.size(), doublev))
-		{
-			valueobject.type = DOUBLE;
-			valueobject.v.double_v = doublev;
-		}
-		else
+		char first_char = value.data()[0];
+		if (first_char != '+' && value.data()[0] != '-'
+				&& (first_char < '0' || first_char > '9'))
 		{
 			valueobject.type = RAW;
 			char* v = const_cast<char*>(value.data());
 			valueobject.v.raw = new Buffer(v, 0, value.size());
+		} else
+		{
+			if (raw_toint64(value.data(), value.size(), intv))
+			{
+				valueobject.type = INTEGER;
+				valueobject.v.int_v = intv;
+			} else if (raw_todouble(value.data(), value.size(), doublev))
+			{
+				valueobject.type = DOUBLE;
+				valueobject.v.double_v = doublev;
+			} else
+			{
+				valueobject.type = RAW;
+				char* v = const_cast<char*>(value.data());
+				valueobject.v.raw = new Buffer(v, 0, value.size());
+			}
 		}
+
 	}
 	void fill_raw_value(const Slice& value, ValueObject& valueobject)
 	{

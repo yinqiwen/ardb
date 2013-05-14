@@ -391,6 +391,9 @@ namespace ardb
 			int SRem(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int SUnion(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int SUnionStore(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int SUnionCount(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int SInterCount(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int SDiffCount(ArdbConnContext& ctx, ArgumentArray& cmd);
 
 			int ZAdd(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int ZCard(ArdbConnContext& ctx, ArgumentArray& cmd);

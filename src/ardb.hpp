@@ -369,8 +369,10 @@ namespace ardb
 			int SCard(const DBID& db, const Slice& key);
 			int SMembers(const DBID& db, const Slice& key, ValueArray& values);
 			int SDiff(const DBID& db, SliceArray& keys, ValueSet& values);
+			int SDiffCount(const DBID& db, SliceArray& keys, uint32& count);
 			int SDiffStore(const DBID& db, const Slice& dst, SliceArray& keys);
 			int SInter(const DBID& db, SliceArray& keys, ValueSet& values);
+			int SInterCount(const DBID& db, SliceArray& keys, uint32& count);
 			int SInterStore(const DBID& db, const Slice& dst, SliceArray& keys);
 			bool SIsMember(const DBID& db, const Slice& key,
 					const Slice& value);
@@ -382,6 +384,7 @@ namespace ardb
 			int SPop(const DBID& db, const Slice& key, std::string& value);
 			int SRandMember(const DBID& db, const Slice& key,
 					ValueArray& values, int count = 1);
+			int SUnionCount(const DBID& db, SliceArray& keys, uint32& count);
 			int SUnion(const DBID& db, SliceArray& keys, ValueSet& values);
 			int SUnionStore(const DBID& db, const Slice& dst, SliceArray& keys);
 			int SClear(const DBID& db, const Slice& key);
