@@ -165,7 +165,7 @@ namespace ardb
 			int SetHashValue(const DBID& db, const Slice& key,
 					const Slice& field, ValueObject& value);
 			int ListPush(const DBID& db, const Slice& key, const Slice& value,
-					bool athead, bool onlyexist, double withscore = DBL_MAX);
+					bool athead, bool onlyexist, float withscore = FLT_MAX);
 			int ListPop(const DBID& db, const Slice& key, bool athead,
 					std::string& value);
 			int GetListMetaValue(const DBID& db, const Slice& key,

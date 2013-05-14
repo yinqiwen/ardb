@@ -127,6 +127,22 @@ namespace ardb
 		return true;
 	}
 
+	bool BufferHelper::ReadFixFloat(Buffer& buffer, float& i, bool fromNetwork)
+	{
+		union
+		{
+				float d;
+				uint32_t ull;
+		} u;
+
+		if (!ReadFixUInt32(buffer, u.ull, fromNetwork))
+		{
+			return false;
+		}
+		i = u.d;
+		return true;
+	}
+
 	bool BufferHelper::ReadFixUInt16(Buffer& buffer, uint16_t& i,
 			bool fromNetwork)
 	{
@@ -409,6 +425,17 @@ namespace ardb
 	{
 		uint32_t u = i;
 		return WriteFixUInt32(buffer, u, toNetwork);
+	}
+
+	bool BufferHelper::WriteFixFloat(Buffer& buffer, float i, bool toNetwork)
+	{
+		union
+		{
+				float d;
+				uint32_t ul;
+		} u;
+		u.d = i;
+		return WriteFixUInt32(buffer, u.ul, toNetwork);
 	}
 
 	bool BufferHelper::WriteFixUInt8(Buffer& buffer, uint8_t i)

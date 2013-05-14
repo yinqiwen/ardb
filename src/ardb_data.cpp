@@ -95,7 +95,7 @@ namespace ardb
 			case LIST_ELEMENT:
 			{
 				const ListKeyObject& lk = (const ListKeyObject&) key;
-				BufferHelper::WriteVarDouble(buf, lk.score);
+				BufferHelper::WriteFixFloat(buf, lk.score);
 				break;
 			}
 			case SET_ELEMENT:
@@ -182,8 +182,8 @@ namespace ardb
 			}
 			case LIST_ELEMENT:
 			{
-				double score;
-				if (!BufferHelper::ReadVarDouble(buf, score))
+				float score;
+				if (!BufferHelper::ReadFixFloat(buf, score))
 				{
 					return NULL;
 				}

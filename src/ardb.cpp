@@ -58,9 +58,9 @@ namespace ardb
 			}
 			case LIST_ELEMENT:
 			{
-				double ascore, bscore;
-				found_a = BufferHelper::ReadVarDouble(ak_buf, ascore);
-				found_b = BufferHelper::ReadVarDouble(bk_buf, bscore);
+				float ascore, bscore;
+				found_a = BufferHelper::ReadFixFloat(ak_buf, ascore);
+				found_b = BufferHelper::ReadFixFloat(bk_buf, bscore);
 				COMPARE_EXIST(found_a, found_b);
 				ret = COMPARE_NUMBER(ascore, bscore);
 				break;

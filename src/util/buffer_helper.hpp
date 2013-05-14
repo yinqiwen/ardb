@@ -35,6 +35,8 @@ namespace ardb
 			        bool fromNetwork = true);
 			static bool ReadFixString(Buffer& buffer, char*& str,
 			        bool fromNetwork = true);
+			static bool ReadFixFloat(Buffer& buffer, float& i,
+						        bool fromNetwork = true);
 
 			static bool ReadVarDouble(Buffer& buffer, double& i);
 			static bool ReadVarUInt64(Buffer& buffer, uint64_t& i);
@@ -60,11 +62,14 @@ namespace ardb
 			        bool toNetwork = true);
 			static bool WriteFixUInt16(Buffer& buffer, uint16_t i,
 			        bool toNetwork = true);
+			static bool WriteFixFloat(Buffer& buffer, float i,
+						        bool toNetwork = true);
 
 			static bool WriteFixInt16(Buffer& buffer, int16_t i,
 			        bool toNetwork = true);
 			static bool WriteFixUInt8(Buffer& buffer, uint8_t i);
 			static bool WriteFixInt8(Buffer& buffer, int8_t i);
+
 			static bool WriteFixString(Buffer& buffer, const string& str,
 			        bool toNetwork = true);
 			static bool WriteFixString(Buffer& buffer, const char* str,

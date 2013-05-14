@@ -15,8 +15,8 @@ namespace ardb
 			return false;
 		}
 		return BufferHelper::ReadVarUInt32(*(v.v.raw), meta.size)
-				&& BufferHelper::ReadVarDouble(*(v.v.raw), meta.min_score)
-				&& BufferHelper::ReadVarDouble(*(v.v.raw), meta.max_score);
+				&& BufferHelper::ReadFixFloat(*(v.v.raw), meta.min_score)
+				&& BufferHelper::ReadFixFloat(*(v.v.raw), meta.max_score);
 	}
 	static void EncodeListMetaData(ValueObject& v, ListMetaValue& meta)
 	{
@@ -26,8 +26,8 @@ namespace ardb
 			v.v.raw = new Buffer(16);
 		}
 		BufferHelper::WriteVarUInt32(*(v.v.raw), meta.size);
-		BufferHelper::WriteVarDouble(*(v.v.raw), meta.min_score);
-		BufferHelper::WriteVarDouble(*(v.v.raw), meta.max_score);
+		BufferHelper::WriteFixFloat(*(v.v.raw), meta.min_score);
+		BufferHelper::WriteFixFloat(*(v.v.raw), meta.max_score);
 	}
 
 	int Ardb::GetListMetaValue(const DBID& db, const Slice& key,
@@ -57,12 +57,12 @@ namespace ardb
 	}
 
 	int Ardb::ListPush(const DBID& db, const Slice& key, const Slice& value,
-			bool athead, bool onlyexist, double withscore)
+			bool athead, bool onlyexist, float withscore)
 	{
 		KeyObject k(key, LIST_META);
 		ValueObject v;
 		ListMetaValue meta;
-		double score = withscore != DBL_MAX ? withscore : 0;
+		float score = withscore != FLT_MAX ? withscore : 0;
 		if (0 == GetValue(db, k, &v))
 		{
 			if (!DecodeListMetaData(v, meta))
@@ -70,7 +70,7 @@ namespace ardb
 				return ERR_INVALID_TYPE;
 			}
 			meta.size++;
-			if (withscore != DBL_MAX)
+			if (withscore != FLT_MAX)
 			{
 				score = withscore;
 				if (score < meta.min_score)
@@ -146,12 +146,12 @@ namespace ardb
 		{
 			return ERR_INVALID_OPERATION;
 		}
-		ListKeyObject lk(key, -DBL_MAX);
+		ListKeyObject lk(key, -FLT_MAX);
 		struct LInsertWalk: public WalkHandler
 		{
 				bool before_pivot;
-				double pivot_score;
-				double next_score;
+				float pivot_score;
+				float next_score;
 				bool found;
 				const Slice& cmp_value;
 				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
@@ -183,8 +183,8 @@ namespace ardb
 					return 0;
 				}
 				LInsertWalk(bool flag, const Slice& value) :
-						before_pivot(flag), pivot_score(-DBL_MAX), next_score(
-								-DBL_MAX), found(false), cmp_value(value)
+						before_pivot(flag), pivot_score(-FLT_MAX), next_score(
+								-FLT_MAX), found(false), cmp_value(value)
 				{
 				}
 		} walk(before, pivot);
@@ -193,8 +193,8 @@ namespace ardb
 		{
 			return ERR_NOT_EXIST;
 		}
-		double score = 0;
-		if (walk.next_score != -DBL_MAX)
+		float score = 0;
+		if (walk.next_score != -FLT_MAX)
 		{
 			score = (walk.next_score + walk.pivot_score) / 2;
 		} else
@@ -216,7 +216,7 @@ namespace ardb
 		KeyObject k(key, LIST_META);
 		ValueObject v;
 		ListMetaValue meta;
-		double score;
+		float score;
 		if (0 == GetValue(db, k, &v))
 		{
 			if (!DecodeListMetaData(v, meta))
@@ -299,12 +299,12 @@ namespace ardb
 	int Ardb::LIndex(const DBID& db, const Slice& key, int index,
 			std::string& v)
 	{
-		ListKeyObject lk(key, -DBL_MAX);
+		ListKeyObject lk(key, -FLT_MAX);
 		bool reverse = false;
 		if (index < 0)
 		{
 			index = 0 - index;
-			lk.score = DBL_MAX;
+			lk.score = FLT_MAX;
 			reverse = true;
 		}
 		struct LIndexWalk: public WalkHandler
@@ -395,7 +395,7 @@ namespace ardb
 
 	int Ardb::LClear(const DBID& db, const Slice& key)
 	{
-		ListKeyObject lk(key, -DBL_MAX);
+		ListKeyObject lk(key, -FLT_MAX);
 		struct LClearWalk: public WalkHandler
 		{
 				Ardb* z_db;
@@ -490,7 +490,7 @@ namespace ardb
 		{
 			return ERR_NOT_EXIST;
 		}
-		ListKeyObject lk(key, -DBL_MAX);
+		ListKeyObject lk(key, -FLT_MAX);
 		struct LSetWalk: public WalkHandler
 		{
 				Ardb* z_db;

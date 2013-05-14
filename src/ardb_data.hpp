@@ -345,7 +345,7 @@ namespace ardb
 
 	struct ListKeyObject: public KeyObject
 	{
-			double score;
+			float score;
 			ListKeyObject(const Slice& k, double s) :
 					KeyObject(k, LIST_ELEMENT), score(s)
 			{
@@ -355,8 +355,8 @@ namespace ardb
 	struct ListMetaValue
 	{
 			uint32_t size;
-			double min_score;
-			double max_score;
+			float min_score;
+			float max_score;
 			ListMetaValue() :
 					size(0), min_score(0), max_score(0)
 			{
