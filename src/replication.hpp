@@ -295,6 +295,10 @@ namespace ardb
 			}
 			int Save();
 			int BGSave();
+			bool IsSavingData()
+			{
+				return m_is_saving;
+			}
 			uint32 LastSave()
 			{
 				return m_last_save;
