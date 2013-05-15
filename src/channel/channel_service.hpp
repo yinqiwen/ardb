@@ -9,6 +9,8 @@
 #define NOVA_CHANNELSERVICE_HPP_
 #include "util/socket_host_address.hpp"
 #include "util/datagram_packet.hpp"
+#include "util/thread/thread.hpp"
+#include "util/thread/thread_mutex.hpp"
 #include "channel/channel_event.hpp"
 #include "channel/timer/timer_channel.hpp"
 #include "channel/signal/signal_channel.hpp"
@@ -33,22 +35,33 @@ namespace ardb
 {
 	enum ChannelSoftSignal
 	{
-		CHANNEL_REMOVE = 1
+		CHANNEL_REMOVE = 1,
+		WAKEUP = 2
 	};
 	/**
-	 * 创建/销毁所有类型的channel，管理基本的Event Loop
+	 * event loop service
 	 */
 	class ChannelService: public Runnable, public SoftSignalHandler
 	{
 		private:
 			typedef std::list<uint32> RemoveChannelQueue;
+			typedef std::list<Channel*> ChannelList;
 			typedef std::tr1::unordered_map<uint32, Channel*> ChannelTable;
+			typedef std::vector<ChannelService*> ChannelServicePool;
 			ChannelTable m_channel_table;
+			uint32 m_setsize;
 			aeEventLoop* m_eventLoop;
 			TimerChannel* m_timer;
 			SignalChannel* m_signal_channel;
 			SoftSignalChannel* m_self_soft_signal_channel;
 			RemoveChannelQueue m_remove_queue;
+
+			uint32 m_thread_pool_size;
+			ChannelServicePool m_sub_pool;
+			pthread_t m_tid;
+
+			ThreadMutex m_mutex;
+			ChannelList m_pending_channels;
 			bool m_running;
 			bool EventSunk(ChannelPipeline* pipeline, ChannelEvent& e)
 			{
@@ -79,16 +92,20 @@ namespace ardb
 			SignalChannel* NewSignalChannel();
 
 			Channel* CloneChannel(Channel* ch);
-
-			void DeleteClientSocketChannel(ClientSocketChannel* ch);
-			void DeleteServerSocketChannel(ServerSocketChannel* ch);
-			void DeleteDatagramChannel(DatagramChannel* ch);
 			void DeleteChannel(Channel* ch);
 			void RemoveChannel(Channel* ch);
 			void VerifyRemoveQueue();
+			void StartSubPool();
+			void AttachAcceptedChannel(Channel *ch);
 		public:
 			ChannelService(uint32 setsize = 10240);
+			void SetThreadPoolSize(uint32 size);
+			uint32 GetThreadPoolSize();
+			ChannelService& GetNextChannelService();
+
 			void Routine();
+			void Wakeup();
+			bool IsInLoopThread() const;
 			Channel* GetChannel(uint32 channelID);
 			Timer& GetTimer();
 			SignalChannel& GetSignalChannel();

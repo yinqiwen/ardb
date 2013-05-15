@@ -255,7 +255,6 @@ namespace ardb
 
 	class ReplicationService;
 	class OpLogs;
-    class DBWorker;
 	class ArdbServer: public Runnable, public KeyWatcher
 	{
 		public:
@@ -293,7 +292,6 @@ namespace ardb
 			ArdbConnContext* m_current_ctx;
 
 			SlaveClient m_slave_client;
-			std::vector<DBWorker*> m_db_workers;
 
 			RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(
 					std::string& cmd);
@@ -309,7 +307,6 @@ namespace ardb
 			friend class OpLogs;
 			friend class RedisRequestHandler;
 			friend class SlaveClient;
-			friend class DBWorker;
 			void Run();
 			void BatchWriteFlush();
 			void InsertBatchWriteDBID(const DBID& id);

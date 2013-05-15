@@ -24,6 +24,14 @@ namespace ardb
 				pthread_mutex_init(&m_mutex, &attr);
 				pthread_mutexattr_destroy(&attr);
 			}
+			bool Lock()
+			{
+				return 0 == pthread_mutex_lock(&m_mutex);
+			}
+			bool Unlock()
+			{
+				return 0 == pthread_mutex_unlock(&m_mutex);
+			}
 			virtual ~ThreadMutex()
 			{
 				pthread_mutex_destroy(&m_mutex);

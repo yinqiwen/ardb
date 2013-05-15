@@ -14,13 +14,10 @@
 namespace ardb
 {
 	class ServerSocketChannel;
-	typedef int SocketAcceptedCallBack(ServerSocketChannel* server,
-			ClientSocketChannel* client);
 	class ServerSocketChannel: public SocketChannel
 	{
 		protected:
 			uint32 m_connected_socks;
-			SocketAcceptedCallBack* m_accepted_cb;
 			bool DoBind(Address* local);
 			bool DoConnect(Address* remote);
 			bool DoConfigure(const ChannelOptions& options);
@@ -29,10 +26,6 @@ namespace ardb
 			friend class ChannelService;
 		public:
 			ServerSocketChannel(ChannelService& factory);
-			void SetSocketAcceptedCallBack(SocketAcceptedCallBack* cb)
-			{
-				m_accepted_cb = cb;
-			}
 			uint32 ConnectedSockets();
 			~ServerSocketChannel();
 	};

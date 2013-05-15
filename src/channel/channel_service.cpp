@@ -9,15 +9,41 @@
 #include "util/helpers.hpp"
 #include "util/datagram_packet.hpp"
 #include "util/buffer_helper.hpp"
+#include "util/thread/lock_guard.hpp"
 #include <list>
 
 using namespace ardb;
 
 ChannelService::ChannelService(uint32 setsize) :
-		m_eventLoop(NULL), m_timer(NULL), m_signal_channel(NULL), m_self_soft_signal_channel(
-				NULL), m_running(false)
+		m_setsize(setsize), m_eventLoop(NULL), m_timer(NULL), m_signal_channel(
+		        NULL), m_self_soft_signal_channel(NULL), m_running(false), m_thread_pool_size(
+		        1), m_tid(0)
 {
-	m_eventLoop = aeCreateEventLoop(setsize);
+	m_eventLoop = aeCreateEventLoop(m_setsize);
+}
+
+void ChannelService::SetThreadPoolSize(uint32 size)
+{
+	m_thread_pool_size = size;
+}
+
+uint32 ChannelService::GetThreadPoolSize()
+{
+	return m_thread_pool_size;
+}
+
+ChannelService& ChannelService::GetNextChannelService()
+{
+	static uint32 idx = 0;
+	if (m_sub_pool.empty())
+	{
+		return *this;
+	}
+	if (idx >= m_sub_pool.size())
+	{
+		idx = 0;
+	}
+	return *(m_sub_pool[idx++]);
 }
 
 void ChannelService::OnSoftSignal(uint32 soft_signo, uint32 appendinfo)
@@ -28,6 +54,10 @@ void ChannelService::OnSoftSignal(uint32 soft_signo, uint32 appendinfo)
 		{
 			//uint32 chanel_id = appendinfo;
 			VerifyRemoveQueue();
+			break;
+		}
+		case WAKEUP:
+		{
 			break;
 		}
 		default:
@@ -43,7 +73,7 @@ bool ChannelService::EventSunk(ChannelPipeline* pipeline, ChannelStateEvent& e)
 }
 
 bool ChannelService::EventSunk(ChannelPipeline* pipeline,
-		MessageEvent<Buffer>& e)
+        MessageEvent<Buffer>& e)
 {
 	Buffer* buffer = e.GetMessage();
 	RETURN_FALSE_IF_NULL(buffer);
@@ -53,7 +83,7 @@ bool ChannelService::EventSunk(ChannelPipeline* pipeline,
 }
 
 bool ChannelService::EventSunk(ChannelPipeline* pipeline,
-		MessageEvent<DatagramPacket>& e)
+        MessageEvent<DatagramPacket>& e)
 {
 	DatagramPacket* packet = e.GetMessage();
 	Channel* ch = e.GetChannel();
@@ -99,7 +129,7 @@ Channel* ChannelService::AttachChannel(Channel* ch, bool transfer_service_only)
 	if (ch->GetReadFD() != ch->GetWriteFD())
 	{
 		ERROR_LOG(
-				"Failed to attach channel since source channel has diff read fd & write fd.");
+		        "Failed to attach channel since source channel has diff read fd & write fd.");
 		return false;
 	}
 	Channel* newch = CloneChannel(ch);
@@ -149,32 +179,63 @@ Channel* ChannelService::CloneChannel(Channel* ch)
 		if (NULL != ch->m_pipeline_initializor)
 		{
 			newch->SetChannelPipelineInitializor(ch->m_pipeline_initializor,
-					ch->m_pipeline_initailizor_user_data);
+			        ch->m_pipeline_initailizor_user_data);
 		}
 		if (NULL != ch->m_pipeline_finallizer)
 		{
 			newch->SetChannelPipelineFinalizer(ch->m_pipeline_finallizer,
-					ch->m_pipeline_finallizer_user_data);
+			        ch->m_pipeline_finallizer_user_data);
 		}
 	}
 
 	return newch;
 }
 
+void ChannelService::StartSubPool()
+{
+	if (m_thread_pool_size > 1)
+	{
+		struct LaunchThread: public Thread
+		{
+				ChannelService* serv;
+				LaunchThread(ChannelService* s) :
+						serv(s)
+				{
+				}
+				void Run()
+				{
+					serv->Start(true);
+					delete this;
+				}
+		};
+
+		for (uint32 i = 0; i < m_thread_pool_size; i++)
+		{
+			ChannelService* s = new ChannelService(m_setsize);
+			m_sub_pool.push_back(s);
+			LaunchThread* launch = new LaunchThread(s);
+			launch->Start();
+		}
+	}
+}
+
 void ChannelService::Start(bool self_routine)
 {
 	if (!m_running)
 	{
+		StartSubPool();
 		m_self_soft_signal_channel = NewSoftSignalChannel();
 		if (NULL != m_self_soft_signal_channel)
 		{
 			m_self_soft_signal_channel->Register(CHANNEL_REMOVE, this);
+			m_self_soft_signal_channel->Register(WAKEUP, this);
 		}
 		//if (self_routine)
 		{
 			GetTimer().Schedule(this, 1000, 500);
 		}
 		m_running = true;
+		m_tid = Thread::CurrentThreadID();
 		aeMain(m_eventLoop);
 	}
 }
@@ -312,22 +373,9 @@ void ChannelService::RemoveChannel(Channel* ch)
 		{
 			m_remove_queue.push_back(ch->GetID());
 			m_self_soft_signal_channel->FireSoftSignal(CHANNEL_REMOVE,
-					ch->GetID());
+			        ch->GetID());
 		}
 	}
-}
-
-void ChannelService::DeleteClientSocketChannel(ClientSocketChannel* ch)
-{
-	DELETE(ch);
-}
-void ChannelService::DeleteServerSocketChannel(ServerSocketChannel* ch)
-{
-	DELETE(ch);
-}
-void ChannelService::DeleteDatagramChannel(DatagramChannel* ch)
-{
-	DELETE(ch);
 }
 
 void ChannelService::VerifyRemoveQueue()
@@ -361,9 +409,37 @@ void ChannelService::Run()
 	VerifyRemoveQueue();
 }
 
+void ChannelService::AttachAcceptedChannel(Channel *ch)
+{
+	if(IsInLoopThread())
+	{
+
+	}else
+	{
+		{
+			LockGuard guard(m_mutex);
+			m_pending_channels.push_back(ch);
+		}
+		Wakeup();
+	}
+}
+
 void ChannelService::Routine()
 {
 	Run();
+}
+
+void ChannelService::Wakeup()
+{
+	if (NULL != m_self_soft_signal_channel)
+	{
+		m_self_soft_signal_channel->FireSoftSignal(WAKEUP, 1);
+	}
+}
+
+bool ChannelService::IsInLoopThread() const
+{
+	return m_tid == Thread::CurrentThreadID();
 }
 
 void ChannelService::CloseAllChannelFD(std::set<Channel*>& exceptions)
@@ -395,7 +471,7 @@ void ChannelService::CloseAllChannels(bool fireCloseEvent)
 	while (tit != temp.end())
 	{
 		Channel* ch = *tit;
-		if(fireCloseEvent)
+		if (fireCloseEvent)
 		{
 			ch->Close();
 		}

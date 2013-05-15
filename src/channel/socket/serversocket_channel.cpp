@@ -167,25 +167,8 @@ void ServerSocketChannel::OnRead()
 {
 	int fd;
 	char addrbuf[128];
-	//continue run accept until it says it would block
 	while (1)
 	{
-//        if (NULL != m_accept_hook)
-//        {
-//            int hook_ret = m_accept_hook(this, m_accept_hook_data);
-//            if (hook_ret == CHANNEL_OPERATION_BREAK)
-//            {
-//                return;
-//            }
-//            else if (hook_ret == CHANNEL_OPERATION_DELAY_READ)
-//            {
-//                DetachFD();
-//                m_service.GetTimer().ScheduleHeapTask(
-//                        make_fun_runnable(DelayAttach, this),
-//                        m_options.delay_read_mills, -1);
-//                return;
-//            }
-//        }
 		socklen_t salen = sizeof(addrbuf);
 		struct sockaddr* sa = (struct sockaddr*) addrbuf;
 #if (HAVE_ACCEPT4)
@@ -209,14 +192,15 @@ void ServerSocketChannel::OnRead()
 				return;
 			}
 		}
-		ClientSocketChannel * ch = GetService().NewClientSocketChannel();
-		if (aeCreateFileEvent(GetService().GetRawEventLoop(), fd, AE_READABLE,
+		ChannelService& serv = GetService().GetNextChannelService();
+		ClientSocketChannel * ch = serv.NewClientSocketChannel();
+		if (aeCreateFileEvent(serv.GetRawEventLoop(), fd, AE_READABLE,
 				Channel::IOEventCallback, ch) == AE_ERR)
 		{
 			int err = errno;
 			ERROR_LOG(
 					"Failed to add event for accepted client for fd:%d for reason:%s", fd, strerror(err));
-			GetService().DeleteChannel(ch);
+			serv.DeleteChannel(ch);
 			::close(fd);
 			return;
 		}
@@ -250,13 +234,6 @@ void ServerSocketChannel::OnRead()
 		fire_channel_open(ch);
 		fire_channel_connected(ch);
 		m_connected_socks++;
-		if (NULL != m_accepted_cb)
-		{
-			if (m_accepted_cb(this, ch) == -1)
-			{
-				break;
-			}
-		}
 	}
 
 }

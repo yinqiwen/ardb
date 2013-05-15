@@ -40,6 +40,7 @@ namespace ardb
 			{
 				return m_state;
 			}
+			static pthread_t CurrentThreadID();
 			static void Sleep(int64_t time, TimeUnit unit = MILLIS);
 	};
 }

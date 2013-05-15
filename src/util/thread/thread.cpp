@@ -64,3 +64,8 @@ void Thread::Sleep(int64_t time, TimeUnit unit)
 {
 	usleep(microstime(time, unit));
 }
+
+pthread_t Thread::CurrentThreadID()
+{
+	return pthread_self();
+}

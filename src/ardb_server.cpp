@@ -25,11 +25,8 @@ typedef ardb::LMDBEngineFactory SelectedDBEngineFactory;
 typedef ardb::LevelDBEngineFactory SelectedDBEngineFactory;
 #endif
 
-#include "db_worker.hpp"
-
 namespace ardb
 {
-
 	static inline void fill_error_reply(RedisReply& reply, const char* fmt, ...)
 	{
 		va_list ap;
@@ -2447,15 +2444,6 @@ namespace ardb
 							"ERR only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context");
 				} else
 				{
-//					static uint32 idx = 0;
-//					if(idx >= m_db_workers.size())
-//					{
-//						idx = 0;
-//					}
-//					DBWorker* worker = m_db_workers[idx];
-//					worker->Submit(ctx, setting, args);
-//					idx++;
-//					return;
 					ret = DoRedisCommand(ctx, setting, args);
 				}
 			}
@@ -2688,13 +2676,7 @@ namespace ardb
 						m_cfg.master_port);
 			}
 		}
-
-//		for (uint32 i = 0; i < 3; i++)
-//		{
-//			DBWorker* worker = new DBWorker(this);
-//			worker->Start();
-//			m_db_workers.push_back(worker);
-//		}
+		m_service->SetThreadPoolSize(m_cfg.worker_count);
 		INFO_LOG("Server started, Ardb version %s", ARDB_VERSION);
 		INFO_LOG(
 				"The server is now ready to accept connections on port %d", m_cfg.listen_port);
