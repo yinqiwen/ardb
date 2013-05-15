@@ -104,31 +104,33 @@ namespace ardb
 			{
 				return Compare(other) < 0;
 			}
-			std::string ToString() const
+			const std::string& ToString(std::string& str) const
 			{
 				switch (type)
 				{
 					case EMPTY:
 					{
-						return "";
+						str = "";
+						return str;
 					}
 					case INTEGER:
 					{
 						Buffer tmp(64);
 						tmp.Printf("%lld", v.int_v);
-						return std::string(tmp.GetRawReadBuffer(),
+						str.assign(tmp.GetRawReadBuffer(),
 								tmp.ReadableBytes());
+						return str;
 					}
 					case DOUBLE:
 					{
-						std::string dstr;
-						fast_dtoa(v.double_v, 10, dstr);
-						return dstr;
+						fast_dtoa(v.double_v, 10, str);
+						return str;
 					}
 					default:
 					{
-						return std::string(v.raw->GetRawReadBuffer(),
+						str.assign(v.raw->GetRawReadBuffer(),
 								v.raw->ReadableBytes());
+						return str;
 					}
 				}
 			}

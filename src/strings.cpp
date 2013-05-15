@@ -187,7 +187,7 @@ namespace ardb
 		}
 		vo.v.raw->SetReadIndex(start);
 		vo.v.raw->SetWriteIndex(end + 1);
-		v = vo.ToString();
+		vo.ToString(v);
 		return ARDB_OK;
 	}
 

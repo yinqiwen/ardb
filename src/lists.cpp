@@ -255,7 +255,7 @@ namespace ardb
 						if (cursor == 0)
 						{
 							ListKeyObject* lk = (ListKeyObject*) k;
-							pop_value.assign(v->ToString());
+							v->ToString(pop_value);
 							ldb->DelValue(dbid, *lk);
 							return 0;
 						} else
@@ -317,7 +317,7 @@ namespace ardb
 					//ListKeyObject* lck = (ListKeyObject*)k;
 					if (cursor == index)
 					{
-						found_value.assign(v->ToString());
+						v->ToString(found_value);
 						return -1;
 					}
 					cursor++;

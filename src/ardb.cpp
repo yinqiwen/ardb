@@ -409,8 +409,9 @@ namespace ardb
 			decode_value(readbuf, v, false);
 			if (NULL != kk)
 			{
+				std::string str;
 				DEBUG_LOG(
-						"[%d]Key=%s, Value=%s", kk->type, kk->key.data(), v.ToString().c_str());
+						"[%d]Key=%s, Value=%s", kk->type, kk->key.data(), v.ToString(str).c_str());
 			}
 			DELETE(kk);
 			iter->Next();

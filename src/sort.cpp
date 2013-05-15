@@ -117,7 +117,8 @@ namespace ardb
 		{
 			f = NULL;
 		}
-		std::string vstr = subst.ToString();
+		std::string vstr;
+		subst.ToString(vstr);
 		std::string keystr(pattern.data(), pattern.size());
 		string_replace(keystr, "*", vstr);
 		if (f == NULL)

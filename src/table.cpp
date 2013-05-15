@@ -269,7 +269,8 @@ namespace ardb
 				k.keyvals = iit->keyvals;
 				ValueObject v;
 				GetValue(db, k, &v);
-				values.push_back(v.ToString());
+				std::string str;
+				values.push_back(v.ToString(str));
 				iit++;
 			}
 			it++;

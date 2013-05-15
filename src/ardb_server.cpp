@@ -75,7 +75,9 @@ namespace ardb
 				r.type = REDIS_REPLY_NIL;
 			} else
 			{
-				fill_str_reply(r, vo.ToString());
+				std::string str;
+				vo.ToString(str);
+				fill_str_reply(r, str);
 			}
 			reply.elements.push_back(r);
 			it++;
@@ -1595,7 +1597,8 @@ namespace ardb
 		{
 			RedisReply reply1, reply2;
 			fill_str_reply(reply1, fields[i]);
-			fill_str_reply(reply2, results[i].ToString());
+			std::string str;
+			fill_str_reply(reply2, results[i].ToString(str));
 			ctx.reply.elements.push_back(reply1);
 			ctx.reply.elements.push_back(reply2);
 		}

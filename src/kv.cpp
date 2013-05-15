@@ -222,8 +222,7 @@ namespace ardb
 		{
 			if (NULL != value)
 			{
-				value->assign(v.ToString());
-				//value->assign("121321");
+				v.ToString(*value);
 			}
 		}
 		return ret;

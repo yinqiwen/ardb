@@ -70,7 +70,7 @@ namespace ardb
 		{
 			if (NULL != value)
 			{
-				value->assign(v.ToString());
+				v.ToString(*value);
 			}
 			return 0;
 		}
@@ -203,7 +203,8 @@ namespace ardb
 			Buffer readbuf(const_cast<char*>(it->Value().data()), 0,
 					it->Value().size());
 			decode_value(readbuf, v);
-			values.push_back(v.ToString());
+			std::string str;
+			values.push_back(v.ToString(str));
 			it->Next();
 			DELETE(kk);
 		}
