@@ -105,11 +105,11 @@ namespace ardb
 				if (0 != GetValue(db, sk, NULL))
 				{
 					meta.size++;
-					if ( meta.min.Compare(v) > 0)
+					if (meta.min.Compare(v) > 0)
 					{
 						meta.min = v;
 					}
-					if ( meta.max.Compare(v) < 0)
+					if (meta.max.Compare(v) < 0)
 					{
 						meta.max = v;
 					}
@@ -205,8 +205,12 @@ namespace ardb
 
 	int Ardb::SMembers(const DBID& db, const Slice& key, ValueArray& values)
 	{
-		Slice empty;
-		SetKeyObject sk(key, empty);
+		SetMetaValue meta;
+		if (0 != GetSetMetaValue(db, key, meta))
+		{
+			return ERR_NOT_EXIST;
+		}
+		SetKeyObject sk(key, meta.min);
 		struct SMembersWalk: public WalkHandler
 		{
 				ValueArray& z_values;
@@ -588,7 +592,7 @@ namespace ardb
 				break;
 			}
 			SetKeyObject* sek = (SetKeyObject*) kk;
-			if(delvalue)
+			if (delvalue)
 			{
 				meta.min = sek->value;
 				DELETE(kk);
@@ -600,11 +604,12 @@ namespace ardb
 			DELETE(kk);
 			delvalue = true;
 		}
-		if(meta.size == 0)
+		if (meta.size == 0)
 		{
 			KeyObject k(key, SET_META);
-		    DelValue(db, k);
-		}else{
+			DelValue(db, k);
+		} else
+		{
 			SetSetMetaValue(db, key, meta);
 		}
 		DELETE(iter);

@@ -17,8 +17,12 @@ PipeChannel::PipeChannel(ChannelService& factory, int readFd, int writeFd) :
 	if (-1 != m_read_fd)
 	{
 		make_fd_nonblocking(m_read_fd);
-		aeCreateFileEvent(GetService().GetRawEventLoop(), m_read_fd,
+		int ret = aeCreateFileEvent(GetService().GetRawEventLoop(), m_read_fd,
 						AE_READABLE, Channel::IOEventCallback, this);
+		if(ret != 0)
+		{
+			ERROR_LOG("Failed to create eve:%d.", m_read_fd);
+		}
 
 	}
 	if (-1 != m_write_fd)

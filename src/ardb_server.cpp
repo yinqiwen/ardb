@@ -11,6 +11,7 @@
 #include <stdarg.h>
 #include <fnmatch.h>
 #include <sstream>
+
 //#define __USE_KYOTOCABINET__ 1
 //#define __USE_LMDB__ 1
 #ifdef __USE_KYOTOCABINET__
@@ -23,6 +24,8 @@ typedef ardb::LMDBEngineFactory SelectedDBEngineFactory;
 #include "engine/leveldb_engine.hpp"
 typedef ardb::LevelDBEngineFactory SelectedDBEngineFactory;
 #endif
+
+#include "db_worker.hpp"
 
 namespace ardb
 {
@@ -2444,6 +2447,15 @@ namespace ardb
 							"ERR only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context");
 				} else
 				{
+//					static uint32 idx = 0;
+//					if(idx >= m_db_workers.size())
+//					{
+//						idx = 0;
+//					}
+//					DBWorker* worker = m_db_workers[idx];
+//					worker->Submit(ctx, setting, args);
+//					idx++;
+//					return;
 					ret = DoRedisCommand(ctx, setting, args);
 				}
 			}
@@ -2465,6 +2477,21 @@ namespace ardb
 		}
 	}
 
+	void ArdbServer::HandleReply(ArdbConnContext* ctx)
+	{
+		if (ctx->closed)
+		{
+			ctx->TryDelete();
+		} else
+		{
+			if (ctx->reply.type != 0)
+			{
+				ctx->conn->Write(ctx->reply);
+			}
+			ctx->reply.Clear();
+		}
+	}
+
 	int ArdbServer::DoRedisCommand(ArdbConnContext& ctx,
 			RedisCommandHandlerSetting* setting, RedisCommandFrame& args)
 	{
@@ -2480,18 +2507,11 @@ namespace ardb
 		uint64 start_time = get_current_epoch_micros();
 		int ret = (this->*(setting->handler))(ctx, args.GetArguments());
 		uint64 stop_time = get_current_epoch_micros();
-		if (setting->read_write_cmd == 1
-				|| (setting->read_write_cmd == 2 && is_sort_write_cmd(args)))
-		{
-			//m_repli_serv.FeedSlaves(ctx.currentDB, args);
-		}
 
 		if (m_cfg.slowlog_log_slower_than
 				&& (stop_time - start_time) > m_cfg.slowlog_log_slower_than)
 		{
 			m_slowlog_handler.PushSlowCommand(args, stop_time - start_time);
-			//INFO_LOG(
-			//        "Cost %lldus to exec %s", (stop_time-start_time), cmd.c_str());
 		}
 		return ret;
 	}
@@ -2519,15 +2539,21 @@ namespace ardb
 	void RedisRequestHandler::MessageReceived(ChannelHandlerContext& ctx,
 			MessageEvent<RedisCommandFrame>& e)
 	{
-		ardbctx.conn = ctx.GetChannel();
-		server->ProcessRedisCommand(ardbctx, *(e.GetMessage()));
+		if (NULL == ardbctx)
+		{
+			ardbctx = new ArdbConnContext;
+		}
+		ardbctx->conn = ctx.GetChannel();
+		server->ProcessRedisCommand(*ardbctx, *(e.GetMessage()));
 	}
 	void RedisRequestHandler::ChannelClosed(ChannelHandlerContext& ctx,
 			ChannelStateEvent& e)
 	{
 		server->m_clients_holder.EraseConn(ctx.GetChannel());
-		server->ClearWatchKeys(ardbctx);
-		server->ClearSubscribes(ardbctx);
+		server->ClearWatchKeys(*ardbctx);
+		server->ClearSubscribes(*ardbctx);
+		ardbctx->closed = true;
+		ardbctx->TryDelete();
 	}
 
 	static void daemonize(void)
@@ -2662,6 +2688,13 @@ namespace ardb
 						m_cfg.master_port);
 			}
 		}
+
+//		for (uint32 i = 0; i < 3; i++)
+//		{
+//			DBWorker* worker = new DBWorker(this);
+//			worker->Start();
+//			m_db_workers.push_back(worker);
+//		}
 		INFO_LOG("Server started, Ardb version %s", ARDB_VERSION);
 		INFO_LOG(
 				"The server is now ready to accept connections on port %d", m_cfg.listen_port);

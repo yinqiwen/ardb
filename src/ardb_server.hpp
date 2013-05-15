@@ -46,6 +46,7 @@ namespace ardb
 			uint32 master_port;
 
 			bool single;
+			int64 worker_count;
 			std::string loglevel;
 			std::string logfile;
 			ArdbServerConfig() :
@@ -55,7 +56,8 @@ namespace ardb
 							true), batch_flush_period(1), repl_data_dir(
 							"./repl"), backup_dir("./backup"), repl_ping_slave_period(
 							10), repl_timeout(60), rep_backlog_size(1000000), repl_syncstate_persist_period(
-							1), master_port(0), single(false), loglevel("INFO")
+							1), master_port(0), single(false), worker_count(1), loglevel(
+							"INFO")
 			{
 			}
 	};
@@ -101,11 +103,14 @@ namespace ardb
 			WatchKeySet* watch_key_set;
 			PubSubChannelSet* pubsub_channle_set;
 			PubSubChannelSet* pattern_pubsub_channle_set;
+			int32 ref;
+			bool closed;
 			ArdbConnContext() :
 					currentDB("0"), conn(NULL), in_transaction(false), fail_transc(
 							false), is_slave_conn(false), transaction_cmds(
 							NULL), watch_key_set(NULL), pubsub_channle_set(
-							NULL), pattern_pubsub_channle_set(NULL)
+							NULL), pattern_pubsub_channle_set(NULL), ref(0), closed(
+							false)
 			{
 			}
 			uint64 SubChannelSize()
@@ -129,6 +134,23 @@ namespace ardb
 			bool IsInTransaction()
 			{
 				return in_transaction && NULL != transaction_cmds;
+			}
+			bool TryDelete()
+			{
+				if (ref == 0 && closed)
+				{
+					delete this;
+					return true;
+				}
+				return false;
+			}
+			void ReleaseRef()
+			{
+				ref--;
+			}
+			void AddRef()
+			{
+				ref++;
 			}
 			~ArdbConnContext()
 			{
@@ -220,27 +242,23 @@ namespace ardb
 	struct RedisRequestHandler: public ChannelUpstreamHandler<RedisCommandFrame>
 	{
 			ArdbServer* server;
-			ArdbConnContext ardbctx;
+			ArdbConnContext* ardbctx;
 			void MessageReceived(ChannelHandlerContext& ctx,
 					MessageEvent<RedisCommandFrame>& e);
 			void ChannelClosed(ChannelHandlerContext& ctx,
 					ChannelStateEvent& e);
 			RedisRequestHandler(ArdbServer* s) :
-					server(s)
+					server(s), ardbctx(NULL)
 			{
 			}
 	};
 
 	class ReplicationService;
 	class OpLogs;
+    class DBWorker;
 	class ArdbServer: public Runnable, public KeyWatcher
 	{
-		private:
-			ArdbServerConfig m_cfg;
-			Properties m_cfg_props;
-			ChannelService* m_service;
-			Ardb* m_db;
-			KeyValueEngineFactory* m_engine;
+		public:
 			typedef int (ArdbServer::*RedisCommandHandler)(ArdbConnContext&,
 					ArgumentArray&);
 
@@ -252,8 +270,14 @@ namespace ardb
 					int max_arity;
 					int read_write_cmd; //0:read 1:write 2:unknown
 			};
-			typedef btree::btree_map<std::string, RedisCommandHandlerSetting> RedisCommandHandlerSettingTable;
+		private:
+			ArdbServerConfig m_cfg;
+			Properties m_cfg_props;
+			ChannelService* m_service;
+			Ardb* m_db;
+			KeyValueEngineFactory* m_engine;
 
+			typedef btree::btree_map<std::string, RedisCommandHandlerSetting> RedisCommandHandlerSettingTable;
 			typedef btree::btree_map<WatchKey, ContextSet> WatchKeyContextTable;
 			typedef btree::btree_map<std::string, ContextSet> PubSubContextTable;
 
@@ -269,6 +293,7 @@ namespace ardb
 			ArdbConnContext* m_current_ctx;
 
 			SlaveClient m_slave_client;
+			std::vector<DBWorker*> m_db_workers;
 
 			RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(
 					std::string& cmd);
@@ -278,10 +303,13 @@ namespace ardb
 			void ProcessRedisCommand(ArdbConnContext& ctx,
 					RedisCommandFrame& cmd);
 
+			void HandleReply(ArdbConnContext* ctx);
+
 			friend class ReplicationService;
 			friend class OpLogs;
 			friend class RedisRequestHandler;
 			friend class SlaveClient;
+			friend class DBWorker;
 			void Run();
 			void BatchWriteFlush();
 			void InsertBatchWriteDBID(const DBID& id);

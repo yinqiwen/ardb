@@ -48,7 +48,7 @@ LEVELDB_TEST := ../test/leveldb.o
 KCDB_TEST := ../test/kcdb.o
 LMDB_TEST := ../test/lmdb.o
 
-SERVER_OBJECTS := ardb_server.o slowlog.o clients.o replication.o pubsub.o oplogs.o main.o
+SERVER_OBJECTS := ardb_server.o slowlog.o clients.o replication.o pubsub.o oplogs.o db_worker.o main.o
 
 #DIST_LIB = libardb.so
 DIST_LIBA = libardb.a
