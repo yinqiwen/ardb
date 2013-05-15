@@ -18,15 +18,18 @@ Since ardb is a full redis-protocol compatible server, you can use any redis cli
 
 ## Benchmark
 Benchmarks were all performed on a four-core Intel(R) Xeon(R) CPU X3440 @ 2.53GHz, with 8 GB of DDR3 RAM.
-The benchmark tool is 'redis-benchmark' from redis.
 
-    Ping: 50 parallel clients, 10000000 requests
-        Ardb:  161759.95 requests per second 
-        Redis: 158914.30 requests per second
-    Set: 50 parallel clients, 10000000 requests
-        ./redis-benchmark -t set -n 10000000 -r 10000000
-        Redis:         146515.86 requests per second
-        Ardb-LevelDB:  62638.98 requests per second
+The benchmark tool is 'redis-benchmark' from redis,50 parallel clients, 10000000 requests
+
+LevelDB Options: block_cache_size=512m, write_buffer_size=512m
+
+![Benchmark Img](https://raw.github.com/yinqiwen/ardb/master/doc/benchmark.png)
+
+	Becnhmark test data:
+	                                Ardb-LevelDB  Redis    PING_INLINE	                      158730.16  156250    PING_BULK	                      161290.33 163934.42    SET	                              42372.88	140845.06    GET	                              97087.38	149253.73    INCR	                          66666.66	149253.73    LPUSH	                          58139.53	161290.33    LPOP	                          41666.67	161290.33    SADD	                          34013.61	149253.73    SPOP	                          691.08	153846.16    LPUSH	                          51546.39	161290.33    LRANGE_100 (first 100 elements)	6531.68	49019.61    LRANGE_300 (first 300 elements)	2151.93	21008.4    LRANGE_500 (first 450 elements)	1462.63	14684.29    LRANGE_600 (first 600 elements)	1096.61	11312.22    MSET (10 keys)	                  17035.78	54347.82
+
+- Note: The 'get' performance is much slower in reality.
+- Note: The 'spop' is a useless command in ardb. The only reason it exist is for bechmark test. 
          
 
 ## Redis COMMAND Supported
