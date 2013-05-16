@@ -19,6 +19,8 @@
 #include "slice.hpp"
 #include "util/helpers.hpp"
 #include "util/buffer_helper.hpp"
+#include "util/thread/thread_mutex.hpp"
+#include "util/thread/lock_guard.hpp"
 
 #define ARDB_OK 0
 #define ERR_INVALID_ARGS -3
@@ -142,6 +144,7 @@ namespace ardb
 			KeyValueEngineFactory* m_engine_factory;
 			typedef std::map<DBID, KeyValueEngine*> KeyValueEngineTable;
 			KeyValueEngineTable m_engine_table;
+			ThreadMutex m_mutex;
 			KeyWatcher* m_key_watcher;
 			RawKeyListener* m_raw_key_listener;
 
@@ -209,6 +212,8 @@ namespace ardb
 			{
 				m_err_cause = cause;
 			}
+
+
 		public:
 			Ardb(KeyValueEngineFactory* factory, const std::string& path);
 			~Ardb();

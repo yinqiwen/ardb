@@ -137,6 +137,8 @@ namespace ardb
 		conf_get_string(props, "daemonize", daemonize);
 		conf_get_string(props, "single", single);
 
+		conf_get_int64(props, "thread-pool-size",
+						cfg.worker_count);
 		conf_get_int64(props, "repl-ping-slave-period",
 				cfg.repl_ping_slave_period);
 		conf_get_int64(props, "repl-timeout", cfg.repl_timeout);
@@ -2465,21 +2467,6 @@ namespace ardb
 		}
 	}
 
-	void ArdbServer::HandleReply(ArdbConnContext* ctx)
-	{
-		if (ctx->closed)
-		{
-			ctx->TryDelete();
-		} else
-		{
-			if (ctx->reply.type != 0)
-			{
-				ctx->conn->Write(ctx->reply);
-			}
-			ctx->reply.Clear();
-		}
-	}
-
 	int ArdbServer::DoRedisCommand(ArdbConnContext& ctx,
 			RedisCommandHandlerSetting* setting, RedisCommandFrame& args)
 	{
@@ -2527,21 +2514,15 @@ namespace ardb
 	void RedisRequestHandler::MessageReceived(ChannelHandlerContext& ctx,
 			MessageEvent<RedisCommandFrame>& e)
 	{
-		if (NULL == ardbctx)
-		{
-			ardbctx = new ArdbConnContext;
-		}
-		ardbctx->conn = ctx.GetChannel();
-		server->ProcessRedisCommand(*ardbctx, *(e.GetMessage()));
+		ardbctx.conn = ctx.GetChannel();
+		server->ProcessRedisCommand(ardbctx, *(e.GetMessage()));
 	}
 	void RedisRequestHandler::ChannelClosed(ChannelHandlerContext& ctx,
 			ChannelStateEvent& e)
 	{
 		server->m_clients_holder.EraseConn(ctx.GetChannel());
-		server->ClearWatchKeys(*ardbctx);
-		server->ClearSubscribes(*ardbctx);
-		ardbctx->closed = true;
-		ardbctx->TryDelete();
+		server->ClearWatchKeys(ardbctx);
+		server->ClearSubscribes(ardbctx);
 	}
 
 	static void daemonize(void)

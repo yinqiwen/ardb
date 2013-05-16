@@ -103,14 +103,11 @@ namespace ardb
 			WatchKeySet* watch_key_set;
 			PubSubChannelSet* pubsub_channle_set;
 			PubSubChannelSet* pattern_pubsub_channle_set;
-			int32 ref;
-			bool closed;
 			ArdbConnContext() :
 					currentDB("0"), conn(NULL), in_transaction(false), fail_transc(
 							false), is_slave_conn(false), transaction_cmds(
 							NULL), watch_key_set(NULL), pubsub_channle_set(
-							NULL), pattern_pubsub_channle_set(NULL), ref(0), closed(
-							false)
+							NULL), pattern_pubsub_channle_set(NULL)
 			{
 			}
 			uint64 SubChannelSize()
@@ -134,23 +131,6 @@ namespace ardb
 			bool IsInTransaction()
 			{
 				return in_transaction && NULL != transaction_cmds;
-			}
-			bool TryDelete()
-			{
-				if (ref == 0 && closed)
-				{
-					delete this;
-					return true;
-				}
-				return false;
-			}
-			void ReleaseRef()
-			{
-				ref--;
-			}
-			void AddRef()
-			{
-				ref++;
 			}
 			~ArdbConnContext()
 			{
@@ -184,6 +164,7 @@ namespace ardb
 			typedef btree::btree_map<uint32, ArdbConncetion> ArdbConncetionTable;
 			ArdbConncetionTable m_conn_table;
 			bool m_client_stat_enable;
+			ThreadMutex m_mutex;
 		public:
 			ClientConnHolder() :
 					m_client_stat_enable(false)
@@ -221,6 +202,7 @@ namespace ardb
 					RedisCommandFrame cmd;
 			};
 			std::deque<SlowLog> m_cmds;
+			ThreadMutex m_mutex;
 		public:
 			SlowLogHandler(const ArdbServerConfig& cfg) :
 					m_cfg(cfg)
@@ -242,13 +224,13 @@ namespace ardb
 	struct RedisRequestHandler: public ChannelUpstreamHandler<RedisCommandFrame>
 	{
 			ArdbServer* server;
-			ArdbConnContext* ardbctx;
+			ArdbConnContext ardbctx;
 			void MessageReceived(ChannelHandlerContext& ctx,
 					MessageEvent<RedisCommandFrame>& e);
 			void ChannelClosed(ChannelHandlerContext& ctx,
 					ChannelStateEvent& e);
 			RedisRequestHandler(ArdbServer* s) :
-					server(s), ardbctx(NULL)
+					server(s)
 			{
 			}
 	};

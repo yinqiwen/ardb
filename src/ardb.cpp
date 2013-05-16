@@ -295,6 +295,7 @@ namespace ardb
 
 	KeyValueEngine* Ardb::GetDB(const DBID& db)
 	{
+		LockGuard<ThreadMutex> guard(m_mutex);
 		KeyValueEngineTable::iterator found = m_engine_table.find(db);
 		if (found != m_engine_table.end())
 		{

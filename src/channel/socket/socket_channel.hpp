@@ -23,6 +23,7 @@ namespace ardb
 		IPV4, IPV6, UNIX
 	};
 
+	class ChannelService;
 	class SocketChannel: public Channel
 	{
 		protected:
@@ -45,6 +46,9 @@ namespace ardb
 			virtual bool DoConfigure(const ChannelOptions& options);
 			virtual int32 HandleExceptionEvent(int32 event);
 			void OnWrite();
+
+			void OnAccepted();
+			friend class ChannelService;
 		public:
 			SocketChannel(ChannelService& factory) :
 					Channel(NULL, factory), m_localAddr(NULL), m_remoteAddr(

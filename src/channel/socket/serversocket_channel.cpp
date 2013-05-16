@@ -12,10 +12,11 @@
 #include <errno.h>
 #include <string.h>
 
+
 using namespace ardb;
 
 ServerSocketChannel::ServerSocketChannel(ChannelService& factory)
-		: SocketChannel(factory), m_connected_socks(0), m_accepted_cb(NULL)
+		: SocketChannel(factory), m_connected_socks(0)
 {
 }
 
@@ -177,7 +178,7 @@ void ServerSocketChannel::OnRead()
 		fd = ::accept(m_fd, sa, &salen);
 		if (fd != -1 && -1 == make_fd_nonblocking(fd))
 		{
-			DEBUG_LOG("failed to set opt for accept socket");
+			ERROR_LOG("failed to set opt for accept socket");
 			::close(fd);
 			return;
 		}
@@ -192,18 +193,18 @@ void ServerSocketChannel::OnRead()
 				return;
 			}
 		}
-		ChannelService& serv = GetService().GetNextChannelService();
-		ClientSocketChannel * ch = serv.NewClientSocketChannel();
-		if (aeCreateFileEvent(serv.GetRawEventLoop(), fd, AE_READABLE,
-				Channel::IOEventCallback, ch) == AE_ERR)
-		{
-			int err = errno;
-			ERROR_LOG(
-					"Failed to add event for accepted client for fd:%d for reason:%s", fd, strerror(err));
-			serv.DeleteChannel(ch);
-			::close(fd);
-			return;
-		}
+		ClientSocketChannel * ch = GetService().NewClientSocketChannel();
+//		if (aeCreateFileEvent(serv.GetRawEventLoop(), fd, AE_READABLE,
+//				Channel::IOEventCallback, ch) == AE_ERR)
+//		{
+//			int err = errno;
+//			ERROR_LOG(
+//					"Failed to add event for accepted client for fd:%d for reason:%s", fd, strerror(err));
+//			serv.DeleteChannel(ch);
+//			::close(fd);
+//			return;
+//		}
+
 		ch->m_fd = fd;
 		if (m_user_configed)
 		{
@@ -231,9 +232,10 @@ void ServerSocketChannel::OnRead()
 
 		DEBUG_LOG(
 				"Server channel(%u) Accept a client channel(%u) for fd:%d", GetID(), ch->GetID(), fd);
-		fire_channel_open(ch);
-		fire_channel_connected(ch);
+//		fire_channel_open(ch);
+//		fire_channel_connected(ch);
 		m_connected_socks++;
+		GetService().GetNextChannelService().AttachAcceptedChannel(ch);
 	}
 
 }

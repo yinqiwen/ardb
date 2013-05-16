@@ -28,30 +28,30 @@ bool SocketChannel::DoConfigure(const ChannelOptions& options)
 	if (options.receive_buffer_size > 0)
 	{
 		int ret = setsockopt(m_fd, SOL_SOCKET, SO_RCVBUF,
-		        (const char*) &options.receive_buffer_size, sizeof(int));
+				(const char*) &options.receive_buffer_size, sizeof(int));
 		if (ret != 0)
 		{
 			WARN_LOG(
-			        "Failed to set recv buf size(%u) for socket.", options.receive_buffer_size);
+					"Failed to set recv buf size(%u) for socket.", options.receive_buffer_size);
 			//return false;
 		}
 	}
 	if (options.send_buffer_size > 0)
 	{
 		int ret = setsockopt(m_fd, SOL_SOCKET, SO_SNDBUF,
-		        (const char*) &options.send_buffer_size, sizeof(int));
+				(const char*) &options.send_buffer_size, sizeof(int));
 		if (ret != 0)
 		{
 			WARN_LOG(
-			        "Failed to set send buf size(%u) for socket.", options.send_buffer_size);
+					"Failed to set send buf size(%u) for socket.", options.send_buffer_size);
 			//return false;
 		}
 	}
 
 	int flag = 1;
 	if (options.tcp_nodelay
-	        && (setsockopt(m_fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag))
-	                < 0))
+			&& (setsockopt(m_fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag))
+					< 0))
 	{
 		WARN_LOG("init_sock_opt: could not disable Nagle: %s", strerror(errno));
 	}
@@ -61,7 +61,7 @@ bool SocketChannel::DoConfigure(const ChannelOptions& options)
 		if (setsockopt(m_fd, SOL_SOCKET, SO_KEEPALIVE, &flag, sizeof(flag)) < 0)
 		{
 			WARN_LOG(
-			        "init_sock_opt: could not set keepalive: %s", strerror(errno));
+					"init_sock_opt: could not set keepalive: %s", strerror(errno));
 			return false;
 		}
 #ifdef __linux__
@@ -126,19 +126,16 @@ bool SocketChannel::DoBind(Address* local)
 	{
 		SocketHostAddress* host_addr = static_cast<SocketHostAddress*>(local);
 		addr = get_inet_address(host_addr->GetHost(), host_addr->GetPort());
-	}
-	else if (InstanceOf<SocketInetAddress>(local).OK)
+	} else if (InstanceOf<SocketInetAddress>(local).OK)
 	{
 		SocketInetAddress* inet_addr = static_cast<SocketInetAddress*>(local);
 		addr = (*inet_addr);
-	}
-	else if (InstanceOf<SocketUnixAddress>(local).OK)
+	} else if (InstanceOf<SocketUnixAddress>(local).OK)
 	{
 		SocketUnixAddress* unix_addr = (SocketUnixAddress*) local;
 		unlink(unix_addr->GetPath().c_str()); // in case it already exists
 		addr = get_inet_address(*unix_addr);
-	}
-	else
+	} else
 	{
 		return false;
 	}
@@ -168,35 +165,31 @@ bool SocketChannel::DoConnect(Address* remote)
 	{
 		SocketHostAddress* host_addr = static_cast<SocketHostAddress*>(remote);
 		addr = get_inet_address(host_addr->GetHost(), host_addr->GetPort());
-	}
-	else if (InstanceOf<SocketInetAddress>(remote).OK)
+	} else if (InstanceOf<SocketInetAddress>(remote).OK)
 	{
 		SocketInetAddress* inet_addr = static_cast<SocketInetAddress*>(remote);
 		addr = (*inet_addr);
-	}
-	else if (InstanceOf<SocketUnixAddress>(remote).OK)
+	} else if (InstanceOf<SocketUnixAddress>(remote).OK)
 	{
 		SocketUnixAddress* unix_addr = static_cast<SocketUnixAddress*>(remote);
 		addr = get_inet_address(*unix_addr);
-	}
-	else
+	} else
 	{
 		return false;
 	}
 	int fd = GetSocketFD(addr.GetDomain());
 	int ret = ::connect(fd, const_cast<sockaddr*>(&(addr.GetRawSockAddr())),
-	        addr.GetRawSockAddrSize());
+			addr.GetRawSockAddrSize());
 	if (ret < 0)
 	{
 		int e = errno;
 		if (((e) == EINTR || (e) == EINPROGRESS))
 		{
 			//connecting
-		}
-		else
+		} else
 		{
 			ERROR_LOG(
-			        "Failed to connect remote server for reason:%s", strerror(e));
+					"Failed to connect remote server for reason:%s", strerror(e));
 			return false;
 		}
 
@@ -219,14 +212,12 @@ const Address* SocketChannel::GetLocalAddress()
 			{
 				SocketUnixAddress local = get_unix_address(inet);
 				NEW(m_localAddr, SocketUnixAddress(local));
-			}
-			else
+			} else
 			{
 				SocketHostAddress local = get_host_address(inet);
 				NEW(m_localAddr, SocketHostAddress(local));
 			}
-		}
-		catch (...)
+		} catch (...)
 		{
 
 		}
@@ -245,15 +236,13 @@ const Address* SocketChannel::GetRemoteAddress()
 			{
 				SocketUnixAddress remote = get_unix_address(inet);
 				NEW(m_remoteAddr, SocketUnixAddress(remote));
-			}
-			else
+			} else
 			{
 				SocketHostAddress remote = get_host_address(inet);
 				NEW(m_remoteAddr, SocketHostAddress(remote));
 			}
 
-		}
-		catch (...)
+		} catch (...)
 		{
 
 		}
@@ -271,15 +260,7 @@ int SocketChannel::GetSocketFD(int domain)
 {
 	if (m_fd < 0)
 	{
-		//int fd = ::socket(isIPV6 ? AF_INET6 : AF_INET, GetProtocol(), 0);
 		int fd = ::socket(domain, GetProtocol(), 0);
-//		if (domain == AF_UNIX)
-//		{
-//			int nZero = 0;
-//			setsockopt(fd, SOL_SOCKET, SO_SNDBUF, (char *) &nZero,
-//			        sizeof(nZero));
-//			setsockopt(fd, SOL_SOCKET, SO_RCVBUF, (char *) &nZero, sizeof(int));
-//		}
 		if (fd < 0)
 		{
 			return fd;
@@ -301,8 +282,8 @@ int SocketChannel::GetSocketFD(int domain)
 			return -1;
 		}
 		if (aeCreateFileEvent(GetService().GetRawEventLoop(), fd,
-		        AE_READABLE | AE_WRITABLE, Channel::IOEventCallback,
-		        this) == AE_ERR)
+				AE_READABLE | AE_WRITABLE, Channel::IOEventCallback,
+				this) == AE_ERR)
 		{
 			::close(fd);
 			return -1;
@@ -319,8 +300,7 @@ void SocketChannel::OnWrite()
 		aeDeleteFileEvent(GetService().GetRawEventLoop(), m_fd, AE_WRITABLE);
 		m_state = SOCK_CONNECTED;
 		fire_channel_connected(this);
-	}
-	else
+	} else
 	{
 		Channel::OnWrite();
 	}
@@ -349,6 +329,24 @@ bool SocketChannel::DoClose()
 	}
 	return false;
 
+}
+
+void SocketChannel::OnAccepted()
+{
+	if (aeCreateFileEvent(GetService().GetRawEventLoop(), m_fd, AE_READABLE,
+			Channel::IOEventCallback, this) == AE_ERR)
+	{
+		int err = errno;
+		ERROR_LOG(
+				"Failed to add event for accepted client for fd:%d for reason:%s", m_fd, strerror(err));
+		Close();
+		return;
+	}
+	m_detached = false;
+	fire_channel_open(this);
+	fire_channel_connected(this);
+
+	//INFO_LOG("Accepted on tid:%d", Thread::CurrentThreadID());
 }
 
 SocketChannel::~SocketChannel()

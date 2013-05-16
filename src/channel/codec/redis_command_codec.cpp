@@ -205,8 +205,7 @@ bool RedisCommandEncoder::WriteRequested(ChannelHandlerContext& ctx,
         MessageEvent<RedisCommandFrame>& e)
 {
 	RedisCommandFrame* msg = e.GetMessage();
-	static Buffer buffer(1024);
-	buffer.Clear();
+	Buffer buffer(1024);
 	if (Encode(buffer, *msg))
 	{
 		return ctx.GetChannel()->Write(buffer);

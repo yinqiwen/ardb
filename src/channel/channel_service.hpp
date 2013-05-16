@@ -9,8 +9,7 @@
 #define NOVA_CHANNELSERVICE_HPP_
 #include "util/socket_host_address.hpp"
 #include "util/datagram_packet.hpp"
-#include "util/thread/thread.hpp"
-#include "util/thread/thread_mutex.hpp"
+#include "util/zmq/ypipe.hpp"
 #include "channel/channel_event.hpp"
 #include "channel/timer/timer_channel.hpp"
 #include "channel/signal/signal_channel.hpp"
@@ -35,8 +34,7 @@ namespace ardb
 {
 	enum ChannelSoftSignal
 	{
-		CHANNEL_REMOVE = 1,
-		WAKEUP = 2
+		CHANNEL_REMOVE = 1, WAKEUP = 2
 	};
 	/**
 	 * event loop service
@@ -45,7 +43,7 @@ namespace ardb
 	{
 		private:
 			typedef std::list<uint32> RemoveChannelQueue;
-			typedef std::list<Channel*> ChannelList;
+			typedef zmq::ypipe_t<Runnable*, 10> TaskList;
 			typedef std::tr1::unordered_map<uint32, Channel*> ChannelTable;
 			typedef std::vector<ChannelService*> ChannelServicePool;
 			ChannelTable m_channel_table;
@@ -60,8 +58,7 @@ namespace ardb
 			ChannelServicePool m_sub_pool;
 			pthread_t m_tid;
 
-			ThreadMutex m_mutex;
-			ChannelList m_pending_channels;
+			TaskList m_pending_tasks;
 			bool m_running;
 			bool EventSunk(ChannelPipeline* pipeline, ChannelEvent& e)
 			{
@@ -96,7 +93,7 @@ namespace ardb
 			void RemoveChannel(Channel* ch);
 			void VerifyRemoveQueue();
 			void StartSubPool();
-			void AttachAcceptedChannel(Channel *ch);
+			void AttachAcceptedChannel(SocketChannel *ch);
 		public:
 			ChannelService(uint32 setsize = 10240);
 			void SetThreadPoolSize(uint32 size);
@@ -116,7 +113,8 @@ namespace ardb
 			PipeChannel* NewPipeChannel(int readFd, int writeFD);
 			DatagramChannel* NewDatagramSocketChannel();
 
-			Channel* AttachChannel(Channel* ch, bool transfer_service_only = false);
+			Channel* AttachChannel(Channel* ch, bool transfer_service_only =
+					false);
 			bool DetachChannel(Channel* ch, bool remove = false);
 
 			//In most time , you should not invoke this method

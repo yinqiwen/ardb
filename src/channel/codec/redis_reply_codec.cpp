@@ -86,10 +86,7 @@ bool RedisReplyEncoder::WriteRequested(ChannelHandlerContext& ctx,
         MessageEvent<RedisReply>& e)
 {
 	RedisReply* msg = e.GetMessage();
-	//consider using static object?
-	//static Buffer buffer(1024);
-	static Buffer buffer(1024);
-	buffer.Clear();
+	Buffer buffer(1024);
 	if (Encode(buffer, *msg))
 	{
 		return ctx.GetChannel()->Write(buffer);

@@ -9,15 +9,15 @@
 #include "util/helpers.hpp"
 #include "util/datagram_packet.hpp"
 #include "util/buffer_helper.hpp"
-#include "util/thread/lock_guard.hpp"
+#include "util/thread/thread.hpp"
 #include <list>
 
 using namespace ardb;
 
 ChannelService::ChannelService(uint32 setsize) :
 		m_setsize(setsize), m_eventLoop(NULL), m_timer(NULL), m_signal_channel(
-		        NULL), m_self_soft_signal_channel(NULL), m_running(false), m_thread_pool_size(
-		        1), m_tid(0)
+				NULL), m_self_soft_signal_channel(NULL), m_running(false), m_thread_pool_size(
+				1), m_tid(0)
 {
 	m_eventLoop = aeCreateEventLoop(m_setsize);
 }
@@ -58,6 +58,14 @@ void ChannelService::OnSoftSignal(uint32 soft_signo, uint32 appendinfo)
 		}
 		case WAKEUP:
 		{
+			while (m_pending_tasks.check_read())
+			{
+				Runnable* task = NULL;
+				if (m_pending_tasks.read(&task) && NULL != task)
+				{
+					task->Run();
+				}
+			}
 			break;
 		}
 		default:
@@ -73,7 +81,7 @@ bool ChannelService::EventSunk(ChannelPipeline* pipeline, ChannelStateEvent& e)
 }
 
 bool ChannelService::EventSunk(ChannelPipeline* pipeline,
-        MessageEvent<Buffer>& e)
+		MessageEvent<Buffer>& e)
 {
 	Buffer* buffer = e.GetMessage();
 	RETURN_FALSE_IF_NULL(buffer);
@@ -83,7 +91,7 @@ bool ChannelService::EventSunk(ChannelPipeline* pipeline,
 }
 
 bool ChannelService::EventSunk(ChannelPipeline* pipeline,
-        MessageEvent<DatagramPacket>& e)
+		MessageEvent<DatagramPacket>& e)
 {
 	DatagramPacket* packet = e.GetMessage();
 	Channel* ch = e.GetChannel();
@@ -129,7 +137,7 @@ Channel* ChannelService::AttachChannel(Channel* ch, bool transfer_service_only)
 	if (ch->GetReadFD() != ch->GetWriteFD())
 	{
 		ERROR_LOG(
-		        "Failed to attach channel since source channel has diff read fd & write fd.");
+				"Failed to attach channel since source channel has diff read fd & write fd.");
 		return false;
 	}
 	Channel* newch = CloneChannel(ch);
@@ -156,10 +164,7 @@ Channel* ChannelService::CloneChannel(Channel* ch)
 		}
 		case TCP_SERVER_SOCKET_CHANNEL_ID_BIT_MASK:
 		{
-			ServerSocketChannel* tmp = NewServerSocketChannel();
-			ServerSocketChannel* osc = static_cast<ServerSocketChannel*>(ch);
-			tmp->SetSocketAcceptedCallBack(osc->m_accepted_cb);
-			newch = tmp;
+			newch = NewServerSocketChannel();
 			break;
 		}
 		case UDP_SOCKET_CHANNEL_ID_BIT_MASK:
@@ -179,12 +184,12 @@ Channel* ChannelService::CloneChannel(Channel* ch)
 		if (NULL != ch->m_pipeline_initializor)
 		{
 			newch->SetChannelPipelineInitializor(ch->m_pipeline_initializor,
-			        ch->m_pipeline_initailizor_user_data);
+					ch->m_pipeline_initailizor_user_data);
 		}
 		if (NULL != ch->m_pipeline_finallizer)
 		{
 			newch->SetChannelPipelineFinalizer(ch->m_pipeline_finallizer,
-			        ch->m_pipeline_finallizer_user_data);
+					ch->m_pipeline_finallizer_user_data);
 		}
 	}
 
@@ -211,7 +216,7 @@ void ChannelService::StartSubPool()
 
 		for (uint32 i = 0; i < m_thread_pool_size; i++)
 		{
-			ChannelService* s = new ChannelService(m_setsize);
+			ChannelService* s = new ChannelService(10240);
 			m_sub_pool.push_back(s);
 			LaunchThread* launch = new LaunchThread(s);
 			launch->Start();
@@ -246,6 +251,16 @@ void ChannelService::Stop()
 	{
 		m_running = false;
 		aeStop(m_eventLoop);
+		if (!IsInLoopThread())
+		{
+			Wakeup();
+		}
+		ChannelServicePool::iterator it = m_sub_pool.begin();
+		while (it != m_sub_pool.end())
+		{
+			(*it)->Stop();
+			it++;
+		}
 	}
 }
 
@@ -373,7 +388,7 @@ void ChannelService::RemoveChannel(Channel* ch)
 		{
 			m_remove_queue.push_back(ch->GetID());
 			m_self_soft_signal_channel->FireSoftSignal(CHANNEL_REMOVE,
-			        ch->GetID());
+					ch->GetID());
 		}
 	}
 }
@@ -409,17 +424,34 @@ void ChannelService::Run()
 	VerifyRemoveQueue();
 }
 
-void ChannelService::AttachAcceptedChannel(Channel *ch)
+void ChannelService::AttachAcceptedChannel(SocketChannel *ch)
 {
-	if(IsInLoopThread())
+	if (IsInLoopThread())
 	{
-
-	}else
+		ch->OnAccepted();
+	} else
 	{
+		ch->m_detached = true;
+		ch->GetService().DetachChannel(ch, true);
+		struct ChannelTask: public Runnable
 		{
-			LockGuard guard(m_mutex);
-			m_pending_channels.push_back(ch);
-		}
+				SocketChannel * sch;
+				ChannelService* serv;
+				ChannelTask(SocketChannel * c, ChannelService* s) :
+						sch(c),serv(s)
+				{
+				}
+				void Run()
+				{
+					sch->m_service = serv;
+					sch->m_service->m_channel_table[sch->GetID()] = sch;
+					sch->OnAccepted();
+					delete this;
+				}
+		};
+		ChannelTask* t = new ChannelTask(ch, this);
+		m_pending_tasks.write(t, false);
+		m_pending_tasks.flush();
 		Wakeup();
 	}
 }

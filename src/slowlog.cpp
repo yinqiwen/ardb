@@ -12,6 +12,7 @@ namespace ardb
 	void SlowLogHandler::PushSlowCommand(const RedisCommandFrame& cmd,
 	        uint64 micros)
 	{
+		LockGuard<ThreadMutex> guard(m_mutex);
 		while (m_cfg.slowlog_max_len > 0
 		        && m_cmds.size() >= m_cfg.slowlog_max_len)
 		{
@@ -27,6 +28,7 @@ namespace ardb
 
 	void SlowLogHandler::GetSlowlog(uint32 len, RedisReply& reply)
 	{
+		LockGuard<ThreadMutex> guard(m_mutex);
 		reply.type = REDIS_REPLY_ARRAY;
 		for (uint32 i = 0; i < len && i < m_cmds.size(); i++)
 		{

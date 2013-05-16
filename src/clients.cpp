@@ -13,12 +13,14 @@ namespace ardb
 	void ClientConnHolder::ChangeCurrentDB(Channel* conn,
 	        const std::string& dbid)
 	{
+		LockGuard<ThreadMutex> guard(m_mutex);
 		m_conn_table[conn->GetID()].currentDB = dbid;
 	}
 
 	void ClientConnHolder::TouchConn(Channel* conn,
 	        const std::string& currentCmd)
 	{
+		LockGuard<ThreadMutex> guard(m_mutex);
 		ArdbConncetionTable::iterator found = m_conn_table.find(conn->GetID());
 		if (found != m_conn_table.end())
 		{
@@ -54,6 +56,7 @@ namespace ardb
 
 	Channel* ClientConnHolder::GetConn(const std::string& addr)
 	{
+		LockGuard<ThreadMutex> guard(m_mutex);
 		ArdbConncetionTable::iterator it = m_conn_table.begin();
 		while (it != m_conn_table.end())
 		{
@@ -67,14 +70,17 @@ namespace ardb
 	}
 	void ClientConnHolder::SetName(Channel* conn, const std::string& name)
 	{
+		LockGuard<ThreadMutex> guard(m_mutex);
 		m_conn_table[conn->GetID()].name = name;
 	}
 	const std::string& ClientConnHolder::GetName(Channel* conn)
 	{
+		LockGuard<ThreadMutex> guard(m_mutex);
 		return m_conn_table[conn->GetID()].name;
 	}
 	void ClientConnHolder::List(RedisReply& reply)
 	{
+		LockGuard<ThreadMutex> guard(m_mutex);
 		reply.type = REDIS_REPLY_STRING;
 		std::stringstream ss(std::stringstream::in | std::stringstream::out);
 		ArdbConncetionTable::iterator it = m_conn_table.begin();
