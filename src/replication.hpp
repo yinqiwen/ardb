@@ -10,6 +10,7 @@
 #include "channel/all_includes.hpp"
 #include "ardb.hpp"
 #include "util/thread/thread.hpp"
+#include "util/mpsc_queue.hpp"
 #include <stdio.h>
 #include <btree_map.h>
 #include <btree_set.h>
@@ -50,7 +51,7 @@ namespace ardb
 			uint8 type;
 			bool from_master;
 			CachedOp(uint8 t) :
-					type(t),from_master(false)
+					type(t), from_master(false)
 			{
 			}
 			virtual ~CachedOp()
@@ -78,40 +79,6 @@ namespace ardb
 			ReplInstruction(uint8 t = 0, void* p = NULL) :
 					type(t), ptr(p)
 			{
-			}
-			size_t Size()
-			{
-				return sizeof(type) + sizeof(ptr);
-			}
-	};
-
-	struct ReplInstructionDecoder: public ardb::codec::StackFrameDecoder<
-			ReplInstruction>
-	{
-			bool Decode(ChannelHandlerContext& ctx, Channel* channel,
-					Buffer& buffer, ReplInstruction& msg)
-			{
-				if (buffer.ReadableBytes() < msg.Size())
-				{
-					return false;
-				}
-				BufferHelper::ReadFixUInt8(buffer, msg.type);
-				buffer.Read(&msg.ptr, sizeof(msg.ptr));
-				return true;
-			}
-	};
-
-	struct ReplInstructionEncoder: public ChannelDownstreamHandler<
-			ReplInstruction>
-	{
-			bool WriteRequested(ChannelHandlerContext& ctx,
-					MessageEvent<ReplInstruction>& e)
-			{
-				Buffer buffer(e.GetMessage()->Size());
-				BufferHelper::WriteFixUInt8(buffer, e.GetMessage()->type);
-				buffer.Write(&(e.GetMessage()->ptr),
-						sizeof(e.GetMessage()->ptr));
-				return ctx.GetChannel()->Write(buffer);
 			}
 	};
 
@@ -151,8 +118,8 @@ namespace ardb
 			void FlushOpLog();
 			void WriteCachedOp(uint64 seq, CachedOp* op);
 			CachedOp* SaveCmdOp(RedisCommandFrame* cmd, bool writeOpLog = true);
-			CachedOp* SaveWriteOp(OpKey& opkey, uint8 type, bool writeOpLog = true,
-					std::string* v = NULL);
+			CachedOp* SaveWriteOp(OpKey& opkey, uint8 type, bool writeOpLog =
+			        true, std::string* v = NULL);
 		public:
 			OpLogs(ArdbServer* server);
 			void Load();
@@ -174,10 +141,11 @@ namespace ardb
 				return m_current_db;
 			}
 			CachedOp* SaveSetOp(const DBID& db, const std::string& key,
-					std::string* value);
+			        std::string* value);
 			CachedOp* SaveDeleteOp(const DBID& db, const std::string& key);
 			CachedOp* SaveFlushOp(const DBID& db);
-			bool VerifyClient(const std::string& serverKey, uint64 seq, DBID& dbid);
+			bool VerifyClient(const std::string& serverKey, uint64 seq,
+			        DBID& dbid);
 			const std::string& GetServerKey()
 			{
 				return m_server_key;
@@ -185,8 +153,8 @@ namespace ardb
 	};
 
 	class SlaveClient: public ChannelUpstreamHandler<RedisCommandFrame>,
-			public ChannelUpstreamHandler<Buffer>,
-			public Runnable
+	        public ChannelUpstreamHandler<Buffer>,
+	        public Runnable
 	{
 		private:
 			ArdbServer* m_serv;
@@ -204,13 +172,13 @@ namespace ardb
 			uint64 m_sync_seq;
 
 			void MessageReceived(ChannelHandlerContext& ctx,
-					MessageEvent<RedisCommandFrame>& e);
+			        MessageEvent<RedisCommandFrame>& e);
 			void MessageReceived(ChannelHandlerContext& ctx,
-					MessageEvent<Buffer>& e);
+			        MessageEvent<Buffer>& e);
 			void ChannelClosed(ChannelHandlerContext& ctx,
-					ChannelStateEvent& e);
+			        ChannelStateEvent& e);
 			void ChannelConnected(ChannelHandlerContext& ctx,
-					ChannelStateEvent& e);
+			        ChannelStateEvent& e);
 			void Timeout();
 			void Run();
 			void PersistSyncState();
@@ -218,8 +186,8 @@ namespace ardb
 		public:
 			SlaveClient(ArdbServer* serv) :
 					m_serv(serv), m_client(NULL), m_chunk_len(0), m_slave_state(
-							0), m_cron_inited(false), m_ping_recved(false), m_server_type(
-							0), m_server_key("-"), m_sync_seq(0)
+					        0), m_cron_inited(false), m_ping_recved(false), m_server_type(
+					        0), m_server_key("-"), m_sync_seq(0)
 			{
 			}
 			const SocketHostAddress& GetMasterAddress()
@@ -233,9 +201,9 @@ namespace ardb
 	};
 
 	class ReplicationService: public Thread,
-			public ChannelUpstreamHandler<Buffer>,
-			public ChannelUpstreamHandler<ReplInstruction>,
-			public RawKeyListener
+	        public SoftSignalHandler,
+	        public ChannelUpstreamHandler<Buffer>,
+	        public RawKeyListener
 	{
 		private:
 			ChannelService m_serv;
@@ -251,38 +219,36 @@ namespace ardb
 
 			OpLogs m_oplogs;
 
-			//Use pipe to transfer instructions and data
-			PipeChannel* m_input_channel;
-			PipeChannel* m_notify_channel;
-			ReplInstructionEncoder m_inst_encoder;
-			ReplInstructionDecoder m_inst_decoder;
+			SoftSignalChannel* m_inst_signal;
+			MPSCQueue<ReplInstruction> m_inst_queue;
 
 			//connection id for the connection that is master-slave
 			uint32 m_master_slave_id;
 			void Routine();
 			void PingSlaves();
 			void ChannelClosed(ChannelHandlerContext& ctx,
-					ChannelStateEvent& e);
+			        ChannelStateEvent& e);
 			void MessageReceived(ChannelHandlerContext& ctx,
-					MessageEvent<Buffer>& e)
+			        MessageEvent<Buffer>& e)
 			{
 
 			}
-			void MessageReceived(ChannelHandlerContext& ctx,
-					MessageEvent<ReplInstruction>& e);
+			void OnSoftSignal(uint32 soft_signo, uint32 appendinfo);
+			void ProcessInstructions();
 			void CheckSlaveQueue();
 			void FeedSlaves();
 			void FullSync(SlaveConn& client);
 
 			int OnKeyUpdated(const DBID& db, const Slice& key,
-					const Slice& value);
+			        const Slice& value);
 			int OnKeyDeleted(const DBID& db, const Slice& key);
+			void OfferInstruction(ReplInstruction& inst);
 		public:
 			ReplicationService(ArdbServer* serv);
 			int Init();
 			void ServSlaveClient(Channel* client);
 			void ServARSlaveClient(Channel* client,
-					const std::string& serverKey, uint64 seq);
+			        const std::string& serverKey, uint64 seq);
 			void RecordFlushDB(const DBID& db);
 			OpLogs& GetOpLogs()
 			{

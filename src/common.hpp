@@ -127,4 +127,18 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 #include "util/debug.h"
 #include "logger.hpp"
 
+#ifdef __linux__
+#  include <linux/version.h>
+#  if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,28)
+#define HAVE_ACCEPT4 1
+#endif
+#  if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22)
+#define HAVE_EVENTFD 1
+#define HAVE_SIGNALFD 1
+#include <sys/eventfd.h>
+#include <sys/signalfd.h>
+#endif
+
+#endif
+
 #endif /* COMMON_HPP_ */
