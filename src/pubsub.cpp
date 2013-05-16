@@ -16,6 +16,7 @@ namespace ardb
 		{
 			ctx.pubsub_channle_set = new PubSubChannelSet;
 		}
+		LockGuard<ThreadMutex> guard(m_pubsub_mutex);
 		ArgumentArray::iterator it = cmd.begin();
 		while (it != cmd.end())
 		{
@@ -35,6 +36,7 @@ namespace ardb
 
 	void ArdbServer::ClearSubscribes(ArdbConnContext& ctx)
 	{
+		LockGuard<ThreadMutex> guard(m_pubsub_mutex);
 		if (NULL != ctx.pubsub_channle_set)
 		{
 			PubSubChannelSet::iterator it = ctx.pubsub_channle_set->begin();
@@ -157,11 +159,13 @@ namespace ardb
 
 	int ArdbServer::UnSubscribe(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
+		LockGuard<ThreadMutex> guard(m_pubsub_mutex);
 		unsubscribe(ctx, cmd, false, m_pubsub_context_table);
 		return 0;
 	}
 	int ArdbServer::PSubscribe(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
+		LockGuard<ThreadMutex> guard(m_pubsub_mutex);
 		if (NULL == ctx.pattern_pubsub_channle_set)
 		{
 			ctx.pattern_pubsub_channle_set = new PubSubChannelSet;
@@ -184,6 +188,7 @@ namespace ardb
 	}
 	int ArdbServer::PUnSubscribe(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
+		LockGuard<ThreadMutex> guard(m_pubsub_mutex);
 		unsubscribe(ctx, cmd, true, m_pattern_pubsub_context_table);
 		return 0;
 	}
@@ -224,6 +229,7 @@ namespace ardb
 
 	int ArdbServer::Publish(ArdbConnContext& ctx, ArgumentArray& cmd)
 	{
+		LockGuard<ThreadMutex> guard(m_pubsub_mutex);
 		const std::string& channel = cmd[0];
 		const std::string& message = cmd[1];
 		PubSubContextTable::iterator found = m_pubsub_context_table.find(

@@ -107,8 +107,7 @@ namespace ardb
 			bool WriteRequested(ChannelHandlerContext& ctx,
 					MessageEvent<ReplInstruction>& e)
 			{
-				static Buffer buffer(e.GetMessage()->Size());
-				buffer.Clear();
+				Buffer buffer(e.GetMessage()->Size());
 				BufferHelper::WriteFixUInt8(buffer, e.GetMessage()->type);
 				buffer.Write(&(e.GetMessage()->ptr),
 						sizeof(e.GetMessage()->ptr));

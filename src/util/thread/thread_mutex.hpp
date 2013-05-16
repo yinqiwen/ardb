@@ -16,11 +16,11 @@ namespace ardb
 		protected:
 			pthread_mutex_t m_mutex;
 		public:
-			ThreadMutex()
+			ThreadMutex(int type = PTHREAD_MUTEX_DEFAULT)
 			{
 				pthread_mutexattr_t attr;
 				pthread_mutexattr_init(&attr);
-				pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_DEFAULT);
+				pthread_mutexattr_settype(&attr, type);
 				pthread_mutex_init(&m_mutex, &attr);
 				pthread_mutexattr_destroy(&attr);
 			}

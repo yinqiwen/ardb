@@ -12,6 +12,7 @@
 #include <btree_set.h>
 #include "channel/all_includes.hpp"
 #include "util/config_helper.hpp"
+#include "util/thread/thread_local.hpp"
 #include "ardb.hpp"
 #include "replication.hpp"
 
@@ -266,14 +267,16 @@ namespace ardb
 			SlowLogHandler m_slowlog_handler;
 			ClientConnHolder m_clients_holder;
 			ReplicationService m_repli_serv;
+			SlaveClient m_slave_client;
 
 			DBIDSet m_period_batch_dbids;
 			WatchKeyContextTable m_watch_context_table;
+			ThreadMutex m_watch_mutex;
 			PubSubContextTable m_pubsub_context_table;
 			PubSubContextTable m_pattern_pubsub_context_table;
-			ArdbConnContext* m_current_ctx;
-
-			SlaveClient m_slave_client;
+			ThreadMutex m_pubsub_mutex;
+			//ArdbConnContext* m_current_ctx;
+			ThreadLocal<ArdbConnContext*> m_ctx_local;
 
 			RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(
 					std::string& cmd);
@@ -451,7 +454,7 @@ namespace ardb
 			}
 			ArdbConnContext* GetCurrentContext()
 			{
-				return m_current_ctx;
+				return m_ctx_local.GetValue();
 			}
 			int Start(const Properties& props);
 			~ArdbServer();
