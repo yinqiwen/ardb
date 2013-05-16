@@ -120,11 +120,6 @@ namespace ardb
 		conf_get_int64(props, "slowlog-log-slower-than",
 				cfg.slowlog_log_slower_than);
 		conf_get_int64(props, "slowlog-max-len", cfg.slowlog_max_len);
-		conf_get_int64(props, "auto_batch_flush_period",
-				cfg.batch_flush_period);
-		std::string on = "on";
-		conf_get_string(props, "auto_batch_write_enable", on);
-		cfg.batch_write_enable = on == "on";
 		conf_get_int64(props, "maxclients", cfg.max_clients);
 		conf_get_string(props, "bind", cfg.listen_host);
 		conf_get_string(props, "unixsocket", cfg.listen_unix_path);
@@ -2306,10 +2301,6 @@ namespace ardb
 		{
 			m_clients_holder.TouchConn(ctx.conn, cmd);
 		}
-		if (m_cfg.batch_write_enable)
-		{
-			InsertBatchWriteDBID(ctx.currentDB);
-		}
 		uint64 start_time = get_current_epoch_micros();
 		int ret = (this->*(setting->handler))(ctx, args.GetArguments());
 		uint64 stop_time = get_current_epoch_micros();
@@ -2378,30 +2369,6 @@ namespace ardb
 		}
 	}
 
-	void ArdbServer::Run()
-	{
-		BatchWriteFlush();
-	}
-
-	void ArdbServer::BatchWriteFlush()
-	{
-		DBIDSet::iterator it = m_period_batch_dbids.begin();
-		while (it != m_period_batch_dbids.end())
-		{
-			m_db->GetDB(*it)->CommitBatchWrite();
-			it++;
-		}
-		m_period_batch_dbids.clear();
-	}
-
-	void ArdbServer::InsertBatchWriteDBID(const DBID& id)
-	{
-		bool isnew = m_period_batch_dbids.insert(id).second;
-		if (isnew)
-		{
-			m_db->GetDB(id)->BeginBatchWrite();
-		}
-	}
 
 	Timer& ArdbServer::GetTimer()
 	{
@@ -2472,11 +2439,6 @@ namespace ardb
 		}
 		ArdbLogger::InitDefaultLogger(m_cfg.loglevel, m_cfg.logfile);
 
-		if (m_cfg.batch_write_enable)
-		{
-			m_service->GetTimer().Schedule(this, m_cfg.batch_flush_period,
-					m_cfg.batch_flush_period, SECONDS);
-		}
 		if (!m_cfg.single)
 		{
 			m_repli_serv.Init();

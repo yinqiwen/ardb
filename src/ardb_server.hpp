@@ -32,9 +32,6 @@ namespace ardb
 			int64 slowlog_log_slower_than;
 			int64 slowlog_max_len;
 
-			bool batch_write_enable;
-			int64 batch_flush_period;
-
 			std::string repl_data_dir;
 			std::string backup_dir;
 
@@ -53,8 +50,7 @@ namespace ardb
 			ArdbServerConfig() :
 					daemonize(false), listen_port(0), unixsocketperm(755), max_clients(
 							10000), tcp_keepalive(0), slowlog_log_slower_than(
-							10000), slowlog_max_len(128), batch_write_enable(
-							true), batch_flush_period(1), repl_data_dir(
+							10000), slowlog_max_len(128), repl_data_dir(
 							"./repl"), backup_dir("./backup"), repl_ping_slave_period(
 							10), repl_timeout(60), rep_backlog_size(1000000), repl_syncstate_persist_period(
 							1), master_port(0), single(false), worker_count(1), loglevel(
@@ -238,7 +234,7 @@ namespace ardb
 
 	class ReplicationService;
 	class OpLogs;
-	class ArdbServer: public Runnable, public KeyWatcher
+	class ArdbServer: public KeyWatcher
 	{
 		public:
 			typedef int (ArdbServer::*RedisCommandHandler)(ArdbConnContext&,
@@ -269,7 +265,6 @@ namespace ardb
 			ReplicationService m_repli_serv;
 			SlaveClient m_slave_client;
 
-			DBIDSet m_period_batch_dbids;
 			WatchKeyContextTable m_watch_context_table;
 			ThreadMutex m_watch_mutex;
 			PubSubContextTable m_pubsub_context_table;
@@ -292,9 +287,7 @@ namespace ardb
 			friend class OpLogs;
 			friend class RedisRequestHandler;
 			friend class SlaveClient;
-			void Run();
-			void BatchWriteFlush();
-			void InsertBatchWriteDBID(const DBID& id);
+
 			int OnKeyUpdated(const DBID& dbid, const Slice& key);
 			int OnAllKeyDeleted(const DBID& dbid);
 			void ClearWatchKeys(ArdbConnContext& ctx);
