@@ -20,9 +20,9 @@ namespace ardb
 				T* obj = static_cast<T*>(x);
 				delete obj;
 			}
-			virtual T* InitialValue()
+			T* InitialValue()
 			{
-				return NULL;
+				return new T;
 			}
 		public:
 			ThreadLocal()

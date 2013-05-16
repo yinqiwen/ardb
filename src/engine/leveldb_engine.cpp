@@ -115,7 +115,7 @@ namespace ardb
 	}
 
 	LevelDBEngine::LevelDBEngine() :
-			m_db(NULL), m_batch_size(0)
+			m_db(NULL)
 	{
 
 	}
@@ -166,55 +166,41 @@ namespace ardb
 
 	int LevelDBEngine::BeginBatchWrite()
 	{
-		m_batch_stack.push(true);
+		m_batch_local.GetValue().AddRef();
 		return 0;
 	}
 	int LevelDBEngine::CommitBatchWrite()
 	{
-		if (!m_batch_stack.empty())
+		BatchHolder& holder = m_batch_local.GetValue();
+		holder.ReleaseRef();
+		if (holder.EmptyRef())
 		{
-			m_batch_stack.pop();
-		}
-		if (m_batch_stack.empty())
-		{
-			return FlushWriteBatch();
+			return FlushWriteBatch(holder);
 		}
 		return 0;
 	}
 	int LevelDBEngine::DiscardBatchWrite()
 	{
-		if (!m_batch_stack.empty())
-		{
-			m_batch_stack.pop();
-		}
-		m_batch.Clear();
-		m_batch_size = 0;
+		BatchHolder& holder = m_batch_local.GetValue();
+		holder.ReleaseRef();
+		holder.Clear();
 		return 0;
 	}
 
-	int LevelDBEngine::FlushWriteBatch()
+	int LevelDBEngine::FlushWriteBatch(BatchHolder& holder)
 	{
-		if (m_batch_size > 0)
-		{
-			leveldb::Status s = m_db->Write(leveldb::WriteOptions(), &m_batch);
-			m_batch.Clear();
-			m_batch_size = 0;
-			return s.ok() ? 0 : -1;
-		}
-		return 0;
+		leveldb::Status s = m_db->Write(leveldb::WriteOptions(), &holder.batch);
+		holder.Clear();
+		return s.ok() ? 0 : -1;
 	}
 
 	int LevelDBEngine::Put(const Slice& key, const Slice& value)
 	{
 		leveldb::Status s = leveldb::Status::OK();
-		if (!m_batch_stack.empty())
+		BatchHolder& holder = m_batch_local.GetValue();
+		if (!holder.EmptyRef())
 		{
-			m_batch.Put(LEVELDB_SLICE(key), LEVELDB_SLICE(value));
-			m_batch_size++;
-			if(m_batch_size >= m_cfg.batch_commit_watermark)
-			{
-				FlushWriteBatch();
-			}
+			holder.batch.Put(LEVELDB_SLICE(key), LEVELDB_SLICE(value));
 		}
 		else
 		{
@@ -232,14 +218,10 @@ namespace ardb
 	int LevelDBEngine::Del(const Slice& key)
 	{
 		leveldb::Status s = leveldb::Status::OK();
-		if (!m_batch_stack.empty())
+		BatchHolder& holder = m_batch_local.GetValue();
+		if (!holder.EmptyRef())
 		{
-			m_batch.Delete(LEVELDB_SLICE(key));
-			m_batch_size++;
-			if(m_batch_size >= m_cfg.batch_commit_watermark)
-			{
-				FlushWriteBatch();
-			}
+			holder.batch.Delete(LEVELDB_SLICE(key));
 		}
 		else
 		{

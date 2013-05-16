@@ -10,6 +10,7 @@
 #include "leveldb/comparator.h"
 #include "ardb.hpp"
 #include "util/config_helper.hpp"
+#include "util/thread/thread_local.hpp"
 #include <stack>
 
 namespace ardb
@@ -99,14 +100,38 @@ namespace ardb
 		private:
 			leveldb::DB* m_db;
 			LevelDBComparator m_comparator;
-			leveldb::WriteBatch m_batch;
-			std::stack<bool> m_batch_stack;
+			struct BatchHolder
+			{
+					leveldb::WriteBatch batch;
+					uint32 ref;
+					void ReleaseRef()
+					{
+						if (ref > 0)
+							ref--;
+					}
+					void AddRef()
+					{
+						ref++;
+					}
+					bool EmptyRef()
+					{
+						return ref == 0;
+					}
+					void Clear()
+					{
+						batch.Clear();
+					}
+					BatchHolder() :
+							ref(0)
+					{
+					}
+			};
+			ThreadLocal<BatchHolder> m_batch_local;
 			std::string m_db_path;
-			uint32 m_batch_size;
 
 			LevelDBConfig m_cfg;
 			friend class LevelDBEngineFactory;
-			int FlushWriteBatch();
+			int FlushWriteBatch(BatchHolder& holder);
 		public:
 			LevelDBEngine();
 			~LevelDBEngine();
