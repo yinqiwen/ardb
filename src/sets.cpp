@@ -369,9 +369,9 @@ namespace ardb
 		ValueSet vs;
 		if (0 == SDiff(db, keys, vs) && vs.size() > 0)
 		{
-			KeyLockerGuard keyguard(m_key_locker, db, dst);
 			BatchWriteGuard guard(GetDB(db));
 			SClear(db, dst);
+			KeyLockerGuard keyguard(m_key_locker, db, dst);
 			SetMetaValue meta;
 			ValueSet::iterator it = vs.begin();
 			while (it != vs.end())
@@ -530,9 +530,9 @@ namespace ardb
 		ValueSet vs;
 		if (0 == SInter(db, keys, vs) && vs.size() > 0)
 		{
-			KeyLockerGuard keyguard(m_key_locker, db, dst);
 			BatchWriteGuard guard(GetDB(db));
 			SClear(db, dst);
+			KeyLockerGuard keyguard(m_key_locker, db, dst);
 			SetMetaValue meta;
 			ValueSet::iterator it = vs.begin();
 			while (it != vs.end())
@@ -679,7 +679,6 @@ namespace ardb
 		for (int i = 0; i < keys.size(); i++)
 		{
 			Slice k = keys.at(i);
-			std::string tmp(k.data(), k.size());
 			ValueArray vss;
 			SMembers(db, k, vss);
 			ValueArray::iterator vit = vss.begin();
@@ -697,9 +696,9 @@ namespace ardb
 		ValueSet ss;
 		if (0 == SUnion(db, keys, ss) && ss.size() > 0)
 		{
-			KeyLockerGuard keyguard(m_key_locker, db, dst);
 			BatchWriteGuard guard(GetDB(db));
 			SClear(db, dst);
+			KeyLockerGuard keyguard(m_key_locker, db, dst);
 			SetMetaValue meta;
 			ValueSet::iterator it = ss.begin();
 			while (it != ss.end())

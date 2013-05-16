@@ -881,9 +881,9 @@ namespace ardb
 		if (vm.size() > 0)
 		{
 			double min_score = 0, max_score = 0;
-			KeyLockerGuard keyguard(m_key_locker, db, dst);
 			BatchWriteGuard guard(GetDB(db));
 			ZClear(db, dst);
+			KeyLockerGuard keyguard(m_key_locker, db, dst);
 			ValueScoreMap::iterator it = vm.begin();
 			while (it != vm.end())
 			{
@@ -1027,9 +1027,9 @@ namespace ardb
 		if (cmp->size() > 0)
 		{
 			double min_score = 0, max_score = 0;
-			KeyLockerGuard keyguard(m_key_locker, db, dst);
 			BatchWriteGuard guard(GetDB(db));
 			ZClear(db, dst);
+			KeyLockerGuard keyguard(m_key_locker, db, dst);
 			ValueScoreMap::iterator it = cmp->begin();
 			while (it != cmp->end())
 			{

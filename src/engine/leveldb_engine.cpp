@@ -235,10 +235,7 @@ namespace ardb
 		leveldb::ReadOptions options;
 		options.fill_cache = false;
 		leveldb::Iterator* iter = m_db->NewIterator(options);
-//		uint64 start_time = get_current_epoch_micros();
 		iter->Seek(LEVELDB_SLICE(findkey));
-//		uint64 stop_time = get_current_epoch_micros();
-//		INFO_LOG("Cost %lldus to exec seek:%d", (stop_time-start_time),findkey.size());
 		return new LevelDBIterator(iter);
 	}
 
