@@ -59,6 +59,7 @@ namespace ardb
 	int Ardb::ListPush(const DBID& db, const Slice& key, const Slice& value,
 			bool athead, bool onlyexist, float withscore)
 	{
+		KeyLockerGuard keyguard(m_key_locker, db, key);
 		KeyObject k(key, LIST_META);
 		ValueObject v;
 		ListMetaValue meta;
@@ -137,6 +138,7 @@ namespace ardb
 	int Ardb::LInsert(const DBID& db, const Slice& key, const Slice& opstr,
 			const Slice& pivot, const Slice& value)
 	{
+		KeyLockerGuard keyguard(m_key_locker, db, key);
 		bool before;
 		if (!strncasecmp(opstr.data(), "before", opstr.size()))
 			before = true;
@@ -213,6 +215,7 @@ namespace ardb
 	int Ardb::ListPop(const DBID& db, const Slice& key, bool athead,
 			std::string& value)
 	{
+		KeyLockerGuard keyguard(m_key_locker, db, key);
 		KeyObject k(key, LIST_META);
 		ValueObject v;
 		ListMetaValue meta;
@@ -395,6 +398,7 @@ namespace ardb
 
 	int Ardb::LClear(const DBID& db, const Slice& key)
 	{
+		KeyLockerGuard keyguard(m_key_locker, db, key);
 		ListKeyObject lk(key, -FLT_MAX);
 		struct LClearWalk: public WalkHandler
 		{
@@ -423,6 +427,7 @@ namespace ardb
 	int Ardb::LRem(const DBID& db, const Slice& key, int count,
 			const Slice& value)
 	{
+		KeyLockerGuard keyguard(m_key_locker, db, key);
 		ListMetaValue meta;
 		GetListMetaValue(db, key, meta);
 		if (0 == meta.size)
@@ -527,6 +532,7 @@ namespace ardb
 
 	int Ardb::LTrim(const DBID& db, const Slice& key, int start, int stop)
 	{
+		KeyLockerGuard keyguard(m_key_locker, db, key);
 		ListMetaValue meta;
 		GetListMetaValue(db, key, meta);
 		int len = meta.size;

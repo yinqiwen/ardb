@@ -35,11 +35,11 @@ namespace ardb
 				}
 				else
 				{
-					struct timespec next;
-					get_current_epoch_time(next);
-					uint64 inc = nanostime(timeout, unit);
-					add_nanos(next, inc);
-					return 0 == pthread_cond_timedwait(&m_cond, &m_mutex, &next);
+					uint64 now = get_current_epoch_micros();
+					uint64 inc = microstime(timeout, unit);
+					struct timespec ts;
+					init_timespec(now + inc, MICROS, ts);
+					return 0 == pthread_cond_timedwait(&m_cond, &m_mutex, &ts);
 				}
 			}
 			virtual bool Notify()

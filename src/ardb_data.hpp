@@ -17,6 +17,8 @@
 #include <string>
 #include <tr1/unordered_set>
 #include <tr1/unordered_map>
+#include <btree_map.h>
+#include <btree_set.h>
 #include "common.hpp"
 #include "slice.hpp"
 #include "util/buffer_helper.hpp"
@@ -117,8 +119,7 @@ namespace ardb
 					{
 						Buffer tmp(64);
 						tmp.Printf("%lld", v.int_v);
-						str.assign(tmp.GetRawReadBuffer(),
-								tmp.ReadableBytes());
+						str.assign(tmp.GetRawReadBuffer(), tmp.ReadableBytes());
 						return str;
 					}
 					case DOUBLE:
@@ -240,6 +241,32 @@ namespace ardb
 	typedef std::map<std::string, Slice> SliceMap;
 	typedef std::set<std::string> StringSet;
 	typedef std::vector<uint32_t> WeightArray;
+
+	struct DBItemKey
+	{
+			DBID db;
+			Slice key;
+			DBItemKey(const DBID& id = "", const Slice& k = "") :
+					db(id), key(k)
+			{
+			}
+			bool operator<(const DBItemKey& other) const
+			{
+				if (db > other.db)
+				{
+					return false;
+				}
+				if (db == other.db)
+				{
+					return key.compare(other.key) < 0;
+				}
+				return true;
+			}
+			bool Empty()
+			{
+				return db.empty();
+			}
+	};
 
 	enum CompareOperator
 	{

@@ -63,6 +63,7 @@ namespace ardb
 	int Ardb::ZAdd(const DBID& db, const Slice& key, double score,
 	        const Slice& value)
 	{
+		KeyLockerGuard keyguard(m_key_locker, db, key);
 		ZSetMetaValue meta;
 		GetZSetMetaValue(db, key, meta);
 		bool metachange = false;
@@ -167,6 +168,7 @@ namespace ardb
 	int Ardb::ZIncrby(const DBID& db, const Slice& key, double increment,
 	        const Slice& value, double& score)
 	{
+		KeyLockerGuard keyguard(m_key_locker, db, key);
 		ZSetScoreKeyObject zk(key, value);
 		ValueObject zv;
 		if (0 == GetValue(db, zk, &zv))
@@ -187,6 +189,7 @@ namespace ardb
 
 	int Ardb::ZClear(const DBID& db, const Slice& key)
 	{
+		KeyLockerGuard keyguard(m_key_locker, db, key);
 		ZSetMetaValue meta;
 		if (0 != GetZSetMetaValue(db, key, meta))
 		{
@@ -221,6 +224,7 @@ namespace ardb
 
 	int Ardb::ZRem(const DBID& db, const Slice& key, const Slice& value)
 	{
+		KeyLockerGuard keyguard(m_key_locker, db, key);
 		ZSetScoreKeyObject zk(key, value);
 		ValueObject zv;
 		if (0 == GetValue(db, zk, &zv))
@@ -370,6 +374,7 @@ namespace ardb
 	int Ardb::ZRemRangeByRank(const DBID& db, const Slice& key, int start,
 	        int stop)
 	{
+		KeyLockerGuard keyguard(m_key_locker, db, key);
 		ZSetMetaValue meta;
 		if (0 != GetZSetMetaValue(db, key, meta))
 		{
@@ -432,6 +437,7 @@ namespace ardb
 	int Ardb::ZRemRangeByScore(const DBID& db, const Slice& key,
 	        const std::string& min, const std::string& max)
 	{
+		KeyLockerGuard keyguard(m_key_locker, db, key);
 		ZSetMetaValue meta;
 		if (0 != GetZSetMetaValue(db, key, meta))
 		{
@@ -875,6 +881,7 @@ namespace ardb
 		if (vm.size() > 0)
 		{
 			double min_score = 0, max_score = 0;
+			KeyLockerGuard keyguard(m_key_locker, db, dst);
 			BatchWriteGuard guard(GetDB(db));
 			ZClear(db, dst);
 			ValueScoreMap::iterator it = vm.begin();
@@ -1020,6 +1027,7 @@ namespace ardb
 		if (cmp->size() > 0)
 		{
 			double min_score = 0, max_score = 0;
+			KeyLockerGuard keyguard(m_key_locker, db, dst);
 			BatchWriteGuard guard(GetDB(db));
 			ZClear(db, dst);
 			ValueScoreMap::iterator it = cmp->begin();

@@ -194,11 +194,12 @@ namespace ardb
 		return pos;
 	}
 
-	Ardb::Ardb(KeyValueEngineFactory* engine, const std::string& path) :
+	Ardb::Ardb(KeyValueEngineFactory* engine, const std::string& path, bool multi_thread) :
 			m_engine_factory(engine), m_key_watcher(NULL), m_raw_key_listener(
 					NULL), m_path(path)
 	{
 		LoadAllDBNames();
+		m_key_locker.enable = multi_thread;
 	}
 
 	Ardb::~Ardb()

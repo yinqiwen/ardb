@@ -20,6 +20,7 @@
 #include "util/helpers.hpp"
 #include "util/buffer_helper.hpp"
 #include "util/thread/thread_mutex.hpp"
+#include "util/thread/thread_mutex_lock.hpp"
 #include "util/thread/lock_guard.hpp"
 
 #define ARDB_OK 0
@@ -213,9 +214,76 @@ namespace ardb
 				m_err_cause = cause;
 			}
 
+			struct KeyLocker
+			{
+					typedef btree::btree_set<DBItemKey> DBItemKeySet;
+					DBItemKeySet m_locked_keys;
+					ThreadMutex m_keys_mutex;
+					ThreadMutexLock m_barrier;
+					bool enable;
+					KeyLocker() :
+							enable(true)
+					{
+					}
+					void AddLockKey(const DBID& db, const Slice& key)
+					{
+						if (!enable)
+						{
+							return;
+						}
+						while (true)
+						{
+							bool insert = false;
+							{
+								LockGuard<ThreadMutex> guard(m_keys_mutex);
+								insert = m_locked_keys.insert(
+										DBItemKey(db, key)).second;
+							}
+							if (insert)
+							{
+								return;
+							} else
+							{
+								LockGuard<ThreadMutexLock> guard(m_barrier);
+								m_barrier.Wait();
+							}
+						}
+					}
+					void ClearLockKey(const DBID& db, const Slice& key)
+					{
+						if (!enable)
+						{
+							return;
+						}
+						{
+							LockGuard<ThreadMutex> guard(m_keys_mutex);
+							m_locked_keys.erase(DBItemKey(db, key));
+						}
+						LockGuard<ThreadMutexLock> guard(m_barrier);
+						m_barrier.NotifyAll();
+					}
+			};
 
+			struct KeyLockerGuard
+			{
+					KeyLocker& locker;
+					const DBID& db;
+					const Slice& key;
+					KeyLockerGuard(KeyLocker& loc, const DBID& id,
+							const Slice& k) :
+							locker(loc), db(id), key(k)
+					{
+						locker.AddLockKey(db, key);
+					}
+					~KeyLockerGuard()
+					{
+						locker.ClearLockKey(db, key);
+					}
+			};
+			KeyLocker m_key_locker;
 		public:
-			Ardb(KeyValueEngineFactory* factory, const std::string& path);
+			Ardb(KeyValueEngineFactory* factory, const std::string& path,
+					bool multi_thread = true);
 			~Ardb();
 
 			int RawSet(const DBID& db, const Slice& key, const Slice& value);
@@ -290,8 +358,9 @@ namespace ardb
 					std::string* value);
 			int HIncrby(const DBID& db, const Slice& key, const Slice& field,
 					int64_t increment, int64_t& value);
-			int HMIncrby(const DBID& db, const Slice& key, const SliceArray& fields,
-					const Int64Array& increments, Int64Array& vs);
+			int HMIncrby(const DBID& db, const Slice& key,
+					const SliceArray& fields, const Int64Array& increments,
+					Int64Array& vs);
 			int HIncrbyFloat(const DBID& db, const Slice& key,
 					const Slice& field, double increment, double& value);
 			int HMGet(const DBID& db, const Slice& key,

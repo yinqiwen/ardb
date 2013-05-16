@@ -69,6 +69,7 @@ namespace ardb
 
 	int Ardb::SAdd(const DBID& db, const Slice& key, const Slice& value)
 	{
+		KeyLockerGuard guard(m_key_locker, db, key);
 		KeyObject k(key, SET_META);
 		//SetKeyObject k(key, Slice());
 		SetMetaValue meta;
@@ -158,6 +159,7 @@ namespace ardb
 
 	int Ardb::SRem(const DBID& db, const Slice& key, const SliceArray& values)
 	{
+		KeyLockerGuard keyguard(m_key_locker, db, key);
 		SetMetaValue meta;
 		if (0 != GetSetMetaValue(db, key, meta))
 		{
@@ -186,6 +188,7 @@ namespace ardb
 
 	int Ardb::SRem(const DBID& db, const Slice& key, const Slice& value)
 	{
+		KeyLockerGuard keyguard(m_key_locker, db, key);
 		SetMetaValue meta;
 		if (0 != GetSetMetaValue(db, key, meta))
 		{
@@ -231,6 +234,7 @@ namespace ardb
 
 	int Ardb::SClear(const DBID& db, const Slice& key)
 	{
+		KeyLockerGuard keyguard(m_key_locker, db, key);
 		Slice empty;
 		SetKeyObject sk(key, empty);
 		SetMetaValue meta;
@@ -365,6 +369,7 @@ namespace ardb
 		ValueSet vs;
 		if (0 == SDiff(db, keys, vs) && vs.size() > 0)
 		{
+			KeyLockerGuard keyguard(m_key_locker, db, dst);
 			BatchWriteGuard guard(GetDB(db));
 			SClear(db, dst);
 			SetMetaValue meta;
@@ -525,6 +530,7 @@ namespace ardb
 		ValueSet vs;
 		if (0 == SInter(db, keys, vs) && vs.size() > 0)
 		{
+			KeyLockerGuard keyguard(m_key_locker, db, dst);
 			BatchWriteGuard guard(GetDB(db));
 			SClear(db, dst);
 			SetMetaValue meta;
@@ -571,6 +577,7 @@ namespace ardb
 
 	int Ardb::SPop(const DBID& db, const Slice& key, std::string& value)
 	{
+		KeyLockerGuard keyguard(m_key_locker, db, key);
 		SetMetaValue meta;
 		if (0 != GetSetMetaValue(db, key, meta))
 		{
@@ -690,6 +697,7 @@ namespace ardb
 		ValueSet ss;
 		if (0 == SUnion(db, keys, ss) && ss.size() > 0)
 		{
+			KeyLockerGuard keyguard(m_key_locker, db, dst);
 			BatchWriteGuard guard(GetDB(db));
 			SClear(db, dst);
 			SetMetaValue meta;

@@ -137,8 +137,7 @@ namespace ardb
 		conf_get_string(props, "daemonize", daemonize);
 		conf_get_string(props, "single", single);
 
-		conf_get_int64(props, "thread-pool-size",
-						cfg.worker_count);
+		conf_get_int64(props, "thread-pool-size", cfg.worker_count);
 		conf_get_int64(props, "repl-ping-slave-period",
 				cfg.repl_ping_slave_period);
 		conf_get_int64(props, "repl-timeout", cfg.repl_timeout);
@@ -2591,7 +2590,7 @@ namespace ardb
 		}
 
 		m_engine = new SelectedDBEngineFactory(props);
-		m_db = new Ardb(m_engine, m_cfg.data_base_path);
+		m_db = new Ardb(m_engine, m_cfg.data_base_path, m_cfg.worker_count > 1);
 		m_service = new ChannelService(m_cfg.max_clients + 32);
 
 		ChannelOptions ops;
