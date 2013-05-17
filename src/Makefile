@@ -6,19 +6,42 @@
 CXX=g++
 CC=gcc
 
-SNAPPY_PATH=../deps/snappy
-LEVELDB_PATH=../deps/leveldb
-KCDB_PATH=../deps/kyotocabinet-1.2.76
-LMDB_PATH=../deps/mdb/libraries/liblmdb
-JEMALLOC_PATH=../deps/jemalloc-3.3.1
+LIB_PATH=$(PWD)/../deps
 
-CXXFLAGS=-Wall -Wno-format -g -O2  -D_FILE_OFFSET_BITS=64 -fPIC
-CCFLAGS=-Wall -std=gnu99 -O2 -pedantic -Wno-format -g -D_FILE_OFFSET_BITS=64 -fPIC
+LMDB_PATH=${LIB_PATH}/mdb/libraries/liblmdb
+
+JEMALLOC_VER=jemalloc-3.3.1
+JEMALLOC_PATH=${LIB_PATH}/${JEMALLOC_VER}
+JEMALLOC_FILE=${JEMALLOC_PATH}.tar.bz2
+JEMALLOC_LIBA=${JEMALLOC_PATH}/lib/libjemalloc.a
+
+GPERF_VER=gperftools-2.0
+GPERF_PATH=${LIB_PATH}/${GPERF_VER}
+GPERF_FILE=${GPERF_PATH}.tar.gz
+TCMALLOC_LIBA=${GPERF_PATH}/.libs/libtcmalloc_minimal.a
+
+SNAPPY_VER=snappy-1.1.0
+SNAPPY_PATH=${LIB_PATH}/${SNAPPY_VER}
+SNAPPY_FILE=${SNAPPY_PATH}.tar.gz
+SNAPPY_LIBA=${SNAPPY_PATH}/.libs/libsnappy.a
+
+LEVELDB_VER=leveldb-1.10.0
+LEVELDB_PATH=${LIB_PATH}/${LEVELDB_VER}
+LEVELDB_FILE=${LEVELDB_PATH}.tar.gz
+LEVELDB_LIBA=${LEVELDB_PATH}/libleveldb.a
+
+KCDB_VER=kyotocabinet-1.2.76
+KCDB_PATH=${LIB_PATH}/${KCDB_VER}
+KCDB_FILE=${KCDB_PATH}.tar.gz
+KCDB_LIBA=${KCDB_PATH}/libkyotocabinet.a
+
+CXXFLAGS=-Wall -Wno-unused-parameter -Wno-format -g -O2  -D_FILE_OFFSET_BITS=64 -fPIC
+CCFLAGS=-Wall -Wno-unused-parameter -Wbad-function-cast -std=gnu99 -O2 -pedantic -Wno-format -g -D_FILE_OFFSET_BITS=64 -fPIC
 LDFLAGS=-g 
 
-INCS=-I./ -I./util -I${LEVELDB_PATH}/include -I${KCDB_PATH} -I${LMDB_PATH} -I../deps/cpp-btree 
+INCS=-I./  -I../deps/cpp-btree 
 
-LIBS= ${SNAPPY_PATH}/.libs/libsnappy.a ${JEMALLOC_PATH}/lib/libjemalloc.a -lpthread
+LIBS=  ${TCMALLOC_LIBA} -lpthread
 
 %.o : %.cpp
 	${CXX} -c ${CXXFLAGS} ${INCS} $< -o $@
@@ -53,7 +76,41 @@ SERVER_OBJECTS := ardb_server.o transaction.o slowlog.o clients.o replication.o 
 #DIST_LIB = libardb.so
 DIST_LIBA = libardb.a
 
-all: lib leveldb test
+ifeq ($(origin storage_engine), undefined)
+storage_engine=leveldb
+endif
+
+ifeq ($(storage_engine), leveldb)
+  STORAGE_ENGINE_OBJ=${LEVELDB_ENGINE}
+  STORAGE_ENGINE=leveldb ${STORAGE_ENGINE_OBJ}
+  INCS+=-I${LEVELDB_PATH}/include
+  LIBS:=${SNAPPY_LIBA} ${LEVELDB_LIBA} ${LIBS}
+  TESTOBJ=${LEVELDB_TEST}
+else
+ifeq ($(storage_engine), kyotocabinet)
+  STORAGE_ENGINE_OBJ=${KCDB_ENGINE}
+  STORAGE_ENGINE=kyotocabinet ${STORAGE_ENGINE_OBJ}
+  INCS+=-I${KCDB_PATH}/include
+  LIBS:= ${KCDB_LIBA} ${LIBS} -lz
+  TESTOBJ=${KCDB_TEST}
+  CXXFLAGS+=-D__USE_KYOTOCABINET__
+else
+ifeq ($(storage_engine), lmdb)
+  STORAGE_ENGINE_OBJ=${LMDB_ENGINE}
+  STORAGE_ENGINE=lmdb ${STORAGE_ENGINE_OBJ}
+  INCS+=-I${LMDB_PATH}/include
+  LIBS:= ${LMDB_LIBA} ${LIBS}
+  TESTOBJ=${LMDB_TEST}
+  CXXFLAGS+=-D__USE_LMDB__
+else
+  $(error Only leveldb/kyotocabinet/lmdb supported as env storage_engine's value)
+endif 
+endif
+endif
+
+
+
+all: lib test server 
 
 $(DIST_LIB):$(CORE_OBJECTS)
 	${CXX} -shared -o $@ $^
@@ -61,32 +118,56 @@ $(DIST_LIB):$(CORE_OBJECTS)
 $(DIST_LIBA):$(CORE_OBJECTS)
 	ar rcs $@ $^
 
-lib:$(DIST_LIBA)
+lib:tcmalloc $(DIST_LIBA)
 
-server:$(SERVER_OBJECTS) $(CORE_OBJECTS) $(CHANNEL_OBJECTS)
+server:$(SERVER_OBJECTS) $(CORE_OBJECTS) $(CHANNEL_OBJECTS) ${STORAGE_ENGINE}
+	${CXX} -o ardb-server $(SERVER_OBJECTS)  $(CORE_OBJECTS) $(CHANNEL_OBJECTS) ${STORAGE_ENGINE_OBJ} $(LIBS)
 
-leveldb:server $(LEVELDB_ENGINE)
-	${CXX} -o ardb-server $(SERVER_OBJECTS) $(LEVELDB_ENGINE) $(CORE_OBJECTS) $(CHANNEL_OBJECTS) $(LEVELDB_PATH)/libleveldb.a $(LIBS)  
-
-kcdb:server $(KCDB_ENGINE)
-	${CXX} -o ardb-server $(SERVER_OBJECTS) $(KCDB_ENGINE) $(CORE_OBJECTS) $(CHANNEL_OBJECTS) $(LIBS) -L/usr/local/lib -lkyotocabinet -lz
-
-lmdb:server $(LMDB_ENGINE)
-	${CXX} -o ardb-server $(SERVER_OBJECTS) $(LMDB_ENGINE) $(CORE_OBJECTS) $(CHANNEL_OBJECTS) $(LIBS) ${LMDB_PATH}/liblmdb.a
-
-test:leveldb-test kcdb-test lmdb-test
-
-leveldb-test:$(LEVELDB_ENGINE) $(LEVELDB_TEST) $(CORE_OBJECTS) 
-	${CXX} -o leveldb-test $(LEVELDB_ENGINE) $(LEVELDB_TEST) $(CORE_OBJECTS) $(LEVELDB_PATH)/libleveldb.a $(LIBS) 
+test:${STORAGE_ENGINE} $(CORE_OBJECTS) ${TESTOBJ}
+	${CXX} -o ardb-test ${STORAGE_ENGINE_OBJ} ${TESTOBJ} $(CORE_OBJECTS) $(LIBS) 
 	
-kcdb-test:$(KCDB_TEST) $(CORE_OBJECTS) $(KCDB_ENGINE)
-	${CXX} -o kcdb-test $(KCDB_TEST) $(KCDB_ENGINE) $(CORE_OBJECTS) $(LIBS) ${KCDB_PATH}/libkyotocabinet.a -lz
+tcmalloc:
+	@if test -f ${TCMALLOC_LIBA}; then\
+      :; \
+    else \
+      cd ${LIB_PATH};tar zxvf ${GPERF_FILE};cd ${GPERF_PATH};\
+      ./configure;make libtcmalloc_minimal.la;\
+    fi
+    
+jemalloc:
+	@if test -f ${JEMALLOC_LIBA}; then\
+      :; \
+    else \
+      cd ${LIB_PATH};tar jxvf ${JEMALLOC_FILE};cd ${JEMALLOC_PATH};\
+      ./configure;make;\
+    fi
+    
+snappy:
+	@if test -f ${SNAPPY_LIBA}; then\
+      :; \
+    else \
+      cd ${LIB_PATH};tar zxvf ${SNAPPY_FILE};cd ${SNAPPY_PATH};\
+      ./configure;make;\
+    fi
 
-lmdb-test:$(LMDB_TEST) $(CORE_OBJECTS) $(LMDB_ENGINE)
-	${CXX} -o lmdb-test $(LMDB_TEST) $(LMDB_ENGINE) $(CORE_OBJECTS) $(LIBS) ${LMDB_PATH}/liblmdb.a
+kyotocabinet:
+	@if test -f ${KCDB_LIBA}; then\
+      :; \
+    else \
+      cd ${LIB_PATH};tar zxvf ${KCDB_FILE};cd ${KCDB_PATH};\
+      ./configure;make;\
+    fi
+
+leveldb:snappy
+	@if test -f ${LEVELDB_LIBA}; then\
+      :; \
+    else \
+      cd ${LIB_PATH};tar zxvf ${LEVELDB_FILE};cd ${LEVELDB_PATH};\
+      CXXFLAGS="-I${SNAPPY_PATH}" CFLAGS="-I${SNAPPY_PATH} LDFLAGS=${SNAPPY_PATH}/.libs" make libleveldb.a;\
+    fi
 
 clean:
 	rm -f $(LEVELDB_TEST) $(KCDB_TEST) ${CORE_OBJECTS} ${LEVELDB_OBJECTS} \
 	      $(SERVER_OBJECTS) $(CHANNEL_OBJECTS) $(DIST_LIBA) $(DIST_LIB)   \
 	      $(LEVELDB_ENGINE) $(KCDB_ENGINE) $(LMDB_ENGINE) \
-	      leveldb-test kcdb-test lmdb-test ardb-server
+	      ardb-test  ardb-server
