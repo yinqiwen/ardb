@@ -138,7 +138,6 @@ namespace ardb
 	int Ardb::LInsert(const DBID& db, const Slice& key, const Slice& opstr,
 			const Slice& pivot, const Slice& value)
 	{
-		KeyLockerGuard keyguard(m_key_locker, db, key);
 		bool before;
 		if (!strncasecmp(opstr.data(), "before", opstr.size()))
 			before = true;

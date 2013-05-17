@@ -107,7 +107,7 @@ namespace ardb
 			case ZSET_ELEMENT:
 			{
 				const ZSetKeyObject& sk = (const ZSetKeyObject&) key;
-				BufferHelper::WriteVarDouble(buf, sk.score);
+				BufferHelper::WriteFixDouble(buf, sk.score);
 				encode_value(buf, sk.value);
 				break;
 			}

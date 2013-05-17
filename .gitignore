@@ -3,9 +3,11 @@
 *.a
 /.svn
 /.libs
-leveldb-test
-kcdb-test
-lmdb-test
+ardb-test
 ardb-server
 *.bak
 .*
+snappy-*/
+gperftools-*/
+jemalloc-*/
+leveldb-*/

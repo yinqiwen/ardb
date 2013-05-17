@@ -200,7 +200,7 @@ namespace ardb
 		{
 			LoadCachedOpLog(filename);
 		}
-		FillCacheValue();
+		//FillCacheValue();
 		uint64 end = get_current_epoch_millis();
 		ReOpenOpLog();
 		INFO_LOG(
@@ -415,7 +415,7 @@ namespace ardb
 			if (fit != m_mem_op_logs.end())
 			{
 				CachedOp* op = fit->second;
-				if(is_master_slave && op->from_master)
+				if (is_master_slave && op->from_master)
 				{
 					continue;
 				}
@@ -428,6 +428,22 @@ namespace ardb
 					strs.push_back(writeOp->key.key);
 					if (op->type == kSetOpType)
 					{
+						/*
+						 * Load value if not exist
+						 */
+						if (NULL == writeOp->v)
+						{
+							std::string* v = new std::string;
+							if (0
+									== m_server->m_db->RawGet(writeOp->key.db,
+											writeOp->key.key, v))
+							{
+								writeOp->v = v;
+							} else
+							{
+								DELETE(v);
+							}
+						}
 						if (NULL != writeOp->v)
 						{
 							strs.push_back(*(writeOp->v));

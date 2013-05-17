@@ -26,7 +26,7 @@ namespace ardb
 		}
 		else if (strcasecmp(str, "+inf") == 0)
 		{
-			score = -DBL_MAX;
+			score = DBL_MAX;
 		}
 		else
 		{
@@ -56,8 +56,8 @@ namespace ardb
 			v.v.raw = new Buffer(16);
 		}
 		BufferHelper::WriteVarUInt32(*(v.v.raw), meta.size);
-		BufferHelper::WriteFixFloat(*(v.v.raw), meta.min_score);
-		BufferHelper::WriteFixFloat(*(v.v.raw), meta.max_score);
+		BufferHelper::WriteFixDouble(*(v.v.raw), meta.min_score);
+		BufferHelper::WriteFixDouble(*(v.v.raw), meta.max_score);
 	}
 
 	int Ardb::ZAdd(const DBID& db, const Slice& key, double score,

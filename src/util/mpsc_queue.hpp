@@ -37,11 +37,11 @@
 }
 #endif /* gcc & gcc version < 2.9 */
 
-typedef void* ptr_t;
+typedef void* vptr_t;
 #ifdef __x86_64__
-ATOMIC_FUNC_XCHG(get_and_set, "xchgq %1, %0", ptr_t)
+ATOMIC_FUNC_XCHG(get_and_set, "xchgq %1, %0", vptr_t)
 #else
-ATOMIC_FUNC_XCHG(get_and_set, "xchgl %1, %0", ptr_t)
+ATOMIC_FUNC_XCHG(get_and_set, "xchgl %1, %0", vptr_t)
 #endif
 
 namespace ardb
@@ -74,7 +74,7 @@ namespace ardb
 			{
 				Node* node = new Node;
 				node->value = value;
-				Node* prev = (Node*)atomic_get_and_set_ptr_t((ptr_t*)(&m_head),node);
+				Node* prev = (Node*)atomic_get_and_set_vptr_t((vptr_t*)(&m_head),node);
 				prev->next = node;
 			}
 			bool Pop(T& value)

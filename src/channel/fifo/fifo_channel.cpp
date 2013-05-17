@@ -5,9 +5,8 @@
  *      Author: wqy
  */
 #include "channel/all_includes.hpp"
-#include "exception/api_exception.hpp"
+#include "util/exception/api_exception.hpp"
 #include "util/file_helper.hpp"
-#include "exception/api_exception.hpp"
 
 using namespace ardb;
 
