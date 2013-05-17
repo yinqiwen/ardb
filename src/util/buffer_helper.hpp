@@ -1,6 +1,5 @@
 /*
  * BufferHelper.hpp
- * 序列化/反序列化基本类型到Buffer的辅助类
  *
  *      Author: qiyingwang
  */

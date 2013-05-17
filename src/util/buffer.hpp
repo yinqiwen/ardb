@@ -20,7 +20,7 @@
 namespace ardb
 {
 	/**
-	 * 动态自增长的buffer类，同时记录读写标记, 内存模型如下
+	 * A dynamic buffer for read/write.
 	 *
 	 *       +-------------------+------------------+------------------+
 	 *       | readed bytes      |  readable bytes  |  writable bytes  |
