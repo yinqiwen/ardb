@@ -11,9 +11,6 @@
 namespace ardb
 {
 	class Channel;
-	/**
-	 *  所有Channel Event的基类
-	 */
 	class ChannelEvent
 	{
 		protected:

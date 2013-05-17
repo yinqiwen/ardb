@@ -16,9 +16,6 @@ namespace ardb
 {
 	class ChannelPipeline;
 	class Channel;
-	/**
-	 * ChannleHandler的上下文对象，可以据此得到注册的handler的上一个/下一个handler对象
-	 */
 	class ChannelHandlerContext
 	{
 		private:
@@ -73,14 +70,14 @@ namespace ardb
 			Channel* GetChannel();
 
 			/**
-			 * 继续处理下行event
+			 * Send event to next downstream handler
 			 * @see channel_pipeline.hpp
 			 */
 			template<typename T>
 			bool SendDownstream(T& e);
 
 			/**
-			 * 继续处理上行event
+			 *  Send event to next upstream handler
 			 * @see channel_pipeline.hpp
 			 */
 			template<typename T>

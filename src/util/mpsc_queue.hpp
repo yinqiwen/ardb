@@ -1,5 +1,5 @@
 /*
- * x.hpp
+ * mpsc_queue.hpp
  *
  *  Created on: 2013-5-16
  *      Author: wqy

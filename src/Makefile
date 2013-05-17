@@ -84,7 +84,7 @@ ifeq ($(storage_engine), leveldb)
   STORAGE_ENGINE_OBJ=${LEVELDB_ENGINE}
   STORAGE_ENGINE=leveldb ${STORAGE_ENGINE_OBJ}
   INCS+=-I${LEVELDB_PATH}/include
-  LIBS:=${SNAPPY_LIBA} ${LEVELDB_LIBA} ${LIBS}
+  LIBS:=${LEVELDB_LIBA} ${SNAPPY_LIBA} ${LIBS}
   TESTOBJ=${LEVELDB_TEST}
 else
 ifeq ($(storage_engine), kyotocabinet)

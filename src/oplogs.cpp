@@ -299,7 +299,9 @@ namespace ardb
 		if (optype == kSetOpType || optype == kDelOpType)
 		{
 			CachedWriteOp* writeOp = (CachedWriteOp*) op;
-			//only key is persisted
+			/*
+			 * Only key would be persisted
+			 */
 			BufferHelper::WriteVarString(tmp, writeOp->key.key);
 		} else
 		{
@@ -325,7 +327,9 @@ namespace ardb
 	{
 		if (m_current_db != db)
 		{
-			//generate 'select' cmd
+			/*
+			 * generate 'select' cmd
+			 */
 			m_current_db = db;
 			ArgumentArray strs;
 			strs.push_back("select");
@@ -362,7 +366,6 @@ namespace ardb
 		while (m_mem_op_logs.size()
 				>= m_server->GetServerConfig().rep_backlog_size)
 		{
-			//rm head cached op
 			RemoveOldestOp();
 		}
 		if (writeOpLog)
@@ -388,7 +391,6 @@ namespace ardb
 		while (m_mem_op_logs.size()
 				>= m_server->GetServerConfig().rep_backlog_size)
 		{
-			//rm head cached op
 			RemoveOldestOp();
 		}
 		if (writeOpLog)

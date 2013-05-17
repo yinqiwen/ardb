@@ -19,7 +19,7 @@ namespace ardb
 			string m_cause;
 			int32 m_errno;
 		public:
-			inline ChannelException()
+			inline ChannelException():m_errno(-1)
 			{
 			}
 			inline ChannelException(const string& cause, int err = -1) :

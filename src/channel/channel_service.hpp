@@ -123,13 +123,9 @@ namespace ardb
 				return m_eventLoop;
 			}
 			/**
-			 * 启动Event loop
-			 * @self_routine 是否自行例行check
+			 * Start Event loop
 			 */
 			void Start(bool self_routine = true);
-			/**
-			 * 退出Event loop
-			 */
 			void Stop();
 			void CloseAllChannels(bool fireCloseEvent = true);
 			void CloseAllChannelFD(std::set<Channel*>& exceptions);

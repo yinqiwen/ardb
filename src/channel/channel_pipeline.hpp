@@ -21,7 +21,6 @@ using std::string;
 namespace ardb
 {
 	/**
-	 *  ChannelPipeline用于管理注册在channle上的handler， handler之间关系， event流向如图
 	 *  +----------------------------------------+---------------+
 	 *  |                  ChannelPipeline       |               |
 	 *  |                                       \|/              |
@@ -57,7 +56,7 @@ namespace ardb
 	 *  |                     Internal I/O                       |
 	 *  +--------------------------------------------------------+
 	 *
-	 *  pipline注册handler如下所示:
+	 *  Example of register handlers to  pipline:
 	 *   Channel* ch =  ...;
 	 *   ChannelPipeline& p = ch->GetPipeline();
 	 *   p.addLast("1", new UpstreamHandlerA());

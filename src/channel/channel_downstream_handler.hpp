@@ -16,7 +16,7 @@ namespace ardb
 {
 
 	/**
-	 * 处理下行channel event的handler的模版基类
+	 * downstream channel event's handler template
 	 * @see channel_pipeline.hpp
 	 */
 	template<typename T>

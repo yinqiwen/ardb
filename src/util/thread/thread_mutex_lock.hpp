@@ -59,7 +59,6 @@ namespace ardb
 				else
 				{
 #if defined( _WIN64 ) || defined( _WIN32 ) || 1
-
 					return -1;
 #else
 

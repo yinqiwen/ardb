@@ -30,17 +30,21 @@ namespace ardb
 		};
 
 		/**
-		 * 在基于流的协议中(如TCP), 消息发送过程中可能会发生组合，例如发送下面三个消息：
+		 * In a stream-based transport such as TCP/IP, packets can be fragmented and reassembled
+		 * during transmission even in a LAN environment. For example, let us assume you have
+		 * received three packets:
 		 *
 		 *  +-----+-----+-----+
 		 *  | ABC | DEF | GHI |
 		 *  +-----+-----+-----+
-		 * 服务端可能收到的消息内容分段如下：
+		 * because of the packet fragmentation, a server can receive them like the following:
 		 *  +----+-------+---+---+
 		 *  | AB | CDEFG | H | I |
 		 *  +----+-------+---+---+
 
-		 * FrameDecoder 则帮助重新对收到的消息分段组合，使之和发送过程的消息保持一致
+		 * FrameDecoder helps you defrag the received packets into one or more meaningful frames
+		 * that could be easily understood by the application logic. In case of the example above,
+		 * your FrameDecoder implementation could defrag the received packets like the following:
 		 *  +-----+-----+-----+
 		 *  | ABC | DEF | GHI |
 		 *  +-----+-----+-----+

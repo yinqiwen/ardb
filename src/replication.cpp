@@ -563,7 +563,7 @@ namespace ardb
 			conn.synced_cmd_seq = m_oplogs.GetMaxSeq();
 			return;
 		}
-		INFO_LOG("Start full sync to client.");
+		INFO_LOG("Start a full sync to slave.");
 		struct VisitorTask: public RawValueVisitor
 		{
 				SlaveConn& c;
@@ -594,7 +594,6 @@ namespace ardb
 				}
 		} visitor(conn);
 		uint64 start = get_current_epoch_millis();
-		//TODO: This step is not threading-safe, consider a safe way.
 		m_server->m_db->VisitAllDB(&visitor);
 		conn.synced_cmd_seq = m_oplogs.GetMaxSeq();
 		Buffer content;
