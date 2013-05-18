@@ -58,10 +58,11 @@ void ChannelService::OnSoftSignal(uint32 soft_signo, uint32 appendinfo)
 		}
 		case WAKEUP:
 		{
-			while (m_pending_tasks.check_read())
+
+			Runnable* task = NULL;
+			while (m_pending_tasks.Pop(task))
 			{
-				Runnable* task = NULL;
-				if (m_pending_tasks.read(&task) && NULL != task)
+				if ( NULL != task)
 				{
 					task->Run();
 				}
@@ -450,8 +451,9 @@ void ChannelService::AttachAcceptedChannel(SocketChannel *ch)
 				}
 		};
 		ChannelTask* t = new ChannelTask(ch, this);
-		m_pending_tasks.write(t, false);
-		m_pending_tasks.flush();
+		//m_pending_tasks.write(t, false);
+		//m_pending_tasks.flush();
+		m_pending_tasks.Push(t);
 		Wakeup();
 	}
 }

@@ -10,7 +10,7 @@
 #include "channel/all_includes.hpp"
 #include "ardb.hpp"
 #include "util/thread/thread.hpp"
-#include "util/mpsc_queue.hpp"
+#include "util/concurrent_queue.hpp"
 #include <stdio.h>
 #include <btree_map.h>
 #include <btree_set.h>
