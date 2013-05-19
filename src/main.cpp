@@ -6,6 +6,17 @@
  */
 
 #include "ardb_server.hpp"
+#ifdef __USE_KYOTOCABINET__
+#include "engine/kyotocabinet_engine.hpp"
+typedef ardb::KCDBEngineFactory SelectedDBEngineFactory;
+#elif defined __USE_LMDB__
+#include "engine/lmdb_engine.hpp"
+typedef ardb::LMDBEngineFactory SelectedDBEngineFactory;
+#else
+#include "engine/leveldb_engine.hpp"
+typedef ardb::LevelDBEngineFactory SelectedDBEngineFactory;
+#endif
+
 #include <signal.h>
 
 void version()
@@ -65,7 +76,8 @@ int main(int argc, char** argv)
 				argv[0]);
 	}
 	signal_setting();
-	ArdbServer server;
+	SelectedDBEngineFactory engine(props);
+	ArdbServer server(engine);
 	server.Start(props);
 	return 0;
 }

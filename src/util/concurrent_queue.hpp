@@ -191,175 +191,176 @@ namespace ardb
 //	}
 //};
 
-template<typename T>
-class MPSCQueue
-{
-private:
-	struct Node
+	template<typename T>
+	class MPSCQueue
 	{
-		Node* volatile next;
-		T value;
-		Node() :
-				next(0)
-		{
-		}
-	};
-	typedef Node* node_ptr;
+		private:
+			struct Node
+			{
+					Node* volatile next;
+					T value;
+					Node() :
+							next(0)
+					{
+					}
+			};
+			typedef Node* node_ptr;
 
-	Node* volatile m_head;
-	Node* m_tail;
-public:
-	MPSCQueue() :
-			m_head(0), m_tail(0)
-	{
-		m_head = new Node;
-		m_tail = m_head;
-	}
-	void Push(T value)
-	{
-		/*
-		 * consider another way to avoid expensive new operation
-		 */
-		Node* node = new Node;
-		node->value = value;
-		Node* prev = (Node*) atomic_get_and_set_vptr_t((vptr_t*) (&m_head),
-				node);
-		prev->next = node;
-	}
-	bool Pop(T& value)
-	{
-		Node* tail = m_tail;
-		Node* next = tail->next;
-		if (next)
-		{
-			m_tail = next;
-			delete tail;
-			value = next->value;
-			return true;
-		}
-		return false;
-	}
-	~MPSCQueue()
-	{
-		delete m_tail;
-	}
-};
+			Node* volatile m_head;
+			Node* m_tail;
+		public:
+			MPSCQueue() :
+					m_head(0), m_tail(0)
+			{
+				m_head = new Node;
+				m_tail = m_head;
+			}
+			void Push(T value)
+			{
+				/*
+				 * consider another way to avoid expensive new operation
+				 */
+				Node* node = new Node;
+				node->value = value;
+				Node* prev = (Node*) atomic_get_and_set_vptr_t(
+				        (vptr_t*) (&m_head), node);
+				prev->next = node;
+			}
+			bool Pop(T& value)
+			{
+				Node* tail = m_tail;
+				Node* next = tail->next;
+				if (next)
+				{
+					m_tail = next;
+					delete tail;
+					value = next->value;
+					return true;
+				}
+				return false;
+			}
+			~MPSCQueue()
+			{
+				delete m_tail;
+			}
+	};
 
 // load with 'consume' (data-dependent) memory ordering
-template<typename T>
-static T load_consume(T const* addr)
-{
-	// hardware fence is implicit on x86
-	T v = *const_cast<T const volatile*>(addr);
-	__memory_barrier(); // compiler fence
-	return v;
-}
+	template<typename T>
+	static T load_consume(T const* addr)
+	{
+		// hardware fence is implicit on x86
+		T v = *const_cast<T const volatile*>(addr);
+		__memory_barrier(); // compiler fence
+		return v;
+	}
 
 // store with 'release' memory ordering
-template<typename T>
-static void store_release(T* addr, T v)
-{
-	// hardware fence is implicit on x86
-	__memory_barrier(); // compiler fence
-	*const_cast<T volatile*>(addr) = v;
-}
+	template<typename T>
+	static void store_release(T* addr, T v)
+	{
+		// hardware fence is implicit on x86
+		__memory_barrier(); // compiler fence
+		*const_cast<T volatile*>(addr) = v;
+	}
 
 // single-producer/single-consumer queue
-template<typename T>
-class SPSCQueue
-{
-public:
-	SPSCQueue()
+	template<typename T>
+	class SPSCQueue
 	{
-		node* n = new node;
-		n->next_ = 0;
-		tail_ = head_ = first_ = tail_copy_ = n;
-	}
+		public:
+			SPSCQueue()
+			{
+				node* n = new node;
+				n->next_ = 0;
+				tail_ = head_ = first_ = tail_copy_ = n;
+			}
 
-	~SPSCQueue()
-	{
-		node* n = first_;
-		do
-		{
-			node* next = n->next_;
-			delete n;
-			n = next;
-		} while (n);
-	}
+			~SPSCQueue()
+			{
+				node* n = first_;
+				do
+				{
+					node* next = n->next_;
+					delete n;
+					n = next;
+				}
+				while (n);
+			}
 
-	void Push(T v)
-	{
-		node* n = alloc_node();
-		n->next_ = 0;
-		n->value_ = v;
-		store_release(&head_->next_, n);
-		head_ = n;
-	}
+			void Push(T v)
+			{
+				node* n = alloc_node();
+				n->next_ = 0;
+				n->value_ = v;
+				store_release(&head_->next_, n);
+				head_ = n;
+			}
 
-	// returns 'false' if queue is empty
-	bool Pop(T& v)
-	{
-		if (load_consume(&tail_->next_))
-		{
-			v = tail_->next_->value_;
-			store_release(&tail_, tail_->next_);
-			return true;
-		}
-		else
-		{
-			return false;
-		}
-	}
+			// returns 'false' if queue is empty
+			bool Pop(T& v)
+			{
+				if (load_consume(&tail_->next_))
+				{
+					v = tail_->next_->value_;
+					store_release(&tail_, tail_->next_);
+					return true;
+				}
+				else
+				{
+					return false;
+				}
+			}
 
-private:
-	// internal node structure
-	// cache line size on modern x86 processors (in bytes)
-	static const uint8 CACHE_LINE_SIZE = 64;
-	struct node
-	{
-		node* next_;
-		T value_;
+		private:
+			// internal node structure
+			// cache line size on modern x86 processors (in bytes)
+			static const uint8 CACHE_LINE_SIZE = 64;
+			struct node
+			{
+					node* next_;
+					T value_;
+			};
+
+			// consumer part
+			// accessed mainly by consumer, infrequently be producer
+			node* tail_; // tail of the queue
+
+			// delimiter between consumer part and producer part,
+			// so that they situated on different cache lines
+			char cache_line_pad_[CACHE_LINE_SIZE];
+
+			// producer part
+			// accessed only by producer
+			node* head_; // head of the queue
+			node* first_; // last unused node (tail of node cache)
+			node* tail_copy_; // helper (points somewhere between first_ and tail_)
+
+			node* alloc_node()
+			{
+				// first tries to allocate node from internal node cache,
+				// if attempt fails, allocates node via ::operator new()
+
+				if (first_ != tail_copy_)
+				{
+					node* n = first_;
+					first_ = first_->next_;
+					return n;
+				}
+				tail_copy_ = load_consume(&tail_);
+				if (first_ != tail_copy_)
+				{
+					node* n = first_;
+					first_ = first_->next_;
+					return n;
+				}
+				node* n = new node;
+				return n;
+			}
+
+			SPSCQueue(SPSCQueue const&);
+			SPSCQueue& operator =(SPSCQueue const&);
 	};
-
-	// consumer part
-	// accessed mainly by consumer, infrequently be producer
-	node* tail_; // tail of the queue
-
-	// delimiter between consumer part and producer part,
-	// so that they situated on different cache lines
-	char cache_line_pad_[CACHE_LINE_SIZE];
-
-	// producer part
-	// accessed only by producer
-	node* head_; // head of the queue
-	node* first_; // last unused node (tail of node cache)
-	node* tail_copy_; // helper (points somewhere between first_ and tail_)
-
-	node* alloc_node()
-	{
-		// first tries to allocate node from internal node cache,
-		// if attempt fails, allocates node via ::operator new()
-
-		if (first_ != tail_copy_)
-		{
-			node* n = first_;
-			first_ = first_->next_;
-			return n;
-		}
-		tail_copy_ = load_consume(&tail_);
-		if (first_ != tail_copy_)
-		{
-			node* n = first_;
-			first_ = first_->next_;
-			return n;
-		}
-		node* n = new node;
-		return n;
-	}
-
-	SPSCQueue(SPSCQueue const&);
-	SPSCQueue& operator =(SPSCQueue const&);
-};
 }
 
 #endif /* X_HPP_ */

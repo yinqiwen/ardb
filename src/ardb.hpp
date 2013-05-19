@@ -309,10 +309,11 @@ namespace ardb
 			bool Exists(const DBID& db, const Slice& key);
 			int Expire(const DBID& db, const Slice& key, uint32_t secs);
 			int Expireat(const DBID& db, const Slice& key, uint32_t ts);
-			int TTL(const DBID& db, const Slice& key);
-			int PTTL(const DBID& db, const Slice& key);
+			int64 TTL(const DBID& db, const Slice& key);
+			int64 PTTL(const DBID& db, const Slice& key);
 			int Persist(const DBID& db, const Slice& key);
 			int Pexpire(const DBID& db, const Slice& key, uint32_t ms);
+			int Pexpireat(const DBID& db, const Slice& key, uint64_t ms);
 			int Strlen(const DBID& db, const Slice& key);
 			int Rename(const DBID& db, const Slice& key1, const Slice& key2);
 			int RenameNX(const DBID& db, const Slice& key1, const Slice& key2);
