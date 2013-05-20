@@ -19,6 +19,7 @@
 #include "string_helper.hpp"
 #include "math_helper.hpp"
 #include "network_helper.hpp"
+#include "system_helper.hpp"
 
 namespace ardb
 {

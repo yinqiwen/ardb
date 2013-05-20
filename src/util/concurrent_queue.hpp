@@ -45,6 +45,7 @@ ATOMIC_FUNC_XCHG(get_and_set, "xchgq %1, %0", vptr_t)
 ATOMIC_FUNC_XCHG(get_and_set, "xchgl %1, %0", vptr_t)
 #endif
 
+
 #if ( (__GNUC__ == 4) && (__GNUC_MINOR__ >= 1) || __GNUC__ > 4) && \
 (defined(__x86_64__) || defined(__i386__))
 #define __memory_barrier __sync_synchronize
@@ -53,6 +54,7 @@ ATOMIC_FUNC_XCHG(get_and_set, "xchgl %1, %0", vptr_t)
 #else
 #define __memory_barrier() asm volatile(" lock; addl $0, 0(%%esp) \n\t " : : : "memory" )
 #endif
+
 
 namespace ardb
 {

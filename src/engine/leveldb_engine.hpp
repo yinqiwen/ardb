@@ -143,6 +143,7 @@ namespace ardb
 			int CommitBatchWrite();
 			int DiscardBatchWrite();
 			Iterator* Find(const Slice& findkey);
+			const std::string Stats();
 	};
 
 	class LevelDBEngineFactory: public KeyValueEngineFactory

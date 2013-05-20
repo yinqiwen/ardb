@@ -239,5 +239,12 @@ namespace ardb
 		return new LevelDBIterator(iter);
 	}
 
+	const std::string LevelDBEngine::Stats()
+	{
+		std::string str;
+		m_db->GetProperty("leveldb.stats", &str);
+		return str;
+	}
+
 }
 

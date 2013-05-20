@@ -135,34 +135,31 @@ namespace ardb
 			}
 			case TABLE_COL:
 			{
+				uint32 alen, blen;
+				found_a = BufferHelper::ReadVarUInt32(ak_buf, alen);
+				found_b = BufferHelper::ReadVarUInt32(bk_buf, blen);
+				COMPARE_EXIST(found_a, found_b);
+				ret = COMPARE_NUMBER(alen, blen);
+				if (ret == 0)
+				{
+					for (uint32 i = 0; i < alen; i++)
+					{
+						ValueObject av, bv;
+						found_a = decode_value(ak_buf, av);
+						found_b = decode_value(bk_buf, bv);
+						COMPARE_EXIST(found_a, found_b);
+						ret = av.Compare(bv);
+						if (ret != 0)
+						{
+							break;
+						}
+					}
+				}
 				Slice af, bf;
 				found_a = BufferHelper::ReadVarSlice(ak_buf, af);
 				found_b = BufferHelper::ReadVarSlice(bk_buf, bf);
 				COMPARE_EXIST(found_a, found_b);
 				ret = af.compare(bf);
-				if (ret == 0)
-				{
-					uint32 alen, blen;
-					found_a = BufferHelper::ReadVarUInt32(ak_buf, alen);
-					found_b = BufferHelper::ReadVarUInt32(bk_buf, blen);
-					COMPARE_EXIST(found_a, found_b);
-					ret = COMPARE_NUMBER(alen, blen);
-					if (ret == 0)
-					{
-						for (uint32 i = 0; i < alen; i++)
-						{
-							ValueObject av, bv;
-							found_a = decode_value(ak_buf, av);
-							found_b = decode_value(bk_buf, bv);
-							COMPARE_EXIST(found_a, found_b);
-							ret = av.Compare(bv);
-							if (ret != 0)
-							{
-								break;
-							}
-						}
-					}
-				}
 				break;
 			}
 			case SET_META:
@@ -194,7 +191,8 @@ namespace ardb
 		return pos;
 	}
 
-	Ardb::Ardb(KeyValueEngineFactory* engine, const std::string& path, bool multi_thread) :
+	Ardb::Ardb(KeyValueEngineFactory* engine, const std::string& path,
+			bool multi_thread) :
 			m_engine_factory(engine), m_key_watcher(NULL), m_raw_key_listener(
 					NULL), m_path(path)
 	{
@@ -344,7 +342,6 @@ namespace ardb
 		{
 			return KV;
 		}
-
 		int type = -1;
 		Slice empty;
 		SetKeyObject sk(key, empty);

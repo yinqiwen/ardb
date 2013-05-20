@@ -37,13 +37,13 @@ namespace ardb
 
 	SlaveConn::SlaveConn(Channel* c) :
 			conn(c), synced_cmd_seq(0), state(kSlaveStateConnected), type(
-			        kRedisTestDB)
+					kRedisTestDB)
 	{
 
 	}
 	SlaveConn::SlaveConn(Channel* c, const std::string& key, uint64 seq) :
 			conn(c), server_key(key), synced_cmd_seq(seq), state(
-			        kSlaveStateConnected), type(kArdbDB)
+					kSlaveStateConnected), type(kArdbDB)
 	{
 	}
 
@@ -56,7 +56,7 @@ namespace ardb
 	}
 
 	void SlaveClient::MessageReceived(ChannelHandlerContext& ctx,
-	        MessageEvent<RedisCommandFrame>& e)
+			MessageEvent<RedisCommandFrame>& e)
 	{
 		DEBUG_LOG("Recv master cmd %s", e.GetMessage()->GetCommand().c_str());
 		RedisCommandFrame* cmd = e.GetMessage();
@@ -64,8 +64,7 @@ namespace ardb
 		{
 			m_ping_recved = true;
 			return;
-		}
-		else if (!strcasecmp(cmd->GetCommand().c_str(), "arsynced"))
+		} else if (!strcasecmp(cmd->GetCommand().c_str(), "arsynced"))
 		{
 			m_server_key = *(cmd->GetArgument(0));
 			m_slave_state = kSlaveStateSynced;
@@ -90,7 +89,7 @@ namespace ardb
 	}
 
 	void SlaveClient::MessageReceived(ChannelHandlerContext& ctx,
-	        MessageEvent<Buffer>& e)
+			MessageEvent<Buffer>& e)
 	{
 		Buffer* msg = e.GetMessage();
 		__process_buf: if (m_slave_state == kSlaveStateConnected)
@@ -124,16 +123,14 @@ namespace ardb
 				{
 					//just check first response chunk length to distinguish servers(redis/ardb)
 					m_server_type = kArdbDB;
-				}
-				else
+				} else
 				{
 					m_server_type = kRedisTestDB;
 				}
 				msg->SkipBytes(2);
 				//DEBUG_LOG("Sync bulk %d bytes", m_chunk_len);
 				m_slave_state = kSlaveStateSyncing;
-			}
-			else
+			} else
 			{
 				return;
 			}
@@ -145,8 +142,7 @@ namespace ardb
 		{
 			m_chunk_len -= msg->ReadableBytes();
 			msg->Clear();
-		}
-		else
+		} else
 		{
 			msg->SkipBytes(m_chunk_len);
 			m_chunk_len = 0;
@@ -165,7 +161,7 @@ namespace ardb
 	}
 
 	void SlaveClient::ChannelClosed(ChannelHandlerContext& ctx,
-	        ChannelStateEvent& e)
+			ChannelStateEvent& e)
 	{
 		m_client = NULL;
 		//reconnect master after 500ms
@@ -192,7 +188,7 @@ namespace ardb
 				string_touint64(ss[1], m_sync_seq);
 			}
 			DEBUG_LOG(
-			        "Load repl state %s:%u", m_server_key.c_str(), m_sync_seq);
+					"Load repl state %s:%u", m_server_key.c_str(), m_sync_seq);
 		}
 	}
 
@@ -214,8 +210,7 @@ namespace ardb
 		if (NULL == m_client && !m_master_addr.GetHost().empty())
 		{
 			ConnectMaster(m_master_addr.GetHost(), m_master_addr.GetPort());
-		}
-		else
+		} else
 		{
 			if (m_slave_state == kSlaveStateSynced)
 			{
@@ -230,11 +225,11 @@ namespace ardb
 	}
 
 	void SlaveClient::ChannelConnected(ChannelHandlerContext& ctx,
-	        ChannelStateEvent& e)
+			ChannelStateEvent& e)
 	{
 		Buffer sync;
 		sync.Printf("replconf listening-port %u\r\n",
-		        m_serv->GetServerConfig().listen_port);
+				m_serv->GetServerConfig().listen_port);
 		sync.Printf("arsync %s %lld\r\n", m_server_key.c_str(), m_sync_seq);
 		ctx.GetChannel()->Write(sync);
 		m_slave_state = kSlaveStateConnected;
@@ -247,7 +242,7 @@ namespace ardb
 		{
 			m_cron_inited = true;
 			m_serv->GetTimer().Schedule(this, m_serv->m_cfg.repl_timeout,
-			        m_serv->m_cfg.repl_timeout, SECONDS);
+					m_serv->m_cfg.repl_timeout, SECONDS);
 			LoadSyncState();
 			struct PersistTask: public Runnable
 			{
@@ -262,8 +257,8 @@ namespace ardb
 					}
 			};
 			m_serv->GetTimer().ScheduleHeapTask(new PersistTask(this),
-			        m_serv->m_cfg.repl_syncstate_persist_period,
-			        m_serv->m_cfg.repl_syncstate_persist_period, SECONDS);
+					m_serv->m_cfg.repl_syncstate_persist_period,
+					m_serv->m_cfg.repl_syncstate_persist_period, SECONDS);
 		}
 		SocketHostAddress addr(host, port);
 		if (m_master_addr == addr && NULL != m_client)
@@ -298,8 +293,8 @@ namespace ardb
 	}
 
 	ReplicationService::ReplicationService(ArdbServer* serv) :
-			m_server(serv), m_is_saving(false), m_last_save(0), m_oplogs(serv), m_master_slave_id(
-			        0), m_inst_signal(NULL)
+			m_server(serv), m_is_saving(false), m_last_save(0), m_oplogs(serv), m_inst_signal(
+					NULL), m_master_slave_id(0)
 	{
 	}
 
@@ -336,8 +331,7 @@ namespace ardb
 				ch.conn->Write(content);
 				ch.state = kSlaveStateSynced;
 				m_slaves[ch.conn->GetID()] = ch;
-			}
-			else
+			} else
 			{
 				//empty first response chunk
 				Buffer content;
@@ -346,20 +340,19 @@ namespace ardb
 				content.Clear();
 				DBID dbid;
 				if (m_oplogs.VerifyClient(ch.server_key, ch.synced_cmd_seq,
-				        dbid))
+						dbid))
 				{
 					if (!dbid.empty())
 					{
 						content.Printf("select %s\r\n", dbid.c_str());
 					}
 					content.Printf("arsynced %s %llu\r\n",
-					        m_oplogs.GetServerKey().c_str(), ch.synced_cmd_seq);
+							m_oplogs.GetServerKey().c_str(), ch.synced_cmd_seq);
 					ch.conn->Write(content);
 					ch.state = kSlaveStateSynced;
 					//increase sequence since the cmd already synced
 					ch.synced_cmd_seq++;
-				}
-				else
+				} else
 				{
 					ch.state = kSlaveStateSyncing;
 					FullSync(ch);
@@ -380,7 +373,7 @@ namespace ardb
 			if (conn.state == kSlaveStateSynced)
 			{
 				while (m_oplogs.LoadOpLog(conn.synced_cmd_seq, tmp,
-				        conn.conn->GetID() == m_master_slave_id) == 1)
+						conn.conn->GetID() == m_master_slave_id) == 1)
 				{
 					if (tmp.Readable())
 					{
@@ -402,7 +395,7 @@ namespace ardb
 		CheckSlaveQueue();
 	}
 
-	static uint32 kCount = 0;
+	//static uint32 kCount = 0;
 	void ReplicationService::Run()
 	{
 		struct HeartbeatTask: public Runnable
@@ -414,7 +407,6 @@ namespace ardb
 				}
 				void Run()
 				{
-					INFO_LOG("####Count = %u", kCount);
 					serv->PingSlaves();
 				}
 		};
@@ -431,8 +423,8 @@ namespace ardb
 				}
 		};
 		m_serv.GetTimer().ScheduleHeapTask(new HeartbeatTask(this),
-		        m_server->m_cfg.repl_ping_slave_period,
-		        m_server->m_cfg.repl_ping_slave_period, SECONDS);
+				m_server->m_cfg.repl_ping_slave_period,
+				m_server->m_cfg.repl_ping_slave_period, SECONDS);
 		m_serv.GetTimer().ScheduleHeapTask(new InstTask(this), 1, 1, MILLIS);
 		m_inst_signal = m_serv.NewSoftSignalChannel();
 		m_inst_signal->Register(kSoftSinglaInstruction, this);
@@ -455,7 +447,7 @@ namespace ardb
 		}
 	}
 	void ReplicationService::ChannelClosed(ChannelHandlerContext& ctx,
-	        ChannelStateEvent& e)
+			ChannelStateEvent& e)
 	{
 		m_slaves.erase(ctx.GetChannel()->GetID());
 	}
@@ -478,7 +470,7 @@ namespace ardb
 				case kInstrctionRecordSetCmd:
 				{
 					kWriteReplInstructionData* tp =
-					        (kWriteReplInstructionData*) (instruction.ptr);
+							(kWriteReplInstructionData*) (instruction.ptr);
 					DBID* db = (DBID*) tp->ptrs[0];
 					std::string* k = (std::string*) tp->ptrs[1];
 					std::string* v = (std::string*) tp->ptrs[2];
@@ -497,7 +489,7 @@ namespace ardb
 				case kInstrctionRecordDelCmd:
 				{
 					kWriteReplInstructionData* tp =
-					        (kWriteReplInstructionData*) (instruction.ptr);
+							(kWriteReplInstructionData*) (instruction.ptr);
 					DBID* db = (DBID*) tp->ptrs[0];
 					std::string* k = (std::string*) tp->ptrs[1];
 					CachedOp* op = m_oplogs.SaveDeleteOp(*db, *k);
@@ -524,18 +516,18 @@ namespace ardb
 	{
 		m_inst_queue.Push(inst);
 		m_inst_signal->FireSoftSignal(kSoftSinglaInstruction, 0);
-		kCount++;
+
 	}
 
 	void ReplicationService::ServARSlaveClient(Channel* client,
-	        const std::string& serverKey, uint64 seq)
+			const std::string& serverKey, uint64 seq)
 	{
 		m_server->m_service->DetachChannel(client, true);
 		client->ClearPipeline();
 		ChannelUpstreamHandler<Buffer>* handler = this;
 		client->GetPipeline().AddLast("handler", handler);
 		ReplInstruction instrct(kInstrctionSlaveClientQueue,
-		        new SlaveConn(client, serverKey, seq));
+				new SlaveConn(client, serverKey, seq));
 		OfferInstruction(instrct);
 	}
 
@@ -546,7 +538,7 @@ namespace ardb
 		ChannelUpstreamHandler<Buffer>* handler = this;
 		client->GetPipeline().AddLast("handler", handler);
 		ReplInstruction instrct(kInstrctionSlaveClientQueue,
-		        new SlaveConn(client));
+				new SlaveConn(client));
 		OfferInstruction(instrct);
 	}
 
@@ -556,11 +548,11 @@ namespace ardb
 		{
 			//WARNING: master-master replication SHOULD NOT do full sync.
 			WARN_LOG(
-			        "The slave is also the master of current ardb instance, the full sync would not executed.");
+					"The slave is also the master of current ardb instance, the full sync would not executed.");
 			Buffer content;
 			content.Printf("select %s\r\n", m_oplogs.GetCurrentDBID().c_str());
 			content.Printf("arsynced %s %llu\r\n",
-			        m_oplogs.GetServerKey().c_str(), conn.synced_cmd_seq);
+					m_oplogs.GetServerKey().c_str(), conn.synced_cmd_seq);
 			conn.conn->Write(content);
 			conn.state = kSlaveStateSynced;
 			conn.synced_cmd_seq = m_oplogs.GetMaxSeq();
@@ -576,7 +568,7 @@ namespace ardb
 				{
 				}
 				int OnRawKeyValue(const DBID& db, const Slice& key,
-				        const Slice& value)
+						const Slice& value)
 				{
 					if (dbid != db)
 					{
@@ -602,7 +594,7 @@ namespace ardb
 		Buffer content;
 		content.Printf("select %s\r\n", m_oplogs.GetCurrentDBID().c_str());
 		content.Printf("arsynced %s %llu\r\n", m_oplogs.GetServerKey().c_str(),
-		        conn.synced_cmd_seq);
+				conn.synced_cmd_seq);
 		conn.conn->Write(content);
 		conn.state = kSlaveStateSynced;
 		uint64 end = get_current_epoch_millis();
@@ -610,7 +602,7 @@ namespace ardb
 	}
 
 	int ReplicationService::OnKeyUpdated(const DBID& db, const Slice& key,
-	        const Slice& value)
+			const Slice& value)
 	{
 		DBID* newdb = new DBID(db);
 		std::string* nk = new std::string(key.data(), key.size());
@@ -666,26 +658,24 @@ namespace ardb
 		char cmd[m_server->m_cfg.data_base_path.size() + 256];
 		make_dir(m_server->m_cfg.backup_dir);
 		std::string dest = m_server->m_cfg.backup_dir
-		        + "/ardb_all_data.save.tar";
+				+ "/ardb_all_data.save.tar";
 		std::string shasumfile = m_server->m_cfg.backup_dir
-		        + "/ardb_all_data.sha1sum";
+				+ "/ardb_all_data.sha1sum";
 		sprintf(cmd, "tar cf %s %s;", dest.c_str(),
-		        m_server->m_cfg.data_base_path.c_str());
+				m_server->m_cfg.data_base_path.c_str());
 		ret = system(cmd);
 		if (-1 == ret)
 		{
 			ERROR_LOG( "Failed to create backup data archive:%s", dest.c_str());
-		}
-		else
+		} else
 		{
 			std::string sha1sum_str;
 			ret = sha1sum_file(dest, sha1sum_str);
 			if (-1 == ret)
 			{
 				ERROR_LOG(
-				        "Failed to compute sha1sum for data archive:%s", dest.c_str());
-			}
-			else
+						"Failed to compute sha1sum for data archive:%s", dest.c_str());
+			} else
 			{
 				INFO_LOG("Save file SHA1sum is %s", sha1sum_str.c_str());
 				file_write_content(shasumfile, sha1sum_str);

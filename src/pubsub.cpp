@@ -10,15 +10,15 @@
 
 namespace ardb
 {
-	int ArdbServer::Subscribe(ArdbConnContext& ctx, ArgumentArray& cmd)
+	int ArdbServer::Subscribe(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
 		if (NULL == ctx.pubsub_channle_set)
 		{
 			ctx.pubsub_channle_set = new PubSubChannelSet;
 		}
 		LockGuard<ThreadMutex> guard(m_pubsub_mutex);
-		ArgumentArray::iterator it = cmd.begin();
-		while (it != cmd.end())
+		ArgumentArray::iterator it = cmd.GetArguments().begin();
+		while (it != cmd.GetArguments().end())
 		{
 			RedisReply r;
 			r.type = REDIS_REPLY_ARRAY;
@@ -157,21 +157,21 @@ namespace ardb
 		}
 	}
 
-	int ArdbServer::UnSubscribe(ArdbConnContext& ctx, ArgumentArray& cmd)
+	int ArdbServer::UnSubscribe(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
 		LockGuard<ThreadMutex> guard(m_pubsub_mutex);
-		unsubscribe(ctx, cmd, false, m_pubsub_context_table);
+		unsubscribe(ctx, cmd.GetArguments(), false, m_pubsub_context_table);
 		return 0;
 	}
-	int ArdbServer::PSubscribe(ArdbConnContext& ctx, ArgumentArray& cmd)
+	int ArdbServer::PSubscribe(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
 		LockGuard<ThreadMutex> guard(m_pubsub_mutex);
 		if (NULL == ctx.pattern_pubsub_channle_set)
 		{
 			ctx.pattern_pubsub_channle_set = new PubSubChannelSet;
 		}
-		ArgumentArray::iterator it = cmd.begin();
-		while (it != cmd.end())
+		ArgumentArray::iterator it = cmd.GetArguments().begin();
+		while (it != cmd.GetArguments().end())
 		{
 			RedisReply r;
 			r.type = REDIS_REPLY_ARRAY;
@@ -186,10 +186,10 @@ namespace ardb
 		}
 		return 0;
 	}
-	int ArdbServer::PUnSubscribe(ArdbConnContext& ctx, ArgumentArray& cmd)
+	int ArdbServer::PUnSubscribe(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
 		LockGuard<ThreadMutex> guard(m_pubsub_mutex);
-		unsubscribe(ctx, cmd, true, m_pattern_pubsub_context_table);
+		unsubscribe(ctx, cmd.GetArguments(), true, m_pattern_pubsub_context_table);
 		return 0;
 	}
 
@@ -227,11 +227,11 @@ namespace ardb
 		}
 	}
 
-	int ArdbServer::Publish(ArdbConnContext& ctx, ArgumentArray& cmd)
+	int ArdbServer::Publish(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
 		LockGuard<ThreadMutex> guard(m_pubsub_mutex);
-		const std::string& channel = cmd[0];
-		const std::string& message = cmd[1];
+		const std::string& channel = cmd.GetArguments()[0];
+		const std::string& message = cmd.GetArguments()[1];
 		PubSubContextTable::iterator found = m_pubsub_context_table.find(
 				channel);
 		int size = 0;

@@ -161,7 +161,7 @@ namespace ardb
 			Channel* m_client;
 			SocketHostAddress m_master_addr;
 			uint32 m_chunk_len;
-			int m_slave_state;
+			uint32 m_slave_state;
 			bool m_cron_inited;
 			bool m_ping_recved;
 			RedisCommandDecoder m_decoder;

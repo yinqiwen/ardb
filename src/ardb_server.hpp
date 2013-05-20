@@ -53,8 +53,8 @@ namespace ardb
 							10000), slowlog_max_len(128), repl_data_dir(
 							"./repl"), backup_dir("./backup"), repl_ping_slave_period(
 							10), repl_timeout(60), rep_backlog_size(1000000), repl_syncstate_persist_period(
-							1), master_port(0), repl_log_enable(false), worker_count(1), loglevel(
-							"INFO")
+							1), master_port(0), repl_log_enable(true), worker_count(
+							1), loglevel("INFO")
 			{
 			}
 	};
@@ -238,7 +238,7 @@ namespace ardb
 	{
 		public:
 			typedef int (ArdbServer::*RedisCommandHandler)(ArdbConnContext&,
-					ArgumentArray&);
+					RedisCommandFrame&);
 
 			struct RedisCommandHandlerSetting
 			{
@@ -293,152 +293,159 @@ namespace ardb
 			void ClearWatchKeys(ArdbConnContext& ctx);
 			void ClearSubscribes(ArdbConnContext& ctx);
 
-			int Time(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int FlushDB(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int FlushAll(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Save(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int LastSave(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int BGSave(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Info(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int DBSize(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Config(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int SlowLog(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Client(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Keys(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Time(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int FlushDB(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int FlushAll(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Save(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int LastSave(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int BGSave(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Info(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int DBSize(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Config(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int SlowLog(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Client(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Keys(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
-			int Multi(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Discard(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Exec(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Watch(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int UnWatch(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Multi(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Discard(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Exec(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Watch(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int UnWatch(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
-			int Subscribe(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int UnSubscribe(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int PSubscribe(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int PUnSubscribe(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Publish(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Subscribe(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int UnSubscribe(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int PSubscribe(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int PUnSubscribe(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Publish(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
-			int Slaveof(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Sync(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int ARSync(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int ReplConf(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int RawSet(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int RawDel(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Slaveof(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Sync(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int ARSync(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int ReplConf(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int RawSet(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int RawDel(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
-			int Ping(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Echo(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Select(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Quit(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Ping(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Echo(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Select(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Quit(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
-			int Shutdown(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Type(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Move(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Rename(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int RenameNX(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Sort(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Shutdown(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Type(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Move(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Rename(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int RenameNX(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Sort(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
-			int Append(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Bitcount(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Bitop(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Decr(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Decrby(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Get(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int GetBit(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int GetRange(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int GetSet(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Incr(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Incrby(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int IncrbyFloat(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int MGet(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int MSet(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int MSetNX(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int PSetEX(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int SetBit(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int SetEX(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int SetNX(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int SetRange(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Strlen(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Set(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Del(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Exists(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Expire(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Expireat(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int Persist(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int PExpire(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int PExpireat(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int PTTL(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int TTL(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int Append(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Bitcount(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Bitop(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Decr(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Decrby(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Get(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int GetBit(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int GetRange(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int GetSet(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Incr(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Incrby(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int IncrbyFloat(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int MGet(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int MSet(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int MSetNX(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int PSetEX(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int SetBit(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int SetEX(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int SetNX(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int SetRange(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Strlen(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Set(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Del(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Exists(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Expire(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Expireat(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Persist(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int PExpire(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int PExpireat(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int PTTL(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int TTL(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
-			int HDel(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int HExists(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int HGet(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int HGetAll(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int HIncrby(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int HMIncrby(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int HIncrbyFloat(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int HKeys(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int HLen(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int HMGet(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int HMSet(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int HSet(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int HSetNX(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int HVals(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int HDel(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int HExists(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int HGet(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int HGetAll(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int HIncrby(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int HMIncrby(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int HIncrbyFloat(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int HKeys(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int HLen(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int HMGet(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int HMSet(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int HSet(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int HSetNX(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int HVals(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
-			int SAdd(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int SCard(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int SDiff(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int SDiffStore(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int SInter(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int SInterStore(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int SIsMember(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int SMembers(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int SMove(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int SPop(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int SRandMember(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int SRem(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int SUnion(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int SUnionStore(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int SUnionCount(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int SInterCount(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int SDiffCount(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int SAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int SCard(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int SDiff(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int SDiffStore(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int SInter(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int SInterStore(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int SIsMember(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int SMembers(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int SMove(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int SPop(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int SRandMember(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int SRem(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int SUnion(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int SUnionStore(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int SUnionCount(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int SInterCount(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int SDiffCount(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
-			int ZAdd(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int ZCard(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int ZCount(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int ZIncrby(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int ZRange(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int ZRangeByScore(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int ZRank(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int ZRem(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int ZRemRangeByRank(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int ZRemRangeByScore(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int ZRevRange(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int ZRevRangeByScore(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int ZRevRank(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int ZInterStore(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int ZUnionStore(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int ZScore(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int ZAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int ZCard(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int ZCount(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int ZIncrby(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int ZRange(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int ZRangeByScore(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int ZRank(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int ZRem(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int ZRemRangeByRank(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int ZRemRangeByScore(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int ZRevRange(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int ZRevRangeByScore(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int ZRevRank(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int ZInterStore(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int ZUnionStore(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int ZScore(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
-			int LIndex(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int LInsert(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int LLen(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int LPop(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int LPush(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int LPushx(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int LRange(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int LRem(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int LSet(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int LTrim(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int RPop(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int RPopLPush(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int RPush(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int RPushx(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int LIndex(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int LInsert(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int LLen(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int LPop(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int LPush(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int LPushx(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int LRange(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int LRem(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int LSet(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int LTrim(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int RPop(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int RPopLPush(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int RPush(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int RPushx(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
-			int HClear(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int SClear(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int ZClear(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int LClear(ArdbConnContext& ctx, ArgumentArray& cmd);
-			int TClear(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int TCreate(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int TLen(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int TInsert(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int TGet(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int TUpdate(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int TDel(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int TDelCol(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+
+			int HClear(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int SClear(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int ZClear(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int LClear(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
 			Timer& GetTimer();
 		public:

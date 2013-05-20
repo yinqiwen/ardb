@@ -60,6 +60,10 @@ namespace ardb
 			virtual int CommitBatchWrite() = 0;
 			virtual int DiscardBatchWrite() = 0;
 			virtual Iterator* Find(const Slice& findkey) = 0;
+			virtual const std::string Stats()
+			{
+				return "";
+			}
 			virtual ~KeyValueEngine()
 			{
 			}
@@ -198,6 +202,8 @@ namespace ardb
 			int TGetIndexs(const DBID& db, const Slice& tableName,
 					Conditions& conds, TableKeyIndexSet*& indexs,
 					TableKeyIndexSet*& temp);
+			bool TRowExists(const DBID& db, const Slice& tableName,
+					ValueArray& rowkey);
 			struct WalkHandler
 			{
 					virtual int OnKeyValue(KeyObject* key, ValueObject* value,
@@ -470,12 +476,13 @@ namespace ardb
 			int TCreate(const DBID& db, const Slice& tableName,
 					SliceArray& keys);
 			int TGet(const DBID& db, const Slice& tableName,
-					const SliceArray& cols, Conditions& conds,
-					StringArray& values);
+					const SliceArray& keys, const SliceArray& cols,
+					Conditions& conds, ValueArray& values);
 			int TUpdate(const DBID& db, const Slice& tableName,
 					const SliceMap& colvals, Conditions& conds);
-			int TReplace(const DBID& db, const Slice& tableName,
-					const SliceMap& keyvals, const SliceMap& colvals);
+			int TInsert(const DBID& db, const Slice& tableName,
+					const SliceMap& keyvals, const SliceMap& colvals,
+					bool replace, std::string& err);
 			int TDel(const DBID& db, const Slice& tableName, Conditions& conds);
 			int TDelCol(const DBID& db, const Slice& tableName,
 					Conditions& conds, const Slice& col);
@@ -502,7 +509,6 @@ namespace ardb
 			{
 				m_raw_key_listener = w;
 			}
-
 	};
 }
 

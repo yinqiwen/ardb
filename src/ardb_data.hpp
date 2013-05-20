@@ -106,6 +106,10 @@ namespace ardb
 			{
 				return Compare(other) < 0;
 			}
+			inline bool operator==(const ValueObject& other) const
+			{
+				return Compare(other) == 0;
+			}
 			const std::string& ToString(std::string& str) const
 			{
 				switch (type)
@@ -401,6 +405,7 @@ namespace ardb
 					size(0)
 			{
 			}
+			int Index(const Slice& key);
 	};
 
 	struct TableKeyIndex
@@ -469,6 +474,35 @@ namespace ardb
 							false), store_dst(NULL)
 			{
 			}
+	};
+
+	struct TableQueryOptions
+	{
+			Conditions conds;
+			SliceArray keys;
+			SliceArray vals;
+			static bool Parse(StringArray& args, uint32 offset,
+					TableQueryOptions& options);
+	};
+	struct TableUpdateOptions
+	{
+			Conditions conds;
+			SliceMap colnvs;
+			static bool Parse(StringArray& args, uint32 offset,
+					TableUpdateOptions& options);
+	};
+	struct TableDeleteOptions
+	{
+			Conditions conds;
+			static bool Parse(StringArray& args, uint32 offset,
+					TableDeleteOptions& options);
+	};
+	struct TableInsertOptions
+	{
+			SliceMap keynvs;
+			SliceMap colnvs;
+			static bool Parse(StringArray& args, uint32 offset,
+					TableInsertOptions& options);
 	};
 
 	typedef std::vector<ZSetMetaValue> ZSetMetaValueArray;

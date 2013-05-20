@@ -28,21 +28,23 @@ void test_table_insert_get(Ardb& db)
 	colvals["name"] = "ardb";
 	colvals["age"] = "20";
 	colvals["birth"] = "1999";
-	db.TReplace(dbid, "mytable", keyvals, colvals);
+	std::string err;
+	db.TInsert(dbid, "mytable", keyvals, colvals, false, err);
 
-	SliceArray cols;
+	SliceArray keys, cols;
 	cols.push_back("birth");
 	cols.push_back("name");
 	//cols.push_back("age");
-	StringArray result;
+	ValueArray result;
 	Conditions conds;
 	Condition cond("key2", CMP_LESS_EQ, "2");
 	conds.push_back(cond);
-	db.TGet(dbid, "mytable", cols, conds, result);
+	db.TGet(dbid, "mytable", keys, cols, conds, result);
 
+	std::string str;
 	CHECK_FATAL( result.size() != 2, "%d", result.size());
-	CHECK_FATAL( result[0] != "1999", "%s", result[0].c_str());
-	CHECK_FATAL( result[1] != "ardb", "%s", result[0].c_str());
+	CHECK_FATAL( result[0].ToString(str) != "1999", "%s", result[0].ToString(str).c_str());
+	CHECK_FATAL( result[1].ToString(str) != "ardb", "%s", result[0].ToString(str).c_str());
 }
 
 void test_table_update(Ardb& db)
@@ -64,7 +66,8 @@ void test_table_update(Ardb& db)
 	colvals["name"] = "ardb";
 	colvals["age"] = "20";
 	colvals["birth"] = "1999";
-	db.TReplace(dbid, "mytable", keyvals, colvals);
+	std::string err;
+	db.TInsert(dbid, "mytable", keyvals, colvals, false, err);
 	Conditions conds;
 	Condition cond("key2", CMP_GREATE, "5");
 	conds.push_back(cond);
@@ -73,18 +76,19 @@ void test_table_update(Ardb& db)
 	colvals["birth"] = "2000";
 	db.TUpdate(dbid, "mytable", colvals, conds);
 
-	SliceArray cols;
+	SliceArray keys, cols;
 	cols.push_back("age");
 	cols.push_back("name");
-	StringArray result;
+	ValueArray result;
 	Conditions xconds;
 	Condition xcond("key2", CMP_GREATE, "2");
 	xconds.push_back(xcond);
-	db.TGet(dbid, "mytable", cols, xconds, result);
+	db.TGet(dbid, "mytable", keys, cols, xconds, result);
 
+	std::string str;
 	CHECK_FATAL( result.size() != 2, "%d", result.size());
-	CHECK_FATAL( result[0] != "30", "%s", result[0].c_str());
-	CHECK_FATAL( result[1] != "newdb", "%s", result[0].c_str());
+	CHECK_FATAL( result[0].ToString(str) != "30", "%s", result[0].ToString(str).c_str());
+	CHECK_FATAL( result[1].ToString(str) != "newdb", "%s", result[0].ToString(str).c_str());
 }
 
 void test_tables(Ardb& db)

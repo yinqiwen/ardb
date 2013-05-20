@@ -8,7 +8,7 @@
 
 namespace ardb
 {
-	int ArdbServer::Multi(ArdbConnContext& ctx, ArgumentArray& cmd)
+	int ArdbServer::Multi(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
 		ctx.in_transaction = true;
 		if (NULL == ctx.transaction_cmds)
@@ -20,7 +20,7 @@ namespace ardb
 		return 0;
 	}
 
-	int ArdbServer::Discard(ArdbConnContext& ctx, ArgumentArray& cmd)
+	int ArdbServer::Discard(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
 		ctx.in_transaction = false;
 		DELETE(ctx.transaction_cmds);
@@ -29,7 +29,7 @@ namespace ardb
 		return 0;
 	}
 
-	int ArdbServer::Exec(ArdbConnContext& ctx, ArgumentArray& cmd)
+	int ArdbServer::Exec(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
 		if (ctx.fail_transc || !ctx.in_transaction)
 		{
@@ -134,7 +134,7 @@ namespace ardb
 		return 0;
 	}
 
-	int ArdbServer::Watch(ArdbConnContext& ctx, ArgumentArray& cmd)
+	int ArdbServer::Watch(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
 		ctx.reply.type = REDIS_REPLY_STATUS;
 		ctx.reply.str = "OK";
@@ -143,8 +143,8 @@ namespace ardb
 		{
 			ctx.watch_key_set = new WatchKeySet;
 		}
-		ArgumentArray::iterator it = cmd.begin();
-		while (it != cmd.end())
+		ArgumentArray::iterator it = cmd.GetArguments().begin();
+		while (it != cmd.GetArguments().end())
 		{
 			WatchKey k(ctx.currentDB, *it);
 			ctx.watch_key_set->insert(k);
@@ -176,7 +176,7 @@ namespace ardb
 		}
 		return 0;
 	}
-	int ArdbServer::UnWatch(ArdbConnContext& ctx, ArgumentArray& cmd)
+	int ArdbServer::UnWatch(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
 		ctx.reply.type = REDIS_REPLY_STATUS;
 		ctx.reply.str = "OK";
