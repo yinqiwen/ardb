@@ -24,6 +24,7 @@ void test_set_saddrem(Ardb& db)
 
 void test_set_member(Ardb& db)
 {
+	std::string str;
 	db.SClear("0", "myset");
 	db.SAdd("0", "myset", "v1");
 	db.SAdd("0", "myset", "v2");
@@ -33,7 +34,7 @@ void test_set_member(Ardb& db)
 	ValueArray members;
 	db.SMembers("0", "myset", members);
 	CHECK_FATAL( members.size() != 3, "SMembers myset failed:");
-	CHECK_FATAL( members[0].ToString() != "v1", "SMembers myset failed:");
+	CHECK_FATAL( members[0].ToString(str) != "v1", "SMembers myset failed:");
 }
 
 void test_set_diff(Ardb& db)
@@ -50,6 +51,7 @@ void test_set_diff(Ardb& db)
 	db.SAdd("0", "myset3", "c");
 	db.SAdd("0", "myset3", "e");
 
+	std::string str;
 	SliceArray keys;
 	keys.push_back("myset1");
 	keys.push_back("myset2");
@@ -57,7 +59,7 @@ void test_set_diff(Ardb& db)
 	ValueSet values;
 	db.SDiff("0", keys, values);
 	CHECK_FATAL( values.size() != 2, "Sdiff failed:");
-	CHECK_FATAL(values.begin()->ToString() != "b", "Sdiff store failed:");
+	CHECK_FATAL(values.begin()->ToString(str) != "b", "Sdiff store failed:");
 	//CHECK_FATAL(FATAL, values[1] != "d") << "Sdiff store failed:";
 	int len = db.SDiffStore("0", "myset2", keys);
 	CHECK_FATAL(len != 2, "SDiffStore myset2 failed:%d", len);
@@ -85,8 +87,9 @@ void test_set_inter(Ardb& db)
 	keys.push_back("myset3");
 	ValueSet values;
 	db.SInter("0", keys, values);
+	std::string str;
 	CHECK_FATAL( values.size() != 1, "Sinter failed:");
-	CHECK_FATAL(values.begin()->ToString() != "c", "Sinter store failed:");
+	CHECK_FATAL(values.begin()->ToString(str) != "c", "Sinter store failed:");
 	db.SInterStore("0", "myset2", keys);
 	CHECK_FATAL( db.SCard("0", "myset2") != 1, "SInterStore myset2 failed:");
 }
@@ -112,7 +115,8 @@ void test_set_union(Ardb& db)
 	ValueSet values;
 	db.SUnion("0", keys, values);
 	CHECK_FATAL(values.size() != 5, "SUnion failed:");
-	CHECK_FATAL( values.begin()->ToString() != "a", "SUnion store failed:");
+	std::string str;
+	CHECK_FATAL( values.begin()->ToString(str) != "a", "SUnion store failed:");
 	db.SUnionStore("0", "myset2", keys);
 	CHECK_FATAL(db.SCard("0", "myset2") != 5, "SUnionStore myset2 failed:");
 }

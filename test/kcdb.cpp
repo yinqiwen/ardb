@@ -20,8 +20,9 @@ int main(int argc, char** argv)
 {
 	Properties cfg;
 	cfg["dir"] = "/tmp/ardb/kc/test";
+	std::cout<<"ARDB Test(KyotoCabinet)"<<std::endl;
 	KCDBEngineFactory factory(cfg);
-	Ardb db(&factory);
+	Ardb db(&factory, cfg["dir"]);
 	test_all(db);
 
 //// create the database object

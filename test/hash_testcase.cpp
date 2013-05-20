@@ -42,7 +42,8 @@ void test_hash_hgetall(Ardb& db)
 	CHECK_FATAL(fields.size() != 3, "hgetall myhash failed:%d", fields.size());
 	CHECK_FATAL(fields[1].compare("field2") != 0,
 			"hgetall myhash failed:%d", fields.size());
-	int ret = values[2].ToString().compare("value3");
+	std::string str;
+	int ret = values[2].ToString(str).compare("value3");
 	CHECK_FATAL(ret != 0, "hgetall myhash failed:%d", values.size());
 }
 
