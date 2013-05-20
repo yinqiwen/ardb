@@ -18,7 +18,6 @@
 namespace ardb
 {
 	uint32 available_processors();
-	int print_stacktrace(std::string& buf);
 }
 
 #endif /* SYSTEM_HELPER_HPP_ */

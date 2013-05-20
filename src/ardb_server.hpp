@@ -440,7 +440,7 @@ namespace ardb
 			int TGet(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int TUpdate(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int TDel(ArdbConnContext& ctx, RedisCommandFrame& cmd);
-			int TDelCol(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int TDesc(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
 			int HClear(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int SClear(ArdbConnContext& ctx, RedisCommandFrame& cmd);

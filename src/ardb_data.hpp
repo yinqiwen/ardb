@@ -134,7 +134,7 @@ namespace ardb
 					default:
 					{
 						str.assign(v.raw->GetRawReadBuffer(),
-								v.raw->ReadableBytes());
+						        v.raw->ReadableBytes());
 						return str;
 					}
 				}
@@ -190,7 +190,7 @@ namespace ardb
 					{
 						v.raw = new Buffer(other.v.raw->ReadableBytes());
 						v.raw->Write(other.v.raw->GetRawReadBuffer(),
-								other.v.raw->ReadableBytes());
+						        other.v.raw->ReadableBytes());
 						return;
 					}
 				}
@@ -218,9 +218,9 @@ namespace ardb
 					default:
 					{
 						Slice a(v.raw->GetRawReadBuffer(),
-								v.raw->ReadableBytes());
+						        v.raw->ReadableBytes());
 						Slice b(other.v.raw->GetRawReadBuffer(),
-								other.v.raw->ReadableBytes());
+						        other.v.raw->ReadableBytes());
 						return a.compare(b);
 					}
 				}
@@ -294,7 +294,7 @@ namespace ardb
 			LogicalOperator logicop;
 
 			Condition(const std::string& name, CompareOperator compareop,
-					const Slice& value, LogicalOperator logic = LOGIC_EMPTY);
+			        const Slice& value, LogicalOperator logic = LOGIC_EMPTY);
 
 			bool MatchValue(const ValueObject& v, int& cmpret)
 			{
@@ -420,13 +420,13 @@ namespace ardb
 			ValueObject keyvalue;
 			TableKeyIndex index;
 			TableIndexKeyObject(const Slice& tablename, const Slice& keyname,
-					const ValueObject& v) :
+			        const ValueObject& v) :
 					KeyObject(tablename, TABLE_INDEX), kname(keyname), keyvalue(
-							v)
+					        v)
 			{
 			}
 			TableIndexKeyObject(const Slice& tablename, const Slice& keyname,
-					const Slice& v);
+			        const Slice& v);
 	};
 
 	struct TableColKeyObject: public KeyObject
@@ -452,7 +452,7 @@ namespace ardb
 			int limit_count;
 			QueryOptions() :
 					withscores(false), withlimit(false), limit_offset(0), limit_count(
-							0)
+					        0)
 			{
 			}
 	};
@@ -470,8 +470,8 @@ namespace ardb
 			const char* store_dst;
 			SortOptions() :
 					by(NULL), with_limit(false), limit_offset(0), limit_count(
-							0), is_desc(false), with_alpha(false), nosort(
-							false), store_dst(NULL)
+					        0), is_desc(false), with_alpha(false), nosort(
+					        false), store_dst(NULL)
 			{
 			}
 	};
@@ -479,30 +479,36 @@ namespace ardb
 	struct TableQueryOptions
 	{
 			Conditions conds;
-			SliceArray keys;
-			SliceArray vals;
+			SliceArray names;
+			Slice orderby;
+			bool with_limit;
+			int limit_offset;
+			int limit_count;
+			bool is_desc;
+			bool with_alpha;
+			AggregateType aggregate;
 			static bool Parse(StringArray& args, uint32 offset,
-					TableQueryOptions& options);
+			        TableQueryOptions& options);
 	};
 	struct TableUpdateOptions
 	{
 			Conditions conds;
 			SliceMap colnvs;
 			static bool Parse(StringArray& args, uint32 offset,
-					TableUpdateOptions& options);
+			        TableUpdateOptions& options);
 	};
 	struct TableDeleteOptions
 	{
 			Conditions conds;
 			static bool Parse(StringArray& args, uint32 offset,
-					TableDeleteOptions& options);
+			        TableDeleteOptions& options);
 	};
 	struct TableInsertOptions
 	{
 			SliceMap keynvs;
 			SliceMap colnvs;
 			static bool Parse(StringArray& args, uint32 offset,
-					TableInsertOptions& options);
+			        TableInsertOptions& options);
 	};
 
 	typedef std::vector<ZSetMetaValue> ZSetMetaValueArray;
@@ -517,7 +523,7 @@ namespace ardb
 
 	void encode_value(Buffer& buf, const ValueObject& value);
 	bool decode_value(Buffer& buf, ValueObject& value,
-			bool copyRawValue = true);
+	        bool copyRawValue = true);
 	void fill_raw_value(const Slice& value, ValueObject& valueobject);
 	void smart_fill_value(const Slice& value, ValueObject& valueobject);
 	int value_convert_to_raw(ValueObject& v);

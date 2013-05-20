@@ -5,7 +5,6 @@
  *      Author: qiyingwang
  */
 #include "system_helper.hpp"
-#include <execinfo.h>
 #if  __APPLE__
 #include <sys/param.h>
 #include <sys/sysctl.h>
@@ -44,37 +43,5 @@ namespace ardb
 		return count;
 #endif
 		return ret;
-	}
-
-	int print_stacktrace(std::string& buf)
-	{
-#define MAX_TRACE_SIZE 100
-		int j, nptrs;
-		void *buffer[MAX_TRACE_SIZE];
-		char **strings;
-
-		nptrs = backtrace(buffer, MAX_TRACE_SIZE);
-		//printf("backtrace() returned %d addresses\n", nptrs);
-
-		/* The call backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO)
-		 would produce similar output to the following: */
-
-		strings = backtrace_symbols(buffer, nptrs);
-		if (strings == NULL)
-		{
-			buf += "backtrace_symbols";
-			return -1;
-		}
-
-		for (j = 0; j < nptrs; j++)
-		{
-			buf += strings[j];
-			if (j != nptrs - 1)
-			{
-				buf += "\n";
-			}
-		}
-		free(strings);
-		return 0;
 	}
 }
