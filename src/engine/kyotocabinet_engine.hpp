@@ -63,9 +63,6 @@ namespace ardb
 		private:
 			kyotocabinet::TreeDB* m_db;
 			KCDBComparator m_comparator;
-			std::stack<bool> m_batch_stack;
-			std::set<std::string> m_bulk_del_keys;
-			std::map<std::string, std::string> m_bulk_set_kvs;
 		public:
 			KCDBEngine();
 			~KCDBEngine();

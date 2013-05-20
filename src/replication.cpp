@@ -402,6 +402,7 @@ namespace ardb
 		CheckSlaveQueue();
 	}
 
+	static uint32 kCount = 0;
 	void ReplicationService::Run()
 	{
 		struct HeartbeatTask: public Runnable
@@ -413,6 +414,7 @@ namespace ardb
 				}
 				void Run()
 				{
+					INFO_LOG("####Count = %u", kCount);
 					serv->PingSlaves();
 				}
 		};
@@ -522,6 +524,7 @@ namespace ardb
 	{
 		m_inst_queue.Push(inst);
 		m_inst_signal->FireSoftSignal(kSoftSinglaInstruction, 0);
+		kCount++;
 	}
 
 	void ReplicationService::ServARSlaveClient(Channel* client,

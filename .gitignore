@@ -3,8 +3,8 @@
 *.a
 /.svn
 /.libs
-ardb-test
-ardb-server
+ardb-test*
+ardb-server*
 *.bak
 .*
 snappy-*/

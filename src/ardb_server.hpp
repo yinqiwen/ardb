@@ -43,7 +43,7 @@ namespace ardb
 			std::string master_host;
 			uint32 master_port;
 
-			bool single;
+			bool repl_log_enable;
 			int64 worker_count;
 			std::string loglevel;
 			std::string logfile;
@@ -53,7 +53,7 @@ namespace ardb
 							10000), slowlog_max_len(128), repl_data_dir(
 							"./repl"), backup_dir("./backup"), repl_ping_slave_period(
 							10), repl_timeout(60), rep_backlog_size(1000000), repl_syncstate_persist_period(
-							1), master_port(0), single(false), worker_count(1), loglevel(
+							1), master_port(0), repl_log_enable(false), worker_count(1), loglevel(
 							"INFO")
 			{
 			}
@@ -253,7 +253,7 @@ namespace ardb
 			Properties m_cfg_props;
 			ChannelService* m_service;
 			Ardb* m_db;
-			KeyValueEngineFactory* m_engine;
+			KeyValueEngineFactory& m_engine;
 
 			typedef btree::btree_map<std::string, RedisCommandHandlerSetting> RedisCommandHandlerSettingTable;
 			typedef btree::btree_map<WatchKey, ContextSet> WatchKeyContextTable;
@@ -364,6 +364,10 @@ namespace ardb
 			int Expire(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Expireat(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int Persist(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int PExpire(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int PExpireat(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int PTTL(ArdbConnContext& ctx, ArgumentArray& cmd);
+			int TTL(ArdbConnContext& ctx, ArgumentArray& cmd);
 
 			int HDel(ArdbConnContext& ctx, ArgumentArray& cmd);
 			int HExists(ArdbConnContext& ctx, ArgumentArray& cmd);
@@ -440,7 +444,7 @@ namespace ardb
 		public:
 			static int ParseConfig(const Properties& props,
 					ArdbServerConfig& cfg);
-			ArdbServer();
+			ArdbServer(KeyValueEngineFactory& engine);
 			const ArdbServerConfig& GetServerConfig()
 			{
 				return m_cfg;

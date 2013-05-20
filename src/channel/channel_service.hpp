@@ -10,6 +10,7 @@
 #include "util/socket_host_address.hpp"
 #include "util/datagram_packet.hpp"
 #include "util/zmq/ypipe.hpp"
+#include "util/concurrent_queue.hpp"
 #include "channel/channel_event.hpp"
 #include "channel/timer/timer_channel.hpp"
 #include "channel/signal/signal_channel.hpp"
@@ -44,6 +45,7 @@ namespace ardb
 		private:
 			typedef std::list<uint32> RemoveChannelQueue;
 			typedef zmq::ypipe_t<Runnable*, 10> TaskList;
+			//typedef SPSCQueue<Runnable*> TaskList;
 			typedef std::tr1::unordered_map<uint32, Channel*> ChannelTable;
 			typedef std::vector<ChannelService*> ChannelServicePool;
 			ChannelTable m_channel_table;
@@ -72,8 +74,7 @@ namespace ardb
 					MessageEvent<DatagramPacket>& e);
 
 			void OnSoftSignal(uint32 soft_signo, uint32 appendinfo);
-			//list<Channel*> m_deleting_queue;
-			//void Add2DeleteChannelQueue(Channel* ch);
+
 			void Run();
 			friend class Channel;
 			friend class ChannelPipeline;

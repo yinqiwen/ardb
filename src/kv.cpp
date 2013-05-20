@@ -317,7 +317,12 @@ namespace ardb
 		return SetExpiration(db, key, expire);
 	}
 
-	int Ardb::PTTL(const DBID& db, const Slice& key)
+	int Ardb::Pexpireat(const DBID& db, const Slice& key, uint64_t ms)
+	{
+		return SetExpiration(db, key, ms);
+	}
+
+	int64 Ardb::PTTL(const DBID& db, const Slice& key)
 	{
 		ValueObject v;
 		KeyObject k(key);
@@ -340,7 +345,7 @@ namespace ardb
 		return ERR_NOT_EXIST;
 	}
 
-	int Ardb::TTL(const DBID& db, const Slice& key)
+	int64 Ardb::TTL(const DBID& db, const Slice& key)
 	{
 		int ttl = PTTL(db, key);
 		if (ttl > 0)

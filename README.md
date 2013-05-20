@@ -1,6 +1,6 @@
 # Ardb
-===================================
-Ardb is a redis-protocol compatible persistent storage server, it support different storage engines. Currently LevelDB/KyotoCabinet/LMDB are supported. 
+Ardb is a BSD licensed, redis-protocol compatible persistent storage server, it support different storage engines. Currently LevelDB/KyotoCabinet/LMDB are supported, but only LevelDB engine is well tested.
+
 
 ## Status
 Still in developement, not full production ready yet.
@@ -25,102 +25,32 @@ LevelDB Options: block_cache_size=512m, write_buffer_size=512m, thread_pool_size
 
 ![Benchmark Img](https://raw.github.com/yinqiwen/ardb/master/doc/benchmark.png)
 
-	Becnhmark results(./redis-benchmark -t 'xxx' -r 1000000 -n 10000000):
+	Becnhmark data(./redis-benchmark -t 'xxx' -r 10000000 -n 10000000):
 	                                  Ardb-LevelDB  Redis    PING_INLINE	                      158730.16  156250    PING_BULK	                      161290.33 163934.42    SET	                              84147.46	 140845.06    GET	                              119538.59 149253.73    INCR	                          73040.68	 149253.73    LPUSH	                          58139.53	 161290.33    LPOP	                          41666.67	 161290.33    SADD	                          45557.88	 149253.73    SPOP	                          27638.05	 153846.16    LPUSH	                          72674.41	 161290.33    LRANGE_100(first 100 elements)	   11515.43	 49019.61    LRANGE_300(first 300 elements)	   3837.89	 21008.4    LRANGE_500(first 450 elements)	   2589.6	 14684.29    LRANGE_600(first 600 elements)	   1883.06	 11312.22    MSET (10 keys)	                  12923.24	 54347.82
 
 - Note: The 'get' performance in Ardb may be slower in reality becauseof cache missing.
 
          
 
-## Redis COMMAND Supported
-------------------------------------------
-* keys:
-  - del/exists/expire/expireat
-  - pexpire/pexpireat/pttl/rename/renameex
-  - incr/incrby
-  - keys/migrate/move/persist
-  - sort
-  - ttl/type
-
-* strings:
-  - append
-  - bitcount/bitop/getbit/setbit
-  - decr/decrby/incr/incrby/incrbyfloat
-  - get/getrange/getset/mget/mset/msetnx/psetnx/set
-  - setex/setnx/setrange/strlen
-
-* hashs:
-  - hget/hmget
-  - hset/hmset/hsetnx
-  - hkeys
-  - hsetnx
-  - hdel
-  - hexists
-  - hgetall
-  - hvals
-  - hlen
-  - hincrby/hincrbyfloat/hmincrby
+## Ardb vs Redis(2.6) 
+ * Unsupported Redis Commands:
+  - DUMP 
+  - MIGRATE
+  - OBJECT
+  - RANDOMKEY
+  - RESTORE
+  - BLPOP/BRPOP
+  - SRANDMEMBER
+  - EVAL/EVALSHA/SCRIPT
+  - AUTH
+  - CONFIG RESETSTAT
+  - DEBUG/MONITOR
+ * Additional Commands:
+  - HClear/SClear/ZClear/LClear/TClear
+  - SUnionCount/SInterCount/SDiffCount
+  - HMIncrby
+  - \_\_SET\_\_/\_\_DEL\_\_(for replication)
   
-* lists:
-  - lindex/linsert
-  - llen/lrange
-  - lpop/rpop
-  - lpush/rpush
-  - lpushx/rpushx
-  - lrem/lset
-  - ltrim
-  - rpoplpush
-  
-* sets:
-  - sadd/spop
-  - scard
-  - sdiff/sdiffstore
-  - sinter/sinterstore
-  - sunion/sunionstore
-  - sintercount/suinioncount/sdiffcount
-  - sismember/smembers
-  - smove/srem
-  
-* sorted sets:
-  - zadd/zrem
-  - zcard/zcount
-  - zincrby
-  - zrange/zrangebyscore
-  - zinterstore/zunionstore
-  - zrank/zremrangebyrank
-  - zscore/zremrangebyscore
-  - zrevrange/zrevrangebyscore
-  - zrevrank
-  
-* Pub/Sub:
-  - psubscribe/punsubscribe
-  - subscribe/unsubscibe
-  - publish
-  
-* transaction commands:
-  - multi
-  - exec
-  - discard
-  - watch/unwatch
-
-* connection commans:
-  - select
-  - echo
-  - ping
-  - quit
-
-* server:
-  - bgsave/save/lastsave
-  - client kill/client list/client getname/client setname
-  - config get/config set
-  - dbsize
-  - flushall/flushdb
-  - info
-  - shutdown
-  - slaveof
-  - slowlog
-  - sync
-  - time
 
 
 

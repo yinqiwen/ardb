@@ -8,7 +8,9 @@ CC=gcc
 
 LIB_PATH=$(PWD)/../deps
 
-LMDB_PATH=${LIB_PATH}/mdb/libraries/liblmdb
+LMDB_PATH=${LIB_PATH}/mdb-mdb/libraries/liblmdb
+LMDB_FILE=${LIB_PATH}/LMDB_0_9_6.gz
+LMDB_LIBA=${LMDB_PATH}/liblmdb.a
 
 JEMALLOC_VER=jemalloc-3.3.1
 JEMALLOC_PATH=${LIB_PATH}/${JEMALLOC_VER}
@@ -39,7 +41,7 @@ CXXFLAGS=-Wall -Wno-unused-parameter -Wno-format -g -O2  -D_FILE_OFFSET_BITS=64 
 CCFLAGS=-Wall -Wno-unused-parameter -Wbad-function-cast -std=gnu99 -O2 -pedantic -Wno-format -g -D_FILE_OFFSET_BITS=64 -fPIC
 LDFLAGS=-g 
 
-INCS=-I./  -I../deps/cpp-btree 
+INCS=-I./  -I${LIB_PATH}/cpp-btree 
 
 LIBS=  ${TCMALLOC_LIBA} -lpthread
 
@@ -90,7 +92,7 @@ else
 ifeq ($(storage_engine), kyotocabinet)
   STORAGE_ENGINE_OBJ=${KCDB_ENGINE}
   STORAGE_ENGINE=kyotocabinet ${STORAGE_ENGINE_OBJ}
-  INCS+=-I${KCDB_PATH}/include
+  INCS+=-I${KCDB_PATH}
   LIBS:= ${KCDB_LIBA} ${LIBS} -lz
   TESTOBJ=${KCDB_TEST}
   CXXFLAGS+=-D__USE_KYOTOCABINET__
@@ -98,7 +100,7 @@ else
 ifeq ($(storage_engine), lmdb)
   STORAGE_ENGINE_OBJ=${LMDB_ENGINE}
   STORAGE_ENGINE=lmdb ${STORAGE_ENGINE_OBJ}
-  INCS+=-I${LMDB_PATH}/include
+  INCS+=-I${LMDB_PATH}
   LIBS:= ${LMDB_LIBA} ${LIBS}
   TESTOBJ=${LMDB_TEST}
   CXXFLAGS+=-D__USE_LMDB__
@@ -120,7 +122,7 @@ $(DIST_LIBA):$(CORE_OBJECTS)
 
 lib:tcmalloc $(DIST_LIBA)
 
-server:$(SERVER_OBJECTS) $(CORE_OBJECTS) $(CHANNEL_OBJECTS) ${STORAGE_ENGINE}
+server:${STORAGE_ENGINE} lib clean_launch_obj $(SERVER_OBJECTS) $(CHANNEL_OBJECTS) 
 	${CXX} -o ardb-server $(SERVER_OBJECTS)  $(CORE_OBJECTS) $(CHANNEL_OBJECTS) ${STORAGE_ENGINE_OBJ} $(LIBS)
 
 test:${STORAGE_ENGINE} $(CORE_OBJECTS) ${TESTOBJ}
@@ -158,6 +160,14 @@ kyotocabinet:
       ./configure;make;\
     fi
 
+lmdb:
+	@if test -f ${LMDB_LIBA}; then\
+      :; \
+    else \
+      cd ${LIB_PATH};tar zxvf ${LMDB_FILE};cd ${LMDB_PATH};\
+      make;\
+    fi
+
 leveldb:snappy
 	@if test -f ${LEVELDB_LIBA}; then\
       :; \
@@ -165,6 +175,9 @@ leveldb:snappy
       cd ${LIB_PATH};tar zxvf ${LEVELDB_FILE};cd ${LEVELDB_PATH};\
       CXXFLAGS="-I${SNAPPY_PATH}" CFLAGS="-I${SNAPPY_PATH} LDFLAGS=${SNAPPY_PATH}/.libs" make libleveldb.a;\
     fi
+
+clean_launch_obj:
+	rm -f main.o
 
 clean:
 	rm -f $(LEVELDB_TEST) $(KCDB_TEST) ${CORE_OBJECTS} ${LEVELDB_OBJECTS} \

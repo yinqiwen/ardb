@@ -112,59 +112,19 @@ namespace ardb
 
 	int KCDBEngine::BeginBatchWrite()
 	{
-		m_batch_stack.push(true);
 		return 0;
 	}
 	int KCDBEngine::CommitBatchWrite()
 	{
-		if (!m_batch_stack.empty())
-		{
-			m_batch_stack.pop();
-		}
-		if (m_batch_stack.empty())
-		{
-			if (!m_bulk_del_keys.empty())
-			{
-				std::vector<std::string> ks;
-				std::set<std::string>::iterator it = m_bulk_del_keys.begin();
-				while (it != m_bulk_del_keys.end())
-				{
-					ks.push_back(*it);
-					it++;
-				}
-				m_db->remove_bulk(ks);
-				m_bulk_del_keys.clear();
-			}
-			if (!m_bulk_set_kvs.empty())
-			{
-				m_db->set_bulk(m_bulk_set_kvs);
-				m_bulk_set_kvs.clear();
-			}
-			return 0;
-		}
 		return 0;
 	}
 	int KCDBEngine::DiscardBatchWrite()
 	{
-		if (!m_batch_stack.empty())
-		{
-			m_batch_stack.pop();
-		}
-		m_bulk_set_kvs.clear();
-		m_bulk_del_keys.clear();
 		return 0;
 	}
 
 	int KCDBEngine::Put(const Slice& key, const Slice& value)
 	{
-		if (!m_batch_stack.empty())
-		{
-			std::string kstr(key.data(), key.size());
-			std::string vstr(value.data(), value.size());
-			m_bulk_set_kvs[kstr] = vstr;
-			m_bulk_del_keys.erase(kstr);
-			return 0;
-		}
 		bool success = false;
 		success = m_db->set(key.data(), key.size(), value.data(), value.size());
 		return success ? 0 : -1;
@@ -184,13 +144,6 @@ namespace ardb
 	}
 	int KCDBEngine::Del(const Slice& key)
 	{
-		if (!m_batch_stack.empty())
-		{
-			std::string delkey(key.data(), key.size());
-			m_bulk_del_keys.insert(delkey);
-			m_bulk_set_kvs.erase(delkey);
-			return 0;
-		}
 		return m_db->remove(key.data(), key.size()) ? 0 : -1;
 	}
 
