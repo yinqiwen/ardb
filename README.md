@@ -11,7 +11,7 @@ Still in developement, not full production ready yet.
 - Different storage engine supported(LevelDB/KyotoCabinet/LMDB)
 - Replication(Master-Slave/Master-Master)
 - Backup data online
-- Simple Table data structure [Table In Ardb](wiki/Table-In-Ardb)
+- Simple Table data structure [Table In Ardb](https://github.com/yinqiwen/ardb/wiki/Table-In-Ardb)
 
 ## Client API
 Since ardb is a full redis-protocol compatible server, you can use any redis client to connect it. Here lists all redis clients. <http://www.redis.io/clients>
