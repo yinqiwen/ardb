@@ -5,6 +5,15 @@ Ardb is a BSD licensed, redis-protocol compatible persistent storage server, it 
 ## Status
 Still in developement, not full production ready yet.
 
+## Compile
+LevelDB is the defaul storeage engine, to compile with leveldb, just type 'make' to compile server & lib & tests.
+
+To use 	KyotoCabinet/LMDB as storage engine, you should set env 'storage_engine' first.
+	
+	storage_engine=kyotocabinet make
+	storage_engine=lmdb make
+	
+
 ## Features
 - Full redis-protocol compatibel
 - Most redis commands supported
