@@ -11,11 +11,8 @@ namespace ardb
 {
 	int compare_values(const ValueArray& a, const ValueArray& b)
 	{
-		if (a.size() > b.size())
-		{
-			return 1;
-		}
-		for (uint32 i = 0; i < a.size(); i++)
+		uint32 minsize = a.size() > b.size() ? b.size() : a.size();
+		for (uint32 i = 0; i < minsize; i++)
 		{
 			int cmp = a[i].Compare(b[i]);
 			if (cmp != 0)
@@ -23,7 +20,7 @@ namespace ardb
 				return cmp > 0 ? 1 : -1;
 			}
 		}
-		return 0;
+		return a.size() < b.size() ? -1 : (a.size() > b.size() ? 1 : 0);
 	}
 
 	bool TableKeyIndex::operator<(const TableKeyIndex& other) const
@@ -149,6 +146,7 @@ namespace ardb
 			case ZSET_META:
 			case SET_META:
 			case TABLE_META:
+			case TABLE_SCHEMA:
 			default:
 			{
 				break;
@@ -288,6 +286,7 @@ namespace ardb
 			case ZSET_META:
 			case LIST_META:
 			case TABLE_META:
+			case TABLE_SCHEMA:
 			default:
 			{
 				return new KeyObject(keystr, (KeyType) type);

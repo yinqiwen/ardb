@@ -6,7 +6,6 @@
  */
 
 #include "ardb.hpp"
-#include <float.h>
 
 namespace ardb
 {

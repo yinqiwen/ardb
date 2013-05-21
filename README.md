@@ -11,7 +11,7 @@ Still in developement, not full production ready yet.
 - Different storage engine supported(LevelDB/KyotoCabinet/LMDB)
 - Replication(Master-Slave/Master-Master)
 - Backup data online
-- Simple Table data structure supported
+- Simple Table data structure[Table In Ardb](https://raw.github.com/yinqiwen/ardb/master/doc/table.md)
 
 ## Client API
 Since ardb is a full redis-protocol compatible server, you can use any redis client to connect it. Here lists all redis clients. <http://www.redis.io/clients>
@@ -50,11 +50,10 @@ LevelDB Options: block_cache_size=512m, write_buffer_size=512m, thread_pool_size
   - SUnionCount/SInterCount/SDiffCount
   - HMIncrby
   - \_\_SET\_\_/\_\_DEL\_\_(for replication)
-  - TDel/TDelCol
-  - TCreate
+  - TCreate/TDesc/TLen
   - TInsert/TReplace
-  - TUpdate
-  - TGet(Table commands)
+  - TUpdate/TDel
+  - TGet/TGetAll(Table commands)
   
 
 

@@ -8,6 +8,7 @@
 #ifndef ARDB_DATA_HPP_
 #define ARDB_DATA_HPP_
 #include <stdint.h>
+#include <float.h>
 #include <math.h>
 #include <map>
 #include <set>
@@ -44,6 +45,7 @@ namespace ardb
 		TABLE_META = 10,
 		TABLE_INDEX = 11,
 		TABLE_COL = 12,
+		TABLE_SCHEMA = 13,
 		KEY_END = 255,
 	};
 
@@ -110,6 +112,50 @@ namespace ardb
 			{
 				return Compare(other) == 0;
 			}
+			inline ValueObject& operator+=(const ValueObject& other)
+			{
+				if (type == EMPTY)
+				{
+					type = INTEGER;
+				}
+				if (other.type == DOUBLE || type == DOUBLE)
+				{
+					double tmp = NumberValue();
+					tmp += other.NumberValue();
+					type = DOUBLE;
+					v.double_v = tmp;
+					return *this;
+				}
+				if ((other.type == INTEGER || other.type == EMPTY)
+						&& type == INTEGER)
+				{
+					v.int_v += other.v.int_v;
+					return *this;
+				}
+				return *this;
+			}
+			inline ValueObject& operator/=(uint32 i)
+			{
+				if (type == EMPTY)
+				{
+					type = INTEGER;
+					v.int_v = 0;
+				}
+				if (type == RAW)
+				{
+					return *this;
+				}
+				double tmp = NumberValue();
+				type = DOUBLE;
+				if (i != 0)
+				{
+					v.double_v = tmp / i;
+				} else
+				{
+					v.double_v = DBL_MAX;
+				}
+				return *this;
+			}
 			const std::string& ToString(std::string& str) const
 			{
 				switch (type)
@@ -134,12 +180,12 @@ namespace ardb
 					default:
 					{
 						str.assign(v.raw->GetRawReadBuffer(),
-						        v.raw->ReadableBytes());
+								v.raw->ReadableBytes());
 						return str;
 					}
 				}
 			}
-			double NumberValue()
+			double NumberValue() const
 			{
 				switch (type)
 				{
@@ -190,7 +236,7 @@ namespace ardb
 					{
 						v.raw = new Buffer(other.v.raw->ReadableBytes());
 						v.raw->Write(other.v.raw->GetRawReadBuffer(),
-						        other.v.raw->ReadableBytes());
+								other.v.raw->ReadableBytes());
 						return;
 					}
 				}
@@ -218,9 +264,9 @@ namespace ardb
 					default:
 					{
 						Slice a(v.raw->GetRawReadBuffer(),
-						        v.raw->ReadableBytes());
+								v.raw->ReadableBytes());
 						Slice b(other.v.raw->GetRawReadBuffer(),
-						        other.v.raw->ReadableBytes());
+								other.v.raw->ReadableBytes());
 						return a.compare(b);
 					}
 				}
@@ -245,6 +291,22 @@ namespace ardb
 	typedef std::map<std::string, Slice> SliceMap;
 	typedef std::set<std::string> StringSet;
 	typedef std::vector<uint32_t> WeightArray;
+
+	inline bool operator==(const ValueArray& x, const ValueArray& y)
+	{
+		if (x.size() != y.size())
+		{
+			return false;
+		}
+		for (uint32 i = 0; i < x.size(); i++)
+		{
+			if (x[i].Compare(y[i]) != 0)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
 
 	struct DBItemKey
 	{
@@ -294,7 +356,7 @@ namespace ardb
 			LogicalOperator logicop;
 
 			Condition(const std::string& name, CompareOperator compareop,
-			        const Slice& value, LogicalOperator logic = LOGIC_EMPTY);
+					const Slice& value, LogicalOperator logic = LOGIC_EMPTY);
 
 			bool MatchValue(const ValueObject& v, int& cmpret)
 			{
@@ -399,10 +461,16 @@ namespace ardb
 	struct TableMetaValue
 	{
 			uint32_t size;
-			StringArray keynames;
-			StringSet valnames;
 			TableMetaValue() :
 					size(0)
+			{
+			}
+	};
+	struct TableSchemaValue
+	{
+			StringArray keynames;
+			StringSet valnames;
+			TableSchemaValue()
 			{
 			}
 			int Index(const Slice& key);
@@ -420,13 +488,13 @@ namespace ardb
 			ValueObject keyvalue;
 			TableKeyIndex index;
 			TableIndexKeyObject(const Slice& tablename, const Slice& keyname,
-			        const ValueObject& v) :
+					const ValueObject& v) :
 					KeyObject(tablename, TABLE_INDEX), kname(keyname), keyvalue(
-					        v)
+							v)
 			{
 			}
 			TableIndexKeyObject(const Slice& tablename, const Slice& keyname,
-			        const Slice& v);
+					const Slice& v);
 	};
 
 	struct TableColKeyObject: public KeyObject
@@ -441,7 +509,12 @@ namespace ardb
 
 	enum AggregateType
 	{
-		AGGREGATE_SUM = 0, AGGREGATE_MIN = 1, AGGREGATE_MAX = 2,
+		AGGREGATE_EMPTY = 0,
+		AGGREGATE_SUM = 1,
+		AGGREGATE_MIN = 2,
+		AGGREGATE_MAX = 3,
+		AGGREGATE_COUNT = 4,
+		AGGREGATE_AVG = 5,
 	};
 
 	struct QueryOptions
@@ -452,7 +525,7 @@ namespace ardb
 			int limit_count;
 			QueryOptions() :
 					withscores(false), withlimit(false), limit_offset(0), limit_count(
-					        0)
+							0)
 			{
 			}
 	};
@@ -470,8 +543,8 @@ namespace ardb
 			const char* store_dst;
 			SortOptions() :
 					by(NULL), with_limit(false), limit_offset(0), limit_count(
-					        0), is_desc(false), with_alpha(false), nosort(
-					        false), store_dst(NULL)
+							0), is_desc(false), with_alpha(false), nosort(
+							false), store_dst(NULL)
 			{
 			}
 	};
@@ -487,28 +560,34 @@ namespace ardb
 			bool is_desc;
 			bool with_alpha;
 			AggregateType aggregate;
+			TableQueryOptions() :
+					with_limit(false), limit_offset(0), limit_count(0), is_desc(
+							false), with_alpha(false), aggregate(
+							AGGREGATE_EMPTY)
+			{
+
+			}
 			static bool Parse(StringArray& args, uint32 offset,
-			        TableQueryOptions& options);
+					TableQueryOptions& options);
 	};
 	struct TableUpdateOptions
 	{
 			Conditions conds;
 			SliceMap colnvs;
 			static bool Parse(StringArray& args, uint32 offset,
-			        TableUpdateOptions& options);
+					TableUpdateOptions& options);
 	};
 	struct TableDeleteOptions
 	{
 			Conditions conds;
 			static bool Parse(StringArray& args, uint32 offset,
-			        TableDeleteOptions& options);
+					TableDeleteOptions& options);
 	};
 	struct TableInsertOptions
 	{
-			SliceMap keynvs;
-			SliceMap colnvs;
+			SliceMap nvs;
 			static bool Parse(StringArray& args, uint32 offset,
-			        TableInsertOptions& options);
+					TableInsertOptions& options);
 	};
 
 	typedef std::vector<ZSetMetaValue> ZSetMetaValueArray;
@@ -523,7 +602,7 @@ namespace ardb
 
 	void encode_value(Buffer& buf, const ValueObject& value);
 	bool decode_value(Buffer& buf, ValueObject& value,
-	        bool copyRawValue = true);
+			bool copyRawValue = true);
 	void fill_raw_value(const Slice& value, ValueObject& valueobject);
 	void smart_fill_value(const Slice& value, ValueObject& valueobject);
 	int value_convert_to_raw(ValueObject& v);

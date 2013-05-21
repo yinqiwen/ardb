@@ -151,7 +151,7 @@ namespace ardb
 						ret = av.Compare(bv);
 						if (ret != 0)
 						{
-							break;
+							return ret;
 						}
 					}
 				}
@@ -166,6 +166,7 @@ namespace ardb
 			case ZSET_META:
 			case LIST_META:
 			case TABLE_META:
+			case TABLE_SCHEMA:
 			default:
 			{
 				break;

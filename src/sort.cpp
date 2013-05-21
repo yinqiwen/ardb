@@ -42,47 +42,43 @@ namespace ardb
 			if (!strcasecmp(args[i].c_str(), "asc"))
 			{
 				options.is_desc = false;
-			}
-			else if (!strcasecmp(args[i].c_str(), "desc"))
+			} else if (!strcasecmp(args[i].c_str(), "desc"))
 			{
 				options.is_desc = true;
-			}
-			else if (!strcasecmp(args[i].c_str(), "alpha"))
+			} else if (!strcasecmp(args[i].c_str(), "alpha"))
 			{
 				options.with_alpha = true;
-			}
-			else if (!strcasecmp(args[i].c_str(), "limit")
-			        && i < args.size() - 2)
+			} else if (!strcasecmp(args[i].c_str(), "limit")
+					&& i < args.size() - 2)
 			{
 				options.with_limit = true;
 				if (!string_toint32(args[i + 1], options.limit_offset)
-				        || !string_toint32(args[i + 2], options.limit_count))
+						|| !string_toint32(args[i + 2], options.limit_count))
 				{
 					return -1;
 				}
 				i += 2;
-			}
-			else if (!strcasecmp(args[i].c_str(), "store")
-			        && i < args.size() - 1)
+			} else if (!strcasecmp(args[i].c_str(), "store")
+					&& i < args.size() - 1)
 			{
 				options.store_dst = args[i + 1].c_str();
 				i++;
-			}
-			else if (!strcasecmp(args[i].c_str(), "by") && i < args.size() - 1)
+			} else if (!strcasecmp(args[i].c_str(), "by")
+					&& i < args.size() - 1)
 			{
 				options.by = args[i + 1].c_str();
-				if(!strcasecmp(options.by, "nosort")){
+				if (!strcasecmp(options.by, "nosort"))
+				{
 					options.by = NULL;
 					options.nosort = true;
 				}
 				i++;
-			}
-			else if (!strcasecmp(args[i].c_str(), "get") && i < args.size() - 1)
+			} else if (!strcasecmp(args[i].c_str(), "get")
+					&& i < args.size() - 1)
 			{
 				options.get_patterns.push_back(args[i + 1].c_str());
 				i++;
-			}
-			else
+			} else
 			{
 				return -1;
 			}
@@ -91,7 +87,7 @@ namespace ardb
 	}
 
 	int Ardb::GetValueByPattern(const DBID& db, const Slice& pattern,
-	        ValueObject& subst, ValueObject& value)
+			ValueObject& subst, ValueObject& value)
 	{
 		const char *p, *f;
 		const char* spat;
@@ -125,8 +121,7 @@ namespace ardb
 		{
 			KeyObject k(keystr);
 			return GetValue(db, k, &value);
-		}
-		else
+		} else
 		{
 			size_t pos = keystr.find("->");
 			std::string field = keystr.substr(pos + 2);
@@ -137,7 +132,7 @@ namespace ardb
 	}
 
 	int Ardb::Sort(const DBID& db, const Slice& key, const StringArray& args,
-	        ValueArray& values)
+			ValueArray& values)
 	{
 		SortOptions options;
 		if (parse_sort_options(options, args) < 0)
@@ -185,7 +180,7 @@ namespace ardb
 				values.clear();
 				return 0;
 			}
-			if(options.limit_count < 0)
+			if (options.limit_count < 0)
 			{
 				options.limit_count = sortvals.size();
 			}
@@ -204,7 +199,7 @@ namespace ardb
 				{
 					sortvec.push_back(SortValue(&sortvals[i]));
 					if (GetValueByPattern(db, options.by, sortvals[i],
-					        sortvec[i].cmp) < 0)
+							sortvec[i].cmp) < 0)
 					{
 						sortvec[i].cmp.Clear();
 						continue;
@@ -215,19 +210,16 @@ namespace ardb
 					if (NULL != options.by)
 					{
 						value_convert_to_raw(sortvec[i].cmp);
-					}
-					else
+					} else
 					{
 						value_convert_to_raw(sortvals[i]);
 					}
-				}
-				else
+				} else
 				{
 					if (NULL != options.by)
 					{
 						value_convert_to_number(sortvec[i].cmp);
-					}
-					else
+					} else
 					{
 						value_convert_to_number(sortvals[i]);
 					}
@@ -238,26 +230,23 @@ namespace ardb
 				if (!options.is_desc)
 				{
 					std::sort(sortvec.begin(), sortvec.end(),
-					        less_value<SortValue>);
-				}
-				else
+							less_value<SortValue>);
+				} else
 				{
 					std::sort(sortvec.begin(), sortvec.end(),
-					        greater_value<SortValue>);
+							greater_value<SortValue>);
 				}
 
-			}
-			else
+			} else
 			{
 				if (!options.is_desc)
 				{
 					std::sort(sortvals.begin(), sortvals.end(),
-					        less_value<ValueObject>);
-				}
-				else
+							less_value<ValueObject>);
+				} else
 				{
 					std::sort(sortvals.begin(), sortvals.end(),
-					        greater_value<ValueObject>);
+							greater_value<ValueObject>);
 				}
 			}
 		}
@@ -270,28 +259,27 @@ namespace ardb
 
 		uint32 count = 0;
 		for (uint32 i = options.limit_offset;
-		        i < sortvals.size() && count < options.limit_count; i++)
+				i < sortvals.size() && count < options.limit_count;
+				i++, count++)
 		{
 			ValueObject* patternObj = NULL;
 			if (NULL != options.by)
 			{
 				patternObj = sortvec[i].value;
-			}
-			else
+			} else
 			{
 				patternObj = &(sortvals[i]);
 			}
 			if (options.get_patterns.empty())
 			{
 				values.push_back(*patternObj);
-			}
-			else
+			} else
 			{
 				for (uint32 j = 0; j < options.get_patterns.size(); j++)
 				{
 					ValueObject vo;
 					if (GetValueByPattern(db, options.get_patterns[j],
-					        *patternObj, vo) < 0)
+							*patternObj, vo) < 0)
 					{
 						vo.Clear();
 					}
@@ -309,7 +297,8 @@ namespace ardb
 
 			while (it != values.end())
 			{
-				if(it->type != EMPTY){
+				if (it->type != EMPTY)
+				{
 					ListKeyObject lk(options.store_dst, score);
 					SetValue(db, lk, *it);
 					score++;

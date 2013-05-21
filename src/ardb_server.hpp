@@ -438,6 +438,7 @@ namespace ardb
 			int TLen(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int TInsert(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int TGet(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int TGetAll(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int TUpdate(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int TDel(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int TDesc(ArdbConnContext& ctx, RedisCommandFrame& cmd);
