@@ -19,27 +19,24 @@ void test_table_insert_get(Ardb& db)
 	array.push_back("key3");
 	db.TCreate(dbid, "mytable", array);
 
-	SliceMap keyvals;
-	keyvals["key1"] = "1";
-	keyvals["key2"] = "2";
-	keyvals["key3"] = "3";
+	TableInsertOptions insert_options;
+	insert_options.keynvs["key1"] = "1";
+	insert_options.keynvs["key2"] = "2";
+	insert_options.keynvs["key3"] = "3";
 
-	SliceMap colvals;
-	colvals["name"] = "ardb";
-	colvals["age"] = "20";
-	colvals["birth"] = "1999";
+	insert_options.colnvs["name"] = "ardb";
+	insert_options.colnvs["age"] = "20";
+	insert_options.colnvs["birth"] = "1999";
 	std::string err;
-	db.TInsert(dbid, "mytable", keyvals, colvals, false, err);
+	db.TInsert(dbid, "mytable", insert_options, false, err);
 
-	SliceArray keys, cols;
-	cols.push_back("birth");
-	cols.push_back("name");
-	//cols.push_back("age");
 	ValueArray result;
-	Conditions conds;
+	TableQueryOptions options;
+	options.names.push_back("birth");
+	options.names.push_back("name");
 	Condition cond("key2", CMP_LESS_EQ, "2");
-	conds.push_back(cond);
-	db.TGet(dbid, "mytable", keys, cols, conds, result);
+	options.conds.push_back(cond);
+	db.TGet(dbid, "mytable",options, result, err);
 
 	std::string str;
 	CHECK_FATAL( result.size() != 2, "%d", result.size());
@@ -57,33 +54,30 @@ void test_table_update(Ardb& db)
 	array.push_back("key3");
 	db.TCreate(dbid, "mytable", array);
 
-	SliceMap keyvals;
-	keyvals["key1"] = "10";
-	keyvals["key2"] = "20";
-	keyvals["key3"] = "30";
-
-	SliceMap colvals;
-	colvals["name"] = "ardb";
-	colvals["age"] = "20";
-	colvals["birth"] = "1999";
+	TableInsertOptions insert_options;
+	insert_options.keynvs["key1"] = "10";
+	insert_options.keynvs["key2"] = "20";
+	insert_options.keynvs["key3"] = "30";
+	insert_options.colnvs["name"] = "ardb";
+	insert_options.colnvs["age"] = "20";
+	insert_options.colnvs["birth"] = "1999";
 	std::string err;
-	db.TInsert(dbid, "mytable", keyvals, colvals, false, err);
-	Conditions conds;
+	db.TInsert(dbid, "mytable", insert_options, false, err);
+	TableUpdateOptions update_options;
 	Condition cond("key2", CMP_GREATE, "5");
-	conds.push_back(cond);
-	colvals["name"] = "newdb";
-	colvals["age"] = "30";
-	colvals["birth"] = "2000";
-	db.TUpdate(dbid, "mytable", colvals, conds);
+	update_options.conds.push_back(cond);
+	update_options.colnvs["name"] = "newdb";
+	update_options.colnvs["age"] = "30";
+	update_options.colnvs["birth"] = "2000";
+	db.TUpdate(dbid, "mytable", update_options);
 
-	SliceArray keys, cols;
-	cols.push_back("age");
-	cols.push_back("name");
+	TableQueryOptions options;
+	options.names.push_back("age");
+	options.names.push_back("name");
 	ValueArray result;
-	Conditions xconds;
 	Condition xcond("key2", CMP_GREATE, "2");
-	xconds.push_back(xcond);
-	db.TGet(dbid, "mytable", keys, cols, xconds, result);
+	options.conds.push_back(xcond);
+	db.TGet(dbid, "mytable", options, result, err);
 
 	std::string str;
 	CHECK_FATAL( result.size() != 2, "%d", result.size());
