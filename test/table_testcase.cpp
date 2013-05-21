@@ -20,13 +20,13 @@ void test_table_insert_get(Ardb& db)
 	db.TCreate(dbid, "mytable", array);
 
 	TableInsertOptions insert_options;
-	insert_options.keynvs["key1"] = "1";
-	insert_options.keynvs["key2"] = "2";
-	insert_options.keynvs["key3"] = "3";
+	insert_options.nvs["key1"] = "1";
+	insert_options.nvs["key2"] = "2";
+	insert_options.nvs["key3"] = "3";
 
-	insert_options.colnvs["name"] = "ardb";
-	insert_options.colnvs["age"] = "20";
-	insert_options.colnvs["birth"] = "1999";
+	insert_options.nvs["name"] = "ardb";
+	insert_options.nvs["age"] = "20";
+	insert_options.nvs["birth"] = "1999";
 	std::string err;
 	db.TInsert(dbid, "mytable", insert_options, false, err);
 
@@ -55,12 +55,12 @@ void test_table_update(Ardb& db)
 	db.TCreate(dbid, "mytable", array);
 
 	TableInsertOptions insert_options;
-	insert_options.keynvs["key1"] = "10";
-	insert_options.keynvs["key2"] = "20";
-	insert_options.keynvs["key3"] = "30";
-	insert_options.colnvs["name"] = "ardb";
-	insert_options.colnvs["age"] = "20";
-	insert_options.colnvs["birth"] = "1999";
+	insert_options.nvs["key1"] = "10";
+	insert_options.nvs["key2"] = "20";
+	insert_options.nvs["key3"] = "30";
+	insert_options.nvs["name"] = "ardb";
+	insert_options.nvs["age"] = "20";
+	insert_options.nvs["birth"] = "1999";
 	std::string err;
 	db.TInsert(dbid, "mytable", insert_options, false, err);
 	TableUpdateOptions update_options;
