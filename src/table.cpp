@@ -18,7 +18,7 @@ namespace ardb
 			}
 			int Compare(const TableRow& other) const
 			{
-				if (sort_item_idx > 0 && vs.size() > sort_item_idx
+				if (sort_item_idx >= 0 && vs.size() > sort_item_idx
 						&& other.vs.size() > sort_item_idx)
 				{
 					return vs[sort_item_idx].Compare(other.vs[sort_item_idx]);
@@ -233,9 +233,11 @@ namespace ardb
 				options.is_desc = false;
 			} else if (!strcasecmp(args[i].c_str(), "desc"))
 			{
+				options.with_desc_asc = true;
 				options.is_desc = true;
 			} else if (!strcasecmp(args[i].c_str(), "alpha"))
 			{
+				options.with_desc_asc = true;
 				options.with_alpha = true;
 			} else if (!strcasecmp(args[i].c_str(), "limit")
 					&& i < args.size() - 2)
@@ -695,6 +697,15 @@ namespace ardb
 				sort_idx = idx_array.size() - 1;
 			}
 			kit++;
+		}
+
+		/*
+		 * Default sort by the first element
+		 */
+		if (options.with_desc_asc && !options.names.empty()
+				&& options.orderby.empty())
+		{
+			sort_idx = 0;
 		}
 
 		if (sort_idx == -1 && options.orderby.size() > 0)

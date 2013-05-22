@@ -557,11 +557,12 @@ namespace ardb
 			bool with_limit;
 			int limit_offset;
 			int limit_count;
+			bool with_desc_asc;
 			bool is_desc;
 			bool with_alpha;
 			AggregateType aggregate;
 			TableQueryOptions() :
-					with_limit(false), limit_offset(0), limit_count(0), is_desc(
+					with_limit(false), limit_offset(0), limit_count(0), with_desc_asc(false),is_desc(
 							false), with_alpha(false), aggregate(
 							AGGREGATE_EMPTY)
 			{

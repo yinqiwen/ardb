@@ -9,7 +9,7 @@
 #define NOVA_CHANNELSERVICE_HPP_
 #include "util/socket_host_address.hpp"
 #include "util/datagram_packet.hpp"
-#include "util/zmq/ypipe.hpp"
+//#include "util/zmq/ypipe.hpp"
 #include "util/concurrent_queue.hpp"
 #include "channel/channel_event.hpp"
 #include "channel/timer/timer_channel.hpp"
