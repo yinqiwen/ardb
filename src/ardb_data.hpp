@@ -46,7 +46,7 @@ namespace ardb
 		TABLE_INDEX = 11,
 		TABLE_COL = 12,
 		TABLE_SCHEMA = 13,
-		KEY_END = 255,
+		KEY_END = 100,
 	};
 
 	enum ValueDataType

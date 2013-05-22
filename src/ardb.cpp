@@ -26,7 +26,7 @@
 namespace ardb
 {
 	int ardb_compare_keys(const char* akbuf, size_t aksiz, const char* bkbuf,
-			size_t bksiz)
+	        size_t bksiz)
 	{
 		Buffer ak_buf(const_cast<char*>(akbuf), 0, aksiz);
 		Buffer bk_buf(const_cast<char*>(bkbuf), 0, bksiz);
@@ -35,10 +35,18 @@ namespace ardb
 		bool found_b = BufferHelper::ReadFixUInt8(bk_buf, bt);
 		COMPARE_EXIST(found_a, found_b);
 		RETURN_NONEQ_RESULT(at, bt);
-		Slice akey, bkey;
-		found_a = BufferHelper::ReadVarSlice(ak_buf, akey);
-		found_b = BufferHelper::ReadVarSlice(bk_buf, bkey);
+		uint32 akeysize, bkeysize;
+		found_a = BufferHelper::ReadVarUInt32(ak_buf, akeysize);
+		found_b = BufferHelper::ReadVarUInt32(bk_buf, bkeysize);
 		COMPARE_EXIST(found_a, found_b);
+		RETURN_NONEQ_RESULT(akeysize, bkeysize);
+
+		Slice akey(ak_buf.GetRawReadBuffer(), akeysize), bkey(bk_buf.GetRawReadBuffer(), bkeysize);
+		found_a = ak_buf.ReadableBytes() >= akeysize;
+		found_b = bk_buf.ReadableBytes() >= bkeysize;
+		COMPARE_EXIST(found_a, found_b);
+		ak_buf.SkipBytes(akeysize);
+		bk_buf.SkipBytes(bkeysize);
 		int ret = akey.compare(bkey);
 		if (ret != 0)
 		{
@@ -53,6 +61,7 @@ namespace ardb
 				found_a = BufferHelper::ReadVarSlice(ak_buf, af);
 				found_b = BufferHelper::ReadVarSlice(bk_buf, bf);
 				COMPARE_EXIST(found_a, found_b);
+				RETURN_NONEQ_RESULT(af.size(), bf.size());
 				ret = af.compare(bf);
 				break;
 			}
@@ -159,6 +168,11 @@ namespace ardb
 				found_a = BufferHelper::ReadVarSlice(ak_buf, af);
 				found_b = BufferHelper::ReadVarSlice(bk_buf, bf);
 				COMPARE_EXIST(found_a, found_b);
+				ret = COMPARE_NUMBER(af.size(), bf.size());
+				if (ret != 0)
+				{
+					return ret;
+				}
 				ret = af.compare(bf);
 				break;
 			}
@@ -193,9 +207,9 @@ namespace ardb
 	}
 
 	Ardb::Ardb(KeyValueEngineFactory* engine, const std::string& path,
-			bool multi_thread) :
+	        bool multi_thread) :
 			m_engine_factory(engine), m_key_watcher(NULL), m_raw_key_listener(
-					NULL), m_path(path)
+			        NULL), m_path(path)
 	{
 		LoadAllDBNames();
 		m_key_locker.enable = multi_thread;
@@ -241,7 +255,7 @@ namespace ardb
 	}
 
 	void Ardb::Walk(const DBID& db, KeyObject& key, bool reverse,
-			WalkHandler* handler)
+	        WalkHandler* handler)
 	{
 		bool isFirstElement = true;
 		Iterator* iter = FindValue(db, key);
@@ -261,7 +275,7 @@ namespace ardb
 			}
 			KeyObject* kk = decode_key(tmpkey);
 			if (NULL == kk || kk->type != key.type
-					|| kk->key.compare(key.key) != 0)
+			        || kk->key.compare(key.key) != 0)
 			{
 				DELETE(kk);
 				if (reverse && isFirstElement)
@@ -274,7 +288,7 @@ namespace ardb
 			}
 			ValueObject v;
 			Buffer readbuf(const_cast<char*>(iter->Value().data()), 0,
-					iter->Value().size());
+			        iter->Value().size());
 			decode_value(readbuf, v, false);
 			int ret = handler->OnKeyValue(kk, &v, cursor++);
 			DELETE(kk);
@@ -285,7 +299,8 @@ namespace ardb
 			if (reverse)
 			{
 				iter->Prev();
-			} else
+			}
+			else
 			{
 				iter->Next();
 			}
@@ -405,13 +420,13 @@ namespace ardb
 			KeyObject* kk = decode_key(tmpkey);
 			ValueObject v;
 			Buffer readbuf(const_cast<char*>(iter->Value().data()), 0,
-					iter->Value().size());
+			        iter->Value().size());
 			decode_value(readbuf, v, false);
 			if (NULL != kk)
 			{
 				std::string str;
 				DEBUG_LOG(
-						"[%d]Key=%s, Value=%s", kk->type, kk->key.data(), v.ToString(str).c_str());
+				        "[%d]Key=%s, Value=%s", kk->type, kk->key.data(), v.ToString(str).c_str());
 			}
 			DELETE(kk);
 			iter->Next();

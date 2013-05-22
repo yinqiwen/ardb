@@ -149,7 +149,7 @@ snappy:
       :; \
     else \
       cd ${LIB_PATH};tar zxvf ${SNAPPY_FILE};cd ${SNAPPY_PATH};\
-      ./configure;make;\
+      ./configure;make libsnappy.la;\
     fi
 
 kyotocabinet:
