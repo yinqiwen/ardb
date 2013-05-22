@@ -230,6 +230,7 @@ namespace ardb
 		{
 			if (!strcasecmp(args[i].c_str(), "asc"))
 			{
+				options.with_desc_asc = true;
 				options.is_desc = false;
 			} else if (!strcasecmp(args[i].c_str(), "desc"))
 			{
@@ -237,7 +238,6 @@ namespace ardb
 				options.is_desc = true;
 			} else if (!strcasecmp(args[i].c_str(), "alpha"))
 			{
-				options.with_desc_asc = true;
 				options.with_alpha = true;
 			} else if (!strcasecmp(args[i].c_str(), "limit")
 					&& i < args.size() - 2)
@@ -707,7 +707,6 @@ namespace ardb
 		{
 			sort_idx = 0;
 		}
-
 		if (sort_idx == -1 && options.orderby.size() > 0)
 		{
 			err = "Invalid orderby param";

@@ -184,6 +184,8 @@ namespace ardb
 					ZSetMetaValue& meta);
 			void SetZSetMetaValue(const DBID& db, const Slice& key,
 					ZSetMetaValue& meta);
+			int TryZAdd(const DBID& db, const Slice& key, ZSetMetaValue& meta,
+					double score, const Slice& value);
 			int GetSetMetaValue(const DBID& db, const Slice& key,
 					SetMetaValue& meta);
 			void SetSetMetaValue(const DBID& db, const Slice& key,
@@ -415,10 +417,16 @@ namespace ardb
 			 */
 			int ZAdd(const DBID& db, const Slice& key, double score,
 					const Slice& value);
+			int ZAdd(const DBID& db, const Slice& key, DoubleArray& scores,
+					const SliceArray& svs);
+			int ZAddLimit(const DBID& db, const Slice& key, DoubleArray& scores,
+					const SliceArray& svs, int setlimit, ValueArray& pops);
 			int ZCard(const DBID& db, const Slice& key);
 			int ZScore(const DBID& db, const Slice& key, const Slice& value,
 					double& score);
 			int ZRem(const DBID& db, const Slice& key, const Slice& value);
+			int ZPop(const DBID& db, const Slice& key, bool reverse ,uint32 num,
+					ValueArray& pops);
 			int ZCount(const DBID& db, const Slice& key, const std::string& min,
 					const std::string& max);
 			int ZIncrby(const DBID& db, const Slice& key, double increment,
@@ -487,9 +495,10 @@ namespace ardb
 			int TUpdate(const DBID& db, const Slice& tableName,
 					TableUpdateOptions& options);
 			int TInsert(const DBID& db, const Slice& tableName,
-					TableInsertOptions& options,
-					bool replace, std::string& err);
-			int TDel(const DBID& db, const Slice& tableName, TableDeleteOptions& conds, std::string& err);
+					TableInsertOptions& options, bool replace,
+					std::string& err);
+			int TDel(const DBID& db, const Slice& tableName,
+					TableDeleteOptions& conds, std::string& err);
 			int TClear(const DBID& db, const Slice& tableName);
 			int TCount(const DBID& db, const Slice& tableName);
 			int TDesc(const DBID& db, const Slice& tableName, std::string& str);

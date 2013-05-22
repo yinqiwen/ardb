@@ -57,6 +57,8 @@ LevelDB Options: block_cache_size=512m, write_buffer_size=512m, thread_pool_size
  * Additional Commands:
   - HClear/SClear/ZClear/LClear
   - SUnionCount/SInterCount/SDiffCount
+  - ZAdd with limit
+  - ZPop/ZRPop
   - HMIncrby
   - \_\_SET\_\_/\_\_DEL\_\_(for replication)
   - TCreate/TDesc/TLen

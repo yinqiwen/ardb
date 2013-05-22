@@ -409,6 +409,7 @@ namespace ardb
 			int ZRange(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int ZRangeByScore(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int ZRank(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int ZPop(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int ZRem(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int ZRemRangeByRank(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int ZRemRangeByScore(ArdbConnContext& ctx, RedisCommandFrame& cmd);

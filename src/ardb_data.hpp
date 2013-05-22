@@ -285,6 +285,7 @@ namespace ardb
 	typedef std::set<DBID> DBIDSet;
 
 	typedef std::deque<ValueObject> ValueArray;
+	typedef std::vector<double> DoubleArray;
 	typedef std::deque<Slice> SliceArray;
 	typedef std::deque<std::string> StringArray;
 	typedef std::vector<int64> Int64Array;

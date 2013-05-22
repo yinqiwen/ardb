@@ -10,7 +10,7 @@
 namespace ardb
 {
 	static int parse_score(const std::string& score_str, double& score,
-	        bool& contain)
+			bool& contain)
 	{
 		contain = true;
 		const char* str = score_str.c_str();
@@ -22,12 +22,10 @@ namespace ardb
 		if (strcasecmp(str, "-inf") == 0)
 		{
 			score = -DBL_MAX;
-		}
-		else if (strcasecmp(str, "+inf") == 0)
+		} else if (strcasecmp(str, "+inf") == 0)
 		{
 			score = DBL_MAX;
-		}
-		else
+		} else
 		{
 			if (!str_todouble(str, score))
 			{
@@ -44,8 +42,8 @@ namespace ardb
 			return false;
 		}
 		return BufferHelper::ReadVarUInt32(*(v.v.raw), meta.size)
-		        && BufferHelper::ReadFixDouble(*(v.v.raw), meta.min_score)
-		        && BufferHelper::ReadFixDouble(*(v.v.raw), meta.max_score);
+				&& BufferHelper::ReadFixDouble(*(v.v.raw), meta.min_score)
+				&& BufferHelper::ReadFixDouble(*(v.v.raw), meta.max_score);
 	}
 	static void EncodeZSetMetaData(ValueObject& v, ZSetMetaValue& meta)
 	{
@@ -59,12 +57,32 @@ namespace ardb
 		BufferHelper::WriteFixDouble(*(v.v.raw), meta.max_score);
 	}
 
-	int Ardb::ZAdd(const DBID& db, const Slice& key, double score,
-	        const Slice& value)
+	int Ardb::ZAddLimit(const DBID& db, const Slice& key, DoubleArray& scores,
+			const SliceArray& svs, int setlimit, ValueArray& pops)
 	{
-		KeyLockerGuard keyguard(m_key_locker, db, key);
 		ZSetMetaValue meta;
 		GetZSetMetaValue(db, key, meta);
+		if (setlimit <= 0)
+		{
+			setlimit = meta.size + scores.size();
+		}
+		ZAdd(db, key, scores, svs);
+		GetZSetMetaValue(db, key, meta);
+		if (meta.size > setlimit)
+		{
+			ZPop(db, key, false, meta.size - setlimit, pops);
+		}
+		return 0;
+	}
+
+	/*
+	 * returns -1:no change  0:no meta&zset size change
+	 *          1:meta change & no zset size change
+	 *          2:meta change & zset size change
+	 */
+	int Ardb::TryZAdd(const DBID& db, const Slice& key, ZSetMetaValue& meta,
+			double score, const Slice& value)
+	{
 		bool metachange = false;
 		if (score > meta.max_score)
 		{
@@ -76,7 +94,6 @@ namespace ardb
 			meta.min_score = score;
 			metachange = true;
 		}
-
 		ZSetScoreKeyObject zk(key, value);
 		ValueObject zv;
 		if (0 != GetValue(db, zk, &zv))
@@ -84,20 +101,16 @@ namespace ardb
 			meta.size++;
 			zv.type = DOUBLE;
 			zv.v.double_v = score;
-			BatchWriteGuard guard(GetDB(db));
 			SetValue(db, zk, zv);
 			ZSetKeyObject zsk(key, value, score);
 			ValueObject zsv;
 			zsv.type = EMPTY;
 			SetValue(db, zsk, zsv);
-			SetZSetMetaValue(db, key, meta);
-			return 1;
-		}
-		else
+			return 2;
+		} else
 		{
 			if (zv.v.double_v != score)
 			{
-				BatchWriteGuard guard(GetDB(db));
 				ZSetKeyObject zsk(key, value, zv.v.double_v);
 				DelValue(db, zsk);
 				zsk.score = score;
@@ -106,18 +119,51 @@ namespace ardb
 				SetValue(db, zsk, zsv);
 				zv.type = DOUBLE;
 				zv.v.double_v = score;
-				if (metachange)
-				{
-					SetZSetMetaValue(db, key, meta);
-				}
-				return SetValue(db, zk, zv);
+				SetValue(db, zk, zv);
+				return metachange ? 1 : 0;
 			}
 		}
-		return 0;
+		return -1;
+	}
+	int Ardb::ZAdd(const DBID& db, const Slice& key, double score,
+			const Slice& value)
+	{
+		DoubleArray scores;
+		SliceArray svs;
+		scores.push_back(score);
+		svs.push_back(value);
+		return ZAdd(db, key, scores, svs);
+	}
+	int Ardb::ZAdd(const DBID& db, const Slice& key, DoubleArray& scores,
+			const SliceArray& svs)
+	{
+		KeyLockerGuard keyguard(m_key_locker, db, key);
+		ZSetMetaValue meta;
+		GetZSetMetaValue(db, key, meta);
+		BatchWriteGuard guard(GetDB(db));
+		int count = 0;
+		bool metachange = false;
+		for (uint32 i = 0; i < scores.size(); i++)
+		{
+			int tryret = TryZAdd(db, key, meta, scores[i], svs[i]);
+			if (tryret == 2)
+			{
+				count++;
+			}
+			if (!metachange && tryret > 0)
+			{
+				metachange = true;
+			}
+		}
+		if (metachange)
+		{
+			SetZSetMetaValue(db, key, meta);
+		}
+		return count;
 	}
 
 	void Ardb::SetZSetMetaValue(const DBID& db, const Slice& key,
-	        ZSetMetaValue& meta)
+			ZSetMetaValue& meta)
 	{
 		KeyObject k(key, ZSET_META);
 		ValueObject v;
@@ -126,7 +172,7 @@ namespace ardb
 	}
 
 	int Ardb::GetZSetMetaValue(const DBID& db, const Slice& key,
-	        ZSetMetaValue& meta)
+			ZSetMetaValue& meta)
 	{
 		KeyObject k(key, ZSET_META);
 		ValueObject v;
@@ -152,7 +198,7 @@ namespace ardb
 	}
 
 	int Ardb::ZScore(const DBID& db, const Slice& key, const Slice& value,
-	        double& score)
+			double& score)
 	{
 		ZSetScoreKeyObject zk(key, value);
 		ValueObject zv;
@@ -165,7 +211,7 @@ namespace ardb
 	}
 
 	int Ardb::ZIncrby(const DBID& db, const Slice& key, double increment,
-	        const Slice& value, double& score)
+			const Slice& value, double& score)
 	{
 		KeyLockerGuard keyguard(m_key_locker, db, key);
 		ZSetScoreKeyObject zk(key, value);
@@ -184,6 +230,53 @@ namespace ardb
 			return 0;
 		}
 		return ERR_NOT_EXIST;
+	}
+
+	int Ardb::ZPop(const DBID& db, const Slice& key, bool reverse, uint32 num,
+			ValueArray& pops)
+	{
+		KeyLockerGuard keyguard(m_key_locker, db, key);
+		ZSetMetaValue meta;
+		if (0 != GetZSetMetaValue(db, key, meta) || meta.size == 0)
+		{
+			return 0;
+		}
+		Slice empty;
+		ZSetKeyObject sk(key, empty,
+				reverse ? (meta.max_score + 1) : meta.min_score);
+		BatchWriteGuard guard(GetDB(db));
+		struct ZPopWalk: public WalkHandler
+		{
+				Ardb* z_db;
+				DBID z_dbid;
+				uint32 count;
+				ValueArray& vs;
+				int OnKeyValue(KeyObject* k, ValueObject* value, uint32 cursor)
+				{
+					ZSetKeyObject* sek = (ZSetKeyObject*) k;
+					ZSetScoreKeyObject tmp(sek->key, sek->value);
+					vs.push_back(sek->value);
+					count--;
+					z_db->DelValue(z_dbid, *sek);
+					z_db->DelValue(z_dbid, tmp);
+					if(count == 0)
+					{
+						return -1;
+					}
+					return 0;
+				}
+				ZPopWalk(Ardb* db, DBID id, uint32 i, ValueArray& v) :
+						z_db(db), z_dbid(id), count(i), vs(v)
+				{
+				}
+		} walk(this, db, num, pops);
+		Walk(db, sk, reverse, &walk);
+		if(walk.count < num)
+		{
+			meta.size -= (num - walk.count);
+			SetZSetMetaValue(db, key, meta);
+		}
+		return 0;
 	}
 
 	int Ardb::ZClear(const DBID& db, const Slice& key)
@@ -244,13 +337,13 @@ namespace ardb
 	}
 
 	int Ardb::ZCount(const DBID& db, const Slice& key, const std::string& min,
-	        const std::string& max)
+			const std::string& max)
 	{
 		bool containmin = true;
 		bool containmax = true;
 		double min_score, max_score;
 		if (parse_score(min, min_score, containmin) < 0
-		        || parse_score(max, max_score, containmax) < 0)
+				|| parse_score(max, max_score, containmax) < 0)
 		{
 			return ERR_INVALID_ARGS;
 		}
@@ -371,7 +464,7 @@ namespace ardb
 	}
 
 	int Ardb::ZRemRangeByRank(const DBID& db, const Slice& key, int start,
-	        int stop)
+			int stop)
 	{
 		KeyLockerGuard keyguard(m_key_locker, db, key);
 		ZSetMetaValue meta;
@@ -422,9 +515,9 @@ namespace ardb
 					return 0;
 				}
 				ZRemRangeByRankWalk(Ardb* db, const DBID& dbid, int start,
-				        int stop, ZSetMetaValue& meta) :
+						int stop, ZSetMetaValue& meta) :
 						rank(0), z_db(db), z_dbid(dbid), z_start(start), z_stop(
-						        stop), z_meta(meta), z_count(0)
+								stop), z_meta(meta), z_count(0)
 				{
 				}
 		} walk(this, db, start, stop, meta);
@@ -434,7 +527,7 @@ namespace ardb
 	}
 
 	int Ardb::ZRemRangeByScore(const DBID& db, const Slice& key,
-	        const std::string& min, const std::string& max)
+			const std::string& min, const std::string& max)
 	{
 		KeyLockerGuard keyguard(m_key_locker, db, key);
 		ZSetMetaValue meta;
@@ -446,7 +539,7 @@ namespace ardb
 		bool containmax = true;
 		double min_score, max_score;
 		if (parse_score(min, min_score, containmin) < 0
-		        || parse_score(max, max_score, containmax) < 0)
+				|| parse_score(max, max_score, containmax) < 0)
 		{
 			return ERR_INVALID_ARGS;
 		}
@@ -468,13 +561,15 @@ namespace ardb
 					ZSetKeyObject* zsk = (ZSetKeyObject*) k;
 					bool need_delete = false;
 					need_delete =
-					        z_containmin ? zsk->score >= z_min_score :
-					                zsk->score > z_min_score;
+							z_containmin ?
+									zsk->score >= z_min_score :
+									zsk->score > z_min_score;
 					if (need_delete)
 					{
 						need_delete =
-						        z_containmax ? zsk->score <= z_max_score :
-						                zsk->score < z_max_score;
+								z_containmax ?
+										zsk->score <= z_max_score :
+										zsk->score < z_max_score;
 					}
 					if (need_delete)
 					{
@@ -491,7 +586,7 @@ namespace ardb
 					return 0;
 				}
 				ZRemRangeByScoreWalk(Ardb* db, const DBID& dbid,
-				        ZSetMetaValue& meta) :
+						ZSetMetaValue& meta) :
 						z_db(db), z_dbid(dbid), z_meta(meta), z_count(0)
 				{
 				}
@@ -506,7 +601,7 @@ namespace ardb
 	}
 
 	int Ardb::ZRange(const DBID& db, const Slice& key, int start, int stop,
-	        ValueArray& values, QueryOptions& options)
+			ValueArray& values, QueryOptions& options)
 	{
 		ZSetMetaValue meta;
 		if (0 != GetZSetMetaValue(db, key, meta))
@@ -557,9 +652,9 @@ namespace ardb
 					return 0;
 				}
 				ZRangeWalk(int start, int stop, ValueArray& v,
-				        QueryOptions& options) :
+						QueryOptions& options) :
 						rank(0), z_start(start), z_stop(stop), z_values(v), z_options(
-						        options), z_count(0)
+								options), z_count(0)
 				{
 				}
 		} walk(start, stop, values, options);
@@ -568,8 +663,8 @@ namespace ardb
 	}
 
 	int Ardb::ZRangeByScore(const DBID& db, const Slice& key,
-	        const std::string& min, const std::string& max, ValueArray& values,
-	        QueryOptions& options)
+			const std::string& min, const std::string& max, ValueArray& values,
+			QueryOptions& options)
 	{
 		ZSetMetaValue meta;
 		if (0 != GetZSetMetaValue(db, key, meta))
@@ -580,7 +675,7 @@ namespace ardb
 		bool containmax = true;
 		double min_score, max_score;
 		if (parse_score(min, min_score, containmin) < 0
-		        || parse_score(max, max_score, containmax) < 0)
+				|| parse_score(max, max_score, containmax) < 0)
 		{
 			return ERR_INVALID_ARGS;
 		}
@@ -600,26 +695,27 @@ namespace ardb
 					ZSetKeyObject* zsk = (ZSetKeyObject*) k;
 					bool inrange = false;
 					inrange =
-					        z_containmin ? zsk->score >= z_min_score :
-					                zsk->score > z_min_score;
+							z_containmin ?
+									zsk->score >= z_min_score :
+									zsk->score > z_min_score;
 					if (inrange)
 					{
 						inrange =
-						        z_containmax ? zsk->score <= z_max_score :
-						                zsk->score < z_max_score;
+								z_containmax ?
+										zsk->score <= z_max_score :
+										zsk->score < z_max_score;
 					}
 					if (inrange)
 					{
 						if (z_options.withlimit)
 						{
 							if (z_count >= z_options.limit_offset
-							        && z_count
-							                <= (z_options.limit_count
-							                        + z_options.limit_offset))
+									&& z_count
+											<= (z_options.limit_count
+													+ z_options.limit_offset))
 							{
 								inrange = true;
-							}
-							else
+							} else
 							{
 								inrange = false;
 							}
@@ -635,10 +731,10 @@ namespace ardb
 						}
 					}
 					if (zsk->score == z_max_score
-					        || (z_options.withlimit
-					                && z_count
-					                        > (z_options.limit_count
-					                                + z_options.limit_offset)))
+							|| (z_options.withlimit
+									&& z_count
+											> (z_options.limit_count
+													+ z_options.limit_offset)))
 					{
 						return -1;
 					}
@@ -658,7 +754,7 @@ namespace ardb
 	}
 
 	int Ardb::ZRevRange(const DBID& db, const Slice& key, int start, int stop,
-	        ValueArray& values, QueryOptions& options)
+			ValueArray& values, QueryOptions& options)
 	{
 		ZSetMetaValue meta;
 		if (0 != GetZSetMetaValue(db, key, meta))
@@ -688,9 +784,9 @@ namespace ardb
 				ValueArray& z_values;
 				QueryOptions& z_options;
 				ZRevRangeWalk(int start, int stop, ValueArray& values,
-				        QueryOptions& options) :
+						QueryOptions& options) :
 						rank(0), count(0), z_start(start), z_stop(stop), z_values(
-						        values), z_options(options)
+								values), z_options(options)
 				{
 				}
 				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
@@ -718,8 +814,8 @@ namespace ardb
 	}
 
 	int Ardb::ZRevRangeByScore(const DBID& db, const Slice& key,
-	        const std::string& max, const std::string& min, ValueArray& values,
-	        QueryOptions& options)
+			const std::string& max, const std::string& min, ValueArray& values,
+			QueryOptions& options)
 	{
 		ZSetMetaValue meta;
 		if (0 != GetZSetMetaValue(db, key, meta))
@@ -730,7 +826,7 @@ namespace ardb
 		bool containmax = true;
 		double min_score, max_score;
 		if (parse_score(min, min_score, containmin) < 0
-		        || parse_score(max, max_score, containmax) < 0)
+				|| parse_score(max, max_score, containmax) < 0)
 		{
 			return ERR_INVALID_ARGS;
 		}
@@ -752,26 +848,27 @@ namespace ardb
 					INFO_LOG("Enter with %.2f", zsk->score);
 					bool inrange = false;
 					inrange =
-					        z_containmin ? zsk->score >= z_min_score :
-					                zsk->score > z_min_score;
+							z_containmin ?
+									zsk->score >= z_min_score :
+									zsk->score > z_min_score;
 					if (inrange)
 					{
 						inrange =
-						        z_containmax ? zsk->score <= z_max_score :
-						                zsk->score < z_max_score;
+								z_containmax ?
+										zsk->score <= z_max_score :
+										zsk->score < z_max_score;
 					}
 					if (inrange)
 					{
 						if (z_options.withlimit)
 						{
 							if (z_count >= z_options.limit_offset
-							        && z_count
-							                <= (z_options.limit_count
-							                        + z_options.limit_offset))
+									&& z_count
+											<= (z_options.limit_count
+													+ z_options.limit_offset))
 							{
 								inrange = true;
-							}
-							else
+							} else
 							{
 								inrange = false;
 							}
@@ -787,10 +884,10 @@ namespace ardb
 						}
 					}
 					if (zsk->score == z_min_score
-					        || (z_options.withlimit
-					                && z_count
-					                        > (z_options.limit_count
-					                                + z_options.limit_offset)))
+							|| (z_options.withlimit
+									&& z_count
+											> (z_options.limit_count
+													+ z_options.limit_offset)))
 					{
 						return -1;
 					}
@@ -810,7 +907,7 @@ namespace ardb
 	}
 
 	int Ardb::ZUnionStore(const DBID& db, const Slice& dst, SliceArray& keys,
-	        WeightArray& weights, AggregateType type)
+			WeightArray& weights, AggregateType type)
 	{
 		while (weights.size() < keys.size())
 		{
@@ -915,7 +1012,7 @@ namespace ardb
 	}
 
 	int Ardb::ZInterStore(const DBID& db, const Slice& dst, SliceArray& keys,
-	        WeightArray& weights, AggregateType type)
+			WeightArray& weights, AggregateType type)
 	{
 		while (weights.size() < keys.size())
 		{
@@ -949,9 +1046,9 @@ namespace ardb
 				ValueScoreMap& z_result;
 				AggregateType z_aggre_type;
 				ZInterWalk(uint32_t weight, ValueScoreMap& cmp,
-				        ValueScoreMap& result, AggregateType type) :
+						ValueScoreMap& result, AggregateType type) :
 						z_weight(weight), z_cmp(cmp), z_result(result), z_aggre_type(
-						        type)
+								type)
 				{
 				}
 				int OnKeyValue(KeyObject* k, ValueObject* value, uint32 cursor)
@@ -989,11 +1086,10 @@ namespace ardb
 							if (z_cmp.count(zsk->value) == 0)
 							{
 								z_result[zsk->value] = z_weight * (zsk->score);
-							}
-							else
+							} else
 							{
 								z_result[zsk->value] = z_weight * (zsk->score)
-								        + z_cmp[zsk->value];
+										+ z_cmp[zsk->value];
 							}
 							break;
 						}
