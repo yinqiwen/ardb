@@ -17,7 +17,7 @@ namespace ardb
 	static int LMDBCompareFunc(const MDB_val *a, const MDB_val *b)
 	{
 		return ardb_compare_keys((const char*) a->mv_data, a->mv_size,
-		        (const char*) b->mv_data, b->mv_size);
+				(const char*) b->mv_data, b->mv_size);
 	}
 	LMDBEngineFactory::LMDBEngineFactory(const Properties& props) :
 			m_env(NULL), m_env_opened(false)
@@ -34,7 +34,7 @@ namespace ardb
 	}
 
 	void LMDBEngineFactory::ParseConfig(const Properties& props,
-	        LMDBConfig& cfg)
+			LMDBConfig& cfg)
 	{
 		cfg.path = ".";
 		conf_get_string(props, "dir", cfg.path);
@@ -51,6 +51,7 @@ namespace ardb
 				ERROR_LOG("Failed to open mdb:%s\n", mdb_strerror(rc));
 				return NULL;
 			}
+			m_env_opened = true;
 		}
 		LMDBEngine* engine = new LMDBEngine();
 		LMDBConfig cfg = m_cfg;
@@ -60,7 +61,7 @@ namespace ardb
 			return NULL;
 		}
 		DEBUG_LOG(
-		        "Create DB:%s at path:%s success", db.c_str(), cfg.path.c_str());
+				"Create DB:%s at path:%s success", db.c_str(), cfg.path.c_str());
 		return engine;
 	}
 
@@ -101,7 +102,7 @@ namespace ardb
 				mdb_txn_begin(m_env, NULL, 0, &txn);
 			}
 			mdb_drop(txn, m_dbi, 1);
-			if(NULL == holder.txn)
+			if (NULL == holder.txn)
 			{
 				mdb_txn_commit(txn);
 			}
@@ -125,7 +126,7 @@ namespace ardb
 		if (rc != 0)
 		{
 			ERROR_LOG(
-			        "Failed to open mdb:%s for reason:%s\n", db.c_str(), mdb_strerror(rc));
+					"Failed to open mdb:%s for reason:%s\n", db.c_str(), mdb_strerror(rc));
 			return -1;
 		}
 		mdb_set_compare(txn, m_dbi, LMDBCompareFunc);
@@ -135,7 +136,7 @@ namespace ardb
 
 	int LMDBEngine::FlushWriteBatch(BatchHolder& holder)
 	{
-		if(NULL != holder.txn)
+		if (NULL != holder.txn)
 		{
 			mdb_txn_commit(holder.txn);
 			holder.txn = NULL;
@@ -147,7 +148,7 @@ namespace ardb
 	{
 		BatchHolder& holder = m_batch_local.GetValue();
 		holder.AddRef();
-		if(NULL == holder.txn)
+		if (NULL == holder.txn)
 		{
 			mdb_txn_begin(m_env, NULL, 0, &holder.txn);
 		}
@@ -182,8 +183,7 @@ namespace ardb
 		if (!holder.EmptyRef())
 		{
 			mdb_put(holder.txn, m_dbi, &k, &v, 0);
-		}
-		else
+		} else
 		{
 			MDB_txn *txn = NULL;
 			mdb_txn_begin(m_env, NULL, 0, &txn);
@@ -202,8 +202,7 @@ namespace ardb
 		if (!holder.EmptyRef())
 		{
 			rc = mdb_get(holder.txn, m_dbi, &k, &v);
-		}
-		else
+		} else
 		{
 			MDB_txn *txn = NULL;
 			mdb_txn_begin(m_env, NULL, 0, &txn);
@@ -225,8 +224,7 @@ namespace ardb
 		if (!holder.EmptyRef())
 		{
 			mdb_del(holder.txn, m_dbi, &k, NULL);
-		}
-		else
+		} else
 		{
 			MDB_txn *txn;
 			mdb_txn_begin(m_env, NULL, 0, &txn);
@@ -245,9 +243,19 @@ namespace ardb
 		int rc = 0;
 		BatchHolder& holder = m_batch_local.GetValue();
 		MDB_txn *txn;
-		mdb_txn_begin(m_env, NULL, 0, &txn);
-		rc = mdb_cursor_open(holder.txn, m_dbi, &cursor);
+		mdb_txn_begin(m_env, holder.txn, 0, &txn);
+		rc = mdb_cursor_open(txn, m_dbi, &cursor);
+		if (0 != rc)
+		{
+			ERROR_LOG(
+					"Failed to create cursor for reason:%s\n", mdb_strerror(rc));
+			return NULL;
+		}
 		rc = mdb_cursor_get(cursor, &k, &data, MDB_SET_RANGE);
+		if (0 != rc)
+		{
+			rc = mdb_cursor_get(cursor, &k, &data, MDB_LAST);
+		}
 		return new LMDBIterator(txn, cursor, rc == 0);
 	}
 

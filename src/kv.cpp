@@ -10,7 +10,6 @@
 
 namespace ardb
 {
-
 	int Ardb::GetValue(const DBID& db, const KeyObject& key, ValueObject* v,
 			uint64* expire)
 	{
