@@ -173,7 +173,7 @@ leveldb:snappy
       :; \
     else \
       cd ${LIB_PATH};tar zxvf ${LEVELDB_FILE};cd ${LEVELDB_PATH};\
-      CXXFLAGS="-I${SNAPPY_PATH}" CFLAGS="-I${SNAPPY_PATH} LDFLAGS=${SNAPPY_PATH}/.libs" make libleveldb.a;\
+      CXXFLAGS="-I${SNAPPY_PATH}" CFLAGS="-I${SNAPPY_PATH}" LDFLAGS="${SNAPPY_PATH}/.libs" make libleveldb.a;\
     fi
 
 clean_launch_obj:
