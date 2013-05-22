@@ -59,7 +59,7 @@ namespace ardb
 			virtual int BeginBatchWrite() = 0;
 			virtual int CommitBatchWrite() = 0;
 			virtual int DiscardBatchWrite() = 0;
-			virtual Iterator* Find(const Slice& findkey) = 0;
+			virtual Iterator* Find(const Slice& findkey, bool cache) = 0;
 			virtual const std::string Stats()
 			{
 				return "";
@@ -169,7 +169,7 @@ namespace ardb
 			int SetValue(const DBID& db, KeyObject& key, ValueObject& value,
 					uint64 expire = 0);
 			int DelValue(const DBID& db, KeyObject& key);
-			Iterator* FindValue(const DBID& db, KeyObject& key);
+			Iterator* FindValue(const DBID& db, KeyObject& key, bool cache = false);
 			int SetHashValue(const DBID& db, const Slice& key,
 					const Slice& field, ValueObject& value);
 			int ListPush(const DBID& db, const Slice& key, const Slice& value,

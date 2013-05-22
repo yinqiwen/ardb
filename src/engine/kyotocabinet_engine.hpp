@@ -75,7 +75,7 @@ namespace ardb
 			int BeginBatchWrite();
 			int CommitBatchWrite();
 			int DiscardBatchWrite();
-			Iterator* Find(const Slice& findkey);
+			Iterator* Find(const Slice& findkey, bool cache);
 	};
 
 	class KCDBEngineFactory: public KeyValueEngineFactory

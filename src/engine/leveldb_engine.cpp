@@ -286,10 +286,10 @@ namespace ardb
 		return s.ok() ? 0 : -1;
 	}
 
-	Iterator* LevelDBEngine::Find(const Slice& findkey)
+	Iterator* LevelDBEngine::Find(const Slice& findkey, bool cache)
 	{
 		leveldb::ReadOptions options;
-		options.fill_cache = false;
+		options.fill_cache = cache;
 		leveldb::Iterator* iter = m_db->NewIterator(options);
 		iter->Seek(LEVELDB_SLICE(findkey));
 		return new LevelDBIterator(iter);

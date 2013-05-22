@@ -929,7 +929,7 @@ namespace ardb
 	{
 		TableColKeyObject cursor(tableName, Slice());
 		cursor.keyvals = rowkey;
-		Iterator* iter = FindValue(db, cursor);
+		Iterator* iter = FindValue(db, cursor, true);
 		bool exist = false;
 		if (NULL != iter && iter->Valid())
 		{

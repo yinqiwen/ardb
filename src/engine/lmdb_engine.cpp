@@ -234,7 +234,7 @@ namespace ardb
 		return 0;
 	}
 
-	Iterator* LMDBEngine::Find(const Slice& findkey)
+	Iterator* LMDBEngine::Find(const Slice& findkey, bool cache)
 	{
 		MDB_val k, data;
 		k.mv_data = const_cast<char*>(findkey.data());

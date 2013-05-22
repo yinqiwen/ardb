@@ -147,7 +147,7 @@ namespace ardb
 		return m_db->remove(key.data(), key.size()) ? 0 : -1;
 	}
 
-	Iterator* KCDBEngine::Find(const Slice& findkey)
+	Iterator* KCDBEngine::Find(const Slice& findkey, bool cache)
 	{
 		kyotocabinet::DB::Cursor* cursor = m_db->cursor();
 		bool ret = cursor->jump(findkey.data(), findkey.size());

@@ -628,7 +628,7 @@ namespace ardb
 	{
 		Slice empty;
 		SetKeyObject sk(key, empty);
-		Iterator* iter = FindValue(db, sk);
+		Iterator* iter = FindValue(db, sk, true);
 		int total = count;
 		if (count < 0)
 		{

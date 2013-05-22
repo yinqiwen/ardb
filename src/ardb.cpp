@@ -10,7 +10,7 @@
 #include "comparator.hpp"
 
 #define  GET_KEY_TYPE(DB, KEY, TYPE)   do{ \
-		Iterator* iter = FindValue(DB, KEY);  \
+		Iterator* iter = FindValue(DB, KEY, true);  \
 		if (NULL != iter && iter->Valid()) \
 		{                                  \
 			Slice tmp = iter->Key();       \
@@ -388,7 +388,7 @@ namespace ardb
 	void Ardb::VisitDB(const DBID& db, RawValueVisitor* visitor)
 	{
 		Slice empty;
-		Iterator* iter = GetDB(db)->Find(empty);
+		Iterator* iter = GetDB(db)->Find(empty, false);
 		while (NULL != iter && iter->Valid())
 		{
 			visitor->OnRawKeyValue(db, iter->Key(), iter->Value());
