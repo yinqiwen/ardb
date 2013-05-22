@@ -8,7 +8,7 @@
 #ifndef CONSTANTS_HPP_
 #define CONSTANTS_HPP_
 
-#define ARDB_VERSION "0.1.5"
+#define ARDB_VERSION "0.2.0"
 
 
 #endif /* CONSTANTS_HPP_ */

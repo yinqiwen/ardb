@@ -8,6 +8,8 @@
 #include "ardb_server.hpp"
 #include <sstream>
 
+#define OPLOGS_VER 1
+
 namespace ardb
 {
 	static const uint8 kSetOpType = 1;
