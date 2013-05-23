@@ -577,12 +577,18 @@ namespace ardb
 					{
 						if (sek->index < *(tinter.begin()))
 						{
+							/*
+							 * abort iter since next element would be less than set's begin
+							 */
 							return -1;
 						}
 					} else
 					{
-						if (*(tinter.begin()) < sek->index)
+						if (*(tinter.rbegin()) < sek->index)
 						{
+							/*
+							* abort iter since next element would be greater than set's end
+							*/
 							return -1;
 						}
 					}

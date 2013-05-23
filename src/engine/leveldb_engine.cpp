@@ -44,7 +44,7 @@ namespace ardb
 				Buffer bk_buf(const_cast<char*>(limit.data()), 1, limit.size());
 				uint32 akeysize, bkeysize;
 				assert(BufferHelper::ReadVarUInt32(ak_buf, akeysize));
-				assert( BufferHelper::ReadVarUInt32(bk_buf, bkeysize));
+				assert(BufferHelper::ReadVarUInt32(bk_buf, bkeysize));
 				assert(akeysize <= bkeysize);
 				if (akeysize < bkeysize)
 				{
@@ -54,7 +54,7 @@ namespace ardb
 				else
 				{
 					size_t diff_index = ak_buf.GetReadIndex();
-					while ((diff_index < start->size())
+					while ((diff_index < start->size() && diff_index < limit.size())
 					        && ((*start)[diff_index] == limit[diff_index]))
 					{
 						diff_index++;
@@ -65,6 +65,10 @@ namespace ardb
 					}
 					else
 					{
+						if(diff_index >= start->size() || limit.size())
+						{
+							return;
+						}
 						uint8_t diff_byte =
 						        static_cast<uint8_t>((*start)[diff_index]);
 						if (diff_byte < static_cast<uint8_t>(0xff)

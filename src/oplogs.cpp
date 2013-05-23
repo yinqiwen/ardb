@@ -319,7 +319,7 @@ namespace ardb
 		}
 		m_op_log_buffer.Write(&tmp, tmp.ReadableBytes());
 		m_current_oplog_record_size++;
-		if (m_op_log_buffer.ReadableBytes() >= 1024 * 1024)
+		if (m_op_log_buffer.ReadableBytes() >= 5 * 1024 * 1024)
 		{
 			FlushOpLog();
 		}

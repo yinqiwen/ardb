@@ -595,7 +595,7 @@ namespace ardb
 	typedef std::vector<ZSetMetaValue> ZSetMetaValueArray;
 	typedef std::vector<SetMetaValue> SetMetaValueArray;
 	typedef std::deque<TableIndexKeyObject> TableRowKeyArray;
-	typedef std::set<TableKeyIndex> TableKeyIndexSet;
+	typedef btree::btree_set<TableKeyIndex> TableKeyIndexSet;
 
 	int compare_values(const ValueArray& a, const ValueArray& b);
 
