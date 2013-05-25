@@ -208,7 +208,7 @@ namespace ardb
 		private:
 			ChannelService m_serv;
 			ArdbServer* m_server;
-			bool m_is_saving;
+			volatile bool m_is_saving;
 			uint32 m_last_save;
 
 			void Run();

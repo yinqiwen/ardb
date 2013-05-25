@@ -323,6 +323,8 @@ namespace ardb
 			engine->id = db;
 			m_engine_table[db] = engine;
 			m_all_dbs.insert(db);
+
+
 			StoreDBNames();
 		}
 		return engine;

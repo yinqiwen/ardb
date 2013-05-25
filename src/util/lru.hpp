@@ -54,11 +54,12 @@ namespace ardb
 				m_cache_list.clear();
 				m_entry_map.clear();
 			}
-			bool GetLRUElement(value_type& value)
+			bool PopFront()
 			{
+				value_type value;
 				return GetLRUElement(value, true);
 			}
-			bool PeekLRUElement(value_type& value)
+			bool PeekFront(value_type& value)
 			{
 				return GetLRUElement(value, false);
 			}

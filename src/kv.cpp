@@ -66,7 +66,8 @@ namespace ardb
 				{
 					GetDB(db)->Del(k);
 					return ERR_NOT_EXIST;
-				} else
+				}
+				else
 				{
 					return ARDB_OK;
 				}
@@ -275,26 +276,63 @@ namespace ardb
 
 	int Ardb::Del(const DBID& db, const Slice& key)
 	{
-		KeyObject k(key);
-		DelValue(db, k);
-//		HClear(db, key);
-//		LClear(db, key);
-//		ZClear(db, key);
-//		SClear(db, key);
-//		TClear(db, key);
+		int type = Type(db, key);
+		switch (type)
+		{
+			case KV:
+			{
+				KeyObject k(key);
+				DelValue(db, k);
+				break;
+			}
+			case HASH_FIELD:
+			{
+				HClear(db, key);
+				break;
+			}
+			case ZSET_ELEMENT_SCORE:
+			{
+				ZClear(db, key);
+				break;
+			}
+			case LIST_META:
+			{
+				LClear(db, key);
+				break;
+			}
+			case TABLE_META:
+			{
+				TClear(db, key);
+				break;
+			}
+			case SET_ELEMENT:
+			{
+				SClear(db, key);
+				break;
+			}
+			default:
+			{
+				return -1;
+			}
+		}
 		return 0;
 	}
 
 	int Ardb::Del(const DBID& db, const SliceArray& keys)
 	{
 		BatchWriteGuard guard(GetDB(db));
+		int size = 0;
 		SliceArray::const_iterator it = keys.begin();
 		while (it != keys.end())
 		{
-			Del(db, *it);
+			int ret = Del(db, *it);
 			it++;
+			if(ret >= 0)
+			{
+				size++;
+			}
 		}
-		return 0;
+		return size;
 	}
 
 	bool Ardb::Exists(const DBID& db, const Slice& key)

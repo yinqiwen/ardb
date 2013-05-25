@@ -56,12 +56,14 @@ namespace ardb
 			SoftSignalChannel* m_self_soft_signal_channel;
 			RemoveChannelQueue m_remove_queue;
 
+			bool m_running;
+
 			uint32 m_thread_pool_size;
 			ChannelServicePool m_sub_pool;
 			pthread_t m_tid;
 
 			TaskList m_pending_tasks;
-			bool m_running;
+
 			bool EventSunk(ChannelPipeline* pipeline, ChannelEvent& e)
 			{
 				ERROR_LOG(
@@ -126,7 +128,7 @@ namespace ardb
 			/**
 			 * Start Event loop
 			 */
-			void Start(bool self_routine = true);
+			void Start();
 			void Stop();
 			void CloseAllChannels(bool fireCloseEvent = true);
 			void CloseAllChannelFD(std::set<Channel*>& exceptions);

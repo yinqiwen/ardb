@@ -6,10 +6,64 @@
  */
 #include "ardb_server.hpp"
 #include "util/socket_address.hpp"
+#include "util/lru.hpp"
 #include <sstream>
 
 namespace ardb
 {
+	struct IdleConn
+	{
+			uint32 conn_id;
+			uint64 ts;
+
+	};
+
+	struct IdleConnManager: public Runnable
+	{
+			int32 timer_id;
+			LRUCache<uint32, IdleConn> lru;
+			ChannelService* serv;
+			uint32 maxIdleTime;
+			IdleConnManager() :
+					timer_id(-1), serv(NULL), maxIdleTime(10000000)
+			{
+			}
+			void Run()
+			{
+				IdleConn conn;
+				uint64 now = get_current_epoch_millis();
+				while (lru.PeekFront(conn) && (now - conn.ts >= maxIdleTime))
+				{
+					Channel* ch = serv->GetChannel(conn.conn_id);
+					if (NULL != ch)
+					{
+						ch->Close();
+					}
+					lru.PopFront();
+				}
+			}
+	};
+
+	void ArdbServer::TouchIdleConn(Channel* ch)
+	{
+		static ThreadLocal<IdleConnManager> kLocalIdleConns;
+		uint64 now = get_current_epoch_millis();
+		IdleConn conn;
+		conn.conn_id = ch->GetID();
+		conn.ts = now;
+
+		IdleConnManager& m = kLocalIdleConns.GetValue();
+		if (m.timer_id == -1)
+		{
+			m.serv = &(ch->GetService());
+			m.maxIdleTime = m_cfg.timeout * 1000;
+			m.lru.SetMaxCacheSize(m_cfg.max_clients);
+			m.timer_id = ch->GetService().GetTimer().Schedule(&m, 1, 5,
+			        SECONDS);
+		}
+		m.lru.Insert(conn.conn_id, conn, conn);
+	}
+
 	void ClientConnHolder::ChangeCurrentDB(Channel* conn,
 	        const std::string& dbid)
 	{

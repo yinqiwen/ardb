@@ -54,7 +54,8 @@ namespace ardb
 				else
 				{
 					size_t diff_index = ak_buf.GetReadIndex();
-					while ((diff_index < start->size() && diff_index < limit.size())
+					while ((diff_index < start->size()
+					        && diff_index < limit.size())
 					        && ((*start)[diff_index] == limit[diff_index]))
 					{
 						diff_index++;
@@ -65,7 +66,7 @@ namespace ardb
 					}
 					else
 					{
-						if(diff_index >= start->size() || limit.size())
+						if (diff_index >= start->size() || limit.size())
 						{
 							return;
 						}
@@ -217,10 +218,31 @@ namespace ardb
 		m_db_path = cfg.path;
 		leveldb::Status status = leveldb::DB::Open(options, cfg.path.c_str(),
 		        &m_db);
-		if (!status.ok())
+		do
 		{
-			ERROR_LOG("Failed to init engine:%s", status.ToString().c_str());
+			if (!status.ok())
+			{
+				ERROR_LOG(
+				        "Failed to init engine:%s", status.ToString().c_str());
+				if (status.IsCorruption())
+				{
+					status = leveldb::RepairDB(cfg.path.c_str(), options);
+					if (!status.ok())
+					{
+						ERROR_LOG(
+						        "Failed to repair:%s for %s", cfg.path.c_str(), status.ToString().c_str());
+						return -1;
+					}
+					status = leveldb::DB::Open(options, cfg.path.c_str(),
+					        &m_db);
+				}
+			}
+			else
+			{
+				break;
+			}
 		}
+		while (1);
 		return status.ok() ? 0 : -1;
 	}
 
