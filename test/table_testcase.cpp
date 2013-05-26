@@ -11,7 +11,7 @@ using namespace ardb;
 
 void test_table_insert_get(Ardb& db)
 {
-	DBID dbid("0");
+	DBID dbid = 0;
 	db.TClear(dbid, "mytable");
 	SliceArray array;
 	array.push_back("key1");
@@ -46,7 +46,7 @@ void test_table_insert_get(Ardb& db)
 
 void test_table_update(Ardb& db)
 {
-	DBID dbid("0");
+	DBID dbid = 0;
 	db.TClear(dbid, "mytable");
 	SliceArray array;
 	array.push_back("key1");

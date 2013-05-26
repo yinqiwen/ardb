@@ -18,19 +18,20 @@ namespace ardb
 		long bits = 0;
 		unsigned char *p;
 		const uint32_t* p4 = (const uint32_t*) s;
-		static const unsigned char bitsinbyte[256] = { 0, 1, 1, 2, 1, 2, 2, 3,
-		        1, 2, 2, 3, 2, 3, 3, 4, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3,
-		        4, 4, 5, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3,
-		        3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 1, 2, 2, 3, 2, 3, 3,
-		        4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5,
-		        4, 5, 5, 6, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 3,
-		        4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, 1, 2, 2, 3, 2, 3,
-		        3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4,
-		        5, 4, 5, 5, 6, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
-		        3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, 2, 3, 3, 4, 3,
-		        4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5,
-		        5, 6, 5, 6, 6, 7, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6,
-		        7, 4, 5, 5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8 };
+		static const unsigned char bitsinbyte[256] =
+			{ 0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4, 1, 2, 2, 3, 2, 3,
+			        3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3,
+			        3, 4, 3, 4, 4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5,
+			        5, 6, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3,
+			        3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 2, 3, 3, 4, 3, 4,
+			        4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5,
+			        5, 6, 5, 6, 6, 7, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4,
+			        4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 2, 3,
+			        3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 3, 4, 4, 5, 4, 5,
+			        5, 6, 4, 5, 5, 6, 5, 6, 6, 7, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4,
+			        4, 5, 4, 5, 5, 6, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6,
+			        6, 7, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, 4, 5,
+			        5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8 };
 
 		/* Count bits 16 bytes at a time */
 		while (count >= 16)
@@ -69,9 +70,9 @@ namespace ardb
 
 	int Ardb::Append(const DBID& db, const Slice& key, const Slice& value)
 	{
-		KeyObject k(key);
+		KeyObject k(key, KV, db);
 		ValueObject v;
-		if (GetValue(db, k, &v) < 0)
+		if (GetValue(k, &v) < 0)
 		{
 			v.type = RAW;
 			v.v.raw = new Buffer(const_cast<char*>(value.data()), 0,
@@ -84,18 +85,12 @@ namespace ardb
 		}
 
 		uint32_t size = v.v.raw->ReadableBytes();
-		int ret = SetValue(db, k, v);
+		int ret = SetValue(k, v);
 		if (0 == ret)
 		{
 			return size;
 		}
 		return ret;
-	}
-
-	int Ardb::XIncrby(const DBID& db, const Slice& key, int64_t increment)
-	{
-		KeyObject k(key);
-		return 0;
 	}
 
 	int Ardb::Incr(const DBID& db, const Slice& key, int64_t& value)
@@ -105,9 +100,9 @@ namespace ardb
 	int Ardb::Incrby(const DBID& db, const Slice& key, int64_t increment,
 	        int64_t& value)
 	{
-		KeyObject k(key);
+		KeyObject k(key, KV, db);
 		ValueObject v;
-		if (GetValue(db, k, &v) < 0)
+		if (GetValue(k, &v) < 0)
 		{
 			v.type = INTEGER;
 			v.v.int_v = 0;
@@ -116,7 +111,7 @@ namespace ardb
 		if (v.type == INTEGER)
 		{
 			v.v.int_v += increment;
-			SetValue(db, k, v);
+			SetValue(k, v);
 			value = v.v.int_v;
 			return 0;
 		}
@@ -140,9 +135,9 @@ namespace ardb
 	int Ardb::IncrbyFloat(const DBID& db, const Slice& key, double increment,
 	        double& value)
 	{
-		KeyObject k(key);
+		KeyObject k(key, KV, db);
 		ValueObject v;
-		if (GetValue(db, k, &v) < 0)
+		if (GetValue(k, &v) < 0)
 		{
 			return -1;
 		}
@@ -156,7 +151,7 @@ namespace ardb
 		if (v.type == DOUBLE)
 		{
 			v.v.double_v += increment;
-			SetValue(db, k, v);
+			SetValue(k, v);
 			value = v.v.double_v;
 			return 0;
 		}
@@ -169,9 +164,9 @@ namespace ardb
 	int Ardb::GetRange(const DBID& db, const Slice& key, int start, int end,
 	        std::string& v)
 	{
-		KeyObject k(key);
+		KeyObject k(key, KV, db);
 		ValueObject vo;
-		if (GetValue(db, k, &vo) < 0)
+		if (GetValue(k, &vo) < 0)
 		{
 			return ERR_NOT_EXIST;
 		}
@@ -194,9 +189,9 @@ namespace ardb
 	int Ardb::SetRange(const DBID& db, const Slice& key, int start,
 	        const Slice& value)
 	{
-		KeyObject k(key);
+		KeyObject k(key, KV, db);
 		ValueObject v;
-		if (GetValue(db, k, &v) < 0)
+		if (GetValue(k, &v) < 0)
 		{
 			return ERR_NOT_EXIST;
 		}
@@ -208,7 +203,7 @@ namespace ardb
 		v.v.raw->SetWriteIndex(start);
 		v.v.raw->Write(value.data(), value.size());
 		int len = v.v.raw->ReadableBytes();
-		return SetValue(db, k, v) == 0 ? len : 0;
+		return SetValue(k, v) == 0 ? len : 0;
 	}
 
 	int Ardb::GetSet(const DBID& db, const Slice& key, const Slice& value,
@@ -234,9 +229,9 @@ namespace ardb
 			return -1;
 		}
 		byte = bitoffset >> 3;
-		KeyObject k(key);
+		KeyObject k(key, KV, db);
 		ValueObject v;
-		if (GetValue(db, k, &v) < 0)
+		if (GetValue(k, &v) < 0)
 		{
 			v.type = RAW;
 			v.v.raw = new Buffer();
@@ -266,16 +261,16 @@ namespace ardb
 			{
 				v.v.raw->SetWriteIndex(byte + 1);
 			}
-			SetValue(db, k, v);
+			SetValue(k, v);
 		}
 		return bitval;
 	}
 
 	int Ardb::GetBit(const DBID& db, const Slice& key, int bitoffset)
 	{
-		KeyObject k(key);
+		KeyObject k(key, KV, db);
 		ValueObject v;
-		if (GetValue(db, k, &v) < 0)
+		if (GetValue(k, &v) < 0)
 		{
 			return ERR_NOT_EXIST;
 		}
@@ -334,9 +329,9 @@ namespace ardb
 		for (j = 0; j < numkeys; j++)
 		{
 			lens.push_back(0);
-			KeyObject k(keys[j]);
+			KeyObject k(keys[j], KV, db);
 			vs.push_back(ValueObject());
-			if (0 != GetValue(db, k, &vs[j]))
+			if (0 != GetValue(k, &vs[j]))
 			{
 				src[j] = NULL;
 				continue;
@@ -469,8 +464,8 @@ namespace ardb
 		{
 			ValueObject v;
 			fill_raw_value(Slice((char*) res, maxlen), v);
-			KeyObject k(dstkey);
-			SetValue(db, k, v);
+			KeyObject k(dstkey, KV, db);
+			SetValue(k, v);
 		}
 		free(src);
 		if (NULL != res)
@@ -482,9 +477,9 @@ namespace ardb
 
 	int Ardb::BitCount(const DBID& db, const Slice& key, int start, int end)
 	{
-		KeyObject k(key);
+		KeyObject k(key, KV, db);
 		ValueObject v;
-		if (GetValue(db, k, &v) < 0)
+		if (GetValue(k, &v) < 0)
 		{
 			return ERR_NOT_EXIST;
 		}

@@ -34,10 +34,10 @@ namespace ardb
 	int Ardb::GetSetMetaValue(const DBID& db, const Slice& key,
 			SetMetaValue& meta)
 	{
-		KeyObject k(key, SET_META);
+		KeyObject k(key, SET_META, db);
 		//SetKeyObject k(key, Slice());
 		ValueObject v;
-		if (0 == GetValue(db, k, &v))
+		if (0 == GetValue(k, &v))
 		{
 			if (!DecodeSetMetaData(v, meta))
 			{
@@ -50,11 +50,11 @@ namespace ardb
 	void Ardb::SetSetMetaValue(const DBID& db, const Slice& key,
 			SetMetaValue& meta)
 	{
-		KeyObject k(key, SET_META);
+		KeyObject k(key, SET_META, db);
 		//SetKeyObject k(key, Slice());
 		ValueObject v;
 		EncodeSetMetaData(v, meta);
-		SetValue(db, k, v);
+		SetValue( k, v);
 	}
 
 	int Ardb::SAdd(const DBID& db, const Slice& key, const SliceArray& values)
@@ -70,13 +70,13 @@ namespace ardb
 	int Ardb::SAdd(const DBID& db, const Slice& key, const Slice& value)
 	{
 		KeyLockerGuard guard(m_key_locker, db, key);
-		KeyObject k(key, SET_META);
+		KeyObject k(key, SET_META, db);
 		//SetKeyObject k(key, Slice());
 		SetMetaValue meta;
 		GetSetMetaValue(db, key, meta);
 		ValueObject v;
 		smart_fill_value(value, v);
-		SetKeyObject sk(key, v);
+		SetKeyObject sk(key, v, db);
 		ValueObject sv;
 		bool set_changed = false;
 		if (meta.max.type == EMPTY)
@@ -103,7 +103,7 @@ namespace ardb
 				set_changed = true;
 			} else
 			{
-				if (0 != GetValue(db, sk, NULL))
+				if (0 != GetValue(sk, NULL))
 				{
 					meta.size++;
 					if (meta.min.Compare(v) > 0)
@@ -122,8 +122,8 @@ namespace ardb
 		if (set_changed)
 		{
 			sv.type = EMPTY;
-			BatchWriteGuard guard(GetDB(db));
-			SetValue(db, sk, sv);
+			BatchWriteGuard guard(GetEngine());
+			SetValue(sk, sv);
 			SetSetMetaValue(db, key, meta);
 			return 1;
 		}
@@ -132,11 +132,10 @@ namespace ardb
 
 	int Ardb::SCard(const DBID& db, const Slice& key)
 	{
-		KeyObject k(key, SET_META);
-		//SetKeyObject k(key, Slice());
+		KeyObject k(key, SET_META, db);
 		ValueObject v;
 		SetMetaValue meta;
-		if (0 == GetValue(db, k, &v))
+		if (0 == GetValue(k, &v))
 		{
 			if (!DecodeSetMetaData(v, meta))
 			{
@@ -149,8 +148,8 @@ namespace ardb
 
 	bool Ardb::SIsMember(const DBID& db, const Slice& key, const Slice& value)
 	{
-		SetKeyObject sk(key, value);
-		if (0 != GetValue(db, sk, NULL))
+		SetKeyObject sk(key, value, db);
+		if (0 != GetValue(sk, NULL))
 		{
 			return false;
 		}
@@ -165,16 +164,16 @@ namespace ardb
 		{
 			return ERR_NOT_EXIST;
 		}
-		BatchWriteGuard guard(GetDB(db));
+		BatchWriteGuard guard(GetEngine());
 		int count = 0;
 		SliceArray::const_iterator it = values.begin();
 		while (it != values.end())
 		{
-			SetKeyObject sk(key, *it);
-			if (0 == GetValue(db, sk, NULL))
+			SetKeyObject sk(key, *it, db);
+			if (0 == GetValue(sk, NULL))
 			{
 				meta.size--;
-				DelValue(db, sk);
+				DelValue(sk);
 				count++;
 			}
 			it++;
@@ -194,12 +193,12 @@ namespace ardb
 		{
 			return ERR_NOT_EXIST;
 		}
-		SetKeyObject sk(key, value);
-		if (0 == GetValue(db, sk, NULL))
+		SetKeyObject sk(key, value, db);
+		if (0 == GetValue(sk, NULL))
 		{
 			meta.size--;
-			BatchWriteGuard guard(GetDB(db));
-			DelValue(db, sk);
+			BatchWriteGuard guard(GetEngine());
+			DelValue(sk);
 			SetSetMetaValue(db, key, meta);
 			return 1;
 		}
@@ -213,7 +212,7 @@ namespace ardb
 		{
 			return ERR_NOT_EXIST;
 		}
-		SetKeyObject sk(key, meta.min);
+		SetKeyObject sk(key, meta.min, db);
 		struct SMembersWalk: public WalkHandler
 		{
 				ValueArray& z_values;
@@ -228,7 +227,7 @@ namespace ardb
 				{
 				}
 		} walk(values);
-		Walk(db, sk, false, &walk);
+		Walk(sk, false, &walk);
 		return 0;
 	}
 
@@ -236,7 +235,7 @@ namespace ardb
 	{
 		KeyLockerGuard keyguard(m_key_locker, db, key);
 		Slice empty;
-		SetKeyObject sk(key, empty);
+		SetKeyObject sk(key, empty, db);
 		SetMetaValue meta;
 		if (0 != GetSetMetaValue(db, key, meta))
 		{
@@ -245,23 +244,22 @@ namespace ardb
 		struct SClearWalk: public WalkHandler
 		{
 				Ardb* z_db;
-				DBID z_dbid;
 				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					SetKeyObject* sek = (SetKeyObject*) k;
-					z_db->DelValue(z_dbid, *sek);
+					z_db->DelValue(*sek);
 					return 0;
 				}
-				SClearWalk(Ardb* db, const DBID& dbid) :
-						z_db(db), z_dbid(dbid)
+				SClearWalk(Ardb* db) :
+						z_db(db)
 				{
 				}
-		} walk(this, db);
-		BatchWriteGuard guard(GetDB(db));
-		Walk(db, sk, false, &walk);
-		KeyObject k(key, SET_META);
+		} walk(this);
+		BatchWriteGuard guard(GetEngine());
+		Walk(sk, false, &walk);
+		KeyObject k(key, SET_META, db);
 		//SetKeyObject k(key, Slice());
-		DelValue(db, k);
+		DelValue(k);
 		return 0;
 	}
 
@@ -353,9 +351,9 @@ namespace ardb
 					limit = *(values.rbegin());
 				}
 			}
-			SetKeyObject sk(k, search_value);
+			SetKeyObject sk(k, search_value, db);
 			SDiffWalk walk(values, i, limit);
-			Walk(db, sk, false, &walk);
+			Walk( sk, false, &walk);
 		}
 		return 0;
 	}
@@ -369,7 +367,7 @@ namespace ardb
 		ValueSet vs;
 		if (0 == SDiff(db, keys, vs) && vs.size() > 0)
 		{
-			BatchWriteGuard guard(GetDB(db));
+			BatchWriteGuard guard(GetEngine());
 			SClear(db, dst);
 			KeyLockerGuard keyguard(m_key_locker, db, dst);
 			SetMetaValue meta;
@@ -379,10 +377,10 @@ namespace ardb
 				const ValueObject& v = *it;
 				std::string str;
 				Slice sv(v.ToString(str));
-				SetKeyObject sk(dst, sv);
+				SetKeyObject sk(dst, sv, db);
 				ValueObject empty;
 				empty.type = EMPTY;
-				SetValue(db, sk, empty);
+				SetValue(sk, empty);
 				meta.size++;
 				if (meta.min.type == EMPTY || sk.value.Compare(meta.min) < 0)
 				{
@@ -489,18 +487,18 @@ namespace ardb
 				}
 		};
 		ValueSet cmp1, cmp2;
-		SetKeyObject cmp_start(keys[min_idx], min);
+		SetKeyObject cmp_start(keys[min_idx], min, db);
 		SInterWalk walk(cmp1, cmp1, min, max);
-		Walk(db, cmp_start, false, &walk);
+		Walk( cmp_start, false, &walk);
 		ValueSet* cmp = &cmp1;
 		ValueSet* result = &cmp2;
 		for (uint32_t i = 0; i < keys.size(); i++)
 		{
 			if (i != min_idx)
 			{
-				SetKeyObject tmp(keys.at(i), min);
+				SetKeyObject tmp(keys.at(i), min, db);
 				SInterWalk walk(*cmp, *result, min, max);
-				Walk(db, tmp, false, &walk);
+				Walk(tmp, false, &walk);
 				cmp->clear();
 				ValueSet* old = cmp;
 				cmp = result;
@@ -530,7 +528,7 @@ namespace ardb
 		ValueSet vs;
 		if (0 == SInter(db, keys, vs) && vs.size() > 0)
 		{
-			BatchWriteGuard guard(GetDB(db));
+			BatchWriteGuard guard(GetEngine());
 			SClear(db, dst);
 			KeyLockerGuard keyguard(m_key_locker, db, dst);
 			SetMetaValue meta;
@@ -540,10 +538,10 @@ namespace ardb
 				const ValueObject& v = *it;
 				std::string str;
 				Slice sv(v.ToString(str));
-				SetKeyObject sk(dst, sv);
+				SetKeyObject sk(dst, sv, db);
 				ValueObject empty;
 				empty.type = EMPTY;
-				SetValue(db, sk, empty);
+				SetValue(sk, empty);
 				meta.size++;
 				if (meta.min.type == EMPTY || sk.value.Compare(meta.min) < 0)
 				{
@@ -564,9 +562,9 @@ namespace ardb
 	int Ardb::SMove(const DBID& db, const Slice& src, const Slice& dst,
 			const Slice& value)
 	{
-		SetKeyObject sk(src, value);
+		SetKeyObject sk(src, value, db);
 		ValueObject sv;
-		if (0 != GetValue(db, sk, &sv))
+		if (0 != GetValue(sk, &sv))
 		{
 			return 0;
 		}
@@ -584,16 +582,15 @@ namespace ardb
 			return ERR_NOT_EXIST;
 		}
 		Slice empty;
-		SetKeyObject sk(key, meta.min);
-		Iterator* iter = FindValue(db, sk);
+		SetKeyObject sk(key, meta.min, db);
+		Iterator* iter = FindValue(sk);
 		bool delvalue = false;
-		BatchWriteGuard guard(GetDB(db));
+		BatchWriteGuard guard(GetEngine());
 		while (iter != NULL && iter->Valid())
 		{
 			Slice tmpkey = iter->Key();
-			KeyObject* kk = decode_key(tmpkey);
-			if (NULL == kk || kk->type != SET_ELEMENT
-					|| kk->key.compare(key) != 0)
+			KeyObject* kk = decode_key(tmpkey, &sk);
+			if (NULL == kk)
 			{
 				DELETE(kk);
 				break;
@@ -607,14 +604,14 @@ namespace ardb
 			}
 			sek->value.ToString(value);
 			meta.size--;
-			DelValue(db, *sek);
+			DelValue(*sek);
 			DELETE(kk);
 			delvalue = true;
 		}
 		if (meta.size == 0)
 		{
-			KeyObject k(key, SET_META);
-			DelValue(db, k);
+			KeyObject k(key, SET_META, db);
+			DelValue( k);
 		} else
 		{
 			SetSetMetaValue(db, key, meta);
@@ -627,8 +624,8 @@ namespace ardb
 			int count)
 	{
 		Slice empty;
-		SetKeyObject sk(key, empty);
-		Iterator* iter = FindValue(db, sk, true);
+		SetKeyObject sk(key, empty, db);
+		Iterator* iter = FindValue(sk, true);
 		int total = count;
 		if (count < 0)
 		{
@@ -638,9 +635,8 @@ namespace ardb
 		while (iter != NULL && iter->Valid())
 		{
 			Slice tmpkey = iter->Key();
-			KeyObject* kk = decode_key(tmpkey);
-			if (NULL == kk || kk->type != SET_ELEMENT
-					|| kk->key.compare(key) != 0)
+			KeyObject* kk = decode_key(tmpkey, &sk);
+			if (NULL == kk)
 			{
 				DELETE(kk);
 				break;
@@ -696,7 +692,7 @@ namespace ardb
 		ValueSet ss;
 		if (0 == SUnion(db, keys, ss) && ss.size() > 0)
 		{
-			BatchWriteGuard guard(GetDB(db));
+			BatchWriteGuard guard(GetEngine());
 			SClear(db, dst);
 			KeyLockerGuard keyguard(m_key_locker, db, dst);
 			SetMetaValue meta;
@@ -706,10 +702,10 @@ namespace ardb
 				const ValueObject& v = *it;
 				std::string str;
 				Slice sv(v.ToString(str));
-				SetKeyObject sk(dst, sv);
+				SetKeyObject sk(dst, sv, db);
 				ValueObject empty;
 				empty.type = EMPTY;
-				SetValue(db, sk, empty);
+				SetValue(sk, empty);
 				meta.size++;
 				if (meta.min.type == EMPTY || sk.value.Compare(meta.min) < 0)
 				{

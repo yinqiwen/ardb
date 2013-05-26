@@ -23,6 +23,7 @@ int main(int argc, char** argv)
 	std::cout<<"ARDB Test(KyotoCabinet)"<<std::endl;
 	KCDBEngineFactory factory(cfg);
 	Ardb db(&factory, cfg["dir"]);
+	db.Init();
 	test_all(db);
 
 //// create the database object

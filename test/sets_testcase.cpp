@@ -1,7 +1,7 @@
 /*
  * sets_testcase.cpp
  *
- *  Created on: 2"0"13-4-9
+ *  Created on: 2dbid13-4-9
  *      Author: wqy
  */
 #include "ardb.hpp"
@@ -11,45 +11,48 @@ using namespace ardb;
 
 void test_set_saddrem(Ardb& db)
 {
-	db.SClear("0", "myset");
-	db.SAdd("0", "myset", "123");
-	db.SAdd("0", "myset", "123");
-	db.SAdd("0", "myset", "1231");
-	CHECK_FATAL( db.SCard("0", "myset") != 2,
-			"sadd myset failed:Dd", db.SCard("0", "myset"));
-	db.SRem("0", "myset", "1231");
-	CHECK_FATAL( db.SCard("0", "myset") != 1,
-			"srem myset failed:%d", db.SCard("0", "myset"));
+	DBID dbid = 0;
+	db.SClear(dbid, "myset");
+	db.SAdd(dbid, "myset", "123");
+	db.SAdd(dbid, "myset", "123");
+	db.SAdd(dbid, "myset", "1231");
+	CHECK_FATAL( db.SCard(dbid, "myset") != 2,
+			"sadd myset failed:Dd", db.SCard(dbid, "myset"));
+	db.SRem(dbid, "myset", "1231");
+	CHECK_FATAL( db.SCard(dbid, "myset") != 1,
+			"srem myset failed:%d", db.SCard(dbid, "myset"));
 }
 
 void test_set_member(Ardb& db)
 {
+	DBID dbid = 0;
 	std::string str;
-	db.SClear("0", "myset");
-	db.SAdd("0", "myset", "v1");
-	db.SAdd("0", "myset", "v2");
-	db.SAdd("0", "myset", "v3");
-	CHECK_FATAL(db.SIsMember("0", "myset", "v0") != false,
+	db.SClear(dbid, "myset");
+	db.SAdd(dbid, "myset", "v1");
+	db.SAdd(dbid, "myset", "v2");
+	db.SAdd(dbid, "myset", "v3");
+	CHECK_FATAL(db.SIsMember(dbid, "myset", "v0") != false,
 			"SIsMember myset failed:");
 	ValueArray members;
-	db.SMembers("0", "myset", members);
+	db.SMembers(dbid, "myset", members);
 	CHECK_FATAL( members.size() != 3, "SMembers myset failed:");
 	CHECK_FATAL( members[0].ToString(str) != "v1", "SMembers myset failed:");
 }
 
 void test_set_diff(Ardb& db)
 {
-	db.SClear("0", "myset1");
-	db.SClear("0", "myset2");
-	db.SClear("0", "myset3");
-	db.SAdd("0", "myset1", "a");
-	db.SAdd("0", "myset1", "b");
-	db.SAdd("0", "myset1", "c");
-	db.SAdd("0", "myset1", "d");
-	db.SAdd("0", "myset2", "c");
-	db.SAdd("0", "myset3", "a");
-	db.SAdd("0", "myset3", "c");
-	db.SAdd("0", "myset3", "e");
+	DBID dbid = 0;
+	db.SClear(dbid, "myset1");
+	db.SClear(dbid, "myset2");
+	db.SClear(dbid, "myset3");
+	db.SAdd(dbid, "myset1", "a");
+	db.SAdd(dbid, "myset1", "b");
+	db.SAdd(dbid, "myset1", "c");
+	db.SAdd(dbid, "myset1", "d");
+	db.SAdd(dbid, "myset2", "c");
+	db.SAdd(dbid, "myset3", "a");
+	db.SAdd(dbid, "myset3", "c");
+	db.SAdd(dbid, "myset3", "e");
 
 	std::string str;
 	SliceArray keys;
@@ -57,68 +60,70 @@ void test_set_diff(Ardb& db)
 	keys.push_back("myset2");
 	keys.push_back("myset3");
 	ValueSet values;
-	db.SDiff("0", keys, values);
+	db.SDiff(dbid, keys, values);
 	CHECK_FATAL( values.size() != 2, "Sdiff failed:");
 	CHECK_FATAL(values.begin()->ToString(str) != "b", "Sdiff store failed:");
 	//CHECK_FATAL(FATAL, values[1] != "d") << "Sdiff store failed:";
-	int len = db.SDiffStore("0", "myset2", keys);
+	int len = db.SDiffStore(dbid, "myset2", keys);
 	CHECK_FATAL(len != 2, "SDiffStore myset2 failed:%d", len);
-	len = db.SCard("0", "myset2");
+	len = db.SCard(dbid, "myset2");
 	CHECK_FATAL(len != 2, "SDiffStore myset2 failed:%d", len);
 }
 
 void test_set_inter(Ardb& db)
 {
-	db.SClear("0", "myset1");
-	db.SClear("0", "myset2");
-	db.SClear("0", "myset3");
-	db.SAdd("0", "myset1", "a");
-	db.SAdd("0", "myset1", "b");
-	db.SAdd("0", "myset1", "c");
-	db.SAdd("0", "myset1", "d");
-	db.SAdd("0", "myset2", "c");
-	db.SAdd("0", "myset3", "a");
-	db.SAdd("0", "myset3", "c");
-	db.SAdd("0", "myset3", "e");
+	DBID dbid = 0;
+	db.SClear(dbid, "myset1");
+	db.SClear(dbid, "myset2");
+	db.SClear(dbid, "myset3");
+	db.SAdd(dbid, "myset1", "a");
+	db.SAdd(dbid, "myset1", "b");
+	db.SAdd(dbid, "myset1", "c");
+	db.SAdd(dbid, "myset1", "d");
+	db.SAdd(dbid, "myset2", "c");
+	db.SAdd(dbid, "myset3", "a");
+	db.SAdd(dbid, "myset3", "c");
+	db.SAdd(dbid, "myset3", "e");
 
 	SliceArray keys;
 	keys.push_back("myset1");
 	keys.push_back("myset2");
 	keys.push_back("myset3");
 	ValueSet values;
-	db.SInter("0", keys, values);
+	db.SInter(dbid, keys, values);
 	std::string str;
 	CHECK_FATAL( values.size() != 1, "Sinter failed:");
 	CHECK_FATAL(values.begin()->ToString(str) != "c", "Sinter store failed:");
-	db.SInterStore("0", "myset2", keys);
-	CHECK_FATAL( db.SCard("0", "myset2") != 1, "SInterStore myset2 failed:");
+	db.SInterStore(dbid, "myset2", keys);
+	CHECK_FATAL( db.SCard(dbid, "myset2") != 1, "SInterStore myset2 failed:");
 }
 
 void test_set_union(Ardb& db)
 {
-	db.SClear("0", "myset1");
-	db.SClear("0", "myset2");
-	db.SClear("0", "myset3");
-	db.SAdd("0", "myset1", "a");
-	db.SAdd("0", "myset1", "b");
-	db.SAdd("0", "myset1", "c");
-	db.SAdd("0", "myset1", "d");
-	db.SAdd("0", "myset2", "c");
-	db.SAdd("0", "myset3", "a");
-	db.SAdd("0", "myset3", "c");
-	db.SAdd("0", "myset3", "e");
+	DBID dbid = 0;
+	db.SClear(dbid, "myset1");
+	db.SClear(dbid, "myset2");
+	db.SClear(dbid, "myset3");
+	db.SAdd(dbid, "myset1", "a");
+	db.SAdd(dbid, "myset1", "b");
+	db.SAdd(dbid, "myset1", "c");
+	db.SAdd(dbid, "myset1", "d");
+	db.SAdd(dbid, "myset2", "c");
+	db.SAdd(dbid, "myset3", "a");
+	db.SAdd(dbid, "myset3", "c");
+	db.SAdd(dbid, "myset3", "e");
 
 	SliceArray keys;
 	keys.push_back("myset1");
 	keys.push_back("myset2");
 	keys.push_back("myset3");
 	ValueSet values;
-	db.SUnion("0", keys, values);
+	db.SUnion(dbid, keys, values);
 	CHECK_FATAL(values.size() != 5, "SUnion failed:");
 	std::string str;
 	CHECK_FATAL( values.begin()->ToString(str) != "a", "SUnion store failed:");
-	db.SUnionStore("0", "myset2", keys);
-	CHECK_FATAL(db.SCard("0", "myset2") != 5, "SUnionStore myset2 failed:");
+	db.SUnionStore(dbid, "myset2", keys);
+	CHECK_FATAL(db.SCard(dbid, "myset2") != 5, "SUnionStore myset2 failed:");
 }
 
 void test_sets(Ardb& db)

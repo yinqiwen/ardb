@@ -10,43 +10,14 @@
 
 namespace ardb
 {
-	int Ardb::GetValue(const DBID& db, const KeyObject& key, ValueObject* v,
+	int Ardb::GetValue(const KeyObject& key, ValueObject* v,
 	        uint64* expire)
 	{
 		Buffer keybuf(key.key.size() + 16);
 		encode_key(keybuf, key);
 		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
-
-//		Iterator* iter = GetDB(db)->Find(k, true);
-//		int ret = ERR_NOT_EXIST;
-//		if (iter->Valid() && iter->Key().compare(k) == 0)
-//		{
-//			Slice value = iter->Value();
-//			Buffer readbuf(const_cast<char*>(value.data()), 0,
-//					value.size());
-//			if (decode_value(readbuf, *v))
-//			{
-//				uint64 tmp = 0;
-//				BufferHelper::ReadVarUInt64(readbuf, tmp);
-//				if (NULL != expire)
-//				{
-//					*expire = tmp;
-//				}
-//				if (tmp > 0 && get_current_epoch_micros() >= tmp)
-//				{
-//					GetDB(db)->Del(k);
-//					ret = ERR_NOT_EXIST;
-//				}
-//				else
-//				{
-//					ret =  ARDB_OK;
-//				}
-//			}
-//		}
-//		DELETE(iter);
-//		return ret;
 		std::string value;
-		int ret = GetDB(db)->Get(k, &value);
+		int ret = GetEngine()->Get(k, &value);
 		if (ret == 0)
 		{
 			if (NULL == v)
@@ -64,7 +35,7 @@ namespace ardb
 				}
 				if (tmp > 0 && get_current_epoch_micros() >= tmp)
 				{
-					GetDB(db)->Del(k);
+					GetEngine()->Del(k);
 					return ERR_NOT_EXIST;
 				}
 				else
@@ -76,21 +47,21 @@ namespace ardb
 		return ERR_NOT_EXIST;
 	}
 
-	Iterator* Ardb::FindValue(const DBID& db, KeyObject& key, bool cache)
+	Iterator* Ardb::FindValue(KeyObject& key, bool cache)
 	{
 		Buffer keybuf(key.key.size() + 16);
 		encode_key(keybuf, key);
 		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
-		Iterator* iter = GetDB(db)->Find(k, cache);
+		Iterator* iter = GetEngine()->Find(k, cache);
 		return iter;
 	}
 
-	int Ardb::SetValue(const DBID& db, KeyObject& key, ValueObject& value,
+	int Ardb::SetValue( KeyObject& key, ValueObject& value,
 	        uint64 expire)
 	{
 		if (NULL != m_key_watcher)
 		{
-			m_key_watcher->OnKeyUpdated(db, key.key);
+			m_key_watcher->OnKeyUpdated(key.db, key.key);
 		}
 
 		static Buffer keybuf;
@@ -107,19 +78,19 @@ namespace ardb
 		}
 		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
 		Slice v(valuebuf.GetRawReadBuffer(), valuebuf.ReadableBytes());
-		return RawSet(db, k, v);
+		return RawSet(k, v);
 	}
 
-	int Ardb::DelValue(const DBID& db, KeyObject& key)
+	int Ardb::DelValue(KeyObject& key)
 	{
 		if (NULL != m_key_watcher)
 		{
-			m_key_watcher->OnKeyUpdated(db, key.key);
+			m_key_watcher->OnKeyUpdated(key.db, key.key);
 		}
 		Buffer keybuf(key.key.size() + 16);
 		encode_key(keybuf, key);
 		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
-		return RawDel(db, k);
+		return RawDel(k);
 	}
 
 	int Ardb::MSet(const DBID& db, SliceArray& keys, SliceArray& values)
@@ -130,13 +101,13 @@ namespace ardb
 		}
 		SliceArray::iterator kit = keys.begin();
 		SliceArray::iterator vit = values.begin();
-		BatchWriteGuard guard(GetDB(db));
+		BatchWriteGuard guard(GetEngine());
 		while (kit != keys.end())
 		{
-			KeyObject keyobject(*kit);
+			KeyObject keyobject(*kit, KV,db);
 			ValueObject valueobject;
 			smart_fill_value(*vit, valueobject);
-			SetValue(db, keyobject, valueobject);
+			SetValue(keyobject, valueobject);
 			kit++;
 			vit++;
 		}
@@ -151,15 +122,15 @@ namespace ardb
 		}
 		SliceArray::iterator kit = keys.begin();
 		SliceArray::iterator vit = values.begin();
-		BatchWriteGuard guard(GetDB(db));
+		BatchWriteGuard guard(GetEngine());
 		while (kit != keys.end())
 		{
-			KeyObject keyobject(*kit);
+			KeyObject keyobject(*kit, KV,db);
 			ValueObject valueobject;
-			if (0 != GetValue(db, keyobject, &valueobject))
+			if (0 != GetValue(keyobject, &valueobject))
 			{
 				smart_fill_value(*vit, valueobject);
-				SetValue(db, keyobject, valueobject);
+				SetValue(keyobject, valueobject);
 			}
 			else
 			{
@@ -175,17 +146,17 @@ namespace ardb
 	int Ardb::Set(const DBID& db, const Slice& key, const Slice& value, int ex,
 	        int px, int nxx)
 	{
-		KeyObject k(key);
+		KeyObject k(key, KV, db);
 		if (-1 == nxx)
 		{
-			if (0 == GetValue(db, k, NULL))
+			if (0 == GetValue(k, NULL))
 			{
 				return ERR_KEY_EXIST;
 			}
 		}
 		else if (1 == nxx)
 		{
-			if (0 != GetValue(db, k, NULL))
+			if (0 != GetValue(k, NULL))
 			{
 				return ERR_NOT_EXIST;
 			}
@@ -208,10 +179,10 @@ namespace ardb
 	{
 		if (!Exists(db, key))
 		{
-			KeyObject keyobject(key);
+			KeyObject keyobject(key, KV,db);
 			ValueObject valueobject;
 			smart_fill_value(value, valueobject);
-			int ret = SetValue(db, keyobject, valueobject);
+			int ret = SetValue(keyobject, valueobject);
 			return ret == 0 ? 1 : ret;
 		}
 		return 0;
@@ -225,7 +196,7 @@ namespace ardb
 	int Ardb::PSetEx(const DBID& db, const Slice& key, const Slice& value,
 	        uint32_t ms)
 	{
-		KeyObject keyobject(key);
+		KeyObject keyobject(key, KV, db);
 		ValueObject valueobject;
 		smart_fill_value(value, valueobject);
 		uint64_t expire = 0;
@@ -234,14 +205,14 @@ namespace ardb
 			uint64_t now = get_current_epoch_micros();
 			expire = now + (uint64_t) ms * 1000L;
 		}
-		return SetValue(db, keyobject, valueobject, expire);
+		return SetValue(keyobject, valueobject, expire);
 		//return 0;
 	}
 
 	int Ardb::GetValue(const DBID& db, const Slice& key, ValueObject* value)
 	{
-		KeyObject keyobject(key);
-		int ret = GetValue(db, keyobject, value, NULL);
+		KeyObject keyobject(key, KV, db);
+		int ret = GetValue(keyobject, value, NULL);
 		return ret;
 	}
 
@@ -281,8 +252,8 @@ namespace ardb
 		{
 			case KV:
 			{
-				KeyObject k(key);
-				DelValue(db, k);
+				KeyObject k(key, KV, db);
+				DelValue(k);
 				break;
 			}
 			case HASH_FIELD:
@@ -320,7 +291,7 @@ namespace ardb
 
 	int Ardb::Del(const DBID& db, const SliceArray& keys)
 	{
-		BatchWriteGuard guard(GetDB(db));
+		BatchWriteGuard guard(GetEngine());
 		int size = 0;
 		SliceArray::const_iterator it = keys.begin();
 		while (it != keys.end())
@@ -342,11 +313,11 @@ namespace ardb
 
 	int Ardb::SetExpiration(const DBID& db, const Slice& key, uint64_t expire)
 	{
-		KeyObject keyobject(key);
+		KeyObject keyobject(key, KV, db);
 		ValueObject value;
-		if (0 == GetValue(db, keyobject, &value))
+		if (0 == GetValue(keyobject, &value))
 		{
-			return SetValue(db, keyobject, value, expire);
+			return SetValue(keyobject, value, expire);
 		}
 		return ERR_NOT_EXIST;
 	}
@@ -393,9 +364,9 @@ namespace ardb
 	int64 Ardb::PTTL(const DBID& db, const Slice& key)
 	{
 		ValueObject v;
-		KeyObject k(key);
+		KeyObject k(key, KV, db);
 		uint64 expire = 0;
-		if (0 == GetValue(db, k, &v, &expire))
+		if (0 == GetValue(k, &v, &expire))
 		{
 			int ttl = 0;
 			if (expire > 0)
@@ -430,13 +401,13 @@ namespace ardb
 	int Ardb::Rename(const DBID& db, const Slice& key1, const Slice& key2)
 	{
 		ValueObject v;
-		KeyObject k1(key1);
-		if (0 == GetValue(db, k1, &v))
+		KeyObject k1(key1, KV, db);
+		if (0 == GetValue(k1, &v))
 		{
-			BatchWriteGuard guard(GetDB(db));
+			BatchWriteGuard guard(GetEngine());
 			Del(db, key1);
-			KeyObject k2(key2);
-			return SetValue(db, k2, v);
+			KeyObject k2(key2, KV, db);
+			return SetValue( k2, v);
 		}
 		return ERR_NOT_EXIST;
 	}
@@ -450,7 +421,7 @@ namespace ardb
 			{
 				return 0;
 			}
-			BatchWriteGuard guard(GetDB(db));
+			BatchWriteGuard guard(GetEngine());
 			Del(db, key1);
 			return Set(db, key2, v1) != 0 ? -1 : 1;
 		}
@@ -463,7 +434,6 @@ namespace ardb
 		if (0 == Get(srcdb, key, &v))
 		{
 			Del(srcdb, key);
-			KeyObject k(key);
 			return Set(dstdb, key, v);
 		}
 		return ERR_NOT_EXIST;
@@ -472,8 +442,8 @@ namespace ardb
 	int Ardb::Keys(const DBID& db, const std::string& pattern, StringSet& ret)
 	{
 		Slice empty;
-		KeyObject start(empty);
-		Iterator* iter = FindValue(db, start);
+		KeyObject start(empty, KV,db);
+		Iterator* iter = FindValue(start);
 		while (NULL != iter && iter->Valid())
 		{
 			Slice tmpkey = iter->Key();

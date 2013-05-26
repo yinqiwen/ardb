@@ -16,12 +16,11 @@ int main(int argc, char** argv)
 {
 	Properties cfg;
 	cfg["dir"] = "/tmp/ardb/lmdb/test";
-	std::cout<<"ARDB Test(LMDB)"<<std::endl;
+	std::cout << "ARDB Test(LMDB)" << std::endl;
 	LMDBEngineFactory factory(cfg);
 	Ardb db(&factory, cfg["dir"]);
+	db.Init();
 	test_all(db);
 	return 0;
 }
-
-
 

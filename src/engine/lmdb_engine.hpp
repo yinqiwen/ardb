@@ -99,7 +99,7 @@ namespace ardb
 		public:
 			LMDBEngine();
 			~LMDBEngine();
-			int Init(const LMDBConfig& cfg, MDB_env *env, const DBID& db);
+			int Init(const LMDBConfig& cfg, MDB_env *env,const std::string& name);
 			int Put(const Slice& key, const Slice& value);
 			int Get(const Slice& key, std::string* value);
 			int Del(const Slice& key);
@@ -121,7 +121,7 @@ namespace ardb
 			static void ParseConfig(const Properties& props, LMDBConfig& cfg);
 		public:
 			LMDBEngineFactory(const Properties& cfg);
-			KeyValueEngine* CreateDB(const DBID& db);
+			KeyValueEngine* CreateDB(const std::string& name);
 			void DestroyDB(KeyValueEngine* engine);
 			void CloseDB(KeyValueEngine* engine);
 			const std::string GetName()

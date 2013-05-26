@@ -21,5 +21,6 @@ int main(int argc, char** argv)
 	LevelDBEngineFactory factory(cfg);
 	Ardb db(&factory, cfg["dir"]);
 	test_all(db);
+	db.Init();
 	return 0;
 }

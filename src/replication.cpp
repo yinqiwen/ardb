@@ -338,14 +338,8 @@ namespace ardb
 				content.Printf("$0\r\n");
 				ch.conn->Write(content);
 				content.Clear();
-				DBID dbid;
-				if (m_oplogs.VerifyClient(ch.server_key, ch.synced_cmd_seq,
-						dbid))
+				if (m_oplogs.VerifyClient(ch.server_key, ch.synced_cmd_seq))
 				{
-					if (!dbid.empty())
-					{
-						content.Printf("select %s\r\n", dbid.c_str());
-					}
 					content.Printf("arsynced %s %llu\r\n",
 							m_oplogs.GetServerKey().c_str(), ch.synced_cmd_seq);
 					ch.conn->Write(content);
@@ -471,15 +465,13 @@ namespace ardb
 				{
 					kWriteReplInstructionData* tp =
 							(kWriteReplInstructionData*) (instruction.ptr);
-					DBID* db = (DBID*) tp->ptrs[0];
-					std::string* k = (std::string*) tp->ptrs[1];
-					std::string* v = (std::string*) tp->ptrs[2];
-					CachedOp* op = m_oplogs.SaveSetOp(*db, *k, v);
+					std::string* k = (std::string*) tp->ptrs[0];
+					std::string* v = (std::string*) tp->ptrs[1];
+					CachedOp* op = m_oplogs.SaveSetOp(*k, v);
 					if (NULL != op)
 					{
 						op->from_master = tp->from_master;
 					}
-					DELETE(db);
 					DELETE(k);
 					//DELETE(v);
 					DELETE(tp);
@@ -490,14 +482,12 @@ namespace ardb
 				{
 					kWriteReplInstructionData* tp =
 							(kWriteReplInstructionData*) (instruction.ptr);
-					DBID* db = (DBID*) tp->ptrs[0];
-					std::string* k = (std::string*) tp->ptrs[1];
-					CachedOp* op = m_oplogs.SaveDeleteOp(*db, *k);
+					std::string* k = (std::string*) tp->ptrs[0];
+					CachedOp* op = m_oplogs.SaveDeleteOp(*k);
 					if (NULL != op)
 					{
 						op->from_master = tp->from_master;
 					}
-					DELETE(db);
 					DELETE(k);
 					DELETE(tp);
 					FeedSlaves();
@@ -550,7 +540,6 @@ namespace ardb
 			WARN_LOG(
 					"The slave is also the master of current ardb instance, the full sync would not executed.");
 			Buffer content;
-			content.Printf("select %s\r\n", m_oplogs.GetCurrentDBID().c_str());
 			content.Printf("arsynced %s %llu\r\n",
 					m_oplogs.GetServerKey().c_str(), conn.synced_cmd_seq);
 			conn.conn->Write(content);
@@ -562,23 +551,13 @@ namespace ardb
 		struct VisitorTask: public RawValueVisitor
 		{
 				SlaveConn& c;
-				DBID dbid;
 				VisitorTask(SlaveConn& cc) :
 						c(cc)
 				{
 				}
-				int OnRawKeyValue(const DBID& db, const Slice& key,
+				int OnRawKeyValue(const Slice& key,
 						const Slice& value)
 				{
-					if (dbid != db)
-					{
-						dbid = db;
-						ArgumentArray select;
-						select.push_back("select");
-						select.push_back(db);
-						RedisCommandFrame select_cmd(select);
-						c.WriteRedisCommand(select_cmd);
-					}
 					ArgumentArray strs;
 					strs.push_back("__set__");
 					strs.push_back(std::string(key.data(), key.size()));
@@ -592,7 +571,6 @@ namespace ardb
 		m_server->m_db->VisitAllDB(&visitor);
 		conn.synced_cmd_seq = m_oplogs.GetMaxSeq();
 		Buffer content;
-		content.Printf("select %s\r\n", m_oplogs.GetCurrentDBID().c_str());
 		content.Printf("arsynced %s %llu\r\n", m_oplogs.GetServerKey().c_str(),
 				conn.synced_cmd_seq);
 		conn.conn->Write(content);
@@ -601,14 +579,12 @@ namespace ardb
 		INFO_LOG("Cost %llums to sync all data to slave.", (end-start));
 	}
 
-	int ReplicationService::OnKeyUpdated(const DBID& db, const Slice& key,
+	int ReplicationService::OnKeyUpdated(const Slice& key,
 			const Slice& value)
 	{
-		DBID* newdb = new DBID(db);
 		std::string* nk = new std::string(key.data(), key.size());
 		std::string* nv = new std::string(value.data(), value.size());
 		kWriteReplInstructionData* data = new kWriteReplInstructionData;
-		data->ptrs.push_back(newdb);
 		data->ptrs.push_back(nk);
 		data->ptrs.push_back(nv);
 		if (NULL != m_server->GetCurrentContext())
@@ -620,12 +596,10 @@ namespace ardb
 		OfferInstruction(instrct);
 		return 0;
 	}
-	int ReplicationService::OnKeyDeleted(const DBID& db, const Slice& key)
+	int ReplicationService::OnKeyDeleted(const Slice& key)
 	{
-		DBID* newdb = new DBID(db);
 		std::string* nk = new std::string(key.data(), key.size());
 		kWriteReplInstructionData* data = new kWriteReplInstructionData;
-		data->ptrs.push_back(newdb);
 		data->ptrs.push_back(nk);
 		if (NULL != m_server->GetCurrentContext())
 		{
@@ -652,7 +626,7 @@ namespace ardb
 			ERROR_LOG("Empty bakup dir for backup.");
 			return -1;
 		}
-		m_server->m_db->CloseAll();
+		//m_server->m_db->CloseAll();
 		m_is_saving = true;
 		int ret = 0;
 		char cmd[m_server->m_cfg.data_base_path.size() + 256];

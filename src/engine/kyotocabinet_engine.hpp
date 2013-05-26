@@ -85,7 +85,7 @@ namespace ardb
 			static void ParseConfig(const Properties& props, KCDBConfig& cfg);
 		public:
 			KCDBEngineFactory(const Properties& cfg);
-			KeyValueEngine* CreateDB(const DBID& db);
+			KeyValueEngine* CreateDB(const std::string& db);
 			void DestroyDB(KeyValueEngine* engine);
 			void CloseDB(KeyValueEngine* engine);
 			const std::string GetName()

@@ -13,17 +13,18 @@
 
 void test_type(Ardb& db)
 {
-	db.SAdd("0", "myset", "123");
-	db.LPush("0", "mylist", "value0");
-	db.ZAdd("0", "myzset1", 1, "one");
-	db.HSet("0", "myhash", "field1", "value1");
-	db.Set("0", "skey", "abc");
+	DBID dbid = 0;
+	db.SAdd(dbid, "myset", "123");
+	db.LPush(dbid, "mylist", "value0");
+	db.ZAdd(dbid, "myzset1", 1, "one");
+	db.HSet(dbid, "myhash", "field1", "value1");
+	db.Set(dbid, "skey", "abc");
 
-	CHECK_FATAL( db.Type("0", "myset") != SET_ELEMENT, "type failed.");
-	CHECK_FATAL( db.Type("0", "mylist") != LIST_META, "type failed.");
-	CHECK_FATAL( db.Type("0", "myzset1") != ZSET_ELEMENT_SCORE, "type failed.");
-	CHECK_FATAL( db.Type("0", "myhash") != HASH_FIELD, "type failed.");
-	CHECK_FATAL( db.Type("0", "skey") != KV, "type failed.");
+	CHECK_FATAL( db.Type(dbid, "myset") != SET_ELEMENT, "type failed.");
+	CHECK_FATAL( db.Type(dbid, "mylist") != LIST_META, "type failed.");
+	CHECK_FATAL( db.Type(dbid, "myzset1") != ZSET_ELEMENT_SCORE, "type failed.");
+	CHECK_FATAL( db.Type(dbid, "myhash") != HASH_FIELD, "type failed.");
+	CHECK_FATAL( db.Type(dbid, "skey") != KV, "type failed.");
 }
 
 void test_all(Ardb& db)
@@ -35,5 +36,5 @@ void test_all(Ardb& db)
 	test_zsets(db);
 	test_tables(db);
 	test_type(db);
-	//db.PrintDB("0");
+	//db.PrintDB(dbid);
 }

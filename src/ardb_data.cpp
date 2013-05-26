@@ -29,57 +29,62 @@ namespace ardb
 	}
 
 	Condition::Condition(const std::string& name, CompareOperator compareop,
-			const Slice& value, LogicalOperator logic) :
+	        const Slice& value, LogicalOperator logic) :
 			keyname(name), cmp(compareop), logicop(logic)
 	{
 		smart_fill_value(value, keyvalue);
 	}
 
 	TableIndexKeyObject::TableIndexKeyObject(const Slice& tablename,
-			const Slice& keyname, const Slice& v) :
-			KeyObject(tablename, TABLE_INDEX), kname(keyname)
+	        const Slice& keyname, const Slice& v, DBID id) :
+			KeyObject(tablename, TABLE_INDEX, id), kname(keyname)
 	{
 		smart_fill_value(v, keyvalue);
 	}
 
-	SetKeyObject::SetKeyObject(const Slice& k, const ValueObject& v) :
-			KeyObject(k, SET_ELEMENT), value(v)
+	SetKeyObject::SetKeyObject(const Slice& k, const ValueObject& v, DBID id) :
+			KeyObject(k, SET_ELEMENT, id), value(v)
 	{
 
 	}
-	SetKeyObject::SetKeyObject(const Slice& k, const Slice& v) :
-			KeyObject(k, SET_ELEMENT)
-	{
-		smart_fill_value(v, value);
-	}
-
-	ZSetKeyObject::ZSetKeyObject(const Slice& k, const ValueObject& v, double s) :
-			KeyObject(k, ZSET_ELEMENT), value(v), score(s)
-	{
-
-	}
-
-	ZSetKeyObject::ZSetKeyObject(const Slice& k, const Slice& v, double s) :
-			KeyObject(k, ZSET_ELEMENT), score(s)
+	SetKeyObject::SetKeyObject(const Slice& k, const Slice& v, DBID id) :
+			KeyObject(k, SET_ELEMENT, id)
 	{
 		smart_fill_value(v, value);
 	}
 
-	ZSetScoreKeyObject::ZSetScoreKeyObject(const Slice& k, const ValueObject& v) :
-			KeyObject(k, ZSET_ELEMENT_SCORE), value(v)
+	ZSetKeyObject::ZSetKeyObject(const Slice& k, const ValueObject& v, double s,
+	        DBID id) :
+			KeyObject(k, ZSET_ELEMENT, id), value(v), score(s)
 	{
 
 	}
 
-	ZSetScoreKeyObject::ZSetScoreKeyObject(const Slice& k, const Slice& v) :
-			KeyObject(k, ZSET_ELEMENT_SCORE)
+	ZSetKeyObject::ZSetKeyObject(const Slice& k, const Slice& v, double s,
+	        DBID id) :
+			KeyObject(k, ZSET_ELEMENT, id), score(s)
+	{
+		smart_fill_value(v, value);
+	}
+
+	ZSetScoreKeyObject::ZSetScoreKeyObject(const Slice& k, const ValueObject& v,
+	        DBID id) :
+			KeyObject(k, ZSET_ELEMENT_SCORE, id), value(v)
+	{
+
+	}
+
+	ZSetScoreKeyObject::ZSetScoreKeyObject(const Slice& k, const Slice& v,
+	        DBID id) :
+			KeyObject(k, ZSET_ELEMENT_SCORE, id)
 	{
 		smart_fill_value(v, value);
 	}
 
 	void encode_key(Buffer& buf, const KeyObject& key)
 	{
-		BufferHelper::WriteFixUInt8(buf, key.type);
+		uint32 header = (uint32) (key.db << 8) + key.type;
+		BufferHelper::WriteFixUInt32(buf, header);
 		BufferHelper::WriteVarSlice(buf, key.key);
 		switch (key.type)
 		{
@@ -117,7 +122,7 @@ namespace ardb
 			case TABLE_INDEX:
 			{
 				const TableIndexKeyObject& index =
-						(const TableIndexKeyObject&) key;
+				        (const TableIndexKeyObject&) key;
 				BufferHelper::WriteVarSlice(buf, index.kname);
 				encode_value(buf, index.keyvalue);
 				BufferHelper::WriteVarUInt32(buf, index.index.keyvals.size());
@@ -154,18 +159,47 @@ namespace ardb
 		}
 	}
 
-	KeyObject* decode_key(const Slice& key)
+	bool peek_dbkey_header(const Slice& key, DBID& db, KeyType& type)
 	{
 		Buffer buf(const_cast<char*>(key.data()), 0, key.size());
-		uint8_t type;
-		if (!BufferHelper::ReadFixUInt8(buf, type))
+		uint32 header;
+		if (!BufferHelper::ReadFixUInt32(buf, header))
+		{
+			return false;
+		}
+		type = (KeyType)(header & 0xFF);
+		db = header >> 8;
+		return true;
+	}
+
+	KeyObject* decode_key(const Slice& key, KeyObject* expected)
+	{
+		Buffer buf(const_cast<char*>(key.data()), 0, key.size());
+		uint32 header;
+		if (!BufferHelper::ReadFixUInt32(buf, header))
 		{
 			return NULL;
+		}
+		uint8 type = header & 0xFF;
+		uint32 db = header >> 8;
+		if (NULL != expected)
+		{
+			if (type != expected->type || db != expected->db)
+			{
+				return NULL;
+			}
 		}
 		Slice keystr;
 		if (!BufferHelper::ReadVarSlice(buf, keystr))
 		{
 			return NULL;
+		}
+		if (NULL != expected)
+		{
+			if (keystr != expected->key)
+			{
+				return NULL;
+			}
 		}
 		switch (type)
 		{
@@ -176,7 +210,7 @@ namespace ardb
 				{
 					return NULL;
 				}
-				return new HashKeyObject(keystr, field);
+				return new HashKeyObject(keystr, field, db);
 			}
 			case LIST_ELEMENT:
 			{
@@ -185,12 +219,12 @@ namespace ardb
 				{
 					return NULL;
 				}
-				return new ListKeyObject(keystr, score);
+				return new ListKeyObject(keystr, score, db);
 			}
 
 			case SET_ELEMENT:
 			{
-				SetKeyObject* sk = new SetKeyObject(keystr, Slice());
+				SetKeyObject* sk = new SetKeyObject(keystr, Slice(), db);
 				if (!decode_value(buf, sk->value, false))
 				{
 					DELETE(sk);
@@ -200,10 +234,10 @@ namespace ardb
 			}
 			case ZSET_ELEMENT:
 			{
-				ZSetKeyObject* zsk = new ZSetKeyObject(keystr, Slice(), 0);
+				ZSetKeyObject* zsk = new ZSetKeyObject(keystr, Slice(), 0, db);
 				double score;
 				if (!BufferHelper::ReadFixDouble(buf, score)
-						|| !decode_value(buf, zsk->value))
+				        || !decode_value(buf, zsk->value))
 				{
 					DELETE(zsk);
 					return NULL;
@@ -214,7 +248,7 @@ namespace ardb
 			case ZSET_ELEMENT_SCORE:
 			{
 				ZSetScoreKeyObject* zsk = new ZSetScoreKeyObject(keystr,
-						Slice());
+				        Slice(), db);
 				if (!decode_value(buf, zsk->value))
 				{
 					DELETE(zsk);
@@ -230,7 +264,7 @@ namespace ardb
 					return NULL;
 				}
 				TableIndexKeyObject* ik = new TableIndexKeyObject(keystr, kname,
-						ValueObject());
+				        ValueObject(), db);
 				if (!decode_value(buf, ik->keyvalue))
 				{
 					DELETE(ik);
@@ -256,7 +290,8 @@ namespace ardb
 			}
 			case TABLE_COL:
 			{
-				TableColKeyObject* tk = new TableColKeyObject(keystr, Slice());
+				TableColKeyObject* tk = new TableColKeyObject(keystr, Slice(),
+				        db);
 				uint32 len;
 				if (!BufferHelper::ReadVarUInt32(buf, len))
 				{
@@ -289,7 +324,7 @@ namespace ardb
 			case TABLE_SCHEMA:
 			default:
 			{
-				return new KeyObject(keystr, (KeyType) type);
+				return new KeyObject(keystr, (KeyType) type, db);
 			}
 		}
 	}
@@ -309,7 +344,8 @@ namespace ardb
 			if (v.type == INTEGER)
 			{
 				v.v.raw->Printf("%lld", iv);
-			} else if (v.type == DOUBLE)
+			}
+			else if (v.type == DOUBLE)
 			{
 				double min = -4503599627370495LL; /* (2^52)-1 */
 				double max = 4503599627370496LL; /* -(2^52) */
@@ -317,7 +353,8 @@ namespace ardb
 				if (dv > min && dv < max && dv == ((double) iv))
 				{
 					v.v.raw->Printf("%lld", iv);
-				} else
+				}
+				else
 				{
 					v.v.raw->Printf("%.17g", dv);
 				}
@@ -340,14 +377,15 @@ namespace ardb
 		int64_t intv;
 		double dv;
 		if (raw_toint64(v.v.raw->GetRawReadBuffer(), v.v.raw->ReadableBytes(),
-				intv))
+		        intv))
 		{
 			v.Clear();
 			v.type = INTEGER;
 			v.v.int_v = intv;
 			return 1;
-		} else if (raw_todouble(v.v.raw->GetRawReadBuffer(),
-				v.v.raw->ReadableBytes(), dv))
+		}
+		else if (raw_todouble(v.v.raw->GetRawReadBuffer(),
+		        v.v.raw->ReadableBytes(), dv))
 		{
 			v.Clear();
 			v.type = DOUBLE;
@@ -381,10 +419,11 @@ namespace ardb
 				if (NULL != value.v.raw)
 				{
 					BufferHelper::WriteVarUInt32(buf,
-							value.v.raw->ReadableBytes());
+					        value.v.raw->ReadableBytes());
 					buf.Write(value.v.raw->GetRawReadBuffer(),
-							value.v.raw->ReadableBytes());
-				} else
+					        value.v.raw->ReadableBytes());
+				}
+				else
 				{
 					BufferHelper::WriteVarInt64(buf, 0);
 				}
@@ -426,7 +465,7 @@ namespace ardb
 			{
 				uint32_t len;
 				if (!BufferHelper::ReadVarUInt32(buf, len)
-						|| buf.ReadableBytes() < len)
+				        || buf.ReadableBytes() < len)
 				{
 					return false;
 				}
@@ -435,7 +474,8 @@ namespace ardb
 				{
 					value.v.raw = new Buffer(len);
 					buf.Read(value.v.raw, len);
-				} else
+				}
+				else
 				{
 					const char* tmp = buf.GetRawReadBuffer();
 					value.v.raw = new Buffer(const_cast<char*>(tmp), 0, len);
@@ -457,22 +497,25 @@ namespace ardb
 		double doublev;
 		char first_char = value.data()[0];
 		if (first_char != '+' && value.data()[0] != '-'
-				&& (first_char < '0' || first_char > '9'))
+		        && (first_char < '0' || first_char > '9'))
 		{
 			valueobject.type = RAW;
 			char* v = const_cast<char*>(value.data());
 			valueobject.v.raw = new Buffer(v, 0, value.size());
-		} else
+		}
+		else
 		{
 			if (raw_toint64(value.data(), value.size(), intv))
 			{
 				valueobject.type = INTEGER;
 				valueobject.v.int_v = intv;
-			} else if (raw_todouble(value.data(), value.size(), doublev))
+			}
+			else if (raw_todouble(value.data(), value.size(), doublev))
 			{
 				valueobject.type = DOUBLE;
 				valueobject.v.double_v = doublev;
-			} else
+			}
+			else
 			{
 				valueobject.type = RAW;
 				char* v = const_cast<char*>(value.data());

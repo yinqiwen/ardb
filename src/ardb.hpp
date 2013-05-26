@@ -52,7 +52,6 @@ namespace ardb
 
 	struct KeyValueEngine
 	{
-			DBID id;
 			virtual int Get(const Slice& key, std::string* value) = 0;
 			virtual int Put(const Slice& key, const Slice& value) = 0;
 			virtual int Del(const Slice& key) = 0;
@@ -106,7 +105,7 @@ namespace ardb
 	struct KeyValueEngineFactory
 	{
 			virtual const std::string GetName() = 0;
-			virtual KeyValueEngine* CreateDB(const DBID& db) = 0;
+			virtual KeyValueEngine* CreateDB(const std::string& name) = 0;
 			virtual void CloseDB(KeyValueEngine* engine) = 0;
 			virtual void DestroyDB(KeyValueEngine* engine) = 0;
 			virtual ~KeyValueEngineFactory()
@@ -125,9 +124,9 @@ namespace ardb
 
 	struct RawKeyListener
 	{
-			virtual int OnKeyUpdated(const DBID& db, const Slice& key,
+			virtual int OnKeyUpdated(const Slice& key,
 			        const Slice& value) = 0;
-			virtual int OnKeyDeleted(const DBID& db, const Slice& key) = 0;
+			virtual int OnKeyDeleted(const Slice& key) = 0;
 			virtual ~RawKeyListener()
 			{
 			}
@@ -135,7 +134,7 @@ namespace ardb
 
 	struct RawValueVisitor
 	{
-			virtual int OnRawKeyValue(const DBID& db, const Slice& key,
+			virtual int OnRawKeyValue(const Slice& key,
 			        const Slice& value) = 0;
 			virtual ~RawValueVisitor()
 			{
@@ -148,8 +147,7 @@ namespace ardb
 			static size_t RealPosition(Buffer* buf, int pos);
 
 			KeyValueEngineFactory* m_engine_factory;
-			typedef std::map<DBID, KeyValueEngine*> KeyValueEngineTable;
-			KeyValueEngineTable m_engine_table;
+			KeyValueEngine* m_engine;
 			ThreadMutex m_mutex;
 			KeyWatcher* m_key_watcher;
 			RawKeyListener* m_raw_key_listener;
@@ -157,20 +155,18 @@ namespace ardb
 			std::string m_path;
 			DBIDSet m_all_dbs;
 
-			void LoadAllDBNames();
-			void StoreDBNames();
 			int SetExpiration(const DBID& db, const Slice& key,
 			        uint64_t expire);
 
-			int GetValueByPattern(const DBID& db, const Slice& pattern,
+			int GetValueByPattern(const DBID& db,const Slice& pattern,
 			        ValueObject& subst, ValueObject& value);
-			int GetValue(const DBID& db, const Slice& key, ValueObject* value);
-			int GetValue(const DBID& db, const KeyObject& key, ValueObject* v,
+			int GetValue(const DBID& db,const Slice& key, ValueObject* value);
+			int GetValue(const KeyObject& key, ValueObject* v,
 			        uint64* expire = NULL);
-			int SetValue(const DBID& db, KeyObject& key, ValueObject& value,
+			int SetValue(KeyObject& key, ValueObject& value,
 			        uint64 expire = 0);
-			int DelValue(const DBID& db, KeyObject& key);
-			Iterator* FindValue(const DBID& db, KeyObject& key, bool cache =
+			int DelValue(KeyObject& key);
+			Iterator* FindValue(KeyObject& key, bool cache =
 			        false);
 			int SetHashValue(const DBID& db, const Slice& key,
 			        const Slice& field, ValueObject& value);
@@ -220,7 +216,7 @@ namespace ardb
 					{
 					}
 			};
-			void Walk(const DBID& db, KeyObject& key, bool reverse,
+			void Walk(KeyObject& key, bool reverse,
 			        WalkHandler* handler);
 			std::string m_err_cause;
 			void SetErrorCause(const std::string& cause)
@@ -301,9 +297,11 @@ namespace ardb
 			        bool multi_thread = true);
 			~Ardb();
 
-			int RawSet(const DBID& db, const Slice& key, const Slice& value);
-			int RawDel(const DBID& db, const Slice& key);
-			int RawGet(const DBID& db, const Slice& key, std::string* value);
+			bool Init();
+
+			int RawSet(const Slice& key, const Slice& value);
+			int RawDel(const Slice& key);
+			int RawGet(const Slice& key, std::string* value);
 			/*
 			 * Key-Value operations
 			 */
@@ -341,7 +339,6 @@ namespace ardb
 			int Decrby(const DBID& db, const Slice& key, int64_t decrement,
 			        int64_t& value);
 			int Incr(const DBID& db, const Slice& key, int64_t& value);
-			int XIncrby(const DBID& db, const Slice& key, int64_t increment);
 			int Incrby(const DBID& db, const Slice& key, int64_t increment,
 			        int64_t& value);
 			int IncrbyFloat(const DBID& db, const Slice& key, double increment,
@@ -511,13 +508,11 @@ namespace ardb
 			        ValueArray& values);
 			int FlushDB(const DBID& db);
 			int FlushAll();
-			int CloseAll();
 
-			void ListAllDB(DBIDSet& alldb);
 			void PrintDB(const DBID& db);
 			void VisitDB(const DBID& db, RawValueVisitor* visitor);
 			void VisitAllDB(RawValueVisitor* visitor);
-			KeyValueEngine* GetDB(const DBID& db);
+			KeyValueEngine* GetEngine();
 			void RegisterKeyWatcher(KeyWatcher* w)
 			{
 				m_key_watcher = w;

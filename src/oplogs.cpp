@@ -35,27 +35,19 @@ namespace ardb
 		DELETE(cmd);
 	}
 
-	OpKey::OpKey(const DBID& id, const std::string& k) :
-			db(id), key(k)
+	OpKey::OpKey(const std::string& k) :
+			key(k)
 	{
 
 	}
 	bool OpKey::operator<(const OpKey& other) const
 	{
-		if (db > other.db)
-		{
-			return false;
-		}
-		if (db == other.db)
-		{
-			return key < other.key;
-		}
-		return true;
+		return key < other.key;
 	}
 
 	OpLogs::OpLogs(ArdbServer* server) :
 			m_server(server), m_min_seq(0), m_max_seq(0), m_op_log_file(NULL), m_current_oplog_record_size(
-					0), m_last_flush_time(0)
+			        0), m_last_flush_time(0)
 	{
 
 	}
@@ -71,10 +63,11 @@ namespace ardb
 			{
 				CachedWriteOp* wop = (CachedWriteOp*) op;
 				std::string* v = new std::string;
-				if (0 == m_server->m_db->RawGet(wop->key.db, wop->key.key, v))
+				if (0 == m_server->m_db->RawGet(wop->key.key, v))
 				{
 					wop->v = v;
-				} else
+				}
+				else
 				{
 					DELETE(v);
 				}
@@ -106,9 +99,10 @@ namespace ardb
 				{
 					break;
 				}
-				OpKey ok(m_current_db, key);
+				OpKey ok(key);
 				SaveWriteOp(ok, type, false, NULL);
-			} else
+			}
+			else
 			{
 				uint32 size;
 				if (!BufferHelper::ReadVarUInt32(buf, size))
@@ -126,10 +120,6 @@ namespace ardb
 					strs.push_back(str);
 				}
 				RedisCommandFrame* cmd = new RedisCommandFrame(strs);
-				if (!strcasecmp(cmd->GetCommand().c_str(), "select"))
-				{
-					m_current_db = *(cmd->GetArgument(0));
-				}
 				SaveCmdOp(cmd, false);
 			}
 			if (m_min_seq == 0)
@@ -179,11 +169,12 @@ namespace ardb
 		INFO_LOG("Start loading oplogs.");
 		Buffer keybuf;
 		std::string serverkey_path = m_server->GetServerConfig().repl_data_dir
-				+ "/repl.key";
+		        + "/repl.key";
 		if (file_read_full(serverkey_path, keybuf) == 0)
 		{
 			m_server_key = keybuf.AsString();
-		} else
+		}
+		else
 		{
 			m_server_key = random_string(16);
 			file_write_content(serverkey_path, m_server_key);
@@ -191,7 +182,7 @@ namespace ardb
 		INFO_LOG("Server replication key is %s", m_server_key.c_str());
 		uint64 start = get_current_epoch_millis();
 		std::string filename = m_server->GetServerConfig().repl_data_dir
-				+ "/repl.oplog.1";
+		        + "/repl.oplog.1";
 		if (is_file_exist(filename))
 		{
 			LoadCachedOpLog(filename);
@@ -206,7 +197,7 @@ namespace ardb
 		uint64 end = get_current_epoch_millis();
 		ReOpenOpLog();
 		INFO_LOG(
-				"Cost %llums to load all oplogs, min seq = %llu, max seq = %llu", (end- start), m_min_seq, m_max_seq);
+		        "Cost %llums to load all oplogs, min seq = %llu, max seq = %llu", (end- start), m_min_seq, m_max_seq);
 	}
 
 	void OpLogs::Routine()
@@ -223,12 +214,12 @@ namespace ardb
 		if (NULL == m_op_log_file)
 		{
 			std::string oplog_file_path =
-					m_server->GetServerConfig().repl_data_dir + "/repl.oplog";
+			        m_server->GetServerConfig().repl_data_dir + "/repl.oplog";
 			m_op_log_file = fopen(oplog_file_path.c_str(), "a+");
 			if (NULL == m_op_log_file)
 			{
 				ERROR_LOG(
-						"Failed to open oplog file:%s", oplog_file_path.c_str());
+				        "Failed to open oplog file:%s", oplog_file_path.c_str());
 			}
 		}
 	}
@@ -241,18 +232,18 @@ namespace ardb
 			m_op_log_file = NULL;
 		}
 		std::string oplog_file_path = m_server->GetServerConfig().repl_data_dir
-				+ "/repl.oplog";
+		        + "/repl.oplog";
 		std::stringstream oldest_file(
-				std::stringstream::in | std::stringstream::out);
+		        std::stringstream::in | std::stringstream::out);
 		oldest_file << oplog_file_path << "." << k_max_rolling_index;
 		remove(oldest_file.str().c_str());
 
 		for (int i = k_max_rolling_index - 1; i >= 1; --i)
 		{
 			std::stringstream source_oss(
-					std::stringstream::in | std::stringstream::out);
+			        std::stringstream::in | std::stringstream::out);
 			std::stringstream target_oss(
-					std::stringstream::in | std::stringstream::out);
+			        std::stringstream::in | std::stringstream::out);
 
 			source_oss << oplog_file_path << "." << i;
 			target_oss << oplog_file_path << "." << (i + 1);
@@ -275,19 +266,15 @@ namespace ardb
 		if (m_op_log_buffer.Readable() && NULL != m_op_log_file)
 		{
 			fwrite(m_op_log_buffer.GetRawReadBuffer(), 1,
-					m_op_log_buffer.ReadableBytes(), m_op_log_file);
+			        m_op_log_buffer.ReadableBytes(), m_op_log_file);
 			fflush(m_op_log_file);
 			m_op_log_buffer.Clear();
 			if (m_current_oplog_record_size
-					>= m_server->GetServerConfig().rep_backlog_size)
+			        >= m_server->GetServerConfig().rep_backlog_size)
 			{
 				//rollback op logs
 				RollbackOpLogs();
 				m_current_oplog_record_size = 0;
-				ArgumentArray strs;
-				strs.push_back("select");
-				strs.push_back(m_current_db);
-				SaveCmdOp(new RedisCommandFrame(strs));
 			}
 		}
 	}
@@ -305,16 +292,17 @@ namespace ardb
 			 * Only key would be persisted
 			 */
 			BufferHelper::WriteVarString(tmp, writeOp->key.key);
-		} else
+		}
+		else
 		{
 			CachedCmdOp* cmdOp = (CachedCmdOp*) op;
 			BufferHelper::WriteVarUInt32(tmp,
-					cmdOp->cmd->GetArguments().size() + 1);
+			        cmdOp->cmd->GetArguments().size() + 1);
 			BufferHelper::WriteVarString(tmp, cmdOp->cmd->GetCommand());
 			for (uint32 i = 0; i < cmdOp->cmd->GetArguments().size(); i++)
 			{
 				BufferHelper::WriteVarString(tmp,
-						*(cmdOp->cmd->GetArgument(i)));
+				        *(cmdOp->cmd->GetArgument(i)));
 			}
 		}
 		m_op_log_buffer.Write(&tmp, tmp.ReadableBytes());
@@ -322,21 +310,6 @@ namespace ardb
 		if (m_op_log_buffer.ReadableBytes() >= 5 * 1024 * 1024)
 		{
 			FlushOpLog();
-		}
-	}
-
-	void OpLogs::CheckCurrentDB(const DBID& db)
-	{
-		if (m_current_db != db)
-		{
-			/*
-			 * generate 'select' cmd
-			 */
-			m_current_db = db;
-			ArgumentArray strs;
-			strs.push_back("select");
-			strs.push_back(m_current_db);
-			SaveCmdOp(new RedisCommandFrame(strs));
 		}
 	}
 
@@ -366,7 +339,7 @@ namespace ardb
 		CachedCmdOp* op = new CachedCmdOp(cmd);
 		m_mem_op_logs[seq] = op;
 		while (m_mem_op_logs.size()
-				>= m_server->GetServerConfig().rep_backlog_size)
+		        >= m_server->GetServerConfig().rep_backlog_size)
 		{
 			RemoveOldestOp();
 		}
@@ -378,7 +351,7 @@ namespace ardb
 	}
 
 	CachedOp* OpLogs::SaveWriteOp(OpKey& opkey, uint8 type, bool writeOpLog,
-			std::string* v)
+	        std::string* v)
 	{
 		RemoveExistOp(opkey);
 		uint64 seq = m_max_seq;
@@ -391,7 +364,7 @@ namespace ardb
 		m_mem_op_logs[seq] = op;
 		m_mem_op_idx[opkey] = seq;
 		while (m_mem_op_logs.size()
-				>= m_server->GetServerConfig().rep_backlog_size)
+		        >= m_server->GetServerConfig().rep_backlog_size)
 		{
 			RemoveOldestOp();
 		}
@@ -428,7 +401,7 @@ namespace ardb
 					CachedWriteOp* writeOp = (CachedWriteOp*) op;
 					ArgumentArray strs;
 					strs.push_back(
-							op->type == kSetOpType ? "__set__" : "__del__");
+					        op->type == kSetOpType ? "__set__" : "__del__");
 					strs.push_back(writeOp->key.key);
 					if (op->type == kSetOpType)
 					{
@@ -439,11 +412,12 @@ namespace ardb
 						{
 							std::string* v = new std::string;
 							if (0
-									== m_server->m_db->RawGet(writeOp->key.db,
-											writeOp->key.key, v))
+							        == m_server->m_db->RawGet(writeOp->key.key,
+							                v))
 							{
 								writeOp->v = v;
-							} else
+							}
+							else
 							{
 								DELETE(v);
 							}
@@ -451,7 +425,8 @@ namespace ardb
 						if (NULL != writeOp->v)
 						{
 							strs.push_back(*(writeOp->v));
-						} else
+						}
+						else
 						{
 							continue;
 						}
@@ -460,7 +435,8 @@ namespace ardb
 					strs.push_back(seqbuf);
 					RedisCommandFrame cmd(strs);
 					RedisCommandEncoder::Encode(buf, cmd);
-				} else
+				}
+				else
 				{
 					CachedCmdOp* cmdop = (CachedCmdOp*) op;
 					//push seq at last
@@ -490,30 +466,25 @@ namespace ardb
 		}
 	}
 
-	CachedOp* OpLogs::SaveSetOp(const DBID& db, const std::string& key,
-			std::string* value)
+	CachedOp* OpLogs::SaveSetOp(const std::string& key, std::string* value)
 	{
-		CheckCurrentDB(db);
-		OpKey ok(db, key);
+		OpKey ok(key);
 		return SaveWriteOp(ok, kSetOpType, true, value);
 	}
-	CachedOp* OpLogs::SaveDeleteOp(const DBID& db, const std::string& key)
+	CachedOp* OpLogs::SaveDeleteOp(const std::string& key)
 	{
-		CheckCurrentDB(db);
-		OpKey ok(db, key);
+		OpKey ok(key);
 		return SaveWriteOp(ok, kDelOpType, true, NULL);
 
 	}
 	CachedOp* OpLogs::SaveFlushOp(const DBID& db)
 	{
-		CheckCurrentDB(db);
 		ArgumentArray strs;
 		strs.push_back("flushdb");
 		return SaveCmdOp(new RedisCommandFrame(strs));
 	}
 
-	bool OpLogs::VerifyClient(const std::string& serverKey, uint64 seq,
-			DBID& dbid)
+	bool OpLogs::VerifyClient(const std::string& serverKey, uint64 seq)
 	{
 		if (m_server_key == serverKey && seq >= m_min_seq && seq <= m_max_seq)
 		{
@@ -522,21 +493,13 @@ namespace ardb
 				CachedOpTable::iterator it = m_mem_op_logs.find(seq);
 				if (it != m_mem_op_logs.end())
 				{
-					CachedOp* op = it->second;
-					if (op->type == kDelOpType || op->type == kSetOpType)
-					{
-						CachedWriteOp* wop = (CachedWriteOp*) op;
-						dbid = wop->key.db;
-					} else
-					{
-						seq++;
-					}
-				} else
+					return true;
+				}
+				else
 				{
 					seq++;
 				}
 			}
-			return true;
 		}
 		return false;
 	}

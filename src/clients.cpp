@@ -34,9 +34,11 @@ namespace ardb
 				uint64 now = get_current_epoch_millis();
 				while (lru.PeekFront(conn) && (now - conn.ts >= maxIdleTime))
 				{
+
 					Channel* ch = serv->GetChannel(conn.conn_id);
 					if (NULL != ch)
 					{
+						DEBUG_LOG("Closed timeout connection:%d.", ch->GetID());
 						ch->Close();
 					}
 					lru.PopFront();
@@ -61,11 +63,12 @@ namespace ardb
 			m.timer_id = ch->GetService().GetTimer().Schedule(&m, 1, 5,
 			        SECONDS);
 		}
-		m.lru.Insert(conn.conn_id, conn, conn);
+		IdleConn tmp;
+		m.lru.Insert(conn.conn_id, conn, tmp);
 	}
 
 	void ClientConnHolder::ChangeCurrentDB(Channel* conn,
-	        const std::string& dbid)
+	        const DBID& dbid)
 	{
 		LockGuard<ThreadMutex> guard(m_mutex);
 		m_conn_table[conn->GetID()].currentDB = dbid;

@@ -359,13 +359,12 @@ namespace ardb
 
 	int ArdbServer::RawSet(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
-		m_db->RawSet(ctx.currentDB, cmd.GetArguments()[0],
-		        cmd.GetArguments()[1]);
+		m_db->RawSet(cmd.GetArguments()[0], cmd.GetArguments()[1]);
 		return 0;
 	}
 	int ArdbServer::RawDel(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
-		m_db->RawDel(ctx.currentDB, cmd.GetArguments()[0]);
+		m_db->RawDel(cmd.GetArguments()[0]);
 		return 0;
 	}
 
@@ -443,16 +442,7 @@ namespace ardb
 		info.append("ardb_version:").append(ARDB_VERSION).append("\r\n");
 		info.append("engine:").append(m_engine.GetName()).append("\r\n");
 		info.append("# Databases\r\n");
-		DBIDSet dbs;
-		m_db->ListAllDB(dbs);
-		DBIDSet::iterator it = dbs.begin();
-		while (it != dbs.end())
-		{
-			info.append("DB:").append(*it).append("\r\n");
-			info.append(m_db->GetDB(*it)->Stats()).append("\r\n");
-			it++;
-		}
-
+		info.append(m_db->GetEngine()->Stats()).append("\r\n");
 		info.append("# Disk\r\n");
 		int64 filesize = file_size(m_cfg.data_base_path);
 		char tmp[256];
@@ -479,8 +469,7 @@ namespace ardb
 
 	int ArdbServer::DBSize(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
-		std::string path = m_cfg.data_base_path + "/" + ctx.currentDB;
-		fill_int_reply(ctx.reply, file_size(path));
+		fill_int_reply(ctx.reply, file_size(m_cfg.data_base_path));
 		return 0;
 	}
 
@@ -730,8 +719,14 @@ namespace ardb
 
 	int ArdbServer::Move(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
-		int ret = m_db->Move(ctx.currentDB, cmd.GetArguments()[0],
-		        cmd.GetArguments()[1]);
+		DBID dst = 0;
+		if (!string_touint32(cmd.GetArguments()[1], dst))
+		{
+			fill_error_reply(ctx.reply,
+			        "ERR value is not an integer or out of range");
+			return 0;
+		}
+		int ret = m_db->Move(ctx.currentDB, cmd.GetArguments()[0], dst);
 		fill_int_reply(ctx.reply, ret < 0 ? 0 : 1);
 		return 0;
 	}
@@ -1327,7 +1322,12 @@ namespace ardb
 	}
 	int ArdbServer::Select(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
-		ctx.currentDB = cmd.GetArguments()[0];
+		if (!string_touint32(cmd.GetArguments()[0], ctx.currentDB) || ctx.currentDB > 0xFFFFFF)
+		{
+			fill_error_reply(ctx.reply,
+			        "ERR value is not an integer or out of range");
+			return 0;
+		}
 		m_clients_holder.ChangeCurrentDB(ctx.conn, ctx.currentDB);
 		fill_status_reply(ctx.reply, "OK");
 		DEBUG_LOG("Select db is %s", cmd.GetArguments()[0].c_str());
@@ -2575,7 +2575,7 @@ namespace ardb
 	        RedisCommandFrame& args)
 	{
 		m_ctx_local.SetValue(&ctx);
-		if(m_cfg.timeout > 0)
+		if (m_cfg.timeout > 0)
 		{
 			TouchIdleConn(ctx.conn);
 		}
@@ -2710,6 +2710,15 @@ namespace ardb
 		server->ClearSubscribes(ardbctx);
 	}
 
+	void RedisRequestHandler::ChannelConnected(ChannelHandlerContext& ctx,
+	        ChannelStateEvent& e)
+	{
+		if (server->m_cfg.timeout > 0)
+		{
+			server->TouchIdleConn(ctx.GetChannel());
+		}
+	}
+
 	static void daemonize(void)
 	{
 		int fd;
@@ -2753,6 +2762,11 @@ namespace ardb
 		//m_engine = new SelectedDBEngineFactory(props);
 		m_db = new Ardb(&m_engine, m_cfg.data_base_path,
 		        m_cfg.worker_count > 1);
+		if (!m_db->Init())
+		{
+			ERROR_LOG( "Failed to init DB.");
+			return -1;
+		}
 		m_service = new ChannelService(m_cfg.max_clients + 32);
 
 		ChannelOptions ops;

@@ -29,6 +29,10 @@
 
 namespace ardb
 {
+	/*
+	 * 3 bytes, value from [0, 0xFFFFFF]
+	 */
+	typedef uint32 DBID;
 
 	enum KeyType
 	{
@@ -56,11 +60,12 @@ namespace ardb
 
 	struct KeyObject
 	{
+			DBID db;
 			KeyType type;
 			Slice key;
 
-			KeyObject(const Slice& k, KeyType T = KV) :
-					type(T), key(k)
+			KeyObject(const Slice& k, KeyType t, DBID id) :
+					db(id), type(t), key(k)
 			{
 			}
 			virtual ~KeyObject()
@@ -127,7 +132,7 @@ namespace ardb
 					return *this;
 				}
 				if ((other.type == INTEGER || other.type == EMPTY)
-						&& type == INTEGER)
+				        && type == INTEGER)
 				{
 					v.int_v += other.v.int_v;
 					return *this;
@@ -150,7 +155,8 @@ namespace ardb
 				if (i != 0)
 				{
 					v.double_v = tmp / i;
-				} else
+				}
+				else
 				{
 					v.double_v = DBL_MAX;
 				}
@@ -180,7 +186,7 @@ namespace ardb
 					default:
 					{
 						str.assign(v.raw->GetRawReadBuffer(),
-								v.raw->ReadableBytes());
+						        v.raw->ReadableBytes());
 						return str;
 					}
 				}
@@ -236,7 +242,7 @@ namespace ardb
 					{
 						v.raw = new Buffer(other.v.raw->ReadableBytes());
 						v.raw->Write(other.v.raw->GetRawReadBuffer(),
-								other.v.raw->ReadableBytes());
+						        other.v.raw->ReadableBytes());
 						return;
 					}
 				}
@@ -264,9 +270,9 @@ namespace ardb
 					default:
 					{
 						Slice a(v.raw->GetRawReadBuffer(),
-								v.raw->ReadableBytes());
+						        v.raw->ReadableBytes());
 						Slice b(other.v.raw->GetRawReadBuffer(),
-								other.v.raw->ReadableBytes());
+						        other.v.raw->ReadableBytes());
 						return a.compare(b);
 					}
 				}
@@ -277,7 +283,7 @@ namespace ardb
 			}
 	};
 
-	typedef std::string DBID;
+
 
 	typedef std::map<ValueObject, double> ValueScoreMap;
 
@@ -313,7 +319,7 @@ namespace ardb
 	{
 			DBID db;
 			Slice key;
-			DBItemKey(const DBID& id = "", const Slice& k = "") :
+			DBItemKey(const DBID& id = 0, const Slice& k = "") :
 					db(id), key(k)
 			{
 			}
@@ -328,10 +334,6 @@ namespace ardb
 					return key.compare(other.key) < 0;
 				}
 				return true;
-			}
-			bool Empty()
-			{
-				return db.empty();
 			}
 	};
 
@@ -357,7 +359,7 @@ namespace ardb
 			LogicalOperator logicop;
 
 			Condition(const std::string& name, CompareOperator compareop,
-					const Slice& value, LogicalOperator logic = LOGIC_EMPTY);
+			        const Slice& value, LogicalOperator logic = LOGIC_EMPTY);
 
 			bool MatchValue(const ValueObject& v, int& cmpret)
 			{
@@ -390,15 +392,15 @@ namespace ardb
 			//Slice value;
 			ValueObject value;
 			double score;
-			ZSetKeyObject(const Slice& k, const Slice& v, double s);
-			ZSetKeyObject(const Slice& k, const ValueObject& v, double s);
+			ZSetKeyObject(const Slice& k, const Slice& v, double s, DBID id);
+			ZSetKeyObject(const Slice& k, const ValueObject& v, double s, DBID id);
 	};
 	struct ZSetScoreKeyObject: public KeyObject
 	{
 			//Slice value;
 			ValueObject value;
-			ZSetScoreKeyObject(const Slice& k, const Slice& v);
-			ZSetScoreKeyObject(const Slice& k, const ValueObject& v);
+			ZSetScoreKeyObject(const Slice& k, const Slice& v, DBID id);
+			ZSetScoreKeyObject(const Slice& k, const ValueObject& v, DBID id);
 	};
 
 	struct ZSetMetaValue
@@ -415,8 +417,8 @@ namespace ardb
 	struct SetKeyObject: public KeyObject
 	{
 			ValueObject value;
-			SetKeyObject(const Slice& k, const Slice& v);
-			SetKeyObject(const Slice& k, const ValueObject& v);
+			SetKeyObject(const Slice& k, const Slice& v, DBID id);
+			SetKeyObject(const Slice& k, const ValueObject& v, DBID id);
 	};
 
 	struct SetMetaValue
@@ -433,8 +435,8 @@ namespace ardb
 	struct HashKeyObject: public KeyObject
 	{
 			Slice field;
-			HashKeyObject(const Slice& k, const Slice& f) :
-					KeyObject(k, HASH_FIELD), field(f)
+			HashKeyObject(const Slice& k, const Slice& f, DBID id) :
+					KeyObject(k, HASH_FIELD, id), field(f)
 			{
 			}
 	};
@@ -442,8 +444,8 @@ namespace ardb
 	struct ListKeyObject: public KeyObject
 	{
 			float score;
-			ListKeyObject(const Slice& k, double s) :
-					KeyObject(k, LIST_ELEMENT), score(s)
+			ListKeyObject(const Slice& k, double s, DBID id) :
+					KeyObject(k, LIST_ELEMENT,id), score(s)
 			{
 			}
 	};
@@ -489,21 +491,21 @@ namespace ardb
 			ValueObject keyvalue;
 			TableKeyIndex index;
 			TableIndexKeyObject(const Slice& tablename, const Slice& keyname,
-					const ValueObject& v) :
-					KeyObject(tablename, TABLE_INDEX), kname(keyname), keyvalue(
-							v)
+			        const ValueObject& v, DBID id) :
+					KeyObject(tablename, TABLE_INDEX, id), kname(keyname), keyvalue(
+					        v)
 			{
 			}
 			TableIndexKeyObject(const Slice& tablename, const Slice& keyname,
-					const Slice& v);
+			        const Slice& v, DBID id);
 	};
 
 	struct TableColKeyObject: public KeyObject
 	{
 			ValueArray keyvals;
 			Slice col;
-			TableColKeyObject(const Slice& tablename, const Slice& c) :
-					KeyObject(tablename, TABLE_COL), col(c)
+			TableColKeyObject(const Slice& tablename, const Slice& c, DBID id) :
+					KeyObject(tablename, TABLE_COL, id), col(c)
 			{
 			}
 	};
@@ -526,7 +528,7 @@ namespace ardb
 			int limit_count;
 			QueryOptions() :
 					withscores(false), withlimit(false), limit_offset(0), limit_count(
-							0)
+					        0)
 			{
 			}
 	};
@@ -544,8 +546,8 @@ namespace ardb
 			const char* store_dst;
 			SortOptions() :
 					by(NULL), with_limit(false), limit_offset(0), limit_count(
-							0), is_desc(false), with_alpha(false), nosort(
-							false), store_dst(NULL)
+					        0), is_desc(false), with_alpha(false), nosort(
+					        false), store_dst(NULL)
 			{
 			}
 	};
@@ -563,33 +565,33 @@ namespace ardb
 			bool with_alpha;
 			AggregateType aggregate;
 			TableQueryOptions() :
-					with_limit(false), limit_offset(0), limit_count(0), with_desc_asc(false),is_desc(
-							false), with_alpha(false), aggregate(
-							AGGREGATE_EMPTY)
+					with_limit(false), limit_offset(0), limit_count(0), with_desc_asc(
+					        false), is_desc(false), with_alpha(false), aggregate(
+					        AGGREGATE_EMPTY)
 			{
 
 			}
 			static bool Parse(StringArray& args, uint32 offset,
-					TableQueryOptions& options);
+			        TableQueryOptions& options);
 	};
 	struct TableUpdateOptions
 	{
 			Conditions conds;
 			SliceMap colnvs;
 			static bool Parse(StringArray& args, uint32 offset,
-					TableUpdateOptions& options);
+			        TableUpdateOptions& options);
 	};
 	struct TableDeleteOptions
 	{
 			Conditions conds;
 			static bool Parse(StringArray& args, uint32 offset,
-					TableDeleteOptions& options);
+			        TableDeleteOptions& options);
 	};
 	struct TableInsertOptions
 	{
 			SliceMap nvs;
 			static bool Parse(StringArray& args, uint32 offset,
-					TableInsertOptions& options);
+			        TableInsertOptions& options);
 	};
 
 	typedef std::vector<ZSetMetaValue> ZSetMetaValueArray;
@@ -600,11 +602,12 @@ namespace ardb
 	int compare_values(const ValueArray& a, const ValueArray& b);
 
 	void encode_key(Buffer& buf, const KeyObject& key);
-	KeyObject* decode_key(const Slice& key);
+	KeyObject* decode_key(const Slice& key, KeyObject* expected = NULL);
+	bool peek_dbkey_header(const Slice& key,DBID& db, KeyType& type);
 
 	void encode_value(Buffer& buf, const ValueObject& value);
 	bool decode_value(Buffer& buf, ValueObject& value,
-			bool copyRawValue = true);
+	        bool copyRawValue = true);
 	void fill_raw_value(const Slice& value, ValueObject& valueobject);
 	void smart_fill_value(const Slice& value, ValueObject& valueobject);
 	int value_convert_to_raw(ValueObject& v);

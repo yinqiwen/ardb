@@ -27,21 +27,26 @@ namespace ardb
 	void LevelDBComparator::FindShortestSeparator(std::string* start,
 	        const leveldb::Slice& limit) const
 	{
-		if (!start->empty() && limit.size() > 0)
+		Buffer ak_buf(const_cast<char*>(start->data()), 0, start->size());
+		Buffer bk_buf(const_cast<char*>(limit.data()), 0, limit.size());
+		if (!start->size() > 4 && limit.size() > 4)
 		{
-			const uint8_t type1 = (*start)[0];
-			const uint8_t type2 = limit.data()[0];
-			assert(type1 <= type2);
-			if (type1 < type2)
+			uint32 aheader, bheader;
+			BufferHelper::ReadFixUInt32(ak_buf, aheader);
+			BufferHelper::ReadFixUInt32(bk_buf, bheader);
+			uint8 type1 = aheader & 0xFF;
+			uint8 type2 = bheader & 0xFF;
+			uint32 adb = aheader >> 8;
+			uint32 bdb = bheader >> 8;
+			assert(adb <= bdb);
+			if (adb < bdb || type1 < type2)
 			{
-				start->resize(1);
-				(*start)[0] = type2;
+				start->resize(4);
+				start->assign(limit.data(), 0, 4);
 			}
 			else
 			{
-				Buffer ak_buf(const_cast<char*>(start->data()), 1,
-				        start->size());
-				Buffer bk_buf(const_cast<char*>(limit.data()), 1, limit.size());
+
 				uint32 akeysize, bkeysize;
 				assert(BufferHelper::ReadVarUInt32(ak_buf, akeysize));
 				assert(BufferHelper::ReadVarUInt32(bk_buf, bkeysize));
@@ -82,16 +87,25 @@ namespace ardb
 						}
 					}
 				}
+
 			}
+
 		}
 	}
 
 	void LevelDBComparator::FindShortSuccessor(std::string* key) const
 	{
-		if (!key->empty())
+		if (key->size() >= 4)
 		{
-			const uint8_t byte = (*key)[0];
-			(*key)[0] = byte + 1;
+			Buffer ak_buf(const_cast<char*>(key->data()), 0, key->size());
+			uint32 aheader;
+			BufferHelper::ReadFixUInt32(ak_buf, aheader);
+			uint8 type = aheader & 0xFF;
+			uint32 adb = aheader >> 8;
+			aheader = adb << 8 + (type + 1);
+			aheader = htonl(aheader);
+			key->resize(4);
+			key->assign((const char*)(&aheader), 4);
 		}
 	}
 
@@ -118,17 +132,17 @@ namespace ardb
 		        cfg.batch_commit_watermark);
 	}
 
-	KeyValueEngine* LevelDBEngineFactory::CreateDB(const DBID& db)
+	KeyValueEngine* LevelDBEngineFactory::CreateDB(const std::string& name)
 	{
 		LevelDBEngine* engine = new LevelDBEngine();
 		LevelDBConfig cfg = m_cfg;
-		char tmp[cfg.path.size() + db.size() + 10];
-		sprintf(tmp, "%s/%s", cfg.path.c_str(), db.c_str());
+		char tmp[cfg.path.size() + name.size() + 10];
+		sprintf(tmp, "%s/%s", cfg.path.c_str(), name.c_str());
 		cfg.path = tmp;
 		if (engine->Init(cfg) != 0)
 		{
 			DELETE(engine);
-			ERROR_LOG("Failed to create DB:%s", db.c_str());
+			ERROR_LOG("Failed to create DB:%s", name.c_str());
 			return NULL;
 		}
 		return engine;

@@ -154,7 +154,7 @@ namespace ardb
 					LevelDBConfig& cfg);
 		public:
 			LevelDBEngineFactory(const Properties& cfg);
-			KeyValueEngine* CreateDB(const DBID& db);
+			KeyValueEngine* CreateDB(const std::string& name);
 			void DestroyDB(KeyValueEngine* engine);
 			void CloseDB(KeyValueEngine* engine);
 			const std::string GetName()

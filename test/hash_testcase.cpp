@@ -1,7 +1,7 @@
 /*
  * hash_testcase.cpp
  *
- *  Created on: 2"0"13-4-9
+ *  Created on: 2dbid13-4-9
  *      Author: wqy
  */
 #include "ardb.hpp"
@@ -11,34 +11,37 @@ using namespace ardb;
 
 void test_hash_hgetset(Ardb& db)
 {
-	db.Del("0", "myhash");
-	db.HSet("0", "myhash", "field1", "value1");
+	DBID dbid = 0;
+	db.Del(dbid, "myhash");
+	db.HSet(dbid, "myhash", "field1", "value1");
 	std::string v;
-	db.HGet("0", "myhash", "field1", &v);
+	db.HGet(dbid, "myhash", "field1", &v);
 	CHECK_FATAL(v != "value1", "HGetSet failed:%s", v.c_str());
 }
 
 void test_hash_hexists(Ardb& db)
 {
-	db.HClear("0", "myhash");
-	bool ret = db.HExists("0", "myhash", "field1");
+	DBID dbid = 0;
+	db.HClear(dbid, "myhash");
+	bool ret = db.HExists(dbid, "myhash", "field1");
 	CHECK_FATAL(ret != false, "HExists myhash failed:%d", ret);
-	db.HSet("0", "myhash", "field1", "value1");
-	ret = db.HExists("0", "myhash", "field1");
+	db.HSet(dbid, "myhash", "field1", "value1");
+	ret = db.HExists(dbid, "myhash", "field1");
 	CHECK_FATAL(ret != true, "HExists myhash failed:%d", ret);
-	ret = db.HExists("0", "myhash", "field2");
+	ret = db.HExists(dbid, "myhash", "field2");
 	CHECK_FATAL( ret != false, "HExists myhash failed:%d", ret);
 }
 
 void test_hash_hgetall(Ardb& db)
 {
-	db.HClear("0", "myhash");
-	db.HSet("0", "myhash", "field1", "value1");
-	db.HSet("0", "myhash", "field2", "value2");
-	db.HSet("0", "myhash", "field3", "value3");
+	DBID dbid = 0;
+	db.HClear(dbid, "myhash");
+	db.HSet(dbid, "myhash", "field1", "value1");
+	db.HSet(dbid, "myhash", "field2", "value2");
+	db.HSet(dbid, "myhash", "field3", "value3");
 	ValueArray values;
 	StringArray fields;
-	db.HGetAll("0", "myhash", fields, values);
+	db.HGetAll(dbid, "myhash", fields, values);
 	CHECK_FATAL(fields.size() != 3, "hgetall myhash failed:%d", fields.size());
 	CHECK_FATAL(fields[1].compare("field2") != 0,
 			"hgetall myhash failed:%d", fields.size());
@@ -49,12 +52,13 @@ void test_hash_hgetall(Ardb& db)
 
 void test_hash_hkeys(Ardb& db)
 {
-	db.HClear("0", "myhash");
-	db.HSet("0", "myhash", "field1", "value1");
-	db.HSet("0", "myhash", "field2", "value2");
-	db.HSet("0", "myhash", "field3", "value3");
+	DBID dbid = 0;
+	db.HClear(dbid, "myhash");
+	db.HSet(dbid, "myhash", "field1", "value1");
+	db.HSet(dbid, "myhash", "field2", "value2");
+	db.HSet(dbid, "myhash", "field3", "value3");
 	StringArray fields;
-	db.HKeys("0", "myhash", fields);
+	db.HKeys(dbid, "myhash", fields);
 	CHECK_FATAL( fields.size() != 3, "hgetall myhash failed:%d", fields.size());
 	CHECK_FATAL(fields[1].compare("field2") != 0,
 			"hgetall myhash failed:%d", fields.size());
@@ -62,47 +66,51 @@ void test_hash_hkeys(Ardb& db)
 
 void test_hash_hvals(Ardb& db)
 {
-	db.HClear("0", "myhash");
-	db.HSet("0", "myhash", "field1", "value1");
-	db.HSet("0", "myhash", "field2", "value2");
-	db.HSet("0", "myhash", "field3", "value3");
+	DBID dbid = 0;
+	db.HClear(dbid, "myhash");
+	db.HSet(dbid, "myhash", "field1", "value1");
+	db.HSet(dbid, "myhash", "field2", "value2");
+	db.HSet(dbid, "myhash", "field3", "value3");
 	StringArray values;
-	db.HVals("0", "myhash", values);
+	db.HVals(dbid, "myhash", values);
 	int ret = values[2].compare("value3");
 	CHECK_FATAL(ret != 0, "hvals myhash failed:%s", values[2].c_str());
 }
 
 void test_hash_hlen(Ardb& db)
 {
-	db.HClear("0", "myhash");
-	db.HSet("0", "myhash", "field1", "value1");
-	db.HSet("0", "myhash", "field2", "value2");
-	db.HSet("0", "myhash", "field3", "value3");
-	db.HSet("0", "myhash", "field4", "value3");
-	db.HSet("0", "myhash", "field5", "value3");
+	DBID dbid = 0;
+	db.HClear(dbid, "myhash");
+	db.HSet(dbid, "myhash", "field1", "value1");
+	db.HSet(dbid, "myhash", "field2", "value2");
+	db.HSet(dbid, "myhash", "field3", "value3");
+	db.HSet(dbid, "myhash", "field4", "value3");
+	db.HSet(dbid, "myhash", "field5", "value3");
 
-	CHECK_FATAL( db.HLen("0", "myhash") != 5,
-			"hlen myhash failed:%d", db.HLen("0", "myhash"));
+	CHECK_FATAL( db.HLen(dbid, "myhash") != 5,
+			"hlen myhash failed:%d", db.HLen(dbid, "myhash"));
 }
 
 void test_hash_hsetnx(Ardb& db)
 {
-	db.HClear("0", "myhash");
-	int ret = db.HSetNX("0", "myhash", "field1", "value1");
+	DBID dbid = 0;
+	db.HClear(dbid, "myhash");
+	int ret = db.HSetNX(dbid, "myhash", "field1", "value1");
 	CHECK_FATAL( ret != 1, "hsetnx myhash failed:%d", ret);
-	ret = db.HSetNX("0", "myhash", "field1", "value2");
+	ret = db.HSetNX(dbid, "myhash", "field1", "value2");
 	CHECK_FATAL(ret != 0, "hsetnx myhash failed:%d", ret);
 }
 
 void test_hash_hincr(Ardb& db)
 {
-	db.HClear("0", "myhash");
-	int ret = db.HSetNX("0", "myhash", "field1", "100");
+	DBID dbid = 0;
+	db.HClear(dbid, "myhash");
+	int ret = db.HSetNX(dbid, "myhash", "field1", "100");
 	int64_t intv = 0;
-	db.HIncrby("0", "myhash", "field1", 100, intv);
+	db.HIncrby(dbid, "myhash", "field1", 100, intv);
 	CHECK_FATAL( intv != 200, "hincr myhash failed:%d", intv);
 	double dv = 0;
-	db.HIncrbyFloat("0", "myhash", "field1", 100.25, dv);
+	db.HIncrbyFloat(dbid, "myhash", "field1", 100.25, dv);
 	CHECK_FATAL(dv != 300.25, "hincrbyfloat myhash failed:%f", dv);
 }
 

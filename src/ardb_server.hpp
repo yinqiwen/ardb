@@ -102,7 +102,7 @@ namespace ardb
 			PubSubChannelSet* pubsub_channle_set;
 			PubSubChannelSet* pattern_pubsub_channle_set;
 			ArdbConnContext() :
-					currentDB("0"), conn(NULL), in_transaction(false), fail_transc(
+					currentDB(0), conn(NULL), in_transaction(false), fail_transc(
 					        false), is_slave_conn(false), transaction_cmds(
 					        NULL), watch_key_set(NULL), pubsub_channle_set(
 					        NULL), pattern_pubsub_channle_set(NULL)
@@ -148,10 +148,10 @@ namespace ardb
 			std::string addr;
 			uint32 birth;
 			uint32 lastTs;
-			std::string currentDB;
+			DBID currentDB;
 			std::string lastCmd;
 			ArdbConncetion() :
-					conn(NULL), birth(0), lastTs(0), currentDB("0")
+					conn(NULL), birth(0), lastTs(0), currentDB(0)
 			{
 			}
 	};
@@ -169,7 +169,7 @@ namespace ardb
 			{
 			}
 			void TouchConn(Channel* conn, const std::string& currentCmd);
-			void ChangeCurrentDB(Channel* conn, const std::string& dbid);
+			void ChangeCurrentDB(Channel* conn, const DBID& dbid);
 			Channel* GetConn(const std::string& addr);
 			void SetName(Channel* conn, const std::string& name);
 			const std::string& GetName(Channel* conn);
@@ -226,6 +226,8 @@ namespace ardb
 			void MessageReceived(ChannelHandlerContext& ctx,
 			        MessageEvent<RedisCommandFrame>& e);
 			void ChannelClosed(ChannelHandlerContext& ctx,
+			        ChannelStateEvent& e);
+			void ChannelConnected(ChannelHandlerContext& ctx,
 			        ChannelStateEvent& e);
 			RedisRequestHandler(ArdbServer* s) :
 					server(s)

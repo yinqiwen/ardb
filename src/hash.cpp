@@ -11,8 +11,8 @@ namespace ardb
 	int Ardb::SetHashValue(const DBID& db, const Slice& key, const Slice& field,
 			ValueObject& value)
 	{
-		HashKeyObject k(key, field);
-		return SetValue(db, k, value);
+		HashKeyObject k(key, field, db);
+		return SetValue(k, value);
 	}
 	int Ardb::HSet(const DBID& db, const Slice& key, const Slice& field,
 			const Slice& value)
@@ -34,13 +34,13 @@ namespace ardb
 
 	int Ardb::HDel(const DBID& db, const Slice& key, const Slice& field)
 	{
-		HashKeyObject k(key, field);
-		return DelValue(db, k);
+		HashKeyObject k(key, field, db);
+		return DelValue( k);
 	}
 
 	int Ardb::HDel(const DBID& db, const Slice& key, const SliceArray& fields)
 	{
-		BatchWriteGuard guard(GetDB(db));
+		BatchWriteGuard guard(GetEngine());
 		SliceArray::const_iterator it = fields.begin();
 		while (it != fields.end())
 		{
@@ -53,8 +53,8 @@ namespace ardb
 	int Ardb::HGetValue(const DBID& db, const Slice& key, const Slice& field,
 			ValueObject* value)
 	{
-		HashKeyObject k(key, field);
-		if (0 == GetValue(db, k, value))
+		HashKeyObject k(key, field, db);
+		if (0 == GetValue(k, value))
 		{
 			return 0;
 		}
@@ -64,9 +64,9 @@ namespace ardb
 	int Ardb::HGet(const DBID& db, const Slice& key, const Slice& field,
 			std::string* value)
 	{
-		HashKeyObject k(key, field);
+		HashKeyObject k(key, field, db);
 		ValueObject v;
-		if (0 == GetValue(db, k, &v))
+		if (0 == GetValue(k, &v))
 		{
 			if (NULL != value)
 			{
@@ -84,7 +84,7 @@ namespace ardb
 		{
 			return ERR_INVALID_ARGS;
 		}
-		BatchWriteGuard guard(GetDB(db));
+		BatchWriteGuard guard(GetEngine());
 		SliceArray::const_iterator it = fields.begin();
 		SliceArray::const_iterator sit = values.begin();
 		while (it != fields.end())
@@ -115,38 +115,37 @@ namespace ardb
 	int Ardb::HClear(const DBID& db, const Slice& key)
 	{
 		Slice empty;
-		HashKeyObject sk(key, empty);
+		HashKeyObject sk(key, empty, db);
 		struct HClearWalk: public WalkHandler
 		{
 				Ardb* z_db;
-				DBID z_dbid;
+
 				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					HashKeyObject* sek = (HashKeyObject*) k;
-					z_db->DelValue(z_dbid, *sek);
+					z_db->DelValue(*sek);
 					return 0;
 				}
-				HClearWalk(Ardb* db, const DBID& dbid) :
-						z_db(db), z_dbid(dbid)
+				HClearWalk(Ardb* db) :
+						z_db(db)
 				{
 				}
-		} walk(this, db);
-		BatchWriteGuard guard(GetDB(db));
-		Walk(db, sk, false, &walk);
+		} walk(this);
+		BatchWriteGuard guard(GetEngine());
+		Walk( sk, false, &walk);
 		return 0;
 	}
 
 	int Ardb::HKeys(const DBID& db, const Slice& key, StringArray& fields)
 	{
 		Slice empty;
-		HashKeyObject k(key, empty);
-		Iterator* it = FindValue(db, k);
+		HashKeyObject k(key, empty, db);
+		Iterator* it = FindValue(k);
 		while (NULL != it && it->Valid())
 		{
 			Slice tmpkey = it->Key();
-			KeyObject* kk = decode_key(tmpkey);
-			if (NULL == kk || kk->type != HASH_FIELD
-					|| kk->key.compare(key) != 0)
+			KeyObject* kk = decode_key(tmpkey, &k);
+			if (NULL == kk)
 			{
 				DELETE(kk);
 				break;
@@ -164,15 +163,14 @@ namespace ardb
 	int Ardb::HLen(const DBID& db, const Slice& key)
 	{
 		Slice empty;
-		HashKeyObject k(key, empty);
-		Iterator* it = FindValue(db, k);
+		HashKeyObject k(key, empty, db);
+		Iterator* it = FindValue(k);
 		int len = 0;
 		while (NULL != it && it->Valid())
 		{
 			Slice tmpkey = it->Key();
-			KeyObject* kk = decode_key(tmpkey);
-			if (NULL == kk || kk->type != HASH_FIELD
-					|| kk->key.compare(key) != 0)
+			KeyObject* kk = decode_key(tmpkey, &k);
+			if (NULL == kk)
 			{
 				break;
 			}
@@ -187,14 +185,13 @@ namespace ardb
 	int Ardb::HVals(const DBID& db, const Slice& key, StringArray& values)
 	{
 		Slice empty;
-		HashKeyObject k(key, empty);
-		Iterator* it = FindValue(db, k);
+		HashKeyObject k(key, empty, db);
+		Iterator* it = FindValue(k);
 		while (NULL != it && it->Valid())
 		{
 			Slice tmpkey = it->Key();
-			KeyObject* kk = decode_key(tmpkey);
-			if (NULL == kk || kk->type != HASH_FIELD
-					|| kk->key.compare(key) != 0)
+			KeyObject* kk = decode_key(tmpkey, &k);
+			if (NULL == kk)
 			{
 				DELETE(kk);
 				break;
@@ -216,18 +213,14 @@ namespace ardb
 			ValueArray& values)
 	{
 		Slice empty;
-		HashKeyObject k(key, empty);
-		Iterator* it = FindValue(db, k);
+		HashKeyObject k(key, empty, db);
+		Iterator* it = FindValue(k);
 		int i = 0;
 		while (NULL != it && it->Valid())
 		{
 			Slice tmpkey = it->Key();
 			KeyObject* kk = decode_key(tmpkey);
 			if (NULL == kk)
-			{
-				break;
-			}
-			if (kk->type != HASH_FIELD || kk->key.compare(key) != 0)
 			{
 				break;
 			}
@@ -275,7 +268,7 @@ namespace ardb
 			return ERR_INVALID_ARGS;
 		}
 		vs.clear();
-		BatchWriteGuard guard(GetDB(db));
+		BatchWriteGuard guard(GetEngine());
 		SliceArray::const_iterator it = fields.begin();
 		Int64Array::const_iterator sit = increments.begin();
 		while (it != fields.end())

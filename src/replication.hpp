@@ -33,17 +33,12 @@ namespace ardb
 
 	struct OpKey
 	{
-			DBID db;
 			std::string key;
 			OpKey()
 			{
 			}
-			OpKey(const DBID& id, const std::string& k);
+			OpKey(const std::string& k);
 			bool operator<(const OpKey& other) const;
-			bool Empty()
-			{
-				return db.empty();
-			}
 	};
 
 	struct CachedOp
@@ -99,7 +94,6 @@ namespace ardb
 
 			std::string m_server_key;
 
-			DBID m_current_db;
 			typedef btree::btree_map<uint64, CachedOp*> CachedOpTable;
 			typedef btree::btree_map<OpKey, uint64> OpKeyIndexTable;
 			CachedOpTable m_mem_op_logs;
@@ -112,7 +106,6 @@ namespace ardb
 
 			void RemoveExistOp(OpKey& key);
 			void RemoveOldestOp();
-			void CheckCurrentDB(const DBID& db);
 			void ReOpenOpLog();
 			void RollbackOpLogs();
 			void FlushOpLog();
@@ -136,16 +129,11 @@ namespace ardb
 			{
 				return m_min_seq;
 			}
-			DBID& GetCurrentDBID()
-			{
-				return m_current_db;
-			}
-			CachedOp* SaveSetOp(const DBID& db, const std::string& key,
+			CachedOp* SaveSetOp(const std::string& key,
 			        std::string* value);
-			CachedOp* SaveDeleteOp(const DBID& db, const std::string& key);
+			CachedOp* SaveDeleteOp(const std::string& key);
 			CachedOp* SaveFlushOp(const DBID& db);
-			bool VerifyClient(const std::string& serverKey, uint64 seq,
-			        DBID& dbid);
+			bool VerifyClient(const std::string& serverKey, uint64 seq);
 			const std::string& GetServerKey()
 			{
 				return m_server_key;
@@ -239,9 +227,9 @@ namespace ardb
 			void FeedSlaves();
 			void FullSync(SlaveConn& client);
 
-			int OnKeyUpdated(const DBID& db, const Slice& key,
+			int OnKeyUpdated(const Slice& key,
 			        const Slice& value);
-			int OnKeyDeleted(const DBID& db, const Slice& key);
+			int OnKeyDeleted(const Slice& key);
 			void OfferInstruction(ReplInstruction& inst);
 		public:
 			ReplicationService(ArdbServer* serv);
