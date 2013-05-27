@@ -63,6 +63,9 @@ namespace ardb
 			{
 				return "";
 			}
+			virtual void CompactRange(const Slice& begin, const Slice& end)
+			{
+			}
 			virtual ~KeyValueEngine()
 			{
 			}

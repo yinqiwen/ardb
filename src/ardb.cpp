@@ -228,6 +228,23 @@ namespace ardb
 		{
 			INFO_LOG("Start init storage engine.");
 			m_engine = m_engine_factory->CreateDB(REPO_NAME);
+
+			KeyObject verkey(Slice(), KEY_END, 0xFFFFFF);
+			ValueObject ver;
+			if (0 == GetValue(verkey, &ver, NULL))
+			{
+				if (ver.v.int_v != ARDB_FORMAT_VERSION)
+				{
+					ERROR_LOG(
+							"Incompatible data format version:%d in DB", ver.v.int_v);
+					return false;
+				}
+			} else
+			{
+				ver.v.int_v = ARDB_FORMAT_VERSION;
+				ver.type = INTEGER;
+				SetValue(verkey, ver);
+			}
 			if (NULL != m_engine)
 			{
 				INFO_LOG("Init storage engine success.");
@@ -238,7 +255,10 @@ namespace ardb
 
 	Ardb::~Ardb()
 	{
-		m_engine_factory->CloseDB(m_engine);
+		if (NULL != m_engine)
+		{
+			m_engine_factory->CloseDB(m_engine);
+		}
 	}
 
 	void Ardb::Walk(KeyObject& key, bool reverse, WalkHandler* handler)
@@ -434,6 +454,12 @@ namespace ardb
 				{
 					adb->VisitDB(dbid, this);
 					adb->GetEngine()->CommitBatchWrite();
+					KeyObject start(Slice(), KV, dbid);
+					KeyObject end(Slice(), KV, dbid + 1);
+					Buffer sbuf, ebuf;
+					encode_key(sbuf, start);
+					encode_key(ebuf, end);
+					adb->GetEngine()->CompactRange(sbuf.AsString(), ebuf.AsString());
 					delete this;
 				}
 		};
@@ -473,6 +499,7 @@ namespace ardb
 				{
 					db->VisitAllDB(this);
 					db->GetEngine()->CommitBatchWrite();
+					db->GetEngine()->CompactRange(Slice(), Slice());
 					delete this;
 				}
 		};
