@@ -44,6 +44,8 @@ namespace ardb
 			std::string master_host;
 			uint32 master_port;
 
+			DBIDSet syncdbs;
+
 			bool repl_log_enable;
 			int64 worker_count;
 			std::string loglevel;
@@ -64,7 +66,7 @@ namespace ardb
 	{
 			DBID db;
 			std::string key;
-			WatchKey()
+			WatchKey():db(0)
 			{
 			}
 			WatchKey(const DBID& id, const std::string& k) :

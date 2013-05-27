@@ -153,7 +153,6 @@ namespace ardb
 			RawKeyListener* m_raw_key_listener;
 
 			std::string m_path;
-			DBIDSet m_all_dbs;
 
 			int SetExpiration(const DBID& db, const Slice& key,
 					uint64_t expire);

@@ -19,245 +19,247 @@ using namespace ardb::codec;
 
 namespace ardb
 {
-	struct SlaveConn
+struct SlaveConn
+{
+	Channel* conn;
+	std::string server_key;
+	uint64 synced_cmd_seq;
+	uint32 state;
+	uint8 type;
+	DBIDSet syncdbs;
+	SlaveConn(Channel* c = NULL);
+	SlaveConn(Channel* c, const std::string& key, uint64 seq, DBIDSet& dbs);
+	void WriteRedisCommand(RedisCommandFrame& cmd);
+};
+
+struct OpKey
+{
+	std::string key;
+	OpKey()
 	{
-			Channel* conn;
-			std::string server_key;
-			uint64 synced_cmd_seq;
-			uint32 state;
-			uint8 type;
-			SlaveConn(Channel* c = NULL);
-			SlaveConn(Channel* c, const std::string& key, uint64 seq);
-			void WriteRedisCommand(RedisCommandFrame& cmd);
-	};
+	}
+	OpKey(const std::string& k);
+	bool operator<(const OpKey& other) const;
+};
 
-	struct OpKey
+struct CachedOp
+{
+	uint8 type;
+	bool from_master;
+	CachedOp(uint8 t) :
+			type(t), from_master(false)
 	{
-			std::string key;
-			OpKey()
-			{
-			}
-			OpKey(const std::string& k);
-			bool operator<(const OpKey& other) const;
-	};
-
-	struct CachedOp
+	}
+	virtual ~CachedOp()
 	{
-			uint8 type;
-			bool from_master;
-			CachedOp(uint8 t) :
-					type(t), from_master(false)
-			{
-			}
-			virtual ~CachedOp()
-			{
-			}
-	};
-	struct CachedWriteOp: public CachedOp
+	}
+};
+struct CachedWriteOp: public CachedOp
+{
+	OpKey key;
+	std::string* v;
+	CachedWriteOp(uint8 t, OpKey& k);
+	~CachedWriteOp();
+};
+struct CachedCmdOp: public CachedOp
+{
+	RedisCommandFrame* cmd;
+	CachedCmdOp(RedisCommandFrame* c);
+	~CachedCmdOp();
+};
+
+struct ReplInstruction
+{
+	uint8 type;
+	void* ptr;
+	ReplInstruction(uint8 t = 0, void* p = NULL) :
+			type(t), ptr(p)
 	{
-			OpKey key;
-			std::string* v;
-			CachedWriteOp(uint8 t, OpKey& k);
-			~CachedWriteOp();
-	};
-	struct CachedCmdOp: public CachedOp
+	}
+};
+
+class Ardb;
+class ArdbServer;
+class ArdbServerConfig;
+
+class OpLogs
+{
+private:
+	ArdbServer* m_server;
+	uint64 m_min_seq;
+	uint64 m_max_seq;
+	FILE* m_op_log_file;
+	Buffer m_op_log_buffer;
+	uint32 m_current_oplog_record_size;
+	time_t m_last_flush_time;
+
+	std::string m_server_key;
+
+	typedef btree::btree_map<uint64, CachedOp*> CachedOpTable;
+	typedef btree::btree_map<OpKey, uint64> OpKeyIndexTable;
+	CachedOpTable m_mem_op_logs;
+	OpKeyIndexTable m_mem_op_idx;
+
+	void Routine();
+	void LoadCachedOpLog(Buffer & buf);
+	void LoadCachedOpLog(const std::string& file);
+	void FillCacheValue();
+
+	void RemoveExistOp(OpKey& key);
+	void RemoveOldestOp();
+	void ReOpenOpLog();
+	void RollbackOpLogs();
+	void FlushOpLog();
+	void WriteCachedOp(uint64 seq, CachedOp* op);
+	CachedOp* SaveCmdOp(RedisCommandFrame* cmd, bool writeOpLog = true);
+	CachedOp* SaveWriteOp(OpKey& opkey, uint8 type, bool writeOpLog = true,
+			std::string* v = NULL);
+public:
+	OpLogs(ArdbServer* server);
+	void Load();
+	int MemCacheSize()
 	{
-			RedisCommandFrame* cmd;
-			CachedCmdOp(RedisCommandFrame* c);
-			~CachedCmdOp();
-	};
-
-	struct ReplInstruction
+		return m_mem_op_logs.size();
+	}
+	int LoadOpLog(DBIDSet& dbs, uint64& seq, Buffer& cmd, bool is_master_slave);
+	uint64 GetMaxSeq()
 	{
-			uint8 type;
-			void* ptr;
-			ReplInstruction(uint8 t = 0, void* p = NULL) :
-					type(t), ptr(p)
-			{
-			}
-	};
-
-	class Ardb;
-	class ArdbServer;
-	class ArdbServerConfig;
-
-	class OpLogs
+		return m_max_seq;
+	}
+	uint64 GetMinSeq()
 	{
-		private:
-			ArdbServer* m_server;
-			uint64 m_min_seq;
-			uint64 m_max_seq;
-			FILE* m_op_log_file;
-			Buffer m_op_log_buffer;
-			uint32 m_current_oplog_record_size;
-			time_t m_last_flush_time;
-
-			std::string m_server_key;
-
-			typedef btree::btree_map<uint64, CachedOp*> CachedOpTable;
-			typedef btree::btree_map<OpKey, uint64> OpKeyIndexTable;
-			CachedOpTable m_mem_op_logs;
-			OpKeyIndexTable m_mem_op_idx;
-
-			void Routine();
-			void LoadCachedOpLog(Buffer & buf);
-			void LoadCachedOpLog(const std::string& file);
-			void FillCacheValue();
-
-			void RemoveExistOp(OpKey& key);
-			void RemoveOldestOp();
-			void ReOpenOpLog();
-			void RollbackOpLogs();
-			void FlushOpLog();
-			void WriteCachedOp(uint64 seq, CachedOp* op);
-			CachedOp* SaveCmdOp(RedisCommandFrame* cmd, bool writeOpLog = true);
-			CachedOp* SaveWriteOp(OpKey& opkey, uint8 type, bool writeOpLog =
-			        true, std::string* v = NULL);
-		public:
-			OpLogs(ArdbServer* server);
-			void Load();
-			int MemCacheSize()
-			{
-				return m_mem_op_logs.size();
-			}
-			int LoadOpLog(uint64& seq, Buffer& cmd, bool is_master_slave);
-			uint64 GetMaxSeq()
-			{
-				return m_max_seq;
-			}
-			uint64 GetMinSeq()
-			{
-				return m_min_seq;
-			}
-			CachedOp* SaveSetOp(const std::string& key,
-			        std::string* value);
-			CachedOp* SaveDeleteOp(const std::string& key);
-			CachedOp* SaveFlushOp(const DBID& db);
-			bool VerifyClient(const std::string& serverKey, uint64 seq);
-			const std::string& GetServerKey()
-			{
-				return m_server_key;
-			}
-	};
-
-	class SlaveClient: public ChannelUpstreamHandler<RedisCommandFrame>,
-	        public ChannelUpstreamHandler<Buffer>,
-	        public Runnable
+		return m_min_seq;
+	}
+	CachedOp* SaveSetOp(const std::string& key, std::string* value);
+	CachedOp* SaveDeleteOp(const std::string& key);
+	CachedOp* SaveFlushOp(const DBID& db);
+	bool VerifyClient(const std::string& serverKey, uint64 seq);
+	const std::string& GetServerKey()
 	{
-		private:
-			ArdbServer* m_serv;
-			Channel* m_client;
-			SocketHostAddress m_master_addr;
-			uint32 m_chunk_len;
-			uint32 m_slave_state;
-			bool m_cron_inited;
-			bool m_ping_recved;
-			RedisCommandDecoder m_decoder;
-			NullRedisReplyEncoder m_encoder;
+		return m_server_key;
+	}
+};
 
-			uint8 m_server_type;
-			std::string m_server_key;
-			uint64 m_sync_seq;
+class SlaveClient: public ChannelUpstreamHandler<RedisCommandFrame>,
+		public ChannelUpstreamHandler<Buffer>,
+		public Runnable
+{
+private:
+	ArdbServer* m_serv;
+	Channel* m_client;
+	SocketHostAddress m_master_addr;
+	uint32 m_chunk_len;
+	uint32 m_slave_state;
+	bool m_cron_inited;
+	bool m_ping_recved;
+	RedisCommandDecoder m_decoder;
+	NullRedisReplyEncoder m_encoder;
 
-			void MessageReceived(ChannelHandlerContext& ctx,
-			        MessageEvent<RedisCommandFrame>& e);
-			void MessageReceived(ChannelHandlerContext& ctx,
-			        MessageEvent<Buffer>& e);
-			void ChannelClosed(ChannelHandlerContext& ctx,
-			        ChannelStateEvent& e);
-			void ChannelConnected(ChannelHandlerContext& ctx,
-			        ChannelStateEvent& e);
-			void Timeout();
-			void Run();
-			void PersistSyncState();
-			void LoadSyncState();
-		public:
-			SlaveClient(ArdbServer* serv) :
-					m_serv(serv), m_client(NULL), m_chunk_len(0), m_slave_state(
-					        0), m_cron_inited(false), m_ping_recved(false), m_server_type(
-					        0), m_server_key("-"), m_sync_seq(0)
-			{
-			}
-			const SocketHostAddress& GetMasterAddress()
-			{
-				return m_master_addr;
-			}
-			int ConnectMaster(const std::string& host, uint32 port);
+	uint8 m_server_type;
+	std::string m_server_key;
+	uint64 m_sync_seq;
+	/*
+	 * empty means all db
+	 */
+	DBIDSet m_sync_dbs;
 
-			void Close();
-			void Stop();
-	};
-
-	class ReplicationService: public Thread,
-	        public SoftSignalHandler,
-	        public ChannelUpstreamHandler<Buffer>,
-	        public RawKeyListener
+	void MessageReceived(ChannelHandlerContext& ctx,
+			MessageEvent<RedisCommandFrame>& e);
+	void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<Buffer>& e);
+	void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e);
+	void ChannelConnected(ChannelHandlerContext& ctx, ChannelStateEvent& e);
+	void Timeout();
+	void Run();
+	void PersistSyncState();
+	void LoadSyncState();
+public:
+	SlaveClient(ArdbServer* serv) :
+			m_serv(serv), m_client(NULL), m_chunk_len(0), m_slave_state(0), m_cron_inited(
+					false), m_ping_recved(false), m_server_type(0), m_server_key(
+					"-"), m_sync_seq(0)
 	{
-		private:
-			ChannelService m_serv;
-			ArdbServer* m_server;
-			volatile bool m_is_saving;
-			uint32 m_last_save;
+	}
+	const SocketHostAddress& GetMasterAddress()
+	{
+		return m_master_addr;
+	}
+	void SetSyncDBs(DBIDSet& dbs)
+	{
+		m_sync_dbs = dbs;
+	}
 
-			void Run();
-			typedef std::deque<SlaveConn> SyncClientQueue;
-			typedef std::map<uint32, SlaveConn> SlaveConnTable;
-			SyncClientQueue m_waiting_slaves;
-			SlaveConnTable m_slaves;
+	int ConnectMaster(const std::string& host, uint32 port);
+	void Close();
+	void Stop();
+};
 
-			OpLogs m_oplogs;
+class ReplicationService: public Thread,
+		public SoftSignalHandler,
+		public ChannelUpstreamHandler<Buffer>,
+		public RawKeyListener
+{
+private:
+	ChannelService m_serv;
+	ArdbServer* m_server;
+	volatile bool m_is_saving;
+	uint32 m_last_save;
 
-			SoftSignalChannel* m_inst_signal;
-			MPSCQueue<ReplInstruction> m_inst_queue;
+	void Run();
+	typedef std::deque<SlaveConn> SyncClientQueue;
+	typedef std::map<uint32, SlaveConn> SlaveConnTable;
+	SyncClientQueue m_waiting_slaves;
+	SlaveConnTable m_slaves;
 
-			//connection id for the connection that is master-slave
-			uint32 m_master_slave_id;
-			void Routine();
-			void PingSlaves();
-			void ChannelClosed(ChannelHandlerContext& ctx,
-			        ChannelStateEvent& e);
-			void MessageReceived(ChannelHandlerContext& ctx,
-			        MessageEvent<Buffer>& e)
-			{
+	OpLogs m_oplogs;
 
-			}
-			void OnSoftSignal(uint32 soft_signo, uint32 appendinfo);
-			void ProcessInstructions();
-			void CheckSlaveQueue();
-			void FeedSlaves();
-			void FullSync(SlaveConn& client);
+	SoftSignalChannel* m_inst_signal;
+	MPSCQueue<ReplInstruction> m_inst_queue;
 
-			int OnKeyUpdated(const Slice& key,
-			        const Slice& value);
-			int OnKeyDeleted(const Slice& key);
-			void OfferInstruction(ReplInstruction& inst);
-		public:
-			ReplicationService(ArdbServer* serv);
-			int Init();
-			void ServSlaveClient(Channel* client);
-			void ServARSlaveClient(Channel* client,
-			        const std::string& serverKey, uint64 seq);
-			void RecordFlushDB(const DBID& db);
-			OpLogs& GetOpLogs()
-			{
-				return m_oplogs;
-			}
-			void MarkMasterSlave(Channel* conn)
-			{
-				m_master_slave_id = conn->GetID();
-			}
-			int Save();
-			int BGSave();
-			bool IsSavingData()
-			{
-				return m_is_saving;
-			}
-			uint32 LastSave()
-			{
-				return m_last_save;
-			}
-			~ReplicationService();
-	};
+	//connection id for the connection that is master-slave
+	uint32 m_master_slave_id;
+	void Routine();
+	void PingSlaves();
+	void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e);
+	void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<Buffer>& e)
+	{
+
+	}
+	void OnSoftSignal(uint32 soft_signo, uint32 appendinfo);
+	void ProcessInstructions();
+	void CheckSlaveQueue();
+	void FeedSlaves();
+	void FullSync(SlaveConn& client);
+
+	int OnKeyUpdated(const Slice& key, const Slice& value);
+	int OnKeyDeleted(const Slice& key);
+	void OfferInstruction(ReplInstruction& inst);
+public:
+	ReplicationService(ArdbServer* serv);
+	int Init();
+	void ServSlaveClient(Channel* client);
+	void ServARSlaveClient(Channel* client, const std::string& serverKey,
+			uint64 seq, DBIDSet& dbs);
+	void RecordFlushDB(const DBID& db);
+	OpLogs& GetOpLogs()
+	{
+		return m_oplogs;
+	}
+	void MarkMasterSlave(Channel* conn)
+	{
+		m_master_slave_id = conn->GetID();
+	}
+	int Save();
+	int BGSave();
+	bool IsSavingData()
+	{
+		return m_is_saving;
+	}
+	uint32 LastSave()
+	{
+		return m_last_save;
+	}
+	~ReplicationService();
+};
 }
 
 #endif /* REPLICATION_HPP_ */

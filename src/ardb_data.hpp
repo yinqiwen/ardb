@@ -34,6 +34,8 @@ namespace ardb
 	 */
 	typedef uint32 DBID;
 
+	typedef std::set<DBID> DBIDSet;
+
 	enum KeyType
 	{
 		KV = 0,
@@ -288,7 +290,6 @@ namespace ardb
 	typedef std::map<ValueObject, double> ValueScoreMap;
 
 	typedef std::set<ValueObject> ValueSet;
-	typedef std::set<DBID> DBIDSet;
 
 	typedef std::deque<ValueObject> ValueArray;
 	typedef std::vector<double> DoubleArray;
