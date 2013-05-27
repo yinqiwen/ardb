@@ -43,50 +43,48 @@ namespace ardb
 			{
 				start->resize(4);
 				start->assign(limit.data(), 0, 4);
-			} else
-			{
-
-//				uint32 akeysize, bkeysize;
-//				assert(BufferHelper::ReadVarUInt32(ak_buf, akeysize));
-//				assert(BufferHelper::ReadVarUInt32(bk_buf, bkeysize));
-//				assert(akeysize <= bkeysize);
-//				if (akeysize < bkeysize)
-//				{
-//					start->resize(ak_buf.GetReadIndex());
-//					start->assign(limit.data(), ak_buf.GetReadIndex());
-//				} else
-//				{
-//					size_t diff_index = ak_buf.GetReadIndex();
-//					while ((diff_index < start->size()
-//							&& diff_index < limit.size())
-//							&& ((*start)[diff_index] == limit[diff_index]))
-//					{
-//						diff_index++;
-//					}
-//					if (diff_index >= start->size())
-//					{
-//						// Do not shorten if one string is a prefix of the other
-//					} else
-//					{
-//						if (diff_index >= start->size() || limit.size())
-//						{
-//							return;
-//						}
-//						uint8_t diff_byte =
-//								static_cast<uint8_t>((*start)[diff_index]);
-//						if (diff_byte < static_cast<uint8_t>(0xff)
-//								&& diff_byte + 1
-//										< static_cast<uint8_t>(limit[diff_index]))
-//						{
-//							(*start)[diff_index]++;
-//							start->resize(diff_index + 1);
-//							assert(Compare(*start, limit) < 0);
-//						}
-//					}
-//				}
-
 			}
-
+			else
+			{
+				uint32 akeysize, bkeysize;
+				assert(BufferHelper::ReadVarUInt32(ak_buf, akeysize));
+				assert(BufferHelper::ReadVarUInt32(bk_buf, bkeysize));
+				assert(akeysize <= bkeysize);
+				if (akeysize < bkeysize)
+				{
+					start->resize(ak_buf.GetReadIndex());
+					start->assign(limit.data(), ak_buf.GetReadIndex());
+				} else
+				{
+					size_t diff_index = ak_buf.GetReadIndex();
+					while ((diff_index < start->size()
+							&& diff_index < limit.size())
+							&& ((*start)[diff_index] == limit[diff_index]))
+					{
+						diff_index++;
+					}
+					if (diff_index >= start->size())
+					{
+						// Do not shorten if one string is a prefix of the other
+					} else
+					{
+						if (diff_index >= start->size() || limit.size())
+						{
+							return;
+						}
+						uint8_t diff_byte =
+								static_cast<uint8_t>((*start)[diff_index]);
+						if (diff_byte < static_cast<uint8_t>(0xff)
+								&& diff_byte + 1
+										< static_cast<uint8_t>(limit[diff_index]))
+						{
+							(*start)[diff_index]++;
+							start->resize(diff_index + 1);
+							assert(Compare(*start, limit) < 0);
+						}
+					}
+				}
+			}
 		}
 	}
 

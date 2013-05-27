@@ -10,8 +10,7 @@
 
 namespace ardb
 {
-	int Ardb::GetValue(const KeyObject& key, ValueObject* v,
-	        uint64* expire)
+	int Ardb::GetValue(const KeyObject& key, ValueObject* v, uint64* expire)
 	{
 		Buffer keybuf(key.key.size() + 16);
 		encode_key(keybuf, key);
@@ -37,8 +36,7 @@ namespace ardb
 				{
 					GetEngine()->Del(k);
 					return ERR_NOT_EXIST;
-				}
-				else
+				} else
 				{
 					return ARDB_OK;
 				}
@@ -56,8 +54,7 @@ namespace ardb
 		return iter;
 	}
 
-	int Ardb::SetValue( KeyObject& key, ValueObject& value,
-	        uint64 expire)
+	int Ardb::SetValue(KeyObject& key, ValueObject& value, uint64 expire)
 	{
 		if (NULL != m_key_watcher)
 		{
@@ -101,7 +98,7 @@ namespace ardb
 		BatchWriteGuard guard(GetEngine());
 		while (kit != keys.end())
 		{
-			KeyObject keyobject(*kit, KV,db);
+			KeyObject keyobject(*kit, KV, db);
 			ValueObject valueobject;
 			smart_fill_value(*vit, valueobject);
 			SetValue(keyobject, valueobject);
@@ -122,14 +119,13 @@ namespace ardb
 		BatchWriteGuard guard(GetEngine());
 		while (kit != keys.end())
 		{
-			KeyObject keyobject(*kit, KV,db);
+			KeyObject keyobject(*kit, KV, db);
 			ValueObject valueobject;
 			if (0 != GetValue(keyobject, &valueobject))
 			{
 				smart_fill_value(*vit, valueobject);
 				SetValue(keyobject, valueobject);
-			}
-			else
+			} else
 			{
 				guard.MarkFailed();
 				return -1;
@@ -141,7 +137,7 @@ namespace ardb
 	}
 
 	int Ardb::Set(const DBID& db, const Slice& key, const Slice& value, int ex,
-	        int px, int nxx)
+			int px, int nxx)
 	{
 		KeyObject k(key, KV, db);
 		if (-1 == nxx)
@@ -150,8 +146,7 @@ namespace ardb
 			{
 				return ERR_KEY_EXIST;
 			}
-		}
-		else if (1 == nxx)
+		} else if (1 == nxx)
 		{
 			if (0 != GetValue(k, NULL))
 			{
@@ -176,7 +171,7 @@ namespace ardb
 	{
 		if (!Exists(db, key))
 		{
-			KeyObject keyobject(key, KV,db);
+			KeyObject keyobject(key, KV, db);
 			ValueObject valueobject;
 			smart_fill_value(value, valueobject);
 			int ret = SetValue(keyobject, valueobject);
@@ -186,12 +181,12 @@ namespace ardb
 	}
 
 	int Ardb::SetEx(const DBID& db, const Slice& key, const Slice& value,
-	        uint32_t secs)
+			uint32_t secs)
 	{
 		return PSetEx(db, key, value, secs * 1000);
 	}
 	int Ardb::PSetEx(const DBID& db, const Slice& key, const Slice& value,
-	        uint32_t ms)
+			uint32_t ms)
 	{
 		KeyObject keyobject(key, KV, db);
 		ValueObject valueobject;
@@ -295,7 +290,7 @@ namespace ardb
 		{
 			int ret = Del(db, *it);
 			it++;
-			if(ret >= 0)
+			if (ret >= 0)
 			{
 				size++;
 			}
@@ -404,7 +399,7 @@ namespace ardb
 			BatchWriteGuard guard(GetEngine());
 			Del(db, key1);
 			KeyObject k2(key2, KV, db);
-			return SetValue( k2, v);
+			return SetValue(k2, v);
 		}
 		return ERR_NOT_EXIST;
 	}
@@ -436,28 +431,110 @@ namespace ardb
 		return ERR_NOT_EXIST;
 	}
 
+//	int Ardb::Keys(const DBID& db, const std::string& pattern, StringSet& ret)
+//	{
+//		Slice empty;
+//		KeyObject start(empty, KV, db);
+//		Iterator* iter = FindValue(start);
+//		while (NULL != iter && iter->Valid())
+//		{
+//			Slice tmpkey = iter->Key();
+//			KeyObject* kk = decode_key(tmpkey);
+//			if (NULL != kk && kk->db == db)
+//			{
+//				std::string key(kk->key.data(), kk->key.size());
+//				if (fnmatch(pattern.c_str(), key.c_str(), 0) == 0)
+//				{
+//					if(ret.insert(key).second)
+//					{
+//						INFO_LOG("Key type :%d  %d", kk->type, kk->db);
+//					}
+//				}
+//				DELETE(kk);
+//			}
+//			iter->Next();
+//		}
+//		DELETE(iter);
+//		return 0;
+//	}
+
 	int Ardb::Keys(const DBID& db, const std::string& pattern, StringSet& ret)
 	{
-		Slice empty;
-		KeyObject start(empty, KV,db);
-		Iterator* iter = FindValue(start);
-		while (NULL != iter && iter->Valid())
+		std::string lastkey;
+		KeyType keytype = KV;
+		while (keytype <= TABLE_META)
 		{
-			Slice tmpkey = iter->Key();
-			KeyObject* kk = decode_key(tmpkey);
-			if (NULL != kk)
+			KeyObject start(lastkey, keytype, db);
+			HashKeyObject hstart(lastkey, Slice(), db);
+			Iterator* iter = FindValue(keytype == HASH_FIELD ? hstart : start);
+			if (!iter->Valid())
 			{
-				KeyType type = kk->type;
-				std::string key(kk->key.data(), kk->key.size());
-				if (fnmatch(pattern.c_str(), key.c_str(), 0) == 0)
-				{
-					ret.insert(key);
-				}
-				DELETE(kk);
+				DELETE(iter);
+				break;
 			}
-			iter->Next();
+			while (NULL != iter && iter->Valid())
+			{
+				Slice tmpkey = iter->Key();
+				KeyObject* kk = decode_key(tmpkey);
+				if (NULL != kk)
+				{
+					if (kk->db != db)
+					{
+						DELETE(kk);
+						DELETE(iter);
+						return 0;
+					}
+					if (kk->type != keytype)
+					{
+						lastkey = "";
+						switch (keytype)
+						{
+							case KV:
+							{
+								keytype = SET_META;
+								break;
+							}
+							case SET_META:
+							{
+								keytype = ZSET_META;
+								break;
+							}
+							case ZSET_META:
+							{
+								keytype = HASH_FIELD;
+								break;
+							}
+							case HASH_FIELD:
+							{
+								keytype = LIST_META;
+								break;
+							}
+							case LIST_META:
+							{
+								keytype = TABLE_META;
+								break;
+							}
+							case TABLE_META:
+							default:
+							{
+								DELETE(kk);
+								DELETE(iter);
+								return 0;
+							}
+						}
+						break;
+					}
+					std::string key(kk->key.data(), kk->key.size());
+					if (fnmatch(pattern.c_str(), key.c_str(), 0) == 0)
+					{
+						ret.insert(key);
+					}
+					DELETE(kk);
+				}
+				iter->Next();
+			}
+			DELETE(iter);
 		}
-		DELETE(iter);
 		return 0;
 	}
 }

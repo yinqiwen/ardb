@@ -322,6 +322,7 @@ namespace ardb
 			case LIST_META:
 			case TABLE_META:
 			case TABLE_SCHEMA:
+			case KV:
 			default:
 			{
 				return new KeyObject(keystr, (KeyType) type, db);
@@ -529,6 +530,20 @@ namespace ardb
 		valueobject.type = RAW;
 		char* v = const_cast<char*>(value.data());
 		valueobject.v.raw = new Buffer(v, 0, value.size());
+	}
+
+	void next_key(const Slice& key, std::string& next)
+	{
+		next.assign(key.data(), key.size());
+		for(uint32 i = next.size(); i > 0; i--)
+		{
+			if(next[i-1] < 0x7F)
+			{
+				next[i-1] = next[i-1] + 1;
+				return;
+			}
+		}
+		next.append("\0", 1);
 	}
 }
 

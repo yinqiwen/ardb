@@ -608,6 +608,7 @@ namespace ardb
 	void encode_value(Buffer& buf, const ValueObject& value);
 	bool decode_value(Buffer& buf, ValueObject& value,
 	        bool copyRawValue = true);
+	void next_key(const Slice& key, std::string& next);
 	void fill_raw_value(const Slice& value, ValueObject& valueobject);
 	void smart_fill_value(const Slice& value, ValueObject& valueobject);
 	int value_convert_to_raw(ValueObject& v);

@@ -47,8 +47,8 @@ namespace ardb
 		COMPARE_EXIST(found_a, found_b);
 		RETURN_NONEQ_RESULT(akeysize, bkeysize);
 
-		Slice akey(ak_buf.GetRawReadBuffer(), akeysize), bkey(
-				bk_buf.GetRawReadBuffer(), bkeysize);
+		Slice akey(ak_buf.GetRawReadBuffer(), akeysize);
+		Slice bkey(bk_buf.GetRawReadBuffer(), bkeysize);
 		found_a = ak_buf.ReadableBytes() >= akeysize;
 		found_b = bk_buf.ReadableBytes() >= bkeysize;
 		COMPARE_EXIST(found_a, found_b);
