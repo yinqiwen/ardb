@@ -49,8 +49,7 @@ namespace ardb
 
 	void SlaveConn::WriteRedisCommand(RedisCommandFrame& cmd)
 	{
-		static Buffer buf;
-		buf.Clear();
+		Buffer buf;
 		RedisCommandEncoder::Encode(buf, cmd);
 		conn->Write(buf);
 	}
@@ -555,8 +554,7 @@ namespace ardb
 						c(cc)
 				{
 				}
-				int OnRawKeyValue(const Slice& key,
-						const Slice& value)
+				int OnRawKeyValue(const Slice& key, const Slice& value)
 				{
 					ArgumentArray strs;
 					strs.push_back("__set__");
@@ -579,8 +577,7 @@ namespace ardb
 		INFO_LOG("Cost %llums to sync all data to slave.", (end-start));
 	}
 
-	int ReplicationService::OnKeyUpdated(const Slice& key,
-			const Slice& value)
+	int ReplicationService::OnKeyUpdated(const Slice& key, const Slice& value)
 	{
 		std::string* nk = new std::string(key.data(), key.size());
 		std::string* nv = new std::string(value.data(), value.size());

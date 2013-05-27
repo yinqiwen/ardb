@@ -144,6 +144,7 @@ namespace ardb
 			int DiscardBatchWrite();
 			Iterator* Find(const Slice& findkey, bool cache);
 			const std::string Stats();
+			void CompactRange(const Slice& begin, const Slice& end);
 	};
 
 	class LevelDBEngineFactory: public KeyValueEngineFactory

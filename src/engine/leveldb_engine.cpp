@@ -19,13 +19,13 @@
 namespace ardb
 {
 	int LevelDBComparator::Compare(const leveldb::Slice& a,
-	        const leveldb::Slice& b) const
+			const leveldb::Slice& b) const
 	{
 		return ardb_compare_keys(a.data(), a.size(), b.data(), b.size());
 	}
 
 	void LevelDBComparator::FindShortestSeparator(std::string* start,
-	        const leveldb::Slice& limit) const
+			const leveldb::Slice& limit) const
 	{
 		Buffer ak_buf(const_cast<char*>(start->data()), 0, start->size());
 		Buffer bk_buf(const_cast<char*>(limit.data()), 0, limit.size());
@@ -43,50 +43,47 @@ namespace ardb
 			{
 				start->resize(4);
 				start->assign(limit.data(), 0, 4);
-			}
-			else
+			} else
 			{
 
-				uint32 akeysize, bkeysize;
-				assert(BufferHelper::ReadVarUInt32(ak_buf, akeysize));
-				assert(BufferHelper::ReadVarUInt32(bk_buf, bkeysize));
-				assert(akeysize <= bkeysize);
-				if (akeysize < bkeysize)
-				{
-					start->resize(ak_buf.GetReadIndex());
-					start->assign(limit.data(), ak_buf.GetReadIndex());
-				}
-				else
-				{
-					size_t diff_index = ak_buf.GetReadIndex();
-					while ((diff_index < start->size()
-					        && diff_index < limit.size())
-					        && ((*start)[diff_index] == limit[diff_index]))
-					{
-						diff_index++;
-					}
-					if (diff_index >= start->size())
-					{
-						// Do not shorten if one string is a prefix of the other
-					}
-					else
-					{
-						if (diff_index >= start->size() || limit.size())
-						{
-							return;
-						}
-						uint8_t diff_byte =
-						        static_cast<uint8_t>((*start)[diff_index]);
-						if (diff_byte < static_cast<uint8_t>(0xff)
-						        && diff_byte + 1
-						                < static_cast<uint8_t>(limit[diff_index]))
-						{
-							(*start)[diff_index]++;
-							start->resize(diff_index + 1);
-							assert(Compare(*start, limit) < 0);
-						}
-					}
-				}
+//				uint32 akeysize, bkeysize;
+//				assert(BufferHelper::ReadVarUInt32(ak_buf, akeysize));
+//				assert(BufferHelper::ReadVarUInt32(bk_buf, bkeysize));
+//				assert(akeysize <= bkeysize);
+//				if (akeysize < bkeysize)
+//				{
+//					start->resize(ak_buf.GetReadIndex());
+//					start->assign(limit.data(), ak_buf.GetReadIndex());
+//				} else
+//				{
+//					size_t diff_index = ak_buf.GetReadIndex();
+//					while ((diff_index < start->size()
+//							&& diff_index < limit.size())
+//							&& ((*start)[diff_index] == limit[diff_index]))
+//					{
+//						diff_index++;
+//					}
+//					if (diff_index >= start->size())
+//					{
+//						// Do not shorten if one string is a prefix of the other
+//					} else
+//					{
+//						if (diff_index >= start->size() || limit.size())
+//						{
+//							return;
+//						}
+//						uint8_t diff_byte =
+//								static_cast<uint8_t>((*start)[diff_index]);
+//						if (diff_byte < static_cast<uint8_t>(0xff)
+//								&& diff_byte + 1
+//										< static_cast<uint8_t>(limit[diff_index]))
+//						{
+//							(*start)[diff_index]++;
+//							start->resize(diff_index + 1);
+//							assert(Compare(*start, limit) < 0);
+//						}
+//					}
+//				}
 
 			}
 
@@ -105,7 +102,7 @@ namespace ardb
 			aheader = adb << 8 + (type + 1);
 			aheader = htonl(aheader);
 			key->resize(4);
-			key->assign((const char*)(&aheader), 4);
+			key->assign((const char*) (&aheader), 4);
 		}
 	}
 
@@ -116,20 +113,20 @@ namespace ardb
 	}
 
 	void LevelDBEngineFactory::ParseConfig(const Properties& props,
-	        LevelDBConfig& cfg)
+			LevelDBConfig& cfg)
 	{
 		cfg.path = ".";
 		conf_get_string(props, "dir", cfg.path);
 		conf_get_int64(props, "leveldb.block_cache_size", cfg.block_cache_size);
 		conf_get_int64(props, "leveldb.write_buffer_size",
-		        cfg.write_buffer_size);
+				cfg.write_buffer_size);
 		conf_get_int64(props, "leveldb.max_open_files", cfg.max_open_files);
 		conf_get_int64(props, "leveldb.block_size", cfg.block_size);
 		conf_get_int64(props, "leveldb.block_restart_interval",
-		        cfg.block_restart_interval);
+				cfg.block_restart_interval);
 		conf_get_int64(props, "leveldb.bloom_bits", cfg.bloom_bits);
 		conf_get_int64(props, "leveldb.batch_commit_watermark",
-		        cfg.batch_commit_watermark);
+				cfg.batch_commit_watermark);
 	}
 
 	KeyValueEngine* LevelDBEngineFactory::CreateDB(const std::string& name)
@@ -225,38 +222,36 @@ namespace ardb
 		if (cfg.bloom_bits > 0)
 		{
 			options.filter_policy = leveldb::NewBloomFilterPolicy(
-			        cfg.bloom_bits);
+					cfg.bloom_bits);
 		}
 
 		make_dir(cfg.path);
 		m_db_path = cfg.path;
 		leveldb::Status status = leveldb::DB::Open(options, cfg.path.c_str(),
-		        &m_db);
+				&m_db);
 		do
 		{
 			if (!status.ok())
 			{
 				ERROR_LOG(
-				        "Failed to init engine:%s", status.ToString().c_str());
+						"Failed to init engine:%s", status.ToString().c_str());
 				if (status.IsCorruption())
 				{
 					status = leveldb::RepairDB(cfg.path.c_str(), options);
 					if (!status.ok())
 					{
 						ERROR_LOG(
-						        "Failed to repair:%s for %s", cfg.path.c_str(), status.ToString().c_str());
+								"Failed to repair:%s for %s", cfg.path.c_str(), status.ToString().c_str());
 						return -1;
 					}
 					status = leveldb::DB::Open(options, cfg.path.c_str(),
-					        &m_db);
+							&m_db);
 				}
-			}
-			else
+			} else
 			{
 				break;
 			}
-		}
-		while (1);
+		} while (1);
 		return status.ok() ? 0 : -1;
 	}
 
@@ -290,6 +285,15 @@ namespace ardb
 		return s.ok() ? 0 : -1;
 	}
 
+	void LevelDBEngine::CompactRange(const Slice& begin, const Slice& end)
+	{
+		leveldb::Slice s(begin.data(), begin.size());
+		leveldb::Slice e(end.data(), end.size());
+		leveldb::Slice* start = s.size() > 0 ? &s : NULL;
+		leveldb::Slice* endpos = e.size() > 0 ? &e : NULL;
+		m_db->CompactRange(start, endpos);
+	}
+
 	int LevelDBEngine::Put(const Slice& key, const Slice& value)
 	{
 		leveldb::Status s = leveldb::Status::OK();
@@ -301,14 +305,14 @@ namespace ardb
 		else
 		{
 			s = m_db->Put(leveldb::WriteOptions(), LEVELDB_SLICE(key),
-			        LEVELDB_SLICE(value));
+					LEVELDB_SLICE(value));
 		}
 		return s.ok() ? 0 : -1;
 	}
 	int LevelDBEngine::Get(const Slice& key, std::string* value)
 	{
 		leveldb::Status s = m_db->Get(leveldb::ReadOptions(),
-		        LEVELDB_SLICE(key), value);
+		LEVELDB_SLICE(key), value);
 		return s.ok() ? 0 : -1;
 	}
 	int LevelDBEngine::Del(const Slice& key)

@@ -27,6 +27,7 @@ namespace ardb
 	{
 		if (!kLogFilePath.empty())
 		{
+			make_file(kLogFilePath);
 			kLogFile = fopen(kLogFilePath.c_str(), "a+");
 			if (NULL == kLogFile)
 			{
@@ -90,7 +91,8 @@ namespace ardb
 		va_start(args, format);
 		for (;;)
 		{
-			char content[log_line_size + 1];
+			//char content[log_line_size + 1];
+			char* content = new char[log_line_size + 1];
 #ifndef va_copy
 #define va_copy(dst, src)   memcpy(&(dst), &(src), sizeof(va_list))
 #endif
@@ -100,11 +102,13 @@ namespace ardb
 			va_end(aq);
 			if (sz < 0)
 			{
+				DELETE_A(content);
 				return;
 			}
 			if ((size_t) sz < log_line_size)
 			{
 				record = content;
+				DELETE_A(content);
 				break;
 			}
 			log_line_size <<= 1;

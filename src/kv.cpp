@@ -63,13 +63,10 @@ namespace ardb
 		{
 			m_key_watcher->OnKeyUpdated(key.db, key.key);
 		}
-
-		static Buffer keybuf;
-		keybuf.Clear();
+		Buffer keybuf;
 		keybuf.EnsureWritableBytes(key.key.size() + 16);
 		encode_key(keybuf, key);
-		static Buffer valuebuf;
-		valuebuf.Clear();
+		Buffer valuebuf;
 		valuebuf.EnsureWritableBytes(64);
 		encode_value(valuebuf, value);
 		if (expire > 0)
