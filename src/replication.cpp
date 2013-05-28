@@ -77,33 +77,34 @@ namespace ardb
 			return;
 		}
 
-		if (m_slave_state == kSlaveStateSynced)
+		if (m_slave_state == kSlaveStateSynced && m_server_type == kArdbDB)
 		{
 			//extract sequence from last part
 			const std::string& seq = cmd->GetArguments().back();
 			string_touint64(seq, m_sync_seq);
 			cmd->GetArguments().pop_back();
 		}
-
-		ArdbConnContext actx;
-		actx.is_slave_conn = true;
-		actx.conn = ctx.GetChannel();
-		m_serv->ProcessRedisCommand(actx, *cmd);
+		if (NULL == m_actx)
+		{
+			NEW(m_actx, ArdbConnContext);
+		}
+		m_actx->is_slave_conn = true;
+		m_actx->conn = ctx.GetChannel();
+		m_serv->ProcessRedisCommand(*m_actx, *cmd);
 	}
 
 	void SlaveClient::MessageReceived(ChannelHandlerContext& ctx,
 			MessageEvent<Buffer>& e)
 	{
 		Buffer* msg = e.GetMessage();
-		int index = msg->IndexOf("\r\n", 2);
-		if (index == -1)
-		{
-			return;
-		}
 		switch (m_slave_state)
 		{
 			case kSlaveStateWaitingReplConfRes:
 			{
+				if (msg->IndexOf("\r\n", 2) == -1)
+				{
+					return;
+				}
 				char tmp;
 				msg->ReadByte(tmp);
 				/*
@@ -143,31 +144,58 @@ namespace ardb
 			{
 				char tmp;
 				msg->ReadByte(tmp);
-				if (tmp != '$')
+				if (tmp == '-')
 				{
-					ERROR_LOG("Expected char '$' : %d", tmp);
-					return;
-				}
-				char buf[index];
-				msg->Read(buf, index - 1);
-				buf[index - 1] = 0;
-				if (!str_touint32(buf, m_chunk_len))
-				{
-					ERROR_LOG("Invalid lenght %s.", buf);
-					return;
-				}
-				if (m_chunk_len == 0)
-				{
-					//just check first response chunk length to distinguish servers(redis/ardb)
-					m_server_type = kArdbDB;
-				} else
-				{
+					if (msg->IndexOf("\r\n", 2) == -1)
+					{
+						return;
+					}
+					msg->Clear();
 					m_server_type = kRedisTestDB;
+					/*
+					 * Downgrade to redis db
+					 */
+					Buffer sync;
+					sync.Printf("sync\r\n");
+					ctx.GetChannel()->Write(sync);
+					m_slave_state = kSlaveStateArsyncRes;
+					return;
+				} else if (tmp != '$')
+				{
+					WARN_LOG("Expected length header : %d %d", tmp, msg->ReadableBytes());
+					msg->Clear();
+					return;
 				}
-				/*
-				 * Skip '\r\n'
-				 */
-				msg->SkipBytes(2);
+				if (0 == m_server_type)
+				{
+					m_server_type = kArdbDB;
+				}
+				std::string chunklenstr;
+				while (msg->Readable())
+				{
+					char tmp = 0;
+					msg->ReadByte(tmp);
+					if (tmp >= '0' && tmp <= '9')
+					{
+						chunklenstr.append(&tmp, 1);
+					} else if (tmp == '\r' || tmp == '\n')
+					{
+						/*
+						 * skip '\r\n'
+						 */
+						continue;
+					} else
+					{
+						msg->AdvanceReadIndex(-1);
+						break;
+					}
+				}
+				DEBUG_LOG("chunklenstr = %s", chunklenstr.c_str());
+				if (!string_touint32(chunklenstr, m_chunk_len))
+				{
+					ERROR_LOG("Invalid lenght %s.", chunklenstr.c_str());
+					return;
+				}
 				//DEBUG_LOG("Sync bulk %d bytes", m_chunk_len);
 				m_slave_state = kSlaveStateSyncing;
 				break;
@@ -213,6 +241,7 @@ namespace ardb
 	{
 		m_client = NULL;
 		m_slave_state = 0;
+		DELETE(m_actx);
 		//reconnect master after 1000ms
 		struct ReconnectTask: public Runnable
 		{

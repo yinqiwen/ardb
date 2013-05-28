@@ -52,12 +52,12 @@ namespace ardb
 			std::string logfile;
 			ArdbServerConfig() :
 					daemonize(false), listen_port(0), unixsocketperm(755), max_clients(
-					        10000), tcp_keepalive(0), timeout(0), slowlog_log_slower_than(
-					        10000), slowlog_max_len(128), repl_data_dir(
-					        "./repl"), backup_dir("./backup"), repl_ping_slave_period(
-					        10), repl_timeout(60), rep_backlog_size(1000000), repl_syncstate_persist_period(
-					        1), master_port(0), repl_log_enable(true), worker_count(
-					        1), loglevel("INFO")
+							10000), tcp_keepalive(0), timeout(0), slowlog_log_slower_than(
+							10000), slowlog_max_len(128), repl_data_dir(
+							"./repl"), backup_dir("./backup"), repl_ping_slave_period(
+							10), repl_timeout(60), rep_backlog_size(1000000), repl_syncstate_persist_period(
+							1), master_port(0), repl_log_enable(true), worker_count(
+							1), loglevel("INFO")
 			{
 			}
 	};
@@ -66,7 +66,8 @@ namespace ardb
 	{
 			DBID db;
 			std::string key;
-			WatchKey():db(0)
+			WatchKey() :
+					db(0)
 			{
 			}
 			WatchKey(const DBID& id, const std::string& k) :
@@ -105,9 +106,9 @@ namespace ardb
 			PubSubChannelSet* pattern_pubsub_channle_set;
 			ArdbConnContext() :
 					currentDB(0), conn(NULL), in_transaction(false), fail_transc(
-					        false), is_slave_conn(false), transaction_cmds(
-					        NULL), watch_key_set(NULL), pubsub_channle_set(
-					        NULL), pattern_pubsub_channle_set(NULL)
+							false), is_slave_conn(false), transaction_cmds(
+							NULL), watch_key_set(NULL), pubsub_channle_set(
+							NULL), pattern_pubsub_channle_set(NULL)
 			{
 			}
 			uint64 SubChannelSize()
@@ -126,7 +127,7 @@ namespace ardb
 			bool IsSubscribedConn()
 			{
 				return NULL != pubsub_channle_set
-				        || NULL != pattern_pubsub_channle_set;
+						|| NULL != pattern_pubsub_channle_set;
 			}
 			bool IsInTransaction()
 			{
@@ -226,11 +227,11 @@ namespace ardb
 			ArdbServer* server;
 			ArdbConnContext ardbctx;
 			void MessageReceived(ChannelHandlerContext& ctx,
-			        MessageEvent<RedisCommandFrame>& e);
+					MessageEvent<RedisCommandFrame>& e);
 			void ChannelClosed(ChannelHandlerContext& ctx,
-			        ChannelStateEvent& e);
+					ChannelStateEvent& e);
 			void ChannelConnected(ChannelHandlerContext& ctx,
-			        ChannelStateEvent& e);
+					ChannelStateEvent& e);
 			RedisRequestHandler(ArdbServer* s) :
 					server(s)
 			{
@@ -243,7 +244,7 @@ namespace ardb
 	{
 		public:
 			typedef int (ArdbServer::*RedisCommandHandler)(ArdbConnContext&,
-			        RedisCommandFrame&);
+					RedisCommandFrame&);
 
 			struct RedisCommandHandlerSetting
 			{
@@ -279,12 +280,12 @@ namespace ardb
 			ThreadLocal<ArdbConnContext*> m_ctx_local;
 
 			RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(
-			        std::string& cmd);
+					std::string& cmd);
 			int DoRedisCommand(ArdbConnContext& ctx,
-			        RedisCommandHandlerSetting* setting,
-			        RedisCommandFrame& cmd);
+					RedisCommandHandlerSetting* setting,
+					RedisCommandFrame& cmd);
 			void ProcessRedisCommand(ArdbConnContext& ctx,
-			        RedisCommandFrame& cmd);
+					RedisCommandFrame& cmd);
 
 			void HandleReply(ArdbConnContext* ctx);
 
@@ -462,7 +463,7 @@ namespace ardb
 			Timer& GetTimer();
 		public:
 			static int ParseConfig(const Properties& props,
-			        ArdbServerConfig& cfg);
+					ArdbServerConfig& cfg);
 			ArdbServer(KeyValueEngineFactory& engine);
 			const ArdbServerConfig& GetServerConfig()
 			{

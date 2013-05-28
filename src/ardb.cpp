@@ -15,7 +15,7 @@
 		if (NULL != iter && iter->Valid()) \
 		{                                  \
 			Slice tmp = iter->Key();       \
-			KeyObject* k = decode_key(tmp); \
+			KeyObject* k = decode_key(tmp, &KEY); \
 			if(NULL != k && k->key.compare(KEY.key) == 0)\
 			{                                            \
 				TYPE = k->type;                          \
@@ -408,7 +408,12 @@ namespace ardb
 		{
 			Slice tmpkey = iter->Key();
 			Slice tmpval = iter->Value();
-			KeyObject* kk = decode_key(tmpkey);
+			KeyObject* kk = decode_key(tmpkey, NULL);
+			if(kk->db != db)
+			{
+				DELETE(kk);
+				break;
+			}
 			ValueObject v;
 			Buffer readbuf(const_cast<char*>(iter->Value().data()), 0,
 					iter->Value().size());

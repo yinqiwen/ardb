@@ -142,6 +142,7 @@ namespace ardb
 			}
 	};
 
+	class ArdbConnContext;
 	class SlaveClient: public ChannelUpstreamHandler<RedisCommandFrame>,
 			public ChannelUpstreamHandler<Buffer>,
 			public Runnable
@@ -165,6 +166,8 @@ namespace ardb
 			 */
 			DBIDSet m_sync_dbs;
 
+			ArdbConnContext *m_actx;
+
 			void MessageReceived(ChannelHandlerContext& ctx,
 					MessageEvent<RedisCommandFrame>& e);
 			void MessageReceived(ChannelHandlerContext& ctx,
@@ -181,7 +184,7 @@ namespace ardb
 			SlaveClient(ArdbServer* serv) :
 					m_serv(serv), m_client(NULL), m_chunk_len(0), m_slave_state(
 							0), m_cron_inited(false), m_ping_recved(false), m_server_type(
-							0), m_server_key("-"), m_sync_seq(0)
+							0), m_server_key("-"), m_sync_seq(0),m_actx(NULL)
 			{
 			}
 			const SocketHostAddress& GetMasterAddress()

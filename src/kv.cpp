@@ -475,7 +475,7 @@ namespace ardb
 			while (NULL != iter && iter->Valid())
 			{
 				Slice tmpkey = iter->Key();
-				KeyObject* kk = decode_key(tmpkey);
+				KeyObject* kk = decode_key(tmpkey, NULL);
 				if (NULL != kk)
 				{
 					if (kk->db != db)

@@ -219,7 +219,7 @@ namespace ardb
 		while (NULL != it && it->Valid())
 		{
 			Slice tmpkey = it->Key();
-			KeyObject* kk = decode_key(tmpkey);
+			KeyObject* kk = decode_key(tmpkey, &k);
 			if (NULL == kk)
 			{
 				break;

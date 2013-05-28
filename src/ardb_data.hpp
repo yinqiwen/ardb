@@ -603,7 +603,7 @@ namespace ardb
 	int compare_values(const ValueArray& a, const ValueArray& b);
 
 	void encode_key(Buffer& buf, const KeyObject& key);
-	KeyObject* decode_key(const Slice& key, KeyObject* expected = NULL);
+	KeyObject* decode_key(const Slice& key, KeyObject* expected);
 	bool peek_dbkey_header(const Slice& key,DBID& db, KeyType& type);
 
 	void encode_value(Buffer& buf, const ValueObject& value);

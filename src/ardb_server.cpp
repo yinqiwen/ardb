@@ -284,7 +284,7 @@ namespace ardb
 				{ "hget", &ArdbServer::HGet, 2, 2, 0 },
 				{ "hgetall", &ArdbServer::HGetAll, 1, 1, 0 },
 				{ "hincr", &ArdbServer::HIncrby, 3, 3, 1 },
-				{ "hmincr", &ArdbServer::HMIncrby, 3, -1, 1 },
+				{ "hmincrby", &ArdbServer::HMIncrby, 3, -1, 1 },
 				{ "hincrbyfloat", &ArdbServer::HIncrbyFloat, 3, 3, 1 },
 				{ "hkeys", &ArdbServer::HKeys, 1, 1, 0 },
 				{ "hlen", &ArdbServer::HLen, 1, 1, 0 },

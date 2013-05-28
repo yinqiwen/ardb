@@ -974,9 +974,8 @@ namespace ardb
 		if (NULL != iter && iter->Valid())
 		{
 			Slice tmpkey = iter->Key();
-			KeyObject* kk = decode_key(tmpkey);
-			if (NULL == kk || kk->type != TABLE_COL
-			        || kk->key.compare(tableName) != 0)
+			KeyObject* kk = decode_key(tmpkey, &cursor);
+			if (NULL == kk)
 			{
 				//nothing
 			}
