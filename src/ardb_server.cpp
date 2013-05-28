@@ -236,6 +236,8 @@ namespace ardb
 				{ "client", &ArdbServer::Client, 1, 3, 0 },
 				{ "flushdb", &ArdbServer::FlushDB, 0, 0, 1 },
 				{ "flushall", &ArdbServer::FlushAll, 0, 0, 1 },
+				{ "compactdb", &ArdbServer::CompactDB, 0, 0, 1 },
+				{ "compactall", &ArdbServer::CompactAll, 0, 0, 1 },
 				{ "time", &ArdbServer::Time, 0, 0, 0 },
 				{ "echo", &ArdbServer::Echo, 1, 1, 0 },
 				{ "quit", &ArdbServer::Quit, 0, 0, 0 },
@@ -1330,6 +1332,20 @@ namespace ardb
 		return -1;
 	}
 
+	int ArdbServer::CompactDB(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+	{
+		m_db->CompactDB(ctx.currentDB);
+		fill_status_reply(ctx.reply, "OK");
+		return 0;
+	}
+
+	int ArdbServer::CompactAll(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+	{
+		m_db->CompactAll();
+		fill_status_reply(ctx.reply, "OK");
+		return 0;
+	}
+
 	int ArdbServer::Slaveof(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
 		const std::string& host = cmd.GetArguments()[0];
@@ -1420,7 +1436,7 @@ namespace ardb
 		DBIDSet syncdbs;
 		if (cmd.GetArguments().size() > 2)
 		{
-			for(uint32 i = 2; i < cmd.GetArguments().size(); i++)
+			for (uint32 i = 2; i < cmd.GetArguments().size(); i++)
 			{
 				DBID syncdb;
 				if (!string_touint32(cmd.GetArguments()[i], syncdb)

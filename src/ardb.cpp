@@ -212,7 +212,7 @@ namespace ardb
 		return pos;
 	}
 
-	static const char* REPO_NAME = "data";
+	//static const char* REPO_NAME = "data";
 	Ardb::Ardb(KeyValueEngineFactory* engine, const std::string& path,
 			bool multi_thread) :
 			m_engine_factory(engine), m_engine(NULL), m_key_watcher(NULL), m_raw_key_listener(
@@ -226,7 +226,8 @@ namespace ardb
 		if (NULL == m_engine)
 		{
 			INFO_LOG("Start init storage engine.");
-			m_engine = m_engine_factory->CreateDB(REPO_NAME);
+			m_engine = m_engine_factory->CreateDB(
+					m_engine_factory->GetName().c_str());
 
 			KeyObject verkey(Slice(), KEY_END, 0xFFFFFF);
 			ValueObject ver;
@@ -424,6 +425,60 @@ namespace ardb
 		DELETE(iter);
 	}
 
+	int Ardb::CompactAll()
+	{
+		struct CompactTask: public Thread
+		{
+				Ardb* adb;
+				CompactTask(Ardb* db) :
+						adb(db)
+				{
+				}
+				void Run()
+				{
+					adb->GetEngine()->CompactRange(Slice(), Slice());
+					delete this;
+				}
+		};
+		/*
+		 * Start a background thread to compact kvs
+		 */
+		Thread* t = new CompactTask(this);
+		t->Start();
+		return 0;
+		return 0;
+	}
+
+	int Ardb::CompactDB(const DBID& db)
+	{
+		struct CompactTask: public Thread
+		{
+				Ardb* adb;
+				DBID dbid;
+				CompactTask(Ardb* db, DBID id) :
+						adb(db), dbid(id)
+				{
+				}
+				void Run()
+				{
+					KeyObject start(Slice(), KV, dbid);
+					KeyObject end(Slice(), KV, dbid + 1);
+					Buffer sbuf, ebuf;
+					encode_key(sbuf, start);
+					encode_key(ebuf, end);
+					adb->GetEngine()->CompactRange(sbuf.AsString(),
+							ebuf.AsString());
+					delete this;
+				}
+		};
+		/*
+		 * Start a background thread to compact kvs
+		 */
+		Thread* t = new CompactTask(this, db);
+		t->Start();
+		return 0;
+	}
+
 	int Ardb::FlushDB(const DBID& db)
 	{
 		struct VisitorTask: public RawValueVisitor, public Thread
@@ -458,7 +513,8 @@ namespace ardb
 					Buffer sbuf, ebuf;
 					encode_key(sbuf, start);
 					encode_key(ebuf, end);
-					adb->GetEngine()->CompactRange(sbuf.AsString(), ebuf.AsString());
+					adb->GetEngine()->CompactRange(sbuf.AsString(),
+							ebuf.AsString());
 					delete this;
 				}
 		};

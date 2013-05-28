@@ -13,7 +13,7 @@ To use 	KyotoCabinet/LMDB as storage engine, you should set env 'storage_engine'
 	storage_engine=kyotocabinet make
 	storage_engine=lmdb make
 
-Executable 'ardb-server' would be in 'src' directory.
+It should compile to several executables in 'src' directory, such as ardb-server, ardb-test etc.
 	
 
 ## Features
@@ -67,6 +67,7 @@ LevelDB Options: block_cache_size=512m, write_buffer_size=512m, thread_pool_size
   - TInsert/TReplace
   - TUpdate/TDel
   - TGet/TGetAll(Table commands)
+  - CompactDB/CompactAll
   
 
 

@@ -503,6 +503,8 @@ namespace ardb
 					ValueArray& values);
 			int FlushDB(const DBID& db);
 			int FlushAll();
+			int CompactDB(const DBID& db);
+			int CompactAll();
 
 			void PrintDB(const DBID& db);
 			void VisitDB(const DBID& db, RawValueVisitor* visitor);

@@ -213,8 +213,26 @@ namespace ardb
 	{
 		m_client = NULL;
 		m_slave_state = 0;
-		//reconnect master after 500ms
-		m_serv->GetTimer().Schedule(this, 500, -1);
+		//reconnect master after 1000ms
+		struct ReconnectTask: public Runnable
+		{
+				SlaveClient& sc;
+				ReconnectTask(SlaveClient& ssc) :
+						sc(ssc)
+				{
+				}
+				void Run()
+				{
+					if (NULL == sc.m_client
+							&& !sc.m_master_addr.GetHost().empty())
+					{
+						sc.ConnectMaster(sc.m_master_addr.GetHost(),
+								sc.m_master_addr.GetPort());
+					}
+				}
+		};
+		m_serv->GetTimer().ScheduleHeapTask(new ReconnectTask(*this), 1000, -1,
+				MILLIS);
 	}
 
 	void SlaveClient::Timeout()
@@ -256,20 +274,14 @@ namespace ardb
 
 	void SlaveClient::Run()
 	{
-		if (NULL == m_client && !m_master_addr.GetHost().empty())
+		if (m_slave_state == kSlaveStateSynced)
 		{
-			ConnectMaster(m_master_addr.GetHost(), m_master_addr.GetPort());
-		} else
-		{
-			if (m_slave_state == kSlaveStateSynced)
+			//do nothing
+			if (!m_ping_recved)
 			{
-				//do nothing
-				if (!m_ping_recved)
-				{
-					Timeout();
-				}
-				m_ping_recved = false;
+				Timeout();
 			}
+			m_ping_recved = false;
 		}
 	}
 
@@ -318,8 +330,8 @@ namespace ardb
 		m_client = m_serv->m_service->NewClientSocketChannel();
 		ChannelUpstreamHandler<Buffer>* handler = this;
 		m_client->GetPipeline().AddLast("handler", handler);
-		m_client->Connect(&m_master_addr);
 		m_slave_state = kSlaveStateConnecting;
+		m_client->Connect(&m_master_addr);
 		return 0;
 	}
 

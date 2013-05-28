@@ -344,6 +344,9 @@ namespace ardb
 			int RenameNX(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int Sort(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
+			int CompactDB(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int CompactAll(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+
 			int Append(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int Bitcount(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int Bitop(ArdbConnContext& ctx, RedisCommandFrame& cmd);
