@@ -12,10 +12,12 @@ To use 	KyotoCabinet/LMDB as storage engine, you should set env 'storage_engine'
 	
 	storage_engine=kyotocabinet make
 	storage_engine=lmdb make
+
+Executable 'ardb-server' would be in 'src' directory.
 	
 
 ## Features
-- Full redis-protocol compatibel
+- Full redis-protocol compatible
 - Most redis commands supported
 - Different storage engine supported(LevelDB/KyotoCabinet/LMDB)
 - Replication(Master-Slave/Master-Master)
@@ -35,7 +37,7 @@ LevelDB Options: block_cache_size=512m, write_buffer_size=512m, thread_pool_size
 ![Benchmark Img](https://raw.github.com/yinqiwen/ardb/master/doc/benchmark.png)
 
 	Becnhmark data(./redis-benchmark -t 'xxx' -r 10000000 -n 10000000):
-	                                  Ardb-LevelDB  Redis    PING_INLINE	                      158730.16  156250    PING_BULK	                      161290.33 163934.42    SET	                              84147.46	 140845.06    GET	                              119538.59 149253.73    INCR	                          73040.68	 149253.73    LPUSH	                          58139.53	 161290.33    LPOP	                          41666.67	 161290.33    SADD	                          45557.88	 149253.73    SPOP	                          27638.05	 153846.16    LPUSH	                          72674.41	 161290.33    LRANGE_100(first 100 elements)	   11515.43	 49019.61    LRANGE_300(first 300 elements)	   3837.89	 21008.4    LRANGE_500(first 450 elements)	   2589.6	 14684.29    LRANGE_600(first 600 elements)	   1883.06	 11312.22    MSET (10 keys)	                  12923.24	 54347.82
+	                                  Ardb-LevelDB  Redis    PING_INLINE	                      158730.16  156250    PING_BULK	                      161290.33 163934.42    SET	                              90859.53	 140845.06    GET	                              128279.13 149253.73    INCR	                          79841.59	 149253.73    LPUSH	                          74112.50	 161290.33    LPOP	                          41666.67	 161290.33    SADD	                          29583.09	 149253.73    SPOP	                          27638.05	 153846.16    LPUSH	                          72674.41	 161290.33    LRANGE_100(first 100 elements)	   15262.52  49019.61    LRANGE_300(first 300 elements)	   5015.80	 21008.4    LRANGE_500(first 450 elements)	   3430.06	 14684.29    LRANGE_600(first 600 elements)	   2614.72	 11312.22    MSET (10 keys)	                  12923.24	 54347.82
 
 - Note: The 'get' performance in Ardb may be slower in reality becauseof cache missing.
 
