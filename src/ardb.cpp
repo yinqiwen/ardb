@@ -59,7 +59,6 @@ namespace ardb
 		{
 			return ret;
 		}
-
 		switch (at)
 		{
 			case HASH_FIELD:

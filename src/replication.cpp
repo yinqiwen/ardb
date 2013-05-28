@@ -96,6 +96,10 @@ void SlaveClient::MessageReceived(ChannelHandlerContext& ctx,
 	Buffer* msg = e.GetMessage();
 	__process_buf: if (m_slave_state == kSlaveStateConnected)
 	{
+		if(!msg->Readable())
+		{
+			return;
+		}
 		int index = msg->IndexOf("\r\n", 2);
 		if (index != -1)
 		{
@@ -113,7 +117,7 @@ void SlaveClient::MessageReceived(ChannelHandlerContext& ctx,
 			if (tmp == '+')
 			{
 				DEBUG_LOG("Recv status:%s", buf);
-				msg->SkipBytes(2);
+				msg->SetReadIndex(index + 2);
 				goto __process_buf;
 			}
 			if (!str_touint32(buf, m_chunk_len))
@@ -169,6 +173,7 @@ void SlaveClient::ChannelClosed(ChannelHandlerContext& ctx,
 		ChannelStateEvent& e)
 {
 	m_client = NULL;
+	m_slave_state = 0;
 	//reconnect master after 500ms
 	m_serv->GetTimer().Schedule(this, 500, -1);
 }
@@ -251,6 +256,7 @@ void SlaveClient::ChannelConnected(ChannelHandlerContext& ctx,
 		sync.Printf("arsync %s %lld %s\r\n", m_server_key.c_str(), m_sync_seq,
 				stream.str().c_str());
 	}
+	//DEBUG_LOG("#####%s", sync.AsString().c_str());
 	ctx.GetChannel()->Write(sync);
 	m_slave_state = kSlaveStateConnected;
 	m_ping_recved = true;
@@ -359,9 +365,9 @@ void ReplicationService::CheckSlaveQueue()
 			Buffer content;
 			content.Printf("$0\r\n");
 			ch.conn->Write(content);
-			content.Clear();
 			if (m_oplogs.VerifyClient(ch.server_key, ch.synced_cmd_seq))
 			{
+				content.Clear();
 				content.Printf("arsynced %s %llu\r\n",
 						m_oplogs.GetServerKey().c_str(), ch.synced_cmd_seq);
 				ch.conn->Write(content);

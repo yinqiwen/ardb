@@ -400,7 +400,7 @@ int OpLogs::LoadOpLog(DBIDSet& dbs, uint64& seq, Buffer& buf, bool is_master_sla
 					DBID dbid;
 					KeyType keytype;
 					peek_dbkey_header(writeOp->key.key, dbid, keytype);
-					if(dbs.count(dbid) != 0)
+					if(dbs.count(dbid) == 0)
 					{
 						continue;
 					}
