@@ -1368,7 +1368,7 @@ namespace ardb
 
 	int ArdbServer::ReplConf(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
-		INFO_LOG(
+		DEBUG_LOG(
 				"%s %s", cmd.GetArguments()[0].c_str(), cmd.GetArguments()[1].c_str());
 		if (cmd.GetArguments().size() % 2 != 0)
 		{
