@@ -9,15 +9,14 @@
 #include "util/helpers.hpp"
 #include "util/datagram_packet.hpp"
 #include "util/buffer_helper.hpp"
-#include "util/thread/thread.hpp"
 #include <list>
 
 using namespace ardb;
 
 ChannelService::ChannelService(uint32 setsize) :
 		m_setsize(setsize), m_eventLoop(NULL), m_timer(NULL), m_signal_channel(
-		        NULL), m_self_soft_signal_channel(NULL), m_running(false), m_thread_pool_size(
-		        1), m_tid(0)
+				NULL), m_self_soft_signal_channel(NULL), m_running(false), m_thread_pool_size(
+				1), m_tid(0)
 {
 	m_eventLoop = aeCreateEventLoop(m_setsize);
 }
@@ -89,7 +88,7 @@ bool ChannelService::EventSunk(ChannelPipeline* pipeline, ChannelStateEvent& e)
 }
 
 bool ChannelService::EventSunk(ChannelPipeline* pipeline,
-        MessageEvent<Buffer>& e)
+		MessageEvent<Buffer>& e)
 {
 	Buffer* buffer = e.GetMessage();
 	RETURN_FALSE_IF_NULL(buffer);
@@ -99,7 +98,7 @@ bool ChannelService::EventSunk(ChannelPipeline* pipeline,
 }
 
 bool ChannelService::EventSunk(ChannelPipeline* pipeline,
-        MessageEvent<DatagramPacket>& e)
+		MessageEvent<DatagramPacket>& e)
 {
 	DatagramPacket* packet = e.GetMessage();
 	Channel* ch = e.GetChannel();
@@ -145,7 +144,7 @@ Channel* ChannelService::AttachChannel(Channel* ch, bool transfer_service_only)
 	if (ch->GetReadFD() != ch->GetWriteFD())
 	{
 		ERROR_LOG(
-		        "Failed to attach channel since source channel has diff read fd & write fd.");
+				"Failed to attach channel since source channel has diff read fd & write fd.");
 		return false;
 	}
 	Channel* newch = CloneChannel(ch);
@@ -192,12 +191,12 @@ Channel* ChannelService::CloneChannel(Channel* ch)
 		if (NULL != ch->m_pipeline_initializor)
 		{
 			newch->SetChannelPipelineInitializor(ch->m_pipeline_initializor,
-			        ch->m_pipeline_initailizor_user_data);
+					ch->m_pipeline_initailizor_user_data);
 		}
 		if (NULL != ch->m_pipeline_finallizer)
 		{
 			newch->SetChannelPipelineFinalizer(ch->m_pipeline_finallizer,
-			        ch->m_pipeline_finallizer_user_data);
+					ch->m_pipeline_finallizer_user_data);
 		}
 	}
 
@@ -218,7 +217,6 @@ void ChannelService::StartSubPool()
 				void Run()
 				{
 					serv->Start();
-					delete this;
 				}
 		};
 
@@ -228,6 +226,7 @@ void ChannelService::StartSubPool()
 			m_sub_pool.push_back(s);
 			LaunchThread* launch = new LaunchThread(s);
 			launch->Start();
+			m_sub_pool_ts.push_back(launch);
 		}
 	}
 }
@@ -265,6 +264,13 @@ void ChannelService::Stop()
 		{
 			(*it)->Stop();
 			it++;
+		}
+		ThreadVector::iterator tit = m_sub_pool_ts.begin();
+		while (tit != m_sub_pool_ts.end())
+		{
+			(*tit)->Join();
+			delete *tit;
+			tit++;
 		}
 	}
 }
@@ -393,7 +399,7 @@ void ChannelService::RemoveChannel(Channel* ch)
 		{
 			m_remove_queue.push_back(ch->GetID());
 			m_self_soft_signal_channel->FireSoftSignal(CHANNEL_REMOVE,
-			        ch->GetID());
+					ch->GetID());
 		}
 	}
 }
@@ -434,8 +440,7 @@ void ChannelService::AttachAcceptedChannel(SocketChannel *ch)
 	if (IsInLoopThread())
 	{
 		ch->OnAccepted();
-	}
-	else
+	} else
 	{
 		ch->m_detached = true;
 		ch->GetService().DetachChannel(ch, true);
@@ -498,25 +503,19 @@ void ChannelService::CloseAllChannelFD(std::set<Channel*>& exceptions)
 
 void ChannelService::CloseAllChannels(bool fireCloseEvent)
 {
-	ChannelTable::iterator it = m_channel_table.begin();
-	std::list<Channel*> temp;
-	while (it != m_channel_table.end())
+	ChannelTable tmp = m_channel_table;
+	ChannelTable::iterator it = tmp.begin();
+	while (it != tmp.end())
 	{
 		Channel* ch = it->second;
-		temp.push_back(ch);
-		it++;
-	}
-	std::list<Channel*>::iterator tit = temp.begin();
-	while (tit != temp.end())
-	{
-		Channel* ch = *tit;
 		if (fireCloseEvent)
 		{
 			ch->Close();
 		}
 		DeleteChannel(ch);
-		tit++;
+		it++;
 	}
+	m_channel_table.clear();
 }
 
 ChannelService::~ChannelService()

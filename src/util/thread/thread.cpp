@@ -49,6 +49,11 @@ void Thread::Stop()
 	m_state = TERMINATED;
 }
 
+void Thread::Join()
+{
+	pthread_join(m_tid, NULL);
+}
+
 void Thread::Start()
 {
 	if (m_state == INITIALIZED)

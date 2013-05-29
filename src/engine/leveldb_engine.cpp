@@ -192,40 +192,41 @@ namespace ardb
 	LevelDBEngine::~LevelDBEngine()
 	{
 		DELETE(m_db);
+		DELETE(m_options.block_cache);
+		DELETE(m_options.filter_policy);
 	}
 	int LevelDBEngine::Init(const LevelDBConfig& cfg)
 	{
 		m_cfg = cfg;
-		leveldb::Options options;
-		options.create_if_missing = true;
-		options.comparator = &m_comparator;
+		m_options.create_if_missing = true;
+		m_options.comparator = &m_comparator;
 		if (cfg.block_cache_size > 0)
 		{
 			leveldb::Cache* cache = leveldb::NewLRUCache(cfg.block_cache_size);
-			options.block_cache = cache;
+			m_options.block_cache = cache;
 		}
 		if (cfg.block_size > 0)
 		{
-			options.block_size = cfg.block_size;
+			m_options.block_size = cfg.block_size;
 		}
 		if (cfg.block_restart_interval > 0)
 		{
-			options.block_restart_interval = cfg.block_restart_interval;
+			m_options.block_restart_interval = cfg.block_restart_interval;
 		}
 		if (cfg.write_buffer_size > 0)
 		{
-			options.write_buffer_size = cfg.write_buffer_size;
+			m_options.write_buffer_size = cfg.write_buffer_size;
 		}
-		options.max_open_files = cfg.max_open_files;
+		m_options.max_open_files = cfg.max_open_files;
 		if (cfg.bloom_bits > 0)
 		{
-			options.filter_policy = leveldb::NewBloomFilterPolicy(
+			m_options.filter_policy = leveldb::NewBloomFilterPolicy(
 					cfg.bloom_bits);
 		}
 
 		make_dir(cfg.path);
 		m_db_path = cfg.path;
-		leveldb::Status status = leveldb::DB::Open(options, cfg.path.c_str(),
+		leveldb::Status status = leveldb::DB::Open(m_options, cfg.path.c_str(),
 				&m_db);
 		do
 		{
@@ -235,14 +236,14 @@ namespace ardb
 						"Failed to init engine:%s", status.ToString().c_str());
 				if (status.IsCorruption())
 				{
-					status = leveldb::RepairDB(cfg.path.c_str(), options);
+					status = leveldb::RepairDB(cfg.path.c_str(), m_options);
 					if (!status.ok())
 					{
 						ERROR_LOG(
 								"Failed to repair:%s for %s", cfg.path.c_str(), status.ToString().c_str());
 						return -1;
 					}
-					status = leveldb::DB::Open(options, cfg.path.c_str(),
+					status = leveldb::DB::Open(m_options, cfg.path.c_str(),
 							&m_db);
 				}
 			} else

@@ -511,7 +511,7 @@ namespace ardb
 		m_serv.GetTimer().ScheduleHeapTask(new HeartbeatTask(this),
 				m_server->m_cfg.repl_ping_slave_period,
 				m_server->m_cfg.repl_ping_slave_period, SECONDS);
-		m_serv.GetTimer().ScheduleHeapTask(new InstTask(this), 1, 1, MILLIS);
+		m_serv.GetTimer().ScheduleHeapTask(new InstTask(this), 100, 100, MILLIS);
 		m_inst_signal = m_serv.NewSoftSignalChannel();
 		m_inst_signal->Register(kSoftSinglaInstruction, this);
 		m_serv.Start();
@@ -598,7 +598,6 @@ namespace ardb
 	{
 		m_inst_queue.Push(inst);
 		m_inst_signal->FireSoftSignal(kSoftSinglaInstruction, 0);
-
 	}
 
 	void ReplicationService::ServARSlaveClient(Channel* client,
@@ -781,6 +780,12 @@ namespace ardb
 		BGTask* task = new BGTask(this);
 		task->Start();
 		return 0;
+	}
+
+	void ReplicationService::Stop()
+	{
+		m_serv.Stop();
+		m_serv.Wakeup();
 	}
 
 	ReplicationService::~ReplicationService()

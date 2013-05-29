@@ -130,6 +130,7 @@ namespace ardb
 			std::string m_db_path;
 
 			LevelDBConfig m_cfg;
+			leveldb::Options m_options;
 			friend class LevelDBEngineFactory;
 			int FlushWriteBatch(BatchHolder& holder);
 		public:

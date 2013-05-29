@@ -52,6 +52,17 @@ namespace ardb
 
 	}
 
+	OpLogs::~OpLogs()
+	{
+		CachedOpTable::iterator it = m_mem_op_logs.begin();
+		while (it != m_mem_op_logs.end())
+		{
+			CachedOp* op = it->second;
+			DELETE(op);
+			it++;
+		}
+	}
+
 	void OpLogs::FillCacheValue()
 	{
 		//load value in db for '__set__' cmd
@@ -333,8 +344,7 @@ namespace ardb
 	{
 		if (!with_seq)
 		{
-			seq = m_max_seq;
-			m_max_seq++;
+			seq = (++m_max_seq);
 		} else
 		{
 			if (seq > m_max_seq)
@@ -342,6 +352,7 @@ namespace ardb
 				m_max_seq = seq;
 			}
 		}
+		RemoveExistOp(seq);
 		CachedCmdOp* op = new CachedCmdOp(cmd);
 		m_mem_op_logs[seq] = op;
 		while (m_mem_op_logs.size()
@@ -362,8 +373,7 @@ namespace ardb
 		RemoveExistOp(opkey);
 		if (!with_seq)
 		{
-			seq = m_max_seq;
-			m_max_seq++;
+			seq = (++m_max_seq);
 		} else
 		{
 			if (seq > m_max_seq)
@@ -377,6 +387,8 @@ namespace ardb
 		{
 			op->v = v;
 		}
+
+		RemoveExistOp(seq);
 		m_mem_op_logs[seq] = op;
 		m_mem_op_idx[opkey] = seq;
 		while (m_mem_op_logs.size()
@@ -471,6 +483,17 @@ namespace ardb
 			}
 		}
 		return 0;
+	}
+
+	void OpLogs::RemoveExistOp(uint64 seq)
+	{
+		CachedOpTable::iterator fit = m_mem_op_logs.find(seq);
+		if (fit != m_mem_op_logs.end())
+		{
+			CachedOp* op = fit->second;
+			DELETE(op);
+			m_mem_op_logs.erase(fit);
+		}
 	}
 
 	void OpLogs::RemoveExistOp(OpKey& key)

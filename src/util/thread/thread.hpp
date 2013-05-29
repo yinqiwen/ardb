@@ -36,6 +36,7 @@ namespace ardb
 			virtual void Run();
 			void Start();
 			void Stop();
+			void Join();
 			ThreadState GetState()
 			{
 				return m_state;

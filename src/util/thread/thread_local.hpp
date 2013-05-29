@@ -32,7 +32,7 @@ namespace ardb
 
 			~ThreadLocal()
 			{
-				pthread_key_delete(m_key);
+				//pthread_key_delete(m_key);
 			}
 
 			T& GetValue()

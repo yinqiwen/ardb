@@ -106,6 +106,7 @@ namespace ardb
 			void FillCacheValue();
 
 			void RemoveExistOp(OpKey& key);
+			void RemoveExistOp(uint64 seq);
 			void RemoveOldestOp();
 			void ReOpenOpLog();
 			void RollbackOpLogs();
@@ -116,6 +117,7 @@ namespace ardb
 					std::string* v, bool with_seq, uint64 seq);
 		public:
 			OpLogs(ArdbServer* server);
+			~OpLogs();
 			void Routine();
 			void Load();
 			int MemCacheSize()
@@ -268,6 +270,7 @@ namespace ardb
 			{
 				return m_last_save;
 			}
+			void Stop();
 			~ReplicationService();
 	};
 }

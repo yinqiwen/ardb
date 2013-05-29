@@ -340,7 +340,6 @@ namespace ardb
 			int ReadFD(int fd, int& err);
 			int WriteFD(int fd, int& err);
 
-
 			inline std::string AsString()
 			{
 				return std::string(m_buffer + m_read_idx, ReadableBytes());

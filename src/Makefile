@@ -37,13 +37,22 @@ KCDB_PATH=${LIB_PATH}/${KCDB_VER}
 KCDB_FILE=${KCDB_PATH}.tar.gz
 KCDB_LIBA=${KCDB_PATH}/libkyotocabinet.a
 
-CXXFLAGS=-Wall -Wno-unused-parameter -Wno-format -g -O2  -D_FILE_OFFSET_BITS=64 -fPIC
-CCFLAGS=-Wall -Wno-unused-parameter -Wbad-function-cast -std=gnu99 -O2 -pedantic -Wno-format -g -D_FILE_OFFSET_BITS=64 -fPIC
+OPTIMIZATION?=-O2
+OPT=$(OPTIMIZATION)
+
+CXXFLAGS=-Wall -Wno-unused-parameter -Wno-format -g  ${OPT} -D_FILE_OFFSET_BITS=64 -fPIC
+CCFLAGS=-Wall -Wno-unused-parameter -Wbad-function-cast -std=gnu99 ${OPT} -pedantic -Wno-format -g -D_FILE_OFFSET_BITS=64 -fPIC
 LDFLAGS=-g 
 
 INCS=-I./  -I${LIB_PATH}/cpp-btree 
 
-LIBS=  ${TCMALLOC_LIBA} -lpthread
+ifeq ($(MALLOC),libc)
+#donothing
+else
+MALLOC_LIBA=${TCMALLOC_LIBA}
+endif
+
+LIBS=${MALLOC_LIBA} -lpthread
 
 %.o : %.cpp
 	${CXX} -c ${CXXFLAGS} ${INCS} $< -o $@
@@ -178,6 +187,11 @@ leveldb:snappy
 
 clean_launch_obj:
 	rm -f main.o
+	
+noopt:
+	$(MAKE) OPT="-O0"
+valgrind:
+	$(MAKE) OPT="-O0" MALLOC="libc"
 
 clean:
 	rm -f $(LEVELDB_TEST) $(KCDB_TEST) ${CORE_OBJECTS} ${LEVELDB_OBJECTS} \

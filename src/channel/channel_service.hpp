@@ -11,6 +11,7 @@
 #include "util/datagram_packet.hpp"
 //#include "util/zmq/ypipe.hpp"
 #include "util/concurrent_queue.hpp"
+#include "util/thread/thread.hpp"
 #include "channel/channel_event.hpp"
 #include "channel/timer/timer_channel.hpp"
 #include "channel/signal/signal_channel.hpp"
@@ -48,6 +49,7 @@ namespace ardb
 			typedef SPSCQueue<Runnable*> TaskList;
 			typedef std::tr1::unordered_map<uint32, Channel*> ChannelTable;
 			typedef std::vector<ChannelService*> ChannelServicePool;
+			typedef std::vector<Thread*> ThreadVector;
 			ChannelTable m_channel_table;
 			uint32 m_setsize;
 			aeEventLoop* m_eventLoop;
@@ -60,6 +62,8 @@ namespace ardb
 
 			uint32 m_thread_pool_size;
 			ChannelServicePool m_sub_pool;
+			ThreadVector m_sub_pool_ts;
+
 			pthread_t m_tid;
 
 			TaskList m_pending_tasks;
