@@ -201,7 +201,7 @@ namespace ardb
 		{
 			pos = buf->ReadableBytes() + pos;
 		}
-		if (pos >= buf->ReadableBytes())
+		if (pos > 0 && (uint32)pos >= buf->ReadableBytes())
 		{
 			pos = buf->ReadableBytes() - 1;
 		}

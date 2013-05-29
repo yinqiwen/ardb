@@ -125,7 +125,7 @@ static int decode_reply(Buffer& buffer, RedisReply& msg)
 			{
 				buffer.SetReadIndex(index + 2);
 				msg.type = REDIS_REPLY_STRING;
-				if (buffer.ReadableBytes() < len + 2)
+				if (buffer.ReadableBytes() < (uint32)(len + 2))
 				{
 					break;
 				}

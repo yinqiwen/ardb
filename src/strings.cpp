@@ -238,7 +238,7 @@ namespace ardb
 
 		}
 		value_convert_to_raw(v);
-		if (v.v.raw->Capacity() < byte + 1)
+		if (v.v.raw->Capacity() < uint32(byte + 1))
 		{
 			int tmp = byte + 1 - v.v.raw->Capacity();
 			v.v.raw->EnsureWritableBytes(tmp, true);
@@ -257,7 +257,7 @@ namespace ardb
 		if (byteval != tmp)
 		{
 			((uint8_t*) v.v.raw->GetRawReadBuffer())[byte] = byteval;
-			if (byte >= v.v.raw->GetWriteIndex())
+			if (uint32(byte) >= v.v.raw->GetWriteIndex())
 			{
 				v.v.raw->SetWriteIndex(byte + 1);
 			}
@@ -295,8 +295,8 @@ namespace ardb
 	{
 		long op, j, numkeys;
 		unsigned char **src;
-		long maxlen = 0;
-		long minlen = 0;
+		uint32 maxlen = 0;
+		uint32 minlen = 0;
 		unsigned char *res = NULL;
 
 		/* Parse the operation name. */
@@ -322,7 +322,7 @@ namespace ardb
 
 		/* Lookup keys, and store pointers to the string objects into an array. */
 		numkeys = keys.size();
-		std::vector<int> lens;
+		std::vector<uint32> lens;
 		ValueArray vs;
 		lens.reserve(numkeys);
 		src = (unsigned char **) malloc(sizeof(unsigned char*) * numkeys);

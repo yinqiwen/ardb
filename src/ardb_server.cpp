@@ -2563,22 +2563,22 @@ namespace ardb
 		return NULL;
 	}
 
-	static bool is_sort_write_cmd(RedisCommandFrame& cmd)
-	{
-		if (cmd.GetCommand() == "sort")
-		{
-			ArgumentArray::iterator it = cmd.GetArguments().begin();
-			while (it != cmd.GetArguments().end())
-			{
-				if (*it == "store")
-				{
-					return true;
-				}
-				it++;
-			}
-		}
-		return false;
-	}
+//	static bool is_sort_write_cmd(RedisCommandFrame& cmd)
+//	{
+//		if (cmd.GetCommand() == "sort")
+//		{
+//			ArgumentArray::iterator it = cmd.GetArguments().begin();
+//			while (it != cmd.GetArguments().end())
+//			{
+//				if (*it == "store")
+//				{
+//					return true;
+//				}
+//				it++;
+//			}
+//		}
+//		return false;
+//	}
 
 	void ArdbServer::ProcessRedisCommand(ArdbConnContext& ctx,
 			RedisCommandFrame& args)
@@ -2674,7 +2674,7 @@ namespace ardb
 		uint64 stop_time = get_current_epoch_micros();
 
 		if (m_cfg.slowlog_log_slower_than
-				&& (stop_time - start_time) > m_cfg.slowlog_log_slower_than)
+				&& (stop_time - start_time) > (uint64)m_cfg.slowlog_log_slower_than)
 		{
 			m_slowlog_handler.PushSlowCommand(args, stop_time - start_time);
 		}

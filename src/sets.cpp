@@ -60,7 +60,7 @@ namespace ardb
 	int Ardb::SAdd(const DBID& db, const Slice& key, const SliceArray& values)
 	{
 		int count = 0;
-		for (int i = 0; i < values.size(); i++)
+		for (uint32 i = 0; i < values.size(); i++)
 		{
 			count += SAdd(db, key, values[i]);
 		}
@@ -291,8 +291,8 @@ namespace ardb
 		}
 		struct SDiffWalk: public WalkHandler
 		{
-				int idx;
 				ValueSet& vset;
+				uint32 idx;
 				ValueObject vlimit;
 				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
@@ -318,12 +318,12 @@ namespace ardb
 					}
 					return 0;
 				}
-				SDiffWalk(ValueSet& vs, int i, const ValueObject& limit) :
+				SDiffWalk(ValueSet& vs, uint32 i, const ValueObject& limit) :
 						vset(vs), idx(i), vlimit(limit)
 				{
 				}
 		};
-		for (int i = 0; i < keys.size(); i++)
+		for (uint32 i = 0; i < keys.size(); i++)
 		{
 			Slice k = keys[i];
 			ValueObject search_value;
@@ -334,7 +334,6 @@ namespace ardb
 				{
 					break;
 				}
-				int cmp_min = metas[i].min.Compare(*(values.rbegin()));
 				if (metas[i].min.Compare(*(values.rbegin())) > 0)
 				{
 					continue;
@@ -416,10 +415,10 @@ namespace ardb
 		{
 			return ERR_INVALID_ARGS;
 		}
-		uint32_t min_size = -1;
+		int32 min_size = -1;
 		SetMetaValueArray metas;
-		uint32_t min_idx = 0;
-		uint32_t idx = 0;
+		uint32 min_idx = 0;
+		uint32 idx = 0;
 		ValueObject min;
 		ValueObject max;
 		SliceArray::iterator kit = keys.begin();
@@ -428,7 +427,7 @@ namespace ardb
 			SetMetaValue meta;
 			if (0 == GetSetMetaValue(db, *kit, meta))
 			{
-				if (min_size == -1 || min_size > meta.size)
+				if (min_size == -1 || min_size > (int32)meta.size)
 				{
 					min_size = meta.size;
 					min_idx = idx;
@@ -626,12 +625,12 @@ namespace ardb
 		Slice empty;
 		SetKeyObject sk(key, empty, db);
 		Iterator* iter = FindValue(sk, true);
-		int total = count;
+		uint32 total = count;
 		if (count < 0)
 		{
 			total = 0 - count;
 		}
-		int cursor = 0;
+		uint32 cursor = 0;
 		while (iter != NULL && iter->Valid())
 		{
 			Slice tmpkey = iter->Key();
@@ -672,7 +671,7 @@ namespace ardb
 
 	int Ardb::SUnion(const DBID& db, SliceArray& keys, ValueSet& values)
 	{
-		for (int i = 0; i < keys.size(); i++)
+		for (uint32 i = 0; i < keys.size(); i++)
 		{
 			Slice k = keys.at(i);
 			ValueArray vss;

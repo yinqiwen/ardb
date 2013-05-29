@@ -510,7 +510,7 @@ namespace ardb
 				"abcdefghijklmnopqrstuvwxyz";
 		srand(time(NULL));
 		char buf[len];
-		for (int i = 0; i < len; ++i)
+		for (uint32 i = 0; i < len; ++i)
 		{
 			buf[i] = alphanum[rand() % (sizeof(alphanum) - 1)];
 		}

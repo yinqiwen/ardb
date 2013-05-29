@@ -18,8 +18,8 @@ namespace ardb
 			}
 			int Compare(const TableRow& other) const
 			{
-				if (sort_item_idx >= 0 && vs.size() > sort_item_idx
-				        && other.vs.size() > sort_item_idx)
+				if (sort_item_idx >= 0 && vs.size() > (uint32)sort_item_idx
+				        && other.vs.size() > (uint32)sort_item_idx)
 				{
 					return vs[sort_item_idx].Compare(other.vs[sort_item_idx]);
 				}
@@ -346,7 +346,7 @@ namespace ardb
 		{
 			return false;
 		}
-		for (int i = 0; i < len; i++)
+		for (uint32 i = 0; i < len; i++)
 		{
 			std::string tmp;
 			if (!BufferHelper::ReadVarString(*(v.v.raw), tmp))
@@ -355,7 +355,7 @@ namespace ardb
 			}
 			meta.keynames.push_back(tmp);
 		}
-		for (int i = 0; i < collen; i++)
+		for (uint32 i = 0; i < collen; i++)
 		{
 			std::string tmp;
 			if (!BufferHelper::ReadVarString(*(v.v.raw), tmp))
@@ -375,7 +375,7 @@ namespace ardb
 		}
 		BufferHelper::WriteVarUInt32(*(v.v.raw), meta.keynames.size());
 		BufferHelper::WriteVarUInt32(*(v.v.raw), meta.valnames.size());
-		for (int i = 0; i < meta.keynames.size(); i++)
+		for (uint32 i = 0; i < meta.keynames.size(); i++)
 		{
 			BufferHelper::WriteVarString(*(v.v.raw), meta.keynames[i]);
 		}
@@ -652,7 +652,7 @@ namespace ardb
 
 		TableKeyIndexSet* current = indexs;
 		TableKeyIndexSet* next = temp;
-		for (int i = 0; i < conds.size(); i++)
+		for (uint32 i = 0; i < conds.size(); i++)
 		{
 			Condition& cond = conds[i];
 			if (i == 0)
@@ -794,7 +794,7 @@ namespace ardb
 				}
 				else
 				{
-					if (holder.first < iit->keyvals.size())
+					if ((uint32)holder.first < iit->keyvals.size())
 					{
 						ValueObject v = iit->keyvals[holder.first];
 						if (options.with_alpha)
@@ -831,6 +831,10 @@ namespace ardb
 		if (!options.with_limit)
 		{
 			options.limit_offset = 0;
+			options.limit_count = rows.size();
+		}
+		if(options.limit_count < 0)
+		{
 			options.limit_count = rows.size();
 		}
 
@@ -911,7 +915,7 @@ namespace ardb
 		}
 		uint32 count = 0;
 		for (uint32 i = options.limit_offset;
-		        i < rows.size() && count < options.limit_count; i++)
+		        i < rows.size() && count < (uint32)options.limit_count; i++)
 		{
 			ValueArray::iterator it = rows[i].vs.begin();
 			while (it != rows[i].vs.end())
@@ -1201,7 +1205,7 @@ namespace ardb
 		if (0 == GetTableSchemaValue(db, tableName, schema))
 		{
 			str.append("Keys: ");
-			for (int i = 0; i < schema.keynames.size(); i++)
+			for (uint32 i = 0; i < schema.keynames.size(); i++)
 			{
 				str.append(schema.keynames[i]).append(" ");
 			}

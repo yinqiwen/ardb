@@ -14,7 +14,7 @@ namespace ardb
 	{
 		LockGuard<ThreadMutex> guard(m_mutex);
 		while (m_cfg.slowlog_max_len > 0
-		        && m_cmds.size() >= m_cfg.slowlog_max_len)
+		        && m_cmds.size() >= (uint32)m_cfg.slowlog_max_len)
 		{
 			m_cmds.pop_front();
 		}

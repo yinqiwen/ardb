@@ -179,7 +179,6 @@ namespace ardb
 	{
 		struct stat buf;
 		int ret = stat(path.c_str(), &buf);
-		int64 filesize = 0;
 		if (0 == ret)
 		{
 			if (S_ISDIR(buf.st_mode))
@@ -219,7 +218,6 @@ namespace ardb
 	{
 		struct stat buf;
 		int ret = stat(path.c_str(), &buf);
-		int64 filesize = 0;
 		if (0 == ret)
 		{
 			if (S_ISDIR(buf.st_mode))
@@ -307,7 +305,7 @@ namespace ardb
 			{
 				SHA1Update(&ctx, buf, ret);
 			}
-			if (ret < buf_size)
+			if (ret < (int)buf_size)
 			{
 				break;
 			}

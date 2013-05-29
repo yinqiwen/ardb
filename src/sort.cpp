@@ -181,7 +181,7 @@ namespace ardb
 			{
 				options.limit_offset = 0;
 			}
-			if (options.limit_offset > sortvals.size())
+			if ((uint32)options.limit_offset > sortvals.size())
 			{
 				values.clear();
 				return 0;
@@ -271,7 +271,7 @@ namespace ardb
 
 		uint32 count = 0;
 		for (uint32 i = options.limit_offset;
-		        i < sortvals.size() && count < options.limit_count;
+		        i < sortvals.size() && count < (uint32)options.limit_count;
 		        i++, count++)
 		{
 			ValueObject* patternObj = NULL;

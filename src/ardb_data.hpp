@@ -559,8 +559,8 @@ namespace ardb
 			SliceArray names;
 			Slice orderby;
 			bool with_limit;
-			int limit_offset;
-			int limit_count;
+			int32 limit_offset;
+			int32 limit_count;
 			bool with_desc_asc;
 			bool is_desc;
 			bool with_alpha;

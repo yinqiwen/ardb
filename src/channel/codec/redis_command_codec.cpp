@@ -19,9 +19,8 @@ static const uint32 REDIS_REQ_INLINE = 1;
 static const uint32 REDIS_REQ_MULTIBULK = 2;
 static const char* kCRLF = "\r\n";
 
-
 int RedisCommandDecoder::ProcessInlineBuffer(ChannelHandlerContext& ctx,
-        Buffer& buffer, RedisCommandFrame& frame)
+		Buffer& buffer, RedisCommandFrame& frame)
 {
 	int index = buffer.IndexOf(kCRLF, 2);
 	if (-1 == index)
@@ -64,7 +63,7 @@ int RedisCommandDecoder::ProcessInlineBuffer(ChannelHandlerContext& ctx,
 }
 
 int RedisCommandDecoder::ProcessMultibulkBuffer(ChannelHandlerContext& ctx,
-        Buffer& buffer, RedisCommandFrame& frame)
+		Buffer& buffer, RedisCommandFrame& frame)
 {
 	int index = buffer.IndexOf(kCRLF, 2);
 	if (-1 == index)
@@ -78,8 +77,7 @@ int RedisCommandDecoder::ProcessMultibulkBuffer(ChannelHandlerContext& ctx,
 	{
 		buffer.SetReadIndex(index + 2);
 		return 1;
-	}
-	else if (multibulklen > 1024 * 1024)
+	} else if (multibulklen > 1024 * 1024)
 	{
 		APIException ex("Protocol error: invalid multibulk length");
 		fire_exception_caught(ctx.GetChannel(), ex);
@@ -111,9 +109,8 @@ int RedisCommandDecoder::ProcessMultibulkBuffer(ChannelHandlerContext& ctx,
 			return 0;
 		}
 		const char* raw = buffer.GetRawReadBuffer();
-		uint32 arglen = (uint32) strtol(raw, &eptr, 10);
-		if (eptr[0] != '\r' || arglen == LONG_MIN || arglen == LONG_MAX
-		        || arglen < 0 || arglen > 512 * 1024 * 1024)
+		int32 arglen = (uint32) strtol(raw, &eptr, 10);
+		if (eptr[0] != '\r' || arglen < 0 || arglen > 512 * 1024 * 1024)
 		{
 			APIException ex("Protocol error: invalid bulk length");
 			fire_exception_caught(ctx.GetChannel(), ex);
@@ -124,7 +121,7 @@ int RedisCommandDecoder::ProcessMultibulkBuffer(ChannelHandlerContext& ctx,
 		{
 			return 0;
 		}
-		if (buffer.ReadableBytes() < (arglen + 2))
+		if (buffer.ReadableBytes() < (uint32) (arglen + 2))
 		{
 			return 0;
 		}
@@ -146,7 +143,7 @@ int RedisCommandDecoder::ProcessMultibulkBuffer(ChannelHandlerContext& ctx,
 }
 
 bool RedisCommandDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel,
-        Buffer& buffer, RedisCommandFrame& msg)
+		Buffer& buffer, RedisCommandFrame& msg)
 {
 	int reqtype = -1;
 	size_t mark_read_index = buffer.GetReadIndex();
@@ -159,8 +156,7 @@ bool RedisCommandDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel,
 			reqtype = REDIS_REQ_MULTIBULK;
 			msg.m_is_inline = false;
 			ret = ProcessMultibulkBuffer(ctx, buffer, msg);
-		}
-		else
+		} else
 		{
 			reqtype = REDIS_REQ_INLINE;
 			msg.m_is_inline = true;
@@ -170,8 +166,7 @@ bool RedisCommandDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel,
 		if (ret > 0)
 		{
 			return true;
-		}
-		else
+		} else
 		{
 			msg.Clear();
 			if (0 == ret)
@@ -202,7 +197,7 @@ bool RedisCommandEncoder::Encode(Buffer& buf, RedisCommandFrame& cmd)
 }
 
 bool RedisCommandEncoder::WriteRequested(ChannelHandlerContext& ctx,
-        MessageEvent<RedisCommandFrame>& e)
+		MessageEvent<RedisCommandFrame>& e)
 {
 	RedisCommandFrame* msg = e.GetMessage();
 	Buffer buffer(1024);

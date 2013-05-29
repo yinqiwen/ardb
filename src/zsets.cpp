@@ -70,7 +70,7 @@ namespace ardb
 		}
 		ZAdd(db, key, scores, svs);
 		GetZSetMetaValue(db, key, meta);
-		if (meta.size > setlimit)
+		if (meta.size > (uint32)setlimit)
 		{
 			ZPop(db, key, false, meta.size - setlimit, pops);
 		}
@@ -481,7 +481,7 @@ namespace ardb
 		{
 			stop = stop + meta.size;
 		}
-		if (start < 0 || stop < 0 || start >= meta.size)
+		if (start < 0 || stop < 0 || (uint32)start >= meta.size)
 		{
 			return ERR_INVALID_ARGS;
 		}
@@ -612,7 +612,7 @@ namespace ardb
 		{
 			stop = stop + meta.size;
 		}
-		if (start < 0 || stop < 0 || start >= meta.size)
+		if (start < 0 || stop < 0 || (uint32)start >= meta.size)
 		{
 			return ERR_INVALID_ARGS;
 		}
@@ -764,7 +764,7 @@ namespace ardb
 		{
 			stop = stop + meta.size;
 		}
-		if (start < 0 || stop < 0 || start >= meta.size)
+		if (start < 0 || stop < 0 || (uint32)start >= meta.size)
 		{
 			return ERR_INVALID_ARGS;
 		}

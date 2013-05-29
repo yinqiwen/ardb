@@ -322,27 +322,26 @@ namespace ardb
 		}
 		struct LIndexWalk: public WalkHandler
 		{
-				int cursor;
-				int index;
+				uint32 lcursor;
+				uint32 index;
 				std::string& found_value;
 				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
-					//ListKeyObject* lck = (ListKeyObject*)k;
 					if (cursor == index)
 					{
 						v->ToString(found_value);
 						return -1;
 					}
-					cursor++;
+					lcursor++;
 					return 0;
 				}
-				LIndexWalk(int i, std::string& v) :
-						cursor(0), index(i), found_value(v)
+				LIndexWalk(uint32 i, std::string& v) :
+						lcursor(0), index(i), found_value(v)
 				{
 				}
-		} walk(index, v);
+		} walk((uint32)index, v);
 		Walk(lk, reverse, &walk);
-		if (walk.cursor == walk.index)
+		if (walk.lcursor == walk.index)
 		{
 			return 0;
 		}
@@ -505,8 +504,8 @@ namespace ardb
 		{
 				Ardb* z_db;
 				const Slice& set_value;
-				int cursor;
-				int dst_idx;
+				uint32 lcursor;
+				uint32 dst_idx;
 				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					ListKeyObject* sek = (ListKeyObject*) k;
@@ -517,16 +516,16 @@ namespace ardb
 						z_db->SetValue(*sek, v);
 						return -1;
 					}
-					cursor++;
+					lcursor++;
 					return 0;
 				}
-				LSetWalk(Ardb* db, const Slice& v, int index) :
-						z_db(db), set_value(v), cursor(0), dst_idx(index)
+				LSetWalk(Ardb* db, const Slice& v, uint32 index) :
+						z_db(db), set_value(v), lcursor(0), dst_idx(index)
 				{
 				}
-		} walk(this, value, index);
+		} walk(this, value, (uint32)index);
 		Walk(lk, false, &walk);
-		if (walk.cursor != index)
+		if (walk.lcursor != walk.dst_idx)
 		{
 			return ERR_NOT_EXIST;
 		}
