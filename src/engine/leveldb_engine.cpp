@@ -46,7 +46,7 @@ namespace ardb
 			}
 			else
 			{
-				uint32 akeysize, bkeysize;
+				uint32 akeysize = 0, bkeysize = 0;
 				assert(BufferHelper::ReadVarUInt32(ak_buf, akeysize));
 				assert(BufferHelper::ReadVarUInt32(bk_buf, bkeysize));
 				assert(akeysize <= bkeysize);

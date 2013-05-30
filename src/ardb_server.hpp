@@ -38,7 +38,7 @@ namespace ardb
 
 			int64 repl_ping_slave_period;
 			int64 repl_timeout;
-			int64 rep_backlog_size;
+			int64 repl_backlog_size;
 			int64 repl_syncstate_persist_period;
 
 			std::string master_host;
@@ -55,7 +55,7 @@ namespace ardb
 							10000), tcp_keepalive(0), timeout(0), slowlog_log_slower_than(
 							10000), slowlog_max_len(128), repl_data_dir(
 							"./repl"), backup_dir("./backup"), repl_ping_slave_period(
-							10), repl_timeout(60), rep_backlog_size(1000000), repl_syncstate_persist_period(
+							10), repl_timeout(60), repl_backlog_size(1000000), repl_syncstate_persist_period(
 							1), master_port(0), repl_log_enable(true), worker_count(
 							1), loglevel("INFO")
 			{

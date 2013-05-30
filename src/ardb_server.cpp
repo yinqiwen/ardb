@@ -148,7 +148,7 @@ namespace ardb
 		if (cfg.worker_count <= 0)
 		{
 			cfg.worker_count = available_processors();
-		}
+		conf_get_int64(props, "repl-backlog-size", cfg.repl_backlog_size);
 		conf_get_int64(props, "repl-ping-slave-period",
 				cfg.repl_ping_slave_period);
 		conf_get_int64(props, "repl-timeout", cfg.repl_timeout);

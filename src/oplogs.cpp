@@ -278,7 +278,7 @@ namespace ardb
 			fflush(m_op_log_file);
 			m_op_log_buffer.Clear();
 			if (m_current_oplog_record_size
-					>= m_server->GetServerConfig().rep_backlog_size)
+					>= m_server->GetServerConfig().repl_backlog_size)
 			{
 				//rollback op logs
 				RollbackOpLogs();
@@ -290,7 +290,7 @@ namespace ardb
 	void OpLogs::WriteCachedOp(uint64 seq, CachedOp* op)
 	{
 		Buffer tmp;
-		BufferHelper::WriteVarUInt16(tmp, seq);
+		BufferHelper::WriteVarUInt64(tmp, seq);
 		uint8 optype = op->type;
 		tmp.WriteByte(optype);
 		if (optype == kSetOpType || optype == kDelOpType)
@@ -356,7 +356,7 @@ namespace ardb
 		CachedCmdOp* op = new CachedCmdOp(cmd);
 		m_mem_op_logs[seq] = op;
 		while (m_mem_op_logs.size()
-				>= m_server->GetServerConfig().rep_backlog_size)
+				>= m_server->GetServerConfig().repl_backlog_size)
 		{
 			RemoveOldestOp();
 		}
@@ -392,7 +392,7 @@ namespace ardb
 		m_mem_op_logs[seq] = op;
 		m_mem_op_idx[opkey] = seq;
 		while (m_mem_op_logs.size()
-				>= m_server->GetServerConfig().rep_backlog_size)
+				>= m_server->GetServerConfig().repl_backlog_size)
 		{
 			RemoveOldestOp();
 		}

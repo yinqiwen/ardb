@@ -40,7 +40,7 @@ namespace ardb
 				{
 				}
 				RedisReply(double v) :
-						type(REDIS_REPLY_DOUBLE), integer(v), double_value(v)
+						type(REDIS_REPLY_DOUBLE), integer(0), double_value(v)
 				{
 				}
 				RedisReply(const std::string& v) :
