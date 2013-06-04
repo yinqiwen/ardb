@@ -273,6 +273,11 @@ namespace ardb
 				SClear(db, key);
 				break;
 			}
+			case BITSET_META:
+			{
+				BitClear(db, key);
+				break;
+			}
 			default:
 			{
 				return -1;

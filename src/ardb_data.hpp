@@ -52,6 +52,8 @@ namespace ardb
 		TABLE_INDEX = 11,
 		TABLE_COL = 12,
 		TABLE_SCHEMA = 13,
+		BITSET_META = 14,
+		BITSET_ELEMENT = 15,
 		KEY_END = 100,
 	};
 
@@ -285,8 +287,6 @@ namespace ardb
 			}
 	};
 
-
-
 	typedef std::map<ValueObject, double> ValueScoreMap;
 
 	typedef std::set<ValueObject> ValueSet;
@@ -394,7 +394,8 @@ namespace ardb
 			ValueObject value;
 			double score;
 			ZSetKeyObject(const Slice& k, const Slice& v, double s, DBID id);
-			ZSetKeyObject(const Slice& k, const ValueObject& v, double s, DBID id);
+			ZSetKeyObject(const Slice& k, const ValueObject& v, double s,
+			        DBID id);
 	};
 	struct ZSetScoreKeyObject: public KeyObject
 	{
@@ -422,6 +423,38 @@ namespace ardb
 			SetKeyObject(const Slice& k, const ValueObject& v, DBID id);
 	};
 
+	struct BitSetKeyObject: public KeyObject
+	{
+			uint64 index;
+			BitSetKeyObject(const Slice& k, uint64 v, DBID id) :
+					KeyObject(k, BITSET_ELEMENT, id), index(v)
+			{
+
+			}
+	};
+	struct BitSetElementValue
+	{
+			uint32 bitcount;
+			uint32 limit;
+			std::string vals;
+			BitSetElementValue() :
+					bitcount(0),limit(0)
+			{
+			}
+	};
+
+	struct BitSetMetaValue
+	{
+			uint64 bitcount;
+			uint64 min;
+			uint64 max;
+			uint64 limit;
+			BitSetMetaValue() :
+					bitcount(0), min(0), max(0),limit(0)
+			{
+			}
+	};
+
 	struct SetMetaValue
 	{
 			uint32_t size;
@@ -446,7 +479,7 @@ namespace ardb
 	{
 			float score;
 			ListKeyObject(const Slice& k, double s, DBID id) :
-					KeyObject(k, LIST_ELEMENT,id), score(s)
+					KeyObject(k, LIST_ELEMENT, id), score(s)
 			{
 			}
 	};
@@ -599,12 +632,14 @@ namespace ardb
 	typedef std::vector<SetMetaValue> SetMetaValueArray;
 	typedef std::deque<TableIndexKeyObject> TableRowKeyArray;
 	typedef btree::btree_set<TableKeyIndex> TableKeyIndexSet;
+	typedef std::map<uint64, std::string> StringMap;
+	typedef std::map<uint64, BitSetElementValue> BitSetElementValueMap;
 
 	int compare_values(const ValueArray& a, const ValueArray& b);
 
 	void encode_key(Buffer& buf, const KeyObject& key);
 	KeyObject* decode_key(const Slice& key, KeyObject* expected);
-	bool peek_dbkey_header(const Slice& key,DBID& db, KeyType& type);
+	bool peek_dbkey_header(const Slice& key, DBID& db, KeyType& type);
 
 	void encode_value(Buffer& buf, const ValueObject& value);
 	bool decode_value(Buffer& buf, ValueObject& value,

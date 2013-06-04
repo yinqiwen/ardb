@@ -47,9 +47,10 @@ LDFLAGS=-g
 INCS=-I./  -I${LIB_PATH}/cpp-btree 
 
 ifeq ($(MALLOC),libc)
-#donothing
+#do nothing
 else
 MALLOC_LIBA=${JEMALLOC_LIBA}
+DEP_LIBS=jemalloc
 endif
 
 LIBS=${MALLOC_LIBA} -lpthread
@@ -86,6 +87,7 @@ SERVER_OBJECTS := ardb_server.o transaction.o slowlog.o clients.o replication.o 
 
 #DIST_LIB = libardb.so
 DIST_LIBA = libardb.a
+
 
 ifeq ($(origin storage_engine), undefined)
 storage_engine=leveldb
@@ -128,7 +130,7 @@ $(DIST_LIB):$(CORE_OBJECTS)
 $(DIST_LIBA):$(CORE_OBJECTS)
 	ar rcs $@ $^
 
-lib:jemalloc $(DIST_LIBA)
+lib:$(DEP_LIBS) $(DIST_LIBA)
 
 server:${STORAGE_ENGINE} lib clean_launch_obj $(SERVER_OBJECTS) $(CHANNEL_OBJECTS) 
 	${CXX} -o ardb-server $(SERVER_OBJECTS)  $(CORE_OBJECTS) $(CHANNEL_OBJECTS) ${STORAGE_ENGINE_OBJ} $(LIBS)

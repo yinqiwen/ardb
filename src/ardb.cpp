@@ -27,7 +27,7 @@
 namespace ardb
 {
 	int ardb_compare_keys(const char* akbuf, size_t aksiz, const char* bkbuf,
-			size_t bksiz)
+	        size_t bksiz)
 	{
 		Buffer ak_buf(const_cast<char*>(akbuf), 0, aksiz);
 		Buffer bk_buf(const_cast<char*>(bkbuf), 0, bksiz);
@@ -182,11 +182,21 @@ namespace ardb
 				ret = af.compare(bf);
 				break;
 			}
+			case BITSET_ELEMENT:
+			{
+				uint64 aindex, bindex;
+				found_a = BufferHelper::ReadVarUInt64(ak_buf, aindex);
+				found_b = BufferHelper::ReadVarUInt64(bk_buf, bindex);
+				COMPARE_EXIST(found_a, found_b);
+				ret = COMPARE_NUMBER(aindex, bindex);
+				break;
+			}
 			case SET_META:
 			case ZSET_META:
 			case LIST_META:
 			case TABLE_META:
 			case TABLE_SCHEMA:
+			case BITSET_META:
 			default:
 			{
 				break;
@@ -201,7 +211,7 @@ namespace ardb
 		{
 			pos = buf->ReadableBytes() + pos;
 		}
-		if (pos > 0 && (uint32)pos >= buf->ReadableBytes())
+		if (pos > 0 && (uint32) pos >= buf->ReadableBytes())
 		{
 			pos = buf->ReadableBytes() - 1;
 		}
@@ -214,9 +224,9 @@ namespace ardb
 
 	//static const char* REPO_NAME = "data";
 	Ardb::Ardb(KeyValueEngineFactory* engine, const std::string& path,
-			bool multi_thread) :
+	        bool multi_thread) :
 			m_engine_factory(engine), m_engine(NULL), m_key_watcher(NULL), m_raw_key_listener(
-					NULL), m_path(path)
+			        NULL), m_path(path)
 	{
 		m_key_locker.enable = multi_thread;
 	}
@@ -227,7 +237,7 @@ namespace ardb
 		{
 			INFO_LOG("Start init storage engine.");
 			m_engine = m_engine_factory->CreateDB(
-					m_engine_factory->GetName().c_str());
+			        m_engine_factory->GetName().c_str());
 
 			KeyObject verkey(Slice(), KEY_END, 0xFFFFFF);
 			ValueObject ver;
@@ -236,10 +246,11 @@ namespace ardb
 				if (ver.v.int_v != ARDB_FORMAT_VERSION)
 				{
 					ERROR_LOG(
-							"Incompatible data format version:%d in DB", ver.v.int_v);
+					        "Incompatible data format version:%d in DB", ver.v.int_v);
 					return false;
 				}
-			} else
+			}
+			else
 			{
 				ver.v.int_v = ARDB_FORMAT_VERSION;
 				ver.type = INTEGER;
@@ -276,7 +287,7 @@ namespace ardb
 			Slice tmpkey = iter->Key();
 			KeyObject* kk = decode_key(tmpkey, &key);
 			if (NULL == kk || kk->type != key.type
-					|| kk->key.compare(key.key) != 0)
+			        || kk->key.compare(key.key) != 0)
 			{
 				DELETE(kk);
 				if (reverse && isFirstElement)
@@ -289,7 +300,7 @@ namespace ardb
 			}
 			ValueObject v;
 			Buffer readbuf(const_cast<char*>(iter->Value().data()), 0,
-					iter->Value().size());
+			        iter->Value().size());
 			decode_value(readbuf, v, false);
 			int ret = handler->OnKeyValue(kk, &v, cursor++);
 			DELETE(kk);
@@ -300,7 +311,8 @@ namespace ardb
 			if (reverse)
 			{
 				iter->Prev();
-			} else
+			}
+			else
 			{
 				iter->Next();
 			}
@@ -363,6 +375,11 @@ namespace ardb
 					{
 						KeyObject tk(key, TABLE_META, db);
 						GET_KEY_TYPE(tk, type);
+						if (type < 0)
+						{
+							KeyObject bk(key, BITSET_META, db);
+							GET_KEY_TYPE(bk, type);
+						}
 					}
 				}
 			}
@@ -409,20 +426,20 @@ namespace ardb
 			Slice tmpkey = iter->Key();
 			Slice tmpval = iter->Value();
 			KeyObject* kk = decode_key(tmpkey, NULL);
-			if(kk->db != db)
+			if (kk->db != db)
 			{
 				DELETE(kk);
 				break;
 			}
 			ValueObject v;
 			Buffer readbuf(const_cast<char*>(iter->Value().data()), 0,
-					iter->Value().size());
+			        iter->Value().size());
 			decode_value(readbuf, v, false);
 			if (NULL != kk)
 			{
 				std::string str;
 				DEBUG_LOG(
-						"[%d]Key=%s, Value=%s", kk->type, kk->key.data(), v.ToString(str).c_str());
+				        "[%d]Key=%s, Value=%s", kk->type, kk->key.data(), v.ToString(str).c_str());
 			}
 			DELETE(kk);
 			iter->Next();
@@ -472,7 +489,7 @@ namespace ardb
 					encode_key(sbuf, start);
 					encode_key(ebuf, end);
 					adb->GetEngine()->CompactRange(sbuf.AsString(),
-							ebuf.AsString());
+					        ebuf.AsString());
 					delete this;
 				}
 		};
@@ -519,7 +536,7 @@ namespace ardb
 					encode_key(sbuf, start);
 					encode_key(ebuf, end);
 					adb->GetEngine()->CompactRange(sbuf.AsString(),
-							ebuf.AsString());
+					        ebuf.AsString());
 					delete this;
 				}
 		};

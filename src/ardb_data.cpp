@@ -147,11 +147,18 @@ namespace ardb
 				BufferHelper::WriteVarSlice(buf, col.col);
 				break;
 			}
+			case BITSET_ELEMENT:
+			{
+				const BitSetKeyObject& bk = (const BitSetKeyObject&) key;
+				BufferHelper::WriteVarUInt64(buf, bk.index);
+				break;
+			}
 			case LIST_META:
 			case ZSET_META:
 			case SET_META:
 			case TABLE_META:
 			case TABLE_SCHEMA:
+			case BITSET_META:
 			default:
 			{
 				break;
@@ -167,7 +174,7 @@ namespace ardb
 		{
 			return false;
 		}
-		type = (KeyType)(header & 0xFF);
+		type = (KeyType) (header & 0xFF);
 		db = header >> 8;
 		return true;
 	}
@@ -317,11 +324,21 @@ namespace ardb
 				tk->col = col;
 				return tk;
 			}
+			case BITSET_ELEMENT:
+			{
+				uint64 index;
+				if (!BufferHelper::ReadVarUInt64(buf, index))
+				{
+					return NULL;
+				}
+				return new BitSetKeyObject(keystr, index, db);
+			}
 			case SET_META:
 			case ZSET_META:
 			case LIST_META:
 			case TABLE_META:
 			case TABLE_SCHEMA:
+			case BITSET_META:
 			case KV:
 			default:
 			{
@@ -535,11 +552,11 @@ namespace ardb
 	void next_key(const Slice& key, std::string& next)
 	{
 		next.assign(key.data(), key.size());
-		for(uint32 i = next.size(); i > 0; i--)
+		for (uint32 i = next.size(); i > 0; i--)
 		{
-			if(next[i-1] < 0x7F)
+			if (next[i - 1] < 0x7F)
 			{
-				next[i-1] = next[i-1] + 1;
+				next[i - 1] = next[i - 1] + 1;
 				return;
 			}
 		}
