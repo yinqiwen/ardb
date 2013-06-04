@@ -20,7 +20,7 @@ int main(int argc, char** argv)
 	std::cout<<"ARDB Test(LevelDB)"<<std::endl;
 	LevelDBEngineFactory factory(cfg);
 	Ardb db(&factory, cfg["dir"]);
-	test_all(db);
 	db.Init();
+	test_all(db);
 	return 0;
 }

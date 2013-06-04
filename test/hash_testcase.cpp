@@ -105,7 +105,7 @@ void test_hash_hincr(Ardb& db)
 {
 	DBID dbid = 0;
 	db.HClear(dbid, "myhash");
-	int ret = db.HSetNX(dbid, "myhash", "field1", "100");
+	db.HSetNX(dbid, "myhash", "field1", "100");
 	int64_t intv = 0;
 	db.HIncrby(dbid, "myhash", "field1", 100, intv);
 	CHECK_FATAL( intv != 200, "hincr myhash failed:%d", intv);

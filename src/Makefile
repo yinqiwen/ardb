@@ -49,7 +49,7 @@ INCS=-I./  -I${LIB_PATH}/cpp-btree
 ifeq ($(MALLOC),libc)
 #donothing
 else
-MALLOC_LIBA=${TCMALLOC_LIBA}
+MALLOC_LIBA=${JEMALLOC_LIBA}
 endif
 
 LIBS=${MALLOC_LIBA} -lpthread
@@ -120,7 +120,6 @@ endif
 endif
 
 
-
 all: lib test server 
 
 $(DIST_LIB):$(CORE_OBJECTS)
@@ -129,7 +128,7 @@ $(DIST_LIB):$(CORE_OBJECTS)
 $(DIST_LIBA):$(CORE_OBJECTS)
 	ar rcs $@ $^
 
-lib:tcmalloc $(DIST_LIBA)
+lib:jemalloc $(DIST_LIBA)
 
 server:${STORAGE_ENGINE} lib clean_launch_obj $(SERVER_OBJECTS) $(CHANNEL_OBJECTS) 
 	${CXX} -o ardb-server $(SERVER_OBJECTS)  $(CORE_OBJECTS) $(CHANNEL_OBJECTS) ${STORAGE_ENGINE_OBJ} $(LIBS)
@@ -150,7 +149,7 @@ jemalloc:
       :; \
     else \
       cd ${LIB_PATH};tar jxvf ${JEMALLOC_FILE};cd ${JEMALLOC_PATH};\
-      ./configure;make;\
+      ./configure;make build_lib_static;\
     fi
     
 snappy:
