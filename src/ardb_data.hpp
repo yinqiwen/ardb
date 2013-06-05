@@ -435,10 +435,11 @@ namespace ardb
 	struct BitSetElementValue
 	{
 			uint32 bitcount;
+			uint32 start;
 			uint32 limit;
 			std::string vals;
 			BitSetElementValue() :
-					bitcount(0),limit(0)
+					bitcount(0),start(0),limit(0)
 			{
 			}
 	};
@@ -448,9 +449,9 @@ namespace ardb
 			uint64 bitcount;
 			uint64 min;
 			uint64 max;
-			uint64 limit;
+			//uint64 limit;
 			BitSetMetaValue() :
-					bitcount(0), min(0), max(0),limit(0)
+					bitcount(0), min(0), max(0)
 			{
 			}
 	};

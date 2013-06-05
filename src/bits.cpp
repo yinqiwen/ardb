@@ -13,7 +13,8 @@ namespace ardb
 	static const long BITOP_XOR = 2;
 	static const long BITOP_NOT = 3;
 
-	static const long BIT_SUBSET_SIZE = 4096;
+	static const uint32 BIT_SUBSET_SIZE = 4096;
+	static const uint32 BIT_SUBSET_BYTES_SIZE = BIT_SUBSET_SIZE >> 3;
 	//copy from redis
 	static long popcount(const void *s, long count)
 	{
@@ -22,18 +23,18 @@ namespace ardb
 		const uint32_t* p4 = (const uint32_t*) s;
 		static const unsigned char bitsinbyte[256] =
 			{ 0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4, 1, 2, 2, 3, 2, 3,
-			        3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3,
-			        3, 4, 3, 4, 4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5,
-			        5, 6, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3,
-			        3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 2, 3, 3, 4, 3, 4,
-			        4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5,
-			        5, 6, 5, 6, 6, 7, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4,
-			        4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 2, 3,
-			        3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 3, 4, 4, 5, 4, 5,
-			        5, 6, 4, 5, 5, 6, 5, 6, 6, 7, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4,
-			        4, 5, 4, 5, 5, 6, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6,
-			        6, 7, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, 4, 5,
-			        5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8 };
+					3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3,
+					3, 4, 3, 4, 4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5,
+					5, 6, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3,
+					3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 2, 3, 3, 4, 3, 4,
+					4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5,
+					5, 6, 5, 6, 6, 7, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4,
+					4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 2, 3,
+					3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, 3, 4, 4, 5, 4, 5,
+					5, 6, 4, 5, 5, 6, 5, 6, 6, 7, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4,
+					4, 5, 4, 5, 5, 6, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6,
+					6, 7, 3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, 4, 5,
+					5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8 };
 
 		/* Count bits 16 bytes at a time */
 		while (count >= 16)
@@ -55,13 +56,13 @@ namespace ardb
 			aux4 = aux4 - ((aux4 >> 1) & 0x55555555);
 			aux4 = (aux4 & 0x33333333) + ((aux4 >> 2) & 0x33333333);
 			bits +=
-			        ((((aux1 + (aux1 >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24)
-			                + ((((aux2 + (aux2 >> 4)) & 0x0F0F0F0F) * 0x01010101)
-			                        >> 24)
-			                + ((((aux3 + (aux3 >> 4)) & 0x0F0F0F0F) * 0x01010101)
-			                        >> 24)
-			                + ((((aux4 + (aux4 >> 4)) & 0x0F0F0F0F) * 0x01010101)
-			                        >> 24);
+					((((aux1 + (aux1 >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24)
+							+ ((((aux2 + (aux2 >> 4)) & 0x0F0F0F0F) * 0x01010101)
+									>> 24)
+							+ ((((aux3 + (aux3 >> 4)) & 0x0F0F0F0F) * 0x01010101)
+									>> 24)
+							+ ((((aux4 + (aux4 >> 4)) & 0x0F0F0F0F) * 0x01010101)
+									>> 24);
 		}
 		/* Count the remaining bytes */
 		p = (unsigned char*) p4;
@@ -77,9 +78,8 @@ namespace ardb
 			return false;
 		}
 		return BufferHelper::ReadVarUInt64(*(v.v.raw), meta.bitcount)
-		        && BufferHelper::ReadVarUInt64(*(v.v.raw), meta.min)
-		        && BufferHelper::ReadVarUInt64(*(v.v.raw), meta.max)
-		        && BufferHelper::ReadVarUInt64(*(v.v.raw), meta.limit);
+				&& BufferHelper::ReadVarUInt64(*(v.v.raw), meta.min)
+				&& BufferHelper::ReadVarUInt64(*(v.v.raw), meta.max);
 	}
 	static void EncodeSetMetaData(ValueObject& v, BitSetMetaValue& meta)
 	{
@@ -91,7 +91,6 @@ namespace ardb
 		BufferHelper::WriteVarUInt64(*(v.v.raw), meta.bitcount);
 		BufferHelper::WriteVarUInt64(*(v.v.raw), meta.min);
 		BufferHelper::WriteVarUInt64(*(v.v.raw), meta.max);
-		BufferHelper::WriteVarUInt64(*(v.v.raw), meta.limit);
 	}
 
 	static bool DecodeSetElementData(ValueObject& v, BitSetElementValue& meta)
@@ -101,8 +100,9 @@ namespace ardb
 			return false;
 		}
 		return BufferHelper::ReadVarUInt32(*(v.v.raw), meta.bitcount)
-		        && BufferHelper::ReadVarUInt32(*(v.v.raw), meta.limit)
-		        && BufferHelper::ReadVarString(*(v.v.raw), meta.vals);
+				&& BufferHelper::ReadVarUInt32(*(v.v.raw), meta.start)
+				&& BufferHelper::ReadVarUInt32(*(v.v.raw), meta.limit)
+				&& BufferHelper::ReadVarString(*(v.v.raw), meta.vals);
 	}
 	static void EncodeSetElementData(ValueObject& v, BitSetElementValue& meta)
 	{
@@ -112,12 +112,13 @@ namespace ardb
 			v.v.raw = new Buffer(BIT_SUBSET_SIZE + 8);
 		}
 		BufferHelper::WriteVarUInt32(*(v.v.raw), meta.bitcount);
+		BufferHelper::WriteVarUInt32(*(v.v.raw), meta.start);
 		BufferHelper::WriteVarUInt32(*(v.v.raw), meta.limit);
 		BufferHelper::WriteVarString(*(v.v.raw), meta.vals);
 	}
 
 	int Ardb::GetBitSetMetaValue(const DBID& db, const Slice& key,
-	        BitSetMetaValue& meta)
+			BitSetMetaValue& meta)
 	{
 		KeyObject k(key, BITSET_META, db);
 		ValueObject v;
@@ -132,7 +133,7 @@ namespace ardb
 		return ERR_NOT_EXIST;
 	}
 	void Ardb::SetBitSetMetaValue(const DBID& db, const Slice& key,
-	        BitSetMetaValue& meta)
+			BitSetMetaValue& meta)
 	{
 		KeyObject k(key, BITSET_META, db);
 		ValueObject v;
@@ -141,7 +142,7 @@ namespace ardb
 	}
 
 	int Ardb::GetBitSetElementValue(BitSetKeyObject& key,
-	        BitSetElementValue& meta)
+			BitSetElementValue& meta)
 	{
 		ValueObject v;
 		if (0 == GetValue(key, &v))
@@ -155,7 +156,7 @@ namespace ardb
 		return ERR_NOT_EXIST;
 	}
 	void Ardb::SetBitSetElementValue(BitSetKeyObject& key,
-	        BitSetElementValue& meta)
+			BitSetElementValue& meta)
 	{
 		ValueObject v;
 		EncodeSetElementData(v, meta);
@@ -163,7 +164,7 @@ namespace ardb
 	}
 
 	int Ardb::SetBit(const DBID& db, const Slice& key, uint64 bitoffset,
-	        uint8 value)
+			uint8 value)
 	{
 		KeyLockerGuard keyguard(m_key_locker, db, key);
 		int byte, bit;
@@ -181,41 +182,43 @@ namespace ardb
 			set_changed = true;
 		}
 		uint64 index = (bitoffset / BIT_SUBSET_SIZE) + 1;
-		if (meta.min == 0)
+		if (meta.min == 0 || meta.min > index)
 		{
 			meta.min = index;
 			set_changed = true;
 		}
-		if (meta.max == 0)
+		if (meta.max == 0 || meta.max < index)
 		{
 			meta.max = index;
 			set_changed = true;
 		}
-		if (meta.limit < bitoffset)
-		{
-			meta.limit = bitoffset;
-			set_changed = true;
-		}
 
-		byte = (bitoffset % BIT_SUBSET_SIZE) >> 3;
+		bitoffset = bitoffset % BIT_SUBSET_SIZE;
+		byte = bitoffset >> 3;
 		BitSetKeyObject k(key, index, db);
 		BitSetElementValue bitvalue;
+		bool element_changed = false;
 		GetBitSetElementValue(k, bitvalue);
-		if (bitvalue.vals.size() < BIT_SUBSET_SIZE)
+		if (bitvalue.vals.size() < BIT_SUBSET_BYTES_SIZE)
 		{
-			uint32 tmpsize = BIT_SUBSET_SIZE - bitvalue.vals.size();
+			uint32 tmpsize = BIT_SUBSET_BYTES_SIZE - bitvalue.vals.size();
 			char tmp[tmpsize];
 			memset(tmp, 0, tmpsize);
 			bitvalue.vals.append(tmp, tmpsize);
 		}
 
-		if (bitvalue.limit < byte)
+		if (bitvalue.limit < bitoffset)
 		{
-			bitvalue.limit = byte;
+			bitvalue.limit = bitoffset + 1;
+			element_changed = true;
+		}
+		if (bitvalue.start > bitoffset || bitvalue.start == 0)
+		{
+			bitvalue.start = bitoffset + 1;
+			element_changed = true;
 		}
 		/* Get current values */
 		byteval = ((const uint8*) bitvalue.vals.data())[byte];
-
 		bit = 7 - (bitoffset & 0x7);
 		bitval = byteval & (1 << bit);
 
@@ -228,36 +231,27 @@ namespace ardb
 		if (byteval != tmp)
 		{
 			((uint8_t*) bitvalue.vals.data())[byte] = byteval;
-			if (byteval == 1)
+			if (on == 1)
 			{
 				bitvalue.bitcount++;
 				meta.bitcount++;
-			}
-			else
+			} else
 			{
 				bitvalue.bitcount--;
 				meta.bitcount--;
 			}
 			set_changed = true;
-			if (bitvalue.limit < byte)
-			{
-				bitvalue.limit = byte;
-			}
-			SetBitSetElementValue(k, bitvalue);
-		}
-		else
-		{
-			if (bitvalue.limit < byte)
-			{
-				bitvalue.limit = byte;
-				SetBitSetElementValue(k, bitvalue);
-			}
+			element_changed = true;
 		}
 		if (set_changed)
 		{
 			SetBitSetMetaValue(db, key, meta);
 		}
-		return bitval;
+		if (element_changed)
+		{
+			SetBitSetElementValue(k, bitvalue);
+		}
+		return bitval != 0 ? 1 : 0;
 	}
 
 	int Ardb::GetBit(const DBID& db, const Slice& key, uint64 bitoffset)
@@ -272,129 +266,304 @@ namespace ardb
 		size_t byte, bit;
 		size_t bitval = 0;
 
-		byte = (bitoffset % BIT_SUBSET_SIZE) >> 3;
-		if (byte >= bitvalue.vals.size())
+		bitoffset = bitoffset % BIT_SUBSET_SIZE;
+		byte = bitoffset >> 3;
+		if (byte >= bitvalue.vals.size() || (bitoffset + 1) < bitvalue.start
+				|| (bitoffset + 1) > bitvalue.limit)
 		{
 			return 0;
 		}
 		int byteval = ((const uint8_t*) bitvalue.vals.c_str())[byte];
 		bit = 7 - (bitoffset & 0x7);
 		bitval = byteval & (1 << bit);
-		return bitval;
+		return bitval != 0 ? 1 : 0;
 	}
 
-	static void BitElementsOP(int op, BitSetElementValue& v1,
-	        BitSetElementValue& v2, BitSetElementValue& res)
+	static void BitSetElementOp(uint32 op, BitSetElementValue& v1,
+			BitSetElementValue& v2, BitSetElementValue& res)
 	{
-		if (v1.vals.empty() || v2.vals.empty())
+		if (op != BITOP_NOT && (v1.vals.empty() || v2.vals.empty()))
 		{
-			if (op == BITOP_AND)
-			{
-				return;
-			}
-			if (op == BITOP_OR)
-			{
-				if (v1.vals.empty())
-				{
-					res = v2;
-				}
-				if (v2.vals.empty())
-				{
-					res = v1;
-				}
-				return;
-			}
-		}
-		uint32 minlen = v1.limit < v2.limit ? v1.limit : v2.limit;
-		uint32 maxlen = v1.limit < v2.limit ? v2.limit : v1.limit;
-		const uint64* lp = (const uint64*) (v2.vals.c_str());
-		char dst[maxlen];
-		uint64* lres = (uint64*) dst;
-		memset(dst, 0, maxlen);
-		memcpy(dst, v1.vals.c_str(), v1.limit);
-		int j = 0;
-
-		if (op == BITOP_AND)
-		{
-			while (minlen >= sizeof(uint64))
-			{
-				lres[0] &= lp[0];
-				lp++;
-				lres++;
-				j += sizeof(uint64);
-				minlen -= sizeof(uint64);
-			}
-		}
-		else if (op == BITOP_OR)
-		{
-			while (minlen >= sizeof(uint64))
-			{
-				lres[0] |= lp[0];
-				lp++;
-				lres++;
-				j += sizeof(uint64);
-				minlen -= sizeof(uint64);
-			}
-		}
-		else if (op == BITOP_XOR)
-		{
-			while (minlen >= sizeof(uint64))
-			{
-				lres[0] ^= lp[0];
-				lp++;
-				lres++;
-				j += sizeof(uint64);
-				minlen -= sizeof(uint64);
-			}
-
-		}
-		else if (op == BITOP_NOT)
-		{
-			while (minlen >= sizeof(uint64))
-			{
-				lres[0] = ~lres[0];
-				lres++;
-				j += sizeof(uint64);
-				minlen -= sizeof(uint64);
-			}
-		}
-
-		uint8 output;
-		/* j is set to the next byte to process by the previous loop. */
-		for (; j < maxlen; j++)
-		{
-			output = (v2.limit <= j) ? 0 : dst[j];
-			if (op == BITOP_NOT)
-				output = ~output;
-			byte = (v2.limit <= j) ? 0 : v2.vals[j];
 			switch (op)
 			{
 				case BITOP_AND:
-					output &= byte;
-					break;
+				{
+					return;
+				}
 				case BITOP_OR:
-					output |= byte;
-					break;
 				case BITOP_XOR:
-					output ^= byte;
-					break;
+				{
+					if (v1.vals.empty())
+					{
+						res = v2;
+					}
+					if (v2.vals.empty())
+					{
+						res = v1;
+					}
+					return;
+				}
+				default:
+				{
+					return;
+				}
 			}
-			dst[j] = output;
 		}
-		res.vals.assign(dst, 0, maxlen);
-		res.limit = maxlen;
-		res.bitcount = popcount(dst, maxlen);
+
+		char dst[BIT_SUBSET_BYTES_SIZE];
+		memset(dst, 0, BIT_SUBSET_BYTES_SIZE);
+		uint32 bytestart = 0;
+		uint32 byteend = 0;
+		uint32 st = 0, et = 0;
+		switch (op)
+		{
+			case BITOP_AND:
+			{
+				uint32 maxstart = v1.start < v2.start ? v2.start : v1.start;
+				uint32 minend = v1.limit < v2.limit ? v1.limit : v2.limit;
+				if (minend < maxstart)
+				{
+					return;
+				}
+				st = maxstart;
+				et = minend;
+				bytestart = (maxstart - 1) >> 3;
+				byteend = (minend - 1) >> 3;
+				break;
+			}
+			case BITOP_OR:
+			case BITOP_XOR:
+			{
+				uint32 minstart = v1.start < v2.start ? v1.start : v2.start;
+				uint32 maxend = v1.limit < v2.limit ? v2.limit : v1.limit;
+				bytestart = (minstart - 1) >> 3;
+				byteend = (maxend - 1) >> 3;
+				st = minstart;
+				et = maxend;
+				break;
+			}
+			case BITOP_NOT:
+			{
+				bytestart = ((v1.start - 1) >> 3);
+				byteend = ((v1.limit - 1) >> 3);
+				st = v1.start;
+				et = v1.limit;
+				break;
+			}
+			default:
+			{
+				return;
+			}
+		}
+
+		memcpy(dst + bytestart, v1.vals.c_str() + bytestart, byteend - bytestart + 1);
+		uint64* lres = (uint64*) dst;
+		const uint64* lp = (const uint64*) (v2.vals.c_str());
+		uint32 xst = bytestart >>3;
+		uint32 xet = byteend >> 3;
+		while(xst <= xet)
+		{
+			switch (op)
+			{
+				case BITOP_AND:
+				{
+					lres[xst] &= lp[xst];
+					break;
+				}
+				case BITOP_OR:
+				{
+					lres[xst] |= lp[xst];
+					break;
+				}
+				case BITOP_XOR:
+				{
+					lres[xst] ^= lp[xst];
+					break;
+				}
+				case BITOP_NOT:
+				{
+					lres[xst] = ~lres[xst];
+					break;
+				}
+				default:
+				{
+					return;
+				}
+			}
+			xst++;
+		}
+		res.vals.assign(dst, 0, BIT_SUBSET_BYTES_SIZE);
+		res.limit = et;
+		res.start = st;
+		res.bitcount = popcount(dst + bytestart, byteend - bytestart + 1);
 	}
 
-	int Ardb::Ardb::BitOPVals(const DBID& db, const Slice& opstr,
-	        SliceArray& keys, BitSetElementValueMap& bitvals)
+	int Ardb::BitsOr(const DBID& db, SliceArray& keys,
+			BitSetElementValueMap*& result, bool isXor)
 	{
-		long op, j, numkeys;
-		uint64 maxlen = 0;
-		uint64 minlen = 0;
-		uint32 minsizekey_index = 0;
-		unsigned char *res = NULL;
+		struct BitSetOrWalk: public WalkHandler
+		{
+				Ardb* z_db;
+				bool isxor;
+				BitSetElementValueMap& res;
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+				{
+					BitSetKeyObject* bk = (BitSetKeyObject*) k;
+					BitSetElementValue element;
+					z_db->GetBitSetElementValue(*bk, element);
+					BitSetElementValueMap::iterator found = res.find(bk->index);
+					BitSetElementValue result;
+					if (found != res.end())
+					{
+						BitSetElementOp(isxor ? BITOP_XOR : BITOP_OR,
+								found->second, element, result);
+					} else
+					{
+						BitSetElementOp(isxor ? BITOP_XOR : BITOP_OR, result,
+								element, result);
+					}
+					if (result.bitcount > 0)
+					{
+						res[bk->index] = result;
+					} else
+					{
+						res.erase(bk->index);
+					}
+					return 0;
+				}
+				BitSetOrWalk(Ardb* db, bool flag, BitSetElementValueMap& r) :
+						z_db(db), isxor(flag), res(r)
+				{
+				}
+		};
+		for (uint32 i = 0; i < keys.size(); i++)
+		{
+			BitSetKeyObject setk(keys[i], 1, db);
+			BitSetOrWalk walk(this, isXor, *result);
+			Walk(setk, false, &walk);
+		}
+		return 0;
+	}
 
+	int Ardb::BitsAnd(const DBID& db, SliceArray& keys,
+			BitSetElementValueMap*& result, BitSetElementValueMap*& tmp)
+	{
+		/* Lookup keys, and store pointers to the string objects into an array. */
+		uint64 start_index = 0, end_index = 0;
+		for (uint32 j = 0; j < keys.size(); j++)
+		{
+			BitSetMetaValue meta;
+			GetBitSetMetaValue(db, keys[j], meta);
+			if (0 != GetBitSetMetaValue(db, keys[j], meta))
+			{
+				return 0;
+			}
+			if (start_index == 0 || start_index > meta.min)
+			{
+				start_index = meta.min;
+			}
+			if (end_index == 0 || end_index > meta.max)
+			{
+				end_index = meta.max;
+			}
+		}
+		if (start_index > end_index)
+		{
+			return 0;
+		}
+		struct BitSetAndWalk: public WalkHandler
+		{
+				Ardb* z_db;
+				uint64 limit_index;
+				BitSetElementValueMap& cmp;
+				BitSetElementValueMap& res;
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+				{
+					BitSetKeyObject* bk = (BitSetKeyObject*) k;
+					BitSetElementValue element;
+					z_db->GetBitSetElementValue(*bk, element);
+					if (&res == &cmp)
+					{
+						cmp[bk->index] = element;
+						return 0;
+					}
+					BitSetElementValueMap::iterator found = cmp.find(bk->index);
+					if (found != cmp.end())
+					{
+						BitSetElementValue result;
+						BitSetElementOp(BITOP_AND, found->second, element,
+								result);
+						res[bk->index] = result;
+					}
+					if (bk->index == limit_index)
+					{
+						return -1;
+					}
+					return 0;
+				}
+				BitSetAndWalk(Ardb* db, uint64 l, BitSetElementValueMap& c,
+						BitSetElementValueMap& r) :
+						z_db(db), limit_index(l), cmp(c), res(r)
+				{
+				}
+		};
+
+		BitSetElementValueMap* tmpres = result;
+		BitSetElementValueMap* tmpcmp = tmp;
+		BitSetAndWalk firstWalk(this, end_index, *tmpcmp, *tmpcmp);
+		BitSetKeyObject sk(keys[0], start_index, db);
+		Walk(sk, false, &firstWalk);
+		for (uint32 i = 1; i < keys.size(); i++)
+		{
+			BitSetKeyObject setk(keys[i], start_index, db);
+			BitSetAndWalk walk(this, end_index, *tmpcmp, *tmpres);
+			Walk(setk, false, &walk);
+			if (i != keys.size() - 1)
+			{
+				BitSetElementValueMap* ptmp = tmpres;
+				tmpres = tmpcmp;
+				tmpcmp = ptmp;
+				tmpcmp->clear();
+			}
+		}
+		result = tmpres;
+		tmp->clear();
+		return 0;
+	}
+
+	int Ardb::BitsNot(const DBID& db, const Slice& key,
+			BitSetElementValueMap*& result)
+	{
+		struct BitSetNotWalk: public WalkHandler
+		{
+				Ardb* z_db;
+				BitSetElementValueMap& res;
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+				{
+					BitSetKeyObject* bk = (BitSetKeyObject*) k;
+					BitSetElementValue element;
+					z_db->GetBitSetElementValue(*bk, element);
+					BitSetElementOp(BITOP_NOT, element, element, element);
+					if (element.bitcount > 0)
+					{
+						res[bk->index] = element;
+					}
+					return 0;
+				}
+				BitSetNotWalk(Ardb* db, BitSetElementValueMap& r) :
+						z_db(db), res(r)
+				{
+				}
+		};
+		BitSetKeyObject sk(key, 1, db);
+		BitSetNotWalk walk(this, *result);
+		Walk(sk, false, &walk);
+		return 0;
+	}
+	int Ardb::BitOP(const DBID& db, const Slice& opstr, SliceArray& keys,
+			BitSetElementValueMap*& res, BitSetElementValueMap*& tmp)
+	{
+		long op;
 		/* Parse the operation name. */
 		if (!strncasecmp(opstr.data(), "and", opstr.size()))
 			op = BITOP_AND;
@@ -415,87 +584,95 @@ namespace ardb
 			SetErrorCause("BITOP NOT must be called with a single source key.");
 			return ERR_INVALID_OPERATION;
 		}
-		/* Lookup keys, and store pointers to the string objects into an array. */
-		numkeys = keys.size();
-		std::vector<uint32> lens;
-		lens.reserve(numkeys);
-		for (j = 0; j < numkeys; j++)
+		switch (op)
 		{
-			lens.push_back(0);
-			BitSetMetaValue meta;
-			GetBitSetMetaValue(db, keys[j], meta);
-			if (0 != GetBitSetMetaValue(db, keys[j], meta))
+			case BITOP_AND:
 			{
-				continue;
+				BitsAnd(db, keys, res, tmp);
+				break;
+			}
+			case BITOP_OR:
+			{
+				BitsOr(db, keys, res, false);
+				break;
+			}
+			case BITOP_XOR:
+			{
+				BitsOr(db, keys, res, true);
+				break;
+			}
+			case BITOP_NOT:
+			{
+				BitsNot(db, keys[0], res);
+				break;
+			}
+			default:
+			{
+				return -1;
 			}
 		}
-
-		struct BitSetWalk: public WalkHandler
-		{
-				Ardb* z_db;
-				int bop;
-				BitSetElementValueMap& cmp;
-				BitSetElementValueMap& res;
-				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
-				{
-					BitSetKeyObject* bk = (BitSetKeyObject*) k;
-					BitSetElementValue element;
-					z_db->GetBitSetElementValue(*bk, element);
-					if (&res == &cmp)
-					{
-						if (bop == BITOP_NOT)
-						{
-							BitElementsOP(BITOP_NOT, element, element, element);
-						}
-						cmp[bk->index] = element;
-
-						return 0;
-					}
-
-					BitSetElementValue empty;
-					BitSetElementValueMap::iterator found = cmp.find(bk->index);
-					BitSetElementValue result;
-					if (found != cmp.end())
-					{
-						BitElementsOP(bop, found->second, element, result);
-					}
-					else
-					{
-						BitElementsOP(bop, found->second, empty, result);
-					}
-					res[bk->index] = result;
-					return 0;
-				}
-				BitSetWalk(Ardb* db) :
-						z_db(db)
-				{
-				}
-		} walk(this);
-
 		return 0;
-
 	}
 
 	int Ardb::BitOP(const DBID& db, const Slice& opstr, const Slice& dstkey,
-	        SliceArray& keys)
+			SliceArray& keys)
 	{
-		BitSetElementValueMap map;
-		BitOPVals(db, opstr, keys, map);
+		BitSetElementValueMap map1, map2;
+		BitSetElementValueMap* res = &map1;
+		BitSetElementValueMap* tmp = &map2;
+		if (0 != BitOP(db, opstr, keys, res, tmp))
+		{
+			return -1;
+		}
+		BitClear(db, dstkey);
+		KeyLockerGuard keyguard(m_key_locker, db, dstkey);
+		BitSetMetaValue meta;
+		if (!res->empty())
+		{
+			BatchWriteGuard guard(GetEngine());
 
+			BitSetElementValueMap::iterator it = res->begin();
+			while (it != res->end())
+			{
+				BitSetKeyObject sk(dstkey, it->first, db);
+				SetBitSetElementValue(sk, it->second);
+				meta.bitcount += it->second.bitcount;
+				if (it == res->begin())
+				{
+					meta.min = it->first;
+				}
+				meta.max = it->first;
+				it++;
+			}
+			SetBitSetMetaValue(db, dstkey, meta);
+		}
+		return meta.bitcount;
 	}
 
-	int64 Ardb::BitOPCount(const DBID& db, const Slice& op, SliceArray& keys)
+	int64 Ardb::BitOPCount(const DBID& db, const Slice& opstr, SliceArray& keys)
 	{
-		BitSetElementValueMap map;
-		BitOPVals(db, op, keys, map);
-		return map.size();
+		BitSetElementValueMap map1, map2;
+		BitSetElementValueMap* res = &map1;
+		BitSetElementValueMap* tmp = &map2;
+		if (0 != BitOP(db, opstr, keys, res, tmp))
+		{
+			return 0;
+		}
+		int64 count = 0;
+		BitSetElementValueMap::iterator it = res->begin();
+		while (it != res->end())
+		{
+			count += it->second.bitcount;
+			it++;
+		}
+		return count;
 	}
 
 	int Ardb::BitCount(const DBID& db, const Slice& key, int64 start, int64 end)
 	{
 		BitSetMetaValue meta;
 		GetBitSetMetaValue(db, key, meta);
-		if (start == 0 && (end < 0 || end >= (meta.max * BIT_SUBSET_SIZE)))
+		if (start <= 0 && (end < 0 || end >= (meta.max * BIT_SUBSET_SIZE)))
 		{
 			return meta.bitcount;
 		}
@@ -514,8 +691,7 @@ namespace ardb
 		uint64 startIndex = (start / BIT_SUBSET_SIZE) + 1;
 		uint64 endIndex = (end / BIT_SUBSET_SIZE) + 1;
 		uint32 so = start % BIT_SUBSET_SIZE;
-		uint32 eo = endIndex % BIT_SUBSET_SIZE;
-		int count = 0;
+		uint32 eo = end % BIT_SUBSET_SIZE;
 		BitSetKeyObject sk(key, startIndex, db);
 		struct BitSetWalk: public WalkHandler
 		{
@@ -533,27 +709,56 @@ namespace ardb
 					if (bk->index > si && bk->index < ei)
 					{
 						count += element.bitcount;
-					}
-					else
+					} else
 					{
+						uint32 st = 0, et = 0;
 						if (si == ei)
 						{
-							count += popcount(element.vals.c_str() + so,
-							        (eo - so + 1));
-						}
-						else
+							st = so;
+							et = eo;
+						} else
 						{
 							if (bk->index == si)
 							{
-								count += popcount(element.vals.c_str() + so,
-								        (element.vals.size() - so + 1));
-							}
-							else
+								st = so;
+								et = element.limit - 1;
+							} else
 							{
-								count += popcount(element.vals.c_str(), eo + 1);
+								st = element.start - 1;
+								et = eo;
 							}
 						}
-
+						if (element.start >= (st + 1)
+								&& element.limit <= (et + 1))
+						{
+							count += element.bitcount;
+						} else if (element.limit < st + 1
+								|| element.start > (et + 1))
+						{
+							//do nothing
+						} else
+						{
+							while (st % 8 != 0 && st <= et)
+							{
+								count += bdb->GetBit(bk->db, bk->key, st);
+								st++;
+							}
+							if (st < et)
+							{
+								while (et % 8 != 0 && et > st)
+								{
+									count += bdb->GetBit(bk->db, bk->key, et);
+									et--;
+								}
+							}
+							if (et > st)
+							{
+								uint32 s = st >> 3;
+								uint32 e = et >> 3;
+								count += popcount(element.vals.c_str() + s,
+										e - s);
+							}
+						}
 					}
 					if (bk->index == ei)
 					{
@@ -565,7 +770,7 @@ namespace ardb
 						bdb(dbi), count(0), si(s), ei(e), so(ss), eo(ee)
 				{
 				}
-		} walk(this, startIndex, endIndex);
+		} walk(this, startIndex, endIndex, so, eo);
 		Walk(sk, false, &walk);
 		return walk.count;
 	}
@@ -583,7 +788,7 @@ namespace ardb
 				Ardb* z_db;
 				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
-					BitSetKeyObject* sek = (SetKeyObject*) k;
+					BitSetKeyObject* sek = (BitSetKeyObject*) k;
 					z_db->DelValue(*sek);
 					return 0;
 				}

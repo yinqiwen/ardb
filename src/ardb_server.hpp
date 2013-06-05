@@ -349,12 +349,11 @@ namespace ardb
 			int CompactAll(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
 			int Append(ArdbConnContext& ctx, RedisCommandFrame& cmd);
-			int Bitcount(ArdbConnContext& ctx, RedisCommandFrame& cmd);
-			int Bitop(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+
 			int Decr(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int Decrby(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int Get(ArdbConnContext& ctx, RedisCommandFrame& cmd);
-			int GetBit(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+
 			int GetRange(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int GetSet(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int Incr(ArdbConnContext& ctx, RedisCommandFrame& cmd);
@@ -364,7 +363,6 @@ namespace ardb
 			int MSet(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int MSetNX(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int PSetEX(ArdbConnContext& ctx, RedisCommandFrame& cmd);
-			int SetBit(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int SetEX(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int SetNX(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int SetRange(ArdbConnContext& ctx, RedisCommandFrame& cmd);
@@ -379,6 +377,12 @@ namespace ardb
 			int PExpireat(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int PTTL(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int TTL(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+
+			int Bitcount(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Bitop(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int BitopCount(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int SetBit(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int GetBit(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
 			int HDel(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int HExists(ArdbConnContext& ctx, RedisCommandFrame& cmd);

@@ -289,190 +289,190 @@ namespace ardb
 //		return bitval;
 //	}
 
-	int Ardb::BitOP(const DBID& db, const Slice& opstr, const Slice& dstkey,
-	        SliceArray& keys)
-	{
-		long op, j, numkeys;
-		unsigned char **src;
-		uint32 maxlen = 0;
-		uint32 minlen = 0;
-		unsigned char *res = NULL;
-
-		/* Parse the operation name. */
-		if (!strncasecmp(opstr.data(), "and", opstr.size()))
-			op = BITOP_AND;
-		else if (!strncasecmp(opstr.data(), "or", opstr.size()))
-			op = BITOP_OR;
-		else if (!strncasecmp(opstr.data(), "xor", opstr.size()))
-			op = BITOP_XOR;
-		else if (!strncasecmp(opstr.data(), "not", opstr.size()))
-			op = BITOP_NOT;
-		else
-		{
-			return ERR_INVALID_OPERATION;
-		}
-
-		/* Sanity check: NOT accepts only a single key argument. */
-		if (op == BITOP_NOT && keys.size() != 1)
-		{
-			SetErrorCause("BITOP NOT must be called with a single source key.");
-			return ERR_INVALID_OPERATION;
-		}
-
-		/* Lookup keys, and store pointers to the string objects into an array. */
-		numkeys = keys.size();
-		std::vector<uint32> lens;
-		ValueArray vs;
-		lens.reserve(numkeys);
-		src = (unsigned char **) malloc(sizeof(unsigned char*) * numkeys);
-		for (j = 0; j < numkeys; j++)
-		{
-			lens.push_back(0);
-			KeyObject k(keys[j], KV, db);
-			vs.push_back(ValueObject());
-			if (0 != GetValue(k, &vs[j]))
-			{
-				src[j] = NULL;
-				continue;
-			}
-			value_convert_to_raw(vs[j]);
-
-			lens[j] = vs[j].v.raw->ReadableBytes();
-			src[j] = (unsigned char *) (vs[j].v.raw->GetRawReadBuffer());
-			if (lens[j] > maxlen)
-				maxlen = lens[j];
-			if (j == 0 || lens[j] < minlen)
-				minlen = lens[j];
-		}
-
-		/* Compute the bit operation, if at least one string is not empty. */
-		if (maxlen)
-		{
-			res = (unsigned char*) malloc(maxlen);
-			unsigned char output, byte;
-			long i;
-
-			/* Fast path: as far as we have data for all the input bitmaps we
-			 * can take a fast path that performs much better than the
-			 * vanilla algorithm. */
-			j = 0;
-			if (minlen && numkeys <= 16)
-			{
-				unsigned long *lp[16];
-				unsigned long *lres = (unsigned long*) res;
-
-				/* Note: sds pointer is always aligned to 8 byte boundary. */
-				memcpy(lp, src, sizeof(unsigned long*) * numkeys);
-				memcpy(res, src[0], minlen);
-
-				/* Different branches per different operations for speed (sorry). */
-				if (op == BITOP_AND)
-				{
-					while (minlen >= sizeof(unsigned long) * 4)
-					{
-						for (i = 1; i < numkeys; i++)
-						{
-							lres[0] &= lp[i][0];
-							lres[1] &= lp[i][1];
-							lres[2] &= lp[i][2];
-							lres[3] &= lp[i][3];
-							lp[i] += 4;
-						}
-						lres += 4;
-						j += sizeof(unsigned long) * 4;
-						minlen -= sizeof(unsigned long) * 4;
-					}
-				}
-				else if (op == BITOP_OR)
-				{
-					while (minlen >= sizeof(unsigned long) * 4)
-					{
-						for (i = 1; i < numkeys; i++)
-						{
-							lres[0] |= lp[i][0];
-							lres[1] |= lp[i][1];
-							lres[2] |= lp[i][2];
-							lres[3] |= lp[i][3];
-							lp[i] += 4;
-						}
-						lres += 4;
-						j += sizeof(unsigned long) * 4;
-						minlen -= sizeof(unsigned long) * 4;
-					}
-				}
-				else if (op == BITOP_XOR)
-				{
-					while (minlen >= sizeof(unsigned long) * 4)
-					{
-						for (i = 1; i < numkeys; i++)
-						{
-							lres[0] ^= lp[i][0];
-							lres[1] ^= lp[i][1];
-							lres[2] ^= lp[i][2];
-							lres[3] ^= lp[i][3];
-							lp[i] += 4;
-						}
-						lres += 4;
-						j += sizeof(unsigned long) * 4;
-						minlen -= sizeof(unsigned long) * 4;
-					}
-				}
-				else if (op == BITOP_NOT)
-				{
-					while (minlen >= sizeof(unsigned long) * 4)
-					{
-						lres[0] = ~lres[0];
-						lres[1] = ~lres[1];
-						lres[2] = ~lres[2];
-						lres[3] = ~lres[3];
-						lres += 4;
-						j += sizeof(unsigned long) * 4;
-						minlen -= sizeof(unsigned long) * 4;
-					}
-				}
-			}
-
-			/* j is set to the next byte to process by the previous loop. */
-			for (; j < maxlen; j++)
-			{
-				output = (lens[0] <= j) ? 0 : src[0][j];
-				if (op == BITOP_NOT)
-					output = ~output;
-				for (i = 1; i < numkeys; i++)
-				{
-					byte = (lens[i] <= j) ? 0 : src[i][j];
-					switch (op)
-					{
-						case BITOP_AND:
-							output &= byte;
-							break;
-						case BITOP_OR:
-							output |= byte;
-							break;
-						case BITOP_XOR:
-							output ^= byte;
-							break;
-					}
-				}
-				res[j] = output;
-			}
-		}
-
-		/* Store the computed value into the target key */
-		if (maxlen)
-		{
-			ValueObject v;
-			fill_raw_value(Slice((char*) res, maxlen), v);
-			KeyObject k(dstkey, KV, db);
-			SetValue(k, v);
-		}
-		free(src);
-		if (NULL != res)
-		{
-			free(res);
-		}
-		return maxlen;
-	}
+//	int Ardb::BitOP(const DBID& db, const Slice& opstr, const Slice& dstkey,
+//	        SliceArray& keys)
+//	{
+//		long op, j, numkeys;
+//		unsigned char **src;
+//		uint32 maxlen = 0;
+//		uint32 minlen = 0;
+//		unsigned char *res = NULL;
+//
+//		/* Parse the operation name. */
+//		if (!strncasecmp(opstr.data(), "and", opstr.size()))
+//			op = BITOP_AND;
+//		else if (!strncasecmp(opstr.data(), "or", opstr.size()))
+//			op = BITOP_OR;
+//		else if (!strncasecmp(opstr.data(), "xor", opstr.size()))
+//			op = BITOP_XOR;
+//		else if (!strncasecmp(opstr.data(), "not", opstr.size()))
+//			op = BITOP_NOT;
+//		else
+//		{
+//			return ERR_INVALID_OPERATION;
+//		}
+//
+//		/* Sanity check: NOT accepts only a single key argument. */
+//		if (op == BITOP_NOT && keys.size() != 1)
+//		{
+//			SetErrorCause("BITOP NOT must be called with a single source key.");
+//			return ERR_INVALID_OPERATION;
+//		}
+//
+//		/* Lookup keys, and store pointers to the string objects into an array. */
+//		numkeys = keys.size();
+//		std::vector<uint32> lens;
+//		ValueArray vs;
+//		lens.reserve(numkeys);
+//		src = (unsigned char **) malloc(sizeof(unsigned char*) * numkeys);
+//		for (j = 0; j < numkeys; j++)
+//		{
+//			lens.push_back(0);
+//			KeyObject k(keys[j], KV, db);
+//			vs.push_back(ValueObject());
+//			if (0 != GetValue(k, &vs[j]))
+//			{
+//				src[j] = NULL;
+//				continue;
+//			}
+//			value_convert_to_raw(vs[j]);
+//
+//			lens[j] = vs[j].v.raw->ReadableBytes();
+//			src[j] = (unsigned char *) (vs[j].v.raw->GetRawReadBuffer());
+//			if (lens[j] > maxlen)
+//				maxlen = lens[j];
+//			if (j == 0 || lens[j] < minlen)
+//				minlen = lens[j];
+//		}
+//
+//		/* Compute the bit operation, if at least one string is not empty. */
+//		if (maxlen)
+//		{
+//			res = (unsigned char*) malloc(maxlen);
+//			unsigned char output, byte;
+//			long i;
+//
+//			/* Fast path: as far as we have data for all the input bitmaps we
+//			 * can take a fast path that performs much better than the
+//			 * vanilla algorithm. */
+//			j = 0;
+//			if (minlen && numkeys <= 16)
+//			{
+//				unsigned long *lp[16];
+//				unsigned long *lres = (unsigned long*) res;
+//
+//				/* Note: sds pointer is always aligned to 8 byte boundary. */
+//				memcpy(lp, src, sizeof(unsigned long*) * numkeys);
+//				memcpy(res, src[0], minlen);
+//
+//				/* Different branches per different operations for speed (sorry). */
+//				if (op == BITOP_AND)
+//				{
+//					while (minlen >= sizeof(unsigned long) * 4)
+//					{
+//						for (i = 1; i < numkeys; i++)
+//						{
+//							lres[0] &= lp[i][0];
+//							lres[1] &= lp[i][1];
+//							lres[2] &= lp[i][2];
+//							lres[3] &= lp[i][3];
+//							lp[i] += 4;
+//						}
+//						lres += 4;
+//						j += sizeof(unsigned long) * 4;
+//						minlen -= sizeof(unsigned long) * 4;
+//					}
+//				}
+//				else if (op == BITOP_OR)
+//				{
+//					while (minlen >= sizeof(unsigned long) * 4)
+//					{
+//						for (i = 1; i < numkeys; i++)
+//						{
+//							lres[0] |= lp[i][0];
+//							lres[1] |= lp[i][1];
+//							lres[2] |= lp[i][2];
+//							lres[3] |= lp[i][3];
+//							lp[i] += 4;
+//						}
+//						lres += 4;
+//						j += sizeof(unsigned long) * 4;
+//						minlen -= sizeof(unsigned long) * 4;
+//					}
+//				}
+//				else if (op == BITOP_XOR)
+//				{
+//					while (minlen >= sizeof(unsigned long) * 4)
+//					{
+//						for (i = 1; i < numkeys; i++)
+//						{
+//							lres[0] ^= lp[i][0];
+//							lres[1] ^= lp[i][1];
+//							lres[2] ^= lp[i][2];
+//							lres[3] ^= lp[i][3];
+//							lp[i] += 4;
+//						}
+//						lres += 4;
+//						j += sizeof(unsigned long) * 4;
+//						minlen -= sizeof(unsigned long) * 4;
+//					}
+//				}
+//				else if (op == BITOP_NOT)
+//				{
+//					while (minlen >= sizeof(unsigned long) * 4)
+//					{
+//						lres[0] = ~lres[0];
+//						lres[1] = ~lres[1];
+//						lres[2] = ~lres[2];
+//						lres[3] = ~lres[3];
+//						lres += 4;
+//						j += sizeof(unsigned long) * 4;
+//						minlen -= sizeof(unsigned long) * 4;
+//					}
+//				}
+//			}
+//
+//			/* j is set to the next byte to process by the previous loop. */
+//			for (; j < maxlen; j++)
+//			{
+//				output = (lens[0] <= j) ? 0 : src[0][j];
+//				if (op == BITOP_NOT)
+//					output = ~output;
+//				for (i = 1; i < numkeys; i++)
+//				{
+//					byte = (lens[i] <= j) ? 0 : src[i][j];
+//					switch (op)
+//					{
+//						case BITOP_AND:
+//							output &= byte;
+//							break;
+//						case BITOP_OR:
+//							output |= byte;
+//							break;
+//						case BITOP_XOR:
+//							output ^= byte;
+//							break;
+//					}
+//				}
+//				res[j] = output;
+//			}
+//		}
+//
+//		/* Store the computed value into the target key */
+//		if (maxlen)
+//		{
+//			ValueObject v;
+//			fill_raw_value(Slice((char*) res, maxlen), v);
+//			KeyObject k(dstkey, KV, db);
+//			SetValue(k, v);
+//		}
+//		free(src);
+//		if (NULL != res)
+//		{
+//			free(res);
+//		}
+//		return maxlen;
+//	}
 
 //	int Ardb::BitCount(const DBID& db, const Slice& key, int start, int end)
 //	{
