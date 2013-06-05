@@ -6,6 +6,8 @@
 CXX=g++
 CC=gcc
 
+uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
+
 LIB_PATH=$(PWD)/../deps
 
 LMDB_PATH=${LIB_PATH}/mdb-mdb/libraries/liblmdb
@@ -45,6 +47,13 @@ CCFLAGS=-Wall -Wno-unused-parameter -Wbad-function-cast -std=gnu99 ${OPT} -pedan
 LDFLAGS=-g 
 
 INCS=-I./  -I${LIB_PATH}/cpp-btree 
+
+# Default allocator
+ifeq ($(uname_S),Linux)
+	MALLOC=jemalloc
+else
+	MALLOC=libc
+endif
 
 ifeq ($(MALLOC),libc)
 #do nothing

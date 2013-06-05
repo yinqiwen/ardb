@@ -109,33 +109,6 @@ void test_strings_expire(Ardb& db)
 	CHECK_FATAL(db.Exists(dbid, "intkey1") == true, "Expire intkey failed");
 }
 
-void test_strings_bitcount(Ardb& db)
-{
-	DBID dbid = 0;
-	db.Set(dbid, "intkey1", "foobar");
-	int bitcount = db.BitCount(dbid, "intkey1", 0, 0);
-	CHECK_FATAL(bitcount != 4, "bitcount intkey1 failed:%d", bitcount);
-	bitcount = db.BitCount(dbid, "intkey1", 0, -1);
-	CHECK_FATAL(bitcount!= 26, "bitcount intkey1 failed:%d", bitcount);
-	bitcount = db.BitCount(dbid, "intkey1", 1, 1);
-	CHECK_FATAL(bitcount != 6, "bitcount intkey1 failed:%d", bitcount);
-}
-
-void test_strings_setgetbit(Ardb& db)
-{
-	DBID dbid = 0;
-	ValueObject v;
-	db.Del(dbid, "mykey");
-	int ret = db.SetBit(dbid, "mykey", 7, 1);
-	CHECK_FATAL(ret != 0, "setbit mykey failed:%d", ret);
-	ret = db.GetBit(dbid, "mykey", 7);
-	CHECK_FATAL(ret != 1, "getbit mykey failed:%d", ret);
-	ret = db.SetBit(dbid, "mykey", 7, 0);
-	CHECK_FATAL( ret != 1, "setbit mykey failed:%d", ret);
-	ret = db.GetBit(dbid, "mykey", 7);
-	CHECK_FATAL(ret != 0, "getbit mykey failed:%d", ret);
-}
-
 void test_strings(Ardb& db)
 {
 	test_strings_append(db);
@@ -148,7 +121,5 @@ void test_strings(Ardb& db)
 	test_strings_exists(db);
 	test_strings_setnx(db);
 	test_strings_expire(db);
-	test_strings_bitcount(db);
-	test_strings_setgetbit(db);
 }
 

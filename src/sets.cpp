@@ -485,12 +485,12 @@ namespace ardb
 					return 0;
 				}
 		};
-		ValueSet cmp1, cmp2;
+		ValueSet cmp1;
 		SetKeyObject cmp_start(keys[min_idx], min, db);
 		SInterWalk walk(cmp1, cmp1, min, max);
 		Walk( cmp_start, false, &walk);
 		ValueSet* cmp = &cmp1;
-		ValueSet* result = &cmp2;
+		ValueSet* result = &values;
 		for (uint32_t i = 0; i < keys.size(); i++)
 		{
 			if (i != min_idx)
@@ -514,7 +514,10 @@ namespace ardb
 				}
 			}
 		}
-		values = *cmp;
+		if(cmp != &values)
+		{
+			values = *cmp;
+		}
 		return 0;
 	}
 
