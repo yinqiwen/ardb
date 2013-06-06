@@ -43,13 +43,13 @@
 #define CHECK_FATAL(cond, ...)  do{\
 	if(cond){\
 		 (void)fprintf(stderr,               \
-		                "[FAIL]%s:%d: Assertion %s failed in %s\n",     \
-		                __FILE__,__LINE__,#cond,__func__);      \
+		                "\e[1;35m%-6s\e[m%s:%d: Assertion %s failed in %s\n",     \
+		                "[FAIL]", __FILE__,__LINE__,#cond,__func__);      \
          fprintf(stderr, __VA_ARGS__);\
          fprintf(stderr, "\n"); \
          exit(-1);\
 	}else{\
-		fprintf(stdout, "[PASS]%s:%d: Assertion %s\n", __FILE__,__LINE__,#cond);\
+		fprintf(stdout, "\e[1;32m%-6s\e[m%s:%d: Assertion %s\n", "[PASS]", __FILE__,__LINE__,#cond);\
 	}\
 }while(0)
 

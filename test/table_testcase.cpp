@@ -39,7 +39,7 @@ void test_table_insert_get(Ardb& db)
 	db.TGet(dbid, "mytable",options, result, err);
 
 	std::string str;
-	CHECK_FATAL( result.size() != 2, "%d", result.size());
+	CHECK_FATAL( result.size() != 2, "%zu", result.size());
 	CHECK_FATAL( result[0].ToString(str) != "1999", "%s", result[0].ToString(str).c_str());
 	CHECK_FATAL( result[1].ToString(str) != "ardb", "%s", result[0].ToString(str).c_str());
 }
@@ -80,7 +80,7 @@ void test_table_update(Ardb& db)
 	db.TGet(dbid, "mytable", options, result, err);
 
 	std::string str;
-	CHECK_FATAL( result.size() != 2, "%d", result.size());
+	CHECK_FATAL( result.size() != 2, "%zu", result.size());
 	CHECK_FATAL( result[0].ToString(str) != "30", "%s", result[0].ToString(str).c_str());
 	CHECK_FATAL( result[1].ToString(str) != "newdb", "%s", result[0].ToString(str).c_str());
 }

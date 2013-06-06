@@ -1031,7 +1031,7 @@ namespace ardb
 		{
 			char err_cause[tableName.size() + 256];
 			sprintf(err_cause,
-			        "Table %s has %d keys defined, while only %d keys found in insert conditions.",
+			        "Table %s has %zu keys defined, while only %zu keys found in insert conditions.",
 			        tableName.data(), schema.keynames.size(), keynvs.size());
 			ERROR_LOG( "%s", err_cause);
 			err = err_cause;

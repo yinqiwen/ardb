@@ -17,7 +17,7 @@ void test_set_saddrem(Ardb& db)
 	db.SAdd(dbid, "myset", "123");
 	db.SAdd(dbid, "myset", "1231");
 	CHECK_FATAL( db.SCard(dbid, "myset") != 2,
-			"sadd myset failed:Dd", db.SCard(dbid, "myset"));
+			"sadd myset failed:%d", db.SCard(dbid, "myset"));
 	db.SRem(dbid, "myset", "1231");
 	CHECK_FATAL( db.SCard(dbid, "myset") != 1,
 			"srem myset failed:%d", db.SCard(dbid, "myset"));

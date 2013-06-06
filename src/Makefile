@@ -42,8 +42,8 @@ KCDB_LIBA=${KCDB_PATH}/libkyotocabinet.a
 OPTIMIZATION?=-O2
 OPT=$(OPTIMIZATION)
 
-CXXFLAGS=-Wall -Wno-unused-parameter -Wno-format -g  ${OPT} -D_FILE_OFFSET_BITS=64 -fPIC
-CCFLAGS=-Wall -Wno-unused-parameter -Wbad-function-cast -std=gnu99 ${OPT} -pedantic -Wno-format -g -D_FILE_OFFSET_BITS=64 -fPIC
+CXXFLAGS=-Wall -g  ${OPT}  -fPIC
+CCFLAGS=-Wall -std=gnu99 ${OPT} -pedantic -g  -fPIC
 LDFLAGS=-g 
 
 INCS=-I./  -I${LIB_PATH}/cpp-btree 

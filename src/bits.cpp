@@ -672,7 +672,7 @@ namespace ardb
 	{
 		BitSetMetaValue meta;
 		GetBitSetMetaValue(db, key, meta);
-		if (start <= 0 && (end < 0 || end >= (meta.max * BIT_SUBSET_SIZE)))
+		if (start <= 0 && (end < 0 || end >= (int64)(meta.max * BIT_SUBSET_SIZE)))
 		{
 			return meta.bitcount;
 		}

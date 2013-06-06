@@ -56,7 +56,7 @@ void test_lists_insert(Ardb& db)
 			"lrpush/llen mylist failed:%d", db.LLen(dbid, "mylist"));
 	std::string v;
 	db.LIndex(dbid, "mylist", 2, v);
-	CHECK_FATAL( v != "value2", "LInsert failed:", v.c_str());
+	CHECK_FATAL( v != "value2", "LInsert failed:%s", v.c_str());
 	db.LSet(dbid, "mylist", 2, "valuex");
 	db.LIndex(dbid, "mylist", 2, v);
 	CHECK_FATAL( v != "valuex", "LSet failed:%s", v.c_str());

@@ -42,12 +42,12 @@ void test_hash_hgetall(Ardb& db)
 	ValueArray values;
 	StringArray fields;
 	db.HGetAll(dbid, "myhash", fields, values);
-	CHECK_FATAL(fields.size() != 3, "hgetall myhash failed:%d", fields.size());
+	CHECK_FATAL(fields.size() != 3, "hgetall myhash failed:%zu", fields.size());
 	CHECK_FATAL(fields[1].compare("field2") != 0,
-			"hgetall myhash failed:%d", fields.size());
+			"hgetall myhash failed:%zu", fields.size());
 	std::string str;
 	int ret = values[2].ToString(str).compare("value3");
-	CHECK_FATAL(ret != 0, "hgetall myhash failed:%d", values.size());
+	CHECK_FATAL(ret != 0, "hgetall myhash failed:%zu", values.size());
 }
 
 void test_hash_hkeys(Ardb& db)
@@ -59,9 +59,9 @@ void test_hash_hkeys(Ardb& db)
 	db.HSet(dbid, "myhash", "field3", "value3");
 	StringArray fields;
 	db.HKeys(dbid, "myhash", fields);
-	CHECK_FATAL( fields.size() != 3, "hgetall myhash failed:%d", fields.size());
+	CHECK_FATAL( fields.size() != 3, "hgetall myhash failed:%zu", fields.size());
 	CHECK_FATAL(fields[1].compare("field2") != 0,
-			"hgetall myhash failed:%d", fields.size());
+			"hgetall myhash failed:%zu", fields.size());
 }
 
 void test_hash_hvals(Ardb& db)
@@ -108,7 +108,7 @@ void test_hash_hincr(Ardb& db)
 	db.HSetNX(dbid, "myhash", "field1", "100");
 	int64_t intv = 0;
 	db.HIncrby(dbid, "myhash", "field1", 100, intv);
-	CHECK_FATAL( intv != 200, "hincr myhash failed:%d", intv);
+	CHECK_FATAL( intv != 200, "hincr myhash failed:%lld", intv);
 	double dv = 0;
 	db.HIncrbyFloat(dbid, "myhash", "field1", 100.25, dv);
 	CHECK_FATAL(dv != 300.25, "hincrbyfloat myhash failed:%f", dv);
