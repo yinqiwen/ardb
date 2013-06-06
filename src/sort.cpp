@@ -21,7 +21,11 @@ namespace ardb
 			}
 			int Compare(const SortValue& other) const
 			{
-				return value->Compare(*other.value);
+				if (cmp.type == EMPTY && other.cmp.type == EMPTY)
+				{
+					return value->Compare(*other.value);
+				}
+				return cmp.Compare(other.cmp);
 			}
 	};
 	template<typename T>
@@ -37,7 +41,7 @@ namespace ardb
 
 	static int parse_sort_options(SortOptions& options, const StringArray& args)
 	{
-		for (uint32 i = 1; i < args.size(); i++)
+		for (uint32 i = 0; i < args.size(); i++)
 		{
 			if (!strcasecmp(args[i].c_str(), "asc"))
 			{
@@ -85,6 +89,7 @@ namespace ardb
 			}
 			else
 			{
+				DEBUG_LOG("Invalid sort option:%s", args[i].c_str());
 				return -1;
 			}
 		}
@@ -114,7 +119,7 @@ namespace ardb
 		}
 
 		f = strstr(spat, "->");
-		if (NULL != f && *(f + 2) != '\0')
+		if (NULL != f && (uint32)(f - spat) == (pattern.size() - 2))
 		{
 			f = NULL;
 		}
@@ -143,6 +148,7 @@ namespace ardb
 		SortOptions options;
 		if (parse_sort_options(options, args) < 0)
 		{
+			DEBUG_LOG("Failed to parse sort options.");
 			return ERR_INVALID_ARGS;
 		}
 		int type = Type(db, key);
@@ -181,7 +187,7 @@ namespace ardb
 			{
 				options.limit_offset = 0;
 			}
-			if ((uint32)options.limit_offset > sortvals.size())
+			if ((uint32) options.limit_offset > sortvals.size())
 			{
 				values.clear();
 				return 0;
@@ -207,6 +213,7 @@ namespace ardb
 					if (GetValueByPattern(db, options.by, sortvals[i],
 					        sortvec[i].cmp) < 0)
 					{
+						DEBUG_LOG("Failed to get value by pattern:%s", options.by);
 						sortvec[i].cmp.Clear();
 						continue;
 					}
@@ -271,7 +278,7 @@ namespace ardb
 
 		uint32 count = 0;
 		for (uint32 i = options.limit_offset;
-		        i < sortvals.size() && count < (uint32)options.limit_count;
+		        i < sortvals.size() && count < (uint32) options.limit_count;
 		        i++, count++)
 		{
 			ValueObject* patternObj = NULL;
@@ -295,6 +302,7 @@ namespace ardb
 					if (GetValueByPattern(db, options.get_patterns[j],
 					        *patternObj, vo) < 0)
 					{
+						DEBUG_LOG("Failed to get value by pattern for:%s", options.get_patterns[j]);
 						vo.Clear();
 					}
 					values.push_back(vo);

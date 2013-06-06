@@ -197,6 +197,9 @@ leveldb:snappy
 
 clean_launch_obj:
 	rm -f main.o
+
+clean_test:
+	rm -f ${TESTOBJ}
 	
 noopt:
 	$(MAKE) OPT="-O0"

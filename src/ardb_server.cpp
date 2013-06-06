@@ -699,6 +699,7 @@ namespace ardb
 	{
 		ValueArray vs;
 		std::string key = cmd.GetArguments()[0];
+		cmd.GetArguments().pop_front();
 		int ret = m_db->Sort(ctx.currentDB, key, cmd.GetArguments(), vs);
 		if (ret < 0)
 		{
