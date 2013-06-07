@@ -109,7 +109,7 @@ namespace ardb
 	{
 		double min = -4503599627370495LL; /* (2^52)-1 */
 		double max = 4503599627370496LL; /* -(2^52) */
-		int64_t iv = (int64_t) d;
+		int64 iv = (int64) d;
 		if (d > min && d < max && d == ((double) iv))
 		{
 			char tmp[256];

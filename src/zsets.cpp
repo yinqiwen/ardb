@@ -361,7 +361,7 @@ namespace ardb
 				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					ZSetKeyObject* zko = (ZSetKeyObject*) k;
-					//DEBUG_LOG("Enter with %f %f ", zko->score, z_max_score);
+					std::string str;
 					if (zko->score > z_min_score && zko->score < z_max_score)
 					{
 						count++;
@@ -406,9 +406,9 @@ namespace ardb
 				int foundRank;
 				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
-					if (rank < 0)
-						rank = 0;
 					ZSetKeyObject* zko = (ZSetKeyObject*) k;
+					std::string str;
+					DEBUG_LOG("#####%s",zko->value.ToString(str).c_str() );
 					if (zko->value.Compare(z_member) == 0)
 					{
 						foundRank = rank;

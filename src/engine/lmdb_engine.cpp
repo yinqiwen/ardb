@@ -23,9 +23,9 @@ namespace ardb
 			m_env(NULL), m_env_opened(false)
 	{
 		ParseConfig(props, m_cfg);
-		mdb_env_create(&m_env);
-		mdb_env_set_mapsize(m_env, 100000000 * 100 * 32L / 10);
-		mdb_env_set_maxdbs(m_env, m_cfg.max_db);
+		int rc = mdb_env_create(&m_env);
+		DEBUG_LOG("Create env %d", rc);
+		mdb_env_set_mapsize(m_env, 10000000 * 100 * 32L / 10);
 	}
 
 	LMDBEngineFactory::~LMDBEngineFactory()
@@ -123,7 +123,7 @@ namespace ardb
 		m_env = env;
 		MDB_txn *txn;
 		int rc = mdb_txn_begin(env, NULL, 0, &txn);
-		rc = mdb_open(txn, name.c_str(), MDB_CREATE, &m_dbi);
+		rc = mdb_open(txn, NULL, MDB_CREATE, &m_dbi);
 		if (rc != 0)
 		{
 			ERROR_LOG(
@@ -139,8 +139,30 @@ namespace ardb
 	{
 		if (NULL != holder.txn)
 		{
+			StringSet::iterator it = holder.dels.begin();
+			while (it != holder.dels.end())
+			{
+				MDB_val k;
+				k.mv_data = (void*) (it->c_str());
+				k.mv_size = it->size();
+				mdb_del(holder.txn, m_dbi, &k, NULL);
+				it++;
+			}
+			std::map<std::string, std::string>::iterator sit =
+			        holder.inserts.begin();
+			while (sit != holder.inserts.end())
+			{
+				MDB_val k, v;
+				k.mv_data = (void*) (sit->first.c_str());
+				k.mv_size = sit->first.size();
+				v.mv_data = (void*) (sit->second.c_str());
+				v.mv_size = sit->second.size();
+				mdb_put(holder.txn, m_dbi, &k, &v, 0);
+				sit++;
+			}
 			mdb_txn_commit(holder.txn);
 			holder.txn = NULL;
+			holder.Clear();
 		}
 		return 0;
 	}
@@ -183,7 +205,8 @@ namespace ardb
 		BatchHolder& holder = m_batch_local.GetValue();
 		if (!holder.EmptyRef())
 		{
-			mdb_put(holder.txn, m_dbi, &k, &v, 0);
+			//mdb_put(holder.txn, m_dbi, &k, &v, 0);
+			holder.Put(key, value);
 		}
 		else
 		{
@@ -226,7 +249,8 @@ namespace ardb
 		BatchHolder& holder = m_batch_local.GetValue();
 		if (!holder.EmptyRef())
 		{
-			mdb_del(holder.txn, m_dbi, &k, NULL);
+			//mdb_del(holder.txn, m_dbi, &k, NULL);
+			holder.Del(key);
 		}
 		else
 		{
@@ -245,10 +269,9 @@ namespace ardb
 		k.mv_size = findkey.size();
 		MDB_cursor *cursor = NULL;
 		int rc = 0;
+		BeginBatchWrite();
 		BatchHolder& holder = m_batch_local.GetValue();
-		MDB_txn *txn;
-		mdb_txn_begin(m_env, holder.txn, 0, &txn);
-		rc = mdb_cursor_open(txn, m_dbi, &cursor);
+		rc = mdb_cursor_open(holder.txn, m_dbi, &cursor);
 		if (0 != rc)
 		{
 			ERROR_LOG(
@@ -260,7 +283,8 @@ namespace ardb
 		{
 			rc = mdb_cursor_get(cursor, &k, &data, MDB_LAST);
 		}
-		return new LMDBIterator(txn, cursor, rc == 0);
+		LMDBIterator* iter = new LMDBIterator(this, cursor, rc == 0);
+		return iter;
 	}
 
 	void LMDBIterator::SeekToFirst()
@@ -276,7 +300,8 @@ namespace ardb
 
 	void LMDBIterator::Next()
 	{
-		int rc = mdb_cursor_get(m_cursor, &m_key, &m_value, MDB_NEXT);
+		int rc;
+		rc = mdb_cursor_get(m_cursor, &m_key, &m_value, MDB_NEXT);
 		m_valid = rc == 0;
 	}
 	void LMDBIterator::Prev()
@@ -300,8 +325,7 @@ namespace ardb
 	LMDBIterator::~LMDBIterator()
 	{
 		mdb_cursor_close(m_cursor);
-		mdb_txn_commit(m_txn);
-
+		m_engine->CommitBatchWrite();
 	}
 }
 

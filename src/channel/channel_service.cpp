@@ -128,7 +128,7 @@ bool ChannelService::DetachChannel(Channel* ch, bool remove)
 
 Channel* ChannelService::AttachChannel(Channel* ch, bool transfer_service_only)
 {
-	RETURN_FALSE_IF_NULL(ch);
+	RETURN_NULL_IF_NULL(ch);
 	if (transfer_service_only)
 	{
 		ch->m_service = this;
@@ -137,7 +137,7 @@ Channel* ChannelService::AttachChannel(Channel* ch, bool transfer_service_only)
 	}
 	if (m_channel_table.count(ch->GetID()) > 0)
 	{
-		return false;
+		return NULL;
 	}
 	ch->DetachFD();
 
@@ -145,7 +145,7 @@ Channel* ChannelService::AttachChannel(Channel* ch, bool transfer_service_only)
 	{
 		ERROR_LOG(
 				"Failed to attach channel since source channel has diff read fd & write fd.");
-		return false;
+		return NULL;
 	}
 	Channel* newch = CloneChannel(ch);
 	if (NULL != newch)

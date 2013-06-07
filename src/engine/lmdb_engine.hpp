@@ -20,7 +20,7 @@ namespace ardb
 	class LMDBIterator: public Iterator
 	{
 		private:
-			MDB_txn *m_txn;
+			LMDBEngine *m_engine;
 			MDB_cursor * m_cursor;
 			MDB_val m_key;
 			MDB_val m_value;
@@ -32,9 +32,10 @@ namespace ardb
 			bool Valid();
 			void SeekToFirst();
 			void SeekToLast();
+			friend class LMDBEngine;
 		public:
-			LMDBIterator(MDB_txn * txn, MDB_cursor* iter, bool valid = true) :
-					m_txn(txn), m_cursor(iter), m_valid(valid)
+			LMDBIterator(LMDBEngine * e, MDB_cursor* iter, bool valid = true) :
+					m_engine(e), m_cursor(iter), m_valid(valid)
 			{
 				if (valid)
 				{
@@ -49,9 +50,7 @@ namespace ardb
 	struct LMDBConfig
 	{
 			std::string path;
-			int64 max_db;
-			LMDBConfig() :
-					max_db(1024)
+			LMDBConfig()
 			{
 			}
 	};
@@ -65,6 +64,8 @@ namespace ardb
 			{
 					MDB_txn *txn;
 					uint32 ref;
+					StringSet dels;
+					std::map<std::string, std::string> inserts;
 					void ReleaseRef()
 					{
 						if (ref > 0)
@@ -78,12 +79,29 @@ namespace ardb
 					{
 						return ref == 0;
 					}
+					void Del(const Slice& key)
+					{
+						std::string str(key.data(), key.size());
+						dels.insert(str);
+
+					}
+					void Put(const Slice& key, const Slice& value)
+					{
+						std::string str(key.data(), key.size());
+						std::string v(value.data(), value.size());
+						dels.erase(str);
+						inserts[str] = v;
+					}
 					void Clear()
 					{
 						if (NULL != txn)
 						{
-
+							mdb_txn_abort(txn);
+							txn = NULL;
 						}
+						ref = 0;
+						dels.clear();
+						inserts.clear();
 					}
 					BatchHolder() :
 							txn(NULL), ref(0)
@@ -94,12 +112,13 @@ namespace ardb
 			std::string m_db_path;
 
 			LMDBConfig m_cfg;
-			friend class LevelDBEngineFactory;
+			friend class LMDBIterator;
 			int FlushWriteBatch(BatchHolder& holder);
 		public:
 			LMDBEngine();
 			~LMDBEngine();
-			int Init(const LMDBConfig& cfg, MDB_env *env,const std::string& name);
+			int Init(const LMDBConfig& cfg, MDB_env *env,
+			        const std::string& name);
 			int Put(const Slice& key, const Slice& value);
 			int Get(const Slice& key, std::string* value);
 			int Del(const Slice& key);
