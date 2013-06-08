@@ -416,6 +416,8 @@ namespace ardb
 				{
 					ListKeyObject* sek = (ListKeyObject*) k;
 					z_db->DelValue(*sek);
+					std::string str;
+					v->ToString(str);
 					return 0;
 				}
 				LClearWalk(Ardb* db) :

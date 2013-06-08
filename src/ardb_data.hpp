@@ -633,6 +633,7 @@ namespace ardb
 	typedef std::vector<SetMetaValue> SetMetaValueArray;
 	typedef std::deque<TableIndexKeyObject> TableRowKeyArray;
 	typedef btree::btree_set<TableKeyIndex> TableKeyIndexSet;
+	typedef btree::btree_map<std::string, std::string> StringStringMap;
 	typedef std::map<uint64, std::string> StringMap;
 	typedef std::map<uint64, BitSetElementValue> BitSetElementValueMap;
 

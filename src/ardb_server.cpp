@@ -709,6 +709,7 @@ namespace ardb
 		{
 			fill_array_reply(ctx.reply, vs);
 		}
+		cmd.GetArguments().push_front(key);
 		return 0;
 	}
 

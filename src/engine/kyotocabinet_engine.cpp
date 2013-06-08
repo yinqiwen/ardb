@@ -112,21 +112,58 @@ namespace ardb
 
 	int KCDBEngine::BeginBatchWrite()
 	{
+		m_batch_local.GetValue().AddRef();
 		return 0;
 	}
 	int KCDBEngine::CommitBatchWrite()
 	{
+		BatchHolder& holder = m_batch_local.GetValue();
+		holder.ReleaseRef();
+		if (holder.EmptyRef())
+		{
+			return FlushWriteBatch(holder);
+		}
 		return 0;
 	}
 	int KCDBEngine::DiscardBatchWrite()
 	{
+		BatchHolder& holder = m_batch_local.GetValue();
+		holder.ReleaseRef();
+		holder.Clear();
+		return 0;
+	}
+
+	int KCDBEngine::FlushWriteBatch(BatchHolder& holder)
+	{
+		StringSet::iterator it = holder.batch_del.begin();
+		while(it != holder.batch_del.end())
+		{
+			m_db->remove(*it);
+			it++;
+		}
+		StringStringMap::iterator sit = holder.batch_put.begin();
+		while(sit != holder.batch_put.end())
+		{
+			m_db->set(sit->first, sit->second);
+			sit++;
+		}
+		holder.Clear();
 		return 0;
 	}
 
 	int KCDBEngine::Put(const Slice& key, const Slice& value)
 	{
-		bool success = false;
-		success = m_db->set(key.data(), key.size(), value.data(), value.size());
+		bool success = true;
+		BatchHolder& holder = m_batch_local.GetValue();
+		if (!holder.EmptyRef())
+		{
+			holder.Put(key, value);
+		} else
+		{
+			success = m_db->set(key.data(), key.size(), value.data(),
+					value.size());
+		}
+
 		return success ? 0 : -1;
 	}
 	int KCDBEngine::Get(const Slice& key, std::string* value)
@@ -144,7 +181,15 @@ namespace ardb
 	}
 	int KCDBEngine::Del(const Slice& key)
 	{
-		return m_db->remove(key.data(), key.size()) ? 0 : -1;
+		BatchHolder& holder = m_batch_local.GetValue();
+		if (!holder.EmptyRef())
+		{
+			holder.Del(key);
+			return 0;
+		} else
+		{
+			return m_db->remove(key.data(), key.size()) ? 0 : -1;
+		}
 	}
 
 	Iterator* KCDBEngine::Find(const Slice& findkey, bool cache)

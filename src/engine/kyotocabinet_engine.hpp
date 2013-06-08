@@ -19,6 +19,7 @@
 #include <stack>
 #include "ardb.hpp"
 #include "util/config_helper.hpp"
+#include "util/thread/thread_local.hpp"
 
 namespace ardb
 {
@@ -63,6 +64,52 @@ namespace ardb
 		private:
 			kyotocabinet::TreeDB* m_db;
 			KCDBComparator m_comparator;
+
+			struct BatchHolder
+			{
+					StringSet batch_del;
+					StringStringMap batch_put;
+					uint32 ref;
+					void ReleaseRef()
+					{
+						if (ref > 0)
+							ref--;
+					}
+					void AddRef()
+					{
+						ref++;
+					}
+					bool EmptyRef()
+					{
+						return ref == 0;
+					}
+					void Put(const Slice& key, const Slice& value)
+					{
+						std::string keystr(key.data(), key.size());
+						std::string valstr(value.data(), value.size());
+						batch_del.erase(keystr);
+						batch_put.insert(
+								StringStringMap::value_type(keystr, valstr));
+					}
+					void Del(const Slice& key)
+					{
+						std::string keystr(key.data(), key.size());
+						batch_del.insert(keystr);
+						batch_put.erase(keystr);
+					}
+					void Clear()
+					{
+						batch_del.clear();
+						batch_put.clear();
+						ref = 0;
+					}
+					BatchHolder() :
+							ref(0)
+					{
+					}
+			};
+			ThreadLocal<BatchHolder> m_batch_local;
+			int FlushWriteBatch(BatchHolder& holder);
 		public:
 			KCDBEngine();
 			~KCDBEngine();
