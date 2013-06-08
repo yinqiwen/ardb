@@ -463,7 +463,7 @@ namespace ardb
 		info.append("# Disk\r\n");
 		int64 filesize = file_size(m_cfg.data_base_path);
 		char tmp[256];
-		sprintf(tmp, "%lld", filesize);
+		sprintf(tmp, "%"PRId64, filesize);
 		info.append("db_used_space:").append(tmp).append("\r\n");
 
 		if (m_cfg.repl_log_enable)
@@ -473,9 +473,9 @@ namespace ardb
 			sprintf(tmp, "%u", m_repli_serv.GetOpLogs().MemCacheSize());
 			info.append("oplogs_cache_size:").append(tmp).append("\r\n");
 			info.append("oplogs_cache_seq: [");
-			sprintf(tmp, "%llu", m_repli_serv.GetOpLogs().GetMinSeq());
+			sprintf(tmp, "%"PRIu64, m_repli_serv.GetOpLogs().GetMinSeq());
 			info.append(tmp).append("-");
-			sprintf(tmp, "%llu", m_repli_serv.GetOpLogs().GetMaxSeq());
+			sprintf(tmp, "%"PRIu64, m_repli_serv.GetOpLogs().GetMaxSeq());
 			info.append(tmp).append("]\r\n");
 
 		}

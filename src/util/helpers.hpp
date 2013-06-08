@@ -12,6 +12,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <inttypes.h>
 #include <string>
 #include "common.hpp"
 #include "time_helper.hpp"
@@ -113,7 +114,7 @@ namespace ardb
 		if (d > min && d < max && d == ((double) iv))
 		{
 			char tmp[256];
-			sprintf(tmp, "%lld", iv);
+			sprintf(tmp, "%"PRId64, iv);
 			return tmp;
 		}
 		else
