@@ -108,7 +108,7 @@ void test_hash_hincr(Ardb& db)
 	db.HSetNX(dbid, "myhash", "field1", "100");
 	int64_t intv = 0;
 	db.HIncrby(dbid, "myhash", "field1", 100, intv);
-	CHECK_FATAL( intv != 200, "hincr myhash failed:%lld", intv);
+	CHECK_FATAL( intv != 200, "hincr myhash failed:%"PRId64, intv);
 	double dv = 0;
 	db.HIncrbyFloat(dbid, "myhash", "field1", 100.25, dv);
 	CHECK_FATAL(dv != 300.25, "hincrbyfloat myhash failed:%f", dv);

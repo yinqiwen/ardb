@@ -41,10 +41,10 @@ void test_sort_list(Ardb& db)
 	ValueArray vs;
 	db.Sort(dbid, "mylist", args, vs);
 	CHECK_FATAL(vs.size() != 4, "sort result size error:%zu", vs.size());
-	CHECK_FATAL(vs[0].v.int_v != 9, "sort result[0]:%lld", vs[0].v.int_v);
-	CHECK_FATAL(vs[1].v.int_v != 10, "sort result[0]:%lld", vs[1].v.int_v);
-	CHECK_FATAL(vs[2].v.int_v != 100, "sort result[0]:%lld", vs[2].v.int_v);
-	CHECK_FATAL(vs[3].v.int_v != 1000, "sort result[0]:%lld", vs[3].v.int_v);
+	CHECK_FATAL(vs[0].v.int_v != 9, "sort result[0]:%"PRId64, vs[0].v.int_v);
+	CHECK_FATAL(vs[1].v.int_v != 10, "sort result[0]:%"PRId64, vs[1].v.int_v);
+	CHECK_FATAL(vs[2].v.int_v != 100, "sort result[0]:%"PRId64, vs[2].v.int_v);
+	CHECK_FATAL(vs[3].v.int_v != 1000, "sort result[0]:%"PRId64, vs[3].v.int_v);
 
 	vs.clear();
 	args.push_back("LIMIT");
@@ -87,10 +87,10 @@ void test_sort_list(Ardb& db)
 	CHECK_FATAL(vs[2].ToString(str) != "hash9", "sort result[2]:%s", str.c_str());
 	CHECK_FATAL(vs[4].ToString(str) != "hash10", "sort result[4]:%s", str.c_str());
 	CHECK_FATAL(vs[6].ToString(str) != "hash100", "sort result[6]:%s", str.c_str());
-	CHECK_FATAL(vs[1].v.int_v != 1000, "sort result[1]:%lld", vs[1].v.int_v);
-	CHECK_FATAL(vs[3].v.int_v != 9, "sort result[3]:%lld", vs[3].v.int_v);
-	CHECK_FATAL(vs[5].v.int_v != 10, "sort result[5]:%lld", vs[5].v.int_v);
-	CHECK_FATAL(vs[7].v.int_v != 100, "sort result[7]:%lld", vs[7].v.int_v);
+	CHECK_FATAL(vs[1].v.int_v != 1000, "sort result[1]:%"PRId64, vs[1].v.int_v);
+	CHECK_FATAL(vs[3].v.int_v != 9, "sort result[3]:%"PRId64, vs[3].v.int_v);
+	CHECK_FATAL(vs[5].v.int_v != 10, "sort result[5]:%"PRId64, vs[5].v.int_v);
+	CHECK_FATAL(vs[7].v.int_v != 100, "sort result[7]:%"PRId64, vs[7].v.int_v);
 }
 
 

@@ -63,7 +63,7 @@ void test_strings_decr(Ardb& db)
 	db.Set(dbid, "intkey", "10");
 	int64_t iv = 0;
 	db.Decr(dbid, "intkey", iv);
-	CHECK_FATAL(iv != 9, "Decr1 failed %lld", iv);
+	CHECK_FATAL(iv != 9, "Decr1 failed %"PRId64, iv);
 	db.Decrby(dbid, "intkey", 2, iv);
 	CHECK_FATAL( iv != 7, "Decrby failed");
 }

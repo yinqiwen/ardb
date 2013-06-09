@@ -24,5 +24,4 @@ void test_all(Ardb& db)
 	test_tables(db);
 	test_bitsets(db);
 	test_misc(db);
-	//db.PrintDB(dbid);
 }
