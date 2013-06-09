@@ -169,6 +169,10 @@ namespace ardb
 			{
 				QueryOptions tmp;
 				ZRange(db, key, 0, -1, sortvals, tmp);
+				if(NULL == options.by)
+				{
+					options.nosort = true;
+				}
 				break;
 			}
 			default:

@@ -159,9 +159,75 @@ void test_sort_set(Ardb& db)
 	CHECK_FATAL(vs[7].ToString(str) != "ab1", "sort result[7]:%s", str.c_str());
 }
 
+void test_sort_zset(Ardb& db)
+{
+	DBID dbid = 0;
+	db.ZClear(dbid, "myzset");
+	db.ZAdd(dbid, "myzset", 0, "v0");
+	db.ZAdd(dbid, "myzset", 10, "v10");
+	db.ZAdd(dbid, "myzset", 3, "v3");
+	db.ZAdd(dbid, "myzset", 5, "v5");
+
+	StringArray args;
+	ValueArray vs;
+	db.Sort(dbid, "myzset", args, vs);
+	std::string str;
+	CHECK_FATAL(vs.size() != 4, "sort result size error:%zu", vs.size());
+	CHECK_FATAL(vs[0].ToString(str) != "v0", "sort result[0]:%s", str.c_str());
+	CHECK_FATAL(vs[1].ToString(str) != "v3", "sort result[1]:%s", str.c_str());
+	CHECK_FATAL(vs[2].ToString(str) != "v5", "sort result[2]:%s", str.c_str());
+	CHECK_FATAL(vs[3].ToString(str) != "v10", "sort result[3]:%s", str.c_str());
+
+	vs.clear();
+	args.push_back("LIMIT");
+	args.push_back("1");
+	args.push_back("2");
+	db.Sort(dbid, "myzset", args, vs);
+	CHECK_FATAL(vs.size() != 2, "sort result size error:%zu", vs.size());
+	CHECK_FATAL(vs[0].ToString(str) != "v3", "sort result[0]:%s", str.c_str());
+	CHECK_FATAL(vs[1].ToString(str) != "v5", "sort result[1]:%s", str.c_str());
+
+	vs.clear();
+	args.clear();
+	args.push_back("by");
+	args.push_back("weight_*");
+	db.Set(dbid, "weight_v0", "1000");
+	db.Set(dbid, "weight_v3", "900");
+	db.Set(dbid, "weight_v5", "800");
+	db.Set(dbid, "weight_v10", "700");
+	db.Sort(dbid, "myzset", args, vs);
+	CHECK_FATAL(vs.size() != 4, "sort result size error:%zu", vs.size());
+	CHECK_FATAL(vs[0].ToString(str) != "v10", "sort result[0]:%s", str.c_str());
+	CHECK_FATAL(vs[1].ToString(str) != "v5", "sort result[1]:%s", str.c_str());
+	CHECK_FATAL(vs[2].ToString(str) != "v3", "sort result[2]:%s", str.c_str());
+	CHECK_FATAL(vs[3].ToString(str) != "v0", "sort result[3]:%s", str.c_str());
+
+	db.HSet(dbid, "myhash_v0", "field", "hash100");
+	db.HSet(dbid, "myhash_v3", "field", "hash10");
+	db.HSet(dbid, "myhash_v5", "field", "hash9");
+	db.HSet(dbid, "myhash_v10", "field", "hash1000");
+	args.push_back("get");
+	args.push_back("myhash_*->field");
+	args.push_back("get");
+	args.push_back("#");
+
+	vs.clear();
+	db.Sort(dbid, "myzset", args, vs);
+	CHECK_FATAL(vs.size() != 8, "sort result size error:%zu", vs.size());
+	CHECK_FATAL(vs[0].ToString(str) != "hash1000", "sort result[0]:%s", str.c_str());
+	CHECK_FATAL(vs[2].ToString(str) != "hash9", "sort result[2]:%s", str.c_str());
+	CHECK_FATAL(vs[4].ToString(str) != "hash10", "sort result[4]:%s", str.c_str());
+	CHECK_FATAL(vs[6].ToString(str) != "hash100", "sort result[6]:%s", str.c_str());
+	CHECK_FATAL(vs[1].ToString(str) != "v10", "sort result[1]:%s", str.c_str());
+	CHECK_FATAL(vs[3].ToString(str) != "v5", "sort result[3]:%s", str.c_str());
+	CHECK_FATAL(vs[5].ToString(str) != "v3", "sort result[5]:%s", str.c_str());
+	CHECK_FATAL(vs[7].ToString(str) != "v0", "sort result[7]:%s", str.c_str());
+}
+
 void test_misc(Ardb& db)
 {
 	test_type(db);
 	test_sort_list(db);
 	test_sort_set(db);
+	test_sort_zset(db);
 }
