@@ -88,9 +88,7 @@ CORE_OBJECTS := ardb.o ardb_data.o hash.o kv.o lists.o logger.o sets.o \
 LEVELDB_ENGINE :=  engine/leveldb_engine.o       
 KCDB_ENGINE :=  engine/kyotocabinet_engine.o     
 LMDB_ENGINE :=  engine/lmdb_engine.o     
-LEVELDB_TEST := ../test/leveldb.o 
-KCDB_TEST := ../test/kcdb.o
-LMDB_TEST := ../test/lmdb.o
+TESTOBJ := ../test/ardb_test.o
 
 SERVER_OBJECTS := ardb_server.o transaction.o slowlog.o clients.o replication.o pubsub.o oplogs.o main.o
 
@@ -98,23 +96,19 @@ SERVER_OBJECTS := ardb_server.o transaction.o slowlog.o clients.o replication.o 
 DIST_LIBA = libardb.a
 
 
-ifeq ($(origin storage_engine), undefined)
-storage_engine=leveldb
-endif
+storage_engine?=leveldb
 
 ifeq ($(storage_engine), leveldb)
   STORAGE_ENGINE_OBJ=${LEVELDB_ENGINE}
   STORAGE_ENGINE=leveldb ${STORAGE_ENGINE_OBJ}
   INCS+=-I${LEVELDB_PATH}/include
   LIBS:=${LEVELDB_LIBA} ${SNAPPY_LIBA} ${LIBS}
-  TESTOBJ=${LEVELDB_TEST}
 else
 ifeq ($(storage_engine), kyotocabinet)
   STORAGE_ENGINE_OBJ=${KCDB_ENGINE}
   STORAGE_ENGINE=kyotocabinet ${STORAGE_ENGINE_OBJ}
   INCS+=-I${KCDB_PATH}
   LIBS:= ${KCDB_LIBA} ${LIBS} -lz
-  TESTOBJ=${KCDB_TEST}
   CXXFLAGS+=-D__USE_KYOTOCABINET__
 else
 ifeq ($(storage_engine), lmdb)
@@ -122,7 +116,6 @@ ifeq ($(storage_engine), lmdb)
   STORAGE_ENGINE=lmdb ${STORAGE_ENGINE_OBJ}
   INCS+=-I${LMDB_PATH}
   LIBS:= ${LMDB_LIBA} ${LIBS}
-  TESTOBJ=${LMDB_TEST}
   CXXFLAGS+=-D__USE_LMDB__
 else
   $(error Only leveldb/kyotocabinet/lmdb supported as env storage_engine's value)
@@ -199,7 +192,7 @@ clean_launch_obj:
 	rm -f main.o
 
 clean_test:
-	rm -f ${TESTOBJ}
+	rm -f ${TESTOBJ};rm ardb-test
 	
 noopt:
 	$(MAKE) OPT="-O0"
@@ -209,5 +202,5 @@ valgrind:
 clean:
 	rm -f $(LEVELDB_TEST) $(KCDB_TEST) ${CORE_OBJECTS} ${LEVELDB_OBJECTS} \
 	      $(SERVER_OBJECTS) $(CHANNEL_OBJECTS) $(DIST_LIBA) $(DIST_LIB)   \
-	      $(LEVELDB_ENGINE) $(KCDB_ENGINE) $(LMDB_ENGINE) \
+	      $(LEVELDB_ENGINE) $(KCDB_ENGINE) $(LMDB_ENGINE) $(TESTOBJ)\
 	      ardb-test  ardb-server

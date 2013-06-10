@@ -91,6 +91,7 @@ void test_zsets_zrank(Ardb& db)
 	db.ZAdd(dbid, "myzset", 1, "one");
 	db.ZAdd(dbid, "myzset", 2, "two");
 	db.ZAdd(dbid, "myzset", 3, "three");
+	db.ZCount(dbid, "myzset", "-inf", "+inf");
 	int rank = db.ZRank(dbid, "myzset", "three");
 	CHECK_FATAL( rank != 2, "Fail:%d", rank);
 }

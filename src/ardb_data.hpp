@@ -126,6 +126,7 @@ namespace ardb
 				if (type == EMPTY)
 				{
 					type = INTEGER;
+					v.int_v = 0;
 				}
 				if (other.type == DOUBLE || type == DOUBLE)
 				{
@@ -300,22 +301,6 @@ namespace ardb
 	typedef std::set<std::string> StringSet;
 	typedef std::vector<uint32_t> WeightArray;
 
-	inline bool operator==(const ValueArray& x, const ValueArray& y)
-	{
-		if (x.size() != y.size())
-		{
-			return false;
-		}
-		for (uint32 i = 0; i < x.size(); i++)
-		{
-			if (x[i].Compare(y[i]) != 0)
-			{
-				return false;
-			}
-		}
-		return true;
-	}
-
 	struct DBItemKey
 	{
 			DBID db;
@@ -439,7 +424,7 @@ namespace ardb
 			uint32 limit;
 			std::string vals;
 			BitSetElementValue() :
-					bitcount(0),start(0),limit(0)
+					bitcount(0), start(0), limit(0)
 			{
 			}
 	};
@@ -606,6 +591,19 @@ namespace ardb
 			{
 
 			}
+			void Clear()
+			{
+				with_limit = false;
+				limit_offset = 0;
+				limit_count = 0;
+				with_desc_asc = false;
+				is_desc = false;
+				with_alpha = false;
+				aggregate = AGGREGATE_EMPTY;
+				conds.clear();
+				names.clear();
+				orderby = Slice();
+			}
 			static bool Parse(StringArray& args, uint32 offset,
 			        TableQueryOptions& options);
 	};
@@ -627,12 +625,17 @@ namespace ardb
 			SliceMap nvs;
 			static bool Parse(StringArray& args, uint32 offset,
 			        TableInsertOptions& options);
+			void Clear()
+			{
+				nvs.clear();
+			}
 	};
 
 	typedef std::vector<ZSetMetaValue> ZSetMetaValueArray;
 	typedef std::vector<SetMetaValue> SetMetaValueArray;
 	typedef std::deque<TableIndexKeyObject> TableRowKeyArray;
 	typedef btree::btree_set<TableKeyIndex> TableKeyIndexSet;
+	typedef std::deque<ValueArray> ValueArrayArray;
 	typedef btree::btree_map<std::string, std::string> StringStringMap;
 	typedef std::map<uint64, std::string> StringMap;
 	typedef std::map<uint64, BitSetElementValue> BitSetElementValueMap;
@@ -651,6 +654,27 @@ namespace ardb
 	void smart_fill_value(const Slice& value, ValueObject& valueobject);
 	int value_convert_to_raw(ValueObject& v);
 	int value_convert_to_number(ValueObject& v);
+
+	inline bool operator==(const ValueArray& x, const ValueArray& y)
+	{
+		if (x.size() != y.size())
+		{
+			return false;
+		}
+		for (uint32 i = 0; i < x.size(); i++)
+		{
+			if (x[i].Compare(y[i]) != 0)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	inline bool operator<(const ValueArray& x, const ValueArray& y)
+	{
+		return compare_values(x, y) < 0;
+	}
 
 }
 

@@ -150,6 +150,15 @@ namespace ardb
 			}
 			case TABLE_COL:
 			{
+				Slice af, bf;
+				found_a = BufferHelper::ReadVarSlice(ak_buf, af);
+				found_b = BufferHelper::ReadVarSlice(bk_buf, bf);
+				COMPARE_EXIST(found_a, found_b);
+				ret = COMPARE_NUMBER(af.size(), bf.size());
+				if (ret != 0)
+				{
+					return ret;
+				}
 				uint32 alen, blen;
 				found_a = BufferHelper::ReadVarUInt32(ak_buf, alen);
 				found_b = BufferHelper::ReadVarUInt32(bk_buf, blen);
@@ -170,16 +179,6 @@ namespace ardb
 						}
 					}
 				}
-				Slice af, bf;
-				found_a = BufferHelper::ReadVarSlice(ak_buf, af);
-				found_b = BufferHelper::ReadVarSlice(bk_buf, bf);
-				COMPARE_EXIST(found_a, found_b);
-				ret = COMPARE_NUMBER(af.size(), bf.size());
-				if (ret != 0)
-				{
-					return ret;
-				}
-				ret = af.compare(bf);
 				break;
 			}
 			case BITSET_ELEMENT:
@@ -223,10 +222,9 @@ namespace ardb
 	}
 
 	//static const char* REPO_NAME = "data";
-	Ardb::Ardb(KeyValueEngineFactory* engine, const std::string& path,
-	        bool multi_thread) :
+	Ardb::Ardb(KeyValueEngineFactory* engine, bool multi_thread) :
 			m_engine_factory(engine), m_engine(NULL), m_key_watcher(NULL), m_raw_key_listener(
-			        NULL), m_path(path)
+			        NULL)
 	{
 		m_key_locker.enable = multi_thread;
 	}
@@ -424,7 +422,6 @@ namespace ardb
 		while (NULL != iter && iter->Valid())
 		{
 			Slice tmpkey = iter->Key();
-			Slice tmpval = iter->Value();
 			KeyObject* kk = decode_key(tmpkey, NULL);
 			if (kk->db != db)
 			{

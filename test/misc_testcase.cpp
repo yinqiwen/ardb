@@ -4,10 +4,7 @@
  *  Created on: 2013-4-4
  *      Author: wqy
  */
-#include "ardb.hpp"
-#include <string>
-
-using namespace ardb;
+#include "test_common.hpp"
 
 void test_type(Ardb& db)
 {
@@ -47,38 +44,35 @@ void test_sort_list(Ardb& db)
 	CHECK_FATAL(vs[3].v.int_v != 1000, "sort result[0]:%"PRId64, vs[3].v.int_v);
 
 	vs.clear();
-	args.push_back("LIMIT");
-	args.push_back("1");
-	args.push_back("2");
+
+	args.clear();
+	string_to_string_array("limit 1 2", args);
 	db.Sort(dbid, "mylist", args, vs);
 	CHECK_FATAL(vs.size() != 2, "sort result size error:%zu", vs.size());
-	CHECK_FATAL(vs[0].v.int_v != 10, "sort result[0]:%lld", vs[0].v.int_v);
-	CHECK_FATAL(vs[1].v.int_v != 100, "sort result[0]:%lld", vs[1].v.int_v);
+	CHECK_FATAL(vs[0].v.int_v != 10, "sort result[0]:%"PRId64, vs[0].v.int_v);
+	CHECK_FATAL(vs[1].v.int_v != 100, "sort result[0]:%"PRId64, vs[1].v.int_v);
 
 	vs.clear();
 	args.clear();
-	args.push_back("by");
-	args.push_back("weight_*");
+	string_to_string_array("by weight_*", args);
 	db.Set(dbid, "weight_100", "1000");
 	db.Set(dbid, "weight_10", "900");
 	db.Set(dbid, "weight_9", "800");
 	db.Set(dbid, "weight_1000", "700");
 	db.Sort(dbid, "mylist", args, vs);
 	CHECK_FATAL(vs.size() != 4, "sort result size error:%zu", vs.size());
-	CHECK_FATAL(vs[0].v.int_v != 1000, "sort result[0]:%lld", vs[0].v.int_v);
-	CHECK_FATAL(vs[1].v.int_v != 9, "sort result[0]:%lld", vs[1].v.int_v);
-	CHECK_FATAL(vs[2].v.int_v != 10, "sort result[0]:%lld", vs[2].v.int_v);
-	CHECK_FATAL(vs[3].v.int_v != 100, "sort result[0]:%lld", vs[3].v.int_v);
+	CHECK_FATAL(vs[0].v.int_v != 1000, "sort result[0]:%"PRId64, vs[0].v.int_v);
+	CHECK_FATAL(vs[1].v.int_v != 9, "sort result[0]:%"PRId64, vs[1].v.int_v);
+	CHECK_FATAL(vs[2].v.int_v != 10, "sort result[0]:%"PRId64, vs[2].v.int_v);
+	CHECK_FATAL(vs[3].v.int_v != 100, "sort result[0]:%"PRId64, vs[3].v.int_v);
 
 	db.HSet(dbid, "myhash", "field_100", "hash100");
 	db.HSet(dbid, "myhash", "field_10", "hash10");
 	db.HSet(dbid, "myhash", "field_9", "hash9");
 	db.HSet(dbid, "myhash", "field_1000", "hash1000");
-	args.push_back("get");
-	args.push_back("myhash->field_*");
-	args.push_back("get");
-	args.push_back("#");
 
+	args.clear();
+	string_to_string_array("by weight_* get myhash->field_* get #", args);
 	vs.clear();
 	db.Sort(dbid, "mylist", args, vs);
 	std::string str;
@@ -114,9 +108,7 @@ void test_sort_set(Ardb& db)
 	CHECK_FATAL(vs[3].ToString(str) != "ab4", "sort result[3]:%s", str.c_str());
 
 	vs.clear();
-	args.push_back("LIMIT");
-	args.push_back("1");
-	args.push_back("2");
+	string_to_string_array("limit 1 2", args);
 	db.Sort(dbid, "myset", args, vs);
 	CHECK_FATAL(vs.size() != 2, "sort result size error:%zu", vs.size());
 	CHECK_FATAL(vs[0].ToString(str) != "ab2", "sort result[0]:%s", str.c_str());
@@ -124,8 +116,7 @@ void test_sort_set(Ardb& db)
 
 	vs.clear();
 	args.clear();
-	args.push_back("by");
-	args.push_back("weight_*");
+	string_to_string_array("by weight_*", args);
 	db.Set(dbid, "weight_ab1", "1000");
 	db.Set(dbid, "weight_ab2", "900");
 	db.Set(dbid, "weight_ab3", "800");
@@ -141,10 +132,8 @@ void test_sort_set(Ardb& db)
 	db.HSet(dbid, "myhash_ab2", "field", "hash10");
 	db.HSet(dbid, "myhash_ab3", "field", "hash9");
 	db.HSet(dbid, "myhash_ab4", "field", "hash1000");
-	args.push_back("get");
-	args.push_back("myhash_*->field");
-	args.push_back("get");
-	args.push_back("#");
+	args.clear();
+	string_to_string_array("by weight_* get myhash_*->field get #", args);
 
 	vs.clear();
 	db.Sort(dbid, "myset", args, vs);
@@ -179,9 +168,7 @@ void test_sort_zset(Ardb& db)
 	CHECK_FATAL(vs[3].ToString(str) != "v10", "sort result[3]:%s", str.c_str());
 
 	vs.clear();
-	args.push_back("LIMIT");
-	args.push_back("1");
-	args.push_back("2");
+	string_to_string_array("limit 1 2", args);
 	db.Sort(dbid, "myzset", args, vs);
 	CHECK_FATAL(vs.size() != 2, "sort result size error:%zu", vs.size());
 	CHECK_FATAL(vs[0].ToString(str) != "v3", "sort result[0]:%s", str.c_str());
@@ -189,8 +176,7 @@ void test_sort_zset(Ardb& db)
 
 	vs.clear();
 	args.clear();
-	args.push_back("by");
-	args.push_back("weight_*");
+	string_to_string_array("by weight_*", args);
 	db.Set(dbid, "weight_v0", "1000");
 	db.Set(dbid, "weight_v3", "900");
 	db.Set(dbid, "weight_v5", "800");
@@ -206,10 +192,8 @@ void test_sort_zset(Ardb& db)
 	db.HSet(dbid, "myhash_v3", "field", "hash10");
 	db.HSet(dbid, "myhash_v5", "field", "hash9");
 	db.HSet(dbid, "myhash_v10", "field", "hash1000");
-	args.push_back("get");
-	args.push_back("myhash_*->field");
-	args.push_back("get");
-	args.push_back("#");
+	args.clear();
+	string_to_string_array("by weight_* get myhash_*->field get #", args);
 
 	vs.clear();
 	db.Sort(dbid, "myzset", args, vs);

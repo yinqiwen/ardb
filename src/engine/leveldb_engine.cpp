@@ -97,7 +97,7 @@ namespace ardb
 			BufferHelper::ReadFixUInt32(ak_buf, aheader);
 			uint8 type = aheader & 0xFF;
 			uint32 adb = aheader >> 8;
-			aheader = adb << 8 + (type + 1);
+			aheader = (adb << 8) + (type + 1);
 			aheader = htonl(aheader);
 			key->resize(4);
 			key->assign((const char*) (&aheader), 4);

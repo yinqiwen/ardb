@@ -18,8 +18,8 @@ namespace ardb
 			}
 			int Compare(const TableRow& other) const
 			{
-				if (sort_item_idx >= 0 && vs.size() > (uint32)sort_item_idx
-				        && other.vs.size() > (uint32)sort_item_idx)
+				if (sort_item_idx >= 0 && vs.size() > (uint32) sort_item_idx
+				        && other.vs.size() > (uint32) sort_item_idx)
 				{
 					return vs[sort_item_idx].Compare(other.vs[sort_item_idx]);
 				}
@@ -178,6 +178,7 @@ namespace ardb
 	bool TableInsertOptions::Parse(StringArray& args, uint32 offset,
 	        TableInsertOptions& options)
 	{
+		options.Clear();
 		if (!parse_nvs(args, options.nvs, offset))
 		{
 			return false;
@@ -228,6 +229,7 @@ namespace ardb
 	bool TableQueryOptions::Parse(StringArray& args, uint32 offset,
 	        TableQueryOptions& options)
 	{
+		options.Clear();
 		if (!parse_strs(args, options.names, offset))
 		{
 			return false;
@@ -396,7 +398,13 @@ namespace ardb
 				return i;
 			}
 		}
-		return -1;
+		if (valnames.count(std::string(key.data(), key.size())) > 0)
+		{
+			//Common column name
+			return -1;
+		}
+		//invalid name
+		return ERR_NOT_EXIST;
 	}
 
 	int Ardb::GetTableMetaValue(const DBID& db, const Slice& tableName,
@@ -705,6 +713,157 @@ namespace ardb
 		return 0;
 	}
 
+	int Ardb::TDelCol(const DBID& db, const Slice& tableName, const Slice& col)
+	{
+		TableSchemaValue schema;
+		if (0 != GetTableSchemaValue(db, tableName, schema))
+		{
+			return -1;
+		}
+		KeyLockerGuard keyguard(m_key_locker, db, tableName);
+		BatchWriteGuard guard(GetEngine());
+		int idx = schema.Index(col);
+		if(idx == ERR_NOT_EXIST)
+		{
+			return 0;
+		}
+		if (idx >= 0)
+		{
+			struct TIndexWalk: public WalkHandler
+			{
+					Ardb* tdb;
+					Slice name;
+					TIndexWalk(Ardb* db, const std::string& n) :
+							tdb(db), name(n)
+					{
+					}
+					int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+					{
+						TableIndexKeyObject* sek = (TableIndexKeyObject*) k;
+						if (sek->kname != name)
+						{
+							return -1;
+						}
+						tdb->DelValue(*sek);
+						return 0;
+					}
+			} walk(this, schema.keynames[idx]);
+			TableIndexKeyObject start(tableName, schema.keynames[idx],
+			        ValueObject(), db);
+			Walk(start, false, &walk);
+		}
+		else
+		{
+			struct TColWalk: public WalkHandler
+			{
+					Ardb* tdb;
+					const Slice& name;
+					TColWalk(Ardb* db, const Slice& n) :
+							tdb(db), name(n)
+					{
+					}
+					int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+					{
+						TableColKeyObject* sek = (TableColKeyObject*) k;
+						if (sek->col != name)
+						{
+							return -1;
+						}
+						tdb->DelValue(*sek);
+						return 0;
+					}
+			} walk(this, col);
+			TableColKeyObject start(tableName, col, db);
+			Walk(start, false, &walk);
+		}
+		return 0;
+	}
+
+	int Ardb::TCol(const DBID& db, const Slice& tableName,
+	        TableSchemaValue& schema, const Slice& col, ValueArray& vs,
+	        ValueArrayArray* indexes)
+	{
+		int idx = schema.Index(col);
+		if(idx == ERR_NOT_EXIST)
+		{
+			return 0;
+		}
+		if (idx >= 0)
+		{
+			struct TIndexWalk: public WalkHandler
+			{
+					Slice name;
+					ValueArray& vvs;
+					ValueArrayArray* ids;
+					TIndexWalk(const std::string& n, ValueArray& vs,
+					        ValueArrayArray* is) :
+							name(n), vvs(vs), ids(is)
+					{
+					}
+					int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+					{
+						TableIndexKeyObject* sek = (TableIndexKeyObject*) k;
+						if (sek->kname != name)
+						{
+							return -1;
+						}
+						vvs.push_back(sek->keyvalue);
+						if (NULL != ids)
+						{
+							ids->push_back(sek->index.keyvals);
+						}
+						return 0;
+					}
+			} walk(schema.keynames[idx], vs, indexes);
+			TableIndexKeyObject start(tableName, schema.keynames[idx],
+			        ValueObject(), db);
+			Walk(start, false, &walk);
+		}
+		else
+		{
+			struct TColWalk: public WalkHandler
+			{
+					const Slice& name;
+					ValueArray& vvs;
+					ValueArrayArray* ids;
+					TColWalk(const Slice& n, ValueArray& vs,
+					        ValueArrayArray* is) :
+							name(n), vvs(vs), ids(is)
+					{
+					}
+					int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+					{
+						TableColKeyObject* sek = (TableColKeyObject*) k;
+						if (sek->col != name)
+						{
+							return -1;
+						}
+						vvs.push_back(*v);
+						if (NULL != ids)
+						{
+							ids->push_back(sek->keyvals);
+						}
+						return 0;
+					}
+			} walk(col, vs, indexes);
+			TableColKeyObject start(tableName, col, db);
+			Walk(start, false, &walk);
+		}
+		return 0;
+	}
+
+	int Ardb::TCol(const DBID& db, const Slice& tableName, const Slice& col,
+	        ValueArray& vs)
+	{
+		TableSchemaValue schema;
+		if (0 != GetTableSchemaValue(db, tableName, schema))
+		{
+			return -1;
+		}
+		TCol(db, tableName, schema, col, vs, NULL);
+		return 0;
+	}
+
 	int Ardb::TGet(const DBID& db, const Slice& tableName,
 	        TableQueryOptions& options, ValueArray& values, std::string& err)
 	{
@@ -724,6 +883,12 @@ namespace ardb
 		{
 			NameHolder holder;
 			holder.first = schema.Index(*kit);
+			if (holder.first == ERR_NOT_EXIST)
+			{
+				err = "Invalid tget param";
+				DEBUG_LOG("ERROR:%s", err.c_str());
+				return -1;
+			}
 			holder.second = *kit;
 			idx_array.push_back(holder);
 			if (!strcasecmp(kit->data(), options.orderby.data()))
@@ -744,6 +909,7 @@ namespace ardb
 		if (sort_idx == -1 && options.orderby.size() > 0)
 		{
 			err = "Invalid orderby param";
+			DEBUG_LOG("ERROR:%s", err.c_str());
 			return -1;
 		}
 		if (options.names.size() > 1
@@ -752,51 +918,103 @@ namespace ardb
 		                || options.aggregate == AGGREGATE_MAX))
 		{
 			err = "Invalid aggregate param for more than 1 TGet name";
+			DEBUG_LOG("ERROR:%s", err.c_str());
 			return -1;
 		}
 
-		TableKeyIndexSet set1, set2;
-		TableKeyIndexSet* index = &set1;
-		TableKeyIndexSet* tmp = &set2;
-		TGetIndexs(db, tableName, options.conds, index, tmp);
-		if (options.aggregate == AGGREGATE_COUNT)
-		{
-			ValueObject countobj((int64) index->size());
-			values.push_back(countobj);
-			return 0;
-		}
-
-		TableKeyIndexSet::iterator iit = index->begin();
 		std::deque<TableRow> rows;
-		while (iit != index->end())
+		if (options.conds.empty())
 		{
-			TableRow row;
-			row.sort_item_idx = sort_idx;
-			std::vector<NameHolder>::iterator kkit = idx_array.begin();
-			while (kkit != idx_array.end())
+			typedef std::map<ValueArray, ValueArray> TempResultTable;
+			TempResultTable rs;
+			SliceArray::const_iterator nit = options.names.begin();
+			uint32 idx = 0;
+			while (nit != options.names.end())
 			{
-				NameHolder& holder = *kkit;
-				if (holder.first < 0)
+				ValueArray vs;
+				ValueArrayArray indexv;
+				//Read records sequentially
+				const Slice& colname = *nit;
+				TCol(db, tableName, schema, colname, vs, &indexv);
+				ValueArrayArray::iterator iit = indexv.begin();
+				ValueArray::iterator vit = vs.begin();
+				while (iit != indexv.end())
 				{
-					TableColKeyObject k(tableName, holder.second, db);
-					k.keyvals = iit->keyvals;
-					ValueObject v;
-					GetValue(k, &v);
+					ValueArray& v = rs[*iit];
+					v.resize(options.names.size());
+					ValueObject& vv = *vit;
 					if (options.with_alpha)
 					{
-						value_convert_to_raw(v);
+						value_convert_to_raw(vv);
 					}
 					else
 					{
-						value_convert_to_number(v);
+						value_convert_to_number(vv);
 					}
-					row.vs.push_back(v);
+					v[idx] = vv;
+					iit++;
+					vit++;
 				}
-				else
+				idx++;
+				nit++;
+			}
+			if (options.aggregate == AGGREGATE_COUNT)
+			{
+				ValueObject countobj((int64) rs.size());
+				values.push_back(countobj);
+				return 0;
+			}
+			TempResultTable::iterator tit = rs.begin();
+			while (tit != rs.end())
+			{
+				TableRow row;
+				row.sort_item_idx = sort_idx;
+				row.vs = tit->second;
+				rows.push_back(row);
+				tit++;
+			}
+			rs.clear();
+
+		}
+		else //!options.conds.empty()
+		{
+			Conditions::iterator cit = options.conds.begin();
+			while (cit != options.conds.end())
+			{
+				if (schema.Index(cit->keyname) < 0)
 				{
-					if ((uint32)holder.first < iit->keyvals.size())
+					err = "Invalid where condition";
+					DEBUG_LOG("ERROR:%s", err.c_str());
+					return -1;
+				}
+				cit++;
+			}
+
+			TableKeyIndexSet set1, set2;
+			TableKeyIndexSet* index = &set1;
+			TableKeyIndexSet* tmp = &set2;
+			TGetIndexs(db, tableName, options.conds, index, tmp);
+			if (options.aggregate == AGGREGATE_COUNT)
+			{
+				ValueObject countobj((int64) index->size());
+				values.push_back(countobj);
+				return 0;
+			}
+			TableKeyIndexSet::iterator iit = index->begin();
+			while (iit != index->end())
+			{
+				TableRow row;
+				row.sort_item_idx = sort_idx;
+				std::vector<NameHolder>::iterator kkit = idx_array.begin();
+				while (kkit != idx_array.end())
+				{
+					NameHolder& holder = *kkit;
+					if (holder.first < 0) //Common Column
 					{
-						ValueObject v = iit->keyvals[holder.first];
+						TableColKeyObject k(tableName, holder.second, db);
+						k.keyvals = iit->keyvals;
+						ValueObject v;
+						GetValue(k, &v);
 						if (options.with_alpha)
 						{
 							value_convert_to_raw(v);
@@ -807,16 +1025,33 @@ namespace ardb
 						}
 						row.vs.push_back(v);
 					}
-					else
+					else //Key for Table
 					{
-						row.vs.push_back(ValueObject());
+						if ((uint32) holder.first < iit->keyvals.size())
+						{
+							ValueObject v = iit->keyvals[holder.first];
+							if (options.with_alpha)
+							{
+								value_convert_to_raw(v);
+							}
+							else
+							{
+								value_convert_to_number(v);
+							}
+							row.vs.push_back(v);
+						}
+						else
+						{
+							row.vs.push_back(ValueObject());
+						}
 					}
+					kkit++;
 				}
-				kkit++;
+				rows.push_back(row);
+				iit++;
 			}
-			rows.push_back(row);
-			iit++;
 		}
+
 		if (sort_idx >= 0)
 		{
 			if (!options.is_desc)
@@ -833,7 +1068,7 @@ namespace ardb
 			options.limit_offset = 0;
 			options.limit_count = rows.size();
 		}
-		if(options.limit_count < 0)
+		if (options.limit_count < 0)
 		{
 			options.limit_count = rows.size();
 		}
@@ -847,6 +1082,7 @@ namespace ardb
 				for (uint32 i = 0; i < colsize; i++)
 				{
 					ValueObject v;
+					std::string str;
 					for (uint32 j = 0; j < rows.size(); j++)
 					{
 						v += rows[j].vs[i];
@@ -915,7 +1151,7 @@ namespace ardb
 		}
 		uint32 count = 0;
 		for (uint32 i = options.limit_offset;
-		        i < rows.size() && count < (uint32)options.limit_count; i++)
+		        i < rows.size() && count < (uint32) options.limit_count; i++)
 		{
 			ValueArray::iterator it = rows[i].vs.begin();
 			while (it != rows[i].vs.end())
@@ -955,7 +1191,7 @@ namespace ardb
 			{
 				TableColKeyObject k(tableName, it->first, db);
 				k.keyvals = iit->keyvals;
-				SetValue( k, v);
+				SetValue(k, v);
 				schema.valnames.insert(it->first);
 				iit++;
 			}
@@ -1016,7 +1252,7 @@ namespace ardb
 		SliceMap::iterator sit = options.nvs.begin();
 		while (sit != options.nvs.end())
 		{
-			if (schema.Index(sit->first) != -1)
+			if (schema.Index(sit->first) >= 0)
 			{
 				keynvs[sit->first] = sit->second;
 			}
@@ -1112,7 +1348,7 @@ namespace ardb
 		Conditions::iterator cit = options.conds.begin();
 		while (cit != options.conds.end())
 		{
-			if (schema.Index(cit->keyname) == -1)
+			if (schema.Index(cit->keyname) < 0)
 			{
 				err = "where condition MUST use table key";
 				return -1;
@@ -1184,8 +1420,8 @@ namespace ardb
 		Slice empty;
 		TableIndexKeyObject istart(tableName, empty, empty, db);
 		TableColKeyObject cstart(tableName, empty, db);
-		Walk( istart, false, &walk);
-		Walk( cstart, false, &walk);
+		Walk(istart, false, &walk);
+		Walk(cstart, false, &walk);
 		KeyObject k(tableName, TABLE_META, db);
 		KeyObject sck(tableName, TABLE_SCHEMA, db);
 		DelValue(k);

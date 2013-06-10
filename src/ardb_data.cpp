@@ -137,6 +137,7 @@ namespace ardb
 			case TABLE_COL:
 			{
 				const TableColKeyObject& col = (const TableColKeyObject&) key;
+				BufferHelper::WriteVarSlice(buf, col.col);
 				BufferHelper::WriteVarUInt32(buf, col.keyvals.size());
 				ValueArray::const_iterator it = col.keyvals.begin();
 				while (it != col.keyvals.end())
@@ -144,7 +145,6 @@ namespace ardb
 					encode_value(buf, *it);
 					it++;
 				}
-				BufferHelper::WriteVarSlice(buf, col.col);
 				break;
 			}
 			case BITSET_ELEMENT:
@@ -299,6 +299,13 @@ namespace ardb
 			{
 				TableColKeyObject* tk = new TableColKeyObject(keystr, Slice(),
 				        db);
+				Slice col;
+				if (!BufferHelper::ReadVarSlice(buf, col))
+				{
+					DELETE(tk);
+					return NULL;
+				}
+				tk->col = col;
 				uint32 len;
 				if (!BufferHelper::ReadVarUInt32(buf, len))
 				{
@@ -315,13 +322,7 @@ namespace ardb
 					}
 					tk->keyvals.push_back(v);
 				}
-				Slice col;
-				if (!BufferHelper::ReadVarSlice(buf, col))
-				{
-					DELETE(tk);
-					return NULL;
-				}
-				tk->col = col;
+
 				return tk;
 			}
 			case BITSET_ELEMENT:
