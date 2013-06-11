@@ -30,6 +30,10 @@ namespace ardb
 					data_(""), size_(0)
 			{
 			}
+			Slice(const Slice& s) :
+					data_(s.data()), size_(s.size())
+			{
+			}
 
 			// Create a slice that refers to d[0,n-1].
 			Slice(const char* d, size_t n) :
@@ -106,7 +110,7 @@ namespace ardb
 			bool starts_with(const Slice& x) const
 			{
 				return ((size_ >= x.size_)
-						&& (memcmp(data_, x.data_, x.size_) == 0));
+				        && (memcmp(data_, x.data_, x.size_) == 0));
 			}
 
 		private:
@@ -119,7 +123,7 @@ namespace ardb
 	inline bool operator==(const Slice& x, const Slice& y)
 	{
 		return ((x.size() == y.size())
-				&& (memcmp(x.data(), y.data(), x.size()) == 0));
+		        && (memcmp(x.data(), y.data(), x.size()) == 0));
 	}
 
 	inline bool operator!=(const Slice& x, const Slice& y)
@@ -127,6 +131,10 @@ namespace ardb
 		return !(x == y);
 	}
 
+	inline bool operator<(const Slice& x, const Slice& y)
+	{
+		return x.compare(y) < 0;
+	}
 	inline int Slice::compare(const Slice& b) const
 	{
 		const int min_len = (size_ < b.size_) ? size_ : b.size_;
@@ -140,7 +148,6 @@ namespace ardb
 		}
 		return r;
 	}
-
-}  // namespace ardb
+} // namespace ardb
 
 #endif  // STORAGE_ARDB_INCLUDE_SLICE_H_

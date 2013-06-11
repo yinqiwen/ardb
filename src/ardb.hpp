@@ -215,18 +215,23 @@ namespace ardb
 			int HGetValue(const DBID& db, const Slice& key, const Slice& field,
 			        ValueObject* value);
 			int TInterRowKeys(const DBID& db, const Slice& tableName,
-			        Condition& cond, TableKeyIndexSet& interset,
-			        TableKeyIndexSet& results);
+			        TableSchemaValue& schema, Condition& cond,
+			        SliceSet& prefetch_keyset,
+			        TableKeyIndexValueTable& interset,
+			        TableKeyIndexValueTable& results);
 			int TUnionRowKeys(const DBID& db, const Slice& tableName,
-			        Condition& cond, TableKeyIndexSet& results);
+			        TableSchemaValue& schema, Condition& cond,
+			        SliceSet& prefetch_keyset,
+			        TableKeyIndexValueTable& results);
 			int TGetIndexs(const DBID& db, const Slice& tableName,
-			        Conditions& conds, TableKeyIndexSet*& indexs,
-			        TableKeyIndexSet*& temp);
+			        TableSchemaValue& schema, Conditions& conds,
+			        SliceSet& prefetch_keyset, TableKeyIndexValueTable*& indexs,
+			        TableKeyIndexValueTable*& temp);
 			int TCol(const DBID& db, const Slice& tableName,
-				        TableSchemaValue& schema, const Slice& col, ValueArray& vs,
-				        ValueArrayArray* indexes);
+			        TableSchemaValue& schema, const Slice& col,
+			        TableKeyIndexValueTable& rs);
 			bool TRowExists(const DBID& db, const Slice& tableName,
-			        ValueArray& rowkey);
+			        TableSchemaValue& schema, ValueArray& rowkey);
 			struct WalkHandler
 			{
 					virtual int OnKeyValue(KeyObject* key, ValueObject* value,
@@ -519,9 +524,9 @@ namespace ardb
 			        std::string& err);
 			int TDel(const DBID& db, const Slice& tableName,
 			        TableDeleteOptions& conds, std::string& err);
-			int TCol(const DBID& db, const Slice& tableName, const Slice& col,
-			        ValueArray& vs);
 			int TDelCol(const DBID& db, const Slice& tableName,
+			        const Slice& col);
+			int TCreateIndex(const DBID& db, const Slice& tableName,
 			        const Slice& col);
 			int TClear(const DBID& db, const Slice& tableName);
 			int TCount(const DBID& db, const Slice& tableName);

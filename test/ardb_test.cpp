@@ -29,6 +29,7 @@ using namespace ardb;
 
 void string_to_string_array(const std::string& str, StringArray& array)
 {
+	array.clear();
 	std::vector<std::string> strs = split_string(str, " ");
 	std::vector<std::string>::iterator it = strs.begin();
 	while(it != strs.end())

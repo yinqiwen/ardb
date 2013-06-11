@@ -59,7 +59,7 @@ namespace ardb
 
 	enum ValueDataType
 	{
-		EMPTY = 0, INTEGER = 1, DOUBLE = 2, RAW = 3, VALUE_END = 255
+		EMPTY = 0, INTEGER = 1, DOUBLE = 2, RAW = 3
 	};
 
 	struct KeyObject
@@ -230,9 +230,6 @@ namespace ardb
 				switch (type)
 				{
 					case EMPTY:
-					{
-						return;
-					}
 					case INTEGER:
 					{
 						v.int_v = other.v.int_v;
@@ -243,11 +240,15 @@ namespace ardb
 						v.double_v = other.v.double_v;
 						return;
 					}
-					default:
+					case RAW:
 					{
 						v.raw = new Buffer(other.v.raw->ReadableBytes());
 						v.raw->Write(other.v.raw->GetRawReadBuffer(),
 						        other.v.raw->ReadableBytes());
+						return;
+					}
+					default:
+					{
 						return;
 					}
 				}
@@ -299,6 +300,7 @@ namespace ardb
 	typedef std::vector<int64> Int64Array;
 	typedef std::map<std::string, Slice> SliceMap;
 	typedef std::set<std::string> StringSet;
+	typedef std::set<Slice> SliceSet;
 	typedef std::vector<uint32_t> WeightArray;
 
 	struct DBItemKey
@@ -493,39 +495,42 @@ namespace ardb
 	{
 			StringArray keynames;
 			StringSet valnames;
+			StringSet indexed;
 			TableSchemaValue()
 			{
 			}
 			int Index(const Slice& key);
+			bool HasIndex(const Slice& name);
 	};
 
-	struct TableKeyIndex
-	{
-			ValueArray keyvals;
-			bool operator<(const TableKeyIndex& other) const;
-	};
+//	struct TableKeyIndex
+//	{
+//			ValueArray keyvals;
+//			bool operator<(const TableKeyIndex& other) const;
+//	};
+
+	typedef ValueArray TableKeyIndex;
 
 	struct TableIndexKeyObject: public KeyObject
 	{
-			Slice kname;
-			ValueObject keyvalue;
+			Slice colname;
+			ValueObject colvalue;
 			TableKeyIndex index;
 			TableIndexKeyObject(const Slice& tablename, const Slice& keyname,
 			        const ValueObject& v, DBID id) :
-					KeyObject(tablename, TABLE_INDEX, id), kname(keyname), keyvalue(
+					KeyObject(tablename, TABLE_INDEX, id), colname(keyname), colvalue(
 					        v)
 			{
 			}
 			TableIndexKeyObject(const Slice& tablename, const Slice& keyname,
 			        const Slice& v, DBID id);
 	};
-
 	struct TableColKeyObject: public KeyObject
 	{
-			ValueArray keyvals;
-			Slice col;
+			Slice colname;
+			ValueArray index;
 			TableColKeyObject(const Slice& tablename, const Slice& c, DBID id) :
-					KeyObject(tablename, TABLE_COL, id), col(c)
+					KeyObject(tablename, TABLE_COL, id), colname(c)
 			{
 			}
 	};
@@ -585,7 +590,7 @@ namespace ardb
 			bool with_alpha;
 			AggregateType aggregate;
 			TableQueryOptions() :
-					with_limit(false), limit_offset(0), limit_count(0), with_desc_asc(
+					with_limit(false), limit_offset(0), limit_count(-1), with_desc_asc(
 					        false), is_desc(false), with_alpha(false), aggregate(
 					        AGGREGATE_EMPTY)
 			{
@@ -595,7 +600,7 @@ namespace ardb
 			{
 				with_limit = false;
 				limit_offset = 0;
-				limit_count = 0;
+				limit_count = -1;
 				with_desc_asc = false;
 				is_desc = false;
 				with_alpha = false;
@@ -634,7 +639,8 @@ namespace ardb
 	typedef std::vector<ZSetMetaValue> ZSetMetaValueArray;
 	typedef std::vector<SetMetaValue> SetMetaValueArray;
 	typedef std::deque<TableIndexKeyObject> TableRowKeyArray;
-	typedef btree::btree_set<TableKeyIndex> TableKeyIndexSet;
+	typedef std::map<std::string, ValueObject> NameValueTable;
+	typedef std::map<TableKeyIndex, NameValueTable> TableKeyIndexValueTable;
 	typedef std::deque<ValueArray> ValueArrayArray;
 	typedef btree::btree_map<std::string, std::string> StringStringMap;
 	typedef std::map<uint64, std::string> StringMap;

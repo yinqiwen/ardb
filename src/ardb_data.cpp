@@ -23,10 +23,6 @@ namespace ardb
 		return a.size() < b.size() ? -1 : (a.size() > b.size() ? 1 : 0);
 	}
 
-	bool TableKeyIndex::operator<(const TableKeyIndex& other) const
-	{
-		return compare_values(keyvals, other.keyvals) < 0 ? true : false;
-	}
 
 	Condition::Condition(const std::string& name, CompareOperator compareop,
 	        const Slice& value, LogicalOperator logic) :
@@ -37,9 +33,9 @@ namespace ardb
 
 	TableIndexKeyObject::TableIndexKeyObject(const Slice& tablename,
 	        const Slice& keyname, const Slice& v, DBID id) :
-			KeyObject(tablename, TABLE_INDEX, id), kname(keyname)
+			KeyObject(tablename, TABLE_INDEX, id), colname(keyname)
 	{
-		smart_fill_value(v, keyvalue);
+		smart_fill_value(v, colvalue);
 	}
 
 	SetKeyObject::SetKeyObject(const Slice& k, const ValueObject& v, DBID id) :
@@ -123,11 +119,11 @@ namespace ardb
 			{
 				const TableIndexKeyObject& index =
 				        (const TableIndexKeyObject&) key;
-				BufferHelper::WriteVarSlice(buf, index.kname);
-				encode_value(buf, index.keyvalue);
-				BufferHelper::WriteVarUInt32(buf, index.index.keyvals.size());
-				ValueArray::const_iterator it = index.index.keyvals.begin();
-				while (it != index.index.keyvals.end())
+				BufferHelper::WriteVarSlice(buf, index.colname);
+				encode_value(buf, index.colvalue);
+				BufferHelper::WriteVarUInt32(buf, index.index.size());
+				ValueArray::const_iterator it = index.index.begin();
+				while (it != index.index.end())
 				{
 					encode_value(buf, *it);
 					it++;
@@ -137,10 +133,10 @@ namespace ardb
 			case TABLE_COL:
 			{
 				const TableColKeyObject& col = (const TableColKeyObject&) key;
-				BufferHelper::WriteVarSlice(buf, col.col);
-				BufferHelper::WriteVarUInt32(buf, col.keyvals.size());
-				ValueArray::const_iterator it = col.keyvals.begin();
-				while (it != col.keyvals.end())
+				BufferHelper::WriteVarSlice(buf, col.colname);
+				BufferHelper::WriteVarUInt32(buf, col.index.size());
+				ValueArray::const_iterator it = col.index.begin();
+				while (it != col.index.end())
 				{
 					encode_value(buf, *it);
 					it++;
@@ -272,7 +268,7 @@ namespace ardb
 				}
 				TableIndexKeyObject* ik = new TableIndexKeyObject(keystr, kname,
 				        ValueObject(), db);
-				if (!decode_value(buf, ik->keyvalue))
+				if (!decode_value(buf, ik->colvalue))
 				{
 					DELETE(ik);
 					return NULL;
@@ -291,7 +287,7 @@ namespace ardb
 						DELETE(ik);
 						return NULL;
 					}
-					ik->index.keyvals.push_back(v);
+					ik->index.push_back(v);
 				}
 				return ik;
 			}
@@ -305,7 +301,7 @@ namespace ardb
 					DELETE(tk);
 					return NULL;
 				}
-				tk->col = col;
+				tk->colname = col;
 				uint32 len;
 				if (!BufferHelper::ReadVarUInt32(buf, len))
 				{
@@ -320,9 +316,8 @@ namespace ardb
 						DELETE(tk);
 						return NULL;
 					}
-					tk->keyvals.push_back(v);
+					tk->index.push_back(v);
 				}
-
 				return tk;
 			}
 			case BITSET_ELEMENT:

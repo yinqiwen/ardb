@@ -458,6 +458,7 @@ namespace ardb
 			int TUpdate(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int TDel(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int TDelCol(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int TCreateIndex(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int TDesc(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
 			int HClear(ArdbConnContext& ctx, RedisCommandFrame& cmd);

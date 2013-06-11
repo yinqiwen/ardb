@@ -66,6 +66,7 @@ LevelDB Options: block_cache_size=512m, write_buffer_size=512m, thread_pool_size
   - TCreate/TDesc/TLen
   - TInsert/TReplace
   - TUpdate/TDel
+  - TCreateIndex
   - TGet/TGetAll(Table commands)
   - CompactDB/CompactAll
   - BitOPCount

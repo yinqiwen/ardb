@@ -8,10 +8,10 @@
 
 namespace ardb
 {
-	static const long BITOP_AND = 0;
-	static const long BITOP_OR = 1;
-	static const long BITOP_XOR = 2;
-	static const long BITOP_NOT = 3;
+	static const unsigned long BITOP_AND = 0;
+	static const unsigned long BITOP_OR = 1;
+	static const unsigned long BITOP_XOR = 2;
+	static const unsigned long BITOP_NOT = 3;
 
 	static const uint32 BIT_SUBSET_SIZE = 4096;
 	static const uint32 BIT_SUBSET_BYTES_SIZE = BIT_SUBSET_SIZE >> 3;
@@ -563,7 +563,7 @@ namespace ardb
 	int Ardb::BitOP(const DBID& db, const Slice& opstr, SliceArray& keys,
 			BitSetElementValueMap*& res, BitSetElementValueMap*& tmp)
 	{
-		long op;
+		unsigned long op;
 		/* Parse the operation name. */
 		if (!strncasecmp(opstr.data(), "and", opstr.size()))
 			op = BITOP_AND;

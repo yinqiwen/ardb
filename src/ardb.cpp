@@ -87,7 +87,6 @@ namespace ardb
 				found_a = decode_value(ak_buf, av, false);
 				found_b = decode_value(bk_buf, bv, false);
 				COMPARE_EXIST(found_a, found_b);
-				//DEBUG_LOG("#####A=%s b=%s", av.ToString().c_str(), bv.ToString().c_str());
 				ret = av.Compare(bv);
 				break;
 			}

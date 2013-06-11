@@ -408,7 +408,6 @@ namespace ardb
 				{
 					ZSetKeyObject* zko = (ZSetKeyObject*) k;
 					std::string str;
-					DEBUG_LOG("#####%s",zko->value.ToString(str).c_str() );
 					if (zko->value.Compare(z_member) == 0)
 					{
 						foundRank = rank;
@@ -840,7 +839,6 @@ namespace ardb
 				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					ZSetKeyObject* zsk = (ZSetKeyObject*) k;
-					INFO_LOG("Enter with %.2f", zsk->score);
 					bool inrange = false;
 					inrange =
 					        z_containmin ? zsk->score >= z_min_score :

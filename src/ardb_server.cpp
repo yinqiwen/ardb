@@ -368,6 +368,7 @@ namespace ardb
 				{ "tgetall", &ArdbServer::TGetAll, 1, 1, 0 },
 				{ "tdel", &ArdbServer::TDel, 1, -1, 1 },
 				{ "tdelcol", &ArdbServer::TDelCol, 2, 2, 1 },
+				{ "tcreateindex", &ArdbServer::TCreateIndex, 2, 2, 1 },
 				{ "tupdate", &ArdbServer::TUpdate, 4, -1, 1 }, };
 
 		uint32 arraylen = arraysize(settingTable);
@@ -2573,6 +2574,14 @@ namespace ardb
 		{
 			fill_error_reply(ctx.reply, "ERR no record found for condition");
 		}
+		return 0;
+	}
+
+	int ArdbServer::TCreateIndex(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+	{
+		m_db->TCreateIndex(ctx.currentDB, cmd.GetArguments()[0],
+		        cmd.GetArguments()[1]);
+		fill_status_reply(ctx.reply, "OK");
 		return 0;
 	}
 
