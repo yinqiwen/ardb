@@ -156,6 +156,8 @@ namespace ardb
 		conf_get_int64(props, "repl-timeout", cfg.repl_timeout);
 		conf_get_int64(props, "repl-sync-state-persist-period",
 		        cfg.repl_syncstate_persist_period);
+		conf_get_int64(props, "repl-max-backup-logs",
+				        cfg.repl_max_backup_logs);
 
 		std::string slaveof;
 		if (conf_get_string(props, "slaveof", slaveof))

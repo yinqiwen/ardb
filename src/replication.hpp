@@ -29,7 +29,7 @@ namespace ardb
 			DBIDSet syncdbs;
 			SlaveConn(Channel* c = NULL);
 			SlaveConn(Channel* c, const std::string& key, uint64 seq,
-					DBIDSet& dbs);
+			        DBIDSet& dbs);
 			void WriteRedisCommand(RedisCommandFrame& cmd);
 	};
 
@@ -112,9 +112,10 @@ namespace ardb
 			void RollbackOpLogs();
 			void FlushOpLog();
 			void WriteCachedOp(uint64 seq, CachedOp* op);
-			CachedOp* SaveCmdOp(RedisCommandFrame* cmd, bool writeOpLog, bool with_seq, uint64 seq);
+			CachedOp* SaveCmdOp(RedisCommandFrame* cmd, bool writeOpLog,
+			        bool with_seq, uint64 seq);
 			CachedOp* SaveWriteOp(OpKey& opkey, uint8 type, bool writeOpLog,
-					std::string* v, bool with_seq, uint64 seq);
+			        std::string* v, bool with_seq, uint64 seq);
 		public:
 			OpLogs(ArdbServer* server);
 			~OpLogs();
@@ -125,7 +126,8 @@ namespace ardb
 				return m_mem_op_logs.size();
 			}
 			int LoadOpLog(DBIDSet& dbs, uint64& seq, Buffer& cmd,
-					bool is_master_slave);
+			        bool is_master_slave);
+			bool PeekOpLogStartSeq(uint32 log_index, uint64& seq);
 			uint64 GetMaxSeq()
 			{
 				return m_max_seq;
@@ -136,7 +138,6 @@ namespace ardb
 			}
 			CachedOp* SaveSetOp(const std::string& key, std::string* value);
 			CachedOp* SaveDeleteOp(const std::string& key);
-			CachedOp* SaveFlushOp(const DBID& db);
 			bool VerifyClient(const std::string& serverKey, uint64 seq);
 			const std::string& GetServerKey()
 			{
@@ -146,8 +147,8 @@ namespace ardb
 
 	class ArdbConnContext;
 	class SlaveClient: public ChannelUpstreamHandler<RedisCommandFrame>,
-			public ChannelUpstreamHandler<Buffer>,
-			public Runnable
+	        public ChannelUpstreamHandler<Buffer>,
+	        public Runnable
 	{
 		private:
 			ArdbServer* m_serv;
@@ -171,13 +172,13 @@ namespace ardb
 			ArdbConnContext *m_actx;
 
 			void MessageReceived(ChannelHandlerContext& ctx,
-					MessageEvent<RedisCommandFrame>& e);
+			        MessageEvent<RedisCommandFrame>& e);
 			void MessageReceived(ChannelHandlerContext& ctx,
-					MessageEvent<Buffer>& e);
+			        MessageEvent<Buffer>& e);
 			void ChannelClosed(ChannelHandlerContext& ctx,
-					ChannelStateEvent& e);
+			        ChannelStateEvent& e);
 			void ChannelConnected(ChannelHandlerContext& ctx,
-					ChannelStateEvent& e);
+			        ChannelStateEvent& e);
 			void Timeout();
 			void Run();
 			void PersistSyncState();
@@ -185,8 +186,8 @@ namespace ardb
 		public:
 			SlaveClient(ArdbServer* serv) :
 					m_serv(serv), m_client(NULL), m_chunk_len(0), m_slave_state(
-							0), m_cron_inited(false), m_ping_recved(false), m_server_type(
-							0), m_server_key("-"), m_sync_seq(0),m_actx(NULL)
+					        0), m_cron_inited(false), m_ping_recved(false), m_server_type(
+					        0), m_server_key("-"), m_sync_seq(0), m_actx(NULL)
 			{
 			}
 			const SocketHostAddress& GetMasterAddress()
@@ -203,10 +204,33 @@ namespace ardb
 			void Stop();
 	};
 
+	class ReplicationService;
+	class FullSyncTask: public Runnable
+	{
+		private:
+			ReplicationService* m_repl;
+			SlaveConn& m_conn;
+			Iterator* m_iter;
+			uint64 m_start_time;
+			uint64 m_seq_after_sync_iter;
+			uint8 m_state;
+			DBIDSet m_syncing_dbs;
+			void Run();
+			void SyncDBIter();
+			void SyncOpLogs();
+		public:
+			FullSyncTask(ReplicationService* repl, SlaveConn& conn) :
+					m_repl(repl), m_conn(conn), m_iter(NULL),m_start_time(0), m_seq_after_sync_iter(0), m_state(
+					        0)
+			{
+			}
+			~FullSyncTask();
+	};
+
 	class ReplicationService: public Thread,
-			public SoftSignalHandler,
-			public ChannelUpstreamHandler<Buffer>,
-			public RawKeyListener
+	        public SoftSignalHandler,
+	        public ChannelUpstreamHandler<Buffer>,
+	        public RawKeyListener
 	{
 		private:
 			ChannelService m_serv;
@@ -230,9 +254,9 @@ namespace ardb
 			void Routine();
 			void PingSlaves();
 			void ChannelClosed(ChannelHandlerContext& ctx,
-					ChannelStateEvent& e);
+			        ChannelStateEvent& e);
 			void MessageReceived(ChannelHandlerContext& ctx,
-					MessageEvent<Buffer>& e)
+			        MessageEvent<Buffer>& e)
 			{
 
 			}
@@ -245,16 +269,25 @@ namespace ardb
 			int OnKeyUpdated(const Slice& key, const Slice& value);
 			int OnKeyDeleted(const Slice& key);
 			void OfferInstruction(ReplInstruction& inst);
+
+			void OnFullSynced(FullSyncTask* task);
+			friend class FullSyncTask;
 		public:
 			ReplicationService(ArdbServer* serv);
 			int Init();
 			void ServSlaveClient(Channel* client);
 			void ServARSlaveClient(Channel* client,
-					const std::string& serverKey, uint64 seq, DBIDSet& dbs);
+			        const std::string& serverKey, uint64 seq, DBIDSet& dbs);
 			void RecordFlushDB(const DBID& db);
 			OpLogs& GetOpLogs()
 			{
 				return m_oplogs;
+			}
+			Ardb& GetDB();
+			ArdbServerConfig& GetConfig();
+			ChannelService& GetChannelService()
+			{
+				return m_serv;
 			}
 			void MarkMasterSlave(Channel* conn)
 			{

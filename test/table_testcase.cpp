@@ -289,7 +289,7 @@ void test_table_create_index(Ardb& db)
 	        "%s", result[0].ToString(str).c_str());
 	CHECK_FATAL( result[1].ToString(str) != "10020",
 	        "%s", result[1].ToString(str).c_str());
-	CHECK_FATAL((end-start) < 100, "%llu", (end-start));
+	CHECK_FATAL((end-start) < 10, "%llu", (end-start));
 	db.TCreateIndex(dbid, "mytable", "birth");
 	start = get_current_epoch_millis();
 	db.TGet(dbid, "mytable", options, result, err);
@@ -299,7 +299,7 @@ void test_table_create_index(Ardb& db)
 	        "%s", result[0].ToString(str).c_str());
 	CHECK_FATAL( result[1].ToString(str) != "10020",
 	        "%s", result[1].ToString(str).c_str());
-	CHECK_FATAL((end-start) > 100, "%llu", (end-start));
+	CHECK_FATAL((end-start) > 10, "%llu", (end-start));
 }
 
 void test_tables(Ardb& db)

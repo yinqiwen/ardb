@@ -192,7 +192,7 @@ clean_launch_obj:
 	rm -f main.o
 
 clean_test:
-	rm -f ${TESTOBJ};rm ardb-test
+	rm -f ${TESTOBJ};rm -f ardb-test
 	
 noopt:
 	$(MAKE) OPT="-O0"

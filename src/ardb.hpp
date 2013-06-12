@@ -541,8 +541,11 @@ namespace ardb
 			int CompactAll();
 
 			void PrintDB(const DBID& db);
-			void VisitDB(const DBID& db, RawValueVisitor* visitor);
-			void VisitAllDB(RawValueVisitor* visitor);
+			void VisitDB(const DBID& db, RawValueVisitor* visitor, Iterator* iter = NULL);
+			void VisitAllDB(RawValueVisitor* visitor, Iterator* iter = NULL);
+			Iterator* NewIterator();
+			Iterator* NewIterator(const DBID& db);
+
 			KeyValueEngine* GetEngine();
 			void RegisterKeyWatcher(KeyWatcher* w)
 			{

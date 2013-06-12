@@ -13,7 +13,6 @@
 #include "bitset_testcase.cpp"
 #include "misc_testcase.cpp"
 
-
 void test_all(Ardb& db)
 {
 	test_strings(db);

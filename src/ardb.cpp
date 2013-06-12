@@ -384,33 +384,67 @@ namespace ardb
 		return type;
 	}
 
-	void Ardb::VisitDB(const DBID& db, RawValueVisitor* visitor)
+	void Ardb::VisitDB(const DBID& db, RawValueVisitor* visitor, Iterator* iter)
 	{
-		KeyObject key(Slice(), KV, db);
-		Iterator* iter = FindValue(key);
-		while (NULL != iter && iter->Valid())
+		Iterator* current_iter = iter;
+		if (NULL == current_iter)
+		{
+			current_iter = NewIterator(db);
+		}
+		while (NULL != current_iter && current_iter->Valid())
 		{
 			DBID tmpdb;
 			KeyType t;
-			if (!peek_dbkey_header(iter->Key(), tmpdb, t) || tmpdb != db)
+			if (!peek_dbkey_header(current_iter->Key(), tmpdb, t)
+			        || tmpdb != db)
 			{
 				break;
 			}
-			visitor->OnRawKeyValue(iter->Key(), iter->Value());
-			iter->Next();
+			int ret = visitor->OnRawKeyValue(current_iter->Key(),
+			        current_iter->Value());
+			current_iter->Next();
+			if (ret == -1)
+			{
+				break;
+			}
 		}
-		DELETE(iter);
+		if (NULL == iter)
+		{
+			DELETE(current_iter);
+		}
 	}
-	void Ardb::VisitAllDB(RawValueVisitor* visitor)
+	void Ardb::VisitAllDB(RawValueVisitor* visitor, Iterator* iter)
+	{
+		Iterator* current_iter = iter;
+		if (NULL == current_iter)
+		{
+			current_iter = NewIterator();
+		}
+		while (NULL != current_iter && current_iter->Valid())
+		{
+			int ret = visitor->OnRawKeyValue(current_iter->Key(),
+			        current_iter->Value());
+			current_iter->Next();
+			if (ret == -1)
+			{
+				break;
+			}
+		}
+		if (NULL == iter)
+		{
+			DELETE(current_iter);
+		}
+	}
+
+	Iterator* Ardb::NewIterator()
 	{
 		Slice empty;
-		Iterator* iter = GetEngine()->Find(empty, false);
-		while (NULL != iter && iter->Valid())
-		{
-			visitor->OnRawKeyValue(iter->Key(), iter->Value());
-			iter->Next();
-		}
-		DELETE(iter);
+		return GetEngine()->Find(empty, false);
+	}
+	Iterator* Ardb::NewIterator(const DBID& db)
+	{
+		KeyObject key(Slice(), KV, db);
+		return FindValue(key);
 	}
 
 	void Ardb::PrintDB(const DBID& db)
