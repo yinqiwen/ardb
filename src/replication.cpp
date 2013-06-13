@@ -326,6 +326,7 @@ namespace ardb
 	void SlaveClient::ChannelConnected(ChannelHandlerContext& ctx,
 			ChannelStateEvent& e)
 	{
+		LoadSyncState();
 		Buffer replconf;
 		replconf.Printf("replconf listening-port %u\r\n",
 				m_serv->GetServerConfig().listen_port);
@@ -341,7 +342,7 @@ namespace ardb
 			m_cron_inited = true;
 			m_serv->GetTimer().Schedule(this, m_serv->m_cfg.repl_timeout,
 					m_serv->m_cfg.repl_timeout, SECONDS);
-			LoadSyncState();
+
 			struct PersistTask: public Runnable
 			{
 					SlaveClient* c;
@@ -490,7 +491,6 @@ namespace ardb
 	void ReplicationService::Routine()
 	{
 		CheckSlaveQueue();
-		FeedSlaves();
 	}
 
 	void ReplicationService::Run()

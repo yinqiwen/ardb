@@ -104,7 +104,7 @@ static int decode_reply(Buffer& buffer, RedisReply& msg)
 	{
 		return 0;
 	}
-	char type;
+	char type = 0;
 	buffer.ReadByte(type);
 	switch (type)
 	{

@@ -145,7 +145,7 @@ int RedisCommandDecoder::ProcessMultibulkBuffer(ChannelHandlerContext& ctx,
 bool RedisCommandDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel,
 		Buffer& buffer, RedisCommandFrame& msg)
 {
-	int reqtype = -1;
+	//int reqtype = -1;
 	size_t mark_read_index = buffer.GetReadIndex();
 	char ch;
 	if (buffer.ReadByte(ch))
@@ -153,12 +153,12 @@ bool RedisCommandDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel,
 		int ret = -1;
 		if (ch == '*')
 		{
-			reqtype = REDIS_REQ_MULTIBULK;
+			//reqtype = REDIS_REQ_MULTIBULK;
 			msg.m_is_inline = false;
 			ret = ProcessMultibulkBuffer(ctx, buffer, msg);
 		} else
 		{
-			reqtype = REDIS_REQ_INLINE;
+			//reqtype = REDIS_REQ_INLINE;
 			msg.m_is_inline = true;
 			buffer.AdvanceReadIndex(-1);
 			ret = ProcessInlineBuffer(ctx, buffer, msg);
