@@ -29,8 +29,8 @@ namespace ardb
 			DBIDSet syncdbs;
 			SlaveConn(Channel* c = NULL);
 			SlaveConn(Channel* c, const std::string& key, uint64 seq,
-			        DBIDSet& dbs);
-			void WriteRedisCommand(RedisCommandFrame& cmd);
+					DBIDSet& dbs);
+			bool WriteRedisCommand(RedisCommandFrame& cmd);
 	};
 
 	struct OpKey
@@ -60,6 +60,7 @@ namespace ardb
 			OpKey key;
 			std::string* v;
 			CachedWriteOp(uint8 t, OpKey& k);
+			bool IsInDBSet(DBIDSet& dbs);
 			~CachedWriteOp();
 	};
 	struct CachedCmdOp: public CachedOp
@@ -83,39 +84,74 @@ namespace ardb
 	class ArdbServer;
 	class ArdbServerConfig;
 
+	struct CachedOpVisitor
+	{
+			virtual int OnCachedOp(CachedOp* op, uint64 seq) = 0;
+			virtual ~CachedOpVisitor()
+			{
+			}
+	};
+
+	class OpLogFile
+	{
+		private:
+			int m_op_log_file_fd;
+			std::string m_file_path;
+			Buffer m_read_buffer;
+			Buffer m_write_buffer;
+			time_t m_last_flush_ts;
+		public:
+			OpLogFile(const std::string& path);
+			int OpenWrite();
+			int OpenRead();
+			int Load(CachedOpVisitor* visitor, uint32 maxReadBytes = 4096);
+			bool Write(Buffer& content);
+			void Flush();
+			time_t LastFlush()
+			{
+				return m_last_flush_ts;
+			}
+			~OpLogFile();
+	};
+
+	struct OpKeyPtrWrapper
+	{
+			OpKey* ptr;
+			OpKeyPtrWrapper(OpKey& key):ptr(&key)
+			{
+			}
+			OpKeyPtrWrapper():ptr(NULL){}
+			bool operator<(const OpKeyPtrWrapper& other) const
+			{
+				return *ptr < *(other.ptr);
+			}
+	};
+
 	class OpLogs
 	{
 		private:
 			ArdbServer* m_server;
 			uint64 m_min_seq;
 			uint64 m_max_seq;
-			FILE* m_op_log_file;
-			Buffer m_op_log_buffer;
+			OpLogFile* m_op_log_file;
 			uint32 m_current_oplog_record_size;
 			time_t m_last_flush_time;
 
 			std::string m_server_key;
 
 			typedef btree::btree_map<uint64, CachedOp*> CachedOpTable;
-			typedef btree::btree_map<OpKey, uint64> OpKeyIndexTable;
+			typedef btree::btree_map<OpKeyPtrWrapper, uint64> OpKeyIndexTable;
 			CachedOpTable m_mem_op_logs;
 			OpKeyIndexTable m_mem_op_idx;
-
-			void LoadCachedOpLog(Buffer & buf);
-			void LoadCachedOpLog(const std::string& file);
-			void FillCacheValue();
 
 			void RemoveExistOp(OpKey& key);
 			void RemoveExistOp(uint64 seq);
 			void RemoveOldestOp();
 			void ReOpenOpLog();
 			void RollbackOpLogs();
-			void FlushOpLog();
 			void WriteCachedOp(uint64 seq, CachedOp* op);
-			CachedOp* SaveCmdOp(RedisCommandFrame* cmd, bool writeOpLog,
-			        bool with_seq, uint64 seq);
-			CachedOp* SaveWriteOp(OpKey& opkey, uint8 type, bool writeOpLog,
-			        std::string* v, bool with_seq, uint64 seq);
+			CachedOp* SaveOp(CachedOp* op, bool persist, bool with_seq,
+					uint64 seq);
 		public:
 			OpLogs(ArdbServer* server);
 			~OpLogs();
@@ -126,8 +162,10 @@ namespace ardb
 				return m_mem_op_logs.size();
 			}
 			int LoadOpLog(DBIDSet& dbs, uint64& seq, Buffer& cmd,
-			        bool is_master_slave);
+					bool is_master_slave);
 			bool PeekOpLogStartSeq(uint32 log_index, uint64& seq);
+			bool IsInDiskOpLogs(uint64 seq);
+			bool PeekDBID(CachedOp* op, DBID& db);
 			uint64 GetMaxSeq()
 			{
 				return m_max_seq;
@@ -136,8 +174,11 @@ namespace ardb
 			{
 				return m_min_seq;
 			}
+			std::string GetOpLogPath(uint32 index);
 			CachedOp* SaveSetOp(const std::string& key, std::string* value);
 			CachedOp* SaveDeleteOp(const std::string& key);
+			bool CachedOp2RedisCommand(CachedOp* op, RedisCommandFrame& cmd,
+					uint64 seq = 0);
 			bool VerifyClient(const std::string& serverKey, uint64 seq);
 			const std::string& GetServerKey()
 			{
@@ -147,8 +188,8 @@ namespace ardb
 
 	class ArdbConnContext;
 	class SlaveClient: public ChannelUpstreamHandler<RedisCommandFrame>,
-	        public ChannelUpstreamHandler<Buffer>,
-	        public Runnable
+			public ChannelUpstreamHandler<Buffer>,
+			public Runnable
 	{
 		private:
 			ArdbServer* m_serv;
@@ -172,13 +213,13 @@ namespace ardb
 			ArdbConnContext *m_actx;
 
 			void MessageReceived(ChannelHandlerContext& ctx,
-			        MessageEvent<RedisCommandFrame>& e);
+					MessageEvent<RedisCommandFrame>& e);
 			void MessageReceived(ChannelHandlerContext& ctx,
-			        MessageEvent<Buffer>& e);
+					MessageEvent<Buffer>& e);
 			void ChannelClosed(ChannelHandlerContext& ctx,
-			        ChannelStateEvent& e);
+					ChannelStateEvent& e);
 			void ChannelConnected(ChannelHandlerContext& ctx,
-			        ChannelStateEvent& e);
+					ChannelStateEvent& e);
 			void Timeout();
 			void Run();
 			void PersistSyncState();
@@ -186,8 +227,8 @@ namespace ardb
 		public:
 			SlaveClient(ArdbServer* serv) :
 					m_serv(serv), m_client(NULL), m_chunk_len(0), m_slave_state(
-					        0), m_cron_inited(false), m_ping_recved(false), m_server_type(
-					        0), m_server_key("-"), m_sync_seq(0), m_actx(NULL)
+							0), m_cron_inited(false), m_ping_recved(false), m_server_type(
+							0), m_server_key("-"), m_sync_seq(0), m_actx(NULL)
 			{
 			}
 			const SocketHostAddress& GetMasterAddress()
@@ -205,12 +246,13 @@ namespace ardb
 	};
 
 	class ReplicationService;
-	class FullSyncTask: public Runnable
+	class LoadSyncTask: public Runnable
 	{
 		private:
 			ReplicationService* m_repl;
-			SlaveConn& m_conn;
+			uint32 m_conn_id;
 			Iterator* m_iter;
+			OpLogFile* m_op_log;
 			uint64 m_start_time;
 			uint64 m_seq_after_sync_iter;
 			uint8 m_state;
@@ -219,18 +261,14 @@ namespace ardb
 			void SyncDBIter();
 			void SyncOpLogs();
 		public:
-			FullSyncTask(ReplicationService* repl, SlaveConn& conn) :
-					m_repl(repl), m_conn(conn), m_iter(NULL),m_start_time(0), m_seq_after_sync_iter(0), m_state(
-					        0)
-			{
-			}
-			~FullSyncTask();
+			LoadSyncTask(ReplicationService* repl, uint32 id, uint8 state);
+			~LoadSyncTask();
 	};
 
 	class ReplicationService: public Thread,
-	        public SoftSignalHandler,
-	        public ChannelUpstreamHandler<Buffer>,
-	        public RawKeyListener
+			public SoftSignalHandler,
+			public ChannelUpstreamHandler<Buffer>,
+			public RawKeyListener
 	{
 		private:
 			ChannelService m_serv;
@@ -254,9 +292,9 @@ namespace ardb
 			void Routine();
 			void PingSlaves();
 			void ChannelClosed(ChannelHandlerContext& ctx,
-			        ChannelStateEvent& e);
+					ChannelStateEvent& e);
 			void MessageReceived(ChannelHandlerContext& ctx,
-			        MessageEvent<Buffer>& e)
+					MessageEvent<Buffer>& e)
 			{
 
 			}
@@ -264,20 +302,21 @@ namespace ardb
 			void ProcessInstructions();
 			void CheckSlaveQueue();
 			void FeedSlaves();
-			void FullSync(SlaveConn& client);
+			void LoadSync(SlaveConn& client);
 
 			int OnKeyUpdated(const Slice& key, const Slice& value);
 			int OnKeyDeleted(const Slice& key);
 			void OfferInstruction(ReplInstruction& inst);
 
-			void OnFullSynced(FullSyncTask* task);
-			friend class FullSyncTask;
+			void OnLoadSynced(LoadSyncTask* task, bool success);
+			SlaveConn* GetSlaveConn(uint32 id);
+			friend class LoadSyncTask;
 		public:
 			ReplicationService(ArdbServer* serv);
 			int Init();
 			void ServSlaveClient(Channel* client);
 			void ServARSlaveClient(Channel* client,
-			        const std::string& serverKey, uint64 seq, DBIDSet& dbs);
+					const std::string& serverKey, uint64 seq, DBIDSet& dbs);
 			void RecordFlushDB(const DBID& db);
 			OpLogs& GetOpLogs()
 			{

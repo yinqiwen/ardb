@@ -23,6 +23,11 @@ namespace ardb
 	static const uint8 kInstrctionRecordDelCmd = 3;
 	static const uint8 kInstrctionRecordRedisCmd = 4;
 
+	static const uint8 kFullSyncIter = 0;
+	static const uint8 kFullSyncLogs = 1;
+	static const uint8 kFullSyncMem = 2;
+	static const uint32 kMaxSyncRecordsPeriod = 2000;
+
 	static const uint8 kSoftSinglaInstruction = 1;
 
 	static const uint8 kRedisTestDB = 1;
@@ -40,26 +45,26 @@ namespace ardb
 
 	SlaveConn::SlaveConn(Channel* c) :
 			conn(c), synced_cmd_seq(0), state(kSlaveStateConnected), type(
-			        kRedisTestDB)
+					kRedisTestDB)
 	{
 
 	}
 	SlaveConn::SlaveConn(Channel* c, const std::string& key, uint64 seq,
-	        DBIDSet& dbs) :
+			DBIDSet& dbs) :
 			conn(c), server_key(key), synced_cmd_seq(seq), state(
-			        kSlaveStateConnected), type(kArdbDB), syncdbs(dbs)
+					kSlaveStateConnected), type(kArdbDB), syncdbs(dbs)
 	{
 	}
 
-	void SlaveConn::WriteRedisCommand(RedisCommandFrame& cmd)
+	bool SlaveConn::WriteRedisCommand(RedisCommandFrame& cmd)
 	{
 		Buffer buf;
 		RedisCommandEncoder::Encode(buf, cmd);
-		conn->Write(buf);
+		return conn->Write(buf);
 	}
 
 	void SlaveClient::MessageReceived(ChannelHandlerContext& ctx,
-	        MessageEvent<RedisCommandFrame>& e)
+			MessageEvent<RedisCommandFrame>& e)
 	{
 		DEBUG_LOG("Recv master cmd %s", e.GetMessage()->GetCommand().c_str());
 		RedisCommandFrame* cmd = e.GetMessage();
@@ -67,8 +72,7 @@ namespace ardb
 		{
 			m_ping_recved = true;
 			return;
-		}
-		else if (!strcasecmp(cmd->GetCommand().c_str(), "arsynced"))
+		} else if (!strcasecmp(cmd->GetCommand().c_str(), "arsynced"))
 		{
 			m_server_key = *(cmd->GetArgument(0));
 			m_slave_state = kSlaveStateSynced;
@@ -82,7 +86,10 @@ namespace ardb
 		{
 			//extract sequence from last part
 			const std::string& seq = cmd->GetArguments().back();
-			string_touint64(seq, m_sync_seq);
+			if (!string_touint64(seq, m_sync_seq))
+			{
+				ERROR_LOG("Invalid string value for sequence:%s", seq.c_str());
+			}
 			cmd->GetArguments().pop_back();
 		}
 		if (NULL == m_actx)
@@ -95,7 +102,7 @@ namespace ardb
 	}
 
 	void SlaveClient::MessageReceived(ChannelHandlerContext& ctx,
-	        MessageEvent<Buffer>& e)
+			MessageEvent<Buffer>& e)
 	{
 		Buffer* msg = e.GetMessage();
 		switch (m_slave_state)
@@ -124,9 +131,8 @@ namespace ardb
 				if (m_sync_dbs.empty())
 				{
 					sync.Printf("arsync %s %lld\r\n", m_server_key.c_str(),
-					        m_sync_seq);
-				}
-				else
+							m_sync_seq);
+				} else
 				{
 					std::stringstream stream;
 					DBIDSet::iterator it = m_sync_dbs.begin();
@@ -136,7 +142,7 @@ namespace ardb
 						it++;
 					}
 					sync.Printf("arsync %s %lld %s\r\n", m_server_key.c_str(),
-					        m_sync_seq, stream.str().c_str());
+							m_sync_seq, stream.str().c_str());
 				}
 				ctx.GetChannel()->Write(sync);
 				m_slave_state = kSlaveStateArsyncRes;
@@ -162,11 +168,10 @@ namespace ardb
 					ctx.GetChannel()->Write(sync);
 					m_slave_state = kSlaveStateArsyncRes;
 					return;
-				}
-				else if (tmp != '$')
+				} else if (tmp != '$')
 				{
 					WARN_LOG(
-					        "Expected length header : %d %d", tmp, msg->ReadableBytes());
+							"Expected length header : %d %d", tmp, msg->ReadableBytes());
 					msg->Clear();
 					return;
 				}
@@ -182,15 +187,13 @@ namespace ardb
 					if (tmp >= '0' && tmp <= '9')
 					{
 						chunklenstr.append(&tmp, 1);
-					}
-					else if (tmp == '\r' || tmp == '\n')
+					} else if (tmp == '\r' || tmp == '\n')
 					{
 						/*
 						 * skip '\r\n'
 						 */
 						continue;
-					}
-					else
+					} else
 					{
 						msg->AdvanceReadIndex(-1);
 						break;
@@ -224,8 +227,7 @@ namespace ardb
 		{
 			m_chunk_len -= msg->ReadableBytes();
 			msg->Clear();
-		}
-		else
+		} else
 		{
 			msg->SkipBytes(m_chunk_len);
 			m_chunk_len = 0;
@@ -244,7 +246,7 @@ namespace ardb
 	}
 
 	void SlaveClient::ChannelClosed(ChannelHandlerContext& ctx,
-	        ChannelStateEvent& e)
+			ChannelStateEvent& e)
 	{
 		m_client = NULL;
 		m_slave_state = 0;
@@ -260,15 +262,15 @@ namespace ardb
 				void Run()
 				{
 					if (NULL == sc.m_client
-					        && !sc.m_master_addr.GetHost().empty())
+							&& !sc.m_master_addr.GetHost().empty())
 					{
 						sc.ConnectMaster(sc.m_master_addr.GetHost(),
-						        sc.m_master_addr.GetPort());
+								sc.m_master_addr.GetPort());
 					}
 				}
 		};
 		m_serv->GetTimer().ScheduleHeapTask(new ReconnectTask(*this), 1000, -1,
-		        MILLIS);
+				MILLIS);
 	}
 
 	void SlaveClient::Timeout()
@@ -291,7 +293,7 @@ namespace ardb
 				string_touint64(ss[1], m_sync_seq);
 			}
 			DEBUG_LOG(
-			        "Load repl state %s:%u", m_server_key.c_str(), m_sync_seq);
+					"Load repl state %s:%u", m_server_key.c_str(), m_sync_seq);
 		}
 	}
 
@@ -322,11 +324,11 @@ namespace ardb
 	}
 
 	void SlaveClient::ChannelConnected(ChannelHandlerContext& ctx,
-	        ChannelStateEvent& e)
+			ChannelStateEvent& e)
 	{
 		Buffer replconf;
 		replconf.Printf("replconf listening-port %u\r\n",
-		        m_serv->GetServerConfig().listen_port);
+				m_serv->GetServerConfig().listen_port);
 		ctx.GetChannel()->Write(replconf);
 		m_slave_state = kSlaveStateWaitingReplConfRes;
 		m_ping_recved = true;
@@ -338,7 +340,7 @@ namespace ardb
 		{
 			m_cron_inited = true;
 			m_serv->GetTimer().Schedule(this, m_serv->m_cfg.repl_timeout,
-			        m_serv->m_cfg.repl_timeout, SECONDS);
+					m_serv->m_cfg.repl_timeout, SECONDS);
 			LoadSyncState();
 			struct PersistTask: public Runnable
 			{
@@ -353,8 +355,8 @@ namespace ardb
 					}
 			};
 			m_serv->GetTimer().ScheduleHeapTask(new PersistTask(this),
-			        m_serv->m_cfg.repl_syncstate_persist_period,
-			        m_serv->m_cfg.repl_syncstate_persist_period, SECONDS);
+					m_serv->m_cfg.repl_syncstate_persist_period,
+					m_serv->m_cfg.repl_syncstate_persist_period, SECONDS);
 		}
 		SocketHostAddress addr(host, port);
 		if (m_master_addr == addr && NULL != m_client)
@@ -391,7 +393,7 @@ namespace ardb
 
 	ReplicationService::ReplicationService(ArdbServer* serv) :
 			m_server(serv), m_is_saving(false), m_last_save(0), m_oplogs(serv), m_inst_signal(
-			        NULL), m_master_slave_id(0)
+					NULL), m_master_slave_id(0)
 	{
 	}
 
@@ -428,30 +430,28 @@ namespace ardb
 				ch.conn->Write(content);
 				ch.state = kSlaveStateSynced;
 				m_slaves[ch.conn->GetID()] = ch;
-			}
-			else
+			} else
 			{
 				//empty first response chunk
 				Buffer content;
 				content.Printf("$0\r\n");
 				ch.conn->Write(content);
-
-				if (m_oplogs.VerifyClient(ch.server_key, ch.synced_cmd_seq))
+				m_slaves[ch.conn->GetID()] = ch;
+				SlaveConn& c = m_slaves[ch.conn->GetID()];
+				if (m_oplogs.VerifyClient(c.server_key, c.synced_cmd_seq))
 				{
 					content.Clear();
 					content.Printf("arsynced %s %llu\r\n",
-					        m_oplogs.GetServerKey().c_str(), ch.synced_cmd_seq);
-					ch.conn->Write(content);
-					ch.state = kSlaveStateSynced;
+							m_oplogs.GetServerKey().c_str(), c.synced_cmd_seq);
+					c.conn->Write(content);
+					c.state = kSlaveStateSynced;
 					//increase sequence since the cmd already synced
-					ch.synced_cmd_seq++;
-				}
-				else
+					c.synced_cmd_seq++;
+				} else
 				{
-					ch.state = kSlaveStateSyncing;
-					FullSync(ch);
+					c.state = kSlaveStateSyncing;
+					LoadSync(c);
 				}
-				m_slaves[ch.conn->GetID()] = ch;
 			}
 			m_waiting_slaves.pop_front();
 		}
@@ -467,7 +467,7 @@ namespace ardb
 			if (conn.state == kSlaveStateSynced)
 			{
 				while (m_oplogs.LoadOpLog(conn.syncdbs, conn.synced_cmd_seq,
-				        tmp, conn.conn->GetID() == m_master_slave_id) == 1)
+						tmp, conn.conn->GetID() == m_master_slave_id) == 1)
 				{
 					if (tmp.Readable())
 					{
@@ -479,6 +479,9 @@ namespace ardb
 				{
 					conn.conn->Write(tmp);
 				}
+			} else
+			{
+
 			}
 			it++;
 		}
@@ -487,9 +490,9 @@ namespace ardb
 	void ReplicationService::Routine()
 	{
 		CheckSlaveQueue();
+		FeedSlaves();
 	}
 
-//static uint32 kCount = 0;
 	void ReplicationService::Run()
 	{
 		struct HeartbeatTask: public Runnable
@@ -518,10 +521,10 @@ namespace ardb
 				}
 		};
 		m_serv.GetTimer().ScheduleHeapTask(new HeartbeatTask(this),
-		        m_server->m_cfg.repl_ping_slave_period,
-		        m_server->m_cfg.repl_ping_slave_period, SECONDS);
+				m_server->m_cfg.repl_ping_slave_period,
+				m_server->m_cfg.repl_ping_slave_period, SECONDS);
 		m_serv.GetTimer().ScheduleHeapTask(new InstTask(this), 100, 100,
-		        MILLIS);
+				MILLIS);
 		m_inst_signal = m_serv.NewSoftSignalChannel();
 		m_inst_signal->Register(kSoftSinglaInstruction, this);
 		m_serv.Start();
@@ -543,7 +546,7 @@ namespace ardb
 		}
 	}
 	void ReplicationService::ChannelClosed(ChannelHandlerContext& ctx,
-	        ChannelStateEvent& e)
+			ChannelStateEvent& e)
 	{
 		m_slaves.erase(ctx.GetChannel()->GetID());
 	}
@@ -566,7 +569,7 @@ namespace ardb
 				case kInstrctionRecordSetCmd:
 				{
 					kWriteReplInstructionData* tp =
-					        (kWriteReplInstructionData*) (instruction.ptr);
+							(kWriteReplInstructionData*) (instruction.ptr);
 					std::string* k = (std::string*) tp->ptrs[0];
 					std::string* v = (std::string*) tp->ptrs[1];
 					CachedOp* op = m_oplogs.SaveSetOp(*k, v);
@@ -583,7 +586,7 @@ namespace ardb
 				case kInstrctionRecordDelCmd:
 				{
 					kWriteReplInstructionData* tp =
-					        (kWriteReplInstructionData*) (instruction.ptr);
+							(kWriteReplInstructionData*) (instruction.ptr);
 					std::string* k = (std::string*) tp->ptrs[0];
 					CachedOp* op = m_oplogs.SaveDeleteOp(*k);
 					if (NULL != op)
@@ -607,11 +610,14 @@ namespace ardb
 	void ReplicationService::OfferInstruction(ReplInstruction& inst)
 	{
 		m_inst_queue.Push(inst);
-		m_inst_signal->FireSoftSignal(kSoftSinglaInstruction, 0);
+		if(NULL != m_inst_signal)
+		{
+			m_inst_signal->FireSoftSignal(kSoftSinglaInstruction, 0);
+		}
 	}
 
 	void ReplicationService::ServARSlaveClient(Channel* client,
-	        const std::string& serverKey, uint64 seq, DBIDSet& dbs)
+			const std::string& serverKey, uint64 seq, DBIDSet& dbs)
 	{
 		client->Flush();
 		m_server->m_service->DetachChannel(client, true);
@@ -619,7 +625,7 @@ namespace ardb
 		ChannelUpstreamHandler<Buffer>* handler = this;
 		client->GetPipeline().AddLast("handler", handler);
 		ReplInstruction instrct(kInstrctionSlaveClientQueue,
-		        new SlaveConn(client, serverKey, seq, dbs));
+				new SlaveConn(client, serverKey, seq, dbs));
 		OfferInstruction(instrct);
 	}
 
@@ -631,27 +637,34 @@ namespace ardb
 		ChannelUpstreamHandler<Buffer>* handler = this;
 		client->GetPipeline().AddLast("handler", handler);
 		ReplInstruction instrct(kInstrctionSlaveClientQueue,
-		        new SlaveConn(client));
+				new SlaveConn(client));
 		OfferInstruction(instrct);
 	}
 
-	void ReplicationService::FullSync(SlaveConn& conn)
+	void ReplicationService::LoadSync(SlaveConn& conn)
 	{
 		if (m_master_slave_id == conn.conn->GetID())
 		{
 			//WARNING: master-master replication SHOULD NOT do full sync.
 			WARN_LOG(
-			        "The slave is also the master of current ardb instance, the full sync would not executed.");
+					"The slave is also the master of current ardb instance, sync task would not executed.");
 			Buffer content;
 			content.Printf("arsynced %s %llu\r\n",
-			        m_oplogs.GetServerKey().c_str(), conn.synced_cmd_seq);
+					m_oplogs.GetServerKey().c_str(), conn.synced_cmd_seq);
 			conn.conn->Write(content);
 			conn.state = kSlaveStateSynced;
 			conn.synced_cmd_seq = m_oplogs.GetMaxSeq();
 			return;
 		}
-		INFO_LOG("Start a full sync to slave.");
-		m_serv.GetTimer().Schedule(new FullSyncTask(this, conn), 1, -1);
+		INFO_LOG("Start a load sync task.");
+		uint8 state = kFullSyncIter;
+		if (m_oplogs.IsInDiskOpLogs(conn.synced_cmd_seq))
+		{
+			//Read oplogs from disk
+			state = kFullSyncLogs;
+		}
+		m_serv.GetTimer().Schedule(
+				new LoadSyncTask(this, conn.conn->GetID(), state), 1, -1);
 	}
 
 	int ReplicationService::OnKeyUpdated(const Slice& key, const Slice& value)
@@ -706,26 +719,24 @@ namespace ardb
 		char cmd[m_server->m_cfg.data_base_path.size() + 256];
 		make_dir(m_server->m_cfg.backup_dir);
 		std::string dest = m_server->m_cfg.backup_dir
-		        + "/ardb_all_data.save.tar";
+				+ "/ardb_all_data.save.tar";
 		std::string shasumfile = m_server->m_cfg.backup_dir
-		        + "/ardb_all_data.sha1sum";
+				+ "/ardb_all_data.sha1sum";
 		sprintf(cmd, "tar cf %s %s;", dest.c_str(),
-		        m_server->m_cfg.data_base_path.c_str());
+				m_server->m_cfg.data_base_path.c_str());
 		ret = system(cmd);
 		if (-1 == ret)
 		{
 			ERROR_LOG( "Failed to create backup data archive:%s", dest.c_str());
-		}
-		else
+		} else
 		{
 			std::string sha1sum_str;
 			ret = sha1sum_file(dest, sha1sum_str);
 			if (-1 == ret)
 			{
 				ERROR_LOG(
-				        "Failed to compute sha1sum for data archive:%s", dest.c_str());
-			}
-			else
+						"Failed to compute sha1sum for data archive:%s", dest.c_str());
+			} else
 			{
 				INFO_LOG("Save file SHA1sum is %s", sha1sum_str.c_str());
 				file_write_content(shasumfile, sha1sum_str);
@@ -772,10 +783,23 @@ namespace ardb
 		return m_server->m_cfg;
 	}
 
-	void ReplicationService::OnFullSynced(FullSyncTask* task)
+	void ReplicationService::OnLoadSynced(LoadSyncTask* task, bool success)
 	{
 		DELETE(task);
-		CheckSlaveQueue();
+		if (success)
+		{
+			FeedSlaves();
+		}
+	}
+
+	SlaveConn* ReplicationService::GetSlaveConn(uint32 id)
+	{
+		SlaveConnTable::iterator found = m_slaves.find(id);
+		if (found != m_slaves.end())
+		{
+			return &(found->second);
+		}
+		return NULL;
 	}
 
 	ReplicationService::~ReplicationService()
@@ -783,35 +807,41 @@ namespace ardb
 	}
 
 	/*
-	 * Full Sync Task
+	 * Load Sync Task
 	 */
-	static const uint8 kFullSyncIter = 0;
-	static const uint8 kFullSyncLogs = 1;
-	static const uint8 kFullSyncMem = 2;
-	static const uint32 kMaxSyncRecordsPeriod = 2000;
 
-	void FullSyncTask::SyncDBIter()
+	LoadSyncTask::LoadSyncTask(ReplicationService* repl, uint32 id, uint8 state) :
+			m_repl(repl), m_conn_id(id), m_iter(NULL), m_op_log(NULL), m_start_time(
+					0), m_seq_after_sync_iter(0), m_state(state)
 	{
+		SlaveConn* conn = m_repl->GetSlaveConn(m_conn_id);
+		if (NULL != conn)
+		{
+			m_syncing_dbs = conn->syncdbs;
+		}
+		m_start_time = get_current_epoch_millis();
+	}
+	void LoadSyncTask::SyncDBIter()
+	{
+		SlaveConn* conn = m_repl->GetSlaveConn(m_conn_id);
 		if (NULL == m_iter)
 		{
-			m_start_time = get_current_epoch_millis();
 			m_seq_after_sync_iter = m_repl->GetOpLogs().GetMaxSeq();
-			if (m_conn.syncdbs.empty())
+			if (conn->syncdbs.empty())
 			{
 				m_iter = m_repl->GetDB().NewIterator();
-			}
-			else
+			} else
 			{
-				m_iter = m_repl->GetDB().NewIterator(*(m_conn.syncdbs.begin()));
-				m_syncing_dbs = m_conn.syncdbs;
+				m_iter = m_repl->GetDB().NewIterator(*(m_syncing_dbs.begin()));
 			}
 		}
 		struct VisitorTask: public RawValueVisitor
 		{
 				SlaveConn& c;
 				uint32 count;
+				bool fail;
 				VisitorTask(SlaveConn& cc) :
-						c(cc), count(0)
+						c(cc), count(0), fail(false)
 				{
 				}
 				int OnRawKeyValue(const Slice& key, const Slice& value)
@@ -821,7 +851,11 @@ namespace ardb
 					strs.push_back(std::string(key.data(), key.size()));
 					strs.push_back(std::string(value.data(), value.size()));
 					RedisCommandFrame cmd(strs);
-					c.WriteRedisCommand(cmd);
+					if (!c.WriteRedisCommand(cmd))
+					{
+						fail = true;
+						return -1;
+					}
 					count++;
 					if (count == kMaxSyncRecordsPeriod)
 					{
@@ -829,22 +863,31 @@ namespace ardb
 					}
 					return 0;
 				}
-		} visitor(m_conn);
+		} visitor(*conn);
 
-		if (m_conn.syncdbs.empty())
+		if (conn->syncdbs.empty())
 		{
 			m_repl->GetDB().VisitAllDB(&visitor, m_iter);
+			if (visitor.fail)
+			{
+				m_repl->OnLoadSynced(this, false);
+				return;
+			}
 			if (visitor.count < kMaxSyncRecordsPeriod)
 			{
 				m_state = kFullSyncLogs;
-				m_conn.synced_cmd_seq = m_seq_after_sync_iter;
+				conn->synced_cmd_seq = m_seq_after_sync_iter;
 				DELETE(m_iter);
 			}
-		}
-		else
+		} else
 		{
 			DBID db = *(m_syncing_dbs.begin());
 			m_repl->GetDB().VisitDB(db, &visitor, m_iter);
+			if (visitor.fail)
+			{
+				m_repl->OnLoadSynced(this, false);
+				return;
+			}
 			if (visitor.count < kMaxSyncRecordsPeriod)
 			{
 				m_syncing_dbs.erase(db);
@@ -852,12 +895,11 @@ namespace ardb
 				if (m_syncing_dbs.empty())
 				{
 					m_state = kFullSyncLogs;
-					m_conn.synced_cmd_seq = m_seq_after_sync_iter;
-				}
-				else
+					conn->synced_cmd_seq = m_seq_after_sync_iter;
+				} else
 				{
 					m_iter = m_repl->GetDB().NewIterator(
-					        *(m_syncing_dbs.begin()));
+							*(m_syncing_dbs.begin()));
 				}
 			}
 		}
@@ -865,41 +907,108 @@ namespace ardb
 		m_repl->GetChannelService().GetTimer().Schedule(this, 1, -1);
 	}
 
-	void FullSyncTask::SyncOpLogs()
+	void LoadSyncTask::SyncOpLogs()
 	{
-		if (m_seq_after_sync_iter >= m_repl->GetOpLogs().GetMinSeq())
+		SlaveConn* conn = m_repl->GetSlaveConn(m_conn_id);
+		if (conn->synced_cmd_seq >= m_repl->GetOpLogs().GetMinSeq())
 		{
 			m_state = kFullSyncMem;
-		}
-		else
+		} else
 		{
 			//compute oplog file sequence
-			uint64 start_seq;
-			for (uint32 i = m_repl->GetConfig().repl_max_backup_logs - 1; i > 0;
-			        i--)
+			if (NULL == m_op_log)
 			{
-				if (m_repl->GetOpLogs().PeekOpLogStartSeq(i, start_seq))
+				uint64 start_seq;
+				for (uint32 i = m_repl->GetConfig().repl_max_backup_logs; i > 0;
+						i--)
 				{
-					if (start_seq > m_seq_after_sync_iter)
+					if (m_repl->GetOpLogs().PeekOpLogStartSeq(i, start_seq))
 					{
-						ERROR_LOG(
-						        "Can NOT sync to slave, since current node is too busy on writing.");
-						m_repl->OnFullSynced(this);
-						return;
+						if (start_seq > (conn->synced_cmd_seq + 1))
+						{
+							ERROR_LOG(
+									"Can NOT sync to slave, since current node is too busy on writing.");
+							m_repl->OnLoadSynced(this, false);
+							return;
+						}
+						if (start_seq + m_repl->GetConfig().repl_backlog_size
+								> conn->synced_cmd_seq + 1)
+						{
+							m_op_log = new OpLogFile(
+									m_repl->GetOpLogs().GetOpLogPath(i));
+							m_op_log->OpenRead();
+							break;
+						}
 					}
-					if(start_seq + m_repl->GetConfig().repl_backlog_size > m_seq_after_sync_iter)
-					{
-						//TODO start sync from oplogs
-						break;
-					}
+				}
+			}
+			if (NULL != m_op_log)
+			{
+				struct OpLogVisitor: public CachedOpVisitor
+				{
+						ReplicationService* repl;
+						SlaveConn& conn;
+						uint32 count;
+						bool fail;
+						OpLogVisitor(ReplicationService* serv, SlaveConn& c) :
+								repl(serv), conn(c), count(0), fail(
+										false)
+						{
+						}
+						int OnCachedOp(CachedOp* op, uint64 seq)
+						{
+							count++;
+							if (seq >= conn.synced_cmd_seq + 1)
+							{
+								if(!conn.syncdbs.empty())
+								{
+									DBID db;
+									if(repl->GetOpLogs().PeekDBID(op, db) && conn.syncdbs.count(db) == 0)
+									{
+										//ignore
+										conn.synced_cmd_seq = seq;
+										DELETE(op);
+										return 0;
+									}
+								}
+								RedisCommandFrame cmd;
+								if (repl->GetOpLogs().CachedOp2RedisCommand(op,
+										cmd, 0))
+								{
+									conn.synced_cmd_seq = seq;
+									if (!conn.WriteRedisCommand(cmd))
+									{
+										fail = true;
+									}
+								}
+								DELETE(op);
+							}
+							return 0;
+						}
+				} visitor(m_repl, *conn);
+				int ret = m_op_log->Load(&visitor, 4 * 1024);
+				if (visitor.fail)
+				{
+					m_repl->OnLoadSynced(this, false);
+					return;
+				}
+				if (visitor.count == 0 || ret < 0)
+				{
+					DELETE(m_op_log);
 				}
 			}
 		}
 		//sync after 1ms in next schedule
 		m_repl->GetChannelService().GetTimer().Schedule(this, 1, -1);
 	}
-	void FullSyncTask::Run()
+	void LoadSyncTask::Run()
 	{
+		SlaveConn* conn = m_repl->GetSlaveConn(m_conn_id);
+		if (NULL == conn)
+		{
+			m_repl->OnLoadSynced(this, false);
+			return;
+		}
 		switch (m_state)
 		{
 			case kFullSyncIter:
@@ -914,16 +1023,16 @@ namespace ardb
 			}
 			case kFullSyncMem:
 			{
-				m_conn.state = kSlaveStateSynced;
+				conn->state = kSlaveStateSynced;
 				Buffer content;
 				content.Printf("arsynced %s %llu\r\n",
-				        m_repl->GetOpLogs().GetServerKey().c_str(),
-				        m_conn.synced_cmd_seq);
-				m_conn.conn->Write(content);
+						m_repl->GetOpLogs().GetServerKey().c_str(),
+						conn->synced_cmd_seq);
+				conn->conn->Write(content);
 				uint64 end = get_current_epoch_millis();
 				INFO_LOG(
-				        "Cost %llums to sync all data to slave.", (end-m_start_time));
-				m_repl->OnFullSynced(this);
+						"Cost %llums to sync all data to slave.", (end-m_start_time));
+				m_repl->OnLoadSynced(this, true);
 				return;
 			}
 			default:
@@ -933,8 +1042,9 @@ namespace ardb
 		}
 	}
 
-	FullSyncTask::~FullSyncTask()
+	LoadSyncTask::~LoadSyncTask()
 	{
 		DELETE(m_iter);
+		DELETE(m_op_log);
 	}
 }

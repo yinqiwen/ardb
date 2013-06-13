@@ -44,17 +44,17 @@ namespace ardb
 			static const size_t DEFAULT_BUFFER_SIZE = 32;
 			inline Buffer() :
 					m_buffer(0), m_buffer_len(0), m_write_idx(0), m_read_idx(0), m_in_heap(
-					        true)
+							true)
 			{
 			}
 			inline Buffer(char* value, int off, int len) :
 					m_buffer(value), m_buffer_len(len), m_write_idx(len), m_read_idx(
-					        off), m_in_heap(false)
+							off), m_in_heap(false)
 			{
 			}
 			inline Buffer(size_t size) :
 					m_buffer(0), m_buffer_len(0), m_write_idx(0), m_read_idx(0), m_in_heap(
-					        true)
+							true)
 			{
 				EnsureWritableBytes(size);
 			}
@@ -121,8 +121,7 @@ namespace ardb
 						return 0;
 					}
 					memcpy(newSpace, m_buffer + m_read_idx, readableBytes);
-				}
-				else
+				} else
 				{
 					return 0;
 				}
@@ -139,13 +138,12 @@ namespace ardb
 			}
 
 			inline bool EnsureWritableBytes(size_t minWritableBytes,
-			        bool growzero = false)
+					bool growzero = false)
 			{
 				if (WriteableBytes() >= minWritableBytes)
 				{
 					return true;
-				}
-				else
+				} else
 				{
 					size_t newCapacity = Capacity();
 					if (0 == newCapacity)
@@ -165,12 +163,14 @@ namespace ardb
 					{
 						if (growzero)
 						{
-							memset(tmp + ReadableBytes(), 0,
-							        newCapacity - ReadableBytes());
+							memset(tmp, 0, newCapacity);
+						}
+						if (NULL != m_buffer)
+						{
+							memcpy(tmp, m_buffer, Capacity());
 						}
 						if (m_in_heap && NULL != m_buffer)
 						{
-							memcpy(tmp, m_buffer, ReadableBytes());
 							free(m_buffer);
 						}
 						m_in_heap = true;
@@ -326,8 +326,7 @@ namespace ardb
 						memmove(m_buffer, m_buffer + m_read_idx, tmp);
 						m_read_idx = 0;
 						m_write_idx = tmp;
-					}
-					else
+					} else
 					{
 						m_read_idx = m_write_idx = 0;
 					}
@@ -346,7 +345,7 @@ namespace ardb
 			}
 			inline ~Buffer()
 			{
-				if (m_buffer!= NULL && m_in_heap)
+				if (m_buffer != NULL && m_in_heap)
 				{
 					free(m_buffer);
 				}
