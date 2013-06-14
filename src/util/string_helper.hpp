@@ -17,7 +17,7 @@ namespace ardb
 	std::string get_basename(const std::string& filename);
 
 	char* trim_str(char* str, const char* cset);
-	std::string trim_string(const std::string& str, const std::string& set);
+	std::string trim_string(const std::string& str, const std::string& set = " \t\r\n");
 
 	std::vector<char*> split_str(char* str, const char* sep);
 	std::vector<std::string> split_string(const std::string& str,

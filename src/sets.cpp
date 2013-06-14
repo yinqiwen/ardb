@@ -517,7 +517,8 @@ namespace ardb
 		}
 		if (cmp != &values)
 		{
-			values = *cmp;
+			values.clear();
+			values.insert(cmp->begin(),cmp->end());
 		}
 		return 0;
 	}

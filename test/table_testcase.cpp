@@ -25,7 +25,7 @@ void test_table_insert_get(Ardb& db)
 
 	ValueArray result;
 	TableQueryOptions options;
-	string_to_string_array("3 birth name age where key2<2", strs);
+	string_to_string_array("birth,name,age where key2<2", strs);
 	TableQueryOptions::Parse(strs, 0, options);
 	db.TGet(dbid, "mytable", options, result, err);
 	CHECK_FATAL( result.size() != 0, "%zu", result.size());
@@ -62,7 +62,7 @@ void test_table_update(Ardb& db)
 	std::string err;
 	db.TInsert(dbid, "mytable", insert_options, false, err);
 	TableUpdateOptions update_options;
-	string_to_string_array("3 name newdb age 30 birth 2000 where key2>5", strs);
+	string_to_string_array("name=newdb,age=30,birth=2000 where key2>5", strs);
 	TableUpdateOptions::Parse(strs, 0, update_options);
 	db.TUpdate(dbid, "mytable", update_options);
 

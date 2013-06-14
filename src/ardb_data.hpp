@@ -289,19 +289,21 @@ namespace ardb
 			}
 	};
 
-	typedef std::map<ValueObject, double> ValueScoreMap;
+	typedef btree::btree_map<ValueObject, double> ValueScoreMap;
 
-	typedef std::set<ValueObject> ValueSet;
+	typedef btree::btree_set<ValueObject> ValueSet;
 
 	typedef std::deque<ValueObject> ValueArray;
 	typedef std::vector<double> DoubleArray;
 	typedef std::deque<Slice> SliceArray;
 	typedef std::deque<std::string> StringArray;
 	typedef std::vector<int64> Int64Array;
-	typedef std::map<std::string, Slice> SliceMap;
-	typedef std::set<std::string> StringSet;
-	typedef std::set<Slice> SliceSet;
+	typedef btree::btree_map<std::string, Slice> StringSliceMap;
+	typedef btree::btree_set<std::string> StringSet;
+	typedef btree::btree_set<Slice> SliceSet;
 	typedef std::vector<uint32_t> WeightArray;
+	typedef btree::btree_map<std::string, std::string> StringStringMap;
+	typedef btree::btree_map<uint64, std::string> UInt64StringMap;
 
 	struct DBItemKey
 	{
@@ -580,7 +582,7 @@ namespace ardb
 	struct TableQueryOptions
 	{
 			Conditions conds;
-			SliceArray names;
+			StringArray names;
 			Slice orderby;
 			bool with_limit;
 			int32 limit_offset;
@@ -615,7 +617,7 @@ namespace ardb
 	struct TableUpdateOptions
 	{
 			Conditions conds;
-			SliceMap colnvs;
+			StringStringMap colnvs;
 			static bool Parse(StringArray& args, uint32 offset,
 			        TableUpdateOptions& options);
 	};
@@ -627,7 +629,7 @@ namespace ardb
 	};
 	struct TableInsertOptions
 	{
-			SliceMap nvs;
+			StringStringMap nvs;
 			static bool Parse(StringArray& args, uint32 offset,
 			        TableInsertOptions& options);
 			void Clear()
@@ -639,12 +641,13 @@ namespace ardb
 	typedef std::vector<ZSetMetaValue> ZSetMetaValueArray;
 	typedef std::vector<SetMetaValue> SetMetaValueArray;
 	typedef std::deque<TableIndexKeyObject> TableRowKeyArray;
+
+	//btree_map seems not happy with two bree_map combine together
 	typedef std::map<std::string, ValueObject> NameValueTable;
 	typedef std::map<TableKeyIndex, NameValueTable> TableKeyIndexValueTable;
+
 	typedef std::deque<ValueArray> ValueArrayArray;
-	typedef btree::btree_map<std::string, std::string> StringStringMap;
-	typedef std::map<uint64, std::string> StringMap;
-	typedef std::map<uint64, BitSetElementValue> BitSetElementValueMap;
+	typedef btree::btree_map<uint64, BitSetElementValue> BitSetElementValueMap;
 
 	int compare_values(const ValueArray& a, const ValueArray& b);
 
@@ -681,7 +684,6 @@ namespace ardb
 	{
 		return compare_values(x, y) < 0;
 	}
-
 }
 
 #endif /* ARDB_DATA_HPP_ */

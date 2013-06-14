@@ -973,7 +973,8 @@ namespace ardb
 			BatchWriteGuard guard(GetEngine());
 			ZClear(db, dst);
 			KeyLockerGuard keyguard(m_key_locker, db, dst);
-
+			ZSetMetaValue meta;
+			meta.size = vm.size();
 			while (!vm.empty())
 			{
 				ValueScoreMap::iterator it = vm.begin();
@@ -997,8 +998,6 @@ namespace ardb
 				//reduce memory footprint for huge data set
 				vm.erase(it);
 			}
-			ZSetMetaValue meta;
-			meta.size = vm.size();
 			meta.min_score = min_score;
 			meta.max_score = max_score;
 			SetZSetMetaValue(db, dst, meta);
@@ -1121,6 +1120,8 @@ namespace ardb
 			BatchWriteGuard guard(GetEngine());
 			ZClear(db, dst);
 			KeyLockerGuard keyguard(m_key_locker, db, dst);
+			ZSetMetaValue meta;
+			meta.size = cmp->size();
 			while (!cmp->empty())
 			{
 				ValueScoreMap::iterator it = cmp->begin();
@@ -1144,8 +1145,6 @@ namespace ardb
 				//reduce memory footprint for huge data set
 				cmp->erase(it);
 			}
-			ZSetMetaValue meta;
-			meta.size = cmp->size();
 			meta.min_score = min_score;
 			meta.max_score = max_score;
 			SetZSetMetaValue(db, dst, meta);
