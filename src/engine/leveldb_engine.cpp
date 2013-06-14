@@ -43,8 +43,7 @@ namespace ardb
 			{
 				start->resize(4);
 				start->assign(limit.data(), 0, 4);
-			}
-			else
+			} else
 			{
 				uint32 akeysize = 0, bkeysize = 0;
 				assert(BufferHelper::ReadVarUInt32(ak_buf, akeysize));
@@ -293,18 +292,32 @@ namespace ardb
 		m_db->CompactRange(start, endpos);
 	}
 
+	void LevelDBEngine::BatchHolder::Put(const Slice& key, const Slice& value)
+	{
+		batch.Put(LEVELDB_SLICE(key), LEVELDB_SLICE(value));
+		count++;
+	}
+	void LevelDBEngine::BatchHolder::Del(const Slice& key)
+	{
+		batch.Delete(LEVELDB_SLICE(key));
+		count++;
+	}
+
 	int LevelDBEngine::Put(const Slice& key, const Slice& value)
 	{
 		leveldb::Status s = leveldb::Status::OK();
 		BatchHolder& holder = m_batch_local.GetValue();
 		if (!holder.EmptyRef())
 		{
-			holder.batch.Put(LEVELDB_SLICE(key), LEVELDB_SLICE(value));
-		}
-		else
+			holder.Put(key, value);
+			if (holder.count >= (uint32) m_cfg.batch_commit_watermark)
+			{
+				FlushWriteBatch(holder);
+			}
+		} else
 		{
 			s = m_db->Put(leveldb::WriteOptions(), LEVELDB_SLICE(key),
-					LEVELDB_SLICE(value));
+			LEVELDB_SLICE(value));
 		}
 		return s.ok() ? 0 : -1;
 	}
@@ -320,9 +333,12 @@ namespace ardb
 		BatchHolder& holder = m_batch_local.GetValue();
 		if (!holder.EmptyRef())
 		{
-			holder.batch.Delete(LEVELDB_SLICE(key));
-		}
-		else
+			holder.Del(key);
+			if (holder.count >= (uint32) m_cfg.batch_commit_watermark)
+			{
+				FlushWriteBatch(holder);
+			}
+		} else
 		{
 			s = m_db->Delete(leveldb::WriteOptions(), LEVELDB_SLICE(key));
 		}

@@ -54,7 +54,7 @@ namespace ardb
 		//SetKeyObject k(key, Slice());
 		ValueObject v;
 		EncodeSetMetaData(v, meta);
-		SetValue( k, v);
+		SetValue(k, v);
 	}
 
 	int Ardb::SAdd(const DBID& db, const Slice& key, const SliceArray& values)
@@ -352,7 +352,7 @@ namespace ardb
 			}
 			SetKeyObject sk(k, search_value, db);
 			SDiffWalk walk(values, i, limit);
-			Walk( sk, false, &walk);
+			Walk(sk, false, &walk);
 		}
 		return 0;
 	}
@@ -370,9 +370,9 @@ namespace ardb
 			SClear(db, dst);
 			KeyLockerGuard keyguard(m_key_locker, db, dst);
 			SetMetaValue meta;
-			ValueSet::iterator it = vs.begin();
-			while (it != vs.end())
+			while (!vs.empty())
 			{
+				ValueSet::iterator it = vs.begin();
 				const ValueObject& v = *it;
 				std::string str;
 				Slice sv(v.ToString(str));
@@ -389,7 +389,8 @@ namespace ardb
 				{
 					meta.max = sk.value;
 				}
-				it++;
+				//reduce memory footprint for huge data set
+				vs.erase(it);
 			}
 			SetSetMetaValue(db, dst, meta);
 			return meta.size;
@@ -427,7 +428,7 @@ namespace ardb
 			SetMetaValue meta;
 			if (0 == GetSetMetaValue(db, *kit, meta))
 			{
-				if (min_size == -1 || min_size > (int32)meta.size)
+				if (min_size == -1 || min_size > (int32) meta.size)
 				{
 					min_size = meta.size;
 					min_idx = idx;
@@ -488,7 +489,7 @@ namespace ardb
 		ValueSet cmp1;
 		SetKeyObject cmp_start(keys[min_idx], min, db);
 		SInterWalk walk(cmp1, cmp1, min, max);
-		Walk( cmp_start, false, &walk);
+		Walk(cmp_start, false, &walk);
 		ValueSet* cmp = &cmp1;
 		ValueSet* result = &values;
 		for (uint32_t i = 0; i < keys.size(); i++)
@@ -514,7 +515,7 @@ namespace ardb
 				}
 			}
 		}
-		if(cmp != &values)
+		if (cmp != &values)
 		{
 			values = *cmp;
 		}
@@ -534,9 +535,9 @@ namespace ardb
 			SClear(db, dst);
 			KeyLockerGuard keyguard(m_key_locker, db, dst);
 			SetMetaValue meta;
-			ValueSet::iterator it = vs.begin();
-			while (it != vs.end())
+			while (!vs.empty())
 			{
+				ValueSet::iterator it = vs.begin();
 				const ValueObject& v = *it;
 				std::string str;
 				Slice sv(v.ToString(str));
@@ -553,7 +554,8 @@ namespace ardb
 				{
 					meta.max = sk.value;
 				}
-				it++;
+				//reduce memory footprint for huge data set
+				vs.erase(it);
 			}
 			SetSetMetaValue(db, dst, meta);
 			return meta.size;
@@ -613,7 +615,7 @@ namespace ardb
 		if (meta.size == 0)
 		{
 			KeyObject k(key, SET_META, db);
-			DelValue( k);
+			DelValue(k);
 		} else
 		{
 			SetSetMetaValue(db, key, meta);
@@ -698,9 +700,9 @@ namespace ardb
 			SClear(db, dst);
 			KeyLockerGuard keyguard(m_key_locker, db, dst);
 			SetMetaValue meta;
-			ValueSet::iterator it = ss.begin();
-			while (it != ss.end())
+			while (!ss.empty())
 			{
+				ValueSet::iterator it = ss.begin();
 				const ValueObject& v = *it;
 				std::string str;
 				Slice sv(v.ToString(str));
@@ -717,7 +719,8 @@ namespace ardb
 				{
 					meta.max = sk.value;
 				}
-				it++;
+				//reduce memory footprint for huge data set
+				ss.erase(it);
 			}
 			SetSetMetaValue(db, dst, meta);
 			return meta.size;

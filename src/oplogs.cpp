@@ -595,9 +595,9 @@ namespace ardb
 			if (fit != m_mem_op_logs.end())
 			{
 				CachedOp* op = fit->second;
-				DELETE(op);
-				m_mem_op_logs.erase(fit);
 				m_mem_op_idx.erase(found);
+				m_mem_op_logs.erase(fit);
+				DELETE(op);
 			}
 		}
 	}

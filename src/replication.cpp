@@ -158,6 +158,14 @@ namespace ardb
 					{
 						return;
 					}
+					WARN_LOG(
+							"Recv master error response:%s", msg->AsString().c_str());
+					if (msg->IndexOf("Ardb", 4) != -1)
+					{
+						//Just close connection if remote is Ardb not Redis
+						ctx.GetChannel()->Close();
+						return;
+					}
 					msg->Clear();
 					m_server_type = kRedisTestDB;
 					/*
@@ -401,6 +409,7 @@ namespace ardb
 	int ReplicationService::Init()
 	{
 		m_oplogs.Load();
+		m_inst_signal = m_serv.NewSoftSignalChannel();
 		return 0;
 	}
 
@@ -525,7 +534,6 @@ namespace ardb
 				m_server->m_cfg.repl_ping_slave_period, SECONDS);
 		m_serv.GetTimer().ScheduleHeapTask(new InstTask(this), 100, 100,
 				MILLIS);
-		m_inst_signal = m_serv.NewSoftSignalChannel();
 		m_inst_signal->Register(kSoftSinglaInstruction, this);
 		m_serv.Start();
 	}
@@ -554,6 +562,7 @@ namespace ardb
 	void ReplicationService::ProcessInstructions()
 	{
 		ReplInstruction instruction;
+		uint32 count = 0;
 		while (m_inst_queue.Pop(instruction))
 		{
 			switch (instruction.type)
@@ -604,21 +613,34 @@ namespace ardb
 					break;
 				}
 			}
+			count++;
+			if (count >= kMaxSyncRecordsPeriod)
+			{
+				if (NULL != m_inst_signal)
+				{
+					m_inst_signal->FireSoftSignal(kSoftSinglaInstruction, 0);
+				}
+				return;
+			}
 		}
 	}
 
 	void ReplicationService::OfferInstruction(ReplInstruction& inst)
 	{
 		m_inst_queue.Push(inst);
-		if(NULL != m_inst_signal)
+		if (NULL != m_inst_signal)
 		{
 			m_inst_signal->FireSoftSignal(kSoftSinglaInstruction, 0);
+		} else
+		{
+			DEBUG_LOG("NULL singnal channel:%p %p", m_inst_signal, this);
 		}
 	}
 
 	void ReplicationService::ServARSlaveClient(Channel* client,
 			const std::string& serverKey, uint64 seq, DBIDSet& dbs)
 	{
+		DEBUG_LOG("ServARSlaveClient for %s", serverKey.c_str());
 		client->Flush();
 		m_server->m_service->DetachChannel(client, true);
 		client->ClearPipeline();
@@ -789,6 +811,9 @@ namespace ardb
 		if (success)
 		{
 			FeedSlaves();
+		} else
+		{
+			ERROR_LOG("Load sync failed.");
 		}
 	}
 
@@ -910,7 +935,7 @@ namespace ardb
 	void LoadSyncTask::SyncOpLogs()
 	{
 		SlaveConn* conn = m_repl->GetSlaveConn(m_conn_id);
-		if (conn->synced_cmd_seq >= m_repl->GetOpLogs().GetMinSeq())
+		if ((conn->synced_cmd_seq + 1) >= m_repl->GetOpLogs().GetMinSeq())
 		{
 			m_state = kFullSyncMem;
 		} else
@@ -937,6 +962,8 @@ namespace ardb
 							m_op_log = new OpLogFile(
 									m_repl->GetOpLogs().GetOpLogPath(i));
 							m_op_log->OpenRead();
+							INFO_LOG(
+									"Start sync from oplog:%s", m_repl->GetOpLogs().GetOpLogPath(i).c_str());
 							break;
 						}
 					}
@@ -951,8 +978,7 @@ namespace ardb
 						uint32 count;
 						bool fail;
 						OpLogVisitor(ReplicationService* serv, SlaveConn& c) :
-								repl(serv), conn(c), count(0), fail(
-										false)
+								repl(serv), conn(c), count(0), fail(false)
 						{
 						}
 						int OnCachedOp(CachedOp* op, uint64 seq)
@@ -960,13 +986,14 @@ namespace ardb
 							count++;
 							if (seq >= conn.synced_cmd_seq + 1)
 							{
-								if(!conn.syncdbs.empty())
+								conn.synced_cmd_seq = seq;
+								if (!conn.syncdbs.empty())
 								{
 									DBID db;
-									if(repl->GetOpLogs().PeekDBID(op, db) && conn.syncdbs.count(db) == 0)
+									if (repl->GetOpLogs().PeekDBID(op, db)
+											&& conn.syncdbs.count(db) == 0)
 									{
 										//ignore
-										conn.synced_cmd_seq = seq;
 										DELETE(op);
 										return 0;
 									}
@@ -996,6 +1023,12 @@ namespace ardb
 				{
 					DELETE(m_op_log);
 				}
+			} else
+			{
+				ERROR_LOG(
+						"No oplog file found for syncing while slave synced:%"PRIu64"  and min seq in mem:%"PRIu64, conn->synced_cmd_seq, m_repl->GetOpLogs().GetMinSeq());
+				m_repl->OnLoadSynced(this, false);
+				return;
 			}
 		}
 		//sync after 1ms in next schedule
@@ -1006,6 +1039,7 @@ namespace ardb
 		SlaveConn* conn = m_repl->GetSlaveConn(m_conn_id);
 		if (NULL == conn)
 		{
+			WARN_LOG("Slave connection closed.");
 			m_repl->OnLoadSynced(this, false);
 			return;
 		}

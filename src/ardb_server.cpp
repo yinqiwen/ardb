@@ -136,7 +136,8 @@ namespace ardb
 		conf_get_int64(props, "maxclients", cfg.max_clients);
 		conf_get_string(props, "bind", cfg.listen_host);
 		conf_get_string(props, "unixsocket", cfg.listen_unix_path);
-		conf_get_string(props, "dir", cfg.data_base_path);
+		conf_get_string(props, "home", cfg.home);
+		conf_get_string(props, "data-dir", cfg.data_base_path);
 		conf_get_string(props, "backup-dir", cfg.backup_dir);
 		conf_get_string(props, "repl-dir", cfg.repl_data_dir);
 		conf_get_string(props, "loglevel", cfg.loglevel);
@@ -144,6 +145,11 @@ namespace ardb
 		std::string daemonize, repl_log_enable;
 		conf_get_string(props, "daemonize", daemonize);
 		conf_get_string(props, "repl-log-enable", repl_log_enable);
+
+		if(cfg.home.empty())
+		{
+			cfg.home = "../ardb";
+		}
 
 		conf_get_int64(props, "thread-pool-size", cfg.worker_count);
 		if (cfg.worker_count <= 0)
@@ -1516,7 +1522,13 @@ namespace ardb
 				syncdbs.insert(syncdb);
 			}
 		}
-		m_repli_serv.ServARSlaveClient(ctx.conn, serverKey, seq, syncdbs);
+		if(m_cfg.repl_log_enable)
+		{
+			m_repli_serv.ServARSlaveClient(ctx.conn, serverKey, seq, syncdbs);
+		}else{
+			fill_error_reply(ctx.reply, "ERR Ardb instance's replication log not enabled");
+			return -1;
+		}
 		return 0;
 	}
 

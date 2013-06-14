@@ -29,6 +29,7 @@ namespace ardb
 			int64 max_clients;
 			int64 tcp_keepalive;
 			int64 timeout;
+			std::string home;
 			std::string data_base_path;
 			int64 slowlog_log_slower_than;
 			int64 slowlog_max_len;

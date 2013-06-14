@@ -1,5 +1,5 @@
 /*
- * leveldb_engine.hpp
+    * leveldb_engine.hpp
  *
  *  Created on: 2013-3-31
  *      Author: wqy
@@ -90,7 +90,7 @@ namespace ardb
 			LevelDBConfig() :
 					block_cache_size(0), write_buffer_size(0), max_open_files(
 							10240), block_size(0), block_restart_interval(0), bloom_bits(
-							10), batch_commit_watermark(30)
+							10), batch_commit_watermark(1024)
 			{
 			}
 	};
@@ -104,6 +104,7 @@ namespace ardb
 			{
 					leveldb::WriteBatch batch;
 					uint32 ref;
+					uint32 count;
 					void ReleaseRef()
 					{
 						if (ref > 0)
@@ -120,9 +121,12 @@ namespace ardb
 					void Clear()
 					{
 						batch.Clear();
+						count = 0;
 					}
+					void Put(const Slice& key, const Slice& value);
+					void Del(const Slice& key);
 					BatchHolder() :
-							ref(0)
+							ref(0),count(0)
 					{
 					}
 			};
