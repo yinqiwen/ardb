@@ -76,6 +76,11 @@ int main(int argc, char** argv)
 				argv[0]);
 	}
 	signal_setting();
+	ArdbServerConfig cfg;
+	if(0 != ArdbServer::ParseConfig(props, cfg))
+	{
+		return -1;
+	}
 	SelectedDBEngineFactory engine(props);
 	ArdbServer server(engine);
 	server.Start(props);

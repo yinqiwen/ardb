@@ -37,7 +37,7 @@ namespace ardb
 	        LMDBConfig& cfg)
 	{
 		cfg.path = ".";
-		conf_get_string(props, "dir", cfg.path);
+		conf_get_string(props, "data-dir", cfg.path);
 	}
 	KeyValueEngine* LMDBEngineFactory::CreateDB(const std::string& name)
 	{

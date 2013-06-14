@@ -113,7 +113,7 @@ namespace ardb
 			LevelDBConfig& cfg)
 	{
 		cfg.path = ".";
-		conf_get_string(props, "dir", cfg.path);
+		conf_get_string(props, "data-dir", cfg.path);
 		conf_get_int64(props, "leveldb.block_cache_size", cfg.block_cache_size);
 		conf_get_int64(props, "leveldb.write_buffer_size",
 				cfg.write_buffer_size);
