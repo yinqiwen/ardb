@@ -30,7 +30,7 @@
 // Allow user override the size_type of btree containers.
 // Define CPP_BTREE_SIZE_TYPE to be size_t make it total compatible with STL.
 #ifndef CPP_BTREE_SIZE_TYPE
-#define CPP_BTREE_SIZE_TYPE ssize_t
+#define CPP_BTREE_SIZE_TYPE size_t
 #endif
 
 #endif  // CPP_BTREE_CONFIG_H

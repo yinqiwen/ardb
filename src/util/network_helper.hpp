@@ -61,6 +61,7 @@ namespace ardb
 
 	int get_ip_by_nic_name(const std::string& ifName, std::string& ip);
 	int get_local_host_ip_list(std::vector<std::string>& iplist);
+	bool is_local_ip(const std::string& ip);
 }
 
 #endif /* NETWORKHELPER_HPP_ */

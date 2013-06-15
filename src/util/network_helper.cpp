@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -89,11 +89,13 @@ namespace ardb
 			{
 				sockaddr_in* in = (sockaddr_in*) (addr);
 				ret = SocketInetAddress(*in);
-			} else if (addr->sa_family == AF_INET6)
+			}
+			else if (addr->sa_family == AF_INET6)
 			{
 				sockaddr_in6* in6 = (sockaddr_in6*) (addr);
 				ret = SocketInetAddress(*in6);
-			} else if (addr->sa_family == AF_UNIX)
+			}
+			else if (addr->sa_family == AF_UNIX)
 			{
 				sockaddr_un* un = (sockaddr_un*) (addr);
 				ret = SocketInetAddress(*un);
@@ -115,10 +117,11 @@ namespace ardb
 			sockaddr_in* paddr = (sockaddr_in*) (&addr);
 			if (NULL != inet_ntop(AF_INET, &(paddr->sin_addr), host, size))
 			{
-				return SocketHostAddress(host, ntohs(paddr->sin_port) );
+				return SocketHostAddress(host, ntohs(paddr->sin_port));
 			}
 			return invalid;
-		} else
+		}
+		else
 		{
 			//ipv6
 			char host[INET6_ADDRSTRLEN + 1];
@@ -127,7 +130,7 @@ namespace ardb
 			if (NULL != inet_ntop(AF_INET6, &(paddr->sin6_addr), host, size))
 			{
 				sockaddr_in6* paddr = (sockaddr_in6*) (&addr);
-				return SocketHostAddress(host, ntohs(paddr->sin6_port) );
+				return SocketHostAddress(host, ntohs(paddr->sin6_port));
 			}
 			return invalid;
 		}
@@ -161,11 +164,13 @@ namespace ardb
 			{
 				sockaddr_in* in = (sockaddr_in*) addr;
 				return SocketInetAddress(*in);
-			} else if (addr->sa_family == AF_INET6)
+			}
+			else if (addr->sa_family == AF_INET6)
 			{
 				sockaddr_in6* in6 = (sockaddr_in6*) addr;
 				return SocketInetAddress(*in6);
-			} else if (addr->sa_family == AF_UNIX)
+			}
+			else if (addr->sa_family == AF_UNIX)
 			{
 				sockaddr_un* un = (sockaddr_un*) addr;
 				return SocketInetAddress(*un);
@@ -193,11 +198,13 @@ namespace ardb
 			{
 				sockaddr_in* in = (sockaddr_in*) addr;
 				return SocketInetAddress(*in);
-			} else if (addr->sa_family == AF_INET6)
+			}
+			else if (addr->sa_family == AF_INET6)
 			{
 				sockaddr_in6* in6 = (sockaddr_in6*) addr;
 				return SocketInetAddress(*in6);
-			} else if (addr->sa_family == AF_UNIX)
+			}
+			else if (addr->sa_family == AF_UNIX)
 			{
 				sockaddr_un* un = (sockaddr_un*) addr;
 				return SocketInetAddress(*un);
@@ -222,7 +229,8 @@ namespace ardb
 			uint64_t temp = htonl(v & 0xFFFFFFFF);
 			temp <<= 32;
 			return temp | htonl(v >> 32);
-		} else
+		}
+		else
 		{
 			return v;
 		}
@@ -267,7 +275,7 @@ namespace ardb
 			if (0 == strcmp(ifName.c_str(), ifr[intrface].ifr_name))
 			{
 				SocketHostAddress addr = get_host_address(
-						ifr[intrface].ifr_addr);
+				        ifr[intrface].ifr_addr);
 				ip = addr.GetHost();
 				::close(fd);
 				return 0;
@@ -315,6 +323,20 @@ namespace ardb
 
 		close(fd);
 		return -1;
+	}
+
+	bool is_local_ip(const std::string& ip)
+	{
+		std::vector<std::string> iplist;
+		get_local_host_ip_list(iplist);
+		for (uint32 i = 0; i < iplist.size(); i++)
+		{
+			if(iplist[i] == ip)
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 }
 

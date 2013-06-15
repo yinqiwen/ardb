@@ -478,7 +478,7 @@ namespace ardb
 		}
 
 		while (m_mem_op_logs.size()
-				> m_server->GetServerConfig().repl_backlog_size)
+				> (uint32)(m_server->GetServerConfig().repl_backlog_size))
 		{
 			RemoveOldestOp();
 		}
