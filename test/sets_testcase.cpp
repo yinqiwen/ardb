@@ -1,8 +1,8 @@
 /*
  * sets_testcase.cpp
  *
- *  Created on: 2dbid13-4-9
- *      Author: wqy
+ *  Created on: 2013-4-9
+ *      Author: yinqiwen
  */
 #include "ardb.hpp"
 #include <string>
@@ -61,7 +61,7 @@ void test_set_diff(Ardb& db)
 	keys.push_back("myset3");
 	ValueSet values;
 	db.SDiff(dbid, keys, values);
-	CHECK_FATAL( values.size() != 2, "Sdiff failed:");
+	CHECK_FATAL(values.size() != 2, "Sdiff failed:");
 	CHECK_FATAL(values.begin()->ToString(str) != "b", "Sdiff store failed:");
 	//CHECK_FATAL(FATAL, values[1] != "d") << "Sdiff store failed:";
 	int len = db.SDiffStore(dbid, "myset2", keys);

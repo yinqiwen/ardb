@@ -2,7 +2,7 @@
  * leveldb.cpp
  *
  *  Created on: 2013-3-27
- *      Author: wqy
+ *      Author: yinqiwen
  */
 
 #include "test_common.hpp"

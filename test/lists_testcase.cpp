@@ -1,8 +1,8 @@
 /*
  * lists_testcase.cpp
  *
- *  Created on: 2dbid13-4-9
- *      Author: wqy
+ *  Created on: 2013-4-9
+ *      Author: yinqiwen
  */
 #include "ardb.hpp"
 #include <string>

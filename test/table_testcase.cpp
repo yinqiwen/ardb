@@ -2,7 +2,7 @@
  * table.cpp
  *
  *  Created on: 2013-4-13
- *      Author: wqy
+ *      Author: yinqiwen
  */
 #include "test_common.hpp"
 
@@ -299,7 +299,7 @@ void test_table_create_index(Ardb& db)
 	        "%s", result[0].ToString(str).c_str());
 	CHECK_FATAL( result[1].ToString(str) != "10020",
 	        "%s", result[1].ToString(str).c_str());
-	CHECK_FATAL((end-start) > 10, "%llu", (end-start));
+	CHECK_FATAL((end-start) > 10, "%"PRIu64, (end-start));
 }
 
 void test_tables(Ardb& db)

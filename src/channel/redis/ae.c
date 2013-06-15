@@ -211,7 +211,7 @@ long long aeCreateTimeEvent(aeEventLoop *eventLoop, long long milliseconds,
 int aeModifyTimeEvent(aeEventLoop *eventLoop, long long id,
         long long milliseconds)
 {
-	aeTimeEvent *te, *prev = NULL;
+	aeTimeEvent *te;
 	te = eventLoop->timeEventHead;
 	while (te)
 	{
@@ -220,7 +220,7 @@ int aeModifyTimeEvent(aeEventLoop *eventLoop, long long id,
 			aeAddMillisecondsToNow(milliseconds, &te->when_sec, &te->when_ms);
 			return AE_OK;
 		}
-		prev = te;
+		//prev = te;
 		te = te->next;
 	}
 	return AE_ERR; /* NO event with the specified ID found */

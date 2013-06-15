@@ -2,7 +2,7 @@
  * test_common.cpp
  *
  *  Created on: 2013-6-10
- *      Author: wqy
+ *      Author: yinqiwen
  */
 #include "ardb.hpp"
 

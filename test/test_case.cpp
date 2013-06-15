@@ -2,7 +2,7 @@
  * test_case.cpp
  *
  *  Created on: 2013-4-4
- *      Author: wqy
+ *      Author: yinqiwen
  */
 #include "strings_testcase.cpp"
 #include "lists_testcase.cpp"
