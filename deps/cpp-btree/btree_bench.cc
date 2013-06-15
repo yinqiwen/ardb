@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "btree_config.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <algorithm>
@@ -20,7 +21,7 @@
 #include <set>
 #include <string>
 #include <sys/time.h>
-#include <type_traits>
+#include CPP_BTREE_TYPE_TRAITS_HEADER
 #include <vector>
 
 #include "gflags/gflags.h"
@@ -91,11 +92,11 @@ BenchmarkRun::BenchmarkRun(const char *name, void (*func)(int))
 }
 
 #define BTREE_BENCHMARK(name) \
-  BTREE_BENCHMARK2(#name, name, __COUNTER__)
+  BTREE_BENCHMARK2(#name, name, __LINE__)
 #define BTREE_BENCHMARK2(name, func, counter)	\
   BTREE_BENCHMARK3(name, func, counter)
 #define BTREE_BENCHMARK3(name, func, counter)	\
-  BenchmarkRun bench ## counter (name, func)
+  BenchmarkRun bench ## func ## counter (name, func)
 
 void StopBenchmarkTiming() {
   current_benchmark->Stop();
@@ -106,7 +107,7 @@ void StartBenchmarkTiming() {
 }
 
 void RunBenchmarks() {
-  for (BenchmarkRun *bench = first_benchmark; bench; 
+  for (BenchmarkRun *bench = first_benchmark; bench;
        bench = bench->next_benchmark) {
     bench->Run();
   }
@@ -150,9 +151,10 @@ void BenchmarkRun::Run() {
     }
     iters = min(iters, FLAGS_benchmark_max_iters);
   }
-  std::cout << benchmark_name << "\t"
-	    << accum_micros * 1000 / iters << "\t"
-	    << iters;
+  fprintf(stdout, "%s\t%qu\t%d\n",
+	  benchmark_name,
+	  static_cast<long long>(accum_micros * 1000 / iters),
+	  iters);
   current_benchmark = NULL;
 }
 
@@ -160,12 +162,13 @@ void BenchmarkRun::Run() {
 template <typename T>
 void sink(const T& t0) {
   volatile T t = t0;
+  static_cast<void>(t); // Suppress warning of unused local variable
 }
 
 // Benchmark insertion of values into a container.
 template <typename T>
 void BM_Insert(int n) {
-  typedef typename std::remove_const<typename T::value_type>::type V;
+  typedef typename CPP_BTREE_TYPE_TRAITS_NS::remove_const<typename T::value_type>::type V;
   typename KeyOfValue<typename T::key_type, V>::type key_of_value;
 
   // Disable timing while we perform some initialization.
@@ -202,7 +205,7 @@ void BM_Insert(int n) {
 // Benchmark lookup of values in a container.
 template <typename T>
 void BM_Lookup(int n) {
-  typedef typename std::remove_const<typename T::value_type>::type V;
+  typedef typename CPP_BTREE_TYPE_TRAITS_NS::remove_const<typename T::value_type>::type V;
   typename KeyOfValue<typename T::key_type, V>::type key_of_value;
 
   // Disable timing while we perform some initialization.
@@ -234,7 +237,7 @@ void BM_Lookup(int n) {
 // yields a full tree.
 template <typename T>
 void BM_FullLookup(int n) {
-  typedef typename std::remove_const<typename T::value_type>::type V;
+  typedef typename CPP_BTREE_TYPE_TRAITS_NS::remove_const<typename T::value_type>::type V;
   typename KeyOfValue<typename T::key_type, V>::type key_of_value;
 
   // Disable timing while we perform some initialization.
@@ -266,7 +269,7 @@ void BM_FullLookup(int n) {
 // Benchmark deletion of values from a container.
 template <typename T>
 void BM_Delete(int n) {
-  typedef typename std::remove_const<typename T::value_type>::type V;
+  typedef typename CPP_BTREE_TYPE_TRAITS_NS::remove_const<typename T::value_type>::type V;
   typename KeyOfValue<typename T::key_type, V>::type key_of_value;
 
   // Disable timing while we perform some initialization.
@@ -308,7 +311,7 @@ void BM_Delete(int n) {
 // value constructors.
 template <typename T>
 void BM_QueueAddRem(int n) {
-  typedef typename std::remove_const<typename T::value_type>::type V;
+  typedef typename CPP_BTREE_TYPE_TRAITS_NS::remove_const<typename T::value_type>::type V;
   typename KeyOfValue<typename T::key_type, V>::type key_of_value;
 
   // Disable timing while we perform some initialization.
@@ -359,6 +362,7 @@ void BM_QueueAddRem(int n) {
 
     int e = container.erase(key_of_value(g(offset - half + remove_keys[idx])));
     assert(e == 1);
+    static_cast<void>(e); // Suppress warning  of unused e in release mode
     container.insert(g(offset + half + add_keys[idx]));
   }
 
@@ -368,7 +372,7 @@ void BM_QueueAddRem(int n) {
 // Mixed insertion and deletion in the same range using pre-constructed values.
 template <typename T>
 void BM_MixedAddRem(int n) {
-  typedef typename std::remove_const<typename T::value_type>::type V;
+  typedef typename CPP_BTREE_TYPE_TRAITS_NS::remove_const<typename T::value_type>::type V;
   typename KeyOfValue<typename T::key_type, V>::type key_of_value;
 
   // Disable timing while we perform some initialization.
@@ -410,6 +414,7 @@ void BM_MixedAddRem(int n) {
 
     int e = container.erase(key_of_value(values[remove_keys[idx]]));
     assert(e == 1);
+    static_cast<void>(e); // Suppress warning  of unused e in release mode
     container.insert(values[add_keys[idx]]);
   }
 
@@ -420,7 +425,7 @@ void BM_MixedAddRem(int n) {
 // counts two value constructors.
 template <typename T>
 void BM_Fifo(int n) {
-  typedef typename std::remove_const<typename T::value_type>::type V;
+  typedef typename CPP_BTREE_TYPE_TRAITS_NS::remove_const<typename T::value_type>::type V;
 
   // Disable timing while we perform some initialization.
   StopBenchmarkTiming();
@@ -445,7 +450,7 @@ void BM_Fifo(int n) {
 // Iteration (forward) through the tree
 template <typename T>
 void BM_FwdIter(int n) {
-  typedef typename std::remove_const<typename T::value_type>::type V;
+  typedef typename CPP_BTREE_TYPE_TRAITS_NS::remove_const<typename T::value_type>::type V;
 
   // Disable timing while we perform some initialization.
   StopBenchmarkTiming();

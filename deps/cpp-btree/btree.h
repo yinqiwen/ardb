@@ -100,8 +100,10 @@
 #ifndef UTIL_BTREE_BTREE_H__
 #define UTIL_BTREE_BTREE_H__
 
+#include "btree_config.h"
 #include <assert.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 #include <sys/types.h>
 #include <algorithm>
@@ -109,7 +111,7 @@
 #include <iostream>
 #include <iterator>
 #include <limits>
-#include <tr1/type_traits>
+#include CPP_BTREE_TYPE_TRAITS_HEADER
 #include <new>
 #include <ostream>
 #include <string>
@@ -179,7 +181,7 @@ struct btree_key_compare_to_tag {
 // btree_key_compare_to_tag.
 template <typename Compare>
 struct btree_is_key_compare_to
-    : public std::tr1::is_convertible<Compare, btree_key_compare_to_tag> {
+    : public CPP_BTREE_TYPE_TRAITS_NS::is_convertible<Compare, btree_key_compare_to_tag> {
 };
 
 // A helper class to convert a boolean comparison into a three-way
@@ -282,7 +284,7 @@ struct btree_common_params {
 
   typedef Alloc allocator_type;
   typedef Key key_type;
-  typedef ssize_t size_type;
+  typedef CPP_BTREE_SIZE_TYPE size_type;
   typedef ptrdiff_t difference_type;
 
   enum {
@@ -333,8 +335,8 @@ template <typename Key, typename Compare, typename Alloc, int TargetNodeSize>
 struct btree_set_params
     : public btree_common_params<Key, Compare, Alloc, TargetNodeSize,
                                  sizeof(Key)> {
-  typedef std::tr1::false_type data_type;
-  typedef std::tr1::false_type mapped_type;
+  typedef CPP_BTREE_TYPE_TRAITS_NS::false_type data_type;
+  typedef CPP_BTREE_TYPE_TRAITS_NS::false_type mapped_type;
   typedef Key value_type;
   typedef value_type mutable_value_type;
   typedef value_type* pointer;
@@ -420,6 +422,13 @@ struct btree_binary_search_compare_to {
   }
 };
 
+// Suppress warning:
+// dereferencing type-punned pointer will break strict-aliasing rules
+template <typename To, typename From>
+To reconst_cast(From& from) {
+    return reinterpret_cast<To>(from);
+}
+
 // A node in the btree holding. The same node type is used for both internal
 // and leaf nodes in the btree, though the nodes are allocated in such a way
 // that the children array is only valid in internal nodes.
@@ -464,8 +473,8 @@ class btree_node {
   // is faster than binary search for such types. Might be wise to also
   // configure linear search based on node-size.
   typedef typename if_<
-    std::tr1::is_integral<key_type>::value ||
-    std::tr1::is_floating_point<key_type>::value,
+    CPP_BTREE_TYPE_TRAITS_NS::is_integral<key_type>::value ||
+    CPP_BTREE_TYPE_TRAITS_NS::is_floating_point<key_type>::value,
     linear_search_type, binary_search_type>::type search_type;
 
   struct base_fields {
@@ -554,10 +563,10 @@ class btree_node {
     return params_type::key(fields_.values[i]);
   }
   reference value(int i) {
-    return reinterpret_cast<reference>(fields_.values[i]);
+    return reconst_cast<reference>(fields_.values[i]);
   }
   const_reference value(int i) const {
-    return reinterpret_cast<const_reference>(fields_.values[i]);
+    return reconst_cast<const_reference>(fields_.values[i]);
   }
   mutable_value_type* mutable_value(int i) {
     return &fields_.values[i];
@@ -742,7 +751,7 @@ struct btree_iterator {
   typedef typename Node::params_type params_type;
 
   typedef Node node_type;
-  typedef typename std::tr1::remove_const<Node>::type normal_node;
+  typedef typename CPP_BTREE_TYPE_TRAITS_NS::remove_const<Node>::type normal_node;
   typedef const Node const_node;
   typedef typename params_type::value_type value_type;
   typedef typename params_type::pointer normal_pointer;
@@ -1384,8 +1393,8 @@ class btree : public Params::key_compare {
   template <typename R>
   static typename if_<
    if_<is_key_compare_to::value,
-             std::tr1::is_same<R, int>,
-             std::tr1::is_same<R, bool> >::type::value,
+             CPP_BTREE_TYPE_TRAITS_NS::is_same<R, int>,
+             CPP_BTREE_TYPE_TRAITS_NS::is_same<R, bool> >::type::value,
    big_, small_>::type key_compare_checker(R);
 
   // A never instantiated helper function that returns the key comparison

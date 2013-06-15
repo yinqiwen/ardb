@@ -15,10 +15,11 @@
 #ifndef UTIL_BTREE_BTREE_TEST_H__
 #define UTIL_BTREE_BTREE_TEST_H__
 
+#include "btree_config.h"
 #include <stdio.h>
 #include <algorithm>
 #include <functional>
-#include <type_traits>
+#include CPP_BTREE_TYPE_TRAITS_HEADER
 #include <iosfwd>
 #include <map>
 #include <set>
@@ -51,6 +52,9 @@ bool operator==(const std::pair<T, U> &x, const std::pair<V, W> &y) {
   return x.first == y.first && x.second == y.second;
 }
 
+#ifndef CPP_BTREE_CXX11
+namespace tr1 {
+#endif
 // Partial specialization of remove_const that propagates the removal through
 // std::pair.
 template <typename T, typename U>
@@ -58,6 +62,10 @@ struct remove_const<pair<T, U> > {
   typedef pair<typename remove_const<T>::type,
                typename remove_const<U>::type> type;
 };
+
+#ifndef CPP_BTREE_CXX11
+} // namespace tr1
+#endif
 
 } // namespace std
 
@@ -531,8 +539,8 @@ struct Generator<std::string> {
 
 template <typename T, typename U>
 struct Generator<std::pair<T, U> > {
-  Generator<typename std::remove_const<T>::type> tgen;
-  Generator<typename std::remove_const<U>::type> ugen;
+  Generator<typename CPP_BTREE_TYPE_TRAITS_NS::remove_const<T>::type> tgen;
+  Generator<typename CPP_BTREE_TYPE_TRAITS_NS::remove_const<U>::type> ugen;
 
   Generator(int m)
       : tgen(m),
@@ -791,7 +799,7 @@ template <typename T, typename C>
 void BtreeTest() {
   ConstTest<T>();
 
-  typedef typename std::remove_const<typename T::value_type>::type V;
+  typedef typename CPP_BTREE_TYPE_TRAITS_NS::remove_const<typename T::value_type>::type V;
   std::vector<V> random_values = GenerateValues<V>(FLAGS_test_values);
 
   unique_checker<T, C> container;
@@ -813,7 +821,7 @@ template <typename T, typename C>
 void BtreeMultiTest() {
   ConstTest<T>();
 
-  typedef typename std::remove_const<typename T::value_type>::type V;
+  typedef typename CPP_BTREE_TYPE_TRAITS_NS::remove_const<typename T::value_type>::type V;
   const std::vector<V>& random_values = GenerateValues<V>(FLAGS_test_values);
 
   multi_checker<T, C> container;
