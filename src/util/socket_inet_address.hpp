@@ -44,36 +44,39 @@ namespace ardb
 	class SocketInetAddress: public Address
 	{
 		private:
-			char m_addrbuf[sizeof(sockaddr_un)];
+		    union MyAddrUnion{
+		    	char m_addrbuf[sizeof(sockaddr_un)];
+		    	struct sockaddr m_addr;
+		    }m_addr_union;
+
 			//				struct sockaddr_in* m_addr4;
 			//				struct sockaddr_in6* m_addr6;
 			//				struct sockaddr_un* m_addru;
 		public:
 			SocketInetAddress(const sockaddr* addr, uint8 size)
 			{
-				memcpy(m_addrbuf, &addr, size);
+				memcpy(m_addr_union.m_addrbuf, &addr, size);
 			}
 			SocketInetAddress(const struct sockaddr_in& addr)
 			{
-				memcpy(m_addrbuf, &addr, sizeof(addr));
+				memcpy(m_addr_union.m_addrbuf, &addr, sizeof(addr));
 			}
 			SocketInetAddress(const struct sockaddr_in6& addr)
 			{
-				memcpy(m_addrbuf, &addr, sizeof(addr));
+				memcpy(m_addr_union.m_addrbuf, &addr, sizeof(addr));
 			}
 			SocketInetAddress(const struct sockaddr_un& addr)
 			{
-				memcpy(m_addrbuf, &addr, sizeof(addr));
+				memcpy(m_addr_union.m_addrbuf, &addr, sizeof(addr));
 			}
 			SocketInetAddress()
 			{
-				memset(&m_addrbuf, 0, sizeof(struct sockaddr_in));
+				memset(&m_addr_union.m_addrbuf, 0, sizeof(struct sockaddr_in));
 			}
 
 			const sockaddr& GetRawSockAddr() const
 			{
-				struct sockaddr* p = (struct sockaddr*) m_addrbuf;
-				return *p;
+				return m_addr_union.m_addr;
 			}
 
 			int GetRawSockAddrSize() const
@@ -89,13 +92,11 @@ namespace ardb
 			}
 			bool IsIPV6() const
 			{
-				struct sockaddr* p = (struct sockaddr*) m_addrbuf;
-				return AF_INET6 == p->sa_family;
+				return AF_INET6 == GetRawSockAddr().sa_family;
 			}
 			bool IsUnix() const
 			{
-				struct sockaddr* p = (struct sockaddr*) m_addrbuf;
-				return AF_UNIX == p->sa_family;
+				return AF_UNIX == GetRawSockAddr().sa_family;
 			}
 			int GetDomain() const
 			{

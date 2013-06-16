@@ -35,6 +35,7 @@
 #include <sstream>
 
 #define OPLOGS_VER 1
+#define SERVER_KEY_SIZE 40
 
 namespace ardb
 {
@@ -300,7 +301,7 @@ namespace ardb
 			m_server_key = keybuf.AsString();
 		} else
 		{
-			m_server_key = random_string(16);
+			m_server_key = random_hex_string(SERVER_KEY_SIZE);
 			file_write_content(serverkey_path, m_server_key);
 		}
 		INFO_LOG("Server replication key is %s", m_server_key.c_str());
