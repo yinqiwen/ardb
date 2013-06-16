@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -38,7 +38,7 @@ namespace ardb
 {
 	static const uint32 kConfigLineMax = 1024;
 	bool parse_conf_file(const std::string& path, Properties& result,
-			const char* sep)
+	        const char* sep)
 	{
 		char buf[kConfigLineMax + 1];
 		FILE *fp;
@@ -78,7 +78,7 @@ namespace ardb
 	}
 
 	bool conf_get_int64(const Properties& conf, const std::string& name,
-			int64& value, bool ignore_nonexist)
+	        int64& value, bool ignore_nonexist)
 	{
 		Properties::const_iterator found = conf.find(name);
 		if (found == conf.end())
@@ -91,23 +91,29 @@ namespace ardb
 		}
 		std::string size_str = string_toupper(found->second);
 		value = atoll(size_str.c_str());
-		if (size_str.find("M") == (size_str.size() - 1))
+		if (size_str.find("M") == (size_str.size() - 1)
+		        || size_str.find("MB") == (size_str.size() - 2))
 		{
 			value *= (1024 * 1024); // convert to megabytes
-		} else if (size_str.find("G") == (size_str.size() - 1))
+		}
+		else if (size_str.find("G") == (size_str.size() - 1)
+		        || size_str.find("GB") == (size_str.size() - 2))
 		{
 			value *= (1024 * 1024 * 1024); // convert to kilobytes
-		} else if (size_str.find("K") == (size_str.size() - 1))
+		}
+		else if (size_str.find("K") == (size_str.size() - 1)
+		        || size_str.find("KB") == (size_str.size() - 2))
 		{
 			value *= 1024; // convert to kilobytes
-		} else
+		}
+		else
 		{
 			return false;
 		}
 		return true;
 	}
 	bool conf_get_string(const Properties& conf, const std::string& name,
-			std::string& value, bool ignore_nonexist)
+	        std::string& value, bool ignore_nonexist)
 	{
 		Properties::const_iterator found = conf.find(name);
 		if (found == conf.end())
@@ -118,7 +124,7 @@ namespace ardb
 		return true;
 	}
 	bool conf_get_double(const Properties& conf, const std::string& name,
-			double& value, bool ignore_nonexist)
+	        double& value, bool ignore_nonexist)
 	{
 		Properties::const_iterator found = conf.find(name);
 		if (found == conf.end())
@@ -129,7 +135,7 @@ namespace ardb
 	}
 
 	bool parse_ini_conf_file(const std::string& path, INIProperties& result,
-			const char* sep)
+	        const char* sep)
 	{
 		char buf[kConfigLineMax + 1];
 		FILE *fp;
@@ -191,12 +197,12 @@ namespace ardb
 					if (next_pos != std::string::npos)
 					{
 						std::string env_key = prop_value.substr(pos + 2,
-								next_pos - pos - 2);
+						        next_pos - pos - 2);
 						char* env_value = getenv(env_key.c_str());
 						if (NULL != env_value)
 						{
 							prop_value.replace(pos, next_pos - pos + 1,
-									env_value);
+							        env_value);
 							// this prop value may contain multiple env var
 							continue;
 						}

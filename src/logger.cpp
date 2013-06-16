@@ -151,7 +151,7 @@ namespace ardb
 			{
 				reopen_default_logfile();
 			}
-			else if (file_size >= k_max_file_size)
+			else if ((uint32)file_size >= k_max_file_size)
 			{
 				rollover_default_logfile();
 				reopen_default_logfile();
