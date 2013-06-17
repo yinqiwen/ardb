@@ -664,9 +664,17 @@ namespace ardb
 	typedef std::vector<SetMetaValue> SetMetaValueArray;
 	typedef std::deque<TableIndexKeyObject> TableRowKeyArray;
 
-	//btree_map seems not happy with two bree_map combine together
+	/*
+	 * Note: Crash on MacOSX if replaced by btree::btree_map
+	 */
+#ifdef __APPLE__
+	typedef std::map<std::string, ValueObject> NameValueTable;
+	typedef std::map<TableKeyIndex, NameValueTable> TableKeyIndexValueTable;
+#else
 	typedef btree::btree_map<std::string, ValueObject> NameValueTable;
 	typedef btree::btree_map<TableKeyIndex, NameValueTable> TableKeyIndexValueTable;
+#endif
+
 
 	typedef std::deque<ValueArray> ValueArrayArray;
 	typedef btree::btree_map<uint64, BitSetElementValue> BitSetElementValueMap;
