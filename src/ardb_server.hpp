@@ -318,6 +318,8 @@ namespace ardb
 			friend class RedisRequestHandler;
 			friend class SlaveClient;
 
+			void FillInfoResponse(const std::string& section, std::string& content);
+
 			int OnKeyUpdated(const DBID& dbid, const Slice& key);
 			int OnAllKeyDeleted(const DBID& dbid);
 			void ClearWatchKeys(ArdbConnContext& ctx);

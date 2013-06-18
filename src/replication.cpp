@@ -235,13 +235,12 @@ namespace ardb
 						break;
 					}
 				}
-				DEBUG_LOG("chunklenstr = %s", chunklenstr.c_str());
-				if (!string_touint32(chunklenstr, m_chunk_len))
+				DEBUG_LOG("Sync chunklen = %s", chunklenstr.c_str());
+				if (!string_touint32(chunklenstr, m_rest_chunk_len))
 				{
 					ERROR_LOG("Invalid lenght %s.", chunklenstr.c_str());
 					return;
 				}
-				//DEBUG_LOG("Sync bulk %d bytes", m_chunk_len);
 				m_slave_state = kSlaveStateSyncing;
 				break;
 			}
@@ -257,17 +256,18 @@ namespace ardb
 			}
 		}
 
-		//discard redis synced  chunk
+		//discard redis synced chunk now.
+		//TODO consider a way to parse/load rdb file
 		uint32 bytes = msg->ReadableBytes();
-		if (bytes < m_chunk_len)
+		if (bytes < m_rest_chunk_len)
 		{
-			m_chunk_len -= msg->ReadableBytes();
+			m_rest_chunk_len -= msg->ReadableBytes();
 			msg->Clear();
 		}
 		else
 		{
-			msg->SkipBytes(m_chunk_len);
-			m_chunk_len = 0;
+			msg->SkipBytes(m_rest_chunk_len);
+			m_rest_chunk_len = 0;
 			m_client->GetPipeline().Remove("handler");
 			m_client->GetPipeline().AddLast("decoder", &m_decoder);
 			m_client->GetPipeline().AddLast("encoder", &m_encoder);

@@ -560,27 +560,18 @@ namespace ardb
 		{
 				Ardb* adb;
 				DBID dbid;
-				uint32 count;
 				VisitorTask(Ardb* db, DBID id) :
-						adb(db), dbid(id), count(0)
+						adb(db), dbid(id)
 				{
 				}
 				int OnRawKeyValue(const Slice& key, const Slice& value)
 				{
-					if (count % 100 == 0)
-					{
-						if (count > 0)
-						{
-							adb->GetEngine()->CommitBatchWrite();
-						}
-						adb->GetEngine()->BeginBatchWrite();
-					}
-					count++;
 					adb->RawDel(key);
 					return 0;
 				}
 				void Run()
 				{
+					adb->GetEngine()->BeginBatchWrite();
 					adb->VisitDB(dbid, this);
 					adb->GetEngine()->CommitBatchWrite();
 					KeyObject start(Slice(), KV, dbid);
@@ -606,27 +597,18 @@ namespace ardb
 		struct VisitorTask: public RawValueVisitor, public Thread
 		{
 				Ardb* db;
-				uint32 count;
 				VisitorTask(Ardb* adb) :
-						db(adb), count(0)
+						db(adb)
 				{
 				}
 				int OnRawKeyValue(const Slice& key, const Slice& value)
 				{
-					if (count % 100 == 0)
-					{
-						if (count > 0)
-						{
-							db->GetEngine()->CommitBatchWrite();
-						}
-						db->GetEngine()->BeginBatchWrite();
-					}
-					count++;
 					db->RawDel(key);
 					return 0;
 				}
 				void Run()
 				{
+					db->GetEngine()->BeginBatchWrite();
 					db->VisitAllDB(this);
 					db->GetEngine()->CommitBatchWrite();
 					db->GetEngine()->CompactRange(Slice(), Slice());

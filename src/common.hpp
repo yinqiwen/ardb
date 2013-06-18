@@ -160,7 +160,18 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 #include <sys/eventfd.h>
 #include <sys/signalfd.h>
 #endif
+#endif
 
+/* Test for proc filesystem */
+#ifdef __linux__
+#define HAVE_PROC_STAT 1
+#define HAVE_PROC_MAPS 1
+#define HAVE_PROC_SMAPS 1
+#endif
+
+/* Test for task_info() */
+#if defined(__APPLE__)
+#define HAVE_TASKINFO 1
 #endif
 
 #endif /* COMMON_HPP_ */

@@ -22,9 +22,6 @@ typedef ardb::LevelDBEngineFactory SelectedDBEngineFactory;
 #include <string>
 #include <iostream>
 #include "test_case.cpp"
-#include <iostream>
-using namespace std;
-
 using namespace ardb;
 
 void string_to_string_array(const std::string& str, StringArray& array)

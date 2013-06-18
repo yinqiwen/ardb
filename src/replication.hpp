@@ -217,7 +217,7 @@ namespace ardb
 			ArdbServer* m_serv;
 			Channel* m_client;
 			SocketHostAddress m_master_addr;
-			uint32 m_chunk_len;
+			uint32 m_rest_chunk_len;
 			uint32 m_slave_state;
 			bool m_cron_inited;
 			bool m_ping_recved;
@@ -248,7 +248,7 @@ namespace ardb
 			void LoadSyncState();
 		public:
 			SlaveClient(ArdbServer* serv) :
-					m_serv(serv), m_client(NULL), m_chunk_len(0), m_slave_state(
+					m_serv(serv), m_client(NULL), m_rest_chunk_len(0), m_slave_state(
 							0), m_cron_inited(false), m_ping_recved(false), m_server_type(
 							0), m_server_key("-"), m_sync_seq(0), m_actx(NULL)
 			{
