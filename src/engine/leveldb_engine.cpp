@@ -32,8 +32,6 @@
 #include "ardb_data.hpp"
 #include "comparator.hpp"
 #include "util/helpers.hpp"
-#include "leveldb/cache.h"
-#include "leveldb/filter_policy.h"
 #include <string.h>
 
 #define LEVELDB_SLICE(slice) leveldb::Slice(slice.data(), slice.size())

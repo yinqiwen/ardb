@@ -50,14 +50,14 @@ void version()
 
 void usage()
 {
-	fprintf(stderr, "Usage: ./ardb-server [/path/to/redis.conf] [options]\n");
+	fprintf(stderr, "Usage: ./ardb-server [/path/to/ardb.conf] [options]\n");
 	fprintf(stderr, "       ./ardb-server -v or --version\n");
 	fprintf(stderr, "       ./ardb-server -h or --help\n");
 	fprintf(stderr, "Examples:\n");
 	fprintf(stderr,
 			"       ./ardb-server (run the server with default conf)\n");
 	fprintf(stderr, "       ./ardb-server /etc/ardb/16379.conf\n");
-	fprintf(stderr, "       ./ardb-server /etc/myredis.conf \n\n");
+	fprintf(stderr, "       ./ardb-server /etc/myardb.conf \n\n");
 	exit(1);
 }
 

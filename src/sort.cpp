@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -69,33 +69,52 @@ namespace ardb
 			if (!strcasecmp(args[i].c_str(), "asc"))
 			{
 				options.is_desc = false;
-			}
-			else if (!strcasecmp(args[i].c_str(), "desc"))
+			} else if (!strcasecmp(args[i].c_str(), "desc"))
 			{
 				options.is_desc = true;
-			}
-			else if (!strcasecmp(args[i].c_str(), "alpha"))
+			} else if (!strcasecmp(args[i].c_str(), "alpha"))
 			{
 				options.with_alpha = true;
-			}
-			else if (!strcasecmp(args[i].c_str(), "limit")
-			        && i < args.size() - 2)
+			} else if (!strcasecmp(args[i].c_str(), "limit")
+					&& i < args.size() - 2)
 			{
 				options.with_limit = true;
 				if (!string_toint32(args[i + 1], options.limit_offset)
-				        || !string_toint32(args[i + 2], options.limit_count))
+						|| !string_toint32(args[i + 2], options.limit_count))
 				{
 					return -1;
 				}
 				i += 2;
-			}
-			else if (!strcasecmp(args[i].c_str(), "store")
-			        && i < args.size() - 1)
+			} else if (!strcasecmp(args[i].c_str(), "aggregate")
+					&& i < args.size() - 1)
+			{
+				if (!strcasecmp(args[i + 1].c_str(), "sum"))
+				{
+					options.aggregate = AGGREGATE_SUM;
+				} else if (!strcasecmp(args[i + 1].c_str(), "max"))
+				{
+					options.aggregate = AGGREGATE_MAX;
+				} else if (!strcasecmp(args[i + 1].c_str(), "min"))
+				{
+					options.aggregate = AGGREGATE_MIN;
+				} else if (!strcasecmp(args[i + 1].c_str(), "count"))
+				{
+					options.aggregate = AGGREGATE_COUNT;
+				} else if (!strcasecmp(args[i + 1].c_str(), "avg"))
+				{
+					options.aggregate = AGGREGATE_AVG;
+				} else
+				{
+					return -1;
+				}
+				i++;
+			} else if (!strcasecmp(args[i].c_str(), "store")
+					&& i < args.size() - 1)
 			{
 				options.store_dst = args[i + 1].c_str();
 				i++;
-			}
-			else if (!strcasecmp(args[i].c_str(), "by") && i < args.size() - 1)
+			} else if (!strcasecmp(args[i].c_str(), "by")
+					&& i < args.size() - 1)
 			{
 				options.by = args[i + 1].c_str();
 				if (!strcasecmp(options.by, "nosort"))
@@ -104,13 +123,12 @@ namespace ardb
 					options.nosort = true;
 				}
 				i++;
-			}
-			else if (!strcasecmp(args[i].c_str(), "get") && i < args.size() - 1)
+			} else if (!strcasecmp(args[i].c_str(), "get")
+					&& i < args.size() - 1)
 			{
 				options.get_patterns.push_back(args[i + 1].c_str());
 				i++;
-			}
-			else
+			} else
 			{
 				DEBUG_LOG("Invalid sort option:%s", args[i].c_str());
 				return -1;
@@ -120,7 +138,7 @@ namespace ardb
 	}
 
 	int Ardb::GetValueByPattern(const DBID& db, const Slice& pattern,
-	        ValueObject& subst, ValueObject& value)
+			ValueObject& subst, ValueObject& value)
 	{
 		const char *p, *f;
 		const char* spat;
@@ -142,7 +160,7 @@ namespace ardb
 		}
 
 		f = strstr(spat, "->");
-		if (NULL != f && (uint32)(f - spat) == (pattern.size() - 2))
+		if (NULL != f && (uint32) (f - spat) == (pattern.size() - 2))
 		{
 			f = NULL;
 		}
@@ -154,8 +172,7 @@ namespace ardb
 		{
 			KeyObject k(keystr, KV, db);
 			return GetValue(k, &value);
-		}
-		else
+		} else
 		{
 			size_t pos = keystr.find("->");
 			std::string field = keystr.substr(pos + 2);
@@ -166,8 +183,9 @@ namespace ardb
 	}
 
 	int Ardb::Sort(const DBID& db, const Slice& key, const StringArray& args,
-	        ValueArray& values)
+			ValueArray& values)
 	{
+		values.clear();
 		SortOptions options;
 		if (parse_sort_options(options, args) < 0)
 		{
@@ -192,7 +210,7 @@ namespace ardb
 			{
 				QueryOptions tmp;
 				ZRange(db, key, 0, -1, sortvals, tmp);
-				if(NULL == options.by)
+				if (NULL == options.by)
 				{
 					options.nosort = true;
 				}
@@ -238,9 +256,10 @@ namespace ardb
 				{
 					sortvec.push_back(SortValue(&sortvals[i]));
 					if (GetValueByPattern(db, options.by, sortvals[i],
-					        sortvec[i].cmp) < 0)
+							sortvec[i].cmp) < 0)
 					{
-						DEBUG_LOG("Failed to get value by pattern:%s", options.by);
+						DEBUG_LOG(
+								"Failed to get value by pattern:%s", options.by);
 						sortvec[i].cmp.Clear();
 						continue;
 					}
@@ -250,19 +269,16 @@ namespace ardb
 					if (NULL != options.by)
 					{
 						value_convert_to_raw(sortvec[i].cmp);
-					}
-					else
+					} else
 					{
 						value_convert_to_raw(sortvals[i]);
 					}
-				}
-				else
+				} else
 				{
 					if (NULL != options.by)
 					{
 						value_convert_to_number(sortvec[i].cmp);
-					}
-					else
+					} else
 					{
 						value_convert_to_number(sortvals[i]);
 					}
@@ -273,26 +289,23 @@ namespace ardb
 				if (!options.is_desc)
 				{
 					std::sort(sortvec.begin(), sortvec.end(),
-					        less_value<SortValue>);
-				}
-				else
+							less_value<SortValue>);
+				} else
 				{
 					std::sort(sortvec.begin(), sortvec.end(),
-					        greater_value<SortValue>);
+							greater_value<SortValue>);
 				}
 
-			}
-			else
+			} else
 			{
 				if (!options.is_desc)
 				{
 					std::sort(sortvals.begin(), sortvals.end(),
-					        less_value<ValueObject>);
-				}
-				else
+							less_value<ValueObject>);
+				} else
 				{
 					std::sort(sortvals.begin(), sortvals.end(),
-					        greater_value<ValueObject>);
+							greater_value<ValueObject>);
 				}
 			}
 		}
@@ -305,35 +318,107 @@ namespace ardb
 
 		uint32 count = 0;
 		for (uint32 i = options.limit_offset;
-		        i < sortvals.size() && count < (uint32) options.limit_count;
-		        i++, count++)
+				i < sortvals.size() && count < (uint32) options.limit_count;
+				i++, count++)
 		{
 			ValueObject* patternObj = NULL;
 			if (NULL != options.by)
 			{
 				patternObj = sortvec[i].value;
-			}
-			else
+			} else
 			{
 				patternObj = &(sortvals[i]);
 			}
 			if (options.get_patterns.empty())
 			{
 				values.push_back(*patternObj);
-			}
-			else
+			} else
 			{
 				for (uint32 j = 0; j < options.get_patterns.size(); j++)
 				{
 					ValueObject vo;
 					if (GetValueByPattern(db, options.get_patterns[j],
-					        *patternObj, vo) < 0)
+							*patternObj, vo) < 0)
 					{
-						DEBUG_LOG("Failed to get value by pattern for:%s", options.get_patterns[j]);
+						DEBUG_LOG(
+								"Failed to get value by pattern for:%s", options.get_patterns[j]);
 						vo.Clear();
 					}
 					values.push_back(vo);
 				}
+			}
+		}
+
+		uint32 step =
+				options.get_patterns.empty() ? 1 : options.get_patterns.size();
+		switch (options.aggregate)
+		{
+			case AGGREGATE_SUM:
+			case AGGREGATE_AVG:
+			{
+				ValueArray result;
+				result.resize(step);
+				for (uint32 i = 0; i < result.size(); i++)
+				{
+					for (uint j = i; j < values.size(); j += step)
+					{
+						result[i] += values[j];
+					}
+				}
+				if (options.aggregate == AGGREGATE_AVG)
+				{
+					size_t count = values.size() / step;
+					for (uint32 i = 0; i < result.size(); i++)
+					{
+						result[i] /= count;
+					}
+				}
+				values.assign(result.begin(), result.end());
+				break;
+			}
+			case AGGREGATE_MAX:
+			case AGGREGATE_MIN:
+			{
+				ValueArray result;
+				result.resize(step);
+				for (uint32 i = 0; i < result.size(); i++)
+				{
+					for (uint j = i; j < values.size(); j += step)
+					{
+						if (result[i].type == EMPTY)
+						{
+							result[i] = values[j];
+						} else
+						{
+							if (options.aggregate == AGGREGATE_MIN)
+							{
+								if (values[j] < result[i])
+								{
+									result[i] = values[j];
+								}
+							} else
+							{
+								if (values[j] > result[i])
+								{
+									result[i] = values[j];
+								}
+							}
+						}
+					}
+				}
+				values.assign(result.begin(), result.end());
+				break;
+			}
+			case AGGREGATE_COUNT:
+			{
+				size_t size = values.size() / step;
+				values.clear();
+				values.push_back(ValueObject((int64) size));
+				break;
+			}
+			default:
+			{
+				break;
 			}
 		}
 

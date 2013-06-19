@@ -30,6 +30,8 @@
 #include "leveldb/db.h"
 #include "leveldb/write_batch.h"
 #include "leveldb/comparator.h"
+#include "leveldb/cache.h"
+#include "leveldb/filter_policy.h"
 #include "ardb.hpp"
 #include "util/config_helper.hpp"
 #include "util/thread/thread_local.hpp"
