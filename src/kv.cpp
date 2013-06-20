@@ -393,7 +393,6 @@ namespace ardb
 				if (ek->expireat <= get_current_epoch_micros())
 				{
 					Del(db, ek->key);
-					DelValue(*ek);
 				}
 				else
 				{
