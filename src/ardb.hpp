@@ -41,6 +41,7 @@
 #include "slice.hpp"
 #include "util/helpers.hpp"
 #include "util/buffer_helper.hpp"
+#include "util/thread/thread.hpp"
 #include "util/thread/thread_mutex.hpp"
 #include "util/thread/thread_mutex_lock.hpp"
 #include "util/thread/lock_guard.hpp"
@@ -175,15 +176,22 @@ namespace ardb
 			KeyWatcher* m_key_watcher;
 			RawKeyListener* m_raw_key_listener;
 
+			Thread* m_expire_check_thread;
+
+			bool DBExist(const DBID& db);
+			int LastDB(DBID& db);
+			int FirstDB(DBID& db);
+			void CheckExpireKey(const DBID& db);
 			int SetExpiration(const DBID& db, const Slice& key,
-			        uint64_t expire);
+			        uint64 expire);
+			int GetExpiration(const DBID& db, const Slice& key,
+			        uint64& expire);
 
 			int GetValueByPattern(const DBID& db, const Slice& pattern,
 			        ValueObject& subst, ValueObject& value);
 			int GetValue(const DBID& db, const Slice& key, ValueObject* value);
-			int GetValue(const KeyObject& key, ValueObject* v, uint64* expire =
-			        NULL);
-			int SetValue(KeyObject& key, ValueObject& value, uint64 expire = 0);
+			int GetValue(const KeyObject& key, ValueObject* v);
+			int SetValue(KeyObject& key, ValueObject& value);
 			int DelValue(KeyObject& key);
 			Iterator* FindValue(KeyObject& key, bool cache = false);
 			int SetHashValue(const DBID& db, const Slice& key,
@@ -341,7 +349,7 @@ namespace ardb
 			Ardb(KeyValueEngineFactory* factory, bool multi_thread = true);
 			~Ardb();
 
-			bool Init();
+			bool Init(uint32 check_expire_period = 50);
 
 			int RawSet(const Slice& key, const Slice& value);
 			int RawDel(const Slice& key);

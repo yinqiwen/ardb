@@ -302,6 +302,21 @@ void test_table_create_index(Ardb& db)
 	CHECK_FATAL((end-start) > 10, "%"PRIu64, (end-start));
 }
 
+void test_table_expire(Ardb& db)
+{
+	DBID dbid = 0;
+	db.TClear(dbid, "mytable");
+	StringArray strs;
+	string_to_string_array("key1 key2 key3", strs);
+	SliceArray array;
+	strings_to_slices(strs, array);
+	db.TCreate(dbid, "mytable", array);
+	db.Expire(dbid, "mytable", 1);
+	CHECK_FATAL(db.Exists(dbid, "mytable") == false, "Expire mytable failed");
+	sleep(2);
+	CHECK_FATAL(db.Exists(dbid, "mytable") == true, "Expire mytable failed");
+}
+
 void test_tables(Ardb& db)
 {
 	test_table_insert_get(db);
@@ -311,4 +326,5 @@ void test_tables(Ardb& db)
 	test_table_delcol(db);
 	test_table_getall(db);
 	test_table_create_index(db);
+	test_table_expire(db);
 }

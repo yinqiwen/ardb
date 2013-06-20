@@ -114,6 +114,17 @@ void test_lists_lrem(Ardb& db)
 			"lrem mylist failed:%d", db.LLen(dbid, "mylist"));
 }
 
+void test_list_expire(Ardb& db)
+{
+	DBID dbid = 0;
+	db.LClear(dbid, "mylist");
+    db.RPush(dbid, "mylist", "value0");
+	db.Expire(dbid, "mylist", 1);
+	CHECK_FATAL(db.Exists(dbid, "mylist") == false, "Expire mylist failed");
+	sleep(2);
+	CHECK_FATAL(db.Exists(dbid, "mylist") == true, "Expire mylist failed");
+}
+
 void test_lists(Ardb& db)
 {
 	test_lists_lpush(db);
@@ -122,5 +133,6 @@ void test_lists(Ardb& db)
 	test_lists_lrange(db);
 	test_lists_lrem(db);
 	test_lists_ltrim(db);
+	test_list_expire(db);
 }
 

@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -33,7 +33,7 @@
 
 namespace ardb
 {
-	int Ardb::GetValue(const KeyObject& key, ValueObject* v, uint64* expire)
+	int Ardb::GetValue(const KeyObject& key, ValueObject* v)
 	{
 		Buffer keybuf(key.key.size() + 16);
 		encode_key(keybuf, key);
@@ -49,20 +49,7 @@ namespace ardb
 			Buffer readbuf(const_cast<char*>(value.data()), 0, value.size());
 			if (decode_value(readbuf, *v))
 			{
-				uint64 tmp = 0;
-				BufferHelper::ReadVarUInt64(readbuf, tmp);
-				if (NULL != expire)
-				{
-					*expire = tmp;
-				}
-				if (tmp > 0 && get_current_epoch_micros() >= tmp)
-				{
-					GetEngine()->Del(k);
-					return ERR_NOT_EXIST;
-				} else
-				{
-					return ARDB_OK;
-				}
+				return ARDB_OK;
 			}
 		}
 		return ERR_NOT_EXIST;
@@ -77,7 +64,7 @@ namespace ardb
 		return iter;
 	}
 
-	int Ardb::SetValue(KeyObject& key, ValueObject& value, uint64 expire)
+	int Ardb::SetValue(KeyObject& key, ValueObject& value)
 	{
 		if (NULL != m_key_watcher)
 		{
@@ -89,10 +76,6 @@ namespace ardb
 		Buffer valuebuf;
 		valuebuf.EnsureWritableBytes(64);
 		encode_value(valuebuf, value);
-		if (expire > 0)
-		{
-			BufferHelper::WriteVarUInt64(valuebuf, expire);
-		}
 		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
 		Slice v(valuebuf.GetRawReadBuffer(), valuebuf.ReadableBytes());
 		return RawSet(k, v);
@@ -148,7 +131,8 @@ namespace ardb
 			{
 				smart_fill_value(*vit, valueobject);
 				SetValue(keyobject, valueobject);
-			} else
+			}
+			else
 			{
 				guard.MarkFailed();
 				return -1;
@@ -160,7 +144,7 @@ namespace ardb
 	}
 
 	int Ardb::Set(const DBID& db, const Slice& key, const Slice& value, int ex,
-			int px, int nxx)
+	        int px, int nxx)
 	{
 		KeyObject k(key, KV, db);
 		if (-1 == nxx)
@@ -169,7 +153,8 @@ namespace ardb
 			{
 				return ERR_KEY_EXIST;
 			}
-		} else if (1 == nxx)
+		}
+		else if (1 == nxx)
 		{
 			if (0 != GetValue(k, NULL))
 			{
@@ -204,12 +189,12 @@ namespace ardb
 	}
 
 	int Ardb::SetEx(const DBID& db, const Slice& key, const Slice& value,
-			uint32_t secs)
+	        uint32_t secs)
 	{
 		return PSetEx(db, key, value, secs * 1000);
 	}
 	int Ardb::PSetEx(const DBID& db, const Slice& key, const Slice& value,
-			uint32_t ms)
+	        uint32_t ms)
 	{
 		KeyObject keyobject(key, KV, db);
 		ValueObject valueobject;
@@ -219,15 +204,16 @@ namespace ardb
 		{
 			uint64_t now = get_current_epoch_micros();
 			expire = now + (uint64_t) ms * 1000L;
+			SetExpiration(db, key, expire);
 		}
-		return SetValue(keyobject, valueobject, expire);
+		return SetValue(keyobject, valueobject);
 		//return 0;
 	}
 
 	int Ardb::GetValue(const DBID& db, const Slice& key, ValueObject* value)
 	{
 		KeyObject keyobject(key, KV, db);
-		int ret = GetValue(keyobject, value, NULL);
+		int ret = GetValue(keyobject, value);
 		return ret;
 	}
 
@@ -267,8 +253,10 @@ namespace ardb
 		{
 			case KV:
 			{
+				BatchWriteGuard guard(GetEngine());
 				KeyObject k(key, KV, db);
 				DelValue(k);
+				SetExpiration(db, key, 0);
 				break;
 			}
 			case HASH_FIELD:
@@ -328,18 +316,93 @@ namespace ardb
 
 	bool Ardb::Exists(const DBID& db, const Slice& key)
 	{
-		return Get(db, key, NULL) == 0;
+		int type = Type(db, key);
+		if(type == -1)
+		{
+			return false;
+		}
+		uint64 expire = 0;
+		if(0 == GetExpiration(db, key, expire))
+		{
+			if(expire <= get_current_epoch_micros())
+			{
+				Del(db, key);
+				return false;
+			}
+		}
+		return true;
 	}
 
-	int Ardb::SetExpiration(const DBID& db, const Slice& key, uint64_t expire)
+	int Ardb::GetExpiration(const DBID& db, const Slice& key, uint64& expire)
 	{
-		KeyObject keyobject(key, KV, db);
-		ValueObject value;
-		if (0 == GetValue(keyobject, &value))
+		ExpireKeyObject keyobject(key, 0, db);
+		Iterator* iter = FindValue(keyobject, true);
+		int ret = 0;
+		if (NULL != iter && iter->Valid())
 		{
-			return SetValue(keyobject, value, expire);
+			Slice tmpkey = iter->Key();
+			KeyObject* kk = decode_key(tmpkey, &keyobject);
+			if (NULL == kk)
+			{
+				ret = -1;
+			}
+			else
+			{
+				ExpireKeyObject* ek = (ExpireKeyObject*) kk;
+				expire = ek->expireat;
+			}
 		}
-		return ERR_NOT_EXIST;
+		DELETE(iter);
+		return ret;
+	}
+
+	int Ardb::SetExpiration(const DBID& db, const Slice& key, uint64 expire)
+	{
+		uint64 old_expire;
+		if (0 == GetExpiration(db, key, old_expire))
+		{
+			ExpireKeyObject old_expire_key(key, old_expire, db);
+			DelValue(old_expire_key);
+		}
+		if (expire > 0)
+		{
+			ExpireKeyObject keyobject(key, expire, db);
+			ValueObject empty;
+			return SetValue(keyobject, empty);
+		}
+		return 0;
+	}
+
+	void Ardb::CheckExpireKey(const DBID& db)
+	{
+		Slice empty;
+		ExpireKeyObject keyobject(empty, 0, db);
+		Iterator* iter = FindValue(keyobject, true);
+		BatchWriteGuard guard(GetEngine());
+		while (NULL != iter && iter->Valid())
+		{
+			Slice tmpkey = iter->Key();
+			KeyObject* kk = decode_key(tmpkey, NULL);
+			if (NULL == kk || kk->type != EXPIRE_KEYS)
+			{
+				break;
+			}
+			else
+			{
+				ExpireKeyObject* ek = (ExpireKeyObject*) kk;
+				if (ek->expireat <= get_current_epoch_micros())
+				{
+					Del(db, ek->key);
+					DelValue(*ek);
+				}
+				else
+				{
+					break;
+				}
+			}
+			iter->Next();
+		}
+		DELETE(iter);
 	}
 
 	int Ardb::Strlen(const DBID& db, const Slice& key)
@@ -383,10 +446,8 @@ namespace ardb
 
 	int64 Ardb::PTTL(const DBID& db, const Slice& key)
 	{
-		ValueObject v;
-		KeyObject k(key, KV, db);
 		uint64 expire = 0;
-		if (0 == GetValue(k, &v, &expire))
+		if (0 == GetExpiration(db, key, expire))
 		{
 			int ttl = 0;
 			if (expire > 0)
@@ -458,33 +519,6 @@ namespace ardb
 		}
 		return ERR_NOT_EXIST;
 	}
-
-//	int Ardb::Keys(const DBID& db, const std::string& pattern, StringSet& ret)
-//	{
-//		Slice empty;
-//		KeyObject start(empty, KV, db);
-//		Iterator* iter = FindValue(start);
-//		while (NULL != iter && iter->Valid())
-//		{
-//			Slice tmpkey = iter->Key();
-//			KeyObject* kk = decode_key(tmpkey);
-//			if (NULL != kk && kk->db == db)
-//			{
-//				std::string key(kk->key.data(), kk->key.size());
-//				if (fnmatch(pattern.c_str(), key.c_str(), 0) == 0)
-//				{
-//					if(ret.insert(key).second)
-//					{
-//						INFO_LOG("Key type :%d  %d", kk->type, kk->db);
-//					}
-//				}
-//				DELETE(kk);
-//			}
-//			iter->Next();
-//		}
-//		DELETE(iter);
-//		return 0;
-//	}
 
 	int Ardb::Keys(const DBID& db, const std::string& pattern, StringSet& ret)
 	{

@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -203,6 +203,7 @@ namespace ardb
 				}
 				break;
 			}
+			case EXPIRE_KEYS:
 			case BITSET_ELEMENT:
 			{
 				uint64 aindex, bindex;
@@ -246,12 +247,12 @@ namespace ardb
 	//static const char* REPO_NAME = "data";
 	Ardb::Ardb(KeyValueEngineFactory* engine, bool multi_thread) :
 			m_engine_factory(engine), m_engine(NULL), m_key_watcher(NULL), m_raw_key_listener(
-			        NULL)
+			        NULL), m_expire_check_thread(NULL)
 	{
 		m_key_locker.enable = multi_thread;
 	}
 
-	bool Ardb::Init()
+	bool Ardb::Init(uint32 check_expire_period)
 	{
 		if (NULL == m_engine)
 		{
@@ -261,7 +262,7 @@ namespace ardb
 
 			KeyObject verkey(Slice(), KEY_END, 0xFFFFFF);
 			ValueObject ver;
-			if (0 == GetValue(verkey, &ver, NULL))
+			if (0 == GetValue(verkey, &ver))
 			{
 				if (ver.v.int_v != ARDB_FORMAT_VERSION)
 				{
@@ -279,6 +280,50 @@ namespace ardb
 			if (NULL != m_engine)
 			{
 				INFO_LOG("Init storage engine success.");
+
+				//launch a threading task to check expired keys
+				struct ExpireCheckThread: public Thread
+				{
+						Ardb* adb;
+						bool running;
+						uint32 check_period;
+						ExpireCheckThread(Ardb* db, uint32 period) :
+								adb(db), running(true), check_period(period)
+						{
+						}
+						void Run()
+						{
+							while (running)
+							{
+								DBID firstDB = 0, lastDB = 0;
+								uint64 start = get_current_epoch_millis();
+								if (0 == adb->LastDB(lastDB)
+								        && 0 == adb->FirstDB(firstDB))
+								{
+									for (DBID db = firstDB; db <= lastDB; db++)
+									{
+										if (adb->DBExist(db))
+										{
+											adb->CheckExpireKey(db);
+										}
+									}
+								}
+								uint64 costs = get_current_epoch_millis()
+								        - start;
+								uint64 sleep =
+								        costs >= check_period ? 1 :
+								        		check_period - costs;
+								Thread::Sleep(sleep);
+							}
+						}
+						~ExpireCheckThread()
+						{
+							running = false;
+						}
+				};
+				m_expire_check_thread = new ExpireCheckThread(this,
+				        check_expire_period);
+				m_expire_check_thread->Start();
 			}
 		}
 		return m_engine != NULL;
@@ -290,6 +335,7 @@ namespace ardb
 		{
 			m_engine_factory->CloseDB(m_engine);
 		}
+		DELETE(m_expire_check_thread);
 	}
 
 	void Ardb::Walk(KeyObject& key, bool reverse, WalkHandler* handler)
@@ -371,7 +417,7 @@ namespace ardb
 
 	int Ardb::Type(const DBID& db, const Slice& key)
 	{
-		if (Exists(db, key))
+		if (GetValue(db, key, NULL) == 0)
 		{
 			return KV;
 		}
@@ -522,6 +568,67 @@ namespace ardb
 		t->Start();
 		return 0;
 		return 0;
+	}
+
+	int Ardb::FirstDB(DBID& db)
+	{
+		int ret = -1;
+		Iterator* iter = NewIterator();
+		iter->SeekToFirst();
+		if (NULL != iter && iter->Valid())
+		{
+			Slice tmpkey = iter->Key();
+			KeyObject* kk = decode_key(tmpkey, NULL);
+			if (NULL != kk)
+			{
+				db = kk->db;
+				ret = 0;
+			}
+		}
+		DELETE(iter);
+		return ret;
+	}
+
+	int Ardb::LastDB(DBID& db)
+	{
+		int ret = -1;
+		Iterator* iter = NewIterator();
+		iter->SeekToLast();
+		if (NULL != iter && iter->Valid())
+		{
+			//Skip last KEY_END entry
+			iter->Prev();
+		}
+		if (NULL != iter && iter->Valid())
+		{
+			Slice tmpkey = iter->Key();
+			KeyObject* kk = decode_key(tmpkey, NULL);
+			if (NULL != kk)
+			{
+				db = kk->db;
+				ret = 0;
+			}
+		}
+		DELETE(iter);
+		return ret;
+	}
+
+	bool Ardb::DBExist(const DBID& db)
+	{
+		KeyObject start(Slice(), KV, db);
+		Iterator* iter = FindValue(start, false);
+		bool found = false;
+		if (NULL != iter && iter->Valid())
+		{
+			Slice tmpkey = iter->Key();
+			KeyObject* kk = decode_key(tmpkey, NULL);
+			if (NULL != kk && kk->db == db)
+			{
+				found = true;
+			}
+		}
+		DELETE(iter);
+		return found;
 	}
 
 	int Ardb::CompactDB(const DBID& db)

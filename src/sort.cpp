@@ -383,7 +383,7 @@ namespace ardb
 				result.resize(step);
 				for (uint32 i = 0; i < result.size(); i++)
 				{
-					for (uint j = i; j < values.size(); j += step)
+					for (uint32 j = i; j < values.size(); j += step)
 					{
 						if (result[i].type == EMPTY)
 						{

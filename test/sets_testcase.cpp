@@ -17,10 +17,10 @@ void test_set_saddrem(Ardb& db)
 	db.SAdd(dbid, "myset", "123");
 	db.SAdd(dbid, "myset", "1231");
 	CHECK_FATAL( db.SCard(dbid, "myset") != 2,
-			"sadd myset failed:%d", db.SCard(dbid, "myset"));
+	        "sadd myset failed:%d", db.SCard(dbid, "myset"));
 	db.SRem(dbid, "myset", "1231");
 	CHECK_FATAL( db.SCard(dbid, "myset") != 1,
-			"srem myset failed:%d", db.SCard(dbid, "myset"));
+	        "srem myset failed:%d", db.SCard(dbid, "myset"));
 }
 
 void test_set_member(Ardb& db)
@@ -32,7 +32,7 @@ void test_set_member(Ardb& db)
 	db.SAdd(dbid, "myset", "v2");
 	db.SAdd(dbid, "myset", "v3");
 	CHECK_FATAL(db.SIsMember(dbid, "myset", "v0") != false,
-			"SIsMember myset failed:");
+	        "SIsMember myset failed:");
 	ValueArray members;
 	db.SMembers(dbid, "myset", members);
 	CHECK_FATAL( members.size() != 3, "SMembers myset failed:");
@@ -126,6 +126,17 @@ void test_set_union(Ardb& db)
 	CHECK_FATAL(db.SCard(dbid, "myset2") != 5, "SUnionStore myset2 failed:");
 }
 
+void test_set_expire(Ardb& db)
+{
+	DBID dbid = 0;
+	db.SClear(dbid, "myset");
+	db.SAdd(dbid, "myset", "123");
+	db.Expire(dbid, "myset", 1);
+	CHECK_FATAL(db.Exists(dbid, "myset") == false, "Expire myset failed");
+	sleep(2);
+	CHECK_FATAL(db.Exists(dbid, "myset") == true, "Expire myset failed");
+}
+
 void test_sets(Ardb& db)
 {
 	test_set_saddrem(db);
@@ -133,5 +144,6 @@ void test_sets(Ardb& db)
 	test_set_diff(db);
 	test_set_inter(db);
 	test_set_union(db);
+	test_set_expire(db);
 }
 

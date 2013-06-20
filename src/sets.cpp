@@ -280,8 +280,8 @@ namespace ardb
 		BatchWriteGuard guard(GetEngine());
 		Walk(sk, false, &walk);
 		KeyObject k(key, SET_META, db);
-		//SetKeyObject k(key, Slice());
 		DelValue(k);
+		SetExpiration(db, key, 0);
 		return 0;
 	}
 
@@ -619,7 +619,6 @@ namespace ardb
 			KeyObject* kk = decode_key(tmpkey, &sk);
 			if (NULL == kk)
 			{
-				DELETE(kk);
 				break;
 			}
 			SetKeyObject* sek = (SetKeyObject*) kk;

@@ -44,7 +44,7 @@ void test_hash_hgetall(Ardb& db)
 	db.HGetAll(dbid, "myhash", fields, values);
 	CHECK_FATAL(fields.size() != 3, "hgetall myhash failed:%zu", fields.size());
 	CHECK_FATAL(fields[1].compare("field2") != 0,
-			"hgetall myhash failed:%zu", fields.size());
+	        "hgetall myhash failed:%zu", fields.size());
 	std::string str;
 	int ret = values[2].ToString(str).compare("value3");
 	CHECK_FATAL(ret != 0, "hgetall myhash failed:%zu", values.size());
@@ -59,9 +59,10 @@ void test_hash_hkeys(Ardb& db)
 	db.HSet(dbid, "myhash", "field3", "value3");
 	StringArray fields;
 	db.HKeys(dbid, "myhash", fields);
-	CHECK_FATAL( fields.size() != 3, "hgetall myhash failed:%zu", fields.size());
+	CHECK_FATAL( fields.size() != 3,
+	        "hgetall myhash failed:%zu", fields.size());
 	CHECK_FATAL(fields[1].compare("field2") != 0,
-			"hgetall myhash failed:%zu", fields.size());
+	        "hgetall myhash failed:%zu", fields.size());
 }
 
 void test_hash_hvals(Ardb& db)
@@ -88,7 +89,7 @@ void test_hash_hlen(Ardb& db)
 	db.HSet(dbid, "myhash", "field5", "value3");
 
 	CHECK_FATAL( db.HLen(dbid, "myhash") != 5,
-			"hlen myhash failed:%d", db.HLen(dbid, "myhash"));
+	        "hlen myhash failed:%d", db.HLen(dbid, "myhash"));
 }
 
 void test_hash_hsetnx(Ardb& db)
@@ -114,6 +115,17 @@ void test_hash_hincr(Ardb& db)
 	CHECK_FATAL(dv != 300.25, "hincrbyfloat myhash failed:%f", dv);
 }
 
+void test_hash_expire(Ardb& db)
+{
+	DBID dbid = 0;
+	db.HClear(dbid, "myhash");
+	db.HSetNX(dbid, "myhash", "field1", "100");
+	db.Expire(dbid, "myhash", 1);
+	CHECK_FATAL(db.Exists(dbid, "myhash") == false, "Expire myhash failed");
+	sleep(2);
+	CHECK_FATAL(db.Exists(dbid, "myhash") == true, "Expire myhash failed");
+}
+
 void test_hashs(Ardb& db)
 {
 	test_hash_hgetset(db);
@@ -123,5 +135,6 @@ void test_hashs(Ardb& db)
 	test_hash_hlen(db);
 	test_hash_hsetnx(db);
 	test_hash_hincr(db);
+	test_hash_expire(db);
 }
 

@@ -452,6 +452,7 @@ namespace ardb
 		Walk(lk, false, &walk);
 		KeyObject k(key, LIST_META, db);
 		DelValue(k);
+		SetExpiration(db, key, 0);
 		return 0;
 	}
 

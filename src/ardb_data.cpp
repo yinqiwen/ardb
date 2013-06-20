@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -45,7 +45,6 @@ namespace ardb
 		}
 		return a.size() < b.size() ? -1 : (a.size() > b.size() ? 1 : 0);
 	}
-
 
 	Condition::Condition(const std::string& name, CompareOperator compareop,
 	        const Slice& value, LogicalOperator logic) :
@@ -170,6 +169,12 @@ namespace ardb
 			{
 				const BitSetKeyObject& bk = (const BitSetKeyObject&) key;
 				BufferHelper::WriteVarUInt64(buf, bk.index);
+				break;
+			}
+			case EXPIRE_KEYS:
+			{
+				const ExpireKeyObject& bk = (const ExpireKeyObject&) key;
+				BufferHelper::WriteVarUInt64(buf, bk.expireat);
 				break;
 			}
 			case LIST_META:
@@ -351,6 +356,15 @@ namespace ardb
 					return NULL;
 				}
 				return new BitSetKeyObject(keystr, index, db);
+			}
+			case EXPIRE_KEYS:
+			{
+				uint64 ts;
+				if (!BufferHelper::ReadVarUInt64(buf, ts))
+				{
+					return NULL;
+				}
+				return new ExpireKeyObject(keystr, ts, db);
 			}
 			case SET_META:
 			case ZSET_META:

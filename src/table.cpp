@@ -1610,6 +1610,7 @@ namespace ardb
 		KeyObject sck(tableName, TABLE_SCHEMA, db);
 		DelValue(k);
 		DelValue(sck);
+		SetExpiration(db, tableName, 0);
 		return count;
 	}
 	int Ardb::TCount(const DBID& db, const Slice& tableName)
