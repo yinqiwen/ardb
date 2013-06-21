@@ -49,6 +49,8 @@
 
 #define COMPARE_NUMBER(a, b)  (a == b?0:(a>b?1:-1))
 
+#define COMPARE_SLICE(a, b)  (a.size() == b.size()?(a.compare(b)):(a.size()>b.size()?1:-1))
+
 namespace ardb
 {
 	/*
@@ -76,7 +78,8 @@ namespace ardb
 		TABLE_SCHEMA = 13,
 		BITSET_META = 14,
 		BITSET_ELEMENT = 15,
-		EXPIRE_KEYS = 16,
+		KEY_EXPIRATION_ELEMENT = 16,
+		KEY_EXPIRATION_MAPPING = 17,
 		KEY_END = 100,
 	};
 
@@ -539,7 +542,7 @@ namespace ardb
 	{
 			uint64 expireat;
 			ExpireKeyObject(const Slice& k, uint64 ts, DBID id) :
-					KeyObject(k, EXPIRE_KEYS, id), expireat(ts)
+					KeyObject(k, KEY_EXPIRATION_ELEMENT, id), expireat(ts)
 			{
 			}
 	};

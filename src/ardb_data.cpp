@@ -171,7 +171,7 @@ namespace ardb
 				BufferHelper::WriteVarUInt64(buf, bk.index);
 				break;
 			}
-			case EXPIRE_KEYS:
+			case KEY_EXPIRATION_ELEMENT:
 			{
 				const ExpireKeyObject& bk = (const ExpireKeyObject&) key;
 				BufferHelper::WriteVarUInt64(buf, bk.expireat);
@@ -183,6 +183,7 @@ namespace ardb
 			case TABLE_META:
 			case TABLE_SCHEMA:
 			case BITSET_META:
+			case KEY_EXPIRATION_MAPPING:
 			default:
 			{
 				break;
@@ -357,7 +358,7 @@ namespace ardb
 				}
 				return new BitSetKeyObject(keystr, index, db);
 			}
-			case EXPIRE_KEYS:
+			case KEY_EXPIRATION_ELEMENT:
 			{
 				uint64 ts;
 				if (!BufferHelper::ReadVarUInt64(buf, ts))
@@ -372,6 +373,7 @@ namespace ardb
 			case TABLE_META:
 			case TABLE_SCHEMA:
 			case BITSET_META:
+			case KEY_EXPIRATION_MAPPING:
 			case KV:
 			default:
 			{

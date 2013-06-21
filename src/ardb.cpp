@@ -50,7 +50,7 @@
 namespace ardb
 {
 	int ardb_compare_keys(const char* akbuf, size_t aksiz, const char* bkbuf,
-	        size_t bksiz)
+			size_t bksiz)
 	{
 		Buffer ak_buf(const_cast<char*>(akbuf), 0, aksiz);
 		Buffer bk_buf(const_cast<char*>(bkbuf), 0, bksiz);
@@ -77,7 +77,11 @@ namespace ardb
 		COMPARE_EXIST(found_a, found_b);
 		ak_buf.SkipBytes(akeysize);
 		bk_buf.SkipBytes(bkeysize);
-		int ret = akey.compare(bkey);
+		int ret = 0;
+		if (at != KEY_EXPIRATION_ELEMENT)
+		{
+			ret = COMPARE_SLICE(akey, bkey);
+		}
 		if (ret != 0)
 		{
 			return ret;
@@ -91,7 +95,7 @@ namespace ardb
 				found_b = BufferHelper::ReadVarSlice(bk_buf, bf);
 				COMPARE_EXIST(found_a, found_b);
 				RETURN_NONEQ_RESULT(af.size(), bf.size());
-				ret = af.compare(bf);
+				ret = COMPARE_SLICE(af, bf);
 				break;
 			}
 			case LIST_ELEMENT:
@@ -135,7 +139,7 @@ namespace ardb
 				found_a = BufferHelper::ReadVarSlice(ak_buf, af);
 				found_b = BufferHelper::ReadVarSlice(bk_buf, bf);
 				COMPARE_EXIST(found_a, found_b);
-				ret = af.compare(bf);
+				ret = COMPARE_SLICE(af, bf);
 				if (ret == 0)
 				{
 					ValueObject kav, kbv;
@@ -176,7 +180,7 @@ namespace ardb
 				found_a = BufferHelper::ReadVarSlice(ak_buf, af);
 				found_b = BufferHelper::ReadVarSlice(bk_buf, bf);
 				COMPARE_EXIST(found_a, found_b);
-				ret = COMPARE_NUMBER(af.size(), bf.size());
+				ret = COMPARE_SLICE(af, bf);
 				if (ret != 0)
 				{
 					return ret;
@@ -203,7 +207,19 @@ namespace ardb
 				}
 				break;
 			}
-			case EXPIRE_KEYS:
+			case KEY_EXPIRATION_ELEMENT:
+			{
+				uint64 aexpire, bexpire;
+				found_a = BufferHelper::ReadVarUInt64(ak_buf, aexpire);
+				found_b = BufferHelper::ReadVarUInt64(bk_buf, bexpire);
+				COMPARE_EXIST(found_a, found_b);
+				ret = COMPARE_NUMBER(aexpire, bexpire);
+				if(ret == 0)
+				{
+					ret = COMPARE_SLICE(akey, bkey);
+				}
+				break;
+			}
 			case BITSET_ELEMENT:
 			{
 				uint64 aindex, bindex;
@@ -219,6 +235,7 @@ namespace ardb
 			case TABLE_META:
 			case TABLE_SCHEMA:
 			case BITSET_META:
+			case KEY_EXPIRATION_MAPPING:
 			default:
 			{
 				break;
@@ -247,7 +264,7 @@ namespace ardb
 	//static const char* REPO_NAME = "data";
 	Ardb::Ardb(KeyValueEngineFactory* engine, bool multi_thread) :
 			m_engine_factory(engine), m_engine(NULL), m_key_watcher(NULL), m_raw_key_listener(
-			        NULL), m_expire_check_thread(NULL)
+					NULL), m_expire_check_thread(NULL), m_min_expireat(0)
 	{
 		m_key_locker.enable = multi_thread;
 	}
@@ -258,7 +275,7 @@ namespace ardb
 		{
 			INFO_LOG("Start init storage engine.");
 			m_engine = m_engine_factory->CreateDB(
-			        m_engine_factory->GetName().c_str());
+					m_engine_factory->GetName().c_str());
 
 			KeyObject verkey(Slice(), KEY_END, 0xFFFFFF);
 			ValueObject ver;
@@ -267,11 +284,10 @@ namespace ardb
 				if (ver.v.int_v != ARDB_FORMAT_VERSION)
 				{
 					ERROR_LOG(
-					        "Incompatible data format version:%d in DB", ver.v.int_v);
+							"Incompatible data format version:%d in DB", ver.v.int_v);
 					return false;
 				}
-			}
-			else
+			} else
 			{
 				ver.v.int_v = ARDB_FORMAT_VERSION;
 				ver.type = INTEGER;
@@ -285,7 +301,7 @@ namespace ardb
 				struct ExpireCheckThread: public Thread
 				{
 						Ardb* adb;
-						bool running;
+						volatile bool running;
 						uint32 check_period;
 						ExpireCheckThread(Ardb* db, uint32 period) :
 								adb(db), running(true), check_period(period)
@@ -296,9 +312,9 @@ namespace ardb
 							while (running)
 							{
 								DBID firstDB = 0, lastDB = 0;
-								uint64 start = get_current_epoch_millis();
+
 								if (0 == adb->LastDB(lastDB)
-								        && 0 == adb->FirstDB(firstDB))
+										&& 0 == adb->FirstDB(firstDB))
 								{
 									for (DBID db = firstDB; db <= lastDB; db++)
 									{
@@ -308,11 +324,16 @@ namespace ardb
 										}
 									}
 								}
-								uint64 costs = get_current_epoch_millis()
-								        - start;
-								uint64 sleep =
-								        costs >= check_period ? 1 :
-								        		check_period - costs;
+								uint64 end = get_current_epoch_micros();
+								uint64 sleep = check_period;
+								if (adb->m_min_expireat > end)
+								{
+									sleep = (adb->m_min_expireat - end)/1000;
+									if(sleep > check_period)
+									{
+										sleep = check_period;
+									}
+								}
 								Thread::Sleep(sleep);
 							}
 						}
@@ -322,7 +343,7 @@ namespace ardb
 						}
 				};
 				m_expire_check_thread = new ExpireCheckThread(this,
-				        check_expire_period);
+						check_expire_period);
 				m_expire_check_thread->Start();
 			}
 		}
@@ -331,11 +352,11 @@ namespace ardb
 
 	Ardb::~Ardb()
 	{
+		DELETE(m_expire_check_thread);
 		if (NULL != m_engine)
 		{
 			m_engine_factory->CloseDB(m_engine);
 		}
-		DELETE(m_expire_check_thread);
 	}
 
 	void Ardb::Walk(KeyObject& key, bool reverse, WalkHandler* handler)
@@ -353,7 +374,7 @@ namespace ardb
 			Slice tmpkey = iter->Key();
 			KeyObject* kk = decode_key(tmpkey, &key);
 			if (NULL == kk || kk->type != key.type
-			        || kk->key.compare(key.key) != 0)
+					|| kk->key.compare(key.key) != 0)
 			{
 				DELETE(kk);
 				if (reverse && isFirstElement)
@@ -366,7 +387,7 @@ namespace ardb
 			}
 			ValueObject v;
 			Buffer readbuf(const_cast<char*>(iter->Value().data()), 0,
-			        iter->Value().size());
+					iter->Value().size());
 			decode_value(readbuf, v, false);
 			int ret = handler->OnKeyValue(kk, &v, cursor++);
 			DELETE(kk);
@@ -377,8 +398,7 @@ namespace ardb
 			if (reverse)
 			{
 				iter->Prev();
-			}
-			else
+			} else
 			{
 				iter->Next();
 			}
@@ -465,12 +485,12 @@ namespace ardb
 			DBID tmpdb;
 			KeyType t;
 			if (!peek_dbkey_header(current_iter->Key(), tmpdb, t)
-			        || tmpdb != db)
+					|| tmpdb != db)
 			{
 				break;
 			}
 			int ret = visitor->OnRawKeyValue(current_iter->Key(),
-			        current_iter->Value());
+					current_iter->Value());
 			current_iter->Next();
 			if (ret == -1)
 			{
@@ -492,7 +512,7 @@ namespace ardb
 		while (NULL != current_iter && current_iter->Valid())
 		{
 			int ret = visitor->OnRawKeyValue(current_iter->Key(),
-			        current_iter->Value());
+					current_iter->Value());
 			current_iter->Next();
 			if (ret == -1)
 			{
@@ -532,13 +552,13 @@ namespace ardb
 			}
 			ValueObject v;
 			Buffer readbuf(const_cast<char*>(iter->Value().data()), 0,
-			        iter->Value().size());
+					iter->Value().size());
 			decode_value(readbuf, v, false);
 			if (NULL != kk)
 			{
 				std::string str;
 				DEBUG_LOG(
-				        "[%d]Key=%s, Value=%s", kk->type, kk->key.data(), v.ToString(str).c_str());
+						"[%d]Key=%s, Value=%s", kk->type, kk->key.data(), v.ToString(str).c_str());
 			}
 			DELETE(kk);
 			iter->Next();
@@ -649,7 +669,7 @@ namespace ardb
 					encode_key(sbuf, start);
 					encode_key(ebuf, end);
 					adb->GetEngine()->CompactRange(sbuf.AsString(),
-					        ebuf.AsString());
+							ebuf.AsString());
 					delete this;
 				}
 		};
@@ -687,7 +707,7 @@ namespace ardb
 					encode_key(sbuf, start);
 					encode_key(ebuf, end);
 					adb->GetEngine()->CompactRange(sbuf.AsString(),
-					        ebuf.AsString());
+							ebuf.AsString());
 					delete this;
 				}
 		};

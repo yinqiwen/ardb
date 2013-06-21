@@ -177,6 +177,7 @@ namespace ardb
 			RawKeyListener* m_raw_key_listener;
 
 			Thread* m_expire_check_thread;
+			uint64  m_min_expireat;
 
 			bool DBExist(const DBID& db);
 			int LastDB(DBID& db);
