@@ -70,6 +70,11 @@ namespace ardb
 			}
 	};
 
+	class AdaptiveReplacementCache
+	{
+
+	};
+
 
 	class CacheManager
 	{

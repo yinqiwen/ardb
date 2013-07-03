@@ -28,6 +28,7 @@
  */
 
 #include "ardb_server.hpp"
+#include "stat.hpp"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -37,6 +38,8 @@
 
 namespace ardb
 {
+	static ServerStat kServerStat;
+
 	static inline void fill_error_reply(RedisReply& reply, const char* fmt, ...)
 	{
 		va_list ap;
@@ -251,7 +254,7 @@ namespace ardb
 	ArdbServer::ArdbServer(KeyValueEngineFactory& engine) :
 			m_service(NULL), m_db(NULL), m_engine(engine), m_slowlog_handler(
 					m_cfg), m_repli_serv(this), m_slave_client(this), m_watch_mutex(
-					PTHREAD_MUTEX_RECURSIVE)
+			PTHREAD_MUTEX_RECURSIVE)
 	{
 		struct RedisCommandHandlerSetting settingTable[] =
 			{
@@ -512,7 +515,10 @@ namespace ardb
 			char tmp[256];
 			sprintf(tmp, "%"PRId64, m_cfg.listen_port);
 			info.append("tcp_port:").append(tmp).append("\r\n");
-
+			sprintf(tmp, "%zu", kServerStat.GetRecvReqCount());
+			info.append("recv_req:").append(tmp).append("\r\n");
+			sprintf(tmp, "%zu", kServerStat.GetSentReplyCount());
+			info.append("sent_reply:").append(tmp).append("\r\n");
 		}
 		if (!strcasecmp(section.c_str(), "all")
 				|| !strcasecmp(section.c_str(), "databases"))
@@ -1499,8 +1505,8 @@ namespace ardb
 
 	int ArdbServer::ReplConf(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
-		DEBUG_LOG(
-				"%s %s", cmd.GetArguments()[0].c_str(), cmd.GetArguments()[1].c_str());
+		DEBUG_LOG("%s %s", cmd.GetArguments()[0].c_str(),
+				cmd.GetArguments()[1].c_str());
 		if (cmd.GetArguments().size() % 2 != 0)
 		{
 			fill_error_reply(ctx.reply,
@@ -2732,6 +2738,7 @@ namespace ardb
 		RedisCommandHandlerSetting* setting = FindRedisCommandHandlerSetting(
 				cmd);
 		DEBUG_LOG("Process recved cmd:%s", cmd.c_str());
+		kServerStat.IncRecvReq();
 		int ret = 0;
 		if (NULL != setting)
 		{
@@ -2784,13 +2791,14 @@ namespace ardb
 			}
 		} else
 		{
-			ERROR_LOG( "No handler found for:%s", cmd.c_str());
+			ERROR_LOG("No handler found for:%s", cmd.c_str());
 			fill_error_reply(ctx.reply, "ERR unknown command '%s'",
 					cmd.c_str());
 		}
 
 		_exit: if (ctx.reply.type != 0)
 		{
+			kServerStat.IncSentReply();
 			ctx.conn->Write(ctx.reply);
 			ctx.reply.Clear();
 		}
@@ -2896,7 +2904,7 @@ namespace ardb
 		m_cfg_props = props;
 		if (ParseConfig(props, m_cfg) < 0)
 		{
-			ERROR_LOG( "Failed to parse configurations.");
+			ERROR_LOG("Failed to parse configurations.");
 			return -1;
 		}
 		if (m_cfg.daemonize)
@@ -2908,7 +2916,7 @@ namespace ardb
 		m_db = new Ardb(&m_engine, m_cfg.worker_count > 1);
 		if (!m_db->Init())
 		{
-			ERROR_LOG( "Failed to init DB.");
+			ERROR_LOG("Failed to init DB.");
 			return -1;
 		}
 		m_service = new ChannelService(m_cfg.max_clients + 32);
@@ -2935,8 +2943,8 @@ namespace ardb
 			ServerSocketChannel* server = m_service->NewServerSocketChannel();
 			if (!server->Bind(&address))
 			{
-				ERROR_LOG(
-						"Failed to bind on %s:%d", m_cfg.listen_host.c_str(), m_cfg.listen_port);
+				ERROR_LOG("Failed to bind on %s:%d", m_cfg.listen_host.c_str(),
+						m_cfg.listen_port);
 				goto sexit;
 			}
 			server->Configure(ops);
@@ -2949,8 +2957,8 @@ namespace ardb
 			ServerSocketChannel* server = m_service->NewServerSocketChannel();
 			if (!server->Bind(&address))
 			{
-				ERROR_LOG(
-						"Failed to bind on %s", m_cfg.listen_unix_path.c_str());
+				ERROR_LOG("Failed to bind on %s",
+						m_cfg.listen_unix_path.c_str());
 				goto sexit;
 			}
 			server->Configure(ops);
@@ -2972,9 +2980,9 @@ namespace ardb
 			m_slave_client.ConnectMaster(m_cfg.master_host, m_cfg.master_port);
 		}
 		m_service->SetThreadPoolSize(m_cfg.worker_count);
-		INFO_LOG( "Server started, Ardb version %s", ARDB_VERSION);
-		INFO_LOG(
-				"The server is now ready to accept connections on port %d", m_cfg.listen_port);
+		INFO_LOG("Server started, Ardb version %s", ARDB_VERSION);
+		INFO_LOG("The server is now ready to accept connections on port %d",
+				m_cfg.listen_port);
 		m_service->Start();
 		sexit: m_repli_serv.Stop();
 		DELETE(m_db);

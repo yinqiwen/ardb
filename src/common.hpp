@@ -174,4 +174,11 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 #define HAVE_TASKINFO 1
 #endif
 
+#if (__i386 || __amd64) && __GNUC__
+#define GNUC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
+#if GNUC_VERSION >= 40100
+#define HAVE_ATOMIC
+#endif
+#endif
+
 #endif /* COMMON_HPP_ */
