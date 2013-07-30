@@ -354,6 +354,8 @@ namespace ardb
 				{ "sunion", &ArdbServer::SUnion, 2, -1, 0 },
 				{ "sunionstore", &ArdbServer::SUnionStore, 3, -1, 1 },
 				{ "sunioncount", &ArdbServer::SUnionCount, 2, -1, 0 },
+				{ "srange", &ArdbServer::SRange, 3, 3, 0 },
+				{ "srevrange", &ArdbServer::SRevRange, 3, 3, 0 },
 				{ "zadd", &ArdbServer::ZAdd, 3, -1, 1 },
 				{ "rtazadd", &ArdbServer::ZAdd, 3, -1, 1 }, /*Compatible with a modified Redis version*/
 				{ "zcard", &ArdbServer::ZCard, 1, 1, 0 },
@@ -1956,6 +1958,37 @@ namespace ardb
 		uint32 count = 0;
 		m_db->SDiffCount(ctx.currentDB, keys, count);
 		fill_int_reply(ctx.reply, count);
+		return 0;
+	}
+
+	int ArdbServer::SRange(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+	{
+		ValueArray vs;
+		int32 count = -1;
+		if (!string_toint32(cmd.GetArguments()[2], count))
+		{
+			fill_error_reply(ctx.reply,
+					"ERR value is not an integer or out of range");
+			return 0;
+		}
+		m_db->SRange(ctx.currentDB, cmd.GetArguments()[0],
+				cmd.GetArguments()[1], count, vs);
+		fill_array_reply(ctx.reply, vs);
+		return 0;
+	}
+	int ArdbServer::SRevRange(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+	{
+		ValueArray vs;
+		int32 count = -1;
+		if (!string_toint32(cmd.GetArguments()[2], count))
+		{
+			fill_error_reply(ctx.reply,
+					"ERR value is not an integer or out of range");
+			return 0;
+		}
+		m_db->SRevRange(ctx.currentDB, cmd.GetArguments()[0],
+				cmd.GetArguments()[1], count, vs);
+		fill_array_reply(ctx.reply, vs);
 		return 0;
 	}
 

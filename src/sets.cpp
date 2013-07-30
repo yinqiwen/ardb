@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -224,6 +224,78 @@ namespace ardb
 			SetSetMetaValue(db, key, meta);
 			return 1;
 		}
+		return 0;
+	}
+
+	int Ardb::SRevRange(const DBID& db, const Slice& key, const Slice& value_end,
+			int count, ValueArray& values)
+	{
+		if (count == 0)
+		{
+			return 0;
+		}
+		SetMetaValue meta;
+		if (0 != GetSetMetaValue(db, key, meta))
+		{
+			return ERR_NOT_EXIST;
+		}
+		SetKeyObject sk(key, value_end, db);
+		struct SGetWalk: public WalkHandler
+		{
+				ValueArray& z_values;
+				int l;
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+				{
+					SetKeyObject* sek = (SetKeyObject*) k;
+					z_values.push_back(sek->value);
+					if (l > 0 && (cursor + 1) >= (uint32)l)
+					{
+						return -1;
+					}
+					return 0;
+				}
+				SGetWalk(ValueArray& vs, int count) :
+						z_values(vs), l(count)
+				{
+				}
+		} walk(values, count);
+		Walk(sk, true, &walk);
+		return 0;
+	}
+
+	int Ardb::SRange(const DBID& db, const Slice& key, const Slice& value_begin,
+			int count, ValueArray& values)
+	{
+		if (count == 0)
+		{
+			return 0;
+		}
+		SetMetaValue meta;
+		if (0 != GetSetMetaValue(db, key, meta))
+		{
+			return ERR_NOT_EXIST;
+		}
+		SetKeyObject sk(key, value_begin, db);
+		struct SGetWalk: public WalkHandler
+		{
+				ValueArray& z_values;
+				int l;
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+				{
+					SetKeyObject* sek = (SetKeyObject*) k;
+					z_values.push_back(sek->value);
+					if (l > 0 && (cursor + 1) >= (uint32)l)
+					{
+						return -1;
+					}
+					return 0;
+				}
+				SGetWalk(ValueArray& vs, int count) :
+						z_values(vs), l(count)
+				{
+				}
+		} walk(values, count);
+		Walk(sk, false, &walk);
 		return 0;
 	}
 
@@ -480,7 +552,7 @@ namespace ardb
 				SInterWalk(ValueSet& cmp, ValueSet& result,
 						const ValueObject& min, const ValueObject& max) :
 						z_cmp(cmp), z_result(result), s_min(min), s_max(max), current_min(
-								NULL), current_max(NULL)
+						NULL), current_max(NULL)
 				{
 				}
 				int OnKeyValue(KeyObject* k, ValueObject* value, uint32 cursor)
@@ -540,7 +612,7 @@ namespace ardb
 		if (cmp != &values)
 		{
 			values.clear();
-			values.insert(cmp->begin(),cmp->end());
+			values.insert(cmp->begin(), cmp->end());
 		}
 		return 0;
 	}

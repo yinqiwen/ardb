@@ -75,6 +75,10 @@ namespace ardb
 
 	};
 
+	class LIRSCache{
+
+	};
+
 
 	class CacheManager
 	{
