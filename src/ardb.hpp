@@ -514,9 +514,9 @@ namespace ardb
 			int SCard(const DBID& db, const Slice& key);
 			int SMembers(const DBID& db, const Slice& key, ValueArray& values);
 			int SRange(const DBID& db, const Slice& key,
-					const Slice& value_begin, int count, ValueArray& values);
+					const Slice& value_begin, int count, bool with_begin, ValueArray& values);
 			int SRevRange(const DBID& db, const Slice& key,
-								const Slice& value_end, int count, ValueArray& values);
+								const Slice& value_end, int count, bool with_end,ValueArray& values);
 			int SDiff(const DBID& db, SliceArray& keys, ValueSet& values);
 			int SDiffCount(const DBID& db, SliceArray& keys, uint32& count);
 			int SDiffStore(const DBID& db, const Slice& dst, SliceArray& keys);

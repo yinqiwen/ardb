@@ -354,8 +354,8 @@ namespace ardb
 				{ "sunion", &ArdbServer::SUnion, 2, -1, 0 },
 				{ "sunionstore", &ArdbServer::SUnionStore, 3, -1, 1 },
 				{ "sunioncount", &ArdbServer::SUnionCount, 2, -1, 0 },
-				{ "srange", &ArdbServer::SRange, 3, 3, 0 },
-				{ "srevrange", &ArdbServer::SRevRange, 3, 3, 0 },
+				{ "srange", &ArdbServer::SRange, 3, 4, 0 },
+				{ "srevrange", &ArdbServer::SRevRange, 3, 4, 0 },
 				{ "zadd", &ArdbServer::ZAdd, 3, -1, 1 },
 				{ "rtazadd", &ArdbServer::ZAdd, 3, -1, 1 }, /*Compatible with a modified Redis version*/
 				{ "zcard", &ArdbServer::ZCard, 1, 1, 0 },
@@ -1971,8 +1971,21 @@ namespace ardb
 					"ERR value is not an integer or out of range");
 			return 0;
 		}
+		bool with_first = true;
+		if (cmd.GetArguments().size() == 4)
+		{
+			if (!strcasecmp(cmd.GetArguments()[3].c_str(), "withoutstart"))
+			{
+				with_first = false;
+			} else
+			{
+				fill_error_reply(ctx.reply,
+						"ERR SRANGE last argument must be WITHOUTSTART");
+				return 0;
+			}
+		}
 		m_db->SRange(ctx.currentDB, cmd.GetArguments()[0],
-				cmd.GetArguments()[1], count, vs);
+				cmd.GetArguments()[1], count, with_first, vs);
 		fill_array_reply(ctx.reply, vs);
 		return 0;
 	}
@@ -1986,8 +1999,21 @@ namespace ardb
 					"ERR value is not an integer or out of range");
 			return 0;
 		}
+		bool with_first = true;
+		if (cmd.GetArguments().size() == 4)
+		{
+			if (!strcasecmp(cmd.GetArguments()[3].c_str(), "withoutstart"))
+			{
+				with_first = false;
+			} else
+			{
+				fill_error_reply(ctx.reply,
+						"ERR SREVRANGE last argument must be WITHOUTSTART");
+				return 0;
+			}
+		}
 		m_db->SRevRange(ctx.currentDB, cmd.GetArguments()[0],
-				cmd.GetArguments()[1], count, vs);
+				cmd.GetArguments()[1], count, with_first, vs);
 		fill_array_reply(ctx.reply, vs);
 		return 0;
 	}

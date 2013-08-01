@@ -227,8 +227,9 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::SRevRange(const DBID& db, const Slice& key, const Slice& value_end,
-			int count, ValueArray& values)
+	int Ardb::SRevRange(const DBID& db, const Slice& key,
+			const Slice& value_end, int count, bool with_end,
+			ValueArray& values)
 	{
 		if (count == 0)
 		{
@@ -239,32 +240,50 @@ namespace ardb
 		{
 			return ERR_NOT_EXIST;
 		}
-		SetKeyObject sk(key, value_end, db);
+		ValueObject firstObj;
+		if (!strcasecmp(value_end.data(), "+inf"))
+		{
+			firstObj = meta.max;
+		}else{
+			smart_fill_value(value_end, firstObj);
+		}
+		SetKeyObject sk(key, firstObj, db);
 		struct SGetWalk: public WalkHandler
 		{
 				ValueArray& z_values;
+				ValueObject& first;
+				bool with_first;
 				int l;
 				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					SetKeyObject* sek = (SetKeyObject*) k;
+					if (0 == cursor)
+					{
+						if (!with_first){
+							if (first.Compare(sek->value) == 0)
+							{
+								return 0;
+							}
+						}
+					}
 					z_values.push_back(sek->value);
-					if (l > 0 && (cursor + 1) >= (uint32)l)
+					if (l > 0 && z_values.size() >= (uint32) l)
 					{
 						return -1;
 					}
 					return 0;
 				}
-				SGetWalk(ValueArray& vs, int count) :
-						z_values(vs), l(count)
+				SGetWalk(ValueArray& vs, int count,ValueObject& s, bool with) :
+						z_values(vs), first(s), with_first(with), l(count)
 				{
 				}
-		} walk(values, count);
+		} walk(values, count, firstObj, with_end);
 		Walk(sk, true, &walk);
 		return 0;
 	}
 
 	int Ardb::SRange(const DBID& db, const Slice& key, const Slice& value_begin,
-			int count, ValueArray& values)
+			int count, bool with_begin, ValueArray& values)
 	{
 		if (count == 0)
 		{
@@ -275,26 +294,47 @@ namespace ardb
 		{
 			return ERR_NOT_EXIST;
 		}
-		SetKeyObject sk(key, value_begin, db);
+		ValueObject firstObj;
+		if (!strcasecmp(value_begin.data(), "-inf"))
+		{
+			firstObj = meta.min;
+		}else{
+			smart_fill_value(value_begin, firstObj);
+		}
+		SetKeyObject sk(key, firstObj, db);
 		struct SGetWalk: public WalkHandler
 		{
 				ValueArray& z_values;
+				ValueObject& first;
+				bool with_first;
 				int l;
 				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					SetKeyObject* sek = (SetKeyObject*) k;
+					if (0 == cursor)
+					{
+						if (!with_first)
+						{
+							if (first.Compare(sek->value) == 0)
+							{
+								return 0;
+							}
+						}
+						std::string str;
+						v->ToString(str);
+					}
 					z_values.push_back(sek->value);
-					if (l > 0 && (cursor + 1) >= (uint32)l)
+					if (l > 0 && z_values.size() >= (uint32) l)
 					{
 						return -1;
 					}
 					return 0;
 				}
-				SGetWalk(ValueArray& vs, int count) :
-						z_values(vs), l(count)
+				SGetWalk(ValueArray& vs, int count, ValueObject& s, bool with) :
+						z_values(vs), first(s), with_first(with), l(count)
 				{
 				}
-		} walk(values, count);
+		} walk(values, count, firstObj, with_begin);
 		Walk(sk, false, &walk);
 		return 0;
 	}
