@@ -158,18 +158,84 @@ namespace ardb
 		{
 			return -1;
 		}
+		std::string vstr;
+		subst.ToString(vstr);
+
+		/*
+		 *  sort <setkey> by *.len ....
+		 *
+		 */
+		if (!strcasecmp(spat, "*.len"))
+		{
+			int keytype = Type(db, vstr);
+			int len = -1;
+			switch (keytype)
+			{
+				case SET_ELEMENT:
+				{
+					len = SCard(db, vstr);
+					break;
+				}
+				case LIST_META:
+				{
+					len = LLen(db, vstr);
+					break;
+				}
+				case ZSET_ELEMENT_SCORE:
+				{
+					len = ZCard(db, vstr);
+					break;
+				}
+				default:
+				{
+					return -1;
+				}
+			}
+			value = ValueObject((int64) len);
+			return 0;
+		}
 
 		f = strstr(spat, "->");
 		if (NULL != f && (uint32) (f - spat) == (pattern.size() - 2))
 		{
 			f = NULL;
 		}
-		std::string vstr;
-		subst.ToString(vstr);
 		std::string keystr(pattern.data(), pattern.size());
 		string_replace(keystr, "*", vstr);
 		if (f == NULL)
 		{
+			/*
+			 * keystr = "len(...)"
+			 */
+			if (keystr.find("len(") == 0
+					&& keystr.rfind(")") == keystr.size() - 1)
+			{
+				keystr = keystr.substr(4, keystr.size() - 5);
+				int keytype = Type(db, vstr);
+				int len = -1;
+				switch (keytype)
+				{
+					case SET_ELEMENT:
+					{
+						len = SCard(db, keystr);
+						break;
+					}
+					case LIST_META:
+					{
+						len = LLen(db, keystr);
+						break;
+					}
+					case ZSET_ELEMENT_SCORE:
+					{
+						len = ZCard(db, keystr);
+						break;
+					}
+					default:
+					{
+						return -1;
+					}
+				}
+			}
 			KeyObject k(keystr, KV, db);
 			return GetValue(k, &value);
 		} else
@@ -258,8 +324,8 @@ namespace ardb
 					if (GetValueByPattern(db, options.by, sortvals[i],
 							sortvec[i].cmp) < 0)
 					{
-						DEBUG_LOG(
-								"Failed to get value by pattern:%s", options.by);
+						DEBUG_LOG("Failed to get value by pattern:%s",
+								options.by);
 						sortvec[i].cmp.Clear();
 						continue;
 					}
@@ -340,8 +406,8 @@ namespace ardb
 					if (GetValueByPattern(db, options.get_patterns[j],
 							*patternObj, vo) < 0)
 					{
-						DEBUG_LOG(
-								"Failed to get value by pattern for:%s", options.get_patterns[j]);
+						DEBUG_LOG("Failed to get value by pattern for:%s",
+								options.get_patterns[j]);
 						vo.Clear();
 					}
 					values.push_back(vo);
