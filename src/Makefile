@@ -67,6 +67,11 @@ KCDB_PATH=${LIB_PATH}/${KCDB_VER}
 KCDB_FILE=${KCDB_PATH}.tar.gz
 KCDB_LIBA=${KCDB_PATH}/libkyotocabinet.a
 
+LUA_VER=lua-5.2.2
+LUA_PATH=${LIB_PATH}/${LUA_VER}
+LUA_FILE=${LUA_PATH}.tar.gz
+LUA_LIBA=${LUA_PATH}/src/liblua.a
+
 OPTIMIZATION?=-O2
 OPT=$(OPTIMIZATION)
 
@@ -74,7 +79,7 @@ CXXFLAGS=-Wall -g  ${OPT}  -fPIC -D__STDC_FORMAT_MACROS
 CCFLAGS=-Wall -std=gnu99 ${OPT} -pedantic -g -fPIC -D__STDC_FORMAT_MACROS
 LDFLAGS=-g 
 
-INCS=-I./  -I${LIB_PATH}/cpp-btree 
+INCS=-I./  -I${LIB_PATH}/cpp-btree  -I${LUA_PATH}/src
 
 # Default allocator
 ifeq ($(uname_S),Linux)
@@ -90,7 +95,7 @@ MALLOC_LIBA=${JEMALLOC_LIBA}
 DEP_LIBS=jemalloc
 endif
 
-LIBS=${MALLOC_LIBA} -lpthread
+LIBS= ${LUA_LIBA} ${MALLOC_LIBA} -lpthread
 
 %.o : %.cpp
 	${CXX} -c ${CXXFLAGS} ${INCS} $< -o $@
@@ -110,7 +115,7 @@ UTIL_VPATH=./util ./util/exception  ./util/thread
 UTIL_CPPFILES := $(foreach dir, $(UTIL_VPATH), $(wildcard $(dir)/*.cpp))
 UTIL_OBJECTS := $(patsubst %.cpp, %.o, $(UTIL_CPPFILES)) ./util/sha1.o
 CORE_OBJECTS := ardb.o ardb_data.o hash.o kv.o lists.o logger.o sets.o \
-                zsets.o strings.o bits.o table.o sort.o\
+                zsets.o strings.o bits.o table.o sort.o lua_scripting.o\
                 $(UTIL_OBJECTS)
 
 LEVELDB_ENGINE :=  engine/leveldb_engine.o       
@@ -214,6 +219,14 @@ leveldb:snappy
     else \
       cd ${LIB_PATH};tar zxvf ${LEVELDB_FILE};cd ${LEVELDB_PATH};\
       CXXFLAGS="-I${SNAPPY_PATH}" CFLAGS="-I${SNAPPY_PATH}" LDFLAGS="${SNAPPY_PATH}/.libs" make libleveldb.a;\
+    fi
+
+lua:
+	@if test -f ${LUA_LIBA}; then\
+      :; \
+    else \
+      cd ${LIB_PATH};tar zxvf ${LUA_FILE};cd ${LUA_PATH};\
+      make mingw;\
     fi
 
 clean_launch_obj:
