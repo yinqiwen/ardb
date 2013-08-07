@@ -214,7 +214,7 @@ namespace ardb
 				found_b = BufferHelper::ReadVarUInt64(bk_buf, bexpire);
 				COMPARE_EXIST(found_a, found_b);
 				ret = COMPARE_NUMBER(aexpire, bexpire);
-				if(ret == 0)
+				if (ret == 0)
 				{
 					ret = COMPARE_SLICE(akey, bkey);
 				}
@@ -264,7 +264,7 @@ namespace ardb
 	//static const char* REPO_NAME = "data";
 	Ardb::Ardb(KeyValueEngineFactory* engine, bool multi_thread) :
 			m_engine_factory(engine), m_engine(NULL), m_key_watcher(NULL), m_raw_key_listener(
-					NULL), m_expire_check_thread(NULL), m_min_expireat(0)
+			NULL), m_expire_check_thread(NULL), m_min_expireat(0)
 	{
 		m_key_locker.enable = multi_thread;
 	}
@@ -283,8 +283,8 @@ namespace ardb
 			{
 				if (ver.v.int_v != ARDB_FORMAT_VERSION)
 				{
-					ERROR_LOG(
-							"Incompatible data format version:%d in DB", ver.v.int_v);
+					ERROR_LOG("Incompatible data format version:%d in DB",
+							ver.v.int_v);
 					return false;
 				}
 			} else
@@ -328,8 +328,8 @@ namespace ardb
 								uint64 sleep = check_period;
 								if (adb->m_min_expireat > end)
 								{
-									sleep = (adb->m_min_expireat - end)/1000;
-									if(sleep > check_period)
+									sleep = (adb->m_min_expireat - end) / 1000;
+									if (sleep > check_period)
 									{
 										sleep = check_period;
 									}
@@ -448,15 +448,15 @@ namespace ardb
 		if (type < 0)
 		{
 			ZSetScoreKeyObject zk(key, empty, db);
-			GET_KEY_TYPE( zk, type);
+			GET_KEY_TYPE(zk, type);
 			if (type < 0)
 			{
 				HashKeyObject hk(key, empty, db);
-				GET_KEY_TYPE( hk, type);
+				GET_KEY_TYPE(hk, type);
 				if (type < 0)
 				{
 					KeyObject lk(key, LIST_META, db);
-					GET_KEY_TYPE( lk, type);
+					GET_KEY_TYPE(lk, type);
 					if (type < 0)
 					{
 						KeyObject tk(key, TABLE_META, db);
@@ -557,8 +557,8 @@ namespace ardb
 			if (NULL != kk)
 			{
 				std::string str;
-				DEBUG_LOG(
-						"[%d]Key=%s, Value=%s", kk->type, kk->key.data(), v.ToString(str).c_str());
+				DEBUG_LOG("[%d]Key=%s, Value=%s", kk->type, kk->key.data(),
+						v.ToString(str).c_str());
 			}
 			DELETE(kk);
 			iter->Next();

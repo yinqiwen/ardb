@@ -68,6 +68,7 @@ namespace ardb
 #define INFO_ENABLED()  ((ardb::ArdbLogger::GetLogChecker())(ardb::INFO_LOG_LEVEL))
 #define FATAL_ENABLED() ((ardb::ArdbLogger::GetLogChecker())(ardb::FATAL_LOG_LEVEL))
 #define WARN_ENABLED() ((ardb::ArdbLogger::GetLogChecker())(ardb::WARN_LOG_LEVEL))
+#define LOG_ENABLED(level) ((ardb::ArdbLogger::GetLogChecker())(level))
 
 #define DEBUG_LOG(...) do {\
    if(DEBUG_ENABLED())\
@@ -110,5 +111,12 @@ namespace ardb
 			(*(ardb::ArdbLogger::GetLogHandler()))(ardb::INFO_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
 		}\
 	}while(0)
+
+#define LOG_WITH_LEVEL(level, ...) do {\
+   if(LOG_ENABLED(level))\
+   {                 \
+	   (*(ardb::ArdbLogger::GetLogHandler()))(level, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
+   }\
+}while(0)
 
 #endif /* LOGGER_MACROS_HPP_ */

@@ -126,6 +126,8 @@ namespace ardb
 
 	std::string random_string(uint32 len);
 	std::string random_hex_string(uint32 len);
+
+	std::string sha1_sum(const std::string& str);
 }
 
 #endif /* STRING_HELPER_HPP_ */

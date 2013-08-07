@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -37,6 +37,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <sys/time.h>
+#include "util/sha1.h"
 
 namespace ardb
 {
@@ -546,47 +547,71 @@ namespace ardb
 	 * given execution of Redis, so that if you are talking with an instance
 	 * having run_id == A, and you reconnect and it has run_id == B, you can be
 	 * sure that it is either a different instance or it was restarted. */
-	std::string random_hex_string(uint32 len) {
+	std::string random_hex_string(uint32 len)
+	{
 		char p[len];
-	    FILE *fp = fopen("/dev/urandom","r");
-	    const char *charset = "0123456789abcdef";
-	    unsigned int j;
+		FILE *fp = fopen("/dev/urandom", "r");
+		const char *charset = "0123456789abcdef";
+		unsigned int j;
 
-	    if (fp == NULL || fread(p,len,1,fp) == 0) {
-	        /* If we can't read from /dev/urandom, do some reasonable effort
-	         * in order to create some entropy, since this function is used to
-	         * generate run_id and cluster instance IDs */
-	        char *x = p;
-	        unsigned int l = len;
-	        struct timeval tv;
-	        pid_t pid = getpid();
+		if (fp == NULL || fread(p, len, 1, fp) == 0)
+		{
+			/* If we can't read from /dev/urandom, do some reasonable effort
+			 * in order to create some entropy, since this function is used to
+			 * generate run_id and cluster instance IDs */
+			char *x = p;
+			unsigned int l = len;
+			struct timeval tv;
+			pid_t pid = getpid();
 
-	        /* Use time and PID to fill the initial array. */
-	        gettimeofday(&tv,NULL);
-	        if (l >= sizeof(tv.tv_usec)) {
-	            memcpy(x,&tv.tv_usec,sizeof(tv.tv_usec));
-	            l -= sizeof(tv.tv_usec);
-	            x += sizeof(tv.tv_usec);
-	        }
-	        if (l >= sizeof(tv.tv_sec)) {
-	            memcpy(x,&tv.tv_sec,sizeof(tv.tv_sec));
-	            l -= sizeof(tv.tv_sec);
-	            x += sizeof(tv.tv_sec);
-	        }
-	        if (l >= sizeof(pid)) {
-	            memcpy(x,&pid,sizeof(pid));
-	            l -= sizeof(pid);
-	            x += sizeof(pid);
-	        }
-	        /* Finally xor it with rand() output, that was already seeded with
-	         * time() at startup. */
-	        for (j = 0; j < len; j++)
-	            p[j] ^= rand();
-	    }
-	    /* Turn it into hex digits taking just 4 bits out of 8 for every byte. */
-	    for (j = 0; j < len; j++)
-	        p[j] = charset[p[j] & 0x0F];
-	    fclose(fp);
-	    return std::string(p, len);
+			/* Use time and PID to fill the initial array. */
+			gettimeofday(&tv, NULL);
+			if (l >= sizeof(tv.tv_usec))
+			{
+				memcpy(x, &tv.tv_usec, sizeof(tv.tv_usec));
+				l -= sizeof(tv.tv_usec);
+				x += sizeof(tv.tv_usec);
+			}
+			if (l >= sizeof(tv.tv_sec))
+			{
+				memcpy(x, &tv.tv_sec, sizeof(tv.tv_sec));
+				l -= sizeof(tv.tv_sec);
+				x += sizeof(tv.tv_sec);
+			}
+			if (l >= sizeof(pid))
+			{
+				memcpy(x, &pid, sizeof(pid));
+				l -= sizeof(pid);
+				x += sizeof(pid);
+			}
+			/* Finally xor it with rand() output, that was already seeded with
+			 * time() at startup. */
+			for (j = 0; j < len; j++)
+				p[j] ^= rand();
+		}
+		/* Turn it into hex digits taking just 4 bits out of 8 for every byte. */
+		for (j = 0; j < len; j++)
+			p[j] = charset[p[j] & 0x0F];
+		fclose(fp);
+		return std::string(p, len);
+	}
+
+	std::string sha1_sum(const std::string& str)
+	{
+		SHA1_CTX ctx;
+		unsigned char hash[20];
+		const char *cset = "0123456789abcdef";
+		int j;
+
+		SHA1Init(&ctx);
+		SHA1Update(&ctx, (unsigned char*) str.data(), str.size());
+		SHA1Final(hash, &ctx);
+		char digest[40];
+		for (j = 0; j < 20; j++)
+		{
+			digest[j * 2] = cset[((hash[j] & 0xF0) >> 4)];
+			digest[j * 2 + 1] = cset[(hash[j] & 0xF)];
+		}
+		return std::string(digest, 40);
 	}
 }

@@ -11,9 +11,21 @@
 #include <string>
 #include <btree_map.h>
 #include <btree_set.h>
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
+#ifdef __cplusplus
+}
+#endif
+
+#include "channel/all_includes.hpp"
+#include "ardb_data.hpp"
+
+using namespace ardb::codec;
 
 namespace ardb
 {
@@ -32,10 +44,12 @@ namespace ardb
 			static int MathRandomSeed(lua_State *lua);
 			int LoadLibs();
 			int RemoveUnsupportedFunctions();
-
+			int CreateLuaFunction(const std::string& funcname, const std::string& body, std::string& err);
 		public:
 			LUAInterpreter();
 			int Init();
+			int Eval(const std::string& func, SliceArray& keys,
+					SliceArray& args, bool isSHA1Func, RedisReply& reply);
 			~LUAInterpreter();
 	};
 }

@@ -67,9 +67,9 @@ KCDB_PATH=${LIB_PATH}/${KCDB_VER}
 KCDB_FILE=${KCDB_PATH}.tar.gz
 KCDB_LIBA=${KCDB_PATH}/libkyotocabinet.a
 
-LUA_VER=lua-5.2.2
+LUA_VER=lua
 LUA_PATH=${LIB_PATH}/${LUA_VER}
-LUA_FILE=${LUA_PATH}.tar.gz
+#LUA_FILE=${LUA_PATH}.tar.gz
 LUA_LIBA=${LUA_PATH}/src/liblua.a
 
 OPTIMIZATION?=-O2
@@ -78,6 +78,9 @@ OPT=$(OPTIMIZATION)
 CXXFLAGS=-Wall -g  ${OPT}  -fPIC -D__STDC_FORMAT_MACROS
 CCFLAGS=-Wall -std=gnu99 ${OPT} -pedantic -g -fPIC -D__STDC_FORMAT_MACROS
 LDFLAGS=-g 
+
+LUA_CFLAGS+= -O2 -Wall -DLUA_ANSI $(CCFLAGS)
+LUA_LDFLAGS+= $(LDFLAGS)
 
 INCS=-I./  -I${LIB_PATH}/cpp-btree  -I${LUA_PATH}/src
 
@@ -165,7 +168,7 @@ $(DIST_LIB):$(CORE_OBJECTS)
 $(DIST_LIBA):$(CORE_OBJECTS)
 	ar rcs $@ $^
 
-lib:$(DEP_LIBS) $(DIST_LIBA)
+lib:$(DEP_LIBS) $(DIST_LIBA) lua
 
 server:${STORAGE_ENGINE} lib clean_launch_obj $(SERVER_OBJECTS) $(CHANNEL_OBJECTS) 
 	${CXX} -o ardb-server $(SERVER_OBJECTS)  $(CORE_OBJECTS) $(CHANNEL_OBJECTS) ${STORAGE_ENGINE_OBJ} $(LIBS)
@@ -225,8 +228,7 @@ lua:
 	@if test -f ${LUA_LIBA}; then\
       :; \
     else \
-      cd ${LIB_PATH};tar zxvf ${LUA_FILE};cd ${LUA_PATH};\
-      make mingw;\
+      cd ${LIB_PATH};cd ${LUA_PATH}/src; make all CFLAGS="$(LUA_CFLAGS)" MYLDFLAGS="$(LUA_LDFLAGS)";\
     fi
 
 clean_launch_obj:
