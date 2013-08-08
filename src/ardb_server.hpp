@@ -37,6 +37,7 @@
 #include "util/thread/thread_local.hpp"
 #include "ardb.hpp"
 #include "replication.hpp"
+#include "lua_scripting.hpp"
 
 using namespace ardb::codec;
 namespace ardb
@@ -83,86 +84,6 @@ namespace ardb
 					        1), repl_max_backup_logs(100), master_port(0), repl_log_enable(
 					        true), worker_count(1), loglevel("INFO")
 			{
-			}
-	};
-
-	struct WatchKey
-	{
-			DBID db;
-			std::string key;
-			WatchKey() :
-					db(0)
-			{
-			}
-			WatchKey(const DBID& id, const std::string& k) :
-					db(id), key(k)
-			{
-			}
-			inline bool operator<(const WatchKey& other) const
-			{
-				if (db > other.db)
-				{
-					return false;
-				}
-				if (db == other.db)
-				{
-					return key < other.key;
-				}
-				return true;
-			}
-	};
-
-	typedef std::deque<RedisCommandFrame> TransactionCommandQueue;
-	typedef std::set<WatchKey> WatchKeySet;
-	typedef std::set<std::string> PubSubChannelSet;
-
-	struct ArdbConnContext
-	{
-			DBID currentDB;
-			Channel* conn;
-			RedisReply reply;
-			bool in_transaction;
-			bool fail_transc;
-			bool is_slave_conn;
-			TransactionCommandQueue* transaction_cmds;
-			WatchKeySet* watch_key_set;
-			PubSubChannelSet* pubsub_channle_set;
-			PubSubChannelSet* pattern_pubsub_channle_set;
-			ArdbConnContext() :
-					currentDB(0), conn(NULL), in_transaction(false), fail_transc(
-					        false), is_slave_conn(false), transaction_cmds(
-					        NULL), watch_key_set(NULL), pubsub_channle_set(
-					        NULL), pattern_pubsub_channle_set(NULL)
-			{
-			}
-			uint64 SubChannelSize()
-			{
-				uint32 size = 0;
-				if (NULL != pubsub_channle_set)
-				{
-					size = pubsub_channle_set->size();
-				}
-				if (NULL != pattern_pubsub_channle_set)
-				{
-					size += pattern_pubsub_channle_set->size();
-				}
-				return size;
-			}
-			bool IsSubscribedConn()
-			{
-				return NULL != pubsub_channle_set
-				        || NULL != pattern_pubsub_channle_set;
-			}
-			bool IsInTransaction()
-			{
-				return in_transaction && NULL != transaction_cmds;
-			}
-			~ArdbConnContext()
-			{
-				DELETE(transaction_cmds);
-				DELETE(watch_key_set);
-				DELETE(pubsub_channle_set);
-				DELETE(pattern_pubsub_channle_set);
 			}
 	};
 
@@ -273,6 +194,7 @@ namespace ardb
 			struct RedisCommandHandlerSetting
 			{
 					const char* name;
+					RedisCommandType type;
 					RedisCommandHandler handler;
 					int min_arity;
 					int max_arity;
@@ -302,6 +224,7 @@ namespace ardb
 			ThreadMutex m_pubsub_mutex;
 			//ArdbConnContext* m_current_ctx;
 			ThreadLocal<ArdbConnContext*> m_ctx_local;
+			ThreadLocal<LUAInterpreter*> m_ctx_lua;
 
 			RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(
 			        std::string& cmd);
@@ -493,6 +416,10 @@ namespace ardb
 			int SClear(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int ZClear(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int LClear(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+
+			int Eval(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int EvalSHA(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Script(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
 			Timer& GetTimer();
 		public:

@@ -38,6 +38,7 @@ namespace ardb
 {
 	namespace codec
 	{
+
 		class RedisCommandDecoder: public StackFrameDecoder<RedisCommandFrame>
 		{
 			protected:

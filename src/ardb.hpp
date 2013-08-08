@@ -45,6 +45,7 @@
 #include "util/thread/thread_mutex.hpp"
 #include "util/thread/thread_mutex_lock.hpp"
 #include "util/thread/lock_guard.hpp"
+#include "channel/all_includes.hpp"
 
 #define ARDB_OK 0
 #define ERR_INVALID_ARGS -3
@@ -56,9 +57,10 @@
 #define ERR_OUTOFRANGE -9
 #define ERR_NOT_EXIST -10
 
+using namespace ardb::codec;
+
 namespace ardb
 {
-
 	struct Iterator
 	{
 			virtual void Next() = 0;
@@ -161,6 +163,86 @@ namespace ardb
 			virtual int OnRawKeyValue(const Slice& key, const Slice& value) = 0;
 			virtual ~RawValueVisitor()
 			{
+			}
+	};
+
+	struct WatchKey
+	{
+			DBID db;
+			std::string key;
+			WatchKey() :
+					db(0)
+			{
+			}
+			WatchKey(const DBID& id, const std::string& k) :
+					db(id), key(k)
+			{
+			}
+			inline bool operator<(const WatchKey& other) const
+			{
+				if (db > other.db)
+				{
+					return false;
+				}
+				if (db == other.db)
+				{
+					return key < other.key;
+				}
+				return true;
+			}
+	};
+
+	typedef std::deque<RedisCommandFrame> TransactionCommandQueue;
+	typedef std::set<WatchKey> WatchKeySet;
+	typedef std::set<std::string> PubSubChannelSet;
+
+	struct ArdbConnContext
+	{
+			DBID currentDB;
+			Channel* conn;
+			RedisReply reply;
+			bool in_transaction;
+			bool fail_transc;
+			bool is_slave_conn;
+			TransactionCommandQueue* transaction_cmds;
+			WatchKeySet* watch_key_set;
+			PubSubChannelSet* pubsub_channle_set;
+			PubSubChannelSet* pattern_pubsub_channle_set;
+			ArdbConnContext() :
+					currentDB(0), conn(NULL), in_transaction(false), fail_transc(
+							false), is_slave_conn(false), transaction_cmds(
+					NULL), watch_key_set(NULL), pubsub_channle_set(
+					NULL), pattern_pubsub_channle_set(NULL)
+			{
+			}
+			uint64 SubChannelSize()
+			{
+				uint32 size = 0;
+				if (NULL != pubsub_channle_set)
+				{
+					size = pubsub_channle_set->size();
+				}
+				if (NULL != pattern_pubsub_channle_set)
+				{
+					size += pattern_pubsub_channle_set->size();
+				}
+				return size;
+			}
+			bool IsSubscribedConn()
+			{
+				return NULL != pubsub_channle_set
+						|| NULL != pattern_pubsub_channle_set;
+			}
+			bool IsInTransaction()
+			{
+				return in_transaction && NULL != transaction_cmds;
+			}
+			~ArdbConnContext()
+			{
+				DELETE(transaction_cmds);
+				DELETE(watch_key_set);
+				DELETE(pubsub_channle_set);
+				DELETE(pattern_pubsub_channle_set);
 			}
 	};
 
@@ -514,9 +596,11 @@ namespace ardb
 			int SCard(const DBID& db, const Slice& key);
 			int SMembers(const DBID& db, const Slice& key, ValueArray& values);
 			int SRange(const DBID& db, const Slice& key,
-					const Slice& value_begin, int count, bool with_begin, ValueArray& values);
+					const Slice& value_begin, int count, bool with_begin,
+					ValueArray& values);
 			int SRevRange(const DBID& db, const Slice& key,
-								const Slice& value_end, int count, bool with_end,ValueArray& values);
+					const Slice& value_end, int count, bool with_end,
+					ValueArray& values);
 			int SDiff(const DBID& db, SliceArray& keys, ValueSet& values);
 			int SDiffCount(const DBID& db, SliceArray& keys, uint32& count);
 			int SDiffStore(const DBID& db, const Slice& dst, SliceArray& keys);
