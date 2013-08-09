@@ -29,10 +29,12 @@ using namespace ardb::codec;
 
 namespace ardb
 {
+	class ArdbServer;
 	class LUAInterpreter
 	{
 		private:
 			lua_State *m_lua;
+			ArdbServer* m_server;
 
 			static int PCall(lua_State *lua);
 			static int Call(lua_State *lua);
@@ -45,9 +47,9 @@ namespace ardb
 			int LoadLibs();
 			int RemoveUnsupportedFunctions();
 			int CreateLuaFunction(const std::string& funcname, const std::string& body, std::string& err);
-		public:
-			LUAInterpreter();
 			int Init();
+		public:
+			LUAInterpreter(ArdbServer* server);
 			int Eval(const std::string& func, SliceArray& keys,
 					SliceArray& args, bool isSHA1Func, RedisReply& reply);
 			~LUAInterpreter();

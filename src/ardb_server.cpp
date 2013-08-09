@@ -427,6 +427,11 @@ namespace ardb
 
 	}
 
+	static LUAInterpreter* luaCreator(void* data){
+		ArdbServer* server = (ArdbServer*)data;
+		return new LUAInterpreter(server);
+	}
+
 	int ArdbServer::Eval(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
 		uint32 numkey = 0;
@@ -450,8 +455,8 @@ namespace ardb
         {
           	args.push_back(cmd.GetArguments()[i]);
         }
-		LUAInterpreter* lua = m_ctx_lua.GetValue();
-		lua->Eval(cmd.GetArguments()[0],keys, args, false, ctx.reply);
+		LUAInterpreter& lua = m_ctx_lua.GetValue(luaCreator, this);
+		lua.Eval(cmd.GetArguments()[0],keys, args, false, ctx.reply);
 		return 0;
 	}
 
@@ -478,8 +483,8 @@ namespace ardb
 		{
 		    args.push_back(cmd.GetArguments()[i]);
 		}
-	    LUAInterpreter* lua = m_ctx_lua.GetValue();
-		lua->Eval(cmd.GetArguments()[0],keys, args, true, ctx.reply);
+	    LUAInterpreter& lua = m_ctx_lua.GetValue(luaCreator, this);
+		lua.Eval(cmd.GetArguments()[0],keys, args, true, ctx.reply);
 		return 0;
 	}
 

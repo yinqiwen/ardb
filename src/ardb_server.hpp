@@ -224,7 +224,7 @@ namespace ardb
 			ThreadMutex m_pubsub_mutex;
 			//ArdbConnContext* m_current_ctx;
 			ThreadLocal<ArdbConnContext*> m_ctx_local;
-			ThreadLocal<LUAInterpreter*> m_ctx_lua;
+			ThreadLocal<LUAInterpreter> m_ctx_lua;
 
 			RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(
 			        std::string& cmd);
@@ -240,6 +240,7 @@ namespace ardb
 			friend class OpLogs;
 			friend class RedisRequestHandler;
 			friend class SlaveClient;
+			friend class LUAInterpreter;
 
 			void FillInfoResponse(const std::string& section, std::string& content);
 

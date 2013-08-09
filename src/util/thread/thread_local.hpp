@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -69,6 +69,22 @@ namespace ardb
 				}
 				return *local_thread_value;
 			}
+
+			typedef T* InstanceCreator(void* data);
+
+			T& GetValue(InstanceCreator* creator, void* data)
+			{
+				T* local_thread_value = static_cast<T*>(pthread_getspecific(
+						m_key));
+				if (NULL == local_thread_value)
+				{
+					T* newObj = creator(data);
+					pthread_setspecific(m_key, newObj);
+					local_thread_value = newObj;
+				}
+				return *local_thread_value;
+			}
+
 			void SetValue(const T& v)
 			{
 				T& t = GetValue();
