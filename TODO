@@ -118,12 +118,12 @@ MULTI                                      DONE
 UNWATCH                                    DONE
 WATCH key [key ...]                        DONE
 
-EVAL script numkeys key [key ...] arg      NotYet
-EVALSHA sha1 numkeys key [key ...] arg     NotYet
-SCRIPT EXISTS script [script ...]          NotYet
-SCRIPT FLUSH                               NotYet   
-SCRIPT KILL                                NotYet
-SCRIPT LOAD script                         NotYet
+EVAL script numkeys key [key ...] arg      DONE
+EVALSHA sha1 numkeys key [key ...] arg     DONE
+SCRIPT EXISTS script [script ...]          DONE
+SCRIPT FLUSH                               DONE   
+SCRIPT KILL                                DONE
+SCRIPT LOAD script                         DONE
 
 AUTH password                              NotYet
 ECHO message                               DONE

@@ -37,6 +37,8 @@
 #include <stdio.h>
 #include <time.h>
 #include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include "util/sha1.h"
 
 namespace ardb
@@ -94,7 +96,7 @@ namespace ardb
 			start++;
 		}
 		while (end > start && end < str_len
-				&& cset.find(str.at(end)) != std::string::npos)
+		        && cset.find(str.at(end)) != std::string::npos)
 		{
 			end--;
 		}
@@ -124,14 +126,14 @@ namespace ardb
 	}
 
 	std::vector<std::string> split_string(const std::string& str,
-			const std::string& sep)
+	        const std::string& sep)
 	{
 		std::vector<std::string> ret;
 		size_t start = 0;
 		size_t str_len = str.size();
 		size_t found = std::string::npos;
 		while (start < str_len
-				&& (found = str.find(sep, start)) != std::string::npos)
+		        && (found = str.find(sep, start)) != std::string::npos)
 		{
 			if (found > start)
 			{
@@ -147,7 +149,7 @@ namespace ardb
 	}
 
 	void split_string(const std::string& strs, const std::string& sp,
-			std::vector<std::string>& res)
+	        std::vector<std::string>& res)
 	{
 		std::string::size_type pos1, pos2;
 
@@ -165,14 +167,14 @@ namespace ardb
 	}
 
 	int string_replace(std::string& str, const std::string& pattern,
-			const std::string& newpat)
+	        const std::string& newpat)
 	{
 		int count = 0;
 		const size_t nsize = newpat.size();
 		const size_t psize = pattern.size();
 
 		for (size_t pos = str.find(pattern, 0); pos != std::string::npos; pos =
-				str.find(pattern, pos + nsize))
+		        str.find(pattern, pos + nsize))
 		{
 			str.replace(pos, psize, newpat);
 			count++;
@@ -345,7 +347,7 @@ namespace ardb
 	{
 		static const double powers_of_10[] =
 			{ 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000,
-					1000000000 };
+			        1000000000 };
 		/* Hacky test for NaN
 		 * under -fast-math this won't work, but then you also won't
 		 * have correct nan values anyways.  The alternative is
@@ -373,7 +375,8 @@ namespace ardb
 		if (prec < 0)
 		{
 			prec = 0;
-		} else if (prec > 9)
+		}
+		else if (prec > 9)
 		{
 			/* precision of >= 10 can lead to overflow errors */
 			prec = 9;
@@ -402,7 +405,8 @@ namespace ardb
 				frac = 0;
 				++whole;
 			}
-		} else if (diff == 0.5 && ((frac == 0) || (frac & 1)))
+		}
+		else if (diff == 0.5 && ((frac == 0) || (frac & 1)))
 		{
 			/* if halfway, round up if odd, OR
 			 if last digit is 0.  That last part is strange */
@@ -434,7 +438,8 @@ namespace ardb
 			{
 				/* greater than 0.5, round up, e.g. 1.6 -> 2 */
 				++whole;
-			} else if (diff == 0.5 && (whole & 1))
+			}
+			else if (diff == 0.5 && (whole & 1))
 			{
 				/* exactly 0.5 and ODD, then round up */
 				/* 1.5 -> 2, but 2.5 -> 2 */
@@ -442,7 +447,8 @@ namespace ardb
 			}
 
 			//vvvvvvvvvvvvvvvvvvv  Diff from modp_dto2
-		} else if (frac)
+		}
+		else if (frac)
 		{
 			count = prec;
 			// now do fractional part, as an unsigned number
@@ -461,7 +467,8 @@ namespace ardb
 				--count;
 				ensure_space(str, slen, wstr);
 				*wstr++ = (char) (48 + (frac % 10));
-			} while (frac /= 10);
+			}
+			while (frac /= 10);
 			// add extra 0s
 			while (count-- > 0)
 			{
@@ -480,7 +487,8 @@ namespace ardb
 		{
 			ensure_space(str, slen, wstr);
 			*wstr++ = (char) (48 + (whole % 10));
-		} while (whole /= 10);
+		}
+		while (whole /= 10);
 		if (neg)
 		{
 			ensure_space(str, slen, wstr);
@@ -497,11 +505,11 @@ namespace ardb
 	int fast_itoa(char* dst, uint32 dstlen, uint64 value)
 	{
 		static const char digits[201] =
-				"0001020304050607080910111213141516171819"
-						"2021222324252627282930313233343536373839"
-						"4041424344454647484950515253545556575859"
-						"6061626364656667686970717273747576777879"
-						"8081828384858687888990919293949596979899";
+		        "0001020304050607080910111213141516171819"
+				        "2021222324252627282930313233343536373839"
+				        "4041424344454647484950515253545556575859"
+				        "6061626364656667686970717273747576777879"
+				        "8081828384858687888990919293949596979899";
 		uint32_t const length = digits10(value);
 		if (length >= dstlen)
 		{
@@ -520,7 +528,8 @@ namespace ardb
 		if (value < 10)
 		{
 			dst[next] = '0' + uint32_t(value);
-		} else
+		}
+		else
 		{
 			uint32 i = uint32(value) * 2;
 			dst[next] = digits[i + 1];
@@ -604,7 +613,26 @@ namespace ardb
 		int j;
 
 		SHA1Init(&ctx);
-		SHA1Update(&ctx, (unsigned char*) str.data(), str.size());
+		SHA1Update(&ctx, (const unsigned char*) str.data(), str.size());
+		SHA1Final(hash, &ctx);
+		char digest[40];
+		for (j = 0; j < 20; j++)
+		{
+			digest[j * 2] = cset[((hash[j] & 0xF0) >> 4)];
+			digest[j * 2 + 1] = cset[(hash[j] & 0xF)];
+		}
+		return std::string(digest, 40);
+	}
+
+	std::string sha1_sum_data(const void* data, size_t len)
+	{
+		SHA1_CTX ctx;
+		unsigned char hash[20];
+		const char *cset = "0123456789abcdef";
+		int j;
+
+		SHA1Init(&ctx);
+		SHA1Update(&ctx, (const unsigned char*)data, len);
 		SHA1Final(hash, &ctx);
 		char digest[40];
 		for (j = 0; j < 20; j++)
@@ -618,66 +646,84 @@ namespace ardb
 	/* Convert a string into a long long. Returns 1 if the string could be parsed
 	 * into a (non-overflowing) long long, 0 otherwise. The value will be set to
 	 * the parsed value when appropriate. */
-	int string2ll(const char *s, size_t slen, long long *value) {
-	    const char *p = s;
-	    size_t plen = 0;
-	    int negative = 0;
-	    unsigned long long v;
+	int string2ll(const char *s, size_t slen, long long *value)
+	{
+		const char *p = s;
+		size_t plen = 0;
+		int negative = 0;
+		unsigned long long v;
 
-	    if (plen == slen)
-	        return 0;
+		if (plen == slen)
+			return 0;
 
-	    /* Special case: first and only digit is 0. */
-	    if (slen == 1 && p[0] == '0') {
-	        if (value != NULL) *value = 0;
-	        return 1;
-	    }
+		/* Special case: first and only digit is 0. */
+		if (slen == 1 && p[0] == '0')
+		{
+			if (value != NULL)
+				*value = 0;
+			return 1;
+		}
 
-	    if (p[0] == '-') {
-	        negative = 1;
-	        p++; plen++;
+		if (p[0] == '-')
+		{
+			negative = 1;
+			p++;
+			plen++;
 
-	        /* Abort on only a negative sign. */
-	        if (plen == slen)
-	            return 0;
-	    }
+			/* Abort on only a negative sign. */
+			if (plen == slen)
+				return 0;
+		}
 
-	    /* First digit should be 1-9, otherwise the string should just be 0. */
-	    if (p[0] >= '1' && p[0] <= '9') {
-	        v = p[0]-'0';
-	        p++; plen++;
-	    } else if (p[0] == '0' && slen == 1) {
-	        *value = 0;
-	        return 1;
-	    } else {
-	        return 0;
-	    }
+		/* First digit should be 1-9, otherwise the string should just be 0. */
+		if (p[0] >= '1' && p[0] <= '9')
+		{
+			v = p[0] - '0';
+			p++;
+			plen++;
+		}
+		else if (p[0] == '0' && slen == 1)
+		{
+			*value = 0;
+			return 1;
+		}
+		else
+		{
+			return 0;
+		}
 
-	    while (plen < slen && p[0] >= '0' && p[0] <= '9') {
-	        if (v > (ULLONG_MAX / 10)) /* Overflow. */
-	            return 0;
-	        v *= 10;
+		while (plen < slen && p[0] >= '0' && p[0] <= '9')
+		{
+			if (v > (ULLONG_MAX / 10)) /* Overflow. */
+				return 0;
+			v *= 10;
 
-	        if (v > (ULLONG_MAX - (p[0]-'0'))) /* Overflow. */
-	            return 0;
-	        v += p[0]-'0';
+			if (v > (ULLONG_MAX - (p[0] - '0'))) /* Overflow. */
+				return 0;
+			v += p[0] - '0';
 
-	        p++; plen++;
-	    }
+			p++;
+			plen++;
+		}
 
-	    /* Return if not all bytes were used. */
-	    if (plen < slen)
-	        return 0;
+		/* Return if not all bytes were used. */
+		if (plen < slen)
+			return 0;
 
-	    if (negative) {
-	        if (v > ((unsigned long long)(-(LLONG_MIN+1))+1)) /* Overflow. */
-	            return 0;
-	        if (value != NULL) *value = -v;
-	    } else {
-	        if (v > LLONG_MAX) /* Overflow. */
-	            return 0;
-	        if (value != NULL) *value = v;
-	    }
-	    return 1;
+		if (negative)
+		{
+			if (v > ((unsigned long long) (-(LLONG_MIN + 1)) + 1)) /* Overflow. */
+				return 0;
+			if (value != NULL)
+				*value = -v;
+		}
+		else
+		{
+			if (v > LLONG_MAX) /* Overflow. */
+				return 0;
+			if (value != NULL)
+				*value = v;
+		}
+		return 1;
 	}
 }

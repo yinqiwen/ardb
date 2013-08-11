@@ -77,4 +77,7 @@
 }while(0)
 
 
+/* Anti-warning macro... */
+#define ARDB_NOTUSED(V) ((void) V)
+
 #endif /* DEBUG_H_ */

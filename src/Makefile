@@ -116,9 +116,9 @@ CHANNEL_OBJECTS := $(CHANNEL_OBJECTS) $(patsubst %.c, %.o, $(CHANNEL_CFILES))
 
 UTIL_VPATH=./util ./util/exception  ./util/thread
 UTIL_CPPFILES := $(foreach dir, $(UTIL_VPATH), $(wildcard $(dir)/*.cpp))
-UTIL_OBJECTS := $(patsubst %.cpp, %.o, $(UTIL_CPPFILES)) ./util/sha1.o
+UTIL_OBJECTS := $(patsubst %.cpp, %.o, $(UTIL_CPPFILES)) ./util/sha1.o ./util/rand.o
 CORE_OBJECTS := ardb.o ardb_data.o hash.o kv.o lists.o logger.o sets.o \
-                zsets.o strings.o bits.o table.o sort.o lua_scripting.o\
+                zsets.o strings.o bits.o table.o sort.o \
                 $(UTIL_OBJECTS)
 
 LEVELDB_ENGINE :=  engine/leveldb_engine.o       
@@ -126,7 +126,7 @@ KCDB_ENGINE :=  engine/kyotocabinet_engine.o
 LMDB_ENGINE :=  engine/lmdb_engine.o     
 TESTOBJ := ../test/ardb_test.o
 
-SERVER_OBJECTS := ardb_server.o transaction.o slowlog.o clients.o replication.o pubsub.o oplogs.o main.o
+SERVER_OBJECTS := ardb_server.o lua_scripting.o transaction.o slowlog.o clients.o replication.o pubsub.o oplogs.o main.o
 
 #DIST_LIB = libardb.so
 DIST_LIBA = libardb.a

@@ -135,6 +135,12 @@ namespace ardb
 				v.int_v = 0;
 				Copy(other);
 			}
+			ValueObject(const std::string& str) :
+					type(RAW)
+			{
+				v.raw = new Buffer(str.size());
+				v.raw->Write(str.data(), str.size());
+			}
 			ValueObject & operator=(const ValueObject &rhs)
 			{
 				Copy(rhs);

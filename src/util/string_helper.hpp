@@ -128,6 +128,7 @@ namespace ardb
 	std::string random_hex_string(uint32 len);
 
 	std::string sha1_sum(const std::string& str);
+	std::string sha1_sum_data(const void* data,size_t len);
 
 	int string2ll(const char *s, size_t slen, long long *value);
 }

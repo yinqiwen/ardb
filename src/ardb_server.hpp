@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -39,6 +39,22 @@
 #include "replication.hpp"
 #include "lua_scripting.hpp"
 
+/* Command flags. Please check the command table defined in the redis.c file
+ * for more information about the meaning of every flag. */
+#define ARDB_CMD_WRITE 1                   /* "w" flag */
+#define ARDB_CMD_READONLY 2                /* "r" flag */
+//#define ARDB_CMD_DENYOOM 4                 /* "m" flag */
+//#define ARDB_CMD_NOT_USED_1 8              /* no longer used flag */
+#define ARDB_CMD_ADMIN 16                  /* "a" flag */
+#define ARDB_CMD_PUBSUB 32                 /* "p" flag */
+#define ARDB_CMD_NOSCRIPT  64              /* "s" flag */
+#define ARDB_CMD_RANDOM 128                /* "R" flag */
+//#define ARDB_CMD_SORT_FOR_SCRIPT 256       /* "S" flag */
+//#define ARDB_CMD_LOADING 512               /* "l" flag */
+//#define ARDB_CMD_STALE 1024                /* "t" flag */
+//#define ARDB_CMD_SKIP_MONITOR 2048         /* "M" flag */
+//#define ARDB_CMD_ASKING 4096               /* "k" flag */
+
 using namespace ardb::codec;
 namespace ardb
 {
@@ -66,6 +82,8 @@ namespace ardb
 			int64 repl_syncstate_persist_period;
 			int64 repl_max_backup_logs;
 
+			int64 lua_time_limit;
+
 			std::string master_host;
 			uint32 master_port;
 
@@ -81,8 +99,9 @@ namespace ardb
 					        10000), slowlog_max_len(128), repl_data_dir(
 					        "./repl"), backup_dir("./backup"), repl_ping_slave_period(
 					        10), repl_timeout(60), repl_backlog_size(1000000), repl_syncstate_persist_period(
-					        1), repl_max_backup_logs(100), master_port(0), repl_log_enable(
-					        true), worker_count(1), loglevel("INFO")
+					        1), repl_max_backup_logs(100), lua_time_limit(0), master_port(
+					        0), repl_log_enable(true), worker_count(1), loglevel(
+					        "INFO")
 			{
 			}
 	};
@@ -166,6 +185,96 @@ namespace ardb
 			}
 	};
 
+
+
+	struct WatchKey
+	{
+			DBID db;
+			std::string key;
+			WatchKey() :
+					db(0)
+			{
+			}
+			WatchKey(const DBID& id, const std::string& k) :
+					db(id), key(k)
+			{
+			}
+			inline bool operator<(const WatchKey& other) const
+			{
+				if (db > other.db)
+				{
+					return false;
+				}
+				if (db == other.db)
+				{
+					return key < other.key;
+				}
+				return true;
+			}
+	};
+
+	typedef std::deque<RedisCommandFrame> TransactionCommandQueue;
+	typedef std::set<WatchKey> WatchKeySet;
+	typedef std::set<std::string> PubSubChannelSet;
+
+	struct ArdbConnContext
+	{
+			DBID currentDB;
+			Channel* conn;
+			RedisReply reply;
+			bool in_transaction;
+			bool fail_transc;
+			bool is_slave_conn;
+			TransactionCommandQueue* transaction_cmds;
+			WatchKeySet* watch_key_set;
+			PubSubChannelSet* pubsub_channle_set;
+			PubSubChannelSet* pattern_pubsub_channle_set;
+
+			uint64 lua_time_start;
+			bool lua_timeout;
+			bool lua_kill;
+			const char* lua_executing_func;
+
+			ArdbConnContext() :
+					currentDB(0), conn(NULL), in_transaction(false), fail_transc(
+					        false), is_slave_conn(false), transaction_cmds(
+					        NULL), watch_key_set(NULL), pubsub_channle_set(
+					        NULL), pattern_pubsub_channle_set(NULL), lua_time_start(
+					        0), lua_timeout(false), lua_kill(false), lua_executing_func(
+					        NULL)
+			{
+			}
+			uint64 SubChannelSize()
+			{
+				uint32 size = 0;
+				if (NULL != pubsub_channle_set)
+				{
+					size = pubsub_channle_set->size();
+				}
+				if (NULL != pattern_pubsub_channle_set)
+				{
+					size += pattern_pubsub_channle_set->size();
+				}
+				return size;
+			}
+			bool IsSubscribedConn()
+			{
+				return NULL != pubsub_channle_set
+				        || NULL != pattern_pubsub_channle_set;
+			}
+			bool IsInTransaction()
+			{
+				return in_transaction && NULL != transaction_cmds;
+			}
+			~ArdbConnContext()
+			{
+				DELETE(transaction_cmds);
+				DELETE(watch_key_set);
+				DELETE(pubsub_channle_set);
+				DELETE(pattern_pubsub_channle_set);
+			}
+	};
+
 	class ArdbServer;
 	struct RedisRequestHandler: public ChannelUpstreamHandler<RedisCommandFrame>
 	{
@@ -191,6 +300,7 @@ namespace ardb
 			typedef int (ArdbServer::*RedisCommandHandler)(ArdbConnContext&,
 			        RedisCommandFrame&);
 
+			static LUAInterpreter* LUAInterpreterCreator(void* data);
 			struct RedisCommandHandlerSetting
 			{
 					const char* name;
@@ -198,7 +308,8 @@ namespace ardb
 					RedisCommandHandler handler;
 					int min_arity;
 					int max_arity;
-					int read_write_cmd; //0:read 1:write 2:unknown
+					const char* sflags;
+					int flags;
 			};
 		private:
 			ArdbServerConfig m_cfg;
@@ -231,7 +342,7 @@ namespace ardb
 			int DoRedisCommand(ArdbConnContext& ctx,
 			        RedisCommandHandlerSetting* setting,
 			        RedisCommandFrame& cmd);
-			void ProcessRedisCommand(ArdbConnContext& ctx,
+			int ProcessRedisCommand(ArdbConnContext& ctx,
 			        RedisCommandFrame& cmd);
 
 			void HandleReply(ArdbConnContext* ctx);
@@ -242,7 +353,8 @@ namespace ardb
 			friend class SlaveClient;
 			friend class LUAInterpreter;
 
-			void FillInfoResponse(const std::string& section, std::string& content);
+			void FillInfoResponse(const std::string& section,
+			        std::string& content);
 
 			int OnKeyUpdated(const DBID& dbid, const Slice& key);
 			int OnAllKeyDeleted(const DBID& dbid);

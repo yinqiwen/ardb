@@ -184,6 +184,7 @@ namespace ardb
 			case TABLE_SCHEMA:
 			case BITSET_META:
 			case KEY_EXPIRATION_MAPPING:
+			case SCRIPT:
 			default:
 			{
 				break;
@@ -375,6 +376,7 @@ namespace ardb
 			case BITSET_META:
 			case KEY_EXPIRATION_MAPPING:
 			case KV:
+			case SCRIPT:
 			default:
 			{
 				return new KeyObject(keystr, (KeyType) type, db);

@@ -924,6 +924,7 @@ namespace ardb
 			}
 		} else
 		{
+			m_syncing_dbs.insert(ARDB_GLOBAL_DB);
 			DBID db = *(m_syncing_dbs.begin());
 			m_repl->GetDB().VisitDB(db, &visitor, m_iter);
 			if (visitor.fail)

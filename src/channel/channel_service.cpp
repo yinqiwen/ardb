@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -27,7 +27,6 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #include "channel/all_includes.hpp"
 #include "util/helpers.hpp"
 #include "util/datagram_packet.hpp"
@@ -38,10 +37,31 @@ using namespace ardb;
 
 ChannelService::ChannelService(uint32 setsize) :
 		m_setsize(setsize), m_eventLoop(NULL), m_timer(NULL), m_signal_channel(
-				NULL), m_self_soft_signal_channel(NULL), m_running(false), m_thread_pool_size(
-				1), m_tid(0)
+		        NULL), m_self_soft_signal_channel(NULL), m_running(false), m_thread_pool_size(
+		        1), m_tid(0), m_user_cb(NULL), m_user_cb_data(NULL)
 {
 	m_eventLoop = aeCreateEventLoop(m_setsize);
+	m_self_soft_signal_channel = NewSoftSignalChannel();
+	if (NULL != m_self_soft_signal_channel)
+	{
+		m_self_soft_signal_channel->Register(CHANNEL_REMOVE, this);
+		m_self_soft_signal_channel->Register(WAKEUP, this);
+		m_self_soft_signal_channel->Register(USER_DEFINED, this);
+	}
+}
+
+void ChannelService::RegisterUserEventCallback(UserEventCallback* cb,
+        void* data)
+{
+	m_user_cb = cb;
+	m_user_cb_data = data;
+}
+void ChannelService::FireUserEvent(uint32 ev)
+{
+	if (NULL != m_self_soft_signal_channel)
+	{
+		m_self_soft_signal_channel->FireSoftSignal(USER_DEFINED, ev);
+	}
 }
 
 void ChannelService::SetThreadPoolSize(uint32 size)
@@ -98,6 +118,14 @@ void ChannelService::OnSoftSignal(uint32 soft_signo, uint32 appendinfo)
 //			}
 			break;
 		}
+		case USER_DEFINED:
+		{
+			if (NULL != m_user_cb)
+			{
+				m_user_cb(this, appendinfo, m_user_cb_data);
+			}
+			break;
+		}
 		default:
 		{
 			break;
@@ -111,7 +139,7 @@ bool ChannelService::EventSunk(ChannelPipeline* pipeline, ChannelStateEvent& e)
 }
 
 bool ChannelService::EventSunk(ChannelPipeline* pipeline,
-		MessageEvent<Buffer>& e)
+        MessageEvent<Buffer>& e)
 {
 	Buffer* buffer = e.GetMessage();
 	RETURN_FALSE_IF_NULL(buffer);
@@ -121,7 +149,7 @@ bool ChannelService::EventSunk(ChannelPipeline* pipeline,
 }
 
 bool ChannelService::EventSunk(ChannelPipeline* pipeline,
-		MessageEvent<DatagramPacket>& e)
+        MessageEvent<DatagramPacket>& e)
 {
 	DatagramPacket* packet = e.GetMessage();
 	Channel* ch = e.GetChannel();
@@ -167,7 +195,7 @@ Channel* ChannelService::AttachChannel(Channel* ch, bool transfer_service_only)
 	if (ch->GetReadFD() != ch->GetWriteFD())
 	{
 		ERROR_LOG(
-				"Failed to attach channel since source channel has diff read fd & write fd.");
+		        "Failed to attach channel since source channel has diff read fd & write fd.");
 		return NULL;
 	}
 	Channel* newch = CloneChannel(ch);
@@ -214,12 +242,12 @@ Channel* ChannelService::CloneChannel(Channel* ch)
 		if (NULL != ch->m_pipeline_initializor)
 		{
 			newch->SetChannelPipelineInitializor(ch->m_pipeline_initializor,
-					ch->m_pipeline_initailizor_user_data);
+			        ch->m_pipeline_initailizor_user_data);
 		}
 		if (NULL != ch->m_pipeline_finallizer)
 		{
 			newch->SetChannelPipelineFinalizer(ch->m_pipeline_finallizer,
-					ch->m_pipeline_finallizer_user_data);
+			        ch->m_pipeline_finallizer_user_data);
 		}
 	}
 
@@ -246,6 +274,7 @@ void ChannelService::StartSubPool()
 		for (uint32 i = 0; i < m_thread_pool_size; i++)
 		{
 			ChannelService* s = new ChannelService(m_setsize);
+			s->RegisterUserEventCallback(m_user_cb, m_user_cb_data);
 			m_sub_pool.push_back(s);
 			LaunchThread* launch = new LaunchThread(s);
 			launch->Start();
@@ -259,17 +288,16 @@ void ChannelService::Start()
 	if (!m_running)
 	{
 		StartSubPool();
-		m_self_soft_signal_channel = NewSoftSignalChannel();
-		if (NULL != m_self_soft_signal_channel)
-		{
-			m_self_soft_signal_channel->Register(CHANNEL_REMOVE, this);
-			m_self_soft_signal_channel->Register(WAKEUP, this);
-		}
 		GetTimer().Schedule(this, 1000, 500);
 		m_running = true;
 		m_tid = Thread::CurrentThreadID();
 		aeMain(m_eventLoop);
 	}
+}
+
+void ChannelService::Continue()
+{
+	aeProcessEvents(m_eventLoop, AE_FILE_EVENTS | AE_DONT_WAIT);
 }
 
 void ChannelService::Stop()
@@ -422,7 +450,7 @@ void ChannelService::RemoveChannel(Channel* ch)
 		{
 			m_remove_queue.push_back(ch->GetID());
 			m_self_soft_signal_channel->FireSoftSignal(CHANNEL_REMOVE,
-					ch->GetID());
+			        ch->GetID());
 		}
 	}
 }
@@ -463,7 +491,8 @@ void ChannelService::AttachAcceptedChannel(SocketChannel *ch)
 	if (IsInLoopThread())
 	{
 		ch->OnAccepted();
-	} else
+	}
+	else
 	{
 		ch->m_detached = true;
 		ch->GetService().DetachChannel(ch, true);

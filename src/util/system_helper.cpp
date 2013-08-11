@@ -28,6 +28,7 @@
  */
 
 #include "system_helper.hpp"
+#include <string.h>
 #if  __APPLE__
 #include <sys/param.h>
 #include <sys/sysctl.h>

@@ -50,7 +50,7 @@
 namespace ardb
 {
 	int ardb_compare_keys(const char* akbuf, size_t aksiz, const char* bkbuf,
-			size_t bksiz)
+	        size_t bksiz)
 	{
 		Buffer ak_buf(const_cast<char*>(akbuf), 0, aksiz);
 		Buffer bk_buf(const_cast<char*>(bkbuf), 0, bksiz);
@@ -236,6 +236,7 @@ namespace ardb
 			case TABLE_SCHEMA:
 			case BITSET_META:
 			case KEY_EXPIRATION_MAPPING:
+			case SCRIPT:
 			default:
 			{
 				break;
@@ -264,7 +265,7 @@ namespace ardb
 	//static const char* REPO_NAME = "data";
 	Ardb::Ardb(KeyValueEngineFactory* engine, bool multi_thread) :
 			m_engine_factory(engine), m_engine(NULL), m_key_watcher(NULL), m_raw_key_listener(
-			NULL), m_expire_check_thread(NULL), m_min_expireat(0)
+			        NULL), m_expire_check_thread(NULL), m_min_expireat(0)
 	{
 		m_key_locker.enable = multi_thread;
 	}
@@ -275,19 +276,20 @@ namespace ardb
 		{
 			INFO_LOG("Start init storage engine.");
 			m_engine = m_engine_factory->CreateDB(
-					m_engine_factory->GetName().c_str());
+			        m_engine_factory->GetName().c_str());
 
-			KeyObject verkey(Slice(), KEY_END, 0xFFFFFF);
+			KeyObject verkey(Slice(), KEY_END, ARDB_GLOBAL_DB);
 			ValueObject ver;
 			if (0 == GetValue(verkey, &ver))
 			{
 				if (ver.v.int_v != ARDB_FORMAT_VERSION)
 				{
-					ERROR_LOG("Incompatible data format version:%d in DB",
-							ver.v.int_v);
+					ERROR_LOG(
+					        "Incompatible data format version:%d in DB", ver.v.int_v);
 					return false;
 				}
-			} else
+			}
+			else
 			{
 				ver.v.int_v = ARDB_FORMAT_VERSION;
 				ver.type = INTEGER;
@@ -312,15 +314,24 @@ namespace ardb
 							while (running)
 							{
 								DBID firstDB = 0, lastDB = 0;
-
 								if (0 == adb->LastDB(lastDB)
-										&& 0 == adb->FirstDB(firstDB))
+								        && 0 == adb->FirstDB(firstDB))
 								{
 									for (DBID db = firstDB; db <= lastDB; db++)
 									{
-										if (adb->DBExist(db))
+										DBID nexdb = db;
+										if (adb->DBExist(db, nexdb))
 										{
 											adb->CheckExpireKey(db);
+										}
+										else
+										{
+											if (nexdb == db)
+											{
+												break;
+											}
+											adb->CheckExpireKey(nexdb);
+											db = nexdb;
 										}
 									}
 								}
@@ -333,6 +344,10 @@ namespace ardb
 									{
 										sleep = check_period;
 									}
+									if (sleep == 0)
+									{
+										sleep = 1;
+									}
 								}
 								Thread::Sleep(sleep);
 							}
@@ -343,7 +358,7 @@ namespace ardb
 						}
 				};
 				m_expire_check_thread = new ExpireCheckThread(this,
-						check_expire_period);
+				        check_expire_period);
 				m_expire_check_thread->Start();
 			}
 		}
@@ -374,7 +389,7 @@ namespace ardb
 			Slice tmpkey = iter->Key();
 			KeyObject* kk = decode_key(tmpkey, &key);
 			if (NULL == kk || kk->type != key.type
-					|| kk->key.compare(key.key) != 0)
+			        || kk->key.compare(key.key) != 0)
 			{
 				DELETE(kk);
 				if (reverse && isFirstElement)
@@ -387,7 +402,7 @@ namespace ardb
 			}
 			ValueObject v;
 			Buffer readbuf(const_cast<char*>(iter->Value().data()), 0,
-					iter->Value().size());
+			        iter->Value().size());
 			decode_value(readbuf, v, false);
 			int ret = handler->OnKeyValue(kk, &v, cursor++);
 			DELETE(kk);
@@ -398,7 +413,8 @@ namespace ardb
 			if (reverse)
 			{
 				iter->Prev();
-			} else
+			}
+			else
 			{
 				iter->Next();
 			}
@@ -485,12 +501,16 @@ namespace ardb
 			DBID tmpdb;
 			KeyType t;
 			if (!peek_dbkey_header(current_iter->Key(), tmpdb, t)
-					|| tmpdb != db)
+			        || tmpdb != db)
 			{
 				break;
 			}
-			int ret = visitor->OnRawKeyValue(current_iter->Key(),
-					current_iter->Value());
+			int ret = 0;
+			if (t != KEY_END)
+			{
+				ret = visitor->OnRawKeyValue(current_iter->Key(),
+				        current_iter->Value());
+			}
 			current_iter->Next();
 			if (ret == -1)
 			{
@@ -512,7 +532,7 @@ namespace ardb
 		while (NULL != current_iter && current_iter->Valid())
 		{
 			int ret = visitor->OnRawKeyValue(current_iter->Key(),
-					current_iter->Value());
+			        current_iter->Value());
 			current_iter->Next();
 			if (ret == -1)
 			{
@@ -552,13 +572,13 @@ namespace ardb
 			}
 			ValueObject v;
 			Buffer readbuf(const_cast<char*>(iter->Value().data()), 0,
-					iter->Value().size());
+			        iter->Value().size());
 			decode_value(readbuf, v, false);
 			if (NULL != kk)
 			{
 				std::string str;
-				DEBUG_LOG("[%d]Key=%s, Value=%s", kk->type, kk->key.data(),
-						v.ToString(str).c_str());
+				DEBUG_LOG(
+				        "[%d]Key=%s, Value=%s", kk->type, kk->key.data(), v.ToString(str).c_str());
 			}
 			DELETE(kk);
 			iter->Next();
@@ -604,6 +624,7 @@ namespace ardb
 				db = kk->db;
 				ret = 0;
 			}
+			DELETE(kk);
 		}
 		DELETE(iter);
 		return ret;
@@ -612,8 +633,7 @@ namespace ardb
 	int Ardb::LastDB(DBID& db)
 	{
 		int ret = -1;
-		Iterator* iter = NewIterator();
-		iter->SeekToLast();
+		Iterator* iter = NewIterator(ARDB_GLOBAL_DB);
 		if (NULL != iter && iter->Valid())
 		{
 			//Skip last KEY_END entry
@@ -628,24 +648,34 @@ namespace ardb
 				db = kk->db;
 				ret = 0;
 			}
+			DELETE(kk);
 		}
 		DELETE(iter);
 		return ret;
 	}
 
-	bool Ardb::DBExist(const DBID& db)
+	bool Ardb::DBExist(const DBID& db, DBID& nextdb)
 	{
 		KeyObject start(Slice(), KV, db);
 		Iterator* iter = FindValue(start, false);
 		bool found = false;
+		nextdb = db;
 		if (NULL != iter && iter->Valid())
 		{
 			Slice tmpkey = iter->Key();
 			KeyObject* kk = decode_key(tmpkey, NULL);
-			if (NULL != kk && kk->db == db)
+			if (NULL != kk)
 			{
-				found = true;
+				if (kk->db == db)
+				{
+					found = true;
+				}
+				else
+				{
+					nextdb = kk->db;
+				}
 			}
+			DELETE(kk);
 		}
 		DELETE(iter);
 		return found;
@@ -669,7 +699,7 @@ namespace ardb
 					encode_key(sbuf, start);
 					encode_key(ebuf, end);
 					adb->GetEngine()->CompactRange(sbuf.AsString(),
-							ebuf.AsString());
+					        ebuf.AsString());
 					delete this;
 				}
 		};
@@ -707,7 +737,7 @@ namespace ardb
 					encode_key(sbuf, start);
 					encode_key(ebuf, end);
 					adb->GetEngine()->CompactRange(sbuf.AsString(),
-							ebuf.AsString());
+					        ebuf.AsString());
 					delete this;
 				}
 		};
@@ -747,6 +777,52 @@ namespace ardb
 		 */
 		Thread* t = new VisitorTask(this);
 		t->Start();
+		return 0;
+	}
+
+	int Ardb::GetScript(const std::string& funacname, std::string& funcbody)
+	{
+		KeyObject verkey(funacname, SCRIPT, ARDB_GLOBAL_DB);
+		ValueObject v;
+		if (0 == GetValue(verkey, &v))
+		{
+			funcbody = v.v.raw->AsString();
+			return 0;
+		}
+		return -1;
+	}
+	int Ardb::SaveScript(const std::string& funacname,
+	        const std::string& funcbody)
+	{
+		KeyObject key(funacname, SCRIPT, ARDB_GLOBAL_DB);
+		ValueObject v(funcbody);
+		return SetValue(key, v);
+	}
+
+	int Ardb::FlushScripts()
+	{
+		KeyObject start(Slice(), SCRIPT, ARDB_GLOBAL_DB);
+		Iterator* iter = FindValue(start, false);
+		BatchWriteGuard guard(GetEngine());
+		while (NULL != iter && iter->Valid())
+		{
+			Slice tmpkey = iter->Key();
+			KeyObject* kk = decode_key(tmpkey, NULL);
+			if (NULL != kk)
+			{
+				if (kk->type == SCRIPT)
+				{
+					DelValue(*kk);
+				}
+				else
+				{
+					break;
+				}
+			}
+			DELETE(kk);
+			iter->Next();
+		}
+		DELETE(iter);
 		return 0;
 	}
 

@@ -58,8 +58,11 @@ namespace ardb
 {
 	enum ChannelSoftSignal
 	{
-		CHANNEL_REMOVE = 1, WAKEUP = 2
+		CHANNEL_REMOVE = 1, WAKEUP = 2, USER_DEFINED = 3,
 	};
+
+	class ChannelService;
+	typedef void UserEventCallback(ChannelService* serv, uint32 ev, void* data);
 	/**
 	 * event loop service
 	 */
@@ -89,6 +92,9 @@ namespace ardb
 			pthread_t m_tid;
 
 			TaskList m_pending_tasks;
+
+			UserEventCallback* m_user_cb;
+			void* m_user_cb_data;
 
 			bool EventSunk(ChannelPipeline* pipeline, ChannelEvent& e)
 			{
@@ -156,8 +162,13 @@ namespace ardb
 			 */
 			void Start();
 			void Stop();
+			void Continue();
 			void CloseAllChannels(bool fireCloseEvent = true);
 			void CloseAllChannelFD(std::set<Channel*>& exceptions);
+
+			void RegisterUserEventCallback(UserEventCallback* cb, void* data);
+			void FireUserEvent(uint32 ev);
+
 			~ChannelService();
 	};
 }
