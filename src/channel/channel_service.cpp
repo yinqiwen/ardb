@@ -62,6 +62,16 @@ void ChannelService::FireUserEvent(uint32 ev)
 	{
 		m_self_soft_signal_channel->FireSoftSignal(USER_DEFINED, ev);
 	}
+	ChannelServicePool::iterator it = m_sub_pool.begin();
+	while (it != m_sub_pool.end())
+	{
+		ChannelService* serv = *it;
+		if(NULL != serv->m_self_soft_signal_channel)
+		{
+			serv->m_self_soft_signal_channel->FireSignalReceived(USER_DEFINED, ev);
+		}
+		it++;
+	}
 }
 
 void ChannelService::SetThreadPoolSize(uint32 size)

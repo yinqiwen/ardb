@@ -91,5 +91,53 @@ namespace ardb
 				t = v;
 			}
 	};
+
+
+	template<typename T>
+	class ThreadLocal<T*>
+	{
+		private:
+			pthread_key_t m_key;
+			static void Destroy(void *x)
+			{
+				T* obj = static_cast<T*>(x);
+				delete obj;
+			}
+			T** InitialValue()
+			{
+				T** t = new(T*);
+				*t = NULL;
+				return t;
+			}
+		public:
+			ThreadLocal()
+			{
+				pthread_key_create(&m_key, &ThreadLocal::Destroy);
+			}
+
+			~ThreadLocal()
+			{
+				//pthread_key_delete(m_key);
+			}
+
+			T*& GetValue()
+			{
+				T** local_thread_value = static_cast<T**>(pthread_getspecific(
+						m_key));
+				if (NULL == local_thread_value)
+				{
+					T** newObj = InitialValue();
+					pthread_setspecific(m_key, newObj);
+					local_thread_value = newObj;
+				}
+				return *local_thread_value;
+			}
+
+			void SetValue(T* v)
+			{
+				T*& t = GetValue();
+				t = v;
+			}
+	};
 }
 #endif /* THREAD_LOCAL_HPP_ */
