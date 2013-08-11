@@ -836,7 +836,6 @@ namespace ardb
 		{
 			case SCRIPT_FLUSH_EVENT:
 			{
-				DEBUG_LOG("@@@@Flush");
 				LUAInterpreter& lua = server->m_ctx_lua.GetValue(
 				        ArdbServer::LUAInterpreterCreator, server);
 				lua.Reset();
@@ -861,7 +860,6 @@ namespace ardb
 				break;
 			}
 		}
-
 	}
 
 	LUAInterpreter::~LUAInterpreter()
