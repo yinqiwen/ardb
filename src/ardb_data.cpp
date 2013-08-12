@@ -394,7 +394,6 @@ namespace ardb
 		{
 			int64_t iv = v.v.int_v;
 			double dv = v.v.double_v;
-			v.type = RAW;
 			v.v.raw = new Buffer(16);
 			if (v.type == INTEGER)
 			{
@@ -414,6 +413,7 @@ namespace ardb
 					v.v.raw->Printf("%.17g", dv);
 				}
 			}
+			v.type = RAW;
 			return 0;
 		}
 		return -1;
