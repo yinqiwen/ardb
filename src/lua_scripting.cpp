@@ -385,12 +385,13 @@ namespace ardb
 		/* Setup our fake client for command execution */
 
 		RedisCommandFrame cmd(cmdargs);
-
+		lower_string(cmd.GetCommand());
 		ArdbServer::RedisCommandHandlerSetting* setting =
 		        m_server->FindRedisCommandHandlerSetting(cmd.GetCommand());
 		/* Command lookup */
 		if (NULL == setting)
 		{
+			ERROR_LOG("########%s", cmd.GetCommand().data());
 			luaPushError(lua, "Unknown Redis command called from Lua script");
 			return -1;
 		}
@@ -406,13 +407,14 @@ namespace ardb
 
 		ArdbConnContext* ctx = m_server->m_ctx_local.GetValue();
 		LUAInterpreter& interpreter = m_server->m_ctx_lua.GetValue(NULL, NULL);
-		m_server->ProcessRedisCommand(*ctx, cmd);
 		RedisReply& reply = ctx->reply;
+		reply.Clear();
+		m_server->ProcessRedisCommand(*ctx, cmd);
 		if (raise_error && reply.type != REDIS_REPLY_ERROR)
 		{
 			raise_error = 0;
 		}
-		redisProtocolToLuaType(interpreter.m_lua, ctx->reply);
+		redisProtocolToLuaType(interpreter.m_lua, reply);
 
 		if (raise_error)
 		{
@@ -565,7 +567,7 @@ namespace ardb
 		ARDB_NOTUSED(lua);
 		ArdbConnContext* ctx = m_server->m_ctx_local.GetValue();
 		uint64 elapsed = get_current_epoch_millis() - ctx->lua_time_start;
-		if (elapsed >= m_server->m_cfg.lua_time_limit && !ctx->lua_timeout)
+		if (elapsed >= (uint64)m_server->m_cfg.lua_time_limit && !ctx->lua_timeout)
 		{
 			WARN_LOG(
 			        "Lua slow script detected: %s still in execution after %llu milliseconds. You can try killing the script using the SCRIPT KILL command.", ctx->lua_executing_func, elapsed);
