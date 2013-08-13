@@ -159,28 +159,28 @@ namespace ardb
 			ChannelHandlerContext* AddFirst(const string& name,
 					AbstractChannelHandler<T>* handler)
 			{
-				ChannelHandlerHelper < T > ::RegisterHandler(handler);
+				//ChannelHandlerHelper < T > ::RegisterHandler(handler);
 				return PriAddFirst(name, handler);
 			}
 			template<typename T>
 			ChannelHandlerContext* AddLast(const string& name,
 					AbstractChannelHandler<T>* handler)
 			{
-				ChannelHandlerHelper < T > ::RegisterHandler(handler);
+				//ChannelHandlerHelper < T > ::RegisterHandler(handler);
 				return PriAddLast(name, handler);
 			}
 			template<typename T>
 			ChannelHandlerContext* AddBefore(const string& baseName,
 					const string& name, AbstractChannelHandler<T>* handler)
 			{
-				ChannelHandlerHelper < T > ::RegisterHandler(handler);
+				//ChannelHandlerHelper < T > ::RegisterHandler(handler);
 				return PriAddBefore(baseName, name, handler);
 			}
 			template<typename T>
 			ChannelHandlerContext* AddAfter(const string& baseName,
 					const string& name, AbstractChannelHandler<T>* handler)
 			{
-				ChannelHandlerHelper < T > ::RegisterHandler(handler);
+				//ChannelHandlerHelper < T > ::RegisterHandler(handler);
 				return PriAddAfter(baseName, name, handler);
 			}
 			~ChannelPipeline();

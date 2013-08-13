@@ -76,12 +76,12 @@ namespace ardb
 		RETURN_FALSE_IF_NULL(ctx);
 
 		ChannelHandler* base = ctx->GetHandler();
-		//ChannelUpstreamHandler<T> * handler = dynamic_cast<ChannelUpstreamHandler<T>*>(base);
-		ChannelUpstreamHandler<T> * handler = NULL;
-		if (ChannelHandlerHelper<T>::CanHandleUpMessageEvent(base))
-		{
-			handler = static_cast<ChannelUpstreamHandler<T>*>(base);
-		}
+		ChannelUpstreamHandler<T> * handler = dynamic_cast<ChannelUpstreamHandler<T>*>(base);
+		//ChannelUpstreamHandler<T> * handler = NULL;
+		//if (ChannelHandlerHelper<T>::CanHandleUpMessageEvent(base))
+		//{
+		//	handler = static_cast<ChannelUpstreamHandler<T>*>(base);
+		//}
 		if (NULL == handler)
 		{
 			return ctx->SendUpstream(e);
@@ -106,12 +106,12 @@ namespace ardb
 		RETURN_FALSE_IF_NULL(ctx);
 
 		ChannelHandler* base = ctx->GetHandler();
-		//ChannelDownstreamHandler<T> * handler = dynamic_cast<ChannelDownstreamHandler<T>*>(base);
-		ChannelDownstreamHandler<T> * handler = NULL;
-		if (ChannelHandlerHelper<T>::CanHandleDownMessageEvent(base))
-		{
-			handler = static_cast<ChannelDownstreamHandler<T>*>(base);
-		}
+		ChannelDownstreamHandler<T> * handler = dynamic_cast<ChannelDownstreamHandler<T>*>(base);
+		//ChannelDownstreamHandler<T> * handler = NULL;
+		//if (ChannelHandlerHelper<T>::CanHandleDownMessageEvent(base))
+		//{
+		//	handler = static_cast<ChannelDownstreamHandler<T>*>(base);
+		//}
 		if (NULL == handler)
 		{
 			return ctx->SendDownstream(e);
