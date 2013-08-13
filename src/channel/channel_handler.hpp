@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -35,6 +35,9 @@
 #include "channel/channel_state_event.hpp"
 #include "channel/exception_event.hpp"
 #include "channel/message_event.hpp"
+
+#include "util/thread/thread_local.hpp"
+
 namespace ardb
 {
 	class ChannelHandlerContext;
@@ -65,14 +68,14 @@ namespace ardb
 	class ChannelHandlerHelper
 	{
 		private:
-			static ChannelHandlerSet m_down_handler_set;
-			static ChannelHandlerSet m_up_handler_set;
+			static ThreadLocal<ChannelHandlerSet> m_down_handler_set;
+			static ThreadLocal<ChannelHandlerSet> m_up_handler_set;
 		public:
 			static inline bool CanHandleDownMessageEvent(
 					ChannelHandler* handler)
 			{
-				if (m_down_handler_set.find(handler)
-						!= m_down_handler_set.end())
+				ChannelHandlerSet& set = m_down_handler_set.GetValue();
+				if (set.find(handler) != set.end())
 				{
 					return true;
 				}
@@ -80,7 +83,8 @@ namespace ardb
 			}
 			static inline bool CanHandleUpMessageEvent(ChannelHandler* handler)
 			{
-				if (m_up_handler_set.find(handler) != m_up_handler_set.end())
+				ChannelHandlerSet& set = m_up_handler_set.GetValue();
+				if (set.find(handler) != set.end())
 				{
 					return true;
 				}
@@ -88,27 +92,31 @@ namespace ardb
 			}
 			static inline void RegisterHandler(ChannelHandler* handler)
 			{
+				ChannelHandlerSet& dset = m_down_handler_set.GetValue();
+				ChannelHandlerSet& uset = m_down_handler_set.GetValue();
 				if (handler->CanHandleDownstream())
 				{
-					m_down_handler_set.insert(handler);
+					dset.insert(handler);
 				}
 				if (handler->CanHandleUpstream())
 				{
-					m_up_handler_set.insert(handler);
+					uset.insert(handler);
 				}
 			}
 			static inline void UnregisterHandler(ChannelHandler* handler)
 			{
-				m_down_handler_set.erase(handler);
-				m_up_handler_set.erase(handler);
+				ChannelHandlerSet& dset = m_down_handler_set.GetValue();
+				ChannelHandlerSet& uset = m_down_handler_set.GetValue();
+				dset.erase(handler);
+				uset.erase(handler);
 			}
 
 	};
-	template<typename T> ChannelHandlerSet ChannelHandlerHelper<T>::m_down_handler_set;
-	template<typename T> ChannelHandlerSet ChannelHandlerHelper<T>::m_up_handler_set;
+	template<typename T> ThreadLocal<ChannelHandlerSet> ChannelHandlerHelper<T>::m_down_handler_set;
+	template<typename T> ThreadLocal<ChannelHandlerSet> ChannelHandlerHelper<T>::m_up_handler_set;
 
 	/**
-	 * 所有handler的模版基类
+	 *
 	 */
 	template<typename T>
 	class AbstractChannelHandler: public ChannelHandler

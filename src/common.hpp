@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -138,8 +138,19 @@ namespace ardb
 				}
 			}
 	};
+
+	/**
+	 * A tag interface
+	 */
+	class Object
+	{
+		public:
+			virtual ~Object()
+			{
+			}
+	};
 }
-template <typename T, size_t N>
+template<typename T, size_t N>
 char (&ArraySizeHelper(T (&array)[N]))[N];
 #define arraysize(array) (sizeof(ArraySizeHelper(array)))
 
