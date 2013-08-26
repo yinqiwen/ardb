@@ -138,6 +138,10 @@ namespace ardb
 				StackFrameDecoder()
 				{
 				}
+				void Clear()
+				{
+					m_cumulation.Clear();
+				}
 				void MessageReceived(ChannelHandlerContext& ctx,
 						MessageEvent<Buffer>& e)
 				{

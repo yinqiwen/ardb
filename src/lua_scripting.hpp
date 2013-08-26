@@ -11,17 +11,12 @@
 #include <string>
 #include <btree_map.h>
 #include <btree_set.h>
-#ifdef __cplusplus
 extern "C"
 {
-#endif
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
-#ifdef __cplusplus
 }
-#endif
-
 #include "channel/all_includes.hpp"
 #include "ardb_data.hpp"
 

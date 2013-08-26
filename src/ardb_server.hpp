@@ -37,6 +37,7 @@
 #include "util/thread/thread_local.hpp"
 #include "ardb.hpp"
 #include "replication.hpp"
+#include "replication/slave.hpp"
 #include "lua_scripting.hpp"
 
 /* Command flags. Please check the command table defined in the redis.c file
@@ -105,7 +106,7 @@ namespace ardb
 			{
 			}
 	};
-
+    class ArdbConnContext;
 	typedef btree::btree_set<ArdbConnContext*> ContextSet;
 
 	struct ArdbConncetion
@@ -326,7 +327,7 @@ namespace ardb
 			SlowLogHandler m_slowlog_handler;
 			ClientConnHolder m_clients_holder;
 			ReplicationService m_repli_serv;
-			SlaveClient m_slave_client;
+			Slave m_slave_client;
 
 			WatchKeyContextTable m_watch_context_table;
 			ThreadMutex m_watch_mutex;
@@ -350,7 +351,7 @@ namespace ardb
 			friend class ReplicationService;
 			friend class OpLogs;
 			friend class RedisRequestHandler;
-			friend class SlaveClient;
+			friend class Slave;
 			friend class LUAInterpreter;
 
 			void FillInfoResponse(const std::string& section,

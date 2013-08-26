@@ -30,6 +30,7 @@
 #ifndef NOVA_CHANNELHANDLER_HPP_
 #define NOVA_CHANNELHANDLER_HPP_
 #include <stdexcept>
+#include <typeinfo>
 #include <set>
 #include <tr1/unordered_set>
 #include "channel/channel_state_event.hpp"

@@ -208,64 +208,6 @@ namespace ardb
 			}
 	};
 
-	class ArdbConnContext;
-	class SlaveClient: public ChannelUpstreamHandler<RedisCommandFrame>,
-			public ChannelUpstreamHandler<Buffer>,
-			public Runnable
-	{
-		private:
-			ArdbServer* m_serv;
-			Channel* m_client;
-			SocketHostAddress m_master_addr;
-			uint32 m_rest_chunk_len;
-			uint32 m_slave_state;
-			bool m_cron_inited;
-			bool m_ping_recved;
-			RedisCommandDecoder m_decoder;
-			NullRedisReplyEncoder m_encoder;
-
-			uint8 m_server_type;
-			std::string m_server_key;
-			uint64 m_sync_seq;
-			/*
-			 * empty means all db
-			 */
-			DBIDSet m_sync_dbs;
-
-			ArdbConnContext *m_actx;
-
-			void MessageReceived(ChannelHandlerContext& ctx,
-					MessageEvent<RedisCommandFrame>& e);
-			void MessageReceived(ChannelHandlerContext& ctx,
-					MessageEvent<Buffer>& e);
-			void ChannelClosed(ChannelHandlerContext& ctx,
-					ChannelStateEvent& e);
-			void ChannelConnected(ChannelHandlerContext& ctx,
-					ChannelStateEvent& e);
-			void Timeout();
-			void Run();
-			void PersistSyncState();
-			void LoadSyncState();
-		public:
-			SlaveClient(ArdbServer* serv) :
-					m_serv(serv), m_client(NULL), m_rest_chunk_len(0), m_slave_state(
-							0), m_cron_inited(false), m_ping_recved(false), m_server_type(
-							0), m_server_key("-"), m_sync_seq(0), m_actx(NULL)
-			{
-			}
-			const SocketHostAddress& GetMasterAddress()
-			{
-				return m_master_addr;
-			}
-			void SetSyncDBs(DBIDSet& dbs)
-			{
-				m_sync_dbs = dbs;
-			}
-
-			int ConnectMaster(const std::string& host, uint32 port);
-			void Close();
-			void Stop();
-	};
 
 	class ReplicationService;
 	class LoadSyncTask: public Runnable

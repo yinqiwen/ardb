@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -38,7 +38,8 @@ namespace ardb
 	namespace codec
 	{
 
-		enum RedisCommandType{
+		enum RedisCommandType
+		{
 			REDIS_CMD_INVALID = 0,
 			REDIS_CMD_PING = 1,
 			REDIS_CMD_MULTI = 2,
@@ -124,36 +125,36 @@ namespace ardb
 			REDIS_CMD_SDIFFSTORE = 83,
 			REDIS_CMD_SINTER = 84,
 			REDIS_CMD_SISMEMBER = 85,
-		    REDIS_CMD_SINTERSTORE = 86,
-		    REDIS_CMD_SMEMBERS = 87,
-		    REDIS_CMD_SMOVE = 88,
-		    REDIS_CMD_SPOP = 89,
-		    REDIS_CMD_SRANMEMEBER = 90,
-		    REDIS_CMD_SREM = 91,
-		    REDIS_CMD_SUNION = 92,
-		    REDIS_CMD_SUNIONSTORE = 93,
-		    REDIS_CMD_SUNIONCOUNT = 94,
-		    REDIS_CMD_SRANGE = 95,
-		    REDIS_CMD_SREVREANGE = 96,
-		    REDIS_CMD_ZADD = 97,
-		    REDIS_CMD_ZCARD = 98,
-		    REDIS_CMD_ZCOUNT = 99,
-		    REDIS_CMD_ZINCRBY = 100,
-		    REDIS_CMD_ZRANGE = 101,
-		    REDIS_CMD_ZRANGEBYSCORE = 102,
-		    REDIS_CMD_ZRANK = 103,
-		    REDIS_CMD_ZREM = 104,
-		    REDIS_CMD_ZPOP = 105,
-		    REDIS_CMD_ZRPOP = 106,
-		    REDIS_CMD_ZREMRANGEBYRANK = 107,
-		    REDIS_CMD_ZREMRANGEBYSCORE = 108,
-		    REDIS_CMD_ZREVRANGE = 109,
-		    REDIS_CMD_ZREVRANGEBYSCORE = 110,
-		    REDIS_CMD_ZINTERSTORE = 111,
-		    REDIS_CMD_ZUNIONSTORE = 112,
-		    REDIS_CMD_ZREVRANK = 113,
-		    REDIS_CMD_ZSCORE = 114,
-		    REDIS_CMD_LINDEX = 115,
+			REDIS_CMD_SINTERSTORE = 86,
+			REDIS_CMD_SMEMBERS = 87,
+			REDIS_CMD_SMOVE = 88,
+			REDIS_CMD_SPOP = 89,
+			REDIS_CMD_SRANMEMEBER = 90,
+			REDIS_CMD_SREM = 91,
+			REDIS_CMD_SUNION = 92,
+			REDIS_CMD_SUNIONSTORE = 93,
+			REDIS_CMD_SUNIONCOUNT = 94,
+			REDIS_CMD_SRANGE = 95,
+			REDIS_CMD_SREVREANGE = 96,
+			REDIS_CMD_ZADD = 97,
+			REDIS_CMD_ZCARD = 98,
+			REDIS_CMD_ZCOUNT = 99,
+			REDIS_CMD_ZINCRBY = 100,
+			REDIS_CMD_ZRANGE = 101,
+			REDIS_CMD_ZRANGEBYSCORE = 102,
+			REDIS_CMD_ZRANK = 103,
+			REDIS_CMD_ZREM = 104,
+			REDIS_CMD_ZPOP = 105,
+			REDIS_CMD_ZRPOP = 106,
+			REDIS_CMD_ZREMRANGEBYRANK = 107,
+			REDIS_CMD_ZREMRANGEBYSCORE = 108,
+			REDIS_CMD_ZREVRANGE = 109,
+			REDIS_CMD_ZREVRANGEBYSCORE = 110,
+			REDIS_CMD_ZINTERSTORE = 111,
+			REDIS_CMD_ZUNIONSTORE = 112,
+			REDIS_CMD_ZREVRANK = 113,
+			REDIS_CMD_ZSCORE = 114,
+			REDIS_CMD_LINDEX = 115,
 			REDIS_CMD_LLEN = 116,
 			REDIS_CMD_LPOP = 117,
 			REDIS_CMD_LPUSH = 118,
@@ -208,6 +209,10 @@ namespace ardb
 				bool m_cmd_seted;
 				std::string m_cmd;
 				ArgumentArray m_args;
+				/*
+				 * Used to identify the received protocol data size
+				 */
+				uint32 m_raw_data_size;
 				inline void FillNextArgument(Buffer& buf, size_t len)
 				{
 					const char* str = buf.GetRawReadBuffer();
@@ -215,8 +220,7 @@ namespace ardb
 					if (m_cmd_seted)
 					{
 						m_args.push_back(std::string(str, len));
-					}
-					else
+					} else
 					{
 						m_cmd.append(str, len);
 						m_cmd_seted = true;
@@ -225,20 +229,28 @@ namespace ardb
 				friend class RedisCommandDecoder;
 			public:
 				RedisCommandFrame() :
-					type(REDIS_CMD_INVALID),m_is_inline(false), m_cmd_seted(false)
+						type(REDIS_CMD_INVALID), m_is_inline(false), m_cmd_seted(
+								false), m_raw_data_size(0)
 				{
 				}
 				RedisCommandFrame(ArgumentArray& cmd) :
-					type(REDIS_CMD_INVALID),m_is_inline(false), m_cmd_seted(false)
+						type(REDIS_CMD_INVALID), m_is_inline(false), m_cmd_seted(
+								false), m_raw_data_size(0)
 				{
 					m_cmd = cmd.front();
 					cmd.pop_front();
 					m_args = cmd;
 				}
-				inline void SetType(RedisCommandType type){
+				inline uint32 GetRawDataSize()
+				{
+					return m_raw_data_size;
+				}
+				inline void SetType(RedisCommandType type)
+				{
 					this->type = type;
 				}
-				inline RedisCommandType GetType(){
+				inline RedisCommandType GetType()
+				{
 					return this->type;
 				}
 				bool IsInLine()

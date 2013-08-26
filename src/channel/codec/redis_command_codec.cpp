@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -168,8 +168,13 @@ int RedisCommandDecoder::ProcessMultibulkBuffer(ChannelHandlerContext& ctx,
 bool RedisCommandDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel,
 		Buffer& buffer, RedisCommandFrame& msg)
 {
-	//int reqtype = -1;
 	size_t mark_read_index = buffer.GetReadIndex();
+	while (buffer.GetRawReadBuffer()[0] == '\r'
+			|| buffer.GetRawReadBuffer()[0] == '\n')
+	{
+		buffer.AdvanceReadIndex(1);
+	}
+
 	char ch;
 	if (buffer.ReadByte(ch))
 	{
@@ -188,6 +193,7 @@ bool RedisCommandDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel,
 		}
 		if (ret > 0)
 		{
+			msg.m_raw_data_size = buffer.GetReadIndex() - mark_read_index;
 			return true;
 		} else
 		{
@@ -199,6 +205,7 @@ bool RedisCommandDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel,
 			return false;
 		}
 	}
+	buffer.SetReadIndex(mark_read_index);
 	return false;
 }
 

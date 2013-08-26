@@ -390,6 +390,7 @@ namespace ardb
 			KeyObject* kk = decode_key(tmpkey, NULL);
 			if (NULL == kk || kk->type != KEY_EXPIRATION_ELEMENT)
 			{
+				DELETE(kk);
 				break;
 			} else
 			{
@@ -397,8 +398,10 @@ namespace ardb
 				if (ek->expireat <= get_current_epoch_micros())
 				{
 					Del(db, ek->key);
+					DELETE(kk);
 				} else
 				{
+					DELETE(kk);
 					break;
 				}
 			}

@@ -154,42 +154,15 @@ template<typename T, size_t N>
 char (&ArraySizeHelper(T (&array)[N]))[N];
 #define arraysize(array) (sizeof(ArraySizeHelper(array)))
 
+#include <stdio.h>
+#include <unistd.h>
+#include "config.h"
 #include "constants.hpp"
 #include "util/address.hpp"
 #include "util/runnable.hpp"
 #include "util/debug.h"
 #include "logger.hpp"
 
-#ifdef __linux__
-#  include <linux/version.h>
-#  if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,28)
-#define HAVE_ACCEPT4 1
-#endif
-#  if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22)
-#define HAVE_EVENTFD 1
-#define HAVE_SIGNALFD 1
-#include <sys/eventfd.h>
-#include <sys/signalfd.h>
-#endif
-#endif
 
-/* Test for proc filesystem */
-#ifdef __linux__
-#define HAVE_PROC_STAT 1
-#define HAVE_PROC_MAPS 1
-#define HAVE_PROC_SMAPS 1
-#endif
-
-/* Test for task_info() */
-#if defined(__APPLE__)
-#define HAVE_TASKINFO 1
-#endif
-
-#if (__i386 || __amd64) && __GNUC__
-#define GNUC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
-#if GNUC_VERSION >= 40100
-#define HAVE_ATOMIC
-#endif
-#endif
 
 #endif /* COMMON_HPP_ */

@@ -161,40 +161,6 @@ namespace ardb
 		std::string vstr;
 		subst.ToString(vstr);
 
-		/*
-		 *  sort <setkey> by *.len ....
-		 *
-		 */
-		if (!strcasecmp(spat, "*.len"))
-		{
-			int keytype = Type(db, vstr);
-			int len = -1;
-			switch (keytype)
-			{
-				case SET_ELEMENT:
-				{
-					len = SCard(db, vstr);
-					break;
-				}
-				case LIST_META:
-				{
-					len = LLen(db, vstr);
-					break;
-				}
-				case ZSET_ELEMENT_SCORE:
-				{
-					len = ZCard(db, vstr);
-					break;
-				}
-				default:
-				{
-					return -1;
-				}
-			}
-			value = ValueObject((int64) len);
-			return 0;
-		}
-
 		f = strstr(spat, "->");
 		if (NULL != f && (uint32) (f - spat) == (pattern.size() - 2))
 		{
@@ -202,6 +168,7 @@ namespace ardb
 		}
 		std::string keystr(pattern.data(), pattern.size());
 		string_replace(keystr, "*", vstr);
+
 		if (f == NULL)
 		{
 			/*
@@ -211,7 +178,9 @@ namespace ardb
 					&& keystr.rfind(")") == keystr.size() - 1)
 			{
 				keystr = keystr.substr(4, keystr.size() - 5);
-				int keytype = Type(db, vstr);
+
+				int keytype = Type(db, keystr);
+				DEBUG_LOG("#####replace value:%s %d", keystr.c_str(), keytype);
 				int len = -1;
 				switch (keytype)
 				{
@@ -235,6 +204,8 @@ namespace ardb
 						return -1;
 					}
 				}
+				value = ValueObject((int64) len);
+				return 0;
 			}
 			KeyObject k(keystr, KV, db);
 			return GetValue(k, &value);

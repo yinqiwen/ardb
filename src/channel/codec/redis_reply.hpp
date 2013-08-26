@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -42,6 +42,9 @@
 
 #define REDIS_REPLY_DOUBLE 1001
 
+#define CHUNK_FLAG  0x01
+#define LAST_CHUNK_FLAG  0x02
+
 namespace ardb
 {
 	namespace codec
@@ -50,6 +53,11 @@ namespace ardb
 		{
 				int type;
 				std::string str;
+
+				/*
+				 * If the type is REDIS_REPLY_STRING, and the str's length is large,
+				 * the integer value also used to identify chunk state.
+				 */
 				int64_t integer;
 				double double_value;
 				std::deque<RedisReply> elements;
@@ -67,8 +75,20 @@ namespace ardb
 				}
 				RedisReply(const std::string& v) :
 						type(REDIS_REPLY_STRING), str(v), integer(0), double_value(
-						        0)
+								0)
 				{
+				}
+				bool IsChunk()
+				{
+					return (integer & CHUNK_FLAG) == (CHUNK_FLAG);
+				}
+				bool IsLastChunk()
+				{
+					return (integer & LAST_CHUNK_FLAG) == (LAST_CHUNK_FLAG);
+				}
+				size_t AllChunkSize()
+				{
+					return (size_t)(integer >> 32);
 				}
 				void Clear()
 				{

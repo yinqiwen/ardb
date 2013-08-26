@@ -726,4 +726,24 @@ namespace ardb
 		}
 		return 1;
 	}
+
+	std::string stringfromll(int64 value) {
+		std::string str;
+		str.resize(32);
+		char* buf = &(str[0]);
+		char* p = NULL;
+	    unsigned long long v;
+
+	    v = (value < 0) ? -value : value;
+	    p = buf+31; /* point to the last character */
+	    do {
+	        *p-- = '0'+(v%10);
+	        v /= 10;
+	    } while(v);
+	    if (value < 0) *p-- = '-';
+	    p++;
+	    //return std::string(p,32-(p-buf));
+	    str.resize(32-(p-buf));
+	    return str;
+	}
 }

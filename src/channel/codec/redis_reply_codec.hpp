@@ -41,12 +41,13 @@ namespace ardb
 		class RedisReplyDecoder: public StackFrameDecoder<RedisReply>
 		{
 			protected:
+				uint32 m_waiting_chunk_len;
+				uint32 m_all_chunk_len;
+				bool m_allow_chunk;
 				bool Decode(ChannelHandlerContext& ctx, Channel* channel,
 						Buffer& buffer, RedisReply& msg);
 			public:
-				RedisReplyDecoder()
-				{
-				}
+				RedisReplyDecoder(bool allow_chunk= false);
 		};
 
 		class RedisReplyEncoder: public ChannelDownstreamHandler<RedisReply>

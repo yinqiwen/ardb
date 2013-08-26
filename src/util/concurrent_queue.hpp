@@ -246,7 +246,7 @@ namespace ardb
 				m_head = new Node;
 				m_tail = m_head;
 			}
-			void Push(T value)
+			void Push(T& value)
 			{
 				/*
 				 * consider another way to avoid expensive new operation
