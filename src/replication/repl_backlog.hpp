@@ -68,6 +68,9 @@ namespace ardb
 			ReplBacklog();
 			int ReInit(const std::string& path, uint64 backlog_size);
 			void Feed(const char* buf, size_t len);
+			bool IsValidOffset(const std::string& server_key, int64 offset);
+			const std::string& GetServerKey();
+
 
 	};
 }

@@ -91,8 +91,8 @@ namespace ardb
 			void PersistSyncState();
 			void LoadSyncState();
 			RedisDumpFile* GetNewRedisDumpFile();
-			void SwitchReplyCodec();
-			void SwitchCommandCodec();
+			void SwitchToReplyCodec();
+			void SwitchToCommandCodec();
 		public:
 			Slave(ArdbServer* serv);
 			const SocketHostAddress& GetMasterAddress()

@@ -62,12 +62,14 @@ namespace ardb
 	struct SlaveConnection
 	{
 			Channel* conn;
+			std::string server_key;
+			int64 sync_offset;
 			uint64 acktime;
 			bool isRedisSlave;
 			uint8 state;
 			SlaveConnection() :
-					conn(NULL),  acktime(0), isRedisSlave(
-							false), state(0)
+					conn(NULL), sync_offset(0), acktime(0), isRedisSlave(false), state(
+							0)
 			{
 			}
 	};
@@ -82,7 +84,7 @@ namespace ardb
 			ArdbServer* m_server;
 			SoftSignalChannel* m_notify_channel;
 			MPSCQueue<ReplInstruction> m_inst_queue;
-			typedef std::map<uint32,SlaveConnection*> SlaveConnTable;
+			typedef std::map<uint32, SlaveConnection*> SlaveConnTable;
 			SlaveConnTable m_slave_table;
 
 			ReplBacklog m_backlog;
@@ -90,6 +92,9 @@ namespace ardb
 			void Run();
 			void OnHeartbeat();
 			void OnInstructions();
+
+			void SyncSlave(SlaveConnection& slave);
+
 			void ChannelClosed(ChannelHandlerContext& ctx,
 					ChannelStateEvent& e);
 			void MessageReceived(ChannelHandlerContext& ctx,
@@ -99,7 +104,7 @@ namespace ardb
 		public:
 			Master(ArdbServer* server);
 			int Init();
-			void AddSlave(Channel* slave, bool isRedisClient);
+			void AddSlave(Channel* slave, RedisCommandFrame& cmd);
 			void FeedSlaves(const DBID& dbid, RedisCommandFrame& cmd);
 	};
 }

@@ -48,7 +48,7 @@ namespace ardb
 	{
 	}
 
-	void Slave::SwitchReplyCodec()
+	void Slave::SwitcåhToReplyCodec()
 	{
 		ChannelUpstreamHandler<RedisReply>* handler = this;
 		m_client->GetPipeline().Remove("handler");
@@ -58,7 +58,7 @@ namespace ardb
 		m_client->GetPipeline().AddLast("decoder", &m_reply_decoder);
 		m_client->GetPipeline().AddLast("handler", handler);
 	}
-	void Slave::SwitchCommandCodec()
+	void Slave::SwitchToCommandCodec()
 	{
 		m_client->GetPipeline().Remove("handler");
 		m_client->GetPipeline().Remove("decoder");
@@ -162,7 +162,7 @@ namespace ardb
 					Buffer sync;
 					if (m_sync_dbs.empty())
 					{
-						sync.Printf("arsync %s %lld\r\n", m_server_key.c_str(),
+						sync.Printf("psync %s %lld\r\n", m_server_key.c_str(),
 								m_sync_offset);
 					} else
 					{
@@ -210,7 +210,7 @@ namespace ardb
 						|| reply->integer == (int64) reply->str.size())
 				{
 					m_rdb->Flush();
-					SwitchCommandCodec();
+					SwitchToCommandCodec();
 					m_slave_state = SLAVE_STATE_SYNCED;
 					m_rdb->Load(LoadRDBRoutine, m_client);
 					DELETE(m_rdb);
@@ -336,7 +336,7 @@ namespace ardb
 		m_master_addr = addr;
 		Close();
 		m_client = m_serv->m_service->NewClientSocketChannel();
-		SwitchReplyCodec();
+		SwitchToReplyCodec();
 		m_slave_state = SLAVE_STATE_CONNECTING;
 		m_client->Connect(&m_master_addr);
 		return 0;

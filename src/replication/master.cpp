@@ -54,9 +54,9 @@ namespace ardb
 	void Master::OnHeartbeat()
 	{
 		SlaveConnTable::iterator it = m_slave_table.begin();
-		for(;it != m_slave_table.end(); it++)
+		for (; it != m_slave_table.end(); it++)
 		{
-			if(it->second->state == SLAVE_STATE_SYNCED)
+			if (it->second->state == SLAVE_STATE_SYNCED)
 			{
 				Buffer ping;
 				ping.Write("PING\r\n", 6);
@@ -75,15 +75,17 @@ namespace ardb
 			{
 				case REPL_INSTRUCTION_ADD_SLAVE:
 				{
-					SlaveConnection* conn = (SlaveConnection*)instruction.ptr;
+					SlaveConnection* conn = (SlaveConnection*) instruction.ptr;
 					m_channel_service.AttachChannel(conn->conn, true);
 					conn->state = SLAVE_STATE_CONNECTED;
 					m_slave_table[conn->conn->GetID()] = conn;
+					SyncSlave(*conn);
 					break;
 				}
 				case REPL_INSTRUCTION_FEED_CMD:
 				{
-					RedisCommandFrame* cmd = (RedisCommandFrame*)instruction.ptr;
+					RedisCommandFrame* cmd =
+							(RedisCommandFrame*) instruction.ptr;
 					DELETE(cmd);
 					break;
 				}
@@ -93,6 +95,27 @@ namespace ardb
 				}
 			}
 		}
+	}
+
+	void Master::SyncSlave(SlaveConnection& slave)
+	{
+		if(slave.server_key.empty())
+		{
+			//redis 2.6/2.4
+		}else
+		{
+			Buffer msg;
+			if(m_backlog.IsValidOffset(slave.server_key, slave.sync_offset))
+			{
+				msg.Printf("+CONTINUE\r\n");
+			}else
+			{
+				//FULLRESYNC
+				//msg.Printf("+FULLRESYNC %s %lld\r\n");
+			}
+			slave.conn->Write(msg);
+		}
+
 	}
 
 	void Master::OnSoftSignal(uint32 soft_signo, uint32 appendinfo)
@@ -105,7 +128,7 @@ namespace ardb
 	{
 		uint32 conn_id = ctx.GetChannel()->GetID();
 		SlaveConnTable::iterator found = m_slave_table.find(conn_id);
-		if(found != m_slave_table.end())
+		if (found != m_slave_table.end())
 		{
 			DELETE(found->second);
 			m_slave_table.erase(found);
@@ -145,18 +168,34 @@ namespace ardb
 		DELETE(handler);
 	}
 
-	void Master::AddSlave(Channel* slave, bool isRedisClient)
+	void Master::AddSlave(Channel* slave, RedisCommandFrame& cmd)
 	{
 		slave->Flush();
+		SlaveConnection* conn = NULL;
+		NEW(conn, SlaveConnection);
+		conn->conn = slave;
+		if (!strcasecmp(cmd.GetCommand().c_str(), "sync"))
+		{
+			//Redis 2.6/2.4 send 'sync'
+			conn->isRedisSlave = true;
+			conn->sync_offset = (uint64) -1;
+		} else    //Ardb/Redis 2.8+ send psync
+		{
+			conn->server_key = cmd.GetArguments()[0];
+			const std::string& offset_str = cmd.GetArguments()[1];
+			if (!string_toint64(offset_str, conn->sync_offset))
+			{
+				ERROR_LOG("Invalid offset argument:%s", offset_str.c_str());
+				slave->Close();
+				DELETE(conn);
+				return;
+			}
+		}
 		m_server->m_service->DetachChannel(slave, true);
 		slave->ClearPipeline();
 		ChannelUpstreamHandler<RedisCommandFrame>* handler = this;
 		slave->SetChannelPipelineInitializor(slave_pipeline_init, this);
 		slave->SetChannelPipelineFinalizer(slave_pipeline_finallize, NULL);
-		SlaveConnection* conn = NULL;
-		NEW(conn, SlaveConnection);
-		conn->conn = slave;
-		conn->isRedisSlave = isRedisClient;
 		ReplInstruction inst(conn, REPL_INSTRUCTION_ADD_SLAVE);
 		OfferReplInstruction(inst);
 	}
