@@ -36,19 +36,32 @@
 #include "slave.hpp"
 #include "ardb_server.hpp"
 #include <sstream>
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <errno.h>
 
+#define ARDB_SLAVE_SYNC_STATE_MMAP_FILE_SIZE 512
 
 namespace ardb
 {
 	Slave::Slave(ArdbServer* serv) :
 			m_serv(serv), m_client(NULL), m_rest_chunk_len(0), m_slave_state(
-			SLAVE_STATE_CLOSED), m_cron_inited(false), m_ping_recved(false), m_reply_decoder(
-					true), m_server_type(0), m_server_key("?"), m_sync_offset((uint64)-1), m_actx(
+			SLAVE_STATE_CLOSED), m_cron_inited(false), m_ping_recved_time(0), m_reply_decoder(
+					true), m_server_type(ARDB_DB_SERVER_TYPE), m_server_support_psync(
+					false), m_server_key("?"), m_sync_offset(-1), m_actx(
 			NULL), m_rdb(NULL)
 	{
 	}
 
-	void Slave::SwitcåhToReplyCodec()
+	bool Slave::Init()
+	{
+		InitCron();
+		return LoadSyncState();
+	}
+
+	void Slave::SwitchToReplyCodec()
 	{
 		ChannelUpstreamHandler<RedisReply>* handler = this;
 		m_client->GetPipeline().Remove("handler");
@@ -82,12 +95,11 @@ namespace ardb
 	void Slave::ChannelConnected(ChannelHandlerContext& ctx,
 			ChannelStateEvent& e)
 	{
-		LoadSyncState();
 		Buffer info;
 		info.Printf("info Server\r\n");
 		ctx.GetChannel()->Write(info);
 		m_slave_state = SLAVE_STATE_WAITING_INFO_REPLY;
-		m_ping_recved = true;
+		m_ping_recved_time = time(NULL);
 	}
 
 	void Slave::MessageReceived(ChannelHandlerContext& ctx,
@@ -95,17 +107,10 @@ namespace ardb
 	{
 		DEBUG_LOG("Recv master cmd %s", e.GetMessage()->GetCommand().c_str());
 		RedisCommandFrame* cmd = e.GetMessage();
+		m_sync_offset += cmd->GetRawDataSize();
 		if (!strcasecmp(cmd->GetCommand().c_str(), "ping"))
 		{
-			m_ping_recved = true;
-			return;
-		} else if (!strcasecmp(cmd->GetCommand().c_str(), "arsynced"))
-		{
-			m_server_key = *(cmd->GetArgument(0));
-			m_slave_state = SLAVE_STATE_SYNCED;
-			uint64 seq;
-			string_touint64(*(cmd->GetArgument(1)), seq);
-			m_sync_offset = seq;
+			m_ping_recved_time = time(NULL);
 			return;
 		}
 		if (NULL == m_actx)
@@ -116,6 +121,25 @@ namespace ardb
 		m_actx->conn = ctx.GetChannel();
 		m_serv->ProcessRedisCommand(*m_actx, *cmd);
 	}
+	void Slave::Routine()
+	{
+		if (m_slave_state == SLAVE_STATE_SYNCED)
+		{
+			uint32 now = time(NULL);
+			if (m_ping_recved_time > 0
+					&& now - m_ping_recved_time >= m_serv->m_cfg.repl_timeout)
+			{
+				Timeout();
+			}
+			if(m_server_support_psync)
+			{
+				Buffer ack;
+				ack.Printf("REPLCONF ACK %lld\r\n",m_sync_offset);
+				m_client->Write(ack);
+			}
+		}
+	}
+
 	static void LoadRDBRoutine(void* cb)
 	{
 		Channel* client = (Channel*) cb;
@@ -133,12 +157,28 @@ namespace ardb
 				{
 					ERROR_LOG("Recv info reply error:%s", reply->str.c_str());
 					Close();
+					return;
 				}
-				if (reply->str.find("redis_version") != std::string::npos)
+				const char* redis_ver_key = "redis_version:";
+				if (reply->str.find(redis_ver_key) != std::string::npos)
 				{
-					INFO_LOG("[REPL]Remote master is a Redis instance.");
 					m_server_type = REDIS_DB_SERVER_TYPE;
-				} else if (reply->str.find("ardb_version") != std::string::npos)
+					size_t start = reply->str.find(redis_ver_key);
+					size_t end = reply->str.find("\n", start);
+					std::string v = reply->str.substr(
+							start + strlen(redis_ver_key),
+							end - start - strlen(redis_ver_key));
+					v = trim_string(v);
+
+					if (compare_version<3>(v, "2.8.0") >= 0)
+					{
+						m_server_support_psync = true;
+					}
+					INFO_LOG(
+							"[REPL]Remote master is a Redis %s instance, support partial sync:%u",
+							v.c_str(), m_server_support_psync);
+
+				} else
 				{
 					INFO_LOG("[REPL]Remote master is an Ardb instance.");
 					m_server_type = ARDB_DB_SERVER_TYPE;
@@ -156,39 +196,80 @@ namespace ardb
 				{
 					ERROR_LOG("Recv replconf reply error:%s",
 							reply->str.c_str());
+					ctx.GetChannel()->Close();
+					return;
 				}
-				if (m_server_type == ARDB_DB_SERVER_TYPE)
+				if (m_server_support_psync)
 				{
-					Buffer sync;
-					if (m_sync_dbs.empty())
+					Buffer psync;
+					if (m_server_type == ARDB_DB_SERVER_TYPE)
 					{
-						sync.Printf("psync %s %lld\r\n", m_server_key.c_str(),
-								m_sync_offset);
-					} else
-					{
-						std::stringstream stream;
+						std::string syncdbs;
 						DBIDSet::iterator it = m_sync_dbs.begin();
 						while (it != m_sync_dbs.end())
 						{
-							stream << *it << " ";
+							char tmp[16];
+							sprintf(tmp, "%u", *it);
+							syncdbs.append(tmp);
+							if (*it != *(m_sync_dbs.rbegin()))
+							{
+								syncdbs.append("|");
+							}
 							it++;
 						}
-						sync.Printf("arsync %s %lld %s\r\n",
+						psync.Printf("psync2 %s %lld %s\r\n",
 								m_server_key.c_str(), m_sync_offset,
-								stream.str().c_str());
+								syncdbs.c_str());
+					} else
+					{
+						psync.Printf("psync %s %lld\r\n", m_server_key.c_str(),
+								m_sync_offset);
 					}
-					ctx.GetChannel()->Write(sync);
-					m_slave_state = SLAVE_STATE_WAITING_ARSYNC_REPLY;
+					ctx.GetChannel()->Write(psync);
+					m_slave_state = SLAVE_STATE_WAITING_PSYNC_REPLY;
 				} else
 				{
 					Buffer sync;
 					sync.Printf("sync\r\n");
 					ctx.GetChannel()->Write(sync);
-					m_slave_state = SLAVE_STATE_WAITING_PSYNC_REPLY;
+					m_slave_state = SLAVE_STATE_WAITING_FULLSYNC_REPLY;
 				}
 				break;
 			}
 			case SLAVE_STATE_WAITING_PSYNC_REPLY:
+			{
+				if (reply->type != REDIS_REPLY_STATUS)
+				{
+					ERROR_LOG("Recv psync reply error:%s", reply->str.c_str());
+					ctx.GetChannel()->Close();
+					return;
+				}
+				INFO_LOG("Recv psync reply:%s", reply->str.c_str());
+				std::vector<std::string> ss = split_string(reply->str, " ");
+				if (!strcasecmp(ss[0].c_str(), "FULLRESYNC"))
+				{
+					m_server_key = ss[1];
+					if (!string_toint64(ss[2], m_sync_offset))
+					{
+						ERROR_LOG("Invalid psync offset:%s", ss[2].c_str());
+						ctx.GetChannel()->Close();
+						return;
+					}
+				} else if (!strcasecmp(ss[0].c_str(), "CONTINUE"))
+				{
+					SwitchToCommandCodec();
+					m_slave_state = SLAVE_STATE_SYNCED;
+					break;
+				} else
+				{
+					ERROR_LOG("Invalid psync status:%s", reply->str.c_str());
+					ctx.GetChannel()->Close();
+					return;
+				}
+				m_slave_state = SLAVE_STATE_WAITING_FULLSYNC_REPLY;
+				break;
+			}
+			case SLAVE_STATE_WAITING_FULLSYNC_REPLY:
 			case SLAVE_STATE_SYNING_DATA:
 			{
 				if (reply->type != REDIS_REPLY_STRING)
@@ -197,8 +278,7 @@ namespace ardb
 					Close();
 					return;
 				}
-				ASSERT(m_server_type == REDIS_DB_SERVER_TYPE);
-				if (m_slave_state == SLAVE_STATE_WAITING_PSYNC_REPLY)
+				if (m_slave_state == SLAVE_STATE_WAITING_FULLSYNC_REPLY)
 				{
 					GetNewRedisDumpFile();
 				}
@@ -226,12 +306,12 @@ namespace ardb
 		}
 	}
 
-	void Slave::ChannelClosed(ChannelHandlerContext& ctx,
-			ChannelStateEvent& e)
+	void Slave::ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e)
 	{
 		m_client = NULL;
 		m_slave_state = 0;
 		DELETE(m_actx);
+		m_slave_state = SLAVE_STATE_CLOSED;
 		//reconnect master after 1000ms
 		struct ReconnectTask: public Runnable
 		{
@@ -260,57 +340,91 @@ namespace ardb
 		Close();
 	}
 
-	void Slave::LoadSyncState()
+	bool Slave::LoadSyncState()
 	{
-		std::string path = m_serv->m_cfg.repl_data_dir + "/repl.sync.state";
-		Buffer content;
-		if (file_read_full(path, content) == 0)
+		std::string path = m_serv->m_cfg.repl_data_dir + "/slave_sync.state";
+		int fd = open(path.c_str(), O_CREAT | O_RDWR,
+		S_IRUSR | S_IWUSR);
+		if (fd < 0)
 		{
-			std::string str = content.AsString();
-			std::vector<std::string> ss = split_string(str, " ");
-			if (ss.size() >= 2)
-			{
-				m_server_key = ss[0];
-				string_touint64(ss[1], m_sync_offset);
-			}
-			DEBUG_LOG("Load repl state %s:%u", m_server_key.c_str(),
-					m_sync_offset);
+			const char* err = strerror(errno);
+			ERROR_LOG("Failed to open replication state file:%s for reason:%s",
+					path.c_str(), err);
+			return false;
 		}
+		if (-1 == ftruncate(fd, ARDB_SLAVE_SYNC_STATE_MMAP_FILE_SIZE))
+		{
+			const char* err = strerror(errno);
+			ERROR_LOG("Failed to truncate replication log:%s for reason:%s",
+					path.c_str(), err);
+			close(fd);
+			return false;
+		}
+		char* mbuf = (char*) mmap(NULL, ARDB_SLAVE_SYNC_STATE_MMAP_FILE_SIZE,
+		PROT_READ | PROT_WRITE,
+		MAP_SHARED, fd, 0);
+		if (mbuf == MAP_FAILED)
+		{
+			const char* err = strerror(errno);
+			ERROR_LOG("Failed to mmap replication log:%s for reason:%s",
+					path.c_str(), err);
+			close(fd);
+			return false;
+		} else
+		{
+			close(fd);
+			m_sync_state_buf.buf = mbuf;
+			m_sync_state_buf.size = ARDB_SLAVE_SYNC_STATE_MMAP_FILE_SIZE;
+			if (*mbuf)  //reload last sync state
+			{
+				while (*mbuf && *mbuf != ' ')
+				{
+					mbuf++;
+				}
+				m_server_key.assign(m_sync_state_buf.buf,
+						mbuf - m_sync_state_buf.buf);
+				while (*mbuf == ' ')
+				{
+					mbuf++;
+				}
+				string_toint64(mbuf, m_sync_offset);
+				INFO_LOG("[REPL]Master server key:%s, last sync offset:%lld",
+						m_server_key.c_str(), m_sync_offset);
+			}
+		}
+		return true;
 	}
 
 	void Slave::PersistSyncState()
 	{
-		if (m_server_key == "-")
+		if (m_server_key == "?")
 		{
 			return;
 		}
-		char syncState[1024];
-		sprintf(syncState, "%s %"PRIu64, m_server_key.c_str(), m_sync_offset);
-		std::string path = m_serv->m_cfg.repl_data_dir + "/repl.sync.state";
-		std::string content = syncState;
-		file_write_content(path, content);
+		int len = snprintf(m_sync_state_buf.buf, m_sync_state_buf.size,
+				"%s %"PRIu64, m_server_key.c_str(), m_sync_offset);
+		msync(m_sync_state_buf.buf, len, MS_ASYNC);
 	}
 
-	void Slave::Run()
-	{
-		if (m_slave_state == SLAVE_STATE_SYNCED)
-		{
-			//do nothing
-			if (!m_ping_recved)
-			{
-				Timeout();
-			}
-			m_ping_recved = false;
-		}
-	}
-
-	int Slave::ConnectMaster(const std::string& host, uint32 port)
+	void Slave::InitCron()
 	{
 		if (!m_cron_inited)
 		{
 			m_cron_inited = true;
-			m_serv->GetTimer().Schedule(this, m_serv->m_cfg.repl_timeout,
-					m_serv->m_cfg.repl_timeout, SECONDS);
+			struct RoutineTask: public Runnable
+			{
+					Slave* c;
+					RoutineTask(Slave* cc) :
+							c(cc)
+					{
+					}
+					void Run()
+					{
+						c->Routine();
+					}
+			};
+			m_serv->GetTimer().ScheduleHeapTask(new RoutineTask(this), 1, 1,
+					SECONDS);
 
 			struct PersistTask: public Runnable
 			{
@@ -328,6 +442,10 @@ namespace ardb
 					m_serv->m_cfg.repl_syncstate_persist_period,
 					m_serv->m_cfg.repl_syncstate_persist_period, SECONDS);
 		}
+	}
+
+	int Slave::ConnectMaster(const std::string& host, uint32 port)
+	{
 		SocketHostAddress addr(host, port);
 		if (m_master_addr == addr && NULL != m_client)
 		{

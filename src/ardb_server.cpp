@@ -3141,6 +3141,9 @@ namespace ardb
 			daemonize();
 		}
 
+		make_dir(m_cfg.home + "/repl");
+		make_dir(m_cfg.home + "/data");
+
 		//m_engine = new SelectedDBEngineFactory(props);
 		m_db = new Ardb(&m_engine, m_cfg.worker_count > 1);
 		if (!m_db->Init())
@@ -3202,6 +3205,10 @@ namespace ardb
 			m_repli_serv.Init();
 			m_repli_serv.Start();
 			m_db->RegisterRawKeyListener(&m_repli_serv);
+		}
+		if(!m_slave_client.Init())
+		{
+			goto sexit;
 		}
 		if (!m_cfg.master_host.empty())
 		{

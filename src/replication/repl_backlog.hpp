@@ -41,15 +41,10 @@
 #include <vector>
 #include "common.hpp"
 #include "channel/all_includes.hpp"
+#include "repl.hpp"
 
 namespace ardb
 {
-	struct MMapBuf
-	{
-			char* buf;
-			uint32 size;
-	};
-
 	class ReplBacklog:public Runnable
 	{
 		private:
@@ -70,7 +65,6 @@ namespace ardb
 			void Feed(const char* buf, size_t len);
 			bool IsValidOffset(const std::string& server_key, int64 offset);
 			const std::string& GetServerKey();
-
 
 	};
 }

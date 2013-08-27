@@ -97,11 +97,25 @@ namespace ardb
 		}
 	}
 
+	void Master::FullResyncRedisSlave(SlaveConnection& slave)
+	{
+
+		if(slave.isRedisSlave)
+		{
+			//need to generate a rdb file to send
+
+		}else
+		{
+			//iterate storage, send generated redis cmd
+		}
+	}
+
 	void Master::SyncSlave(SlaveConnection& slave)
 	{
 		if(slave.server_key.empty())
 		{
 			//redis 2.6/2.4
+			FullResyncRedisSlave(slave);
 		}else
 		{
 			Buffer msg;
@@ -115,7 +129,6 @@ namespace ardb
 			}
 			slave.conn->Write(msg);
 		}
-
 	}
 
 	void Master::OnSoftSignal(uint32 soft_signo, uint32 appendinfo)
@@ -179,7 +192,7 @@ namespace ardb
 			//Redis 2.6/2.4 send 'sync'
 			conn->isRedisSlave = true;
 			conn->sync_offset = (uint64) -1;
-		} else    //Ardb/Redis 2.8+ send psync
+		} else
 		{
 			conn->server_key = cmd.GetArguments()[0];
 			const std::string& offset_str = cmd.GetArguments()[1];
@@ -189,6 +202,14 @@ namespace ardb
 				slave->Close();
 				DELETE(conn);
 				return;
+			}
+			//Redis 2.8+ send psync, Ardb send psync2
+			if(!strcasecmp(cmd.GetCommand().c_str(), "psync"))
+			{
+				conn->isRedisSlave = true;
+			}else
+			{
+				conn->isRedisSlave = false;
 			}
 		}
 		m_server->m_service->DetachChannel(slave, true);

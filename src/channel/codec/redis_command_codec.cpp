@@ -168,13 +168,13 @@ int RedisCommandDecoder::ProcessMultibulkBuffer(ChannelHandlerContext& ctx,
 bool RedisCommandDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel,
 		Buffer& buffer, RedisCommandFrame& msg)
 {
-	size_t mark_read_index = buffer.GetReadIndex();
+
 	while (buffer.GetRawReadBuffer()[0] == '\r'
 			|| buffer.GetRawReadBuffer()[0] == '\n')
 	{
 		buffer.AdvanceReadIndex(1);
 	}
-
+	size_t mark_read_index = buffer.GetReadIndex();
 	char ch;
 	if (buffer.ReadByte(ch))
 	{

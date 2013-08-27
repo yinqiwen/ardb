@@ -48,8 +48,7 @@ namespace ardb
 	class ArdbConnContext;
 	class ArdbServer;
 	class Slave: public ChannelUpstreamHandler<RedisCommandFrame>,
-			public ChannelUpstreamHandler<RedisReply>,
-			public Runnable
+			public ChannelUpstreamHandler<RedisReply>
 	{
 		private:
 			ArdbServer* m_serv;
@@ -58,14 +57,15 @@ namespace ardb
 			uint32 m_rest_chunk_len;
 			uint32 m_slave_state;
 			bool m_cron_inited;
-			bool m_ping_recved;
+			uint32 m_ping_recved_time;
 			RedisCommandDecoder m_decoder;
 			NullRedisReplyEncoder m_encoder;
 			RedisReplyDecoder m_reply_decoder;
 
 			uint8 m_server_type;
+			bool m_server_support_psync;
 			std::string m_server_key;
-			uint64 m_sync_offset;
+			int64 m_sync_offset;
 			/*
 			 * empty means all db
 			 */
@@ -78,6 +78,8 @@ namespace ardb
 			 */
 			RedisDumpFile* m_rdb;
 
+			MMapBuf m_sync_state_buf;
+
 			void MessageReceived(ChannelHandlerContext& ctx,
 					MessageEvent<RedisCommandFrame>& e);
 			void MessageReceived(ChannelHandlerContext& ctx,
@@ -87,14 +89,16 @@ namespace ardb
 			void ChannelConnected(ChannelHandlerContext& ctx,
 					ChannelStateEvent& e);
 			void Timeout();
-			void Run();
 			void PersistSyncState();
-			void LoadSyncState();
+			bool LoadSyncState();
+			void Routine();
+			void InitCron();
 			RedisDumpFile* GetNewRedisDumpFile();
 			void SwitchToReplyCodec();
 			void SwitchToCommandCodec();
 		public:
 			Slave(ArdbServer* serv);
+			bool Init();
 			const SocketHostAddress& GetMasterAddress()
 			{
 				return m_master_addr;
@@ -103,7 +107,6 @@ namespace ardb
 			{
 				m_sync_dbs = dbs;
 			}
-
 			int ConnectMaster(const std::string& host, uint32 port);
 			void Close();
 			void Stop();

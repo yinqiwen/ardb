@@ -93,6 +93,7 @@ namespace ardb
 			void OnHeartbeat();
 			void OnInstructions();
 
+			void FullResyncRedisSlave(SlaveConnection& slave);
 			void SyncSlave(SlaveConnection& slave);
 
 			void ChannelClosed(ChannelHandlerContext& ctx,
