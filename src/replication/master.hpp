@@ -49,11 +49,11 @@ using namespace ardb::codec;
 
 namespace ardb
 {
-	struct ReplInstruction
+	struct ReplicationInstruction
 	{
 			void* ptr;
 			uint8 type;
-			ReplInstruction(void* p, uint8 t) :
+			ReplicationInstruction(void* p = NULL, uint8 t = 0) :
 					ptr(p), type(t)
 			{
 			}
@@ -65,11 +65,12 @@ namespace ardb
 			std::string server_key;
 			int64 sync_offset;
 			uint64 acktime;
+			int repldbfd;
 			bool isRedisSlave;
 			uint8 state;
 			SlaveConnection() :
-					conn(NULL), sync_offset(0), acktime(0), isRedisSlave(false), state(
-							0)
+					conn(NULL), sync_offset(0), acktime(0), repldbfd(-1), isRedisSlave(
+							false), state(0)
 			{
 			}
 	};
@@ -83,30 +84,42 @@ namespace ardb
 			ChannelService m_channel_service;
 			ArdbServer* m_server;
 			SoftSignalChannel* m_notify_channel;
-			MPSCQueue<ReplInstruction> m_inst_queue;
+			MPSCQueue<ReplicationInstruction> m_inst_queue;
 			typedef std::map<uint32, SlaveConnection*> SlaveConnTable;
 			SlaveConnTable m_slave_table;
 
 			ReplBacklog m_backlog;
+			bool m_dumping_db;
+			int64 m_dumpdb_offset;
 
 			void Run();
 			void OnHeartbeat();
 			void OnInstructions();
+			void onDumpComplete();
 
 			void FullResyncRedisSlave(SlaveConnection& slave);
 			void SyncSlave(SlaveConnection& slave);
 
 			void ChannelClosed(ChannelHandlerContext& ctx,
 					ChannelStateEvent& e);
+			void ChannelWritable(ChannelHandlerContext& ctx,
+					ChannelStateEvent& e);
 			void MessageReceived(ChannelHandlerContext& ctx,
 					MessageEvent<RedisCommandFrame>& e);
 			void OnSoftSignal(uint32 soft_signo, uint32 appendinfo);
-			void OfferReplInstruction(ReplInstruction& inst);
+			void OfferReplInstruction(ReplicationInstruction& inst);
+
 		public:
 			Master(ArdbServer* server);
 			int Init();
 			void AddSlave(Channel* slave, RedisCommandFrame& cmd);
 			void FeedSlaves(const DBID& dbid, RedisCommandFrame& cmd);
+			void SendDumpToSlave(SlaveConnection& slave);
+			void SendCacheToSlave(SlaveConnection& slave);
+			ReplBacklog& GetReplBacklog()
+			{
+				return m_backlog;
+			}
 	};
 }
 

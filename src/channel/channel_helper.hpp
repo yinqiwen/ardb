@@ -60,7 +60,7 @@ namespace ardb
 
 	//bool fireMessageReceived(Channel* channel, Object* message, ObjectDestructor destructor=NULL);
 
-	bool fire_write_complete(Channel* channel);
+	bool fire_channel_writable(Channel* channel);
 
 	//bool openChannel(Channel* channel);
 	//bool bindChannel(Channel* channel, Address* localAddress);

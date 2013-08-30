@@ -41,30 +41,41 @@
 #include <vector>
 #include "common.hpp"
 #include "channel/all_includes.hpp"
+#include "util/mmap.hpp"
 #include "repl.hpp"
+
+using namespace ardb::codec;
 
 namespace ardb
 {
 	class ReplBacklog:public Runnable
 	{
 		private:
-			uint32 m_backlog_size;
-			uint32 m_backlog_idx;
-			uint32 m_master_repl_offset;
-			uint32 m_repl_backlog_histlen;
-			uint32 m_repl_backlog_offset;
+			uint64 m_backlog_size;
+			uint64 m_backlog_idx;
+			uint64 m_master_repl_offset;
+			uint64 m_repl_backlog_histlen;
+			uint64 m_repl_backlog_offset;
 
-			typedef std::vector<MMapBuf> BacklogBufArray;
-			BacklogBufArray m_backlog_bufs;
+			std::string m_server_key;
+			bool m_sync_state_change;
+
+			MMapBuf m_sync_state_buf;
+			MMapBuf m_backlog;
+
 			void Run();
-			void ClearMapBuf(BacklogBufArray& bufs);
-			void Put(const char* buf, size_t len);
+			void PersistSyncState();
+			bool LoadSyncState(const std::string& path);
 		public:
 			ReplBacklog();
-			int ReInit(const std::string& path, uint64 backlog_size);
-			void Feed(const char* buf, size_t len);
+			int Init(const std::string& path, uint64 backlog_size);
+			void Feed(RedisCommandFrame& cmd);
+			bool IsValidOffset(int64 offset);
 			bool IsValidOffset(const std::string& server_key, int64 offset);
 			const std::string& GetServerKey();
+			uint64 GetReplEndOffset();
+			uint64 GetReplStartOffset();
+			size_t WriteChannel(Channel* channle, int64 offset, size_t len);
 
 	};
 }

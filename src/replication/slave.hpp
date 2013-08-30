@@ -37,6 +37,7 @@
 #ifndef SLAVE_CLIENT_HPP_
 #define SLAVE_CLIENT_HPP_
 #include "channel/all_includes.hpp"
+#include "util/mmap.hpp"
 #include "ardb.hpp"
 #include "rdb.hpp"
 #include "repl.hpp"

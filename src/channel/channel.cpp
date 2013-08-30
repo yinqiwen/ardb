@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -29,12 +29,17 @@
 
 #include "channel/all_includes.hpp"
 
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+#include <sys/stat.h>
+
 using namespace ardb;
 
 static uint32 kChannelIDSeed = 1;
 
 void Channel::IOEventCallback(struct aeEventLoop *eventLoop, int fd,
-        void *clientData, int mask)
+		void *clientData, int mask)
 {
 	//DEBUG_LOG("############Mask is %d", mask);
 	Channel* channel = (Channel*) clientData;
@@ -55,10 +60,10 @@ void Channel::IOEventCallback(struct aeEventLoop *eventLoop, int fd,
 
 Channel::Channel(Channel* parent, ChannelService& service) :
 		m_user_configed(false), m_has_removed(false), m_parent_id(0), m_service(
-		        &service), m_id(0), m_fd(-1), m_flush_timertask_id(-1), m_pipeline_initializor(
-		        NULL), m_pipeline_initailizor_user_data(NULL), m_pipeline_finallizer(
-		        NULL), m_pipeline_finallizer_user_data(NULL), m_detached(false), m_writable(
-		        true), m_close_after_write(false)
+				&service), m_id(0), m_fd(-1), m_flush_timertask_id(-1), m_pipeline_initializor(
+		NULL), m_pipeline_initailizor_user_data(NULL), m_pipeline_finallizer(
+		NULL), m_pipeline_finallizer_user_data(NULL), m_detached(false), m_close_after_write(
+				false), m_file_sending(NULL)
 {
 
 	if (kChannelIDSeed == MAX_CHANNEL_ID)
@@ -86,9 +91,10 @@ int Channel::GetReadFD()
 
 bool Channel::AttachFD()
 {
-	int fd =  GetReadFD();
-	if (fd != -1 && aeCreateFileEvent(GetService().GetRawEventLoop(), fd, AE_READABLE,
-	        Channel::IOEventCallback, this) == AE_ERR)
+	int fd = GetReadFD();
+	if (fd
+			!= -1&& aeCreateFileEvent(GetService().GetRawEventLoop(), fd, AE_READABLE,
+					Channel::IOEventCallback, this) == AE_ERR)
 	{
 		::close(GetReadFD());
 		ERROR_LOG("Failed to register event for fd:%d.", GetReadFD());
@@ -107,7 +113,7 @@ bool Channel::AttachFD(int fd)
 		return false;
 	}
 	if (aeCreateFileEvent(GetService().GetRawEventLoop(), fd, AE_READABLE,
-	        Channel::IOEventCallback, this) == AE_ERR)
+			Channel::IOEventCallback, this) == AE_ERR)
 	{
 		::close(fd);
 		ERROR_LOG("Failed to register event for fd:%d.", m_fd);
@@ -119,12 +125,12 @@ bool Channel::AttachFD(int fd)
 }
 
 bool Channel::SetIOEventCallback(ChannelIOEventCallback* cb, int mask,
-        void* data)
+		void* data)
 {
 	if (!m_detached)
 	{
 		ERROR_LOG(
-		        "Channel::SetIOEventCallback should be invoked after detached.");
+				"Channel::SetIOEventCallback should be invoked after detached.");
 		return false;
 	}
 	int rd_fd = GetReadFD();
@@ -133,29 +139,27 @@ bool Channel::SetIOEventCallback(ChannelIOEventCallback* cb, int mask,
 	if (rd_fd == wr_fd)
 	{
 		if (aeCreateFileEvent(GetService().GetRawEventLoop(), rd_fd, mask, cb,
-		        data) == AE_ERR)
+				data) == AE_ERR)
 		{
 			::close(rd_fd);
 			ERROR_LOG("Failed to register event for fd:%d.", rd_fd);
 			return false;
 		}
-	}
-	else
+	} else
 	{
 		if (mask & AE_READABLE)
 		{
 			if (aeCreateFileEvent(GetService().GetRawEventLoop(), rd_fd,
-			        AE_READABLE, cb, data) == AE_ERR)
+			AE_READABLE, cb, data) == AE_ERR)
 			{
 				::close(rd_fd);
 				ERROR_LOG("Failed to register event for fd:%d.", rd_fd);
 				return false;
 			}
-		}
-		else if (mask & AE_WRITABLE)
+		} else if (mask & AE_WRITABLE)
 		{
 			if (aeCreateFileEvent(GetService().GetRawEventLoop(), wr_fd,
-			        AE_WRITABLE, cb, data) == AE_ERR)
+			AE_WRITABLE, cb, data) == AE_ERR)
 			{
 				::close(wr_fd);
 				ERROR_LOG("Failed to register event for fd:%d.", wr_fd);
@@ -174,7 +178,7 @@ void Channel::DetachFD()
 	{
 		DEBUG_LOG("Detach fd(%d) from event loop.", GetReadFD());
 		aeDeleteFileEvent(GetService().GetRawEventLoop(), GetReadFD(),
-		        AE_WRITABLE | AE_READABLE);
+		AE_WRITABLE | AE_READABLE);
 		m_detached = true;
 	}
 }
@@ -203,8 +207,7 @@ int32 Channel::ReadNow(Buffer* buffer)
 		if (IO_ERR_RW_RETRIABLE(err))
 		{
 			return 0;
-		}
-		else
+		} else
 		{
 			return HandleIOError(err);
 		}
@@ -223,33 +226,44 @@ void Channel::Run()
 	Flush();
 }
 
+bool Channel::IsEnableWriting()
+{
+	return (aeGetFileEvents(GetService().GetRawEventLoop(), GetWriteFD())
+			& AE_WRITABLE);
+}
+
 void Channel::EnableWriting()
 {
+	if (IsEnableWriting())
+	{
+		return;
+	}
 	int write_fd = GetWriteFD();
 	if (write_fd > 0)
 	{
-		m_writable = false;
 		aeCreateFileEvent(GetService().GetRawEventLoop(), GetWriteFD(),
-		        AE_WRITABLE, Channel::IOEventCallback, this);
-	}
-	else
+		AE_WRITABLE, Channel::IOEventCallback, this);
+	} else
 	{
-		WARN_LOG(
-		        "Invalid fd:%d for enable writing for channel[%u].", write_fd, m_id);
+		WARN_LOG("Invalid fd:%d for enable writing for channel[%u].", write_fd,
+				m_id);
 	}
 }
 void Channel::DisableWriting()
 {
+	if (!IsEnableWriting())
+	{
+		return;
+	}
 	int write_fd = GetWriteFD();
 	if (write_fd > 0)
 	{
-		m_writable = true;
-		aeDeleteFileEvent(GetService().GetRawEventLoop(), write_fd, AE_WRITABLE);
-	}
-	else
+		aeDeleteFileEvent(GetService().GetRawEventLoop(), write_fd,
+		AE_WRITABLE);
+	} else
 	{
-		WARN_LOG(
-		        "Invalid fd:%d for disable writing for channel[%u].", write_fd, m_id);
+		WARN_LOG("Invalid fd:%d for disable writing for channel[%u].", write_fd,
+				m_id);
 	}
 }
 
@@ -267,26 +281,29 @@ void Channel::CreateFlushTimerTask()
 {
 	if (-1 == m_flush_timertask_id)
 	{
+		DisableWriting();
 		m_flush_timertask_id = GetService().GetTimer().Schedule(this,
-		        m_options.user_write_buffer_flush_timeout_mills, -1, MILLIS);
-		//TRACE_LOG(
-		//        "Create flush task(%u) triggered after %ums.", m_flush_timertask_id, m_options.user_write_buffer_flush_timeout_mills);
+				m_options.user_write_buffer_flush_timeout_mills, -1, MILLIS);
 	}
 }
 
 int32 Channel::WriteNow(Buffer* buffer)
 {
+	if (NULL != m_file_sending)
+	{
+		WARN_LOG("Can NOT write fd since channel is sending file.");
+		return 0;
+	}
 	uint32 buf_len = NULL != buffer ? buffer->ReadableBytes() : 0;
-	//TRACE_LOG(
-	//        "Write %u bytes for channel:channel id %u & type:%u", buf_len, GetID(), GetID() & 0xf);
+
 	if (m_outputBuffer.Readable())
 	{
 		if (m_options.max_write_buffer_size > 0) //write buffer size limit enable
 		{
 			uint32 write_buffer_size = m_outputBuffer.ReadableBytes();
 			if (write_buffer_size > m_options.max_write_buffer_size
-			        || (write_buffer_size + buf_len)
-			                > m_options.max_write_buffer_size)
+					|| (write_buffer_size + buf_len)
+							> m_options.max_write_buffer_size)
 			{
 				//overflow
 				return 0;
@@ -294,21 +311,20 @@ int32 Channel::WriteNow(Buffer* buffer)
 		}
 		m_outputBuffer.Write(buffer, buf_len);
 		if (m_options.user_write_buffer_water_mark > 0
-		        && m_outputBuffer.ReadableBytes()
-		                < m_options.user_write_buffer_water_mark)
+				&& m_outputBuffer.ReadableBytes()
+						< m_options.user_write_buffer_water_mark)
 		{
 			CreateFlushTimerTask();
-		}
-		else
+		} else
 		{
 			//EnableWriting();
 			Flush();
 		}
 		return buf_len;
-	}
-	else
+	} else
 	{
-		if (buf_len < m_options.user_write_buffer_water_mark || !m_writable)
+		if (buf_len < m_options.user_write_buffer_water_mark
+				|| IsEnableWriting())
 		{
 			m_outputBuffer.Write(buffer, buf_len);
 			CreateFlushTimerTask();
@@ -324,17 +340,14 @@ int32 Channel::WriteNow(Buffer* buffer)
 				m_outputBuffer.Write(buffer, buf_len);
 				EnableWriting();
 				return buf_len;
-			}
-			else
+			} else
 			{
 				return HandleIOError(err);
 			}
-		}
-		else if (ret == 0)
+		} else if (ret == 0)
 		{
 			return HandleExceptionEvent(CHANNEL_EVENT_EOF);
-		}
-		else
+		} else
 		{
 			if ((size_t) ret < buf_len)
 			{
@@ -353,10 +366,9 @@ bool Channel::DoConfigure(const ChannelOptions& options)
 		if (options.user_write_buffer_flush_timeout_mills > 0)
 		{
 			m_outputBuffer.EnsureWritableBytes(
-			        options.user_write_buffer_water_mark * 2);
+					options.user_write_buffer_water_mark * 2);
 			//NEW(m_user_write_buffer, ByteBuffer(options.user_write_buffer_water_mark * 2));
-		}
-		else
+		} else
 		{
 			return false;
 		}
@@ -393,38 +405,33 @@ bool Channel::DoFlush()
 			if (IO_ERR_RW_RETRIABLE(err))
 			{
 				//nothing
-				EnableWriting();
+				//EnableWriting();
 				return true;
-			}
-			else
+			} else
 			{
 				return HandleIOError(err);
 			}
-		}
-		else if (ret == 0)
+		} else if (ret == 0)
 		{
 			return HandleExceptionEvent(CHANNEL_EVENT_EOF);
 		}
 		m_outputBuffer.DiscardReadedBytes();
 		m_outputBuffer.Compact(
-		        m_options.user_write_buffer_water_mark > 0 ? m_options.user_write_buffer_water_mark
-		                * 2 :
-		                8192);
+				m_options.user_write_buffer_water_mark > 0 ?
+						m_options.user_write_buffer_water_mark * 2 : 8192);
 		if ((uint32) ret < send_buf_len)
 		{
-			EnableWriting();
-		}
-		else
+			//EnableWriting();
+		} else
 		{
 			//fireWriteComplete(this);
 		}
 		return true;
-	}
-	else
+	} else
 	{
 		m_outputBuffer.Compact(
-		        m_options.user_write_buffer_water_mark > 0 ? m_options.user_write_buffer_water_mark :
-		                8192);
+				m_options.user_write_buffer_water_mark > 0 ?
+						m_options.user_write_buffer_water_mark : 8192);
 		return true;
 	}
 
@@ -456,8 +463,7 @@ void Channel::OnRead()
 		//TRACE_LOG(
 		//        "DataReceived with %d bytes in channel %u.", m_inputBuffer.ReadableBytes(), GetID());
 		fire_message_received<Buffer>(this, &m_inputBuffer, NULL);
-	}
-	else
+	} else
 	{
 		//TRACE_LOG(
 		//        "[ERROR]Failed to read channel for ret:%d for fd:%d, channel id %u & type:%u", len, GetReadFD(), GetID(), GetID() & 0xf);
@@ -466,18 +472,61 @@ void Channel::OnRead()
 
 void Channel::OnWrite()
 {
-	DisableWriting();
-	if (!Flush())
+	if (!DoFlush())
 	{
 		fire_channel_closed(this);
-	}
-	else
+	} else
 	{
 		if (m_close_after_write)
 		{
 			Close();
+			return;
 		}
 	}
+	if (m_outputBuffer.Readable())
+	{
+		return;
+	}
+	if (NULL != m_file_sending)
+	{
+		EnableWriting();
+		off_t len = m_file_sending->file_rest_len;
+		int ret = sendfile(GetWriteFD(), m_file_sending->fd,
+				m_file_sending->file_offset, &len, NULL, 0);
+		if (ret != 0)
+		{
+			if (ret != EAGAIN && ret != EINTR)
+			{
+				Close();
+				return;
+			}
+		}
+		m_file_sending->file_rest_len -= len;
+		m_file_sending->file_offset += len;
+		if (m_file_sending->file_rest_len == 0)
+		{
+			if (NULL != m_file_sending->on_complete)
+			{
+				m_file_sending->on_complete(m_file_sending->data);
+			}
+			DELETE(m_file_sending);
+		} else
+		{
+			return;
+		}
+	}
+	fire_channel_writable(this);
+	if (!m_outputBuffer.Readable())
+	{
+		DisableWriting();
+	}
+}
+
+int Channel::SendFile(const SendFileSetting& setting)
+{
+	m_file_sending = new SendFileSetting(setting);
+	EnableWriting();
+	return 0;
 }
 
 bool Channel::Configure(const ChannelOptions& options)
@@ -508,11 +557,20 @@ bool Channel::Connect(Address* remote)
 
 bool Channel::Flush()
 {
-	if (!m_writable)
+	if (IsEnableWriting())
 	{
 		return false;
 	}
-	return DoFlush();
+	bool ret = DoFlush();
+	if (!ret)
+	{
+		return false;
+	}
+	if (!m_outputBuffer.Readable())
+	{
+		DisableWriting();
+	}
+	return true;
 }
 
 bool Channel::DoClose(bool inDestructor)
@@ -525,12 +583,13 @@ bool Channel::DoClose(bool inDestructor)
 	if (read_fd > 0)
 	{
 		aeDeleteFileEvent(GetService().GetRawEventLoop(), read_fd,
-		        AE_READABLE | AE_WRITABLE);
+		AE_READABLE | AE_WRITABLE);
 		hasfd = true;
 	}
 	if (read_fd != write_fd && write_fd > 0)
 	{
-		aeDeleteFileEvent(GetService().GetRawEventLoop(), write_fd, AE_WRITABLE);
+		aeDeleteFileEvent(GetService().GetRawEventLoop(), write_fd,
+		AE_WRITABLE);
 		hasfd = true;
 	}
 	CancelFlushTimerTask();
@@ -548,6 +607,14 @@ bool Channel::DoClose(bool inDestructor)
 			}
 		}
 	}
+	if (NULL != m_file_sending)
+	{
+		if (NULL != m_file_sending->on_failure)
+		{
+			m_file_sending->on_failure(m_file_sending->data);
+		}
+	}
+	DELETE(m_file_sending);
 	if (!m_has_removed && !inDestructor)
 	{
 		m_has_removed = true;

@@ -86,9 +86,13 @@ namespace ardb
 	RedisDumpFile* Slave::GetNewRedisDumpFile()
 	{
 		DELETE(m_rdb);
-		std::string dump_file_path = m_serv->m_cfg.home + "/repl/dump.rdb";
-		NEW(m_rdb, RedisDumpFile(m_serv->m_db, dump_file_path));
-		INFO_LOG("[REPL]Create redis dump file:%s", dump_file_path.c_str());
+		std::string dump_file_path = m_serv->m_cfg.home + "/repl";
+		char tmp[dump_file_path.size() + 100];
+		uint32 now = time(NULL);
+		sprintf(tmp, "%s/temp-%u-%u.rdb", dump_file_path.c_str(), getpid(),
+				now);
+		NEW(m_rdb, RedisDumpFile(m_serv->m_db, tmp));
+		INFO_LOG("[Slave]Create redis dump file:%s", tmp);
 		return m_rdb;
 	}
 
@@ -123,19 +127,22 @@ namespace ardb
 	}
 	void Slave::Routine()
 	{
-		if (m_slave_state == SLAVE_STATE_SYNCED)
+		if (m_slave_state == SLAVE_STATE_SYNCED
+				|| m_slave_state == SLAVE_STATE_LOADING_DUMP_DATA)
 		{
 			uint32 now = time(NULL);
 			if (m_ping_recved_time > 0
 					&& now - m_ping_recved_time >= m_serv->m_cfg.repl_timeout)
 			{
 				Timeout();
-			}
-			if(m_server_support_psync)
+			} else
 			{
-				Buffer ack;
-				ack.Printf("REPLCONF ACK %lld\r\n",m_sync_offset);
-				m_client->Write(ack);
+				if (m_server_support_psync)
+				{
+					Buffer ack;
+					ack.Printf("REPLCONF ACK %lld\r\n", m_sync_offset);
+					m_client->Write(ack);
+				}
 			}
 		}
 	}
@@ -175,12 +182,12 @@ namespace ardb
 						m_server_support_psync = true;
 					}
 					INFO_LOG(
-							"[REPL]Remote master is a Redis %s instance, support partial sync:%u",
+							"[Slave]Remote master is a Redis %s instance, support partial sync:%u",
 							v.c_str(), m_server_support_psync);
 
 				} else
 				{
-					INFO_LOG("[REPL]Remote master is an Ardb instance.");
+					INFO_LOG("[Slave]Remote master is an Ardb instance.");
 					m_server_type = ARDB_DB_SERVER_TYPE;
 				}
 				Buffer replconf;
@@ -270,7 +277,7 @@ namespace ardb
 				break;
 			}
 			case SLAVE_STATE_WAITING_FULLSYNC_REPLY:
-			case SLAVE_STATE_SYNING_DATA:
+			case SLAVE_STATE_SYNING_DUMP_DATA:
 			{
 				if (reply->type != REDIS_REPLY_STRING)
 				{
@@ -291,11 +298,16 @@ namespace ardb
 				{
 					m_rdb->Flush();
 					SwitchToCommandCodec();
-					m_slave_state = SLAVE_STATE_SYNCED;
+					m_slave_state = SLAVE_STATE_LOADING_DUMP_DATA;
 					m_rdb->Load(LoadRDBRoutine, m_client);
+					m_slave_state = SLAVE_STATE_SYNCED;
+					m_rdb->Remove();
 					DELETE(m_rdb);
+				} else
+				{
+					m_slave_state = SLAVE_STATE_SYNING_DUMP_DATA;
 				}
-				m_slave_state = SLAVE_STATE_SYNING_DATA;
+
 				break;
 			}
 			default:
@@ -343,52 +355,21 @@ namespace ardb
 	bool Slave::LoadSyncState()
 	{
 		std::string path = m_serv->m_cfg.repl_data_dir + "/slave_sync.state";
-		int fd = open(path.c_str(), O_CREAT | O_RDWR,
-		S_IRUSR | S_IWUSR);
-		if (fd < 0)
+		if (0 != m_sync_state_buf.Init(path,
+		ARDB_SLAVE_SYNC_STATE_MMAP_FILE_SIZE))
 		{
-			const char* err = strerror(errno);
-			ERROR_LOG("Failed to open replication state file:%s for reason:%s",
-					path.c_str(), err);
 			return false;
 		}
-		if (-1 == ftruncate(fd, ARDB_SLAVE_SYNC_STATE_MMAP_FILE_SIZE))
+		if (*(m_sync_state_buf.m_buf))
 		{
-			const char* err = strerror(errno);
-			ERROR_LOG("Failed to truncate replication log:%s for reason:%s",
-					path.c_str(), err);
-			close(fd);
-			return false;
-		}
-		char* mbuf = (char*) mmap(NULL, ARDB_SLAVE_SYNC_STATE_MMAP_FILE_SIZE,
-		PROT_READ | PROT_WRITE,
-		MAP_SHARED, fd, 0);
-		if (mbuf == MAP_FAILED)
-		{
-			const char* err = strerror(errno);
-			ERROR_LOG("Failed to mmap replication log:%s for reason:%s",
-					path.c_str(), err);
-			close(fd);
-			return false;
-		} else
-		{
-			close(fd);
-			m_sync_state_buf.buf = mbuf;
-			m_sync_state_buf.size = ARDB_SLAVE_SYNC_STATE_MMAP_FILE_SIZE;
-			if (*mbuf)  //reload last sync state
+			char* found = strstr(m_sync_state_buf.m_buf, " ");
+			if (found != NULL)
 			{
-				while (*mbuf && *mbuf != ' ')
-				{
-					mbuf++;
-				}
-				m_server_key.assign(m_sync_state_buf.buf,
-						mbuf - m_sync_state_buf.buf);
-				while (*mbuf == ' ')
-				{
-					mbuf++;
-				}
-				string_toint64(mbuf, m_sync_offset);
-				INFO_LOG("[REPL]Master server key:%s, last sync offset:%lld",
+				m_server_key.assign(m_sync_state_buf.m_buf,
+						found - m_sync_state_buf.m_buf);
+				string_toint64(found + 1, m_sync_offset);
+				INFO_LOG(
+						"[Slave]Remote master server key:%s, last sync offset:%lld",
 						m_server_key.c_str(), m_sync_offset);
 			}
 		}
@@ -401,9 +382,9 @@ namespace ardb
 		{
 			return;
 		}
-		int len = snprintf(m_sync_state_buf.buf, m_sync_state_buf.size,
+		int len = snprintf(m_sync_state_buf.m_buf, m_sync_state_buf.m_size,
 				"%s %"PRIu64, m_server_key.c_str(), m_sync_offset);
-		msync(m_sync_state_buf.buf, len, MS_ASYNC);
+		msync(m_sync_state_buf.m_buf, len, MS_ASYNC);
 	}
 
 	void Slave::InitCron()

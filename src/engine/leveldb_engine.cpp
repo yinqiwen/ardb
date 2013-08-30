@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -252,15 +252,15 @@ namespace ardb
 		{
 			if (!status.ok())
 			{
-				ERROR_LOG(
-						"Failed to init engine:%s", status.ToString().c_str());
+				ERROR_LOG("Failed to init engine:%s",
+						status.ToString().c_str());
 				if (status.IsCorruption())
 				{
 					status = leveldb::RepairDB(cfg.path.c_str(), m_options);
 					if (!status.ok())
 					{
-						ERROR_LOG(
-								"Failed to repair:%s for %s", cfg.path.c_str(), status.ToString().c_str());
+						ERROR_LOG("Failed to repair:%s for %s",
+								cfg.path.c_str(), status.ToString().c_str());
 						return -1;
 					}
 					status = leveldb::DB::Open(m_options, cfg.path.c_str(),
@@ -276,12 +276,12 @@ namespace ardb
 
 	int LevelDBEngine::BeginBatchWrite()
 	{
-		m_batch_local.GetValue().AddRef();
+		m_context.GetValue().AddRef();
 		return 0;
 	}
 	int LevelDBEngine::CommitBatchWrite()
 	{
-		BatchHolder& holder = m_batch_local.GetValue();
+		ContextHolder& holder = m_context.GetValue();
 		holder.ReleaseRef();
 		if (holder.EmptyRef())
 		{
@@ -291,13 +291,13 @@ namespace ardb
 	}
 	int LevelDBEngine::DiscardBatchWrite()
 	{
-		BatchHolder& holder = m_batch_local.GetValue();
+		ContextHolder& holder = m_context.GetValue();
 		holder.ReleaseRef();
 		holder.Clear();
 		return 0;
 	}
 
-	int LevelDBEngine::FlushWriteBatch(BatchHolder& holder)
+	int LevelDBEngine::FlushWriteBatch(ContextHolder& holder)
 	{
 		leveldb::Status s = m_db->Write(leveldb::WriteOptions(), &holder.batch);
 		holder.Clear();
@@ -313,12 +313,12 @@ namespace ardb
 		m_db->CompactRange(start, endpos);
 	}
 
-	void LevelDBEngine::BatchHolder::Put(const Slice& key, const Slice& value)
+	void LevelDBEngine::ContextHolder::Put(const Slice& key, const Slice& value)
 	{
 		batch.Put(LEVELDB_SLICE(key), LEVELDB_SLICE(value));
 		count++;
 	}
-	void LevelDBEngine::BatchHolder::Del(const Slice& key)
+	void LevelDBEngine::ContextHolder::Del(const Slice& key)
 	{
 		batch.Delete(LEVELDB_SLICE(key));
 		count++;
@@ -327,7 +327,7 @@ namespace ardb
 	int LevelDBEngine::Put(const Slice& key, const Slice& value)
 	{
 		leveldb::Status s = leveldb::Status::OK();
-		BatchHolder& holder = m_batch_local.GetValue();
+		ContextHolder& holder = m_context.GetValue();
 		if (!holder.EmptyRef())
 		{
 			holder.Put(key, value);
@@ -344,14 +344,17 @@ namespace ardb
 	}
 	int LevelDBEngine::Get(const Slice& key, std::string* value)
 	{
-		leveldb::Status s = m_db->Get(leveldb::ReadOptions(),
+		leveldb::ReadOptions options;
+		ContextHolder& holder = m_context.GetValue();
+		options.snapshot = holder.snapshot;
+		leveldb::Status s = m_db->Get(options,
 		LEVELDB_SLICE(key), value);
 		return s.ok() ? 0 : -1;
 	}
 	int LevelDBEngine::Del(const Slice& key)
 	{
 		leveldb::Status s = leveldb::Status::OK();
-		BatchHolder& holder = m_batch_local.GetValue();
+		ContextHolder& holder = m_context.GetValue();
 		if (!holder.EmptyRef())
 		{
 			holder.Del(key);
@@ -370,9 +373,22 @@ namespace ardb
 	{
 		leveldb::ReadOptions options;
 		options.fill_cache = cache;
+		ContextHolder& holder = m_context.GetValue();
+		//holder.snapshot = m_db->GetSnapshot();
+		//options.snapshot = holder.snapshot;
 		leveldb::Iterator* iter = m_db->NewIterator(options);
 		iter->Seek(LEVELDB_SLICE(findkey));
-		return new LevelDBIterator(iter);
+		return new LevelDBIterator(this, iter);
+	}
+
+	void LevelDBEngine::ReleaseContextSnapshot()
+	{
+		ContextHolder& holder = m_context.GetValue();
+		if(NULL != holder.snapshot)
+		{
+			m_db->ReleaseSnapshot(holder.snapshot);
+			holder.snapshot = NULL;
+		}
 	}
 
 	const std::string LevelDBEngine::Stats()
@@ -380,6 +396,12 @@ namespace ardb
 		std::string str;
 		m_db->GetProperty("leveldb.stats", &str);
 		return str;
+	}
+
+	LevelDBIterator::~LevelDBIterator()
+	{
+		delete m_iter;
+		m_engine->ReleaseContextSnapshot();
 	}
 
 }

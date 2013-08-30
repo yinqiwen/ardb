@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -39,9 +39,11 @@
 
 namespace ardb
 {
+	class LevelDBEngine;
 	class LevelDBIterator: public Iterator
 	{
 		private:
+			LevelDBEngine* m_engine;
 			leveldb::Iterator* m_iter;
 			void Next();
 			void Prev();
@@ -51,15 +53,12 @@ namespace ardb
 			void SeekToFirst();
 			void SeekToLast();
 		public:
-			LevelDBIterator(leveldb::Iterator* iter) :
-					m_iter(iter)
+			LevelDBIterator(LevelDBEngine* engine, leveldb::Iterator* iter) :
+					m_engine(engine), m_iter(iter)
 			{
 
 			}
-			~LevelDBIterator()
-			{
-				delete m_iter;
-			}
+			~LevelDBIterator();
 	};
 
 	class LevelDBComparator: public leveldb::Comparator
@@ -124,11 +123,13 @@ namespace ardb
 		private:
 			leveldb::DB* m_db;
 			LevelDBComparator m_comparator;
-			struct BatchHolder
+			struct ContextHolder
 			{
 					leveldb::WriteBatch batch;
 					uint32 ref;
 					uint32 count;
+					const leveldb::Snapshot* snapshot;
+
 					void ReleaseRef()
 					{
 						if (ref > 0)
@@ -149,18 +150,18 @@ namespace ardb
 					}
 					void Put(const Slice& key, const Slice& value);
 					void Del(const Slice& key);
-					BatchHolder() :
-							ref(0),count(0)
+					ContextHolder() :
+							ref(0), count(0), snapshot(NULL)
 					{
 					}
 			};
-			ThreadLocal<BatchHolder> m_batch_local;
+			ThreadLocal<ContextHolder> m_context;
 			std::string m_db_path;
 
 			LevelDBConfig m_cfg;
 			leveldb::Options m_options;
 			friend class LevelDBEngineFactory;
-			int FlushWriteBatch(BatchHolder& holder);
+			int FlushWriteBatch(ContextHolder& holder);
 		public:
 			LevelDBEngine();
 			~LevelDBEngine();
@@ -174,6 +175,7 @@ namespace ardb
 			Iterator* Find(const Slice& findkey, bool cache);
 			const std::string Stats();
 			void CompactRange(const Slice& begin, const Slice& end);
+			void ReleaseContextSnapshot();
 	};
 
 	class LevelDBEngineFactory: public KeyValueEngineFactory

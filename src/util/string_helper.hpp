@@ -131,6 +131,7 @@ namespace ardb
 	std::string sha1_sum_data(const void* data,size_t len);
 
 	int string2ll(const char *s, size_t slen, long long *value);
+	int ll2string(char *s, size_t len, long long value);
 
 	std::string stringfromll(int64 v);
 }

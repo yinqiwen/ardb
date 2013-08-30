@@ -168,7 +168,14 @@ namespace ardb
 			}
 	};
 
-
+	struct WalkHandler
+	{
+			virtual int OnKeyValue(KeyObject* key, ValueObject* value,
+					uint32 cursor) = 0;
+			virtual ~WalkHandler()
+			{
+			}
+	};
 
 	class Ardb
 	{
@@ -266,15 +273,7 @@ namespace ardb
 					TableKeyIndexValueTable& rs);
 			bool TRowExists(const DBID& db, const Slice& tableName,
 					TableSchemaValue& schema, ValueArray& rowkey);
-			struct WalkHandler
-			{
-					virtual int OnKeyValue(KeyObject* key, ValueObject* value,
-							uint32 cursor) = 0;
-					virtual ~WalkHandler()
-					{
-					}
-			};
-			void Walk(KeyObject& key, bool reverse, WalkHandler* handler);
+
 			std::string m_err_cause;
 			void SetErrorCause(const std::string& cause)
 			{
@@ -583,13 +582,15 @@ namespace ardb
 			int SaveScript(const std::string& funacname, const std::string& funcbody);
 			int FlushScripts();
 
-
 			void PrintDB(const DBID& db);
 			void VisitDB(const DBID& db, RawValueVisitor* visitor,
 					Iterator* iter = NULL);
 			void VisitAllDB(RawValueVisitor* visitor, Iterator* iter = NULL);
 			Iterator* NewIterator();
 			Iterator* NewIterator(const DBID& db);
+
+			void Walk(KeyObject& key, bool reverse, WalkHandler* handler);
+			void Walk(WalkHandler* handler);
 
 			KeyValueEngine* GetEngine();
 			void RegisterKeyWatcher(KeyWatcher* w)

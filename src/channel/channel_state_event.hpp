@@ -35,12 +35,10 @@ namespace ardb
 {
 	enum ChannelState
 	{
-		OPEN = 1, BOUND = 2, CONNECTED = 3, CLOSED = 4, FLUSH = 5
+		OPEN = 1, BOUND = 2, CONNECTED = 3, CLOSED = 4, WRITABLE = 5
 	};
 
-	/**
-	 * Channel状态变更event，打开/关闭 socket属于此类event
-	 */
+
 	class ChannelEventFactory;
 	class ChannelStateEvent: public ChannelEvent
 	{

@@ -69,7 +69,7 @@ namespace ardb
 			{
 				ctx.SendUpstream(e);
 			}
-			virtual void WriteComplete(ChannelHandlerContext& ctx,
+			virtual void ChannelWritable(ChannelHandlerContext& ctx,
 					ChannelStateEvent& e)
 			{
 				ctx.SendUpstream(e);
@@ -106,9 +106,9 @@ namespace ardb
 						ChannelConnected(ctx, e);
 						break;
 					}
-					case FLUSH:
+					case WRITABLE:
 					{
-						WriteComplete(ctx, e);
+						ChannelWritable(ctx, e);
 						break;
 					}
 					default:

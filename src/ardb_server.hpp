@@ -38,6 +38,7 @@
 #include "ardb.hpp"
 #include "replication.hpp"
 #include "replication/slave.hpp"
+#include "replication/master.hpp"
 #include "lua_scripting.hpp"
 
 /* Command flags. Please check the command table defined in the redis.c file
@@ -293,7 +294,6 @@ namespace ardb
 			}
 	};
 
-	class ReplicationService;
 	class OpLogs;
 	class ArdbServer: public KeyWatcher
 	{
@@ -326,7 +326,7 @@ namespace ardb
 			RedisCommandHandlerSettingTable m_handler_table;
 			SlowLogHandler m_slowlog_handler;
 			ClientConnHolder m_clients_holder;
-			ReplicationService m_repli_serv;
+			Master m_master_serv;
 			Slave m_slave_client;
 
 			WatchKeyContextTable m_watch_context_table;
@@ -352,6 +352,7 @@ namespace ardb
 			friend class OpLogs;
 			friend class RedisRequestHandler;
 			friend class Slave;
+			friend class Master;
 			friend class LUAInterpreter;
 
 			void FillInfoResponse(const std::string& section,
@@ -391,7 +392,7 @@ namespace ardb
 
 			int Slaveof(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int Sync(ArdbConnContext& ctx, RedisCommandFrame& cmd);
-			int ARSync(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int PSync(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int ReplConf(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int RawSet(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int RawDel(ArdbConnContext& ctx, RedisCommandFrame& cmd);

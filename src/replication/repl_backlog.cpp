@@ -14,12 +14,15 @@
 
 #define ARDB_SHM_PATH "/ardb/repl"
 #define ARDB_MAX_MMAP_UNIT_SIZE  100*1024*1024
+#define ARDB_MASTER_SYNC_STATE_MMAP_FILE_SIZE 1024
+#define SERVER_KEY_SIZE 40
 
 namespace ardb
 {
 
 	ReplBacklog::ReplBacklog() :
-			m_backlog_size(0)
+			m_backlog_size(0), m_backlog_idx(0), m_master_repl_offset(0), m_repl_backlog_histlen(
+					0), m_repl_backlog_offset(0), m_sync_state_change(false)
 	{
 
 	}
@@ -29,113 +32,78 @@ namespace ardb
 
 	}
 
-	void ReplBacklog::ClearMapBuf(BacklogBufArray& bufs)
+	bool ReplBacklog::LoadSyncState(const std::string& path)
 	{
-		BacklogBufArray::iterator it = bufs.begin();
-		while (it != bufs.end())
+		std::string file = path + "/master_sync.state";
+		if (0 != m_sync_state_buf.Init(file,
+		ARDB_MASTER_SYNC_STATE_MMAP_FILE_SIZE))
 		{
-			MMapBuf& mbuf = *it;
-			munmap(mbuf.buf, mbuf.size);
-			it++;
+			return false;
 		}
-		bufs.clear();
+		if (*(m_sync_state_buf.m_buf))
+		{
+			char serverkeybuf[SERVER_KEY_SIZE + 1];
+			sscanf(m_sync_state_buf.m_buf, "%s %llu %llu %llu %llu",
+					serverkeybuf, &m_master_repl_offset, &m_repl_backlog_offset,
+					&m_backlog_idx, &m_repl_backlog_histlen);
+			m_server_key = serverkeybuf;
+		} else
+		{
+			m_server_key = random_hex_string(SERVER_KEY_SIZE);
+			m_master_repl_offset++;
+
+			/* We don't have any data inside our buffer, but virtually the first
+			 * byte we have is the next byte that will be generated for the
+			 * replication stream. */
+			m_repl_backlog_offset = m_master_repl_offset + 1;
+			PersistSyncState();
+		}
+		INFO_LOG(
+				"[Master]Server key:%s, master_repl_offset:%llu, repl_backlog_offset:%llu, backlog_idx:%llu, repl_backlog_histlen=%llu",
+				m_server_key.c_str(), m_master_repl_offset,
+				m_repl_backlog_offset, m_backlog_idx, m_repl_backlog_histlen);
+		return true;
 	}
-	int ReplBacklog::ReInit(const std::string& path, uint64 backlog_size)
+
+	void ReplBacklog::PersistSyncState()
+	{
+		int len = snprintf(m_sync_state_buf.m_buf, m_sync_state_buf.m_size,
+				"%s %llu %llu %llu %llu", m_server_key.c_str(),
+				m_master_repl_offset, m_repl_backlog_offset, m_backlog_idx,
+				m_repl_backlog_histlen);
+		msync(m_sync_state_buf.m_buf, len, MS_ASYNC);
+		m_sync_state_change = false;
+	}
+
+	int ReplBacklog::Init(const std::string& path, uint64 backlog_size)
 	{
 		if (backlog_size < 1024 * 1024)
 		{
 			ERROR_LOG("Replication backlog buffer size must greater than 1mb.");
 			return -1;
 		}
-		int fd = open(path.c_str(), O_CREAT | O_RDWR,
-		S_IRUSR | S_IWUSR);
-		if (fd < 0)
+		if (!LoadSyncState(path))
 		{
-			const char* err = strerror(errno);
-			ERROR_LOG("Failed to open replication log:%s for reason:%s",
-					path.c_str(), err);
 			return -1;
 		}
-
-		struct stat st;
-		fstat(fd, &st);
-		if (backlog_size < st.st_size)
+		std::string file = path + "/master_repl_mmap.log";
+		if (0 != m_backlog.Init(file, backlog_size))
 		{
-			ERROR_LOG("Can not shrink replication log size from %llu to %llu",
-					st.st_size, backlog_size);
 			return -1;
 		}
-
-		if (-1 == ftruncate(fd, backlog_size))
-		{
-			const char* err = strerror(errno);
-			ERROR_LOG("Failed to truncate replication log:%s for reason:%s",
-					path.c_str(), err);
-			close(fd);
-			return -1;
-		}
-
-		/*
-		 *
-		 */
-		uint32 idx = 0;
-		uint32 total_mmap_size = backlog_size;
-		BacklogBufArray mbufs;
-		while (total_mmap_size > 0)
-		{
-			uint32 mmap_size =
-					backlog_size > ARDB_MAX_MMAP_UNIT_SIZE ?
-					ARDB_MAX_MMAP_UNIT_SIZE :
-																backlog_size;
-			char* mbuf = (char*) mmap(NULL, mmap_size,
-			PROT_READ | PROT_WRITE,
-			MAP_SHARED, fd, idx * ARDB_MAX_MMAP_UNIT_SIZE);
-			if (mbuf == MAP_FAILED)
-			{
-				const char* err = strerror(errno);
-				ERROR_LOG(
-						"Failed to mmap replication log:%s from %llu for reason:%s",
-						path.c_str(), idx * ARDB_MAX_MMAP_UNIT_SIZE, err);
-				close(fd);
-				ClearMapBuf(mbufs);
-				return -1;
-			} else
-			{
-				MMapBuf m;
-				m.buf = mbuf;
-				m.size = mmap_size;
-				mbufs.push_back(m);
-			}
-			idx++;
-			total_mmap_size -= mmap_size;
-		}
-		m_backlog_bufs = mbufs;
 		m_backlog_size = backlog_size;
+		m_backlog_idx = 0;
+
 		return 0;
 	}
 
-	void ReplBacklog::Put(const char* buf, size_t len)
+	void ReplBacklog::Feed(RedisCommandFrame& cmd)
 	{
-		uint32 buf_idx = len / ARDB_MAX_MMAP_UNIT_SIZE;
-		uint32 buf_offset = len % ARDB_MAX_MMAP_UNIT_SIZE;
-		while(len)
-		{
-			uint32 copylen = m_backlog_bufs[buf_idx].size - buf_offset + 1;
-			if(copylen > len)
-			{
-				copylen = len;
-			}
-			memcpy(m_backlog_bufs[buf_idx].buf + buf_offset, buf, copylen);
-			len -= copylen;
-			buf_offset = 0;
-			buf_idx++;
-		}
-	}
-
-	void ReplBacklog::Feed(const char* buf, size_t len)
-	{
+		Buffer buffer(256);
+		RedisCommandEncoder::Encode(buffer, cmd);
+		const char* buf = buffer.GetRawReadBuffer();
+		size_t len = buffer.ReadableBytes();
 		m_master_repl_offset += len;
-
 		/* This is a circular buffer, so write as much data we can at every
 		 * iteration and rewind the "idx" index if we reach the limit. */
 		while (len)
@@ -143,7 +111,7 @@ namespace ardb
 			size_t thislen = m_backlog_size - m_backlog_idx;
 			if (thislen > len)
 				thislen = len;
-			Put(buf, thislen);
+			memcpy(m_backlog.m_buf + m_backlog_idx, buf, thislen);
 			m_backlog_idx += thislen;
 			if (m_backlog_idx == m_backlog_size)
 				m_backlog_idx = 0;
@@ -156,6 +124,73 @@ namespace ardb
 		/* Set the offset of the first byte we have in the backlog. */
 		m_repl_backlog_offset = m_master_repl_offset - m_repl_backlog_histlen
 				+ 1;
+		m_sync_state_change = true;
+	}
+
+	const std::string& ReplBacklog::GetServerKey()
+	{
+		return m_server_key;
+	}
+	uint64 ReplBacklog::GetReplEndOffset()
+	{
+		return m_master_repl_offset;
+	}
+
+	uint64 ReplBacklog::GetReplStartOffset()
+	{
+		return m_repl_backlog_offset;
+	}
+
+	size_t ReplBacklog::WriteChannel(Channel* channle, int64 offset, size_t len)
+	{
+		if (!IsValidOffset(offset))
+		{
+			return 0;
+		}
+		int64 skip = offset - m_repl_backlog_offset;
+		uint64 j = (m_backlog_idx + (m_backlog_size - m_repl_backlog_histlen))
+				% m_backlog_size;
+		j = (j + skip) % m_backlog_size;
+		uint64 total = len;
+		if (total > m_repl_backlog_histlen - skip)
+		{
+			total = m_repl_backlog_histlen - skip;
+		}
+		while (total)
+		{
+			uint64 thislen =
+					((m_backlog_size - j) < len) ?
+							(m_backlog_size - j) : len;
+			Buffer buf(m_backlog.m_buf + j, 0, thislen);
+			channle->Write(buf);
+			total -= thislen;
+			j = 0;
+		}
+		return (size_t)total;
+	}
+
+	bool ReplBacklog::IsValidOffset(int64 offset)
+	{
+		if (offset < 0 || (uint64)offset > m_master_repl_offset || (uint64)offset < m_repl_backlog_offset)
+		{
+			INFO_LOG(
+					"Unable to partial resync with the slave for lack of backlog (Slave request was: %lld).",
+					offset);
+			return false;
+		}
+		return true;
+	}
+
+	bool ReplBacklog::IsValidOffset(const std::string& server_key, int64 offset)
+	{
+		if (m_server_key != server_key)
+		{
+			INFO_LOG("Partial resynchronization not accepted: "
+					"Serverkey mismatch (Client asked for '%s', I'm '%s')",
+					server_key.c_str(), m_server_key.c_str());
+			return false;
+		}
+		return IsValidOffset(offset);
 	}
 }
 

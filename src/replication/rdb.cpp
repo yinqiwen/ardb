@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  *
@@ -46,6 +46,8 @@ extern "C"
 #include "redis/crc64.h"
 #include "redis/endianconv.h"
 }
+#include <float.h>
+#include <cmath>
 
 #define REDIS_RDB_VERSION 6
 
@@ -101,7 +103,7 @@ namespace ardb
 {
 	RedisDumpFile::RedisDumpFile(Ardb* db, const std::string& file) :
 			m_read_fp(NULL), m_write_fp(NULL), m_file_path(file), m_current_db(
-					0), m_db(db), m_cksm(0), m_load_cb(NULL), m_load_cbdata(
+					0), m_db(db), m_cksm(0), m_routine_cb(NULL), m_routine_cbdata(
 			NULL)
 	{
 	}
@@ -614,10 +616,10 @@ namespace ardb
 		/*
 		 * routine callback every 100ms
 		 */
-		if (NULL != m_load_cb
+		if (NULL != m_routine_cb
 				&& get_current_epoch_millis() - routinetime >= 100)
 		{
-			m_load_cb(m_load_cbdata);
+			m_routine_cb(m_routine_cbdata);
 			routinetime = get_current_epoch_millis();
 		}
 		size_t max_read_bytes = 1024 * 1024 * 2;
@@ -638,10 +640,10 @@ namespace ardb
 		return true;
 	}
 
-	int RedisDumpFile::Load(LoadRoutine* cb, void *data)
+	int RedisDumpFile::Load(DumpRoutine* cb, void *data)
 	{
-		m_load_cb = cb;
-		m_load_cbdata = data;
+		m_routine_cb = cb;
+		m_routine_cbdata = data;
 		Close();
 		if ((m_read_fp = fopen(m_file_path.c_str(), "r")) == NULL)
 		{
@@ -735,15 +737,15 @@ namespace ardb
 			if (!Read(&cksum, 8))
 			{
 				goto eoferr;
-			}
-			memrev64ifbe(&cksum);
+			}memrev64ifbe(&cksum);
 			if (cksum == 0)
 			{
 				WARN_LOG(
 						"RDB file was saved with checksum disabled: no check performed.");
 			} else if (cksum != expected)
 			{
-				ERROR_LOG("Wrong RDB checksum. Aborting now(%llu-%llu)", cksum, expected);
+				ERROR_LOG("Wrong RDB checksum. Aborting now(%llu-%llu)", cksum,
+						expected);
 				exit(1);
 			}
 		}
@@ -756,8 +758,19 @@ namespace ardb
 		return -1;
 	}
 
-	int RedisDumpFile::Write(const char* buf, size_t buflen)
+	int RedisDumpFile::Write(const void* buf, size_t buflen)
 	{
+		static uint64 routinetime = get_current_epoch_millis();
+		/*
+		 * routine callback every 100ms
+		 */
+		if (NULL != m_routine_cb
+				&& get_current_epoch_millis() - routinetime >= 100)
+		{
+			m_routine_cb(m_routine_cbdata);
+			routinetime = get_current_epoch_millis();
+		}
+
 		if (NULL == m_write_fp)
 		{
 			if ((m_write_fp = fopen(m_file_path.c_str(), "w")) == NULL)
@@ -769,15 +782,327 @@ namespace ardb
 		}
 
 		size_t max_write_bytes = 1024 * 1024 * 2;
-		const char* data = buf;
+		const char* data = (const char*) buf;
 		while (buflen)
 		{
 			size_t bytes_to_write =
 					(max_write_bytes < buflen) ? max_write_bytes : buflen;
 			if (fwrite(data, bytes_to_write, 1, m_write_fp) == 0)
 				return -1;
+			//check sum here
+			m_cksm = crc64(m_cksm, (unsigned char *) data, bytes_to_write);
 			data += bytes_to_write;
 			buflen -= bytes_to_write;
+		}
+		return 0;
+	}
+
+	void RedisDumpFile::WriteMagicHeader()
+	{
+		char magic[10];
+		snprintf(magic, sizeof(magic), "REDIS%04d", REDIS_RDB_VERSION);
+		Write(magic, 9);
+	}
+
+	int RedisDumpFile::WriteType(uint8 type)
+	{
+		return Write(&type, 1);
+	}
+
+	int RedisDumpFile::WriteKeyType(KeyType type)
+	{
+		switch (type)
+		{
+			case KV:
+			{
+				return WriteType(REDIS_RDB_TYPE_STRING);
+			}
+			case SET_ELEMENT:
+			{
+				return WriteType(REDIS_RDB_TYPE_SET);
+			}
+			case LIST_ELEMENT:
+			{
+				return WriteType(REDIS_RDB_TYPE_LIST);
+			}
+			case ZSET_ELEMENT:
+			{
+				return WriteType(REDIS_RDB_TYPE_ZSET);
+			}
+			case HASH_FIELD:
+			{
+				return WriteType(REDIS_RDB_TYPE_HASH);
+			}
+			case BITSET_ELEMENT:
+			{
+				return WriteType(REDIS_RDB_TYPE_STRING);
+			}
+			default:
+			{
+				return -1;
+			}
+		}
+	}
+
+	int RedisDumpFile::WriteDouble(double val)
+	{
+		unsigned char buf[128];
+		int len;
+
+		if (std::isnan(val))
+		{
+			buf[0] = 253;
+			len = 1;
+		} else if (!std::isfinite(val))
+		{
+			len = 1;
+			buf[0] = (val < 0) ? 255 : 254;
+		} else
+		{
+#if (DBL_MANT_DIG >= 52) && (LLONG_MAX == 0x7fffffffffffffffLL)
+			/* Check if the float is in a safe range to be casted into a
+			 * long long. We are assuming that long long is 64 bit here.
+			 * Also we are assuming that there are no implementations around where
+			 * double has precision < 52 bit.
+			 *
+			 * Under this assumptions we test if a double is inside an interval
+			 * where casting to long long is safe. Then using two castings we
+			 * make sure the decimal part is zero. If all this is true we use
+			 * integer printing function that is much faster. */
+			double min = -4503599627370495; /* (2^52)-1 */
+			double max = 4503599627370496; /* -(2^52) */
+			if (val > min && val < max && val == ((double) ((long long) val)))
+			{
+				ll2string((char*) buf + 1, sizeof(buf), (long long) val);
+			} else
+#endif
+				snprintf((char*) buf + 1, sizeof(buf) - 1, "%.17g", val);
+			buf[0] = strlen((char*) buf + 1);
+			len = buf[0] + 1;
+		}
+		return Write(buf, len);
+
+	}
+
+	int RedisDumpFile::WriteMillisecondTime(uint64 ts)
+	{
+		return Write(&ts, 8);
+	}
+
+	int RedisDumpFile::WriteTime(time_t t)
+	{
+		int32_t t32 = (int32_t) t;
+		return Write(&t32, 4);
+	}
+
+	static int EncodeInteger(long long value, unsigned char *enc)
+	{
+		/* Finally check if it fits in our ranges */
+		if (value >= -(1 << 7) && value <= (1 << 7) - 1)
+		{
+			enc[0] = (REDIS_RDB_ENCVAL << 6) | REDIS_RDB_ENC_INT8;
+			enc[1] = value & 0xFF;
+			return 2;
+		} else if (value >= -(1 << 15) && value <= (1 << 15) - 1)
+		{
+			enc[0] = (REDIS_RDB_ENCVAL << 6) | REDIS_RDB_ENC_INT16;
+			enc[1] = value & 0xFF;
+			enc[2] = (value >> 8) & 0xFF;
+			return 3;
+		} else if (value >= -((long long) 1 << 31)
+				&& value <= ((long long) 1 << 31) - 1)
+		{
+			enc[0] = (REDIS_RDB_ENCVAL << 6) | REDIS_RDB_ENC_INT32;
+			enc[1] = value & 0xFF;
+			enc[2] = (value >> 8) & 0xFF;
+			enc[3] = (value >> 16) & 0xFF;
+			enc[4] = (value >> 24) & 0xFF;
+			return 5;
+		} else
+		{
+			return 0;
+		}
+	}
+
+	/* String objects in the form "2391" "-100" without any space and with a
+	 * range of values that can fit in an 8, 16 or 32 bit signed value can be
+	 * encoded as integers to save space */
+	static int TryIntegerEncoding(char *s, size_t len, unsigned char *enc)
+	{
+		long long value;
+		char *endptr, buf[32];
+
+		/* Check if it's possible to encode this value as a number */
+		value = strtoll(s, &endptr, 10);
+		if (endptr[0] != '\0')
+			return 0;
+		ll2string(buf, 32, value);
+
+		/* If the number converted back into a string is not identical
+		 * then it's not possible to encode the string as integer */
+		if (strlen(buf) != len || memcmp(buf, s, len))
+			return 0;
+
+		return EncodeInteger(value, enc);
+	}
+
+	/* Like rdbSaveStringObjectRaw() but handle encoded objects */
+	int RedisDumpFile::WriteStringObject(ValueObject* o)
+	{
+		/* Avoid to decode the object, then encode it again, if the
+		 * object is alrady integer encoded. */
+		if (o->type == INTEGER)
+		{
+			return WriteLongLongAsStringObject(o->v.int_v);
+		} else
+		{
+			value_convert_to_raw(*o);
+			return WriteRawString(o->v.raw->GetRawReadBuffer(),
+					o->v.raw->ReadableBytes());
+		}
+	}
+
+	/* Save a string objet as [len][data] on disk. If the object is a string
+	 * representation of an integer value we try to save it in a special form */
+	int RedisDumpFile::WriteRawString(const char *s, size_t len)
+	{
+		int enclen;
+		int n, nwritten = 0;
+
+		/* Try integer encoding */
+		if (len <= 11)
+		{
+			unsigned char buf[5];
+			if ((enclen = TryIntegerEncoding((char*) s, len, buf)) > 0)
+			{
+				if (Write(buf, enclen) == -1)
+					return -1;
+				return enclen;
+			}
+		}
+
+		/* Try LZF compression - under 20 bytes it's unable to compress even
+		 * aaaaaaaaaaaaaaaaaa so skip it */
+		if (len > 20)
+		{
+			n = WriteLzfStringObject(s, len);
+			if (n == -1)
+				return -1;
+			if (n > 0)
+				return n;
+			/* Return value of 0 means data can't be compressed, save the old way */
+		}
+
+		/* Store verbatim */
+		if ((n = WriteLen(len)) == -1)
+			return -1;
+		nwritten += n;
+		if (len > 0)
+		{
+			if (Write(s, len) == -1)
+				return -1;
+			nwritten += len;
+		}
+		return nwritten;
+	}
+
+	int RedisDumpFile::WriteLzfStringObject(const char *s, size_t len)
+	{
+		size_t comprlen, outlen;
+		unsigned char byte;
+		int n, nwritten = 0;
+		void *out;
+
+		/* We require at least four bytes compression for this to be worth it */
+		if (len <= 4)
+			return 0;
+		outlen = len - 4;
+		if ((out = malloc(outlen + 1)) == NULL)
+			return 0;
+		comprlen = lzf_compress(s, len, out, outlen);
+		if (comprlen == 0)
+		{
+			free(out);
+			return 0;
+		}
+		/* Data compressed! Let's save it on disk */
+		byte = (REDIS_RDB_ENCVAL << 6) | REDIS_RDB_ENC_LZF;
+		if ((n = Write(&byte, 1)) == -1)
+			goto writeerr;
+		nwritten += n;
+
+		if ((n = WriteLen(comprlen)) == -1)
+			goto writeerr;
+		nwritten += n;
+
+		if ((n = WriteLen(len)) == -1)
+			goto writeerr;
+		nwritten += n;
+
+		if ((n = Write(out, comprlen)) == -1)
+			goto writeerr;
+		nwritten += n;
+
+		free(out);
+		return nwritten;
+
+		writeerr: free(out);
+		return -1;
+	}
+
+	/* Save a long long value as either an encoded string or a string. */
+	int RedisDumpFile::WriteLongLongAsStringObject(long long value)
+	{
+		unsigned char buf[32];
+		int n, nwritten = 0;
+		int enclen = EncodeInteger(value, buf);
+		if (enclen > 0)
+		{
+			return Write(buf, enclen);
+		} else
+		{
+			/* Encode as string */
+			enclen = ll2string((char*) buf, 32, value);
+			if ((n = WriteLen(enclen)) == -1)
+				return -1;
+			nwritten += n;
+			if ((n = Write(buf, enclen)) == -1)
+				return -1;
+			nwritten += n;
+		}
+		return nwritten;
+	}
+
+	int RedisDumpFile::WriteLen(uint32 len)
+	{
+		unsigned char buf[2];
+		size_t nwritten;
+
+		if (len < (1 << 6))
+		{
+			/* Save a 6 bit len */
+			buf[0] = (len & 0xFF) | (REDIS_RDB_6BITLEN << 6);
+			if (Write(buf, 1) == -1)
+				return -1;
+			nwritten = 1;
+		} else if (len < (1 << 14))
+		{
+			/* Save a 14 bit len */
+			buf[0] = ((len >> 8) & 0xFF) | (REDIS_RDB_14BITLEN << 6);
+			buf[1] = len & 0xFF;
+			if (Write(buf, 2) == -1)
+				return -1;
+			nwritten = 2;
+		} else
+		{
+			/* Save a 32 bit len */
+			buf[0] = (REDIS_RDB_32BITLEN << 6);
+			if (Write(buf, 1) == -1)
+				return -1;
+			len = htonl(len);
+			if (Write(&len, 4) == -4)
+				return -1;
+			nwritten = 1 + 4;
 		}
 		return 0;
 	}
@@ -788,6 +1113,137 @@ namespace ardb
 		{
 			fflush(m_write_fp);
 		}
+	}
+
+	void RedisDumpFile::Remove()
+	{
+		Close();
+		unlink(m_file_path.c_str());
+	}
+
+	int RedisDumpFile::Dump(DumpRoutine* cb, void *data)
+	{
+		WriteMagicHeader();
+		struct VisitorTask: public WalkHandler
+		{
+				RedisDumpFile& r;
+				Ardb* db;
+				DBID currentDb;
+				std::string currentKey;
+				VisitorTask(RedisDumpFile& rr, Ardb* ptr) :
+						r(rr), db(ptr), currentDb(0)
+				{
+				}
+				int OnKeyValue(KeyObject* key, ValueObject* value,
+						uint32 cursor)
+				{
+					if (cursor
+							== 0|| key->db != currentDb && key->db != ARDB_GLOBAL_DB)
+					{
+						currentDb = key->db;
+						r.WriteType(REDIS_RDB_OPCODE_SELECTDB);
+						r.WriteLen(currentDb);
+					}
+					if (key->type != KV && key->type != LIST_ELEMENT
+							&& key->type != ZSET_ELEMENT
+							&& key->type != SET_ELEMENT
+							&& key->type != BITSET_ELEMENT
+							&& key->type != HASH_FIELD)
+					{
+						return 0;
+					}
+					bool firstElementInKey = false;
+					if (currentKey.size() != key->key.size()
+							|| strncmp(currentKey.c_str(), key->key.data(),
+									currentKey.size()))
+					{
+						int64 expiretime = r.m_db->PTTL(currentDb, key->key);
+						if (expiretime > 0)
+						{
+							if (r.WriteType(REDIS_RDB_OPCODE_EXPIRETIME_MS)
+									== -1)
+								return -1;
+							if (r.WriteMillisecondTime(expiretime) == -1)
+								return -1;
+						}
+						r.WriteKeyType(key->type);
+						r.WriteRawString(key->key.data(), key->key.size());
+						currentKey.assign(key->key.data(), key->key.size());
+						firstElementInKey = true;
+					}
+					switch (key->type)
+					{
+						case KV:
+						{
+							r.WriteStringObject(value);
+							break;
+						}
+						case LIST_ELEMENT:
+						{
+							if (firstElementInKey)
+							{
+								r.WriteLen(db->LLen(key->db, key->key));
+							}
+							r.WriteStringObject(value);
+							break;
+						}
+						case SET_ELEMENT:
+						{
+							if (firstElementInKey)
+							{
+								r.WriteLen(db->SCard(key->db, key->key));
+							}
+							r.WriteStringObject(value);
+							break;
+						}
+						case ZSET_ELEMENT:
+						{
+							if (firstElementInKey)
+							{
+								r.WriteLen(db->ZCard(key->db, key->key));
+							}
+							ZSetKeyObject* zk = (ZSetKeyObject*) key;
+							r.WriteStringObject(&zk->value);
+							r.WriteDouble(zk->score);
+							break;
+						}
+						case HASH_FIELD:
+						{
+							if (firstElementInKey)
+							{
+								r.WriteLen(db->HLen(key->db, key->key));
+							}
+							HashKeyObject* hk = (HashKeyObject*) key;
+							r.WriteRawString(hk->field.data(),
+									hk->field.size());
+							r.WriteStringObject(value);
+							break;
+						}
+						case BITSET_ELEMENT:
+						{
+							if (firstElementInKey)
+							{
+								//TODO
+							}
+							r.WriteStringObject(value);
+							break;
+						}
+						default:
+						{
+							break;
+						}
+					}
+					return 0;
+				}
+		} visitor(*this, m_db);
+		m_db->Walk(&visitor);
+		WriteType(REDIS_RDB_OPCODE_EOF);
+		uint64 cksm = m_cksm;
+		memrev64ifbe(&cksm);
+		Write(&cksm, sizeof(cksm));
+		Flush();
+		Close();
+		return 0;
 	}
 
 	RedisDumpFile::~RedisDumpFile()

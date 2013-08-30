@@ -31,7 +31,7 @@
 
 namespace ardb
 {
-	static bool DecodeSetMetaData(ValueObject& v, SetMetaValue& meta)
+    static bool DecodeSetMetaData(ValueObject& v, SetMetaValue& meta)
 	{
 		if (v.type != RAW)
 		{

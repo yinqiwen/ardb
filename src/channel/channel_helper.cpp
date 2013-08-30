@@ -61,9 +61,9 @@ namespace ardb
 		return channel->GetPipeline().SendUpstream(event);
 	}
 
-	bool fire_write_complete(Channel* channel)
+	bool fire_channel_writable(Channel* channel)
 	{
-		ChannelStateEvent event(channel, FLUSH, NULL, true);
+		ChannelStateEvent event(channel, WRITABLE, NULL, true);
 		return channel->GetPipeline().SendUpstream(event);
 	}
 

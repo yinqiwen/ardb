@@ -254,7 +254,7 @@ namespace ardb
 
 	ArdbServer::ArdbServer(KeyValueEngineFactory& engine) :
 			m_service(NULL), m_db(NULL), m_engine(engine), m_slowlog_handler(
-					m_cfg), m_repli_serv(this), m_slave_client(this), m_watch_mutex(
+					m_cfg), m_master_serv(this), m_slave_client(this), m_watch_mutex(
 			PTHREAD_MUTEX_RECURSIVE)
 	{
 		struct RedisCommandHandlerSetting settingTable[] =
@@ -289,7 +289,7 @@ namespace ardb
 				{ "slaveof", REDIS_CMD_SLAVEOF,&ArdbServer::Slaveof, 2, -1,"as", 0 },
 				{ "replconf",REDIS_CMD_REPLCONF, &ArdbServer::ReplConf, 0, -1, "ars",0 },
 				{ "sync",EWDIS_CMD_SYNC, &ArdbServer::Sync, 0, 2, "ars",0 },
-				{ "arsync",REDIS_CMD_ARSYNC, &ArdbServer::ARSync, 2, -1,"ars", 0 },
+				{ "psync",REDIS_CMD_PSYNC, &ArdbServer::PSync, 2, 3,"ars", 0 },
 				{ "select",REDIS_CMD_SELECT, &ArdbServer::Select, 1, 1, "r",0 },
 				{ "append",REDIS_CMD_APPEND, &ArdbServer::Append, 2,2, "w",0},
 				{ "get",REDIS_CMD_GET, &ArdbServer::Get, 1, 1, "r",0 },
@@ -639,7 +639,8 @@ namespace ardb
 
 	int ArdbServer::Save(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
-		int ret = m_repli_serv.Save();
+		//int ret = m_repli_serv.Save();
+		int ret = 0;
 		if (ret == 0)
 		{
 			fill_status_reply(ctx.reply, "OK");
@@ -652,14 +653,16 @@ namespace ardb
 
 	int ArdbServer::LastSave(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
-		int ret = m_repli_serv.LastSave();
+		//int ret = m_repli_serv.LastSave();
+		int ret = 0;
 		fill_int_reply(ctx.reply, ret);
 		return 0;
 	}
 
 	int ArdbServer::BGSave(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
-		int ret = m_repli_serv.BGSave();
+		//int ret = m_repli_serv.BGSave();
+		int ret = 0;
 		if (ret == 0)
 		{
 			fill_status_reply(ctx.reply, "OK");
@@ -683,7 +686,7 @@ namespace ardb
 			if (m_cfg.repl_log_enable)
 			{
 				info.append("server_key:").append(
-						m_repli_serv.GetOpLogs().GetServerKey()).append("\r\n");
+						m_master_serv.GetReplBacklog().GetServerKey()).append("\r\n");
 			}
 			char tmp[256];
 			sprintf(tmp, "%"PRId64, m_cfg.listen_port);
@@ -716,14 +719,14 @@ namespace ardb
 			info.append("# Oplogs\r\n");
 			if (m_cfg.repl_log_enable)
 			{
-				char tmp[1024];
-				sprintf(tmp, "%u", m_repli_serv.GetOpLogs().MemCacheSize());
-				info.append("oplogs_cache_size:").append(tmp).append("\r\n");
-				info.append("oplogs_cache_seq: [");
-				sprintf(tmp, "%"PRIu64, m_repli_serv.GetOpLogs().GetMinSeq());
-				info.append(tmp).append("-");
-				sprintf(tmp, "%"PRIu64, m_repli_serv.GetOpLogs().GetMaxSeq());
-				info.append(tmp).append("]\r\n");
+//				char tmp[1024];
+//				sprintf(tmp, "%u", m_repli_serv.GetOpLogs().MemCacheSize());
+//				info.append("oplogs_cache_size:").append(tmp).append("\r\n");
+//				info.append("oplogs_cache_seq: [");
+//				sprintf(tmp, "%"PRIu64, m_repli_serv.GetOpLogs().GetMinSeq());
+//				info.append(tmp).append("-");
+//				sprintf(tmp, "%"PRIu64, m_repli_serv.GetOpLogs().GetMaxSeq());
+//				info.append(tmp).append("]\r\n");
 			} else
 			{
 				info.append("repl-log-enable: false\r\n");
@@ -1701,7 +1704,7 @@ namespace ardb
 					if (master_addr.GetHost() == tmp->GetHost()
 							&& master_addr.GetPort() == port)
 					{
-						m_repli_serv.MarkMasterSlave(ctx.conn);
+						//m_repli_serv.MarkMasterSlave(ctx.conn);
 					}
 				}
 			}
@@ -1712,45 +1715,46 @@ namespace ardb
 
 	int ArdbServer::Sync(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
-		m_repli_serv.ServSlaveClient(ctx.conn);
+		m_master_serv.AddSlave(ctx.conn, cmd);
 		return 0;
 	}
 
-	int ArdbServer::ARSync(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+	int ArdbServer::PSync(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
-		std::string& serverKey = cmd.GetArguments()[0];
-		uint64 seq;
-		if (!string_touint64(cmd.GetArguments()[1], seq))
-		{
-			fill_error_reply(ctx.reply,
-					"ERR value is not an integer or out of range");
-			return 0;
-		}
-		DBIDSet syncdbs;
-		if (cmd.GetArguments().size() > 2)
-		{
-			for (uint32 i = 2; i < cmd.GetArguments().size(); i++)
-			{
-				DBID syncdb;
-				if (!string_touint32(cmd.GetArguments()[i], syncdb)
-						|| syncdb > 0xFFFFFF)
-				{
-					fill_error_reply(ctx.reply,
-							"ERR value is not an integer or out of range");
-					return 0;
-				}
-				syncdbs.insert(syncdb);
-			}
-		}
-		if (m_cfg.repl_log_enable)
-		{
-			m_repli_serv.ServARSlaveClient(ctx.conn, serverKey, seq, syncdbs);
-		} else
-		{
-			fill_error_reply(ctx.reply,
-					"ERR Ardb instance's replication log not enabled");
-			return -1;
-		}
+		m_master_serv.AddSlave(ctx.conn, cmd);
+//		std::string& serverKey = cmd.GetArguments()[0];
+//		uint64 seq;
+//		if (!string_touint64(cmd.GetArguments()[1], seq))
+//		{
+//			fill_error_reply(ctx.reply,
+//					"ERR value is not an integer or out of range");
+//			return 0;
+//		}
+//		DBIDSet syncdbs;
+//		if (cmd.GetArguments().size() > 2)
+//		{
+//			for (uint32 i = 2; i < cmd.GetArguments().size(); i++)
+//			{
+//				DBID syncdb;
+//				if (!string_touint32(cmd.GetArguments()[i], syncdb)
+//						|| syncdb > 0xFFFFFF)
+//				{
+//					fill_error_reply(ctx.reply,
+//							"ERR value is not an integer or out of range");
+//					return 0;
+//				}
+//				syncdbs.insert(syncdb);
+//			}
+//		}
+//		if (m_cfg.repl_log_enable)
+//		{
+//			//m_repli_serv.ServARSlaveClient(ctx.conn, serverKey, seq, syncdbs);
+//		} else
+//		{
+//			fill_error_reply(ctx.reply,
+//					"ERR Ardb instance's replication log not enabled");
+//			return -1;
+//		}
 		return 0;
 	}
 
@@ -2975,11 +2979,11 @@ namespace ardb
 			/**
 			 * Return error if ardb is saving data for all cmds(leveldb may also change files when reading)
 			 */
-			if (m_repli_serv.IsSavingData())
-			{
-				fill_error_reply(ctx.reply, "ERR server is saving data");
-				return ret;
-			}
+//			if (m_repli_serv.IsSavingData())
+//			{
+//				fill_error_reply(ctx.reply, "ERR server is saving data");
+//				return ret;
+//			}
 			bool valid_cmd = true;
 			if (setting->min_arity > 0)
 			{
@@ -3016,6 +3020,7 @@ namespace ardb
 							"ERR only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context");
 				} else
 				{
+
 					ret = DoRedisCommand(ctx, setting, args);
 				}
 			}
@@ -3037,6 +3042,7 @@ namespace ardb
 		{
 			m_clients_holder.TouchConn(ctx.conn, cmd);
 		}
+
 		uint64 start_time = get_current_epoch_micros();
 		int ret = (this->*(setting->handler))(ctx, args);
 		uint64 stop_time = get_current_epoch_micros();
@@ -3202,9 +3208,9 @@ namespace ardb
 
 		if (m_cfg.repl_log_enable)
 		{
-			m_repli_serv.Init();
-			m_repli_serv.Start();
-			m_db->RegisterRawKeyListener(&m_repli_serv);
+			m_master_serv.Init();
+			//m_repli_serv.Start();
+			//m_db->RegisterRawKeyListener(&m_repli_serv);
 		}
 		if(!m_slave_client.Init())
 		{
@@ -3221,7 +3227,7 @@ namespace ardb
 		INFO_LOG("The server is now ready to accept connections on port %d",
 				m_cfg.listen_port);
 		m_service->Start();
-		sexit: m_repli_serv.Stop();
+		sexit: m_master_serv.Stop();
 		DELETE(m_db);
 		DELETE(m_service);
 		ArdbLogger::DestroyDefaultLogger();

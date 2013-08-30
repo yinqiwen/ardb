@@ -57,7 +57,7 @@ namespace ardb
 		return 0;
 	}
 
-	static bool DecodeZSetMetaData(ValueObject& v, ZSetMetaValue& meta)
+    static bool DecodeZSetMetaData(ValueObject& v, ZSetMetaValue& meta)
 	{
 		if (v.type != RAW)
 		{

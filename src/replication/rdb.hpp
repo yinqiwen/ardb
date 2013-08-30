@@ -42,7 +42,7 @@
 
 namespace ardb
 {
-	typedef void LoadRoutine(void* cb);
+	typedef void DumpRoutine(void* cb);
 	class RedisDumpFile
 	{
 		private:
@@ -52,9 +52,10 @@ namespace ardb
 			DBID m_current_db;
 			Ardb* m_db;
 			uint64 m_cksm;
-			LoadRoutine* m_load_cb;
-			void *m_load_cbdata;
+			DumpRoutine* m_routine_cb;
+			void *m_routine_cbdata;
 			bool Read(void* buf, size_t buflen, bool cksm = true);
+
 			void Close();
 			int ReadType();
 			time_t ReadTime();
@@ -70,11 +71,25 @@ namespace ardb
 			void LoadHashZipList(unsigned char* data, const std::string& key);
 			void LoadZSetZipList(unsigned char* data, const std::string& key);
 			void LoadSetIntSet(unsigned char* data, const std::string& key);
+
+			void WriteMagicHeader();
+			int WriteType(uint8 type);
+			int WriteKeyType(KeyType type);
+			int WriteLen(uint32 len);
+			int WriteMillisecondTime(uint64 ts);
+			int WriteDouble(double v);
+			int WriteLongLongAsStringObject(long long value);
+			int WriteRawString( const char *s, size_t len);
+			int WriteLzfStringObject(const char *s, size_t len);
+			int WriteTime(time_t t);
+			int WriteStringObject(ValueObject* o);
 		public:
 			RedisDumpFile(Ardb* db, const std::string& file);
-			int Load(LoadRoutine* cb, void *data);
-			int Write(const char* buf, size_t buflen);
+			int Load(DumpRoutine* cb, void *data);
 			void Flush();
+			int Write(const void* buf, size_t buflen);
+            int Dump(DumpRoutine* cb, void *data);
+            void Remove();
 			~RedisDumpFile();
 	};
 }

@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -84,7 +84,6 @@
 #define CHANNEL_EVENT_TIMEOUT	0x40	/**< user specified timeout reached */
 #define CHANNEL_EVENT_CONNECTED	0x80	/**< connect operation finished. */
 
-
 namespace ardb
 {
 	struct ChannelOptions
@@ -114,6 +113,22 @@ namespace ardb
 	typedef int ChannelOperationBarrierHook(Channel*, void*);
 	typedef void ChannelIOEventCallback(struct aeEventLoop *eventLoop, int fd,
 			void *clientData, int mask);
+
+	typedef void IOCallback(void* data);
+	struct SendFileSetting
+	{
+			int fd;
+			off_t file_offset;
+			off_t file_rest_len;
+			void* data;
+			IOCallback* on_complete;
+			IOCallback* on_failure;
+			SendFileSetting() :
+					fd(-1), file_offset(0), file_rest_len(0), data(NULL), on_complete(
+							NULL), on_failure(NULL)
+			{
+			}
+	};
 
 	class ChannelService;
 	class Channel: public Runnable
@@ -149,8 +164,9 @@ namespace ardb
 			ChannelPipelineFinalizer* m_pipeline_finallizer;
 			void* m_pipeline_finallizer_user_data;
 			bool m_detached;
-			bool m_writable;
 			bool m_close_after_write;
+
+			SendFileSetting* m_file_sending;
 
 			Channel(Channel* parent, ChannelService& factory);
 
@@ -174,8 +190,7 @@ namespace ardb
 			virtual int32 HandleExceptionEvent(int32 event);
 			int HandleIOError(int err);
 
-			void EnableWriting();
-			void DisableWriting();
+
 			void CancelFlushTimerTask();
 			void CreateFlushTimerTask();
 
@@ -247,6 +262,10 @@ namespace ardb
 			virtual bool AttachFD();
 			virtual void DetachFD();
 
+			bool IsEnableWriting();
+			void EnableWriting();
+			void DisableWriting();
+
 			inline void SetChannelPipelineInitializor(
 					ChannelPipelineInitializer* initializor, void* data = NULL)
 			{
@@ -266,19 +285,15 @@ namespace ardb
 
 			inline void ClearPipeline()
 			{
-				if(NULL != m_pipeline_finallizer)
+				if (NULL != m_pipeline_finallizer)
 				{
-					m_pipeline_finallizer(&m_pipeline, m_pipeline_finallizer_user_data);
+					m_pipeline_finallizer(&m_pipeline,
+							m_pipeline_finallizer_user_data);
 					m_pipeline_initializor = NULL;
 					m_pipeline_finallizer = NULL;
-					m_pipeline.Clear();
 				}
+				m_pipeline.Clear();
 			}
-
-//                virtual void SetChannelAcceptOperationBarrierHook(
-//                        ChannelOperationBarrierHook* hook, void* data)
-//                {
-//                }
 
 			inline ChannelPipeline& GetPipeline()
 			{
@@ -290,6 +305,8 @@ namespace ardb
 			{
 				return write_channel<T>(this, &msg, NULL);
 			}
+
+			int SendFile(const SendFileSetting& setting);
 
 			bool Flush();
 			virtual const Address* GetLocalAddress()

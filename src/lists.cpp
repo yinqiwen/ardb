@@ -31,7 +31,7 @@
 
 namespace ardb
 {
-	static bool DecodeListMetaData(ValueObject& v, ListMetaValue& meta)
+    static bool DecodeListMetaData(ValueObject& v, ListMetaValue& meta)
 	{
 		if (v.type != RAW)
 		{
