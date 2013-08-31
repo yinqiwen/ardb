@@ -36,7 +36,7 @@ namespace ardb
 {
 	class PipeChannel: public Channel
 	{
-		private:
+		protected:
 			int m_read_fd;
 			int m_write_fd;
 			bool DoOpen();
@@ -46,7 +46,7 @@ namespace ardb
 			int GetWriteFD();
 			int GetReadFD();
 		public:
-			PipeChannel(ChannelService& factory, int readFd, int writeFd);
+			PipeChannel(ChannelService& factory, int readFd = -1, int writeFd = -1);
 			virtual ~PipeChannel();
 	};
 }

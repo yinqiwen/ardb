@@ -59,6 +59,8 @@ namespace ardb
 			}
 	};
 
+	typedef std::pair<DBID, RedisCommandFrame> RedisCommandWithDBID;
+
 	struct SlaveConnection
 	{
 			Channel* conn;
@@ -91,11 +93,12 @@ namespace ardb
 			ReplBacklog m_backlog;
 			bool m_dumping_db;
 			int64 m_dumpdb_offset;
+			DBID m_current_dbid;
 
 			void Run();
 			void OnHeartbeat();
 			void OnInstructions();
-			void onDumpComplete();
+			void OnDumpComplete();
 
 			void FullResyncRedisSlave(SlaveConnection& slave);
 			void SyncSlave(SlaveConnection& slave);
@@ -108,7 +111,8 @@ namespace ardb
 					MessageEvent<RedisCommandFrame>& e);
 			void OnSoftSignal(uint32 soft_signo, uint32 appendinfo);
 			void OfferReplInstruction(ReplicationInstruction& inst);
-
+			void WriteCmdToSlaves(RedisCommandFrame& cmd);
+			void WriteSlaves(const DBID& dbid, RedisCommandFrame& cmd, bool dbid_related);
 		public:
 			Master(ArdbServer* server);
 			int Init();

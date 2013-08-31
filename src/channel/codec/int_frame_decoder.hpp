@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -27,35 +27,56 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef NOVA_FILEHELPER_HPP_
-#define NOVA_FILEHELPER_HPP_
-#include "common.hpp"
-#include "buffer.hpp"
-#include <string>
-#include <deque>
+#ifndef NOVA_INTEGERFRAMEDECODER_HPP_
+#define NOVA_INTEGERFRAMEDECODER_HPP_
+#include "channel/codec/stack_frame_decoder.hpp"
+#include "util/network_helper.hpp"
+#include <utility>
+
+using std::pair;
 
 namespace ardb
 {
-	bool is_file_exist(const std::string& path);
-	bool is_dir_exist(const std::string& path);
-	bool make_dir(const std::string& path);
-	bool make_file(const std::string& path);
-
-	int make_fd_nonblocking(int fd);
-	int make_fd_blocking(int fd);
-	int make_tcp_nodelay(int fd);
-
-	int file_read_full(const std::string& path, Buffer& content);
-	int file_write_content(const std::string& path, std::string& content);
-
-	int list_subdirs(const std::string& path, std::deque<std::string>& dirs);
-	int list_subfiles(const std::string& path, std::deque<std::string>& fs);
-
-	int64 file_size(const std::string& path);
-
-	int sha1sum_file(const std::string& file, std::string& hash);
-
-	std::string real_path(const std::string& path);
+	namespace codec
+	{
+		/**
+		 *  MESSAGE FORMAT
+		 *  ==============
+		 *
+		 *  Offset:  0        4                   (Length + 4)
+		 *           +--------+------------------------+
+		 *  Fields:  | Length | Actual message content |
+		 *           +--------+------------------------+
+		 *
+		 */
+		class UInt64FrameDecoder: public StackFrameDecoder<uint64>
+		{
+			protected:
+				bool m_header_network_order;
+				bool Decode(ChannelHandlerContext& ctx, Channel* channel,
+				        Buffer& buffer, uint64& msg)
+				{
+					if (buffer.ReadableBytes() < sizeof(uint64))
+					{
+						return false;
+					}
+					buffer.Read(&msg, sizeof(uint64));
+					if (m_header_network_order)
+					{
+						msg = ntohll(msg);
+					}
+					return true;
+				}
+			public:
+				UInt64FrameDecoder() :
+						m_header_network_order(false)
+				{
+				}
+				void SetHeaderNetworkOrder(bool value)
+				{
+					m_header_network_order = value;
+				}
+		};
+	}
 }
-
-#endif /* FILEHELPER_HPP_ */
+#endif /* INTEGERHEADERFRAMEDECODER_HPP_ */

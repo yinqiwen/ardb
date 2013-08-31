@@ -36,9 +36,9 @@
 #include "util/config_helper.hpp"
 #include "util/thread/thread_local.hpp"
 #include "ardb.hpp"
-#include "replication.hpp"
 #include "replication/slave.hpp"
 #include "replication/master.hpp"
+#include "replication/backup.hpp"
 #include "lua_scripting.hpp"
 
 /* Command flags. Please check the command table defined in the redis.c file
@@ -107,7 +107,7 @@ namespace ardb
 			{
 			}
 	};
-    class ArdbConnContext;
+	class ArdbConnContext;
 	typedef btree::btree_set<ArdbConnContext*> ContextSet;
 
 	struct ArdbConncetion
@@ -187,8 +187,6 @@ namespace ardb
 			}
 	};
 
-
-
 	struct WatchKey
 	{
 			DBID db;
@@ -237,6 +235,7 @@ namespace ardb
 			bool lua_kill;
 			const char* lua_executing_func;
 
+
 			ArdbConnContext() :
 					currentDB(0), conn(NULL), in_transaction(false), fail_transc(
 					        false), is_slave_conn(false), transaction_cmds(
@@ -268,6 +267,16 @@ namespace ardb
 			{
 				return in_transaction && NULL != transaction_cmds;
 			}
+			bool IsInScripting()
+			{
+				return lua_executing_func != NULL;
+			}
+			void ClearTransactionContex()
+			{
+				in_transaction = false;
+				fail_transc = false;
+				DELETE(transaction_cmds);
+			}
 			~ArdbConnContext()
 			{
 				DELETE(transaction_cmds);
@@ -282,6 +291,8 @@ namespace ardb
 	{
 			ArdbServer* server;
 			ArdbConnContext ardbctx;
+			bool processing;
+			bool delete_after_processing;
 			void MessageReceived(ChannelHandlerContext& ctx,
 			        MessageEvent<RedisCommandFrame>& e);
 			void ChannelClosed(ChannelHandlerContext& ctx,
@@ -289,13 +300,12 @@ namespace ardb
 			void ChannelConnected(ChannelHandlerContext& ctx,
 			        ChannelStateEvent& e);
 			RedisRequestHandler(ArdbServer* s) :
-					server(s)
+					server(s), processing(false), delete_after_processing(false)
 			{
 			}
 	};
 
-	class OpLogs;
-	class ArdbServer: public KeyWatcher
+	class ArdbServer
 	{
 		public:
 			typedef int (ArdbServer::*RedisCommandHandler)(ArdbConnContext&,
@@ -328,6 +338,7 @@ namespace ardb
 			ClientConnHolder m_clients_holder;
 			Master m_master_serv;
 			Slave m_slave_client;
+			Backup m_backup;
 
 			WatchKeyContextTable m_watch_context_table;
 			ThreadMutex m_watch_mutex;
@@ -348,18 +359,17 @@ namespace ardb
 
 			void HandleReply(ArdbConnContext* ctx);
 
-			friend class ReplicationService;
-			friend class OpLogs;
 			friend class RedisRequestHandler;
 			friend class Slave;
 			friend class Master;
+			friend class Backup;
 			friend class LUAInterpreter;
 
 			void FillInfoResponse(const std::string& section,
 			        std::string& content);
 
-			int OnKeyUpdated(const DBID& dbid, const Slice& key);
-			int OnAllKeyDeleted(const DBID& dbid);
+			static void OnKeyUpdated(const DBID& dbid, const Slice& key, void* data);
+			//int OnAllKeyDeleted(const DBID& dbid);
 			void ClearWatchKeys(ArdbConnContext& ctx);
 			void ClearSubscribes(ArdbConnContext& ctx);
 

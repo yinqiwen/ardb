@@ -374,8 +374,8 @@ namespace ardb
 		leveldb::ReadOptions options;
 		options.fill_cache = cache;
 		ContextHolder& holder = m_context.GetValue();
-		//holder.snapshot = m_db->GetSnapshot();
-		//options.snapshot = holder.snapshot;
+		holder.snapshot = m_db->GetSnapshot();
+		options.snapshot = holder.snapshot;
 		leveldb::Iterator* iter = m_db->NewIterator(options);
 		iter->Seek(LEVELDB_SLICE(findkey));
 		return new LevelDBIterator(this, iter);

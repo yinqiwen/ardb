@@ -1,8 +1,7 @@
 /*
  * mmap.cpp
  *
- *  Created on: 2013年8月29日
- *      Author: wqy
+ *  Created on: Author: wqy
  */
 
 #include "mmap.hpp"
@@ -11,6 +10,8 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <string.h>
+
 
 namespace ardb
 {

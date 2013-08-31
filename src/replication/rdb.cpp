@@ -30,8 +30,7 @@
 /*
  * rdb.cpp
  *
- *  Created on: 2013年8月19日
- *      Author: yinqiwen
+ *  Created on: 2013-08-29      Author: yinqiwen
  */
 #include "rdb.hpp"
 
@@ -103,8 +102,8 @@ namespace ardb
 {
 	RedisDumpFile::RedisDumpFile(Ardb* db, const std::string& file) :
 			m_read_fp(NULL), m_write_fp(NULL), m_file_path(file), m_current_db(
-					0), m_db(db), m_cksm(0), m_routine_cb(NULL), m_routine_cbdata(
-			NULL)
+			        0), m_db(db), m_cksm(0), m_routine_cb(NULL), m_routine_cbdata(
+			        NULL)
 	{
 	}
 
@@ -118,7 +117,7 @@ namespace ardb
 		if (NULL != m_write_fp)
 		{
 			fclose(m_write_fp);
-			m_read_fp = NULL;
+			m_write_fp = NULL;
 		}
 	}
 
@@ -162,17 +161,20 @@ namespace ardb
 			if (isencoded)
 				*isencoded = 1;
 			return buf[0] & 0x3F;
-		} else if (type == REDIS_RDB_6BITLEN)
+		}
+		else if (type == REDIS_RDB_6BITLEN)
 		{
 			/* Read a 6 bit len. */
 			return buf[0] & 0x3F;
-		} else if (type == REDIS_RDB_14BITLEN)
+		}
+		else if (type == REDIS_RDB_14BITLEN)
 		{
 			/* Read a 14 bit len. */
 			if (Read(buf + 1, 1) == 0)
 				return REDIS_RDB_LENERR;
 			return ((buf[0] & 0x3F) << 8) | buf[1];
-		} else
+		}
+		else
 		{
 			/* Read a 32 bit len. */
 			if (Read(&len, 4) == 0)
@@ -220,21 +222,24 @@ namespace ardb
 			if (Read(enc, 1) == 0)
 				return false;
 			val = (signed char) enc[0];
-		} else if (enctype == REDIS_RDB_ENC_INT16)
+		}
+		else if (enctype == REDIS_RDB_ENC_INT16)
 		{
 			uint16_t v;
 			if (Read(enc, 2) == 0)
 				return false;
 			v = enc[0] | (enc[1] << 8);
 			val = (int16_t) v;
-		} else if (enctype == REDIS_RDB_ENC_INT32)
+		}
+		else if (enctype == REDIS_RDB_ENC_INT32)
 		{
 			uint32_t v;
 			if (Read(enc, 4) == 0)
 				return false;
 			v = enc[0] | (enc[1] << 8) | (enc[2] << 16) | (enc[3] << 24);
 			val = (int32_t) v;
-		} else
+		}
+		else
 		{
 			val = 0; /* anti-warning */
 			FATAL_LOG("Unknown RDB integer encoding type");
@@ -294,7 +299,8 @@ namespace ardb
 					{
 						str = stringfromll(v);
 						return true;
-					} else
+					}
+					else
 					{
 						return true;
 					}
@@ -325,7 +331,7 @@ namespace ardb
 	}
 
 	void RedisDumpFile::LoadListZipList(unsigned char* data,
-			const std::string& key)
+	        const std::string& key)
 	{
 		unsigned char* iter = ziplistIndex(data, 0);
 		while (iter != NULL)
@@ -339,7 +345,8 @@ namespace ardb
 				if (vstr)
 				{
 					value = Slice((char*) vstr, vlen);
-				} else
+				}
+				else
 				{
 					value = stringfromll(vlong);
 				}
@@ -364,14 +371,15 @@ namespace ardb
 			memcpy(buf, vstr, vlen);
 			buf[vlen] = '\0';
 			score = strtod(buf, NULL);
-		} else
+		}
+		else
 		{
 			score = vlong;
 		}
 		return score;
 	}
 	void RedisDumpFile::LoadZSetZipList(unsigned char* data,
-			const std::string& key)
+	        const std::string& key)
 	{
 		unsigned char* iter = ziplistIndex(data, 0);
 		while (iter != NULL)
@@ -385,7 +393,8 @@ namespace ardb
 				if (vstr)
 				{
 					value = Slice((char*) vstr, vlen);
-				} else
+				}
+				else
 				{
 					value = stringfromll(vlong);
 				}
@@ -401,7 +410,7 @@ namespace ardb
 	}
 
 	void RedisDumpFile::LoadHashZipList(unsigned char* data,
-			const std::string& key)
+	        const std::string& key)
 	{
 		unsigned char* iter = ziplistIndex(data, 0);
 		while (iter != NULL)
@@ -415,12 +424,14 @@ namespace ardb
 				if (fstr)
 				{
 					value = Slice((char*) fstr, flen);
-				} else
+				}
+				else
 				{
 					value = stringfromll(flong);
 				}
 				m_db->LPush(m_current_db, key, value);
-			} else
+			}
+			else
 			{
 				break;
 			}
@@ -434,7 +445,8 @@ namespace ardb
 				if (vstr)
 				{
 					value = Slice((char*) vstr, vlen);
-				} else
+				}
+				else
 				{
 					value = stringfromll(vlong);
 				}
@@ -445,7 +457,7 @@ namespace ardb
 	}
 
 	void RedisDumpFile::LoadSetIntSet(unsigned char* data,
-			const std::string& key)
+	        const std::string& key)
 	{
 		int ii = 0;
 		int64_t llele = 0;
@@ -467,7 +479,8 @@ namespace ardb
 				{
 					//save key-value
 					m_db->Set(m_current_db, key, str);
-				} else
+				}
+				else
 				{
 					return false;
 				}
@@ -488,11 +501,13 @@ namespace ardb
 						if (REDIS_RDB_TYPE_SET == rdbtype)
 						{
 							m_db->SAdd(m_current_db, key, str);
-						} else
+						}
+						else
 						{
 							m_db->LPush(m_current_db, key, str);
 						}
-					} else
+					}
+					else
 					{
 						return false;
 					}
@@ -512,7 +527,8 @@ namespace ardb
 					{
 						//save value score
 						m_db->ZAdd(m_current_db, key, score, str);
-					} else
+					}
+					else
 					{
 						return false;
 					}
@@ -531,7 +547,8 @@ namespace ardb
 					{
 						//save hash value
 						m_db->HSet(m_current_db, key, field, str);
-					} else
+					}
+					else
 					{
 						return false;
 					}
@@ -559,7 +576,7 @@ namespace ardb
 						unsigned int flen, vlen;
 						unsigned int maxlen = 0;
 						while ((zi = zipmapNext(zi, &fstr, &flen, &vstr, &vlen))
-								!= NULL)
+						        != NULL)
 						{
 							if (flen > maxlen)
 								maxlen = flen;
@@ -617,7 +634,7 @@ namespace ardb
 		 * routine callback every 100ms
 		 */
 		if (NULL != m_routine_cb
-				&& get_current_epoch_millis() - routinetime >= 100)
+		        && get_current_epoch_millis() - routinetime >= 100)
 		{
 			m_routine_cb(m_routine_cbdata);
 			routinetime = get_current_epoch_millis();
@@ -626,7 +643,7 @@ namespace ardb
 		while (buflen)
 		{
 			size_t bytes_to_read =
-					(max_read_bytes < buflen) ? max_read_bytes : buflen;
+			        (max_read_bytes < buflen) ? max_read_bytes : buflen;
 			if (fread(buf, bytes_to_read, 1, m_read_fp) == 0)
 				return false;
 			if (cksm)
@@ -688,7 +705,8 @@ namespace ardb
 				/* the EXPIRETIME opcode specifies time in seconds, so convert
 				 * into milliseconds. */
 				expiretime *= 1000;
-			} else if (type == REDIS_RDB_OPCODE_EXPIRETIME_MS)
+			}
+			else if (type == REDIS_RDB_OPCODE_EXPIRETIME_MS)
 			{
 				/* Milliseconds precision expire times introduced with RDB
 				 * version 3. */
@@ -737,15 +755,17 @@ namespace ardb
 			if (!Read(&cksum, 8))
 			{
 				goto eoferr;
-			}memrev64ifbe(&cksum);
+			}
+			memrev64ifbe(&cksum);
 			if (cksum == 0)
 			{
 				WARN_LOG(
-						"RDB file was saved with checksum disabled: no check performed.");
-			} else if (cksum != expected)
+				        "RDB file was saved with checksum disabled: no check performed.");
+			}
+			else if (cksum != expected)
 			{
-				ERROR_LOG("Wrong RDB checksum. Aborting now(%llu-%llu)", cksum,
-						expected);
+				ERROR_LOG(
+				        "Wrong RDB checksum. Aborting now(%llu-%llu)", cksum, expected);
 				exit(1);
 			}
 		}
@@ -754,7 +774,7 @@ namespace ardb
 		return 0;
 		eoferr: Close();
 		WARN_LOG(
-				"Short read or OOM loading DB. Unrecoverable error, aborting now.");
+		        "Short read or OOM loading DB. Unrecoverable error, aborting now.");
 		return -1;
 	}
 
@@ -765,7 +785,7 @@ namespace ardb
 		 * routine callback every 100ms
 		 */
 		if (NULL != m_routine_cb
-				&& get_current_epoch_millis() - routinetime >= 100)
+		        && get_current_epoch_millis() - routinetime >= 100)
 		{
 			m_routine_cb(m_routine_cbdata);
 			routinetime = get_current_epoch_millis();
@@ -775,8 +795,8 @@ namespace ardb
 		{
 			if ((m_write_fp = fopen(m_file_path.c_str(), "w")) == NULL)
 			{
-				ERROR_LOG("Failed to open redis dump file:%s to write",
-						m_file_path.c_str());
+				ERROR_LOG(
+				        "Failed to open redis dump file:%s to write", m_file_path.c_str());
 				return -1;
 			}
 		}
@@ -786,7 +806,7 @@ namespace ardb
 		while (buflen)
 		{
 			size_t bytes_to_write =
-					(max_write_bytes < buflen) ? max_write_bytes : buflen;
+			        (max_write_bytes < buflen) ? max_write_bytes : buflen;
 			if (fwrite(data, bytes_to_write, 1, m_write_fp) == 0)
 				return -1;
 			//check sum here
@@ -853,11 +873,13 @@ namespace ardb
 		{
 			buf[0] = 253;
 			len = 1;
-		} else if (!std::isfinite(val))
+		}
+		else if (!std::isfinite(val))
 		{
 			len = 1;
 			buf[0] = (val < 0) ? 255 : 254;
-		} else
+		}
+		else
 		{
 #if (DBL_MANT_DIG >= 52) && (LLONG_MAX == 0x7fffffffffffffffLL)
 			/* Check if the float is in a safe range to be casted into a
@@ -874,9 +896,10 @@ namespace ardb
 			if (val > min && val < max && val == ((double) ((long long) val)))
 			{
 				ll2string((char*) buf + 1, sizeof(buf), (long long) val);
-			} else
+			}
+			else
 #endif
-				snprintf((char*) buf + 1, sizeof(buf) - 1, "%.17g", val);
+			snprintf((char*) buf + 1, sizeof(buf) - 1, "%.17g", val);
 			buf[0] = strlen((char*) buf + 1);
 			len = buf[0] + 1;
 		}
@@ -903,14 +926,16 @@ namespace ardb
 			enc[0] = (REDIS_RDB_ENCVAL << 6) | REDIS_RDB_ENC_INT8;
 			enc[1] = value & 0xFF;
 			return 2;
-		} else if (value >= -(1 << 15) && value <= (1 << 15) - 1)
+		}
+		else if (value >= -(1 << 15) && value <= (1 << 15) - 1)
 		{
 			enc[0] = (REDIS_RDB_ENCVAL << 6) | REDIS_RDB_ENC_INT16;
 			enc[1] = value & 0xFF;
 			enc[2] = (value >> 8) & 0xFF;
 			return 3;
-		} else if (value >= -((long long) 1 << 31)
-				&& value <= ((long long) 1 << 31) - 1)
+		}
+		else if (value >= -((long long) 1 << 31)
+		        && value <= ((long long) 1 << 31) - 1)
 		{
 			enc[0] = (REDIS_RDB_ENCVAL << 6) | REDIS_RDB_ENC_INT32;
 			enc[1] = value & 0xFF;
@@ -918,7 +943,8 @@ namespace ardb
 			enc[3] = (value >> 16) & 0xFF;
 			enc[4] = (value >> 24) & 0xFF;
 			return 5;
-		} else
+		}
+		else
 		{
 			return 0;
 		}
@@ -954,11 +980,12 @@ namespace ardb
 		if (o->type == INTEGER)
 		{
 			return WriteLongLongAsStringObject(o->v.int_v);
-		} else
+		}
+		else
 		{
 			value_convert_to_raw(*o);
 			return WriteRawString(o->v.raw->GetRawReadBuffer(),
-					o->v.raw->ReadableBytes());
+			        o->v.raw->ReadableBytes());
 		}
 	}
 
@@ -1059,7 +1086,8 @@ namespace ardb
 		if (enclen > 0)
 		{
 			return Write(buf, enclen);
-		} else
+		}
+		else
 		{
 			/* Encode as string */
 			enclen = ll2string((char*) buf, 32, value);
@@ -1085,7 +1113,8 @@ namespace ardb
 			if (Write(buf, 1) == -1)
 				return -1;
 			nwritten = 1;
-		} else if (len < (1 << 14))
+		}
+		else if (len < (1 << 14))
 		{
 			/* Save a 14 bit len */
 			buf[0] = ((len >> 8) & 0xFF) | (REDIS_RDB_14BITLEN << 6);
@@ -1093,7 +1122,8 @@ namespace ardb
 			if (Write(buf, 2) == -1)
 				return -1;
 			nwritten = 2;
-		} else
+		}
+		else
 		{
 			/* Save a 32 bit len */
 			buf[0] = (REDIS_RDB_32BITLEN << 6);
@@ -1135,33 +1165,37 @@ namespace ardb
 				{
 				}
 				int OnKeyValue(KeyObject* key, ValueObject* value,
-						uint32 cursor)
+				        uint32 cursor)
 				{
-					if (cursor
-							== 0|| key->db != currentDb && key->db != ARDB_GLOBAL_DB)
+					if (key->db == ARDB_GLOBAL_DB)
+					{
+						return -1;
+					}
+					if (cursor == 0
+					        || (key->db != currentDb))
 					{
 						currentDb = key->db;
 						r.WriteType(REDIS_RDB_OPCODE_SELECTDB);
 						r.WriteLen(currentDb);
 					}
 					if (key->type != KV && key->type != LIST_ELEMENT
-							&& key->type != ZSET_ELEMENT
-							&& key->type != SET_ELEMENT
-							&& key->type != BITSET_ELEMENT
-							&& key->type != HASH_FIELD)
+					        && key->type != ZSET_ELEMENT
+					        && key->type != SET_ELEMENT
+					        && key->type != BITSET_ELEMENT
+					        && key->type != HASH_FIELD)
 					{
 						return 0;
 					}
 					bool firstElementInKey = false;
 					if (currentKey.size() != key->key.size()
-							|| strncmp(currentKey.c_str(), key->key.data(),
-									currentKey.size()))
+					        || strncmp(currentKey.c_str(), key->key.data(),
+					                currentKey.size()))
 					{
 						int64 expiretime = r.m_db->PTTL(currentDb, key->key);
 						if (expiretime > 0)
 						{
 							if (r.WriteType(REDIS_RDB_OPCODE_EXPIRETIME_MS)
-									== -1)
+							        == -1)
 								return -1;
 							if (r.WriteMillisecondTime(expiretime) == -1)
 								return -1;
@@ -1215,7 +1249,7 @@ namespace ardb
 							}
 							HashKeyObject* hk = (HashKeyObject*) key;
 							r.WriteRawString(hk->field.data(),
-									hk->field.size());
+							        hk->field.size());
 							r.WriteStringObject(value);
 							break;
 						}

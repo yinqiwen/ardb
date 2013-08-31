@@ -81,6 +81,7 @@ namespace ardb
 			TimerChannel* m_timer;
 			SignalChannel* m_signal_channel;
 			SoftSignalChannel* m_self_soft_signal_channel;
+			SoftSignalChannel* m_soft_signal_channel4father;
 			RemoveChannelQueue m_remove_queue;
 
 			bool m_running;

@@ -1,8 +1,7 @@
 /*
  * backlog.cpp
  *
- *  Created on: 2013年8月22日
- *      Author: wqy
+ *  Created on: 2013-08-29      Author: wqy
  */
 #include "repl_backlog.hpp"
 #include <unistd.h>
@@ -21,8 +20,8 @@ namespace ardb
 {
 
 	ReplBacklog::ReplBacklog() :
-			m_backlog_size(0), m_backlog_idx(0), m_master_repl_offset(0), m_repl_backlog_histlen(
-					0), m_repl_backlog_offset(0), m_sync_state_change(false)
+			m_backlog_size(0), m_backlog_idx(0), m_end_offset(0), m_histlen(0), m_begin_offset(
+			        0), m_last_sync_offset(0), m_sync_state_change(false)
 	{
 
 	}
@@ -35,8 +34,9 @@ namespace ardb
 	bool ReplBacklog::LoadSyncState(const std::string& path)
 	{
 		std::string file = path + "/master_sync.state";
-		if (0 != m_sync_state_buf.Init(file,
-		ARDB_MASTER_SYNC_STATE_MMAP_FILE_SIZE))
+		if (0
+		        != m_sync_state_buf.Init(file,
+		                ARDB_MASTER_SYNC_STATE_MMAP_FILE_SIZE))
 		{
 			return false;
 		}
@@ -44,34 +44,57 @@ namespace ardb
 		{
 			char serverkeybuf[SERVER_KEY_SIZE + 1];
 			sscanf(m_sync_state_buf.m_buf, "%s %llu %llu %llu %llu",
-					serverkeybuf, &m_master_repl_offset, &m_repl_backlog_offset,
-					&m_backlog_idx, &m_repl_backlog_histlen);
+			        serverkeybuf, &m_end_offset, &m_begin_offset,
+			        &m_backlog_idx, &m_histlen);
 			m_server_key = serverkeybuf;
-		} else
+		}
+		else
 		{
 			m_server_key = random_hex_string(SERVER_KEY_SIZE);
-			m_master_repl_offset++;
+			/* When a new backlog buffer is created, we increment the replication
+			 * offset by one to make sure we'll not be able to PSYNC with any
+			 * previous slave. This is needed because we avoid incrementing the
+			 * master_repl_offset if no backlog exists nor slaves are attached. */
+			m_end_offset++;
 
 			/* We don't have any data inside our buffer, but virtually the first
 			 * byte we have is the next byte that will be generated for the
 			 * replication stream. */
-			m_repl_backlog_offset = m_master_repl_offset + 1;
+			m_begin_offset = m_end_offset + 1;
 			PersistSyncState();
 		}
+		m_last_sync_offset = m_end_offset;
 		INFO_LOG(
-				"[Master]Server key:%s, master_repl_offset:%llu, repl_backlog_offset:%llu, backlog_idx:%llu, repl_backlog_histlen=%llu",
-				m_server_key.c_str(), m_master_repl_offset,
-				m_repl_backlog_offset, m_backlog_idx, m_repl_backlog_histlen);
+		        "[Master]Server key:%s, begin_offset:%llu, end_offset:%llu, idx:%llu, histlen=%llu", m_server_key.c_str(), m_begin_offset, m_end_offset, m_backlog_idx, m_histlen);
 		return true;
 	}
 
 	void ReplBacklog::PersistSyncState()
 	{
+		if(!m_sync_state_change)
+		{
+			return;
+		}
 		int len = snprintf(m_sync_state_buf.m_buf, m_sync_state_buf.m_size,
-				"%s %llu %llu %llu %llu", m_server_key.c_str(),
-				m_master_repl_offset, m_repl_backlog_offset, m_backlog_idx,
-				m_repl_backlog_histlen);
+		        "%s %llu %llu %llu %llu", m_server_key.c_str(), m_end_offset,
+		        m_begin_offset, m_backlog_idx, m_histlen);
 		msync(m_sync_state_buf.m_buf, len, MS_ASYNC);
+		if (m_end_offset > m_last_sync_offset)
+		{
+			uint64 len = m_end_offset - m_last_sync_offset;
+			if (m_backlog_idx > len)
+			{
+				msync(m_sync_state_buf.m_buf + m_backlog_idx - len, len,
+				        MS_ASYNC);
+			}
+			else
+			{
+				msync(
+				        m_sync_state_buf.m_buf + m_backlog_size - len
+				                + m_backlog_idx, len - m_backlog_idx, MS_ASYNC);
+				msync(m_sync_state_buf.m_buf, m_backlog_idx, MS_ASYNC);
+			}
+		}
 		m_sync_state_change = false;
 	}
 
@@ -92,18 +115,15 @@ namespace ardb
 			return -1;
 		}
 		m_backlog_size = backlog_size;
-		m_backlog_idx = 0;
 
 		return 0;
 	}
 
-	void ReplBacklog::Feed(RedisCommandFrame& cmd)
+	void ReplBacklog::Feed(Buffer& buffer)
 	{
-		Buffer buffer(256);
-		RedisCommandEncoder::Encode(buffer, cmd);
 		const char* buf = buffer.GetRawReadBuffer();
 		size_t len = buffer.ReadableBytes();
-		m_master_repl_offset += len;
+		m_end_offset += len;
 		/* This is a circular buffer, so write as much data we can at every
 		 * iteration and rewind the "idx" index if we reach the limit. */
 		while (len)
@@ -117,13 +137,12 @@ namespace ardb
 				m_backlog_idx = 0;
 			len -= thislen;
 			buf += thislen;
-			m_repl_backlog_histlen += thislen;
+			m_histlen += thislen;
 		}
-		if (m_repl_backlog_histlen > m_backlog_size)
-			m_repl_backlog_histlen = m_backlog_size;
+		if (m_histlen > m_backlog_size)
+			m_histlen = m_backlog_size;
 		/* Set the offset of the first byte we have in the backlog. */
-		m_repl_backlog_offset = m_master_repl_offset - m_repl_backlog_histlen
-				+ 1;
+		m_begin_offset = m_end_offset - m_histlen + 1;
 		m_sync_state_change = true;
 	}
 
@@ -133,12 +152,12 @@ namespace ardb
 	}
 	uint64 ReplBacklog::GetReplEndOffset()
 	{
-		return m_master_repl_offset;
+		return m_end_offset;
 	}
 
 	uint64 ReplBacklog::GetReplStartOffset()
 	{
-		return m_repl_backlog_offset;
+		return m_begin_offset;
 	}
 
 	size_t ReplBacklog::WriteChannel(Channel* channle, int64 offset, size_t len)
@@ -147,35 +166,38 @@ namespace ardb
 		{
 			return 0;
 		}
-		int64 skip = offset - m_repl_backlog_offset;
-		uint64 j = (m_backlog_idx + (m_backlog_size - m_repl_backlog_histlen))
-				% m_backlog_size;
+		int64 skip = offset - m_begin_offset;
+		uint64 j = (m_backlog_idx + (m_backlog_size - m_histlen))
+		        % m_backlog_size;
 		j = (j + skip) % m_backlog_size;
 		uint64 total = len;
-		if (total > m_repl_backlog_histlen - skip)
+		if (total > m_histlen - skip)
 		{
-			total = m_repl_backlog_histlen - skip;
+			total = m_histlen - skip;
 		}
 		while (total)
 		{
 			uint64 thislen =
-					((m_backlog_size - j) < len) ?
-							(m_backlog_size - j) : len;
+			        ((m_backlog_size - j) < len) ? (m_backlog_size - j) : len;
 			Buffer buf(m_backlog.m_buf + j, 0, thislen);
 			channle->Write(buf);
 			total -= thislen;
 			j = 0;
 		}
-		return (size_t)total;
+		return (size_t) total;
 	}
 
 	bool ReplBacklog::IsValidOffset(int64 offset)
 	{
-		if (offset < 0 || (uint64)offset > m_master_repl_offset || (uint64)offset < m_repl_backlog_offset)
+		if ((uint64) offset == m_begin_offset)
+		{
+			return true;
+		}
+		if (offset < 0 || (uint64) offset > m_end_offset
+		        || (uint64) offset < m_begin_offset)
 		{
 			INFO_LOG(
-					"Unable to partial resync with the slave for lack of backlog (Slave request was: %lld).",
-					offset);
+			        "Unable to partial resync with the slave for lack of backlog (Slave request was: %lld). %lld-%lld", offset, m_begin_offset, m_end_offset);
 			return false;
 		}
 		return true;
@@ -185,9 +207,9 @@ namespace ardb
 	{
 		if (m_server_key != server_key)
 		{
-			INFO_LOG("Partial resynchronization not accepted: "
-					"Serverkey mismatch (Client asked for '%s', I'm '%s')",
-					server_key.c_str(), m_server_key.c_str());
+			INFO_LOG(
+			        "Partial resynchronization not accepted: "
+			        "Serverkey mismatch (Client asked for '%s', I'm '%s')", server_key.c_str(), m_server_key.c_str());
 			return false;
 		}
 		return IsValidOffset(offset);

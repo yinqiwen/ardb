@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -29,35 +29,13 @@
 
 #ifndef SOFT_SIGNAL_CHANNEL_HPP_
 #define SOFT_SIGNAL_CHANNEL_HPP_
-#include "channel/channel.hpp"
+#include "channel/fifo/fifo_channel.hpp"
+#include "channel/codec/int_frame_decoder.hpp"
 #include <vector>
 #include <string>
 
 namespace ardb
 {
-	struct EventFD
-	{
-		private:
-			char _kReadSigInfoBuf[sizeof(uint64)];
-			char _kWriteSigInfoBuf[sizeof(uint64)];
-			uint32 m_readed_siginfo_len;
-		public:
-			int write_fd;
-			int read_fd;
-
-			EventFD() :
-					m_readed_siginfo_len(0), write_fd(-1), read_fd(-1)
-			{
-			}
-			inline bool IsOpen()
-			{
-				return read_fd > 0 || write_fd > 0;
-			}
-			int OpenNonBlock();
-			int Close();
-			int WriteEvent(uint64 ev);
-			int ReadEvent(uint64& ev);
-	};
 
 	struct SoftSignalHandler
 	{
@@ -67,26 +45,23 @@ namespace ardb
 			}
 	};
 
-	class SoftSignalChannel: public Channel
+	class SoftSignalChannel: public PipeChannel, public ChannelUpstreamHandler<uint64>
 	{
 		private:
 			typedef std::map<uint32, std::vector<SoftSignalHandler*> > SignalHandlerMap;
 			SignalHandlerMap m_hander_map;
+			ardb::codec::UInt64FrameDecoder m_decoder;
 
-			EventFD m_event_fd;
 			SoftSignalChannel(ChannelService& factory);
-			void FireSignalReceived(uint32 soft_signo, uint32 append_info);
 			bool DoOpen();
-			bool DoClose();
-			void OnRead();
-			int GetWriteFD();
-			int GetReadFD();
+			void MessageReceived(ChannelHandlerContext& ctx,
+								MessageEvent<uint64>& e);
+			void FireSignalReceived(uint32 soft_signo, uint32 append_info);
 			~SoftSignalChannel();
 			friend class ChannelService;
 		public:
 			void Register(uint32 signo, SoftSignalHandler* handler);
 			void Unregister(SoftSignalHandler* handler);
-			void AttachEventFD(EventFD* fd);
 			int FireSoftSignal(uint32 signo, uint32 append_info);
 			void Clear();
 	};

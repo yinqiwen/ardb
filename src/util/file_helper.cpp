@@ -347,4 +347,13 @@ namespace ardb
 		hash = result;
 		return 0;
 	}
+
+	std::string real_path(const std::string& path)
+	{
+		char* tmp = realpath(path.c_str(), NULL);
+	    std::string newpath(tmp);
+		free(tmp);
+		return newpath;
+
+	}
 }

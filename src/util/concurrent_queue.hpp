@@ -264,8 +264,8 @@ namespace ardb
 				if (next)
 				{
 					m_tail = next;
-					delete tail;
 					value = next->value;
+					delete tail;
 					return true;
 				}
 				return false;
@@ -319,7 +319,7 @@ namespace ardb
 				while (n);
 			}
 
-			void Push(T v)
+			void Push(const T& v)
 			{
 				node* n = alloc_node();
 				n->next_ = 0;

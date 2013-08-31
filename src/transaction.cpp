@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -57,7 +57,8 @@ namespace ardb
 		if (ctx.fail_transc || !ctx.in_transaction)
 		{
 			ctx.reply.type = REDIS_REPLY_NIL;
-		} else
+		}
+		else
 		{
 			RedisReply r;
 			r.type = REDIS_REPLY_ARRAY;
@@ -67,8 +68,8 @@ namespace ardb
 				{
 					RedisCommandFrame& cmd = ctx.transaction_cmds->at(i);
 					DoRedisCommand(ctx,
-							FindRedisCommandHandlerSetting(cmd.GetCommand()),
-							cmd);
+					        FindRedisCommandHandlerSetting(cmd.GetCommand()),
+					        cmd);
 					r.elements.push_back(ctx.reply);
 				}
 			}
@@ -89,7 +90,7 @@ namespace ardb
 			while (it != ctx.watch_key_set->end())
 			{
 				WatchKeyContextTable::iterator found =
-						m_watch_context_table.find(*it);
+				        m_watch_context_table.find(*it);
 				if (found != m_watch_context_table.end())
 				{
 					ContextSet& list = found->second;
@@ -112,56 +113,62 @@ namespace ardb
 			}
 			if (m_watch_context_table.empty())
 			{
-				m_db->RegisterKeyWatcher(NULL);
+				m_db->GetDBWatcher().on_key_update = NULL;
+				m_db->GetDBWatcher().on_key_update_data = NULL;
 			}
 		}
 		DELETE(ctx.watch_key_set);
 	}
 
-	int ArdbServer::OnKeyUpdated(const DBID& dbid, const Slice& key)
+	void ArdbServer::OnKeyUpdated(const DBID& dbid, const Slice& key,
+	        void* data)
 	{
-		LockGuard<ThreadMutex> guard(m_watch_mutex);
-		if (!m_watch_context_table.empty())
+		ArdbServer* server = (ArdbServer*) data;
+		LockGuard<ThreadMutex> guard(server->m_watch_mutex);
+		if (!server->m_watch_context_table.empty())
 		{
-			WatchKey k(dbid, std::string(key.data(), key.size()));
-			WatchKeyContextTable::iterator found = m_watch_context_table.find(
-					k);
-			if (found != m_watch_context_table.end())
+			if (key.size() == 0)
 			{
-				ContextSet& list = found->second;
-				ContextSet::iterator lit = list.begin();
-				while (lit != list.end())
+				WatchKeyContextTable::iterator it =
+						server->m_watch_context_table.begin();
+				while (it != server->m_watch_context_table.end())
 				{
-					if (*lit != m_ctx_local.GetValue())
+					if (it->first.db == dbid)
 					{
-						(*lit)->fail_transc = true;
+						server->OnKeyUpdated(it->first.db, it->first.key, data);
 					}
-					lit++;
+					it++;
+				}
+			}
+			else
+			{
+				WatchKey k(dbid, std::string(key.data(), key.size()));
+				WatchKeyContextTable::iterator found =
+				        server->m_watch_context_table.find(k);
+				if (found != server->m_watch_context_table.end())
+				{
+					ContextSet& list = found->second;
+					ContextSet::iterator lit = list.begin();
+					while (lit != list.end())
+					{
+						if (*lit != server->m_ctx_local.GetValue())
+						{
+							(*lit)->fail_transc = true;
+						}
+						lit++;
+					}
 				}
 			}
 		}
-		return 0;
-	}
-	int ArdbServer::OnAllKeyDeleted(const DBID& dbid)
-	{
-		LockGuard<ThreadMutex> guard(m_watch_mutex);
-		WatchKeyContextTable::iterator it = m_watch_context_table.begin();
-		while (it != m_watch_context_table.end())
-		{
-			if (it->first.db == dbid)
-			{
-				OnKeyUpdated(it->first.db, it->first.key);
-			}
-			it++;
-		}
-		return 0;
+
 	}
 
 	int ArdbServer::Watch(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
 		ctx.reply.type = REDIS_REPLY_STATUS;
 		ctx.reply.str = "OK";
-		m_db->RegisterKeyWatcher(this);
+		m_db->GetDBWatcher().on_key_update = ArdbServer::OnKeyUpdated;
+		m_db->GetDBWatcher().on_key_update_data = this;
 		if (NULL == ctx.watch_key_set)
 		{
 			ctx.watch_key_set = new WatchKeySet;
@@ -173,14 +180,15 @@ namespace ardb
 			ctx.watch_key_set->insert(k);
 			LockGuard<ThreadMutex> guard(m_watch_mutex);
 			WatchKeyContextTable::iterator found = m_watch_context_table.find(
-					k);
+			        k);
 			if (found == m_watch_context_table.end())
 			{
 				ContextSet set;
 				set.insert(&ctx);
 				m_watch_context_table.insert(
-						WatchKeyContextTable::value_type(k, set));
-			} else
+				        WatchKeyContextTable::value_type(k, set));
+			}
+			else
 			{
 				ContextSet& set = found->second;
 				ContextSet::iterator lit = set.begin();

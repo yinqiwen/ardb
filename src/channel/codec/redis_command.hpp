@@ -220,7 +220,8 @@ namespace ardb
 					if (m_cmd_seted)
 					{
 						m_args.push_back(std::string(str, len));
-					} else
+					}
+					else
 					{
 						m_cmd.append(str, len);
 						m_cmd_seted = true;
@@ -230,17 +231,36 @@ namespace ardb
 			public:
 				RedisCommandFrame() :
 						type(REDIS_CMD_INVALID), m_is_inline(false), m_cmd_seted(
-								false), m_raw_data_size(0)
+						        false), m_raw_data_size(0)
 				{
 				}
 				RedisCommandFrame(ArgumentArray& cmd) :
 						type(REDIS_CMD_INVALID), m_is_inline(false), m_cmd_seted(
-								false), m_raw_data_size(0)
+						        false), m_raw_data_size(0)
 				{
 					m_cmd = cmd.front();
 					cmd.pop_front();
 					m_args = cmd;
 				}
+				RedisCommandFrame(const char* fmt, ...) :
+						type(REDIS_CMD_INVALID), m_is_inline(false), m_cmd_seted(
+						        false), m_raw_data_size(0)
+				{
+					va_list ap;
+					va_start(ap, fmt);
+					char buf[1024];
+					vsnprintf(buf, sizeof(buf) - 1, fmt, ap);
+					va_end(ap);
+					char * pch;
+					pch = strtok(buf, " ");
+					while (pch != NULL)
+					{
+						m_args.push_back(std::string(pch));
+						pch = strtok(NULL, " ");
+					}
+					m_cmd = m_args.front();
+				}
+
 				inline uint32 GetRawDataSize()
 				{
 					return m_raw_data_size;

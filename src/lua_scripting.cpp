@@ -754,6 +754,7 @@ namespace ardb
 			lua_sethook(m_lua, MaskCountHook, LUA_MASKCOUNT, 100000);
 			delhook = true;
 		}
+		ctx->lua_time_start = get_current_epoch_millis();
 		ctx->lua_executing_func = funcname.c_str() + 2;
 		ctx->lua_kill = false;
 		int errid = lua_pcall(m_lua, 0, 1, -2);

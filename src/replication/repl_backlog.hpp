@@ -30,8 +30,7 @@
 /*
  * backlog.hpp
  *
- *  Created on: 2013年8月22日
- *      Author: wqy
+ *  Created on: 2013-08-29      Author: wqy
  */
 
 #ifndef BACKLOG_HPP_
@@ -53,9 +52,10 @@ namespace ardb
 		private:
 			uint64 m_backlog_size;
 			uint64 m_backlog_idx;
-			uint64 m_master_repl_offset;
-			uint64 m_repl_backlog_histlen;
-			uint64 m_repl_backlog_offset;
+			uint64 m_end_offset;
+			uint64 m_histlen;
+			uint64 m_begin_offset;
+			uint64 m_last_sync_offset;
 
 			std::string m_server_key;
 			bool m_sync_state_change;
@@ -64,12 +64,13 @@ namespace ardb
 			MMapBuf m_backlog;
 
 			void Run();
-			void PersistSyncState();
+
 			bool LoadSyncState(const std::string& path);
 		public:
 			ReplBacklog();
 			int Init(const std::string& path, uint64 backlog_size);
-			void Feed(RedisCommandFrame& cmd);
+			void PersistSyncState();
+			void Feed(Buffer& cmd);
 			bool IsValidOffset(int64 offset);
 			bool IsValidOffset(const std::string& server_key, int64 offset);
 			const std::string& GetServerKey();

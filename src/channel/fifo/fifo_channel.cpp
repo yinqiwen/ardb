@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -36,12 +36,29 @@ using namespace ardb;
 PipeChannel::PipeChannel(ChannelService& factory, int readFd, int writeFd) :
 		Channel(NULL, factory), m_read_fd(readFd), m_write_fd(writeFd)
 {
+	//DoOpen();
+}
+
+bool PipeChannel::DoOpen()
+{
+	if (-1 == m_read_fd && -1 == m_write_fd)
+	{
+		int pipefd[2];
+		int ret = pipe(pipefd);
+		if (ret == -1)
+		{
+			ERROR_LOG("Failed to create pipe for soft signal channel.");
+			return false;
+		}
+		m_read_fd = pipefd[0];
+		m_write_fd = pipefd[1];
+	}
 	if (-1 != m_read_fd)
 	{
 		make_fd_nonblocking(m_read_fd);
 		int ret = aeCreateFileEvent(GetService().GetRawEventLoop(), m_read_fd,
-						AE_READABLE, Channel::IOEventCallback, this);
-		if(ret != 0)
+		        AE_READABLE, Channel::IOEventCallback, this);
+		if (ret != 0)
 		{
 			ERROR_LOG("Failed to create eve:%d.", m_read_fd);
 		}
@@ -51,10 +68,6 @@ PipeChannel::PipeChannel(ChannelService& factory, int readFd, int writeFd) :
 	{
 		make_fd_nonblocking(m_write_fd);
 	}
-}
-
-bool PipeChannel::DoOpen()
-{
 	return true;
 }
 

@@ -36,6 +36,7 @@
 #include <limits.h>
 #include <inttypes.h>
 #include <string>
+#include <stdio.h>
 #include "common.hpp"
 #include "time_helper.hpp"
 #include "file_helper.hpp"

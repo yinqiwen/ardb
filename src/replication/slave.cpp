@@ -30,8 +30,7 @@
 /*
  * slave_client.cpp
  *
- *  Created on: 2013年8月20日
- *      Author: wqy
+ *  Created on: 2013-08-22      Author: wqy
  */
 #include "slave.hpp"
 #include "ardb_server.hpp"
@@ -225,12 +224,12 @@ namespace ardb
 							it++;
 						}
 						psync.Printf("psync2 %s %lld %s\r\n",
-								m_server_key.c_str(), m_sync_offset,
+								m_server_key.c_str(), m_sync_offset+1,
 								syncdbs.c_str());
 					} else
 					{
 						psync.Printf("psync %s %lld\r\n", m_server_key.c_str(),
-								m_sync_offset);
+								m_sync_offset+1);
 					}
 					ctx.GetChannel()->Write(psync);
 					m_slave_state = SLAVE_STATE_WAITING_PSYNC_REPLY;
@@ -448,6 +447,14 @@ namespace ardb
 		m_slave_state = 0;
 		m_sync_offset = 0;
 		Close();
+	}
+	void Slave::Close()
+	{
+		if (NULL != m_client)
+		{
+			m_client->Close();
+			m_client = NULL;
+		}
 	}
 }
 

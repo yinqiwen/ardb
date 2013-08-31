@@ -66,9 +66,11 @@ namespace ardb
 
 	int Ardb::SetValue(KeyObject& key, ValueObject& value)
 	{
-		if (NULL != m_key_watcher)
+		DBWatcher& watcher = m_watcher.GetValue();
+		watcher.data_changed = true;
+		if (watcher.on_key_update != NULL)
 		{
-			m_key_watcher->OnKeyUpdated(key.db, key.key);
+			watcher.on_key_update(key.db, key.key, watcher.on_key_update_data);
 		}
 		Buffer keybuf;
 		keybuf.EnsureWritableBytes(key.key.size() + 16);
@@ -83,10 +85,12 @@ namespace ardb
 
 	int Ardb::DelValue(KeyObject& key)
 	{
-		if (NULL != m_key_watcher)
+		DBWatcher& watcher = m_watcher.GetValue();
+		if (watcher.on_key_update != NULL)
 		{
-			m_key_watcher->OnKeyUpdated(key.db, key.key);
+			watcher.on_key_update(key.db, key.key,watcher.on_key_update_data);
 		}
+		watcher.data_changed = true;
 		Buffer keybuf(key.key.size() + 16);
 		encode_key(keybuf, key);
 		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
@@ -131,7 +135,8 @@ namespace ardb
 			{
 				smart_fill_value(*vit, valueobject);
 				SetValue(keyobject, valueobject);
-			} else
+			}
+			else
 			{
 				guard.MarkFailed();
 				return -1;
@@ -143,7 +148,7 @@ namespace ardb
 	}
 
 	int Ardb::Set(const DBID& db, const Slice& key, const Slice& value, int ex,
-			int px, int nxx)
+	        int px, int nxx)
 	{
 		KeyObject k(key, KV, db);
 		if (-1 == nxx)
@@ -152,7 +157,8 @@ namespace ardb
 			{
 				return ERR_KEY_EXIST;
 			}
-		} else if (1 == nxx)
+		}
+		else if (1 == nxx)
 		{
 			if (0 != GetValue(k, NULL))
 			{
@@ -187,12 +193,12 @@ namespace ardb
 	}
 
 	int Ardb::SetEx(const DBID& db, const Slice& key, const Slice& value,
-			uint32_t secs)
+	        uint32_t secs)
 	{
 		return PSetEx(db, key, value, secs * 1000);
 	}
 	int Ardb::PSetEx(const DBID& db, const Slice& key, const Slice& value,
-			uint32_t ms)
+	        uint32_t ms)
 	{
 		KeyObject keyobject(key, KV, db);
 		ValueObject valueobject;
@@ -338,7 +344,7 @@ namespace ardb
 		if (GetValue(keyobject, &v) == 0)
 		{
 			value_convert_to_number(v);
-			expire  = (uint64)(v.v.int_v);
+			expire = (uint64) (v.v.int_v);
 			return 0;
 		}
 		return -1;
@@ -350,13 +356,13 @@ namespace ardb
 		uint64 old_expire;
 		if (0 == GetExpiration(db, key, old_expire))
 		{
-			if(old_expire == expire)
+			if (old_expire == expire)
 			{
 				return 0;
 			}
 			ExpireKeyObject expire_key(key, old_expire, db);
 			DelValue(expire_key);
-			if(0 == expire)
+			if (0 == expire)
 			{
 				KeyObject ek(key, KEY_EXPIRATION_MAPPING, db);
 				DelValue(ek);
@@ -369,7 +375,7 @@ namespace ardb
 				m_min_expireat = expire;
 			}
 			KeyObject ek(key, KEY_EXPIRATION_MAPPING, db);
-			ValueObject expire_value((int64)expire);
+			ValueObject expire_value((int64) expire);
 			SetValue(ek, expire_value);
 			ExpireKeyObject keyobject(key, expire, db);
 			ValueObject empty;
@@ -392,14 +398,16 @@ namespace ardb
 			{
 				DELETE(kk);
 				break;
-			} else
+			}
+			else
 			{
 				ExpireKeyObject* ek = (ExpireKeyObject*) kk;
 				if (ek->expireat <= get_current_epoch_micros())
 				{
 					Del(db, ek->key);
 					DELETE(kk);
-				} else
+				}
+				else
 				{
 					DELETE(kk);
 					break;

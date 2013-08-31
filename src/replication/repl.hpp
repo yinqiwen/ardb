@@ -1,8 +1,7 @@
 /*
  * repl.hpp
  *
- *  Created on: 2013年8月26日
- *      Author: wqy
+ *  Created on: 2013-08-29     Author: wqy
  */
 
 #ifndef REPL_HPP_
@@ -19,7 +18,7 @@
 #define SLAVE_STATE_SYNING_DUMP_DATA 9
 #define SLAVE_STATE_SYNING_CACHE_DATA 10
 #define SLAVE_STATE_LOADING_DUMP_DATA 11
-#define SLAVE_STATE_SYNCED 11
+#define SLAVE_STATE_SYNCED 12
 
 #define REDIS_DB_SERVER_TYPE 1
 #define ARDB_DB_SERVER_TYPE 2

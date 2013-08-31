@@ -30,8 +30,7 @@
 /*
  * rdb.hpp
  *
- *  Created on: 2013年8月19日
- *      Author: yinqiwen
+ *  Created on: 2013-08-29      Author: yinqiwen
  */
 
 #ifndef RDB_HPP_

@@ -128,7 +128,7 @@ TESTOBJ := ../test/ardb_test.o
 
 SERVER_OBJECTS := ardb_server.o lua_scripting.o transaction.o slowlog.o clients.o \
                   replication/rdb.o replication/slave.o replication/repl_backlog.o \
-                  replication/master.o replication.o pubsub.o oplogs.o main.o
+                  replication/master.o replication/backup.o pubsub.o  main.o
 
 #DIST_LIB = libardb.so
 DIST_LIBA = libardb.a

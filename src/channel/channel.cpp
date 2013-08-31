@@ -33,6 +33,9 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <sys/stat.h>
+#if defined(linux) || defined(__linux__)
+#include <sys/sendfile.h>
+#endif
 
 using namespace ardb;
 
@@ -491,9 +494,18 @@ void Channel::OnWrite()
 	{
 		EnableWriting();
 		off_t len = m_file_sending->file_rest_len;
+#if defined(__APPLE__)
 		int ret = sendfile(GetWriteFD(), m_file_sending->fd,
 				m_file_sending->file_offset, &len, NULL, 0);
-		if (ret != 0)
+#elif defined(__FreeBSD__) || defined(__DragonFly__)
+		int ret = sendfile(GetWriteFD(), m_file_sending->fd,
+						m_file_sending->file_offset, len, NULL, &len, SF_MNOWAIT);
+#else
+		off_t current = m_file_sending->file_offset;
+		int ret = sendfile(GetWriteFD(), m_file_sending->fd,
+						&m_file_sending->file_offset, len);
+#endif
+		if (ret < 0)
 		{
 			if (ret != EAGAIN && ret != EINTR)
 			{
@@ -501,8 +513,13 @@ void Channel::OnWrite()
 				return;
 			}
 		}
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__DragonFly__)
 		m_file_sending->file_rest_len -= len;
 		m_file_sending->file_offset += len;
+#else
+		m_file_sending->file_rest_len -= (m_file_sending->file_offset - current);
+#endif
+
 		if (m_file_sending->file_rest_len == 0)
 		{
 			if (NULL != m_file_sending->on_complete)
