@@ -95,13 +95,13 @@ namespace ardb
 			bool reuse_address;
 			uint32 user_write_buffer_water_mark;
 			uint32 user_write_buffer_flush_timeout_mills;
-			uint32 max_write_buffer_size;
+			int32 max_write_buffer_size;  //-1: means unlimit 0: disable
 
 			ChannelOptions() :
 					receive_buffer_size(0), send_buffer_size(0), tcp_nodelay(
 							true), keep_alive(0), reuse_address(true), user_write_buffer_water_mark(
 							0), user_write_buffer_flush_timeout_mills(0), max_write_buffer_size(
-							0)
+							-1)
 			{
 			}
 	};

@@ -304,9 +304,9 @@ int32 Channel::WriteNow(Buffer* buffer)
 		if (m_options.max_write_buffer_size > 0) //write buffer size limit enable
 		{
 			uint32 write_buffer_size = m_outputBuffer.ReadableBytes();
-			if (write_buffer_size > m_options.max_write_buffer_size
+			if (write_buffer_size > (uint32)m_options.max_write_buffer_size
 					|| (write_buffer_size + buf_len)
-							> m_options.max_write_buffer_size)
+							> (uint32)m_options.max_write_buffer_size)
 			{
 				//overflow
 				return 0;
@@ -339,7 +339,11 @@ int32 Channel::WriteNow(Buffer* buffer)
 		{
 			if (IO_ERR_RW_RETRIABLE(err))
 			{
-				//nothing
+				if(m_options.max_write_buffer_size == 0)
+				{
+					//no write buffer allowed
+					return 0;
+				}
 				m_outputBuffer.Write(buffer, buf_len);
 				EnableWriting();
 				return buf_len;

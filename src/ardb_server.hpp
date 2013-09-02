@@ -57,6 +57,8 @@
 //#define ARDB_CMD_SKIP_MONITOR 2048         /* "M" flag */
 //#define ARDB_CMD_ASKING 4096               /* "k" flag */
 
+#define ARDB_PROCESS_WITHOUT_REPLICATION 1
+
 using namespace ardb::codec;
 namespace ardb
 {
@@ -81,8 +83,7 @@ namespace ardb
 			int64 repl_ping_slave_period;
 			int64 repl_timeout;
 			int64 repl_backlog_size;
-			int64 repl_syncstate_persist_period;
-			int64 repl_max_backup_logs;
+			int64 repl_state_persist_period;
 
 			int64 lua_time_limit;
 
@@ -91,19 +92,12 @@ namespace ardb
 
 			DBIDSet syncdbs;
 
-			bool repl_log_enable;
 			int64 worker_count;
 			std::string loglevel;
 			std::string logfile;
 			ArdbServerConfig() :
-					daemonize(false), listen_port(0), unixsocketperm(755), max_clients(
-					        10000), tcp_keepalive(0), timeout(0), slowlog_log_slower_than(
-					        10000), slowlog_max_len(128), repl_data_dir(
-					        "./repl"), backup_dir("./backup"), repl_ping_slave_period(
-					        10), repl_timeout(60), repl_backlog_size(1000000), repl_syncstate_persist_period(
-					        1), repl_max_backup_logs(100), lua_time_limit(0), master_port(
-					        0), repl_log_enable(true), worker_count(1), loglevel(
-					        "INFO")
+					daemonize(false), listen_port(0), unixsocketperm(755), max_clients(10000), tcp_keepalive(0), timeout(0), slowlog_log_slower_than(10000), slowlog_max_len(128), repl_data_dir("./repl"), backup_dir("./backup"), repl_ping_slave_period(10), repl_timeout(60), repl_backlog_size(100 * 1024 * 1024), repl_state_persist_period(1), lua_time_limit(0), master_port(0), worker_count(1), loglevel(
+							"INFO")
 			{
 			}
 	};
@@ -235,14 +229,11 @@ namespace ardb
 			bool lua_kill;
 			const char* lua_executing_func;
 
-
 			ArdbConnContext() :
-					currentDB(0), conn(NULL), in_transaction(false), fail_transc(
-					        false), is_slave_conn(false), transaction_cmds(
-					        NULL), watch_key_set(NULL), pubsub_channle_set(
-					        NULL), pattern_pubsub_channle_set(NULL), lua_time_start(
-					        0), lua_timeout(false), lua_kill(false), lua_executing_func(
-					        NULL)
+					currentDB(0), conn(NULL), in_transaction(false), fail_transc(false), is_slave_conn(false), transaction_cmds(
+					NULL), watch_key_set(NULL), pubsub_channle_set(
+					NULL), pattern_pubsub_channle_set(NULL), lua_time_start(0), lua_timeout(false), lua_kill(false), lua_executing_func(
+					NULL)
 			{
 			}
 			uint64 SubChannelSize()
@@ -260,8 +251,7 @@ namespace ardb
 			}
 			bool IsSubscribedConn()
 			{
-				return NULL != pubsub_channle_set
-				        || NULL != pattern_pubsub_channle_set;
+				return NULL != pubsub_channle_set || NULL != pattern_pubsub_channle_set;
 			}
 			bool IsInTransaction()
 			{
@@ -293,12 +283,9 @@ namespace ardb
 			ArdbConnContext ardbctx;
 			bool processing;
 			bool delete_after_processing;
-			void MessageReceived(ChannelHandlerContext& ctx,
-			        MessageEvent<RedisCommandFrame>& e);
-			void ChannelClosed(ChannelHandlerContext& ctx,
-			        ChannelStateEvent& e);
-			void ChannelConnected(ChannelHandlerContext& ctx,
-			        ChannelStateEvent& e);
+			void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e);
+			void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e);
+			void ChannelConnected(ChannelHandlerContext& ctx, ChannelStateEvent& e);
 			RedisRequestHandler(ArdbServer* s) :
 					server(s), processing(false), delete_after_processing(false)
 			{
@@ -308,8 +295,7 @@ namespace ardb
 	class ArdbServer
 	{
 		public:
-			typedef int (ArdbServer::*RedisCommandHandler)(ArdbConnContext&,
-			        RedisCommandFrame&);
+			typedef int (ArdbServer::*RedisCommandHandler)(ArdbConnContext&, RedisCommandFrame&);
 
 			static LUAInterpreter* LUAInterpreterCreator(void* data);
 			struct RedisCommandHandlerSetting
@@ -349,13 +335,9 @@ namespace ardb
 			ThreadLocal<ArdbConnContext*> m_ctx_local;
 			ThreadLocal<LUAInterpreter> m_ctx_lua;
 
-			RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(
-			        std::string& cmd);
-			int DoRedisCommand(ArdbConnContext& ctx,
-			        RedisCommandHandlerSetting* setting,
-			        RedisCommandFrame& cmd);
-			int ProcessRedisCommand(ArdbConnContext& ctx,
-			        RedisCommandFrame& cmd);
+			RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(std::string& cmd);
+			int DoRedisCommand(ArdbConnContext& ctx, RedisCommandHandlerSetting* setting, RedisCommandFrame& cmd);
+			int ProcessRedisCommand(ArdbConnContext& ctx, RedisCommandFrame& cmd, int flags);
 
 			void HandleReply(ArdbConnContext* ctx);
 
@@ -365,8 +347,7 @@ namespace ardb
 			friend class Backup;
 			friend class LUAInterpreter;
 
-			void FillInfoResponse(const std::string& section,
-			        std::string& content);
+			void FillInfoResponse(const std::string& section, std::string& content);
 
 			static void OnKeyUpdated(const DBID& dbid, const Slice& key, void* data);
 			//int OnAllKeyDeleted(const DBID& dbid);
@@ -548,8 +529,7 @@ namespace ardb
 
 			Timer& GetTimer();
 		public:
-			static int ParseConfig(const Properties& props,
-			        ArdbServerConfig& cfg);
+			static int ParseConfig(const Properties& props, ArdbServerConfig& cfg);
 			ArdbServer(KeyValueEngineFactory& engine);
 			const ArdbServerConfig& GetServerConfig()
 			{

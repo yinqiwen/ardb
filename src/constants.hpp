@@ -30,7 +30,7 @@
 #ifndef CONSTANTS_HPP_
 #define CONSTANTS_HPP_
 
-#define ARDB_VERSION "0.4.0"
+#define ARDB_VERSION "0.5.0"
 #define ARDB_FORMAT_VERSION 1
 
 #endif /* CONSTANTS_HPP_ */

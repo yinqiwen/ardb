@@ -47,9 +47,7 @@ namespace ardb
 {
 	Slave::Slave(ArdbServer* serv) :
 			m_serv(serv), m_client(NULL), m_rest_chunk_len(0), m_slave_state(
-			SLAVE_STATE_CLOSED), m_cron_inited(false), m_ping_recved_time(0), m_reply_decoder(
-					true), m_server_type(ARDB_DB_SERVER_TYPE), m_server_support_psync(
-					false), m_server_key("?"), m_sync_offset(-1), m_actx(
+			SLAVE_STATE_CLOSED), m_cron_inited(false), m_ping_recved_time(0), m_reply_decoder(true), m_server_type(ARDB_DB_SERVER_TYPE), m_server_support_psync(false), m_server_key("?"), m_sync_offset(-1), m_actx(
 			NULL), m_rdb(NULL)
 	{
 	}
@@ -88,15 +86,13 @@ namespace ardb
 		std::string dump_file_path = m_serv->m_cfg.home + "/repl";
 		char tmp[dump_file_path.size() + 100];
 		uint32 now = time(NULL);
-		sprintf(tmp, "%s/temp-%u-%u.rdb", dump_file_path.c_str(), getpid(),
-				now);
+		sprintf(tmp, "%s/temp-%u-%u.rdb", dump_file_path.c_str(), getpid(), now);
 		NEW(m_rdb, RedisDumpFile(m_serv->m_db, tmp));
 		INFO_LOG("[Slave]Create redis dump file:%s", tmp);
 		return m_rdb;
 	}
 
-	void Slave::ChannelConnected(ChannelHandlerContext& ctx,
-			ChannelStateEvent& e)
+	void Slave::ChannelConnected(ChannelHandlerContext& ctx, ChannelStateEvent& e)
 	{
 		Buffer info;
 		info.Printf("info Server\r\n");
@@ -105,13 +101,33 @@ namespace ardb
 		m_ping_recved_time = time(NULL);
 	}
 
-	void Slave::MessageReceived(ChannelHandlerContext& ctx,
-			MessageEvent<RedisCommandFrame>& e)
+	void Slave::MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e)
 	{
 		DEBUG_LOG("Recv master cmd %s", e.GetMessage()->GetCommand().c_str());
 		RedisCommandFrame* cmd = e.GetMessage();
-		m_sync_offset += cmd->GetRawDataSize();
-		if (!strcasecmp(cmd->GetCommand().c_str(), "ping"))
+
+		if (m_slave_state == SLAVE_STATE_WAITING_PSYNC_REPLY && m_server_type == ARDB_DB_SERVER_TYPE)
+		{
+			if (!strcasecmp(cmd->GetCommand().c_str(), "FULLSYNCED"))
+			{
+				if (cmd->GetArguments().size() != 0)
+				{
+					ERROR_LOG("Invalid command:%s", cmd->ToString().c_str());
+					ctx.GetChannel()->Close();
+					return;
+				}
+				m_slave_state = SLAVE_STATE_SYNCED;
+			}
+		}
+		int flag = 0;
+		if (m_slave_state == SLAVE_STATE_SYNCED)
+		{
+			m_sync_offset += cmd->GetRawDataSize();
+		} else
+		{
+			flag = ARDB_PROCESS_WITHOUT_REPLICATION;
+		}
+		if (!strcasecmp(cmd->GetCommand().c_str(), "PING"))
 		{
 			m_ping_recved_time = time(NULL);
 			return;
@@ -122,16 +138,22 @@ namespace ardb
 		}
 		m_actx->is_slave_conn = true;
 		m_actx->conn = ctx.GetChannel();
-		m_serv->ProcessRedisCommand(*m_actx, *cmd);
+		if (strcasecmp(cmd->GetCommand().c_str(), "SELECT") && strcasecmp(cmd->GetCommand().c_str(), "__SET__") && strcasecmp(cmd->GetCommand().c_str(), "__DEL__"))
+		{
+			if (m_sync_dbs.count(m_actx->currentDB) == 0)
+			{
+				//discard
+				return;
+			}
+		}
+		m_serv->ProcessRedisCommand(*m_actx, *cmd, flag);
 	}
 	void Slave::Routine()
 	{
-		if (m_slave_state == SLAVE_STATE_SYNCED
-				|| m_slave_state == SLAVE_STATE_LOADING_DUMP_DATA)
+		if (m_slave_state == SLAVE_STATE_SYNCED || m_slave_state == SLAVE_STATE_LOADING_DUMP_DATA)
 		{
 			uint32 now = time(NULL);
-			if (m_ping_recved_time > 0
-					&& now - m_ping_recved_time >= m_serv->m_cfg.repl_timeout)
+			if (m_ping_recved_time > 0 && now - m_ping_recved_time >= m_serv->m_cfg.repl_timeout)
 			{
 				Timeout();
 			} else
@@ -151,8 +173,7 @@ namespace ardb
 		Channel* client = (Channel*) cb;
 		client->GetService().Continue();
 	}
-	void Slave::MessageReceived(ChannelHandlerContext& ctx,
-			MessageEvent<RedisReply>& e)
+	void Slave::MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisReply>& e)
 	{
 		RedisReply* reply = e.GetMessage();
 		switch (m_slave_state)
@@ -171,27 +192,23 @@ namespace ardb
 					m_server_type = REDIS_DB_SERVER_TYPE;
 					size_t start = reply->str.find(redis_ver_key);
 					size_t end = reply->str.find("\n", start);
-					std::string v = reply->str.substr(
-							start + strlen(redis_ver_key),
-							end - start - strlen(redis_ver_key));
+					std::string v = reply->str.substr(start + strlen(redis_ver_key), end - start - strlen(redis_ver_key));
 					v = trim_string(v);
 
 					if (compare_version<3>(v, "2.8.0") >= 0)
 					{
 						m_server_support_psync = true;
 					}
-					INFO_LOG(
-							"[Slave]Remote master is a Redis %s instance, support partial sync:%u",
-							v.c_str(), m_server_support_psync);
+					INFO_LOG("[Slave]Remote master is a Redis %s instance, support partial sync:%u", v.c_str(), m_server_support_psync);
 
 				} else
 				{
 					INFO_LOG("[Slave]Remote master is an Ardb instance.");
 					m_server_type = ARDB_DB_SERVER_TYPE;
+					m_server_support_psync = true;
 				}
 				Buffer replconf;
-				replconf.Printf("replconf listening-port %u\r\n",
-						m_serv->GetServerConfig().listen_port);
+				replconf.Printf("replconf listening-port %u\r\n", m_serv->GetServerConfig().listen_port);
 				ctx.GetChannel()->Write(replconf);
 				m_slave_state = SLAVE_STATE_WAITING_REPLCONF_REPLY;
 				break;
@@ -200,8 +217,7 @@ namespace ardb
 			{
 				if (reply->type == REDIS_REPLY_ERROR)
 				{
-					ERROR_LOG("Recv replconf reply error:%s",
-							reply->str.c_str());
+					ERROR_LOG("Recv replconf reply error:%s", reply->str.c_str());
 					ctx.GetChannel()->Close();
 					return;
 				}
@@ -223,13 +239,10 @@ namespace ardb
 							}
 							it++;
 						}
-						psync.Printf("psync2 %s %lld %s\r\n",
-								m_server_key.c_str(), m_sync_offset+1,
-								syncdbs.c_str());
+						psync.Printf("psync2 %s %lld %s\r\n", m_server_key.c_str(), m_sync_offset + 1, syncdbs.c_str());
 					} else
 					{
-						psync.Printf("psync %s %lld\r\n", m_server_key.c_str(),
-								m_sync_offset+1);
+						psync.Printf("psync %s %lld\r\n", m_server_key.c_str(), m_sync_offset + 1);
 					}
 					ctx.GetChannel()->Write(psync);
 					m_slave_state = SLAVE_STATE_WAITING_PSYNC_REPLY;
@@ -259,6 +272,12 @@ namespace ardb
 					{
 						ERROR_LOG("Invalid psync offset:%s", ss[2].c_str());
 						ctx.GetChannel()->Close();
+						return;
+					}
+					if (m_server_type == ARDB_DB_SERVER_TYPE)
+					{
+						//Do NOT change state, since master would send  "FULLSYNC BEGIN" reply later
+						SwitchToCommandCodec();
 						return;
 					}
 				} else if (!strcasecmp(ss[0].c_str(), "CONTINUE"))
@@ -292,8 +311,7 @@ namespace ardb
 				{
 					m_rdb->Write(reply->str.c_str(), reply->str.size());
 				}
-				if (reply->IsLastChunk()
-						|| reply->integer == (int64) reply->str.size())
+				if (reply->IsLastChunk() || reply->integer == (int64) reply->str.size())
 				{
 					m_rdb->Flush();
 					SwitchToCommandCodec();
@@ -333,16 +351,13 @@ namespace ardb
 				}
 				void Run()
 				{
-					if (NULL == sc.m_client
-							&& !sc.m_master_addr.GetHost().empty())
+					if (NULL == sc.m_client && !sc.m_master_addr.GetHost().empty())
 					{
-						sc.ConnectMaster(sc.m_master_addr.GetHost(),
-								sc.m_master_addr.GetPort());
+						sc.ConnectMaster(sc.m_master_addr.GetHost(), sc.m_master_addr.GetPort());
 					}
 				}
 		};
-		m_serv->GetTimer().ScheduleHeapTask(new ReconnectTask(*this), 1000, -1,
-				MILLIS);
+		m_serv->GetTimer().ScheduleHeapTask(new ReconnectTask(*this), 1000, -1, MILLIS);
 	}
 
 	void Slave::Timeout()
@@ -364,12 +379,9 @@ namespace ardb
 			char* found = strstr(m_sync_state_buf.m_buf, " ");
 			if (found != NULL)
 			{
-				m_server_key.assign(m_sync_state_buf.m_buf,
-						found - m_sync_state_buf.m_buf);
+				m_server_key.assign(m_sync_state_buf.m_buf, found - m_sync_state_buf.m_buf);
 				string_toint64(found + 1, m_sync_offset);
-				INFO_LOG(
-						"[Slave]Remote master server key:%s, last sync offset:%lld",
-						m_server_key.c_str(), m_sync_offset);
+				INFO_LOG("[Slave]Remote master server key:%s, last sync offset:%lld", m_server_key.c_str(), m_sync_offset);
 			}
 		}
 		return true;
@@ -381,8 +393,7 @@ namespace ardb
 		{
 			return;
 		}
-		int len = snprintf(m_sync_state_buf.m_buf, m_sync_state_buf.m_size,
-				"%s %"PRIu64, m_server_key.c_str(), m_sync_offset);
+		int len = snprintf(m_sync_state_buf.m_buf, m_sync_state_buf.m_size, "%s %"PRIu64, m_server_key.c_str(), m_sync_offset);
 		msync(m_sync_state_buf.m_buf, len, MS_ASYNC);
 	}
 
@@ -403,8 +414,7 @@ namespace ardb
 						c->Routine();
 					}
 			};
-			m_serv->GetTimer().ScheduleHeapTask(new RoutineTask(this), 1, 1,
-					SECONDS);
+			m_serv->GetTimer().ScheduleHeapTask(new RoutineTask(this), 1, 1, SECONDS);
 
 			struct PersistTask: public Runnable
 			{
@@ -418,9 +428,7 @@ namespace ardb
 						c->PersistSyncState();
 					}
 			};
-			m_serv->GetTimer().ScheduleHeapTask(new PersistTask(this),
-					m_serv->m_cfg.repl_syncstate_persist_period,
-					m_serv->m_cfg.repl_syncstate_persist_period, SECONDS);
+			m_serv->GetTimer().ScheduleHeapTask(new PersistTask(this), m_serv->m_cfg.repl_state_persist_period, m_serv->m_cfg.repl_state_persist_period, SECONDS);
 		}
 	}
 

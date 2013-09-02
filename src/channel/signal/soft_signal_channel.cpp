@@ -44,8 +44,6 @@ bool SoftSignalChannel::DoOpen()
 	{
 		return false;
 	}
-	m_options.max_write_buffer_size = sizeof(uint64) * 100;
-
 	GetPipeline().AddLast("decoder", &m_decoder);
 	GetPipeline().AddLast("handler", this);
 	return true;

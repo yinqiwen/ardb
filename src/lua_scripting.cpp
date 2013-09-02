@@ -409,7 +409,7 @@ namespace ardb
 		LUAInterpreter& interpreter = m_server->m_ctx_lua.GetValue(NULL, NULL);
 		RedisReply& reply = ctx->reply;
 		reply.Clear();
-		m_server->ProcessRedisCommand(*ctx, cmd);
+		m_server->ProcessRedisCommand(*ctx, cmd, ARDB_PROCESS_WITHOUT_REPLICATION);
 		if (raise_error && reply.type != REDIS_REPLY_ERROR)
 		{
 			raise_error = 0;

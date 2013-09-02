@@ -293,6 +293,20 @@ namespace ardb
 					}
 					return &(m_args[index]);
 				}
+				std::string ToString()
+				{
+					std::string cmd;
+					cmd.append(m_cmd).append(" ");
+					for(uint32 i = 0; i < m_args.size(); i++)
+					{
+						cmd.append(m_args[i]);
+						if(i != m_args.size() - 1)
+						{
+							cmd.append(" ");
+						}
+					}
+					return cmd;
+				}
 				void Clear()
 				{
 					m_cmd_seted = false;

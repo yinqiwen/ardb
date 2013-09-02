@@ -603,14 +603,6 @@ namespace ardb
 			{
 				return m_watcher.GetValue();
 			}
-//			void RegisterKeyWatcher(KeyWatcher* w)
-//			{
-//				m_key_watcher = w;
-//			}
-//			void RegisterRawKeyListener(RawKeyListener* w)
-//			{
-//				m_raw_key_listener = w;
-//			}
 	};
 }
 

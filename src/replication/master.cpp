@@ -23,8 +23,7 @@ namespace ardb
 	 * Master
 	 */
 	Master::Master(ArdbServer* server) :
-			m_server(server), m_notify_channel(NULL), m_dumping_db(false), m_dumpdb_offset(
-			        -1),m_current_dbid(ARDB_GLOBAL_DB)
+			m_server(server), m_notify_channel(NULL), m_dumping_db(false), m_dumpdb_offset(-1), m_current_dbid(ARDB_GLOBAL_DB), m_thread(NULL), m_thread_running(false)
 	{
 
 	}
@@ -37,6 +36,9 @@ namespace ardb
 			return -1;
 		}
 		m_notify_channel = m_channel_service.NewSoftSignalChannel();
+		ChannelOptions options;
+		options.max_write_buffer_size = 0; //disable write buffer for thread-safe reason
+		m_notify_channel->Configure(options);
 		m_notify_channel->Register(SOFT_SIGNAL_REPL_INSTRUCTION, this);
 		struct HeartbeatTask: public Runnable
 		{
@@ -50,25 +52,43 @@ namespace ardb
 					serv->OnHeartbeat();
 				}
 		};
-		m_channel_service.GetTimer().ScheduleHeapTask(new HeartbeatTask(this),
-		        m_server->m_cfg.repl_ping_slave_period,
-		        m_server->m_cfg.repl_ping_slave_period, SECONDS);
+		m_channel_service.GetTimer().ScheduleHeapTask(new HeartbeatTask(this), m_server->m_cfg.repl_ping_slave_period, m_server->m_cfg.repl_ping_slave_period, SECONDS);
 
-		Start();
+		struct PersistTask: public Runnable
+		{
+				Master* c;
+				PersistTask(Master* cc) :
+						c(cc)
+				{
+				}
+				void Run()
+				{
+					c->m_backlog.PersistSyncState();
+				}
+		};
+		m_channel_service.GetTimer().ScheduleHeapTask(new PersistTask(this), m_server->m_cfg.repl_state_persist_period, m_server->m_cfg.repl_state_persist_period, SECONDS);
+		m_thread = new Thread(this);
+		m_thread_running = true;
+		m_thread->Start();
 		return 0;
 	}
 
 	void Master::Run()
 	{
 		m_channel_service.Start();
+		m_thread_running = false;
 	}
 
 	void Master::OnHeartbeat()
 	{
-		RedisCommandFrame ping("ping");
-		WriteSlaves(0, ping, false);
-		DEBUG_LOG("Ping slaves.");
-		m_backlog.PersistSyncState();
+		if (!m_slave_table.empty())
+		{
+			RedisCommandFrame ping("ping");
+			WriteSlaves(0, ping, false);
+			DEBUG_LOG("Ping slaves.");
+		}
+		//Just process instructions  since the soft signal may loss
+		OnInstructions();
 	}
 
 	void Master::WriteCmdToSlaves(RedisCommandFrame& cmd)
@@ -88,12 +108,11 @@ namespace ardb
 		}
 	}
 
-	void Master::WriteSlaves(const DBID& dbid, RedisCommandFrame& cmd,
-	        bool dbid_related)
+	void Master::WriteSlaves(const DBID& dbid, RedisCommandFrame& cmd, bool dbid_related)
 	{
-		if(dbid_related)
+		if (dbid_related)
 		{
-			if(m_current_dbid != dbid)
+			if (m_current_dbid != dbid)
 			{
 				m_current_dbid = dbid;
 				RedisCommandFrame select("select %u", dbid);
@@ -107,7 +126,7 @@ namespace ardb
 	{
 		Master* master = (Master*) data;
 		pipeline->AddLast("decoder", new RedisCommandDecoder);
-		pipeline->AddLast("encoder", new RedisReplyEncoder);
+		pipeline->AddLast("encoder", new RedisCommandEncoder);
 		pipeline->AddLast("handler", master);
 	}
 
@@ -134,18 +153,15 @@ namespace ardb
 					m_slave_table[conn->conn->GetID()] = conn;
 					conn->conn->ClearPipeline();
 
-					conn->conn->SetChannelPipelineInitializor(
-					        slave_pipeline_init, this);
-					conn->conn->SetChannelPipelineFinalizer(
-					        slave_pipeline_finallize, NULL);
+					conn->conn->SetChannelPipelineInitializor(slave_pipeline_init, this);
+					conn->conn->SetChannelPipelineFinalizer(slave_pipeline_finallize, NULL);
 					SyncSlave(*conn);
 					break;
 				}
 				case REPL_INSTRUCTION_FEED_CMD:
 				{
-					RedisCommandWithDBID* cmd =
-					        (RedisCommandWithDBID*) instruction.ptr;
-                    WriteSlaves(cmd->first, cmd->second, true);
+					RedisCommandWithDBID* cmd = (RedisCommandWithDBID*) instruction.ptr;
+					WriteSlaves(cmd->first, cmd->second, true);
 					DELETE(cmd);
 					break;
 				}
@@ -161,17 +177,69 @@ namespace ardb
 		ChannelService* serv = (ChannelService*) cb;
 		serv->Continue();
 	}
+
+	void Master::FullResyncArdbSlave(SlaveConnection& slave)
+	{
+
+		slave.sync_offset = m_backlog.GetReplEndOffset();
+		struct DBVisitor: public RawValueVisitor
+		{
+				SlaveConnection& conn;
+				uint64 count;
+				DBVisitor(SlaveConnection& c) :
+						conn(c), count(0)
+				{
+				}
+				int OnRawKeyValue(const Slice& key, const Slice& value)
+				{
+					ArgumentArray args;
+					args.push_back("__SET__");
+					args.push_back(std::string(key.data(), key.size()));
+					args.push_back(std::string(value.data(), value.size()));
+					RedisCommandFrame cmd(args);
+					conn.conn->Write(cmd);
+					count++;
+					if (count % 10000)
+					{
+						conn.conn->GetService().Continue();
+					}
+					return 0;
+				}
+		} visitor(slave);
+
+		if (slave.syncdbs.empty())
+		{
+			m_server->m_db->VisitAllDB(&visitor);
+		} else
+		{
+			DBIDSet::iterator it = slave.syncdbs.begin();
+			while (it != slave.syncdbs.end())
+			{
+				m_server->m_db->VisitDB(*it, &visitor);
+				it++;
+			}
+			m_server->m_db->VisitDB(ARDB_GLOBAL_DB, &visitor);
+		}
+		Buffer msg;
+		msg.Clear();
+		msg.Printf("FULLSYNCED\r\n");
+		slave.conn->Write(msg);
+		SendCacheToSlave(slave);
+	}
+
 	void Master::FullResyncRedisSlave(SlaveConnection& slave)
 	{
 		std::string dump_file_path = m_server->m_cfg.home + "/repl/dump.rdb";
 		slave.state = SLAVE_STATE_WAITING_DUMP_DATA;
 		if (m_dumping_db)
 		{
+			slave.sync_offset = m_dumpdb_offset;
 			return;
 		}
 		INFO_LOG("[Master]Start sump data to file:%s", dump_file_path.c_str());
 		m_dumping_db = true;
 		m_dumpdb_offset = m_backlog.GetReplEndOffset();
+		slave.sync_offset = m_dumpdb_offset;
 		RedisDumpFile rdb(m_server->m_db, dump_file_path);
 		rdb.Dump(DumpRDBRoutine, &m_channel_service);
 		m_dumping_db = false;
@@ -231,8 +299,7 @@ namespace ardb
 		if (-1 == setting.fd)
 		{
 			int err = errno;
-			ERROR_LOG(
-			        "Failed to open file:%s for reason:%s", dump_file_path.c_str(), strerror(err));
+			ERROR_LOG("Failed to open file:%s for reason:%s", dump_file_path.c_str(), strerror(err));
 			slave.conn->Close();
 			return;
 		}
@@ -260,30 +327,31 @@ namespace ardb
 		{
 			//redis 2.6/2.4
 			slave.state = SLAVE_STATE_WAITING_DUMP_DATA;
-		}
-		else
+		} else
 		{
 			Buffer msg;
 			if (m_backlog.IsValidOffset(slave.server_key, slave.sync_offset))
 			{
 				msg.Printf("+CONTINUE\r\n");
 				slave.state = SLAVE_STATE_SYNING_CACHE_DATA;
-			}
-			else
+			} else
 			{
 				//FULLRESYNC
-				msg.Printf("+FULLRESYNC %s %lld\r\n",
-				        m_backlog.GetServerKey().c_str(),
-				        m_backlog.GetReplEndOffset() - 1);
+				msg.Printf("+FULLRESYNC %s %lld\r\n", m_backlog.GetServerKey().c_str(), m_backlog.GetReplEndOffset() - 1);
 				slave.state = SLAVE_STATE_WAITING_DUMP_DATA;
 			}
 			slave.conn->Write(msg);
 		}
 		if (slave.state == SLAVE_STATE_WAITING_DUMP_DATA)
 		{
-			FullResyncRedisSlave(slave);
-		}
-		else
+			if (slave.isRedisSlave)
+			{
+				FullResyncRedisSlave(slave);
+			} else
+			{
+				FullResyncArdbSlave(slave);
+			}
+		} else
 		{
 			SendCacheToSlave(slave);
 		}
@@ -305,8 +373,7 @@ namespace ardb
 			m_slave_table.erase(found);
 		}
 	}
-	void Master::ChannelWritable(ChannelHandlerContext& ctx,
-	        ChannelStateEvent& e)
+	void Master::ChannelWritable(ChannelHandlerContext& ctx, ChannelStateEvent& e)
 	{
 		uint32 conn_id = ctx.GetChannel()->GetID();
 		SlaveConnTable::iterator found = m_slave_table.find(conn_id);
@@ -319,17 +386,14 @@ namespace ardb
 				{
 					slave->state = SLAVE_STATE_SYNCED;
 					slave->conn->DisableWriting();
-				}
-				else
+				} else
 				{
 					if (!m_backlog.IsValidOffset(slave->sync_offset))
 					{
 						slave->conn->Close();
-					}
-					else
+					} else
 					{
-						size_t len = m_backlog.WriteChannel(slave->conn,
-						        slave->sync_offset, MAX_SEND_CACHE_SIZE);
+						size_t len = m_backlog.WriteChannel(slave->conn, slave->sync_offset, MAX_SEND_CACHE_SIZE);
 						slave->sync_offset += len;
 
 					}
@@ -337,8 +401,7 @@ namespace ardb
 			}
 		}
 	}
-	void Master::MessageReceived(ChannelHandlerContext& ctx,
-	        MessageEvent<RedisCommandFrame>& e)
+	void Master::MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e)
 	{
 	}
 
@@ -347,9 +410,14 @@ namespace ardb
 		m_inst_queue.Push(inst);
 		if (NULL != m_notify_channel)
 		{
+			/*
+			 * m_notify_channel use pipes to notify master thread, and for pipes
+			 * POSIX.1-2001 says that write(2)s of less than PIPE_BUF(512) bytes must be atomic,
+			 * in most time is's safe here.
+			 *
+			 */
 			m_notify_channel->FireSoftSignal(SOFT_SIGNAL_REPL_INSTRUCTION, 0);
-		}
-		else
+		} else
 		{
 			DEBUG_LOG("NULL singnal channel:%p %p", m_notify_channel, this);
 		}
@@ -357,6 +425,7 @@ namespace ardb
 
 	void Master::AddSlave(Channel* slave, RedisCommandFrame& cmd)
 	{
+		DEBUG_LOG("Recv sync command:%s", cmd.ToString().c_str());
 		slave->Flush();
 		SlaveConnection* conn = NULL;
 		NEW(conn, SlaveConnection);
@@ -366,8 +435,7 @@ namespace ardb
 			//Redis 2.6/2.4 send 'sync'
 			conn->isRedisSlave = true;
 			conn->sync_offset = -1;
-		}
-		else
+		} else
 		{
 			conn->server_key = cmd.GetArguments()[0];
 			const std::string& offset_str = cmd.GetArguments()[1];
@@ -382,10 +450,21 @@ namespace ardb
 			if (!strcasecmp(cmd.GetCommand().c_str(), "psync"))
 			{
 				conn->isRedisSlave = true;
-			}
-			else
+			} else
 			{
 				conn->isRedisSlave = false;
+				if (cmd.GetArguments().size() >= 3)
+				{
+					std::vector<std::string> ss = split_string(cmd.GetArguments()[2], "|");
+					for (uint32 i = 0; i < ss.size(); i++)
+					{
+						DBID id;
+						if (string_touint32(ss[i], id))
+						{
+							conn->syncdbs.insert(id);
+						}
+					}
+				}
 			}
 		}
 		m_server->m_service->DetachChannel(slave, true);
@@ -395,9 +474,24 @@ namespace ardb
 
 	void Master::FeedSlaves(const DBID& dbid, RedisCommandFrame& cmd)
 	{
-		RedisCommandWithDBID* newcmd= new RedisCommandWithDBID(dbid, cmd);
+		RedisCommandWithDBID* newcmd = new RedisCommandWithDBID(dbid, cmd);
 		ReplicationInstruction inst(newcmd, REPL_INSTRUCTION_FEED_CMD);
 		OfferReplInstruction(inst);
+	}
+
+	void Master::Stop()
+	{
+		m_channel_service.Stop();
+		while (m_thread_running)
+		{
+			m_channel_service.Stop();
+			Thread::Sleep(10);
+		}
+	}
+
+	Master::~Master()
+	{
+		//DELETE(m_thread);
 	}
 }
 

@@ -70,6 +70,8 @@ namespace ardb
 			int repldbfd;
 			bool isRedisSlave;
 			uint8 state;
+
+			DBIDSet syncdbs;
 			SlaveConnection() :
 					conn(NULL), sync_offset(0), acktime(0), repldbfd(-1), isRedisSlave(
 							false), state(0)
@@ -78,7 +80,7 @@ namespace ardb
 	};
 
 	class ArdbServer;
-	class Master: public Thread,
+	class Master: public Runnable,
 			public SoftSignalHandler,
 			public ChannelUpstreamHandler<RedisCommandFrame>
 	{
@@ -95,12 +97,16 @@ namespace ardb
 			int64 m_dumpdb_offset;
 			DBID m_current_dbid;
 
+			Thread* m_thread;
+			bool m_thread_running;
+
 			void Run();
 			void OnHeartbeat();
 			void OnInstructions();
 			void OnDumpComplete();
 
 			void FullResyncRedisSlave(SlaveConnection& slave);
+			void FullResyncArdbSlave(SlaveConnection& slave);
 			void SyncSlave(SlaveConnection& slave);
 
 			void ChannelClosed(ChannelHandlerContext& ctx,
@@ -120,10 +126,12 @@ namespace ardb
 			void FeedSlaves(const DBID& dbid, RedisCommandFrame& cmd);
 			void SendDumpToSlave(SlaveConnection& slave);
 			void SendCacheToSlave(SlaveConnection& slave);
+			void Stop();
 			ReplBacklog& GetReplBacklog()
 			{
 				return m_backlog;
 			}
+			~Master();
 	};
 }
 
