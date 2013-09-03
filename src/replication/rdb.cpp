@@ -1201,8 +1201,8 @@ namespace ardb
 								return -1;
 						}
 						r.WriteKeyType(key->type);
-						r.WriteRawString(key->key.data(), key->key.size());
 						currentKey.assign(key->key.data(), key->key.size());
+						r.WriteRawString(currentKey.data(), currentKey.size());
 						firstElementInKey = true;
 					}
 					switch (key->type)

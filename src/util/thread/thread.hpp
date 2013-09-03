@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -45,6 +45,15 @@ namespace ardb
 		INITIALIZED, RUNNING, TERMINATED
 	};
 
+	struct ThreadOptions
+	{
+			size_t max_stack_size;
+			ThreadOptions() :
+					max_stack_size(8192 * 1024)
+			{
+			}
+	};
+
 	class Thread: public Runnable
 	{
 		private:
@@ -56,7 +65,7 @@ namespace ardb
 			Thread(Runnable* runner = NULL);
 			virtual ~Thread();
 			virtual void Run();
-			void Start();
+			void Start(const ThreadOptions& options = ThreadOptions());
 			void Stop();
 			void Join();
 			ThreadState GetState()

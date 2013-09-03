@@ -236,7 +236,7 @@ namespace ardb
 			slave.sync_offset = m_dumpdb_offset;
 			return;
 		}
-		INFO_LOG("[Master]Start sump data to file:%s", dump_file_path.c_str());
+		INFO_LOG("[Master]Start dump data to file:%s", dump_file_path.c_str());
 		m_dumping_db = true;
 		m_dumpdb_offset = m_backlog.GetReplEndOffset();
 		slave.sync_offset = m_dumpdb_offset;
@@ -252,7 +252,6 @@ namespace ardb
 		SlaveConnTable::iterator it = m_slave_table.begin();
 		while (it != m_slave_table.end())
 		{
-
 			if (it->second->state == SLAVE_STATE_WAITING_DUMP_DATA)
 			{
 				SendDumpToSlave(*(it->second));
@@ -269,6 +268,7 @@ namespace ardb
 		DELETE(p);
 		close(slave->repldbfd);
 		slave->repldbfd = -1;
+		INFO_LOG("Send complete.");
 		master->SendCacheToSlave(*slave);
 	}
 

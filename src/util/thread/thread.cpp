@@ -77,14 +77,21 @@ void Thread::Join()
 	pthread_join(m_tid, NULL);
 }
 
-void Thread::Start()
+void Thread::Start(const ThreadOptions& options)
 {
 	if (m_state == INITIALIZED)
 	{
-		if (0 != pthread_create(&m_tid, NULL, ThreadFunc, this))
+		pthread_attr_t attr;
+		pthread_attr_init(&attr);
+		if(options.max_stack_size > 0)
+		{
+			pthread_attr_setstacksize(&attr, options.max_stack_size);
+		}
+		if (0 != pthread_create(&m_tid, &attr, ThreadFunc, this))
 		{
 			m_state = TERMINATED;
 		}
+
 	}
 }
 

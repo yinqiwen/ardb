@@ -41,8 +41,7 @@ using namespace ardb;
 
 static uint32 kChannelIDSeed = 1;
 
-void Channel::IOEventCallback(struct aeEventLoop *eventLoop, int fd,
-		void *clientData, int mask)
+void Channel::IOEventCallback(struct aeEventLoop *eventLoop, int fd, void *clientData, int mask)
 {
 	//DEBUG_LOG("############Mask is %d", mask);
 	Channel* channel = (Channel*) clientData;
@@ -62,11 +61,9 @@ void Channel::IOEventCallback(struct aeEventLoop *eventLoop, int fd,
 }
 
 Channel::Channel(Channel* parent, ChannelService& service) :
-		m_user_configed(false), m_has_removed(false), m_parent_id(0), m_service(
-				&service), m_id(0), m_fd(-1), m_flush_timertask_id(-1), m_pipeline_initializor(
+		m_user_configed(false), m_has_removed(false), m_parent_id(0), m_service(&service), m_id(0), m_fd(-1), m_flush_timertask_id(-1), m_pipeline_initializor(
 		NULL), m_pipeline_initailizor_user_data(NULL), m_pipeline_finallizer(
-		NULL), m_pipeline_finallizer_user_data(NULL), m_detached(false), m_close_after_write(
-				false), m_file_sending(NULL)
+		NULL), m_pipeline_finallizer_user_data(NULL), m_detached(false), m_close_after_write(false), m_file_sending(NULL)
 {
 
 	if (kChannelIDSeed == MAX_CHANNEL_ID)
@@ -95,9 +92,7 @@ int Channel::GetReadFD()
 bool Channel::AttachFD()
 {
 	int fd = GetReadFD();
-	if (fd
-			!= -1&& aeCreateFileEvent(GetService().GetRawEventLoop(), fd, AE_READABLE,
-					Channel::IOEventCallback, this) == AE_ERR)
+	if (fd != -1 && aeCreateFileEvent(GetService().GetRawEventLoop(), fd, AE_READABLE, Channel::IOEventCallback, this) == AE_ERR)
 	{
 		::close(GetReadFD());
 		ERROR_LOG("Failed to register event for fd:%d.", GetReadFD());
@@ -115,8 +110,7 @@ bool Channel::AttachFD(int fd)
 		ERROR_LOG("Failed to attach FD since current fd is not -1");
 		return false;
 	}
-	if (aeCreateFileEvent(GetService().GetRawEventLoop(), fd, AE_READABLE,
-			Channel::IOEventCallback, this) == AE_ERR)
+	if (aeCreateFileEvent(GetService().GetRawEventLoop(), fd, AE_READABLE, Channel::IOEventCallback, this) == AE_ERR)
 	{
 		::close(fd);
 		ERROR_LOG("Failed to register event for fd:%d.", m_fd);
@@ -127,13 +121,11 @@ bool Channel::AttachFD(int fd)
 	return true;
 }
 
-bool Channel::SetIOEventCallback(ChannelIOEventCallback* cb, int mask,
-		void* data)
+bool Channel::SetIOEventCallback(ChannelIOEventCallback* cb, int mask, void* data)
 {
 	if (!m_detached)
 	{
-		ERROR_LOG(
-				"Channel::SetIOEventCallback should be invoked after detached.");
+		ERROR_LOG("Channel::SetIOEventCallback should be invoked after detached.");
 		return false;
 	}
 	int rd_fd = GetReadFD();
@@ -141,8 +133,7 @@ bool Channel::SetIOEventCallback(ChannelIOEventCallback* cb, int mask,
 
 	if (rd_fd == wr_fd)
 	{
-		if (aeCreateFileEvent(GetService().GetRawEventLoop(), rd_fd, mask, cb,
-				data) == AE_ERR)
+		if (aeCreateFileEvent(GetService().GetRawEventLoop(), rd_fd, mask, cb, data) == AE_ERR)
 		{
 			::close(rd_fd);
 			ERROR_LOG("Failed to register event for fd:%d.", rd_fd);
@@ -231,8 +222,7 @@ void Channel::Run()
 
 bool Channel::IsEnableWriting()
 {
-	return (aeGetFileEvents(GetService().GetRawEventLoop(), GetWriteFD())
-			& AE_WRITABLE);
+	return (aeGetFileEvents(GetService().GetRawEventLoop(), GetWriteFD()) & AE_WRITABLE);
 }
 
 void Channel::EnableWriting()
@@ -248,8 +238,7 @@ void Channel::EnableWriting()
 		AE_WRITABLE, Channel::IOEventCallback, this);
 	} else
 	{
-		WARN_LOG("Invalid fd:%d for enable writing for channel[%u].", write_fd,
-				m_id);
+		WARN_LOG("Invalid fd:%d for enable writing for channel[%u].", write_fd, m_id);
 	}
 }
 void Channel::DisableWriting()
@@ -265,8 +254,7 @@ void Channel::DisableWriting()
 		AE_WRITABLE);
 	} else
 	{
-		WARN_LOG("Invalid fd:%d for disable writing for channel[%u].", write_fd,
-				m_id);
+		WARN_LOG("Invalid fd:%d for disable writing for channel[%u].", write_fd, m_id);
 	}
 }
 
@@ -285,8 +273,7 @@ void Channel::CreateFlushTimerTask()
 	if (-1 == m_flush_timertask_id)
 	{
 		DisableWriting();
-		m_flush_timertask_id = GetService().GetTimer().Schedule(this,
-				m_options.user_write_buffer_flush_timeout_mills, -1, MILLIS);
+		m_flush_timertask_id = GetService().GetTimer().Schedule(this, m_options.user_write_buffer_flush_timeout_mills, -1, MILLIS);
 	}
 }
 
@@ -304,18 +291,14 @@ int32 Channel::WriteNow(Buffer* buffer)
 		if (m_options.max_write_buffer_size > 0) //write buffer size limit enable
 		{
 			uint32 write_buffer_size = m_outputBuffer.ReadableBytes();
-			if (write_buffer_size > (uint32)m_options.max_write_buffer_size
-					|| (write_buffer_size + buf_len)
-							> (uint32)m_options.max_write_buffer_size)
+			if (write_buffer_size > (uint32) m_options.max_write_buffer_size || (write_buffer_size + buf_len) > (uint32) m_options.max_write_buffer_size)
 			{
 				//overflow
 				return 0;
 			}
 		}
 		m_outputBuffer.Write(buffer, buf_len);
-		if (m_options.user_write_buffer_water_mark > 0
-				&& m_outputBuffer.ReadableBytes()
-						< m_options.user_write_buffer_water_mark)
+		if (m_options.user_write_buffer_water_mark > 0 && m_outputBuffer.ReadableBytes() < m_options.user_write_buffer_water_mark)
 		{
 			CreateFlushTimerTask();
 		} else
@@ -326,8 +309,7 @@ int32 Channel::WriteNow(Buffer* buffer)
 		return buf_len;
 	} else
 	{
-		if (buf_len < m_options.user_write_buffer_water_mark
-				|| IsEnableWriting())
+		if (buf_len < m_options.user_write_buffer_water_mark || IsEnableWriting())
 		{
 			m_outputBuffer.Write(buffer, buf_len);
 			CreateFlushTimerTask();
@@ -339,7 +321,7 @@ int32 Channel::WriteNow(Buffer* buffer)
 		{
 			if (IO_ERR_RW_RETRIABLE(err))
 			{
-				if(m_options.max_write_buffer_size == 0)
+				if (m_options.max_write_buffer_size == 0)
 				{
 					//no write buffer allowed
 					return 0;
@@ -372,8 +354,7 @@ bool Channel::DoConfigure(const ChannelOptions& options)
 	{
 		if (options.user_write_buffer_flush_timeout_mills > 0)
 		{
-			m_outputBuffer.EnsureWritableBytes(
-					options.user_write_buffer_water_mark * 2);
+			m_outputBuffer.EnsureWritableBytes(options.user_write_buffer_water_mark * 2);
 			//NEW(m_user_write_buffer, ByteBuffer(options.user_write_buffer_water_mark * 2));
 		} else
 		{
@@ -423,9 +404,7 @@ bool Channel::DoFlush()
 			return HandleExceptionEvent(CHANNEL_EVENT_EOF);
 		}
 		m_outputBuffer.DiscardReadedBytes();
-		m_outputBuffer.Compact(
-				m_options.user_write_buffer_water_mark > 0 ?
-						m_options.user_write_buffer_water_mark * 2 : 8192);
+		m_outputBuffer.Compact(m_options.user_write_buffer_water_mark > 0 ? m_options.user_write_buffer_water_mark * 2 : 8192);
 		if ((uint32) ret < send_buf_len)
 		{
 			//EnableWriting();
@@ -436,9 +415,7 @@ bool Channel::DoFlush()
 		return true;
 	} else
 	{
-		m_outputBuffer.Compact(
-				m_options.user_write_buffer_water_mark > 0 ?
-						m_options.user_write_buffer_water_mark : 8192);
+		m_outputBuffer.Compact(m_options.user_write_buffer_water_mark > 0 ? m_options.user_write_buffer_water_mark : 8192);
 		return true;
 	}
 
@@ -499,20 +476,21 @@ void Channel::OnWrite()
 		EnableWriting();
 		off_t len = m_file_sending->file_rest_len;
 #if defined(__APPLE__)
-		int ret = sendfile(GetWriteFD(), m_file_sending->fd,
-				m_file_sending->file_offset, &len, NULL, 0);
+		int ret = ::sendfile(m_file_sending->fd, GetWriteFD(), m_file_sending->file_offset, &len, NULL, 0);
 #elif defined(__FreeBSD__) || defined(__DragonFly__)
 		int ret = sendfile(GetWriteFD(), m_file_sending->fd,
-						m_file_sending->file_offset, len, NULL, &len, SF_MNOWAIT);
+				m_file_sending->file_offset, len, NULL, &len, SF_MNOWAIT);
 #else
 		off_t current = m_file_sending->file_offset;
 		int ret = sendfile(GetWriteFD(), m_file_sending->fd,
-						&m_file_sending->file_offset, len);
+				&m_file_sending->file_offset, len);
 #endif
 		if (ret < 0)
 		{
-			if (ret != EAGAIN && ret != EINTR)
+			int err = errno;
+			if (err != EAGAIN && ret != EINTR)
 			{
+				DEBUG_LOG("Connection closed:%s  %d %d", strerror(err), m_file_sending->file_offset, len);
 				Close();
 				return;
 			}
@@ -526,6 +504,7 @@ void Channel::OnWrite()
 
 		if (m_file_sending->file_rest_len == 0)
 		{
+
 			if (NULL != m_file_sending->on_complete)
 			{
 				m_file_sending->on_complete(m_file_sending->data);
