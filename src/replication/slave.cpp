@@ -103,7 +103,7 @@ namespace ardb
 
 	void Slave::MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e)
 	{
-		DEBUG_LOG("Recv master cmd %s", e.GetMessage()->GetCommand().c_str());
+		DEBUG_LOG("Recv master cmd %s", e.GetMessage()->ToString().c_str());
 		RedisCommandFrame* cmd = e.GetMessage();
 
 		if (m_slave_state == SLAVE_STATE_WAITING_PSYNC_REPLY && m_server_type == ARDB_DB_SERVER_TYPE)
@@ -276,7 +276,7 @@ namespace ardb
 					}
 					if (m_server_type == ARDB_DB_SERVER_TYPE)
 					{
-						//Do NOT change state, since master would send  "FULLSYNC BEGIN" reply later
+						//Do NOT change state, since master would send  "FULLSYNCED" after all data synced
 						SwitchToCommandCodec();
 						return;
 					}

@@ -180,7 +180,6 @@ namespace ardb
 
 	void Master::FullResyncArdbSlave(SlaveConnection& slave)
 	{
-
 		slave.sync_offset = m_backlog.GetReplEndOffset();
 		struct DBVisitor: public RawValueVisitor
 		{
@@ -286,7 +285,7 @@ namespace ardb
 	{
 		slave.state = SLAVE_STATE_SYNING_CACHE_DATA;
 		slave.conn->EnableWriting();
-		INFO_LOG("[PSYNC] Slave request offset: %lld", slave.sync_offset);
+		INFO_LOG("[PSYNC]Slave request offset: %lld", slave.sync_offset);
 	}
 
 	void Master::SendDumpToSlave(SlaveConnection& slave)
@@ -394,6 +393,7 @@ namespace ardb
 					} else
 					{
 						size_t len = m_backlog.WriteChannel(slave->conn, slave->sync_offset, MAX_SEND_CACHE_SIZE);
+						DEBUG_LOG("Write len:%d", len);
 						slave->sync_offset += len;
 
 					}

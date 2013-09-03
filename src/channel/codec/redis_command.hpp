@@ -259,6 +259,7 @@ namespace ardb
 						pch = strtok(NULL, " ");
 					}
 					m_cmd = m_args.front();
+					m_args.pop_front();
 				}
 
 				inline uint32 GetRawDataSize()
