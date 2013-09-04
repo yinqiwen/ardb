@@ -126,6 +126,7 @@ namespace ardb
 			void FeedSlaves(const DBID& dbid, RedisCommandFrame& cmd);
 			void SendDumpToSlave(SlaveConnection& slave);
 			void SendCacheToSlave(SlaveConnection& slave);
+			size_t ConnectedSlaves();
 			void Stop();
 			ReplBacklog& GetReplBacklog()
 			{

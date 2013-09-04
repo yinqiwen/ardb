@@ -679,7 +679,7 @@ namespace ardb
 		if (memcmp(buf, "REDIS", 5) != 0)
 		{
 			Close();
-			WARN_LOG("Wrong signature trying to load DB from file");
+			WARN_LOG("Wrong signature trying to load DB from file:%s", buf);
 			return -1;
 		}
 		rdbver = atoi(buf + 5);

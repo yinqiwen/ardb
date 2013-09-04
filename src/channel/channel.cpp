@@ -504,7 +504,6 @@ void Channel::OnWrite()
 
 		if (m_file_sending->file_rest_len == 0)
 		{
-
 			if (NULL != m_file_sending->on_complete)
 			{
 				m_file_sending->on_complete(m_file_sending->data);
@@ -516,7 +515,7 @@ void Channel::OnWrite()
 		}
 	}
 	fire_channel_writable(this);
-	if (!m_outputBuffer.Readable())
+	if (!m_outputBuffer.Readable() && m_options.auto_disable_writing)
 	{
 		DisableWriting();
 	}
@@ -566,10 +565,10 @@ bool Channel::Flush()
 	{
 		return false;
 	}
-	if (!m_outputBuffer.Readable())
-	{
-		DisableWriting();
-	}
+//	if (!m_outputBuffer.Readable())
+//	{
+//		DisableWriting();
+//	}
 	return true;
 }
 

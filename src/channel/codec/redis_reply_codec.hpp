@@ -29,7 +29,7 @@
 
 #ifndef REDIS_REPLY_CODEC_HPP_
 #define REDIS_REPLY_CODEC_HPP_
-#include "channel/all_includes.hpp"
+//#include "channel/all_includes.hpp"
 #include <deque>
 #include <string>
 #include "redis_reply.hpp"
@@ -38,6 +38,7 @@ namespace ardb
 {
 	namespace codec
 	{
+		class RedisMessageDecoder;
 		class RedisReplyDecoder: public StackFrameDecoder<RedisReply>
 		{
 			protected:
@@ -46,6 +47,7 @@ namespace ardb
 				bool m_allow_chunk;
 				bool Decode(ChannelHandlerContext& ctx, Channel* channel,
 						Buffer& buffer, RedisReply& msg);
+				friend  class RedisMessageDecoder;
 			public:
 				RedisReplyDecoder(bool allow_chunk= false);
 		};

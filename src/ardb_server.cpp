@@ -699,6 +699,12 @@ namespace ardb
 			{
 				info.append("role: singleton\r\n");
 			}
+
+			info.append("connected_slaves: ").append(stringfromll(m_master_serv.ConnectedSlaves())).append("\r\n");
+			info.append("master_repl_offset: ").append(stringfromll(m_master_serv.GetReplBacklog().GetReplEndOffset())).append("\r\n");
+			info.append("repl_backlog_size: ").append(stringfromll(m_master_serv.GetReplBacklog().GetBacklogSize())).append("\r\n");
+			info.append("repl_backlog_first_byte_offset: ").append(stringfromll(m_master_serv.GetReplBacklog().GetReplStartOffset())).append("\r\n");
+			info.append("repl_backlog_histlen: ").append(stringfromll(1)).append("\r\n");
 		}
 
 		if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "stats"))

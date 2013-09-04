@@ -95,8 +95,7 @@ namespace ardb
 		{
 			start++;
 		}
-		while (end > start && end < str_len
-		        && cset.find(str.at(end)) != std::string::npos)
+		while (end > start && end < str_len && cset.find(str.at(end)) != std::string::npos)
 		{
 			end--;
 		}
@@ -125,15 +124,13 @@ namespace ardb
 		return ret;
 	}
 
-	std::vector<std::string> split_string(const std::string& str,
-	        const std::string& sep)
+	std::vector<std::string> split_string(const std::string& str, const std::string& sep)
 	{
 		std::vector<std::string> ret;
 		size_t start = 0;
 		size_t str_len = str.size();
 		size_t found = std::string::npos;
-		while (start < str_len
-		        && (found = str.find(sep, start)) != std::string::npos)
+		while (start < str_len && (found = str.find(sep, start)) != std::string::npos)
 		{
 			if (found > start)
 			{
@@ -148,8 +145,7 @@ namespace ardb
 		return ret;
 	}
 
-	void split_string(const std::string& strs, const std::string& sp,
-	        std::vector<std::string>& res)
+	void split_string(const std::string& strs, const std::string& sp, std::vector<std::string>& res)
 	{
 		std::string::size_type pos1, pos2;
 
@@ -166,15 +162,13 @@ namespace ardb
 		res.push_back(strs.substr(pos1));
 	}
 
-	int string_replace(std::string& str, const std::string& pattern,
-	        const std::string& newpat)
+	int string_replace(std::string& str, const std::string& pattern, const std::string& newpat)
 	{
 		int count = 0;
 		const size_t nsize = newpat.size();
 		const size_t psize = pattern.size();
 
-		for (size_t pos = str.find(pattern, 0); pos != std::string::npos; pos =
-		        str.find(pattern, pos + nsize))
+		for (size_t pos = str.find(pattern, 0); pos != std::string::npos; pos = str.find(pattern, pos + nsize))
 		{
 			str.replace(pos, psize, newpat);
 			count++;
@@ -346,8 +340,7 @@ namespace ardb
 	void fast_dtoa(double value, int prec, std::string& result)
 	{
 		static const double powers_of_10[] =
-			{ 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000,
-			        1000000000 };
+		{ 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000 };
 		/* Hacky test for NaN
 		 * under -fast-math this won't work, but then you also won't
 		 * have correct nan values anyways.  The alternative is
@@ -375,8 +368,7 @@ namespace ardb
 		if (prec < 0)
 		{
 			prec = 0;
-		}
-		else if (prec > 9)
+		} else if (prec > 9)
 		{
 			/* precision of >= 10 can lead to overflow errors */
 			prec = 9;
@@ -405,8 +397,7 @@ namespace ardb
 				frac = 0;
 				++whole;
 			}
-		}
-		else if (diff == 0.5 && ((frac == 0) || (frac & 1)))
+		} else if (diff == 0.5 && ((frac == 0) || (frac & 1)))
 		{
 			/* if halfway, round up if odd, OR
 			 if last digit is 0.  That last part is strange */
@@ -438,8 +429,7 @@ namespace ardb
 			{
 				/* greater than 0.5, round up, e.g. 1.6 -> 2 */
 				++whole;
-			}
-			else if (diff == 0.5 && (whole & 1))
+			} else if (diff == 0.5 && (whole & 1))
 			{
 				/* exactly 0.5 and ODD, then round up */
 				/* 1.5 -> 2, but 2.5 -> 2 */
@@ -447,8 +437,7 @@ namespace ardb
 			}
 
 			//vvvvvvvvvvvvvvvvvvv  Diff from modp_dto2
-		}
-		else if (frac)
+		} else if (frac)
 		{
 			count = prec;
 			// now do fractional part, as an unsigned number
@@ -467,8 +456,7 @@ namespace ardb
 				--count;
 				ensure_space(str, slen, wstr);
 				*wstr++ = (char) (48 + (frac % 10));
-			}
-			while (frac /= 10);
+			} while (frac /= 10);
 			// add extra 0s
 			while (count-- > 0)
 			{
@@ -487,8 +475,7 @@ namespace ardb
 		{
 			ensure_space(str, slen, wstr);
 			*wstr++ = (char) (48 + (whole % 10));
-		}
-		while (whole /= 10);
+		} while (whole /= 10);
 		if (neg)
 		{
 			ensure_space(str, slen, wstr);
@@ -504,12 +491,11 @@ namespace ardb
 
 	int fast_itoa(char* dst, uint32 dstlen, uint64 value)
 	{
-		static const char digits[201] =
-		        "0001020304050607080910111213141516171819"
-				        "2021222324252627282930313233343536373839"
-				        "4041424344454647484950515253545556575859"
-				        "6061626364656667686970717273747576777879"
-				        "8081828384858687888990919293949596979899";
+		static const char digits[201] = "0001020304050607080910111213141516171819"
+				"2021222324252627282930313233343536373839"
+				"4041424344454647484950515253545556575859"
+				"6061626364656667686970717273747576777879"
+				"8081828384858687888990919293949596979899";
 		uint32_t const length = digits10(value);
 		if (length >= dstlen)
 		{
@@ -528,8 +514,7 @@ namespace ardb
 		if (value < 10)
 		{
 			dst[next] = '0' + uint32_t(value);
-		}
-		else
+		} else
 		{
 			uint32 i = uint32(value) * 2;
 			dst[next] = digits[i + 1];
@@ -632,7 +617,7 @@ namespace ardb
 		int j;
 
 		SHA1Init(&ctx);
-		SHA1Update(&ctx, (const unsigned char*)data, len);
+		SHA1Update(&ctx, (const unsigned char*) data, len);
 		SHA1Final(hash, &ctx);
 		char digest[40];
 		for (j = 0; j < 20; j++)
@@ -681,13 +666,11 @@ namespace ardb
 			v = p[0] - '0';
 			p++;
 			plen++;
-		}
-		else if (p[0] == '0' && slen == 1)
+		} else if (p[0] == '0' && slen == 1)
 		{
 			*value = 0;
 			return 1;
-		}
-		else
+		} else
 		{
 			return 0;
 		}
@@ -716,8 +699,7 @@ namespace ardb
 				return 0;
 			if (value != NULL)
 				*value = -v;
-		}
-		else
+		} else
 		{
 			if (v > LLONG_MAX) /* Overflow. */
 				return 0;
@@ -727,44 +709,50 @@ namespace ardb
 		return 1;
 	}
 
-	int ll2string(char *s, size_t len, long long value) {
-	    char buf[32], *p;
-	    unsigned long long v;
-	    size_t l;
+	int ll2string(char *s, size_t len, long long value)
+	{
+		char buf[32], *p;
+		unsigned long long v;
+		size_t l;
 
-	    if (len == 0) return 0;
-	    v = (value < 0) ? -value : value;
-	    p = buf+31; /* point to the last character */
-	    do {
-	        *p-- = '0'+(v%10);
-	        v /= 10;
-	    } while(v);
-	    if (value < 0) *p-- = '-';
-	    p++;
-	    l = 32-(p-buf);
-	    if (l+1 > len) l = len-1; /* Make sure it fits, including the nul term */
-	    memcpy(s,p,l);
-	    s[l] = '\0';
-	    return l;
+		if (len == 0)
+			return 0;
+		v = (value < 0) ? -value : value;
+		p = buf + 31; /* point to the last character */
+		do
+		{
+			*p-- = '0' + (v % 10);
+			v /= 10;
+		} while (v);
+		if (value < 0)
+			*p-- = '-';
+		p++;
+		l = 32 - (p - buf);
+		if (l + 1 > len)
+			l = len - 1; /* Make sure it fits, including the nul term */
+		memcpy(s, p, l);
+		s[l] = '\0';
+		return l;
 	}
 
-	std::string stringfromll(int64 value) {
-		std::string str;
-		str.resize(32);
-		char* buf = &(str[0]);
+	std::string stringfromll(int64 value)
+	{
+		size_t l;
+		char buf[32];
 		char* p = NULL;
-	    unsigned long long v;
+		unsigned long long v;
 
-	    v = (value < 0) ? -value : value;
-	    p = buf+31; /* point to the last character */
-	    do {
-	        *p-- = '0'+(v%10);
-	        v /= 10;
-	    } while(v);
-	    if (value < 0) *p-- = '-';
-	    p++;
-	    //return std::string(p,32-(p-buf));
-	    str.resize(32-(p-buf));
-	    return str;
+		v = (value < 0) ? -value : value;
+		p = buf + 31; /* point to the last character */
+		do
+		{
+			*p-- = '0' + (v % 10);
+			v /= 10;
+		} while (v);
+		if (value < 0)
+			*p-- = '-';
+		p++;
+		l = 32 - (p - buf);
+		return std::string(p, l);
 	}
 }

@@ -28,65 +28,65 @@
  */
 
 /*
- * backlog.hpp
+ * redis_message_decoder.hpp
  *
- *  Created on: 2013-08-29      Author: wqy
+ *  Created on: 2013-9-4
+ *      Author: wqy
  */
 
-#ifndef BACKLOG_HPP_
-#define BACKLOG_HPP_
-
-#include <string>
-#include <vector>
-#include "common.hpp"
-#include "channel/all_includes.hpp"
-#include "util/mmap.hpp"
-#include "repl.hpp"
-
-using namespace ardb::codec;
+#ifndef REDIS_MESSAGE_DECODER_HPP_
+#define REDIS_MESSAGE_DECODER_HPP_
+#include "redis_command_codec.hpp"
+#include "redis_reply_codec.hpp"
+#include "redis_reply.hpp"
+#include "redis_command.hpp"
 
 namespace ardb
 {
-	class ReplBacklog: public Runnable
+	namespace codec
 	{
-		private:
-			uint64 m_backlog_size;
-			uint64 m_backlog_idx;
-			uint64 m_end_offset;
-			uint64 m_histlen;
-			uint64 m_begin_offset;
-			uint64 m_last_sync_offset;
+		struct RedisMessage
+		{
+				RedisReply reply;
+				RedisCommandFrame command;
+				bool isReply;
+				RedisMessage() :
+						isReply(false)
+				{
+				}
+		};
 
-			std::string m_server_key;
-			bool m_sync_state_change;
+		class RedisMessageDecoder: public StackFrameDecoder<RedisMessage>
+		{
+			protected:
+				bool m_decode_reply;
+				RedisCommandDecoder m_cmd_decoder;
+				RedisReplyDecoder m_reply_decoder;
+				bool Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, RedisMessage& msg)
+				{
+					msg.isReply = m_decode_reply;
+					if (m_decode_reply)
+					{
+						return m_reply_decoder.Decode(ctx, channel, buffer, msg.reply);
+					}
+					return m_cmd_decoder.Decode(ctx, channel, buffer, msg.command);
+				}
+			public:
+				RedisMessageDecoder(bool decode_reply = false, bool allow_chunk= false) :
+						m_decode_reply(decode_reply),m_reply_decoder(allow_chunk)
+				{
+				}
 
-			MMapBuf m_sync_state_buf;
-			MMapBuf m_backlog;
-
-			void Run();
-
-			bool LoadSyncState(const std::string& path);
-		public:
-			ReplBacklog();
-			int Init(const std::string& path, uint64 backlog_size);
-			void PersistSyncState();
-			void Feed(Buffer& cmd);
-			bool IsValidOffset(int64 offset);
-			bool IsValidOffset(const std::string& server_key, int64 offset);
-			const std::string& GetServerKey();
-			uint64 GetReplEndOffset();
-			uint64 GetReplStartOffset();
-			int64 GetBacklogSize()
-			{
-				return (int64) m_backlog_size;
-			}
-			int64 GetHistLen()
-			{
-				return (int64) m_histlen;
-			}
-			size_t WriteChannel(Channel* channle, int64 offset, size_t len);
-
-	};
+				void SwitchToCommandDecoder()
+				{
+					m_decode_reply = false;
+				}
+				void SwitchToReplyDecoder()
+				{
+					m_decode_reply = true;
+				}
+		};
+	}
 }
 
-#endif /* BACKLOG_HPP_ */
+#endif /* REDIS_MESSAGE_DECODER_HPP_ */

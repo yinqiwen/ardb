@@ -54,8 +54,7 @@
 #include "channel/codec/frame_decoder.hpp"
 #include "channel/codec/int_header_frame_decoder.hpp"
 #include "channel/codec/delimiter_frame_decoder.hpp"
-#include "channel/codec/redis_command_codec.hpp"
-#include "channel/codec/redis_reply_codec.hpp"
+#include "channel/codec/redis_message_codec.hpp"
 #include <errno.h>
 
 namespace ardb

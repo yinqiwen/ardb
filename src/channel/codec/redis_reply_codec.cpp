@@ -103,8 +103,7 @@ bool RedisReplyEncoder::Encode(Buffer& buf, RedisReply& reply)
 	return true;
 }
 
-bool RedisReplyEncoder::WriteRequested(ChannelHandlerContext& ctx,
-		MessageEvent<RedisReply>& e)
+bool RedisReplyEncoder::WriteRequested(ChannelHandlerContext& ctx, MessageEvent<RedisReply>& e)
 {
 	RedisReply* msg = e.GetMessage();
 	Buffer buffer(1024);
@@ -132,8 +131,7 @@ static int decode_reply(Buffer& buffer, RedisReply& msg, bool allow_chunk)
 		case '$':
 		{
 			int64 len;
-			if (!raw_toint64(buffer.GetRawReadBuffer(),
-					index - buffer.GetReadIndex(), len))
+			if (!raw_toint64(buffer.GetRawReadBuffer(), index - buffer.GetReadIndex(), len))
 			{
 				return -1;
 			}
@@ -144,14 +142,15 @@ static int decode_reply(Buffer& buffer, RedisReply& msg, bool allow_chunk)
 			} else
 			{
 				msg.type = REDIS_REPLY_STRING;
-				/*
-				 * store length in 'integer' if the string is too large
-				 */
-				msg.integer = len;
+
 				if (buffer.ReadableBytes() < (uint32) (len + 2))
 				{
 					if (len >= 2 * 1024 * 1024 && allow_chunk)
 					{
+						/*
+						 * store length in 'integer' if the string is too large
+						 */
+						msg.integer = len;
 						/*
 						 * Just return 0 after consumed length header in read buffer
 						 */
@@ -159,6 +158,7 @@ static int decode_reply(Buffer& buffer, RedisReply& msg, bool allow_chunk)
 					}
 					break;
 				}
+				msg.integer = len;
 				msg.str.assign(buffer.GetRawReadBuffer(), len);
 				buffer.SkipBytes(len + 2);
 			}
@@ -167,16 +167,14 @@ static int decode_reply(Buffer& buffer, RedisReply& msg, bool allow_chunk)
 		case '+':
 		{
 			msg.type = REDIS_REPLY_STATUS;
-			msg.str.assign(buffer.GetRawReadBuffer(),
-					index - buffer.GetReadIndex());
+			msg.str.assign(buffer.GetRawReadBuffer(), index - buffer.GetReadIndex());
 			buffer.SetReadIndex(index + 2);
 			return 1;
 		}
 		case '-':
 		{
 			msg.type = REDIS_REPLY_ERROR;
-			msg.str.assign(buffer.GetRawReadBuffer(),
-					index - buffer.GetReadIndex());
+			msg.str.assign(buffer.GetRawReadBuffer(), index - buffer.GetReadIndex());
 			buffer.SetReadIndex(index + 2);
 			return 1;
 		}
@@ -184,8 +182,7 @@ static int decode_reply(Buffer& buffer, RedisReply& msg, bool allow_chunk)
 		{
 			msg.type = REDIS_REPLY_INTEGER;
 			int64 i;
-			if (!raw_toint64(buffer.GetRawReadBuffer(),
-					index - buffer.GetReadIndex(), i))
+			if (!raw_toint64(buffer.GetRawReadBuffer(), index - buffer.GetReadIndex(), i))
 			{
 				return -1;
 			}
@@ -196,8 +193,7 @@ static int decode_reply(Buffer& buffer, RedisReply& msg, bool allow_chunk)
 		case '*':
 		{
 			int64 len;
-			if (!raw_toint64(buffer.GetRawReadBuffer(),
-					index - buffer.GetReadIndex(), len))
+			if (!raw_toint64(buffer.GetRawReadBuffer(), index - buffer.GetReadIndex(), len))
 			{
 				return -1;
 			}
@@ -235,8 +231,7 @@ RedisReplyDecoder::RedisReplyDecoder(bool allow_chunk) :
 {
 }
 
-bool RedisReplyDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel,
-		Buffer& buffer, RedisReply& msg)
+bool RedisReplyDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, RedisReply& msg)
 {
 	msg.Clear();
 	if (m_waiting_chunk_len > 0)
@@ -259,8 +254,7 @@ bool RedisReplyDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel,
 		}
 		return true;
 	}
-	while (buffer.GetRawReadBuffer()[0] == '\r'
-			|| buffer.GetRawReadBuffer()[0] == '\n')
+	while (buffer.GetRawReadBuffer()[0] == '\r' || buffer.GetRawReadBuffer()[0] == '\n')
 	{
 		buffer.AdvanceReadIndex(1);
 	}

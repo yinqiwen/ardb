@@ -30,7 +30,7 @@
 #ifndef REDIS_FRAME_CODEC_HPP_
 #define REDIS_FRAME_CODEC_HPP_
 
-#include "channel/all_includes.hpp"
+//#include "channel/all_includes.hpp"
 #include "channel/codec/frame_decoder.hpp"
 #include "redis_command.hpp"
 
@@ -38,7 +38,7 @@ namespace ardb
 {
 	namespace codec
 	{
-
+		class RedisMessageDecoder;
 		class RedisCommandDecoder: public StackFrameDecoder<RedisCommandFrame>
 		{
 			protected:
@@ -48,6 +48,7 @@ namespace ardb
 				        Buffer& buffer, RedisCommandFrame& frame);
 				bool Decode(ChannelHandlerContext& ctx, Channel* channel,
 				        Buffer& buffer, RedisCommandFrame& msg);
+				friend  class RedisMessageDecoder;
 			public:
 				RedisCommandDecoder()
 				{

@@ -175,6 +175,8 @@ namespace ardb
 		{
 			total = m_histlen - skip;
 		}
+		len = total;
+
 		while (total)
 		{
 			uint64 thislen =
@@ -184,7 +186,7 @@ namespace ardb
 			total -= thislen;
 			j = 0;
 		}
-		return (size_t) total;
+		return len;
 	}
 
 	bool ReplBacklog::IsValidOffset(int64 offset)

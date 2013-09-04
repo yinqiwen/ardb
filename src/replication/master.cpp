@@ -104,6 +104,9 @@ namespace ardb
 			{
 				buffer.SetReadIndex(0);
 				it->second->conn->Write(buffer);
+			} else
+			{
+				DEBUG_LOG("######State = %d  offset=%lld  endoffset=%lld", it->second->state, it->second->sync_offset, m_backlog.GetReplEndOffset());
 			}
 		}
 	}
@@ -152,7 +155,9 @@ namespace ardb
 					conn->state = SLAVE_STATE_CONNECTED;
 					m_slave_table[conn->conn->GetID()] = conn;
 					conn->conn->ClearPipeline();
-
+					ChannelOptions options;
+					options.auto_disable_writing = false;
+					conn->conn->Configure(options);
 					conn->conn->SetChannelPipelineInitializor(slave_pipeline_init, this);
 					conn->conn->SetChannelPipelineFinalizer(slave_pipeline_finallize, NULL);
 					SyncSlave(*conn);
@@ -384,7 +389,11 @@ namespace ardb
 				if ((uint64) slave->sync_offset >= m_backlog.GetReplEndOffset())
 				{
 					slave->state = SLAVE_STATE_SYNCED;
-					slave->conn->DisableWriting();
+					//slave->conn->DisableWriting();
+					DEBUG_LOG("###Slavechange state to synced.");
+					ChannelOptions options;
+					options.auto_disable_writing = true;
+					slave->conn->Configure(options);
 				} else
 				{
 					if (!m_backlog.IsValidOffset(slave->sync_offset))
@@ -393,9 +402,8 @@ namespace ardb
 					} else
 					{
 						size_t len = m_backlog.WriteChannel(slave->conn, slave->sync_offset, MAX_SEND_CACHE_SIZE);
-						DEBUG_LOG("Write len:%d", len);
 						slave->sync_offset += len;
-
+						slave->conn->EnableWriting();
 					}
 				}
 			}
@@ -403,6 +411,7 @@ namespace ardb
 	}
 	void Master::MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e)
 	{
+		DEBUG_LOG("Master recv cmd:%s", e.GetMessage()->ToString().c_str());
 	}
 
 	void Master::OfferReplInstruction(ReplicationInstruction& inst)
@@ -487,6 +496,11 @@ namespace ardb
 			m_channel_service.Stop();
 			Thread::Sleep(10);
 		}
+	}
+
+	size_t Master::ConnectedSlaves()
+	{
+		return m_slave_table.size();
 	}
 
 	Master::~Master()

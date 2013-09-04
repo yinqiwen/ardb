@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  *
@@ -48,8 +48,7 @@ namespace ardb
 {
 	class ArdbConnContext;
 	class ArdbServer;
-	class Slave: public ChannelUpstreamHandler<RedisCommandFrame>,
-			public ChannelUpstreamHandler<RedisReply>
+	class Slave: public ChannelUpstreamHandler<RedisMessage>
 	{
 		private:
 			ArdbServer* m_serv;
@@ -59,9 +58,8 @@ namespace ardb
 			uint32 m_slave_state;
 			bool m_cron_inited;
 			uint32 m_ping_recved_time;
-			RedisCommandDecoder m_decoder;
+			RedisMessageDecoder m_decoder;
 			NullRedisReplyEncoder m_encoder;
-			RedisReplyDecoder m_reply_decoder;
 
 			uint8 m_server_type;
 			bool m_server_support_psync;
@@ -81,22 +79,18 @@ namespace ardb
 
 			MMapBuf m_sync_state_buf;
 
-			void MessageReceived(ChannelHandlerContext& ctx,
-					MessageEvent<RedisCommandFrame>& e);
-			void MessageReceived(ChannelHandlerContext& ctx,
-					MessageEvent<RedisReply>& e);
-			void ChannelClosed(ChannelHandlerContext& ctx,
-					ChannelStateEvent& e);
-			void ChannelConnected(ChannelHandlerContext& ctx,
-					ChannelStateEvent& e);
+			void HandleRedisCommand(Channel* ch, RedisCommandFrame& cmd);
+			void HandleRedisReply(Channel* ch, RedisReply& reply);
+			void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisMessage>& e);
+			//void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisReply>& e);
+			void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e);
+			void ChannelConnected(ChannelHandlerContext& ctx, ChannelStateEvent& e);
 			void Timeout();
 			void PersistSyncState();
 			bool LoadSyncState();
 			void Routine();
 			void InitCron();
 			RedisDumpFile* GetNewRedisDumpFile();
-			void SwitchToReplyCodec();
-			void SwitchToCommandCodec();
 		public:
 			Slave(ArdbServer* serv);
 			bool Init();

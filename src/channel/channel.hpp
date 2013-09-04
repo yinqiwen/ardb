@@ -96,23 +96,19 @@ namespace ardb
 			uint32 user_write_buffer_water_mark;
 			uint32 user_write_buffer_flush_timeout_mills;
 			int32 max_write_buffer_size;  //-1: means unlimit 0: disable
+			bool auto_disable_writing;
 
 			ChannelOptions() :
-					receive_buffer_size(0), send_buffer_size(0), tcp_nodelay(
-							true), keep_alive(0), reuse_address(true), user_write_buffer_water_mark(
-							0), user_write_buffer_flush_timeout_mills(0), max_write_buffer_size(
-							-1)
+					receive_buffer_size(0), send_buffer_size(0), tcp_nodelay(true), keep_alive(0), reuse_address(true), user_write_buffer_water_mark(0), user_write_buffer_flush_timeout_mills(0), max_write_buffer_size(-1), auto_disable_writing(true)
 			{
 			}
 	};
 	template<typename T>
-	bool write_channel(Channel* channel, T* message,
-			typename Type<T>::Destructor* destructor);
+	bool write_channel(Channel* channel, T* message, typename Type<T>::Destructor* destructor);
 
 	class Channel;
 	typedef int ChannelOperationBarrierHook(Channel*, void*);
-	typedef void ChannelIOEventCallback(struct aeEventLoop *eventLoop, int fd,
-			void *clientData, int mask);
+	typedef void ChannelIOEventCallback(struct aeEventLoop *eventLoop, int fd, void *clientData, int mask);
 
 	typedef void IOCallback(void* data);
 	struct SendFileSetting
@@ -125,7 +121,7 @@ namespace ardb
 			IOCallback* on_failure;
 			SendFileSetting() :
 					fd(-1), file_offset(0), file_rest_len(0), data(NULL), on_complete(
-							NULL), on_failure(NULL)
+					NULL), on_failure(NULL)
 			{
 			}
 	};
@@ -136,8 +132,7 @@ namespace ardb
 		private:
 			bool DoClose(bool inDestructor);
 		protected:
-			static void IOEventCallback(struct aeEventLoop *eventLoop, int fd,
-					void *clientData, int mask);
+			static void IOEventCallback(struct aeEventLoop *eventLoop, int fd, void *clientData, int mask);
 			ChannelOptions m_options;
 			bool m_user_configed;
 			bool m_has_removed;
@@ -190,7 +185,6 @@ namespace ardb
 			virtual int32 HandleExceptionEvent(int32 event);
 			int HandleIOError(int err);
 
-
 			void CancelFlushTimerTask();
 			void CreateFlushTimerTask();
 
@@ -239,8 +233,7 @@ namespace ardb
 			{
 				return m_detached;
 			}
-			bool SetIOEventCallback(ChannelIOEventCallback* cb, int mask,
-					void* data);
+			bool SetIOEventCallback(ChannelIOEventCallback* cb, int mask, void* data);
 			bool Configure(const ChannelOptions& options);
 			bool Open();
 			bool Bind(Address* local);
@@ -266,8 +259,7 @@ namespace ardb
 			void EnableWriting();
 			void DisableWriting();
 
-			inline void SetChannelPipelineInitializor(
-					ChannelPipelineInitializer* initializor, void* data = NULL)
+			inline void SetChannelPipelineInitializor(ChannelPipelineInitializer* initializor, void* data = NULL)
 			{
 				ASSERT(NULL == m_pipeline_initializor && NULL != initializor);
 				m_pipeline_initializor = initializor;
@@ -275,8 +267,7 @@ namespace ardb
 				m_pipeline_initializor(&m_pipeline, data);
 			}
 
-			inline void SetChannelPipelineFinalizer(
-					ChannelPipelineFinalizer* finallizer, void* data = NULL)
+			inline void SetChannelPipelineFinalizer(ChannelPipelineFinalizer* finallizer, void* data = NULL)
 			{
 				ASSERT(NULL != finallizer);
 				m_pipeline_finallizer = finallizer;
@@ -287,8 +278,7 @@ namespace ardb
 			{
 				if (NULL != m_pipeline_finallizer)
 				{
-					m_pipeline_finallizer(&m_pipeline,
-							m_pipeline_finallizer_user_data);
+					m_pipeline_finallizer(&m_pipeline, m_pipeline_finallizer_user_data);
 					m_pipeline_initializor = NULL;
 					m_pipeline_finallizer = NULL;
 					m_pipeline_finallizer_user_data = NULL;
