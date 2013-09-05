@@ -88,7 +88,7 @@ namespace ardb
 		DBWatcher& watcher = m_watcher.GetValue();
 		if (watcher.on_key_update != NULL)
 		{
-			watcher.on_key_update(key.db, key.key,watcher.on_key_update_data);
+			watcher.on_key_update(key.db, key.key, watcher.on_key_update_data);
 		}
 		watcher.data_changed = true;
 		Buffer keybuf(key.key.size() + 16);
@@ -135,8 +135,7 @@ namespace ardb
 			{
 				smart_fill_value(*vit, valueobject);
 				SetValue(keyobject, valueobject);
-			}
-			else
+			} else
 			{
 				guard.MarkFailed();
 				return -1;
@@ -147,8 +146,7 @@ namespace ardb
 		return keys.size();
 	}
 
-	int Ardb::Set(const DBID& db, const Slice& key, const Slice& value, int ex,
-	        int px, int nxx)
+	int Ardb::Set(const DBID& db, const Slice& key, const Slice& value, int ex, int px, int nxx)
 	{
 		KeyObject k(key, KV, db);
 		if (-1 == nxx)
@@ -157,8 +155,7 @@ namespace ardb
 			{
 				return ERR_KEY_EXIST;
 			}
-		}
-		else if (1 == nxx)
+		} else if (1 == nxx)
 		{
 			if (0 != GetValue(k, NULL))
 			{
@@ -192,13 +189,11 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::SetEx(const DBID& db, const Slice& key, const Slice& value,
-	        uint32_t secs)
+	int Ardb::SetEx(const DBID& db, const Slice& key, const Slice& value, uint32_t secs)
 	{
 		return PSetEx(db, key, value, secs * 1000);
 	}
-	int Ardb::PSetEx(const DBID& db, const Slice& key, const Slice& value,
-	        uint32_t ms)
+	int Ardb::PSetEx(const DBID& db, const Slice& key, const Slice& value, uint32_t ms)
 	{
 		KeyObject keyobject(key, KV, db);
 		ValueObject valueobject;
@@ -208,7 +203,7 @@ namespace ardb
 		{
 			uint64_t now = get_current_epoch_micros();
 			expire = now + (uint64_t) ms * 1000L;
-			SetExpiration(db, key, expire);
+			SetExpiration(db, key, expire, false);
 		}
 		return SetValue(keyobject, valueobject);
 		//return 0;
@@ -260,7 +255,7 @@ namespace ardb
 				BatchWriteGuard guard(GetEngine());
 				KeyObject k(key, KV, db);
 				DelValue(k);
-				SetExpiration(db, key, 0);
+				SetExpiration(db, key, 0, false);
 				break;
 			}
 			case HASH_FIELD:
@@ -350,8 +345,12 @@ namespace ardb
 		return -1;
 	}
 
-	int Ardb::SetExpiration(const DBID& db, const Slice& key, uint64 expire)
+	int Ardb::SetExpiration(const DBID& db, const Slice& key, uint64 expire, bool check_exists)
 	{
+		if(check_exists && expire  > 0 && !Exists(db, key))
+		{
+			return -1;
+		}
 		BatchWriteGuard guard(GetEngine());
 		uint64 old_expire;
 		if (0 == GetExpiration(db, key, old_expire))
@@ -398,16 +397,14 @@ namespace ardb
 			{
 				DELETE(kk);
 				break;
-			}
-			else
+			} else
 			{
 				ExpireKeyObject* ek = (ExpireKeyObject*) kk;
 				if (ek->expireat <= get_current_epoch_micros())
 				{
 					Del(db, ek->key);
 					DELETE(kk);
-				}
-				else
+				} else
 				{
 					DELETE(kk);
 					break;
@@ -431,30 +428,30 @@ namespace ardb
 	{
 		uint64_t now = get_current_epoch_micros();
 		uint64_t expire = now + (uint64_t) secs * 1000000L;
-		return SetExpiration(db, key, expire);
+		return SetExpiration(db, key, expire, true);
 	}
 
 	int Ardb::Expireat(const DBID& db, const Slice& key, uint32_t ts)
 	{
 		uint64_t expire = (uint64_t) ts * 1000000L;
-		return SetExpiration(db, key, expire);
+		return SetExpiration(db, key, expire, true);
 	}
 
 	int Ardb::Persist(const DBID& db, const Slice& key)
 	{
-		return SetExpiration(db, key, 0);
+		return SetExpiration(db, key, 0,true);
 	}
 
 	int Ardb::Pexpire(const DBID& db, const Slice& key, uint32_t ms)
 	{
 		uint64_t now = get_current_epoch_micros();
 		uint64_t expire = now + (uint64_t) ms * 1000;
-		return SetExpiration(db, key, expire);
+		return SetExpiration(db, key, expire, true);
 	}
 
 	int Ardb::Pexpireat(const DBID& db, const Slice& key, uint64_t ms)
 	{
-		return SetExpiration(db, key, ms);
+		return SetExpiration(db, key, ms, true);
 	}
 
 	int64 Ardb::PTTL(const DBID& db, const Slice& key)
@@ -466,6 +463,11 @@ namespace ardb
 			if (expire > 0)
 			{
 				uint64_t now = get_current_epoch_micros();
+				if (expire < now)
+				{
+					Del(db, key);
+					return ERR_NOT_EXIST;
+				}
 				uint64_t ttlsus = expire - now;
 				ttl = ttlsus / 1000;
 				if (ttlsus % 1000 >= 500)

@@ -88,7 +88,7 @@ namespace ardb
 			idx++;
 			return true;
 		}
-		//parse as 'numkvs key value [key value ¡­]'
+		//parse as 'numkvs key value [key value ï¿½ï¿½]'
 		i++;
 		for (; i < cmd.size() && len > 0; i += 2, len--)
 		{
@@ -1610,7 +1610,7 @@ namespace ardb
 		KeyObject sck(tableName, TABLE_SCHEMA, db);
 		DelValue(k);
 		DelValue(sck);
-		SetExpiration(db, tableName, 0);
+		SetExpiration(db, tableName, 0, false);
 		return count;
 	}
 	int Ardb::TCount(const DBID& db, const Slice& tableName)

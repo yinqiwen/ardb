@@ -331,7 +331,7 @@ namespace ardb
 		Walk(sk, false, &walk);
 		KeyObject k(key, ZSET_META, db);
 		DelValue(k);
-		SetExpiration(db, key, 0);
+		SetExpiration(db, key, 0, false);
 		return 0;
 	}
 

@@ -199,7 +199,7 @@ namespace ardb
 			int LastDB(DBID& db);
 			int FirstDB(DBID& db);
 			void CheckExpireKey(const DBID& db);
-			int SetExpiration(const DBID& db, const Slice& key, uint64 expire);
+			int SetExpiration(const DBID& db, const Slice& key, uint64 expire, bool check_exists);
 			int GetExpiration(const DBID& db, const Slice& key, uint64& expire);
 
 			int GetValueByPattern(const DBID& db, const Slice& pattern,

@@ -825,7 +825,7 @@ namespace ardb
 		Walk(bk, false, &walk);
 		KeyObject k(key, BITSET_META, db);
 		DelValue(k);
-		SetExpiration(db, key, 0);
+		SetExpiration(db, key, 0, false);
 		return 0;
 	}
 }

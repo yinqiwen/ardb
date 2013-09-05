@@ -185,7 +185,7 @@ namespace ardb
 		} walk(this);
 		BatchWriteGuard guard(GetEngine());
 		Walk( sk, false, &walk);
-		SetExpiration(db, key, 0);
+		SetExpiration(db, key, 0, false);
 		return 0;
 	}
 
