@@ -101,6 +101,7 @@ namespace ardb
 					return;
 				}
 				m_slave_state = SLAVE_STATE_SYNCED;
+				return;
 			}
 		}
 
@@ -375,7 +376,7 @@ namespace ardb
 
 	void Slave::PersistSyncState()
 	{
-		if (m_server_key == "?")
+		if (m_server_key == "?" || m_slave_state != SLAVE_STATE_SYNCED)
 		{
 			return;
 		}

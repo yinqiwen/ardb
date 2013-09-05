@@ -275,7 +275,10 @@ namespace ardb
 		{
 			INFO_LOG("Start init storage engine.");
 			m_engine = m_engine_factory->CreateDB(m_engine_factory->GetName().c_str());
-
+			if (NULL == m_engine)
+			{
+				return false;
+			}
 			KeyObject verkey(Slice(), KEY_END, ARDB_GLOBAL_DB);
 			ValueObject ver;
 			if (0 == GetValue(verkey, &ver))
