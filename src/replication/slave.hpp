@@ -81,6 +81,7 @@ namespace ardb
 
 			void HandleRedisCommand(Channel* ch, RedisCommandFrame& cmd);
 			void HandleRedisReply(Channel* ch, RedisReply& reply);
+			void HandleRedisDumpChunk(Channel* ch, RedisDumpFileChunk& chunk);
 			void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisMessage>& e);
 			//void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisReply>& e);
 			void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e);

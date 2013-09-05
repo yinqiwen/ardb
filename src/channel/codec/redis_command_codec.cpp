@@ -28,6 +28,7 @@
  */
 
 #include "util/buffer_helper.hpp"
+#include "channel/all_includes.hpp"
 #include "redis_command_codec.hpp"
 #include "util/exception/api_exception.hpp"
 

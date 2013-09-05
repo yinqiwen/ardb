@@ -165,6 +165,7 @@ namespace ardb
 						ChannelStateEvent& e)
 				{
 					Cleanup(ctx, e);
+					Clear();
 				}
 				void ExceptionCaught(ChannelHandlerContext& ctx,
 						ExceptionEvent& e)

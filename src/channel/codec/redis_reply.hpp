@@ -42,13 +42,32 @@
 
 #define REDIS_REPLY_DOUBLE 1001
 
-#define CHUNK_FLAG  0x01
+#define FIRST_CHUNK_FLAG  0x01
 #define LAST_CHUNK_FLAG  0x02
 
 namespace ardb
 {
 	namespace codec
 	{
+		struct RedisDumpFileChunk
+		{
+				int64 len;
+				uint32 flag;
+				std::string chunk;
+				RedisDumpFileChunk() :
+						len(0), flag(0)
+				{
+				}
+				bool IsLastChunk()
+				{
+					return (flag & LAST_CHUNK_FLAG) == (LAST_CHUNK_FLAG);
+				}
+				bool IsFirstChunk()
+				{
+					return (flag & FIRST_CHUNK_FLAG) == (FIRST_CHUNK_FLAG);
+				}
+		};
+
 		struct RedisReply
 		{
 				int type;
@@ -74,21 +93,8 @@ namespace ardb
 				{
 				}
 				RedisReply(const std::string& v) :
-						type(REDIS_REPLY_STRING), str(v), integer(0), double_value(
-								0)
+						type(REDIS_REPLY_STRING), str(v), integer(0), double_value(0)
 				{
-				}
-				bool IsChunk()
-				{
-					return (integer & CHUNK_FLAG) == (CHUNK_FLAG);
-				}
-				bool IsLastChunk()
-				{
-					return (integer & LAST_CHUNK_FLAG) == (LAST_CHUNK_FLAG);
-				}
-				size_t AllChunkSize()
-				{
-					return (size_t)(integer >> 32);
 				}
 				void Clear()
 				{

@@ -41,6 +41,10 @@
 #include "redis_reply.hpp"
 #include "redis_command.hpp"
 
+#define REDIS_COMMAND_DECODER_TYPE 1
+#define REDIS_REPLY_DECODER_TYPE 2
+#define REDIS_DUMP_DECODER_TYPE 3
+
 namespace ardb
 {
 	namespace codec
@@ -49,41 +53,64 @@ namespace ardb
 		{
 				RedisReply reply;
 				RedisCommandFrame command;
-				bool isReply;
+				RedisDumpFileChunk chunk;
+				uint8 type;
 				RedisMessage() :
-						isReply(false)
+						type(REDIS_COMMAND_DECODER_TYPE)
 				{
+				}
+				bool IsReply()
+				{
+					return type == REDIS_REPLY_DECODER_TYPE;
+				}
+				bool IsCommand()
+				{
+					return type == REDIS_COMMAND_DECODER_TYPE;
+				}
+				bool IsDumpFile()
+				{
+					return type == REDIS_DUMP_DECODER_TYPE;
 				}
 		};
 
 		class RedisMessageDecoder: public StackFrameDecoder<RedisMessage>
 		{
 			protected:
-				bool m_decode_reply;
+				uint8 m_decoder_type;
 				RedisCommandDecoder m_cmd_decoder;
 				RedisReplyDecoder m_reply_decoder;
+				RedisDumpFileChunkDecoder m_dump_file_decoder;
 				bool Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, RedisMessage& msg)
 				{
-					msg.isReply = m_decode_reply;
-					if (m_decode_reply)
+					msg.type = m_decoder_type;
+					if (msg.IsReply())
 					{
 						return m_reply_decoder.Decode(ctx, channel, buffer, msg.reply);
+					} else if (msg.IsCommand())
+					{
+						return m_cmd_decoder.Decode(ctx, channel, buffer, msg.command);
+					} else
+					{
+						return m_dump_file_decoder.Decode(ctx, channel, buffer, msg.chunk);
 					}
-					return m_cmd_decoder.Decode(ctx, channel, buffer, msg.command);
 				}
 			public:
-				RedisMessageDecoder(bool decode_reply = false, bool allow_chunk= false) :
-						m_decode_reply(decode_reply),m_reply_decoder(allow_chunk)
+				RedisMessageDecoder() :
+						m_decoder_type(REDIS_COMMAND_DECODER_TYPE)
 				{
 				}
 
 				void SwitchToCommandDecoder()
 				{
-					m_decode_reply = false;
+					m_decoder_type = REDIS_COMMAND_DECODER_TYPE;
 				}
 				void SwitchToReplyDecoder()
 				{
-					m_decode_reply = true;
+					m_decoder_type = REDIS_REPLY_DECODER_TYPE;
+				}
+				void SwitchToDumpFileDecoder()
+				{
+					m_decoder_type = REDIS_DUMP_DECODER_TYPE;
 				}
 		};
 	}

@@ -47,7 +47,7 @@ namespace ardb
 {
 	Slave::Slave(ArdbServer* serv) :
 			m_serv(serv), m_client(NULL), m_rest_chunk_len(0), m_slave_state(
-			SLAVE_STATE_CLOSED), m_cron_inited(false), m_ping_recved_time(0),m_decoder(true, true), m_server_type(ARDB_DB_SERVER_TYPE), m_server_support_psync(false), m_server_key("?"), m_sync_offset(-1), m_actx(
+			SLAVE_STATE_CLOSED), m_cron_inited(false), m_ping_recved_time(0), m_server_type(ARDB_DB_SERVER_TYPE), m_server_support_psync(false), m_server_key("?"), m_sync_offset(-1), m_actx(
 			NULL), m_rdb(NULL)
 	{
 	}
@@ -82,7 +82,6 @@ namespace ardb
 	void Slave::HandleRedisCommand(Channel* ch, RedisCommandFrame& cmd)
 	{
 		DEBUG_LOG("Recv master cmd %s", cmd.ToString().c_str());
-		//RedisCommandFrame* cmd = e.GetMessage();
 		int flag = 0;
 		if (m_slave_state == SLAVE_STATE_SYNCED)
 		{
@@ -104,7 +103,7 @@ namespace ardb
 				m_slave_state = SLAVE_STATE_SYNCED;
 			}
 		}
-		DEBUG_LOG("######offset = %lld", m_sync_offset);
+		//DEBUG_LOG("######offset = %lld", m_sync_offset);
 
 		if (!strcasecmp(cmd.GetCommand().c_str(), "PING"))
 		{
@@ -155,7 +154,6 @@ namespace ardb
 	}
 	void Slave::HandleRedisReply(Channel* ch, RedisReply& reply)
 	{
-		//RedisReply* reply = e.GetMessage();
 		switch (m_slave_state)
 		{
 			case SLAVE_STATE_WAITING_INFO_REPLY:
@@ -271,39 +269,8 @@ namespace ardb
 					ch->Close();
 					return;
 				}
-				m_slave_state = SLAVE_STATE_WAITING_FULLSYNC_REPLY;
-				break;
-			}
-			case SLAVE_STATE_WAITING_FULLSYNC_REPLY:
-			case SLAVE_STATE_SYNING_DUMP_DATA:
-			{
-				if (reply.type != REDIS_REPLY_STRING)
-				{
-					ERROR_LOG("Recv error type for sync:%d", reply.type);
-					Close();
-					return;
-				}
-				if (m_slave_state == SLAVE_STATE_WAITING_FULLSYNC_REPLY)
-				{
-					GetNewRedisDumpFile();
-				}
-				if (!reply.str.empty())
-				{
-					m_rdb->Write(reply.str.c_str(), reply.str.size());
-				}
-				if (reply.IsLastChunk() || reply.integer == (int64) reply.str.size())
-				{
-					m_rdb->Flush();
-					m_decoder.SwitchToCommandDecoder();
-					m_slave_state = SLAVE_STATE_LOADING_DUMP_DATA;
-					m_rdb->Load(LoadRDBRoutine, m_client);
-					m_slave_state = SLAVE_STATE_SYNCED;
-					m_rdb->Remove();
-					DELETE(m_rdb);
-				} else
-				{
-					m_slave_state = SLAVE_STATE_SYNING_DUMP_DATA;
-				}
+				m_slave_state = SLAVE_STATE_SYNING_DUMP_DATA;
+				m_decoder.SwitchToDumpFileDecoder();
 
 				break;
 			}
@@ -316,14 +283,44 @@ namespace ardb
 		}
 	}
 
+	void Slave::HandleRedisDumpChunk(Channel* ch, RedisDumpFileChunk& chunk)
+	{
+		if (m_slave_state != SLAVE_STATE_SYNING_DUMP_DATA)
+		{
+			ERROR_LOG("Invalid state:%u to handler redis dump file chunk.", m_slave_state);
+			ch->Close();
+			return;
+		}
+		if (chunk.IsFirstChunk())
+		{
+			GetNewRedisDumpFile();
+		}
+		if (!chunk.chunk.empty())
+		{
+			m_rdb->Write(chunk.chunk.c_str(), chunk.chunk.size());
+		}
+		if (chunk.IsLastChunk())
+		{
+			m_rdb->Flush();
+			m_decoder.SwitchToCommandDecoder();
+			m_slave_state = SLAVE_STATE_LOADING_DUMP_DATA;
+			m_rdb->Load(LoadRDBRoutine, m_client);
+			m_slave_state = SLAVE_STATE_SYNCED;
+			DELETE(m_rdb);
+		}
+	}
+
 	void Slave::MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisMessage>& e)
 	{
-		if(e.GetMessage()->isReply)
+		if (e.GetMessage()->IsReply())
 		{
 			HandleRedisReply(ctx.GetChannel(), e.GetMessage()->reply);
-		}else
+		} else if (e.GetMessage()->IsCommand())
 		{
 			HandleRedisCommand(ctx.GetChannel(), e.GetMessage()->command);
+		} else
+		{
+			HandleRedisDumpChunk(ctx.GetChannel(), e.GetMessage()->chunk);
 		}
 	}
 
@@ -434,7 +431,11 @@ namespace ardb
 		m_master_addr = addr;
 		Close();
 		m_client = m_serv->m_service->NewClientSocketChannel();
-		//SwitchToReplyCodec();
+
+		m_decoder.Clear();
+		m_client->GetPipeline().AddLast("decoder", &m_decoder);
+		m_client->GetPipeline().AddLast("encoder", &m_encoder);
+		m_client->GetPipeline().AddLast("handler", this);
 		m_decoder.SwitchToReplyDecoder();
 		m_slave_state = SLAVE_STATE_CONNECTING;
 		m_client->Connect(&m_master_addr);

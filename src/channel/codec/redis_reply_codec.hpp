@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -29,7 +29,7 @@
 
 #ifndef REDIS_REPLY_CODEC_HPP_
 #define REDIS_REPLY_CODEC_HPP_
-//#include "channel/all_includes.hpp"
+#include "channel/codec/stack_frame_decoder.hpp"
 #include <deque>
 #include <string>
 #include "redis_reply.hpp"
@@ -42,21 +42,28 @@ namespace ardb
 		class RedisReplyDecoder: public StackFrameDecoder<RedisReply>
 		{
 			protected:
-				uint32 m_waiting_chunk_len;
-				uint32 m_all_chunk_len;
-				bool m_allow_chunk;
-				bool Decode(ChannelHandlerContext& ctx, Channel* channel,
-						Buffer& buffer, RedisReply& msg);
-				friend  class RedisMessageDecoder;
+				bool Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, RedisReply& msg);
+				friend class RedisMessageDecoder;
 			public:
-				RedisReplyDecoder(bool allow_chunk= false);
+				RedisReplyDecoder();
+		};
+
+		class RedisDumpFileChunkDecoder: public StackFrameDecoder<RedisDumpFileChunk>
+		{
+			protected:
+				int64 m_waiting_chunk_len;
+				int64 m_all_chunk_len;
+				bool Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, RedisDumpFileChunk& msg);
+				friend class RedisMessageDecoder;
+				RedisDumpFileChunkDecoder() :m_waiting_chunk_len(0),m_all_chunk_len(0)
+				{
+				}
 		};
 
 		class RedisReplyEncoder: public ChannelDownstreamHandler<RedisReply>
 		{
 			private:
-				bool WriteRequested(ChannelHandlerContext& ctx,
-						MessageEvent<RedisReply>& e);
+				bool WriteRequested(ChannelHandlerContext& ctx, MessageEvent<RedisReply>& e);
 			public:
 				static bool Encode(Buffer& buf, RedisReply& reply);
 		};
@@ -64,8 +71,7 @@ namespace ardb
 		class NullRedisReplyEncoder: public ChannelDownstreamHandler<RedisReply>
 		{
 			private:
-				bool WriteRequested(ChannelHandlerContext& ctx,
-						MessageEvent<RedisReply>& e)
+				bool WriteRequested(ChannelHandlerContext& ctx, MessageEvent<RedisReply>& e)
 				{
 					return true;
 				}
