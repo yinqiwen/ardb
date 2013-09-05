@@ -129,6 +129,7 @@ namespace ardb
 					uint32 ref;
 					uint32 count;
 					const leveldb::Snapshot* snapshot;
+					uint32 snapshot_ref;
 
 					void ReleaseRef()
 					{
@@ -151,7 +152,7 @@ namespace ardb
 					void Put(const Slice& key, const Slice& value);
 					void Del(const Slice& key);
 					ContextHolder() :
-							ref(0), count(0), snapshot(NULL)
+							ref(0), count(0), snapshot(NULL),snapshot_ref(0)
 					{
 					}
 			};

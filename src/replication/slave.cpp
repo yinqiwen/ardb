@@ -172,11 +172,7 @@ namespace ardb
 					size_t end = reply.str.find("\n", start);
 					std::string v = reply.str.substr(start + strlen(redis_ver_key), end - start - strlen(redis_ver_key));
 					v = trim_string(v);
-
-					if (compare_version<3>(v, "2.8.0") >= 0)
-					{
-						m_server_support_psync = true;
-					}
+					m_server_support_psync = (compare_version<3>(v, "2.8.0") >= 0);
 					INFO_LOG("[Slave]Remote master is a Redis %s instance, support partial sync:%u", v.c_str(), m_server_support_psync);
 
 				} else
@@ -229,7 +225,8 @@ namespace ardb
 					Buffer sync;
 					sync.Printf("sync\r\n");
 					ch->Write(sync);
-					m_slave_state = SLAVE_STATE_WAITING_FULLSYNC_REPLY;
+					m_slave_state = SLAVE_STATE_SYNING_DUMP_DATA;
+					m_decoder.SwitchToDumpFileDecoder();
 				}
 				break;
 			}
@@ -271,7 +268,6 @@ namespace ardb
 				}
 				m_slave_state = SLAVE_STATE_SYNING_DUMP_DATA;
 				m_decoder.SwitchToDumpFileDecoder();
-
 				break;
 			}
 			default:

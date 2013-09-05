@@ -374,7 +374,11 @@ namespace ardb
 		leveldb::ReadOptions options;
 		options.fill_cache = cache;
 		ContextHolder& holder = m_context.GetValue();
-		holder.snapshot = m_db->GetSnapshot();
+		if(NULL == holder.snapshot)
+		{
+			holder.snapshot = m_db->GetSnapshot();
+		}
+		holder.snapshot_ref++;
 		options.snapshot = holder.snapshot;
 		leveldb::Iterator* iter = m_db->NewIterator(options);
 		iter->Seek(LEVELDB_SLICE(findkey));
@@ -386,8 +390,12 @@ namespace ardb
 		ContextHolder& holder = m_context.GetValue();
 		if(NULL != holder.snapshot)
 		{
-			m_db->ReleaseSnapshot(holder.snapshot);
-			holder.snapshot = NULL;
+			holder.snapshot_ref--;
+			if(holder.snapshot_ref == 0)
+			{
+				m_db->ReleaseSnapshot(holder.snapshot);
+				holder.snapshot = NULL;
+			}
 		}
 	}
 

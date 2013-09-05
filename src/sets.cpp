@@ -31,15 +31,13 @@
 
 namespace ardb
 {
-    static bool DecodeSetMetaData(ValueObject& v, SetMetaValue& meta)
+	static bool DecodeSetMetaData(ValueObject& v, SetMetaValue& meta)
 	{
 		if (v.type != RAW)
 		{
 			return false;
 		}
-		return BufferHelper::ReadVarUInt32(*(v.v.raw), meta.size)
-				&& decode_value(*(v.v.raw), meta.min)
-				&& decode_value(*(v.v.raw), meta.max);
+		return BufferHelper::ReadVarUInt32(*(v.v.raw), meta.size) && decode_value(*(v.v.raw), meta.min) && decode_value(*(v.v.raw), meta.max);
 	}
 	static void EncodeSetMetaData(ValueObject& v, SetMetaValue& meta)
 	{
@@ -53,8 +51,7 @@ namespace ardb
 		encode_value(*(v.v.raw), meta.max);
 	}
 
-	int Ardb::GetSetMetaValue(const DBID& db, const Slice& key,
-			SetMetaValue& meta)
+	int Ardb::GetSetMetaValue(const DBID& db, const Slice& key, SetMetaValue& meta)
 	{
 		KeyObject k(key, SET_META, db);
 		//SetKeyObject k(key, Slice());
@@ -69,8 +66,7 @@ namespace ardb
 		}
 		return ERR_NOT_EXIST;
 	}
-	void Ardb::SetSetMetaValue(const DBID& db, const Slice& key,
-			SetMetaValue& meta)
+	void Ardb::SetSetMetaValue(const DBID& db, const Slice& key, SetMetaValue& meta)
 	{
 		KeyObject k(key, SET_META, db);
 		//SetKeyObject k(key, Slice());
@@ -202,7 +198,14 @@ namespace ardb
 		}
 		if (count > 0)
 		{
-			SetSetMetaValue(db, key, meta);
+			if (meta.size == 0)
+			{
+				KeyObject k(key, SET_META, db);
+				DelValue(k);
+			} else
+			{
+				SetSetMetaValue(db, key, meta);
+			}
 		}
 		return count;
 	}
@@ -221,15 +224,20 @@ namespace ardb
 			meta.size--;
 			BatchWriteGuard guard(GetEngine());
 			DelValue(sk);
-			SetSetMetaValue(db, key, meta);
+			if (meta.size == 0)
+			{
+				KeyObject k(key, SET_META, db);
+				DelValue(k);
+			} else
+			{
+				SetSetMetaValue(db, key, meta);
+			}
 			return 1;
 		}
 		return 0;
 	}
 
-	int Ardb::SRevRange(const DBID& db, const Slice& key,
-			const Slice& value_end, int count, bool with_end,
-			ValueArray& values)
+	int Ardb::SRevRange(const DBID& db, const Slice& key, const Slice& value_end, int count, bool with_end, ValueArray& values)
 	{
 		if (count == 0)
 		{
@@ -244,7 +252,8 @@ namespace ardb
 		if (!strcasecmp(value_end.data(), "+inf"))
 		{
 			firstObj = meta.max;
-		}else{
+		} else
+		{
 			smart_fill_value(value_end, firstObj);
 		}
 		SetKeyObject sk(key, firstObj, db);
@@ -259,7 +268,8 @@ namespace ardb
 					SetKeyObject* sek = (SetKeyObject*) k;
 					if (0 == cursor)
 					{
-						if (!with_first){
+						if (!with_first)
+						{
 							if (first.Compare(sek->value) == 0)
 							{
 								return 0;
@@ -273,7 +283,7 @@ namespace ardb
 					}
 					return 0;
 				}
-				SGetWalk(ValueArray& vs, int count,ValueObject& s, bool with) :
+				SGetWalk(ValueArray& vs, int count, ValueObject& s, bool with) :
 						z_values(vs), first(s), with_first(with), l(count)
 				{
 				}
@@ -282,8 +292,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::SRange(const DBID& db, const Slice& key, const Slice& value_begin,
-			int count, bool with_begin, ValueArray& values)
+	int Ardb::SRange(const DBID& db, const Slice& key, const Slice& value_begin, int count, bool with_begin, ValueArray& values)
 	{
 		if (count == 0)
 		{
@@ -298,7 +307,8 @@ namespace ardb
 		if (!strcasecmp(value_begin.data(), "-inf"))
 		{
 			firstObj = meta.min;
-		}else{
+		} else
+		{
 			smart_fill_value(value_begin, firstObj);
 		}
 		SetKeyObject sk(key, firstObj, db);
@@ -444,8 +454,7 @@ namespace ardb
 						{
 							return -1;
 						}
-						if (vlimit.type != EMPTY
-								&& sek->value.Compare(vlimit) > 0)
+						if (vlimit.type != EMPTY && sek->value.Compare(vlimit) > 0)
 						{
 							return -1;
 						}
@@ -589,8 +598,7 @@ namespace ardb
 				const ValueObject& s_max;
 				const ValueObject* current_min;
 				const ValueObject* current_max;
-				SInterWalk(ValueSet& cmp, ValueSet& result,
-						const ValueObject& min, const ValueObject& max) :
+				SInterWalk(ValueSet& cmp, ValueSet& result, const ValueObject& min, const ValueObject& max) :
 						z_cmp(cmp), z_result(result), s_min(min), s_max(max), current_min(
 						NULL), current_max(NULL)
 				{
@@ -610,8 +618,7 @@ namespace ardb
 					{
 						return 0;
 					}
-					std::pair<ValueSet::iterator, bool> iter = z_result.insert(
-							sk->value);
+					std::pair<ValueSet::iterator, bool> iter = z_result.insert(sk->value);
 					if (NULL == current_min)
 					{
 						current_min = &(*(iter.first));
@@ -637,13 +644,11 @@ namespace ardb
 				ValueSet* old = cmp;
 				cmp = result;
 				result = old;
-				if (NULL != walk.current_min
-						&& min.Compare(*walk.current_min) < 0)
+				if (NULL != walk.current_min && min.Compare(*walk.current_min) < 0)
 				{
 					min = *walk.current_min;
 				}
-				if (NULL != walk.current_max
-						&& max.Compare(*walk.current_max) > 0)
+				if (NULL != walk.current_max && max.Compare(*walk.current_max) > 0)
 				{
 					max = *walk.current_max;
 				}
@@ -698,8 +703,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::SMove(const DBID& db, const Slice& src, const Slice& dst,
-			const Slice& value)
+	int Ardb::SMove(const DBID& db, const Slice& src, const Slice& dst, const Slice& value)
 	{
 		SetKeyObject sk(src, value, db);
 		ValueObject sv;
@@ -758,8 +762,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::SRandMember(const DBID& db, const Slice& key, ValueArray& values,
-			int count)
+	int Ardb::SRandMember(const DBID& db, const Slice& key, ValueArray& values, int count)
 	{
 		Slice empty;
 		SetKeyObject sk(key, empty, db);
