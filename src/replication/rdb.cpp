@@ -737,6 +737,7 @@ namespace ardb
 				ERROR_LOG("Failed to read current key.");
 				goto eoferr;
 			}
+			m_db->Del(m_current_db, key);
 			if (!LoadObject(type, key))
 			{
 				ERROR_LOG("Failed to load object:%d", type);

@@ -103,7 +103,6 @@ namespace ardb
 				m_slave_state = SLAVE_STATE_SYNCED;
 			}
 		}
-		//DEBUG_LOG("######offset = %lld", m_sync_offset);
 
 		if (!strcasecmp(cmd.GetCommand().c_str(), "PING"))
 		{
@@ -116,11 +115,12 @@ namespace ardb
 		}
 		m_actx->is_slave_conn = true;
 		m_actx->conn = ch;
-		if (strcasecmp(cmd.GetCommand().c_str(), "SELECT") && strcasecmp(cmd.GetCommand().c_str(), "__SET__") && strcasecmp(cmd.GetCommand().c_str(), "__DEL__"))
+		if (strcasecmp(cmd.GetCommand().c_str(), "SELECT")
+				&& strcasecmp(cmd.GetCommand().c_str(), "__SET__")
+				&& strcasecmp(cmd.GetCommand().c_str(), "__DEL__"))
 		{
-			if (m_sync_dbs.count(m_actx->currentDB) == 0)
+			if (!m_sync_dbs.empty() && m_sync_dbs.count(m_actx->currentDB) == 0)
 			{
-				//discard
 				return;
 			}
 		}
@@ -306,6 +306,7 @@ namespace ardb
 			m_slave_state = SLAVE_STATE_LOADING_DUMP_DATA;
 			m_rdb->Load(LoadRDBRoutine, m_client);
 			m_slave_state = SLAVE_STATE_SYNCED;
+			m_rdb->Remove();
 			DELETE(m_rdb);
 		}
 	}
