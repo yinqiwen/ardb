@@ -152,6 +152,11 @@ namespace ardb
 					conn->state = SLAVE_STATE_CONNECTED;
 					m_slave_table[conn->conn->GetID()] = conn;
 					conn->conn->ClearPipeline();
+					{
+						LockGuard<ThreadMutex> guard(m_port_table_mutex);
+						conn->port = m_slave_port_table[conn->conn->GetID()];
+					}
+
 					ChannelOptions options;
 					options.auto_disable_writing = false;
 					conn->conn->Configure(options);
@@ -373,6 +378,8 @@ namespace ardb
 			DELETE(found->second);
 			m_slave_table.erase(found);
 		}
+		LockGuard<ThreadMutex> guard(m_port_table_mutex);
+		m_slave_port_table.erase(conn_id);
 	}
 	void Master::ChannelWritable(ChannelHandlerContext& ctx, ChannelStateEvent& e)
 	{
@@ -406,7 +413,25 @@ namespace ardb
 	}
 	void Master::MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e)
 	{
-		DEBUG_LOG("Master recv cmd from slave:%s", e.GetMessage()->ToString().c_str());
+		RedisCommandFrame* cmd = e.GetMessage();
+		DEBUG_LOG("Master recv cmd from slave:%s", cmd->ToString().c_str());
+		if (!strcasecmp(cmd->GetCommand().c_str(), "replconf"))
+		{
+			if (cmd->GetArguments().size() == 2 && !strcasecmp(cmd->GetArguments()[0].c_str(), "ack"))
+			{
+				int64 offset;
+				if (string_toint64(cmd->GetArguments()[1], offset))
+				{
+					SlaveConnTable::iterator found = m_slave_table.find(ctx.GetChannel()->GetID());
+					if (found != m_slave_table.end())
+					{
+						SlaveConnection* slave = found->second;
+						slave->acktime = time(NULL);
+						slave->sync_offset = offset;
+					}
+				}
+			}
+		}
 	}
 
 	void Master::OfferReplInstruction(ReplicationInstruction& inst)
@@ -496,6 +521,70 @@ namespace ardb
 	size_t Master::ConnectedSlaves()
 	{
 		return m_slave_table.size();
+	}
+
+	void Master::PrintSlaves(std::string& str)
+	{
+		uint32 i = 0;
+		char buffer[1024];
+		SlaveConnTable::iterator it = m_slave_table.begin();
+		while (it != m_slave_table.end())
+		{
+			const char* state = "ok";
+			SlaveConnection* slave = it->second;
+			switch (slave->state)
+			{
+				case SLAVE_STATE_WAITING_DUMP_DATA:
+				{
+					state = "wait_bgsave";
+					break;
+				}
+				case SLAVE_STATE_SYNING_DUMP_DATA:
+				{
+					state = "send_bulk";
+					break;
+				}
+				case SLAVE_STATE_SYNING_CACHE_DATA:
+				case SLAVE_STATE_SYNCED:
+				{
+					state = "online";
+					break;
+				}
+				default:
+				{
+					state = "invalid state";
+					break;
+				}
+			}
+			Address* remote = const_cast<Address*>(slave->conn->GetRemoteAddress());
+			std::string address;
+			if (InstanceOf<SocketUnixAddress>(remote).OK)
+			{
+				SocketUnixAddress* un = (SocketUnixAddress*) remote;
+				address = "unix_socket=";
+				address += un->GetPath();
+
+			} else if (InstanceOf<SocketHostAddress>(remote).OK)
+			{
+				SocketHostAddress* un = (SocketHostAddress*) remote;
+				address = "ip=";
+				address += un->GetHost();
+				address += ",port=";
+				address += stringfromll(slave->port);
+			}
+			uint32 lag = time(NULL) - slave->acktime;
+			sprintf(buffer, "slave%u:%s,state=%s,"
+					"offset=%lld,lag=%u\r\n", i, address.c_str(), state, slave->sync_offset, lag);
+			it++;
+			i++;
+			str.append(buffer);
+		}
+	}
+
+	void Master::AddSlavePort(Channel* slave, uint32 port)
+	{
+		LockGuard<ThreadMutex> guard(m_port_table_mutex);
+		m_slave_port_table[slave->GetID()] = port;
 	}
 
 	Master::~Master()

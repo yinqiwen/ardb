@@ -700,11 +700,20 @@ namespace ardb
 				info.append("role: singleton\r\n");
 			}
 
+			if (!m_cfg.master_host.empty())
+			{
+				info.append("master_host:").append(m_cfg.master_host).append("\r\n");
+				info.append("master_port:").append(stringfromll(m_cfg.master_port)).append("\r\n");
+				info.append("master_link_status:").append(m_slave_client.IsMasterConnected() ? "up" : "down").append("\r\n");
+				info.append("slave_repl_offset:").append(stringfromll(m_slave_client.SyncOffset())).append("\r\n");
+			}
+
 			info.append("connected_slaves: ").append(stringfromll(m_master_serv.ConnectedSlaves())).append("\r\n");
+			m_master_serv.PrintSlaves(info);
 			info.append("master_repl_offset: ").append(stringfromll(m_master_serv.GetReplBacklog().GetReplEndOffset())).append("\r\n");
 			info.append("repl_backlog_size: ").append(stringfromll(m_master_serv.GetReplBacklog().GetBacklogSize())).append("\r\n");
 			info.append("repl_backlog_first_byte_offset: ").append(stringfromll(m_master_serv.GetReplBacklog().GetReplStartOffset())).append("\r\n");
-			info.append("repl_backlog_histlen: ").append(stringfromll(1)).append("\r\n");
+			info.append("repl_backlog_histlen: ").append(stringfromll(m_master_serv.GetReplBacklog().GetHistLen())).append("\r\n");
 		}
 
 		if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "stats"))
@@ -1603,7 +1612,7 @@ namespace ardb
 
 	int ArdbServer::ReplConf(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
-		DEBUG_LOG("%s %s", cmd.GetArguments()[0].c_str(), cmd.GetArguments()[1].c_str());
+		//DEBUG_LOG("%s %s", cmd.GetArguments()[0].c_str(), cmd.GetArguments()[1].c_str());
 		if (cmd.GetArguments().size() % 2 != 0)
 		{
 			fill_error_reply(ctx.reply, "ERR wrong number of arguments for ReplConf");
@@ -1627,6 +1636,7 @@ namespace ardb
 						return -1;
 					}
 				}
+				m_master_serv.AddSlavePort(ctx.conn, port);
 			}
 		}
 		fill_status_reply(ctx.reply, "OK");

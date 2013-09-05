@@ -106,6 +106,11 @@ namespace ardb
 			int ConnectMaster(const std::string& host, uint32 port);
 			void Close();
 			void Stop();
+			bool IsMasterConnected();
+			int64 SyncOffset()
+			{
+				return m_sync_offset;
+			}
 	};
 }
 

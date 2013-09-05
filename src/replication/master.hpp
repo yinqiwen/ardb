@@ -39,6 +39,8 @@
 
 #include "channel/all_includes.hpp"
 #include "util/thread/thread.hpp"
+#include "util/thread/thread_mutex.hpp"
+#include "util/thread/lock_guard.hpp"
 #include "util/concurrent_queue.hpp"
 #include "ardb.hpp"
 #include "repl.hpp"
@@ -66,23 +68,21 @@ namespace ardb
 			Channel* conn;
 			std::string server_key;
 			int64 sync_offset;
-			uint64 acktime;
+			uint32 acktime;
+			uint32 port;
 			int repldbfd;
 			bool isRedisSlave;
 			uint8 state;
 
 			DBIDSet syncdbs;
 			SlaveConnection() :
-					conn(NULL), sync_offset(0), acktime(0), repldbfd(-1), isRedisSlave(
-							false), state(0)
+					conn(NULL), sync_offset(0), acktime(0), port(0), repldbfd(-1), isRedisSlave(false), state(0)
 			{
 			}
 	};
 
 	class ArdbServer;
-	class Master: public Runnable,
-			public SoftSignalHandler,
-			public ChannelUpstreamHandler<RedisCommandFrame>
+	class Master: public Runnable, public SoftSignalHandler, public ChannelUpstreamHandler<RedisCommandFrame>
 	{
 		private:
 			ChannelService m_channel_service;
@@ -90,7 +90,10 @@ namespace ardb
 			SoftSignalChannel* m_notify_channel;
 			MPSCQueue<ReplicationInstruction> m_inst_queue;
 			typedef std::map<uint32, SlaveConnection*> SlaveConnTable;
+			typedef std::map<uint32, uint32> SlavePortTable;
 			SlaveConnTable m_slave_table;
+			SlavePortTable m_slave_port_table;
+			ThreadMutex m_port_table_mutex;
 
 			ReplBacklog m_backlog;
 			bool m_dumping_db;
@@ -109,12 +112,9 @@ namespace ardb
 			void FullResyncArdbSlave(SlaveConnection& slave);
 			void SyncSlave(SlaveConnection& slave);
 
-			void ChannelClosed(ChannelHandlerContext& ctx,
-					ChannelStateEvent& e);
-			void ChannelWritable(ChannelHandlerContext& ctx,
-					ChannelStateEvent& e);
-			void MessageReceived(ChannelHandlerContext& ctx,
-					MessageEvent<RedisCommandFrame>& e);
+			void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e);
+			void ChannelWritable(ChannelHandlerContext& ctx, ChannelStateEvent& e);
+			void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e);
 			void OnSoftSignal(uint32 soft_signo, uint32 appendinfo);
 			void OfferReplInstruction(ReplicationInstruction& inst);
 			void WriteCmdToSlaves(RedisCommandFrame& cmd);
@@ -123,6 +123,7 @@ namespace ardb
 			Master(ArdbServer* server);
 			int Init();
 			void AddSlave(Channel* slave, RedisCommandFrame& cmd);
+			void AddSlavePort(Channel* slave, uint32 port);
 			void FeedSlaves(const DBID& dbid, RedisCommandFrame& cmd);
 			void SendDumpToSlave(SlaveConnection& slave);
 			void SendCacheToSlave(SlaveConnection& slave);
@@ -132,6 +133,7 @@ namespace ardb
 			{
 				return m_backlog;
 			}
+			void PrintSlaves(std::string& str);
 			~Master();
 	};
 }

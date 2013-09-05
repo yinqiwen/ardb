@@ -233,7 +233,6 @@ bool RedisReplyDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel, Buf
 
 bool RedisDumpFileChunkDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, RedisDumpFileChunk& msg)
 {
-	uint32 mark = buffer.GetReadIndex();
 	if (m_waiting_chunk_len == 0)
 	{
 		int crlf_index = -1;
