@@ -195,7 +195,7 @@ namespace ardb
 		{
 			return true;
 		}
-		if (offset < 0 || (uint64) offset > m_end_offset
+		if (offset < 0 || (uint64) offset > m_end_offset + 1
 		        || (uint64) offset < m_begin_offset)
 		{
 			INFO_LOG(

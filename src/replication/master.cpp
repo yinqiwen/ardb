@@ -104,9 +104,6 @@ namespace ardb
 			{
 				buffer.SetReadIndex(0);
 				it->second->conn->Write(buffer);
-			} else
-			{
-				DEBUG_LOG("######State = %d  offset=%lld  endoffset=%lld", it->second->state, it->second->sync_offset, m_backlog.GetReplEndOffset());
 			}
 		}
 	}
@@ -233,7 +230,7 @@ namespace ardb
 
 	void Master::FullResyncRedisSlave(SlaveConnection& slave)
 	{
-		std::string dump_file_path = m_server->m_cfg.home + "/repl/dump.rdb";
+		std::string dump_file_path = m_server->m_cfg.repl_data_dir + "/dump.rdb";
 		slave.state = SLAVE_STATE_WAITING_DUMP_DATA;
 		if (m_dumping_db)
 		{
@@ -297,7 +294,7 @@ namespace ardb
 	{
 		INFO_LOG("[REPL]Send dump file to slave");
 		slave.state = SLAVE_STATE_SYNING_DUMP_DATA;
-		std::string dump_file_path = m_server->m_cfg.home + "/repl/dump.rdb";
+		std::string dump_file_path = m_server->m_cfg.repl_data_dir + "/dump.rdb";
 		SendFileSetting setting;
 		setting.fd = open(dump_file_path.c_str(), O_RDONLY);
 		if (-1 == setting.fd)
@@ -389,8 +386,6 @@ namespace ardb
 				if ((uint64) slave->sync_offset >= m_backlog.GetReplEndOffset())
 				{
 					slave->state = SLAVE_STATE_SYNCED;
-					//slave->conn->DisableWriting();
-					DEBUG_LOG("###Slavechange state to synced.");
 					ChannelOptions options;
 					options.auto_disable_writing = true;
 					slave->conn->Configure(options);
@@ -411,7 +406,7 @@ namespace ardb
 	}
 	void Master::MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e)
 	{
-		DEBUG_LOG("Master recv cmd:%s", e.GetMessage()->ToString().c_str());
+		DEBUG_LOG("Master recv cmd from slave:%s", e.GetMessage()->ToString().c_str());
 	}
 
 	void Master::OfferReplInstruction(ReplicationInstruction& inst)
