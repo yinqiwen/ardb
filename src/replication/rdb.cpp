@@ -1557,7 +1557,6 @@ namespace ardb
 			/* Handle SELECT DB opcode as a special case */
 			if (type == ARDB_RDB_TYPE_CHUNK)
 			{
-				 DEBUG_LOG("@@Type:%d###", type);
 				RETURN_NEGATIVE_EXPR(ReadLen(len));
 				char* newbuf = NULL;
 				NEW(newbuf, char[len]);
