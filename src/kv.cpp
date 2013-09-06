@@ -606,6 +606,10 @@ namespace ardb
 					{
 						ret.insert(key);
 					}
+					if(ret.size() > 10000)
+					{
+						break;
+					}
 					DELETE(kk);
 				}
 				iter->Next();

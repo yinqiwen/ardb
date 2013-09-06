@@ -266,6 +266,7 @@ namespace ardb
 			{ "info", REDIS_CMD_INFO, &ArdbServer::Info, 0, 1, "r", 0 },
 			{ "save", REDIS_CMD_SAVE, &ArdbServer::Save, 0, 0, "ars", 0 },
 			{ "bgsave", REDIS_CMD_BGSAVE, &ArdbServer::BGSave, 0, 0, "ar", 0 },
+			{ "import", REDIS_CMD_IMPORT, &ArdbServer::Import, 0, 1, "ars", 0 },
 			{ "lastsave", REDIS_CMD_LASTSAVE, &ArdbServer::LastSave, 0, 0, "r", 0 },
 			{ "slowlog", REDIS_CMD_SLOWLOG, &ArdbServer::SlowLog, 1, 2, "r", 0 },
 			{ "dbsize", REDIS_CMD_DBSIZE, &ArdbServer::DBSize, 0, 0, "r", 0 },
@@ -620,6 +621,12 @@ namespace ardb
 		return 0;
 	}
 
+	static void RDBSaveLoadRoutine(void* cb)
+	{
+		Channel* client = (Channel*) cb;
+		client->GetService().Continue();
+	}
+
 	int ArdbServer::Save(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
 		char tmp[1024];
@@ -630,7 +637,7 @@ namespace ardb
 			fill_error_reply(ctx.reply, "ERR Save error");
 			return 0;
 		}
-		int ret = m_rdb.Save(NULL, NULL);
+		int ret = m_rdb.Save(RDBSaveLoadRoutine, ctx.conn);
 		if (ret == 0)
 		{
 			fill_status_reply(ctx.reply, "OK");
@@ -665,6 +672,29 @@ namespace ardb
 		} else
 		{
 			fill_error_reply(ctx.reply, "ERR Save error");
+		}
+		return 0;
+	}
+
+	int ArdbServer::Import(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+	{
+		std::string file = m_cfg.backup_dir + "/dump.ardb";
+		if (cmd.GetArguments().size() == 1)
+		{
+			file = cmd.GetArguments()[0];
+		}
+		if (m_rdb.OpenReadFile(file) == -1)
+		{
+			fill_error_reply(ctx.reply, "ERR Import error");
+			return 0;
+		}
+		int ret = m_rdb.Load(RDBSaveLoadRoutine, ctx.conn);
+		if (ret == 0)
+		{
+			fill_status_reply(ctx.reply, "OK");
+		} else
+		{
+			fill_error_reply(ctx.reply, "ERR Import error");
 		}
 		return 0;
 	}

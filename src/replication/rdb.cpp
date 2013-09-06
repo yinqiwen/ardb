@@ -1308,7 +1308,7 @@ namespace ardb
 	{
 		char magic[10];
 		snprintf(magic, sizeof(magic), "ARDB%04d", ARDB_RDB_VERSION);
-		return Write(magic, 9);
+		return Write(magic, 8);
 	}
 
 	int ArdbDumpFile::WriteType(uint8 type)
@@ -1372,8 +1372,7 @@ namespace ardb
 				RETURN_NEGATIVE_EXPR(WriteType(ARDB_RDB_TYPE_SNAPPY_CHUNK));
 				uint32 rawlen = m_write_buffer.ReadableBytes();
 				RETURN_NEGATIVE_EXPR(WriteLen(rawlen));
-				uint32 compressed_len = m_write_buffer.ReadableBytes();
-				RETURN_NEGATIVE_EXPR(WriteLen(compressed_len));
+				RETURN_NEGATIVE_EXPR(WriteLen(compressed.size()));
 				RETURN_NEGATIVE_EXPR(Write(compressed.data(), compressed.size()));
 			}
 			m_write_buffer.Clear();
@@ -1538,7 +1537,7 @@ namespace ardb
 			WARN_LOG("Wrong signature trying to load DB from file:%s", buf);
 			return -1;
 		}
-		rdbver = atoi(buf + 5);
+		rdbver = atoi(buf + 4);
 		if (rdbver < 1 || rdbver > REDIS_RDB_VERSION)
 		{
 			WARN_LOG("Can't handle RDB format version %d", rdbver);
@@ -1558,7 +1557,7 @@ namespace ardb
 			/* Handle SELECT DB opcode as a special case */
 			if (type == ARDB_RDB_TYPE_CHUNK)
 			{
-
+				 DEBUG_LOG("@@Type:%d###", type);
 				RETURN_NEGATIVE_EXPR(ReadLen(len));
 				char* newbuf = NULL;
 				NEW(newbuf, char[len]);

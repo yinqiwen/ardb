@@ -361,6 +361,7 @@ namespace ardb
 			int Save(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int LastSave(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int BGSave(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int Import(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int Info(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int DBSize(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int Config(ArdbConnContext& ctx, RedisCommandFrame& cmd);
