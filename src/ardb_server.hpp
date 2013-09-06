@@ -38,7 +38,6 @@
 #include "ardb.hpp"
 #include "replication/slave.hpp"
 #include "replication/master.hpp"
-#include "replication/backup.hpp"
 #include "lua_scripting.hpp"
 
 /* Command flags. Please check the command table defined in the redis.c file
@@ -324,7 +323,7 @@ namespace ardb
 			ClientConnHolder m_clients_holder;
 			Master m_master_serv;
 			Slave m_slave_client;
-			Backup m_backup;
+			ArdbDumpFile m_rdb;
 
 			WatchKeyContextTable m_watch_context_table;
 			ThreadMutex m_watch_mutex;

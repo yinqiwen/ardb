@@ -172,6 +172,7 @@ namespace ardb
 		conf_get_string(props, "backup-dir", cfg.backup_dir);
 		conf_get_string(props, "repl-dir", cfg.repl_data_dir);
 		make_dir(cfg.repl_data_dir);
+		make_dir(cfg.backup_dir);
 		cfg.repl_data_dir = real_path(cfg.repl_data_dir);
 
 		conf_get_string(props, "loglevel", cfg.loglevel);
@@ -247,7 +248,7 @@ namespace ardb
 	}
 
 	ArdbServer::ArdbServer(KeyValueEngineFactory& engine) :
-			m_service(NULL), m_db(NULL), m_engine(engine), m_slowlog_handler(m_cfg), m_master_serv(this), m_slave_client(this), m_backup(this), m_watch_mutex(PTHREAD_MUTEX_RECURSIVE)
+			m_service(NULL), m_db(NULL), m_engine(engine), m_slowlog_handler(m_cfg), m_master_serv(this), m_slave_client(this), m_watch_mutex(PTHREAD_MUTEX_RECURSIVE)
 	{
 		struct RedisCommandHandlerSetting settingTable[] =
 		{
@@ -621,7 +622,15 @@ namespace ardb
 
 	int ArdbServer::Save(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
-		int ret = m_backup.Save();
+		char tmp[1024];
+		uint32 now = time(NULL);
+		sprintf(tmp, "%s/dump-%u.ardb", m_cfg.backup_dir.c_str(), now);
+		if (m_rdb.OpenWriteFile(tmp) == -1)
+		{
+			fill_error_reply(ctx.reply, "ERR Save error");
+			return 0;
+		}
+		int ret = m_rdb.Save(NULL, NULL);
 		if (ret == 0)
 		{
 			fill_status_reply(ctx.reply, "OK");
@@ -634,14 +643,22 @@ namespace ardb
 
 	int ArdbServer::LastSave(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
-		int ret = m_backup.LastSave();
+		int ret = m_rdb.LastSave();
 		fill_int_reply(ctx.reply, ret);
 		return 0;
 	}
 
 	int ArdbServer::BGSave(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
-		int ret = m_backup.BGSave();
+		char tmp[1024];
+		uint32 now = time(NULL);
+		sprintf(tmp, "%s/dump-%u.ardb", m_cfg.backup_dir.c_str(), now);
+		if (m_rdb.OpenWriteFile(tmp) == -1)
+		{
+			fill_error_reply(ctx.reply, "ERR Save error");
+			return 0;
+		}
+		int ret = m_rdb.BGSave();
 		if (ret == 0)
 		{
 			fill_status_reply(ctx.reply, "OK");
@@ -3043,6 +3060,7 @@ namespace ardb
 		}
 		ArdbLogger::InitDefaultLogger(m_cfg.loglevel, m_cfg.logfile);
 
+		m_rdb.Init(m_db);
 		if (m_cfg.repl_backlog_size > 0)
 		{
 			if (0 != m_master_serv.Init())

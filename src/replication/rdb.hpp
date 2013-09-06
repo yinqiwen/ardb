@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  *
@@ -37,6 +37,7 @@
 #define RDB_HPP_
 #include <string>
 #include "common.hpp"
+#include "util/buffer_helper.hpp"
 #include "ardb.hpp"
 
 namespace ardb
@@ -78,7 +79,7 @@ namespace ardb
 			int WriteMillisecondTime(uint64 ts);
 			int WriteDouble(double v);
 			int WriteLongLongAsStringObject(long long value);
-			int WriteRawString( const char *s, size_t len);
+			int WriteRawString(const char *s, size_t len);
 			int WriteLzfStringObject(const char *s, size_t len);
 			int WriteTime(time_t t);
 			int WriteStringObject(ValueObject* o);
@@ -87,9 +88,49 @@ namespace ardb
 			int Load(DumpRoutine* cb, void *data);
 			void Flush();
 			int Write(const void* buf, size_t buflen);
-            int Dump(DumpRoutine* cb, void *data);
-            void Remove();
+			int Dump(DumpRoutine* cb, void *data);
+			void Remove();
 			~RedisDumpFile();
+	};
+
+	class ArdbDumpFile
+	{
+		private:
+			FILE* m_read_fp;
+			FILE* m_write_fp;
+			std::string m_file_path;
+			Ardb* m_db;
+			uint64 m_cksm;
+			DumpRoutine* m_routine_cb;
+			void *m_routine_cbdata;
+
+			Buffer m_write_buffer;
+			bool m_is_saving;
+			uint32 m_last_save;
+			void Close();
+			int Write(const void* buf, size_t buflen);
+			int WriteLen(uint32 len);
+			int ReadLen(uint32& len);
+			int WriteMagicHeader();
+			int WriteType(uint8 type);
+			int SaveRawKeyValue(const Slice& key, const Slice& value);
+			bool Read(void* buf, size_t buflen, bool cksm = true);
+			int ReadType();
+			int LoadBuffer(Buffer& buffer);
+		public:
+			ArdbDumpFile();
+			int Init(Ardb* db);
+			int Load(DumpRoutine* cb, void *data);
+			int Flush();
+			int OpenWriteFile(const std::string& file);
+			int OpenReadFile(const std::string& file);
+			int Save(DumpRoutine* cb, void *data);
+			int BGSave();
+			uint32 LastSave()
+			{
+				return m_last_save;
+			}
+			~ArdbDumpFile();
 	};
 }
 

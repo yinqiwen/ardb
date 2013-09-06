@@ -82,7 +82,7 @@ LDFLAGS=-g
 LUA_CFLAGS+= -O2 -Wall -DLUA_ANSI $(CCFLAGS)
 LUA_LDFLAGS+= $(LDFLAGS)
 
-INCS=-I./  -I${LIB_PATH}/cpp-btree  -I${LUA_PATH}/src
+INCS=-I./  -I${LIB_PATH}/cpp-btree  -I${LUA_PATH}/src -I${SNAPPY_PATH}
 
 # Default allocator
 ifeq ($(uname_S),Linux)
@@ -128,11 +128,10 @@ TESTOBJ := ../test/ardb_test.o
 
 SERVER_OBJECTS := ardb_server.o lua_scripting.o transaction.o slowlog.o clients.o \
                   replication/rdb.o replication/slave.o replication/repl_backlog.o \
-                  replication/master.o replication/backup.o pubsub.o  main.o
+                  replication/master.o pubsub.o  main.o
 
 #DIST_LIB = libardb.so
 DIST_LIBA = libardb.a
-
 
 storage_engine?=leveldb
 
