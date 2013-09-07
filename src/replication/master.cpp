@@ -574,7 +574,7 @@ namespace ardb
 			}
 			uint32 lag = time(NULL) - slave->acktime;
 			sprintf(buffer, "slave%u:%s,state=%s,"
-					"offset=%lld,lag=%u\r\n", i, address.c_str(), state, slave->sync_offset, lag);
+					"offset=%"PRId64",lag=%u\r\n", i, address.c_str(), state, slave->sync_offset, lag);
 			it++;
 			i++;
 			str.append(buffer);

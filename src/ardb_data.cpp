@@ -46,15 +46,13 @@ namespace ardb
 		return a.size() < b.size() ? -1 : (a.size() > b.size() ? 1 : 0);
 	}
 
-	Condition::Condition(const std::string& name, CompareOperator compareop,
-	        const Slice& value, LogicalOperator logic) :
+	Condition::Condition(const std::string& name, CompareOperator compareop, const Slice& value, LogicalOperator logic) :
 			keyname(name), cmp(compareop), logicop(logic)
 	{
 		smart_fill_value(value, keyvalue);
 	}
 
-	TableIndexKeyObject::TableIndexKeyObject(const Slice& tablename,
-	        const Slice& keyname, const Slice& v, DBID id) :
+	TableIndexKeyObject::TableIndexKeyObject(const Slice& tablename, const Slice& keyname, const Slice& v, DBID id) :
 			KeyObject(tablename, TABLE_INDEX, id), colname(keyname)
 	{
 		smart_fill_value(v, colvalue);
@@ -71,29 +69,25 @@ namespace ardb
 		smart_fill_value(v, value);
 	}
 
-	ZSetKeyObject::ZSetKeyObject(const Slice& k, const ValueObject& v, double s,
-	        DBID id) :
+	ZSetKeyObject::ZSetKeyObject(const Slice& k, const ValueObject& v, double s, DBID id) :
 			KeyObject(k, ZSET_ELEMENT, id), value(v), score(s)
 	{
 
 	}
 
-	ZSetKeyObject::ZSetKeyObject(const Slice& k, const Slice& v, double s,
-	        DBID id) :
+	ZSetKeyObject::ZSetKeyObject(const Slice& k, const Slice& v, double s, DBID id) :
 			KeyObject(k, ZSET_ELEMENT, id), score(s)
 	{
 		smart_fill_value(v, value);
 	}
 
-	ZSetScoreKeyObject::ZSetScoreKeyObject(const Slice& k, const ValueObject& v,
-	        DBID id) :
+	ZSetScoreKeyObject::ZSetScoreKeyObject(const Slice& k, const ValueObject& v, DBID id) :
 			KeyObject(k, ZSET_ELEMENT_SCORE, id), value(v)
 	{
 
 	}
 
-	ZSetScoreKeyObject::ZSetScoreKeyObject(const Slice& k, const Slice& v,
-	        DBID id) :
+	ZSetScoreKeyObject::ZSetScoreKeyObject(const Slice& k, const Slice& v, DBID id) :
 			KeyObject(k, ZSET_ELEMENT_SCORE, id)
 	{
 		smart_fill_value(v, value);
@@ -139,8 +133,7 @@ namespace ardb
 			}
 			case TABLE_INDEX:
 			{
-				const TableIndexKeyObject& index =
-				        (const TableIndexKeyObject&) key;
+				const TableIndexKeyObject& index = (const TableIndexKeyObject&) key;
 				BufferHelper::WriteVarSlice(buf, index.colname);
 				encode_value(buf, index.colvalue);
 				BufferHelper::WriteVarUInt32(buf, index.index.size());
@@ -269,8 +262,7 @@ namespace ardb
 			{
 				ZSetKeyObject* zsk = new ZSetKeyObject(keystr, Slice(), 0, db);
 				double score;
-				if (!BufferHelper::ReadFixDouble(buf, score)
-				        || !decode_value(buf, zsk->value))
+				if (!BufferHelper::ReadFixDouble(buf, score) || !decode_value(buf, zsk->value))
 				{
 					DELETE(zsk);
 					return NULL;
@@ -280,8 +272,7 @@ namespace ardb
 			}
 			case ZSET_ELEMENT_SCORE:
 			{
-				ZSetScoreKeyObject* zsk = new ZSetScoreKeyObject(keystr,
-				        Slice(), db);
+				ZSetScoreKeyObject* zsk = new ZSetScoreKeyObject(keystr, Slice(), db);
 				if (!decode_value(buf, zsk->value))
 				{
 					DELETE(zsk);
@@ -296,8 +287,7 @@ namespace ardb
 				{
 					return NULL;
 				}
-				TableIndexKeyObject* ik = new TableIndexKeyObject(keystr, kname,
-				        ValueObject(), db);
+				TableIndexKeyObject* ik = new TableIndexKeyObject(keystr, kname, ValueObject(), db);
 				if (!decode_value(buf, ik->colvalue))
 				{
 					DELETE(ik);
@@ -323,8 +313,7 @@ namespace ardb
 			}
 			case TABLE_COL:
 			{
-				TableColKeyObject* tk = new TableColKeyObject(keystr, Slice(),
-				        db);
+				TableColKeyObject* tk = new TableColKeyObject(keystr, Slice(), db);
 				Slice col;
 				if (!BufferHelper::ReadVarSlice(buf, col))
 				{
@@ -431,16 +420,14 @@ namespace ardb
 		}
 		int64_t intv;
 		double dv;
-		if (raw_toint64(v.v.raw->GetRawReadBuffer(), v.v.raw->ReadableBytes(),
-		        intv))
+		if (raw_toint64(v.v.raw->GetRawReadBuffer(), v.v.raw->ReadableBytes(), intv))
 		{
 			v.Clear();
 			v.type = INTEGER;
 			v.v.int_v = intv;
 			return 1;
 		}
-		else if (raw_todouble(v.v.raw->GetRawReadBuffer(),
-		        v.v.raw->ReadableBytes(), dv))
+		else if (raw_todouble(v.v.raw->GetRawReadBuffer(), v.v.raw->ReadableBytes(), dv))
 		{
 			v.Clear();
 			v.type = DOUBLE;
@@ -473,10 +460,8 @@ namespace ardb
 			{
 				if (NULL != value.v.raw)
 				{
-					BufferHelper::WriteVarUInt32(buf,
-					        value.v.raw->ReadableBytes());
-					buf.Write(value.v.raw->GetRawReadBuffer(),
-					        value.v.raw->ReadableBytes());
+					BufferHelper::WriteVarUInt32(buf, value.v.raw->ReadableBytes());
+					buf.Write(value.v.raw->GetRawReadBuffer(), value.v.raw->ReadableBytes());
 				}
 				else
 				{
@@ -519,8 +504,7 @@ namespace ardb
 			default:
 			{
 				uint32_t len;
-				if (!BufferHelper::ReadVarUInt32(buf, len)
-				        || buf.ReadableBytes() < len)
+				if (!BufferHelper::ReadVarUInt32(buf, len) || buf.ReadableBytes() < len)
 				{
 					return false;
 				}
@@ -551,8 +535,7 @@ namespace ardb
 		int64_t intv;
 		double doublev;
 		char first_char = value.data()[0];
-		if (first_char != '+' && value.data()[0] != '-'
-		        && (first_char < '0' || first_char > '9'))
+		if (first_char != '+' && value.data()[0] != '-' && (first_char < '0' || first_char > '9'))
 		{
 			valueobject.type = RAW;
 			char* v = const_cast<char*>(value.data());
@@ -598,6 +581,97 @@ namespace ardb
 			}
 		}
 		next.append("\0", 1);
+	}
+
+	int type_to_string(KeyType type, std::string& str)
+	{
+		switch (type)
+		{
+			case KV:
+			{
+				str = "string";
+				return 0;
+			}
+			case SET_META:
+			case SET_ELEMENT:
+			{
+				str = "set";
+				return 0;
+			}
+			case ZSET_META:
+			case ZSET_ELEMENT_SCORE:
+			case ZSET_ELEMENT:
+			{
+				str = "zset";
+				return 0;
+			}
+			case HASH_META:
+			case HASH_FIELD:
+			{
+				str = "hash";
+				return 0;
+			}
+			case LIST_META:
+			case LIST_ELEMENT:
+			{
+				str = "list";
+				return 0;
+			}
+			case TABLE_META:
+			case TABLE_INDEX:
+			case TABLE_COL:
+			case TABLE_SCHEMA:
+			{
+				str = "table";
+				return 0;
+			}
+			case BITSET_META:
+			case BITSET_ELEMENT:
+			{
+				str =  "bitset";
+				return 0;
+			}
+			default:
+			{
+				return -1;
+			}
+		}
+	}
+	int string_to_type(KeyType& type, const std::string& str)
+	{
+		if (!strcasecmp(str.c_str(), "hash"))
+		{
+			type = HASH_FIELD;
+		}
+		else if (!strcasecmp(str.c_str(), "list"))
+		{
+			type = LIST_META;
+		}
+		else if (!strcasecmp(str.c_str(), "set"))
+		{
+			type = SET_META;
+		}
+		else if (!strcasecmp(str.c_str(), "zset"))
+		{
+			type = ZSET_META;
+		}
+		else if (!strcasecmp(str.c_str(), "table"))
+		{
+			type = TABLE_META;
+		}
+		else if (!strcasecmp(str.c_str(), "string"))
+		{
+			type = KV;
+		}
+		else if (!strcasecmp(str.c_str(), "bitset"))
+		{
+			type = BITSET_META;
+		}
+		else
+		{
+			return -1;
+		}
+		return 0;
 	}
 }
 

@@ -43,7 +43,7 @@ namespace ardb
 		if (*(m_sync_state_buf.m_buf))
 		{
 			char serverkeybuf[SERVER_KEY_SIZE + 1];
-			sscanf(m_sync_state_buf.m_buf, "%s %llu %llu %llu %llu",
+			sscanf(m_sync_state_buf.m_buf, "%s %"PRIu64" %"PRIu64" %"PRIu64" %"PRIu64,
 			        serverkeybuf, &m_end_offset, &m_begin_offset,
 			        &m_backlog_idx, &m_histlen);
 			m_server_key = serverkeybuf;
@@ -65,7 +65,7 @@ namespace ardb
 		}
 		m_last_sync_offset = m_end_offset;
 		INFO_LOG(
-		        "[Master]Server key:%s, begin_offset:%llu, end_offset:%llu, idx:%llu, histlen=%llu", m_server_key.c_str(), m_begin_offset, m_end_offset, m_backlog_idx, m_histlen);
+		        "[Master]Server key:%s, begin_offset:%"PRIu64", end_offset:%"PRIu64", idx:%"PRIu64", histlen=%"PRIu64, m_server_key.c_str(), m_begin_offset, m_end_offset, m_backlog_idx, m_histlen);
 		return true;
 	}
 
@@ -75,10 +75,7 @@ namespace ardb
 		{
 			return;
 		}
-		int len = snprintf(m_sync_state_buf.m_buf, m_sync_state_buf.m_size,
-		        "%s %llu %llu %llu %llu", m_server_key.c_str(), m_end_offset,
-		        m_begin_offset, m_backlog_idx, m_histlen);
-		msync(m_sync_state_buf.m_buf, len, MS_ASYNC);
+		msync(m_sync_state_buf.m_buf, strlen(m_sync_state_buf.m_buf), MS_ASYNC);
 		if (m_end_offset > m_last_sync_offset)
 		{
 			uint64 len = m_end_offset - m_last_sync_offset;
@@ -143,6 +140,9 @@ namespace ardb
 			m_histlen = m_backlog_size;
 		/* Set the offset of the first byte we have in the backlog. */
 		m_begin_offset = m_end_offset - m_histlen + 1;
+		snprintf(m_sync_state_buf.m_buf, m_sync_state_buf.m_size,
+				        "%s %"PRIu64" %"PRIu64" %"PRIu64" %"PRIu64, m_server_key.c_str(), m_end_offset,
+				        m_begin_offset, m_backlog_idx, m_histlen);
 		m_sync_state_change = true;
 	}
 
@@ -199,7 +199,7 @@ namespace ardb
 		        || (uint64) offset < m_begin_offset)
 		{
 			INFO_LOG(
-			        "Unable to partial resync with the slave for lack of backlog (Slave request was: %lld). %lld-%lld", offset, m_begin_offset, m_end_offset);
+			        "Unable to partial resync with the slave for lack of backlog (Slave request was: %"PRId64"). %"PRId64"-%"PRId64, offset, m_begin_offset, m_end_offset);
 			return false;
 		}
 		return true;

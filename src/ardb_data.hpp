@@ -715,6 +715,9 @@ namespace ardb
 	int value_convert_to_raw(ValueObject& v);
 	int value_convert_to_number(ValueObject& v);
 
+	int type_to_string(KeyType type, std::string& str);
+	int string_to_type(KeyType& type, const std::string& str);
+
 	inline bool operator==(const ValueArray& x, const ValueArray& y)
 	{
 		if (x.size() != y.size())

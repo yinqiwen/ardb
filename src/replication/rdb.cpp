@@ -1103,7 +1103,7 @@ namespace ardb
 				return -1;
 			nwritten = 1 + 4;
 		}
-		return 0;
+		return nwritten;
 	}
 
 	void RedisDumpFile::Flush()
@@ -1522,7 +1522,6 @@ namespace ardb
 		m_routine_cbdata = data;
 		char buf[1024];
 		int rdbver, type;
-		int64 expiretime = -1;
 		std::string key;
 		uint32 len = 0;
 		uint32 rawlen, compressedlen;
@@ -1546,7 +1545,6 @@ namespace ardb
 
 		while (true)
 		{
-			expiretime = -1;
 			/* Read type. */
 			if ((type = ReadType()) == -1)
 				goto eoferr;

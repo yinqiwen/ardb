@@ -737,6 +737,7 @@ namespace ardb
 			{
 				reply.type = REDIS_REPLY_ERROR;
 				reply.str = err;
+				lua_pop(m_lua,1);
 				return -1;
 			}
 			lua_getglobal(m_lua, funcname.c_str());
@@ -776,14 +777,15 @@ namespace ardb
 			snprintf(tmp, 1023, "Error running script (call to %s): %s\n",
 			        funcname.c_str(), lua_tostring(m_lua,-1));
 			reply.str = tmp;
-			lua_pop(m_lua, 1);
-			/* Consume the Lua reply. */
+			lua_pop(m_lua, 2);
+			/*  Consume the Lua reply and remove error handler. */
 		}
 		else
 		{
 			/* On success convert the Lua return value into Redis reply */
 			reply.Clear();
 			luaReplyToRedisReply(m_lua, reply);
+			lua_pop(m_lua,1); /* Remove the error handler. */
 		}
 
 		return 0;

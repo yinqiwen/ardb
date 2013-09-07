@@ -135,7 +135,8 @@ namespace ardb
 			{
 				smart_fill_value(*vit, valueobject);
 				SetValue(keyobject, valueobject);
-			} else
+			}
+			else
 			{
 				guard.MarkFailed();
 				return -1;
@@ -155,7 +156,8 @@ namespace ardb
 			{
 				return ERR_KEY_EXIST;
 			}
-		} else if (1 == nxx)
+		}
+		else if (1 == nxx)
 		{
 			if (0 != GetValue(k, NULL))
 			{
@@ -347,7 +349,7 @@ namespace ardb
 
 	int Ardb::SetExpiration(const DBID& db, const Slice& key, uint64 expire, bool check_exists)
 	{
-		if(check_exists && expire  > 0 && !Exists(db, key))
+		if (check_exists && expire > 0 && !Exists(db, key))
 		{
 			return -1;
 		}
@@ -397,14 +399,16 @@ namespace ardb
 			{
 				DELETE(kk);
 				break;
-			} else
+			}
+			else
 			{
 				ExpireKeyObject* ek = (ExpireKeyObject*) kk;
 				if (ek->expireat <= get_current_epoch_micros())
 				{
 					Del(db, ek->key);
 					DELETE(kk);
-				} else
+				}
+				else
 				{
 					DELETE(kk);
 					break;
@@ -439,7 +443,7 @@ namespace ardb
 
 	int Ardb::Persist(const DBID& db, const Slice& key)
 	{
-		return SetExpiration(db, key, 0,true);
+		return SetExpiration(db, key, 0, true);
 	}
 
 	int Ardb::Pexpire(const DBID& db, const Slice& key, uint32_t ms)
@@ -535,86 +539,88 @@ namespace ardb
 		return ERR_NOT_EXIST;
 	}
 
-	int Ardb::Keys(const DBID& db, const std::string& pattern, StringSet& ret)
+	int Ardb::Keys(const DBID& db, const std::string& pattern, const KeyObject& from, uint32 limit, StringArray& ret,
+	        KeyType& last_keytype)
 	{
-		std::string lastkey;
-		KeyType keytype = KV;
-		while (keytype <= TABLE_META)
+
+		if (from.type != HASH_FIELD || from.type == KEY_END)
 		{
-			KeyObject start(lastkey, keytype, db);
-			HashKeyObject hstart(lastkey, Slice(), db);
-			Iterator* iter = FindValue(keytype == HASH_FIELD ? hstart : start);
-			if (!iter->Valid())
+			KeyType srctype = from.type;
+			if (srctype == KEY_END)
 			{
-				DELETE(iter);
-				break;
+				srctype = KV;
 			}
-			while (NULL != iter && iter->Valid())
+
+			KeyType types[] =
+			{ KV, SET_META, ZSET_META, LIST_META, TABLE_META, BITSET_META };
+			for (uint32 i = 0; i < arraysize(types); i++)
 			{
-				Slice tmpkey = iter->Key();
-				KeyObject* kk = decode_key(tmpkey, NULL);
-				if (NULL != kk)
+				if (types[i] < srctype)
 				{
-					if (kk->db != db)
+					continue;
+				}
+				std::string startkey;
+				if (from.type == types[i])
+				{
+					next_key(from.key, startkey);
+				}
+				KeyObject start(startkey, types[i], db);
+				Iterator* iter = FindValue(start);
+				while (NULL != iter && iter->Valid())
+				{
+					Slice tmpkey = iter->Key();
+					KeyObject* kk = decode_key(tmpkey, NULL);
+					if (kk->type != types[i])
 					{
 						DELETE(kk);
+						break;
+					}
+					ret.push_back(std::string(kk->key.data(), kk->key.size()));
+					DELETE(kk);
+					if (ret.size() == limit)
+					{
+						last_keytype = types[i];
 						DELETE(iter);
 						return 0;
 					}
-					if (kk->type != keytype)
-					{
-						lastkey = "";
-						switch (keytype)
-						{
-							case KV:
-							{
-								keytype = SET_META;
-								break;
-							}
-							case SET_META:
-							{
-								keytype = ZSET_META;
-								break;
-							}
-							case ZSET_META:
-							{
-								keytype = HASH_FIELD;
-								break;
-							}
-							case HASH_FIELD:
-							{
-								keytype = LIST_META;
-								break;
-							}
-							case LIST_META:
-							{
-								keytype = TABLE_META;
-								break;
-							}
-							case TABLE_META:
-							default:
-							{
-								DELETE(kk);
-								DELETE(iter);
-								return 0;
-							}
-						}
-						break;
-					}
-					std::string key(kk->key.data(), kk->key.size());
-					if (fnmatch(pattern.c_str(), key.c_str(), 0) == 0)
-					{
-						ret.insert(key);
-					}
-					if(ret.size() > 10000)
-					{
-						break;
-					}
-					DELETE(kk);
+					iter->Next();
 				}
-				iter->Next();
+				DELETE(iter);
+			}
+		}
+
+		// hash keys
+		std::string startkey;
+		if (from.type == HASH_FIELD)
+		{
+			next_key(from.key, startkey);
+		}
+		while (true)
+		{
+			KeyObject start(startkey, HASH_FIELD, db);
+			Iterator* iter = FindValue(start);
+			std::string current(startkey.data(), startkey.size());
+			if (NULL != iter && iter->Valid())
+			{
+				Slice tmpkey = iter->Key();
+				KeyObject* kk = decode_key(tmpkey, NULL);
+				if (kk->type != HASH_FIELD)
+				{
+					DELETE(kk);
+					return 0;
+				}
+				current.assign(kk->key.data(), kk->key.size());
+				ret.push_back(current);
+				DELETE(kk);
+				if (ret.size() == limit)
+				{
+					last_keytype = HASH_FIELD;
+					DELETE(iter);
+					return 0;
+				}
 			}
 			DELETE(iter);
+			next_key(current, startkey);
 		}
 		return 0;
 	}
