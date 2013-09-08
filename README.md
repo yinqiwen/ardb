@@ -20,11 +20,14 @@ It should compile to several executables in 'src' directory, such as ardb-server
 - Full redis-protocol compatible
 - Most redis commands supported
 - Different storage engine supported(LevelDB/KyotoCabinet/LMDB)
-- Replication compatible with Redis 2.6/2.8+ instances
-  * Ardb as slave of Redis 2.6/2.8+ instance
-  * Redis 2.6/2.8+ as slave of Ardb instance
-  * Ardb as slave of Ardb instance
+- Replication compatible with Redis 2.6/2.8
+  * Ardb instance work as slave of Redis 2.6/2.8+ instance
+  * Ardb instance work as master of Redis 2.6/2.8+ instance
+  * Ardb instance work as slave of Ardb instance
+  * [Replication detail](https://github.com/yinqiwen/ardb/wiki/Replication)
 - Backup data online
+  * Use 'save/bgsave' to backup data
+  * Use 'import' to import backup data
 - Simple Table data structure [Table In Ardb](https://github.com/yinqiwen/ardb/wiki/Table-In-Ardb)
 
 ## Client API
