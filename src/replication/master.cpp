@@ -205,7 +205,7 @@ namespace ardb
 					RedisCommandFrame cmd(args);
 					conn.conn->Write(cmd);
 					count++;
-					if (count % 10000)
+					if (count % 10000 == 0)
 					{
 						conn.conn->GetService().Continue();
 					}
