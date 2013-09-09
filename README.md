@@ -18,7 +18,8 @@ It should compile to several executables in 'src' directory, such as ardb-server
 
 ## Features
 - Full redis-protocol compatible
-- Most redis commands supported
+- Most redis commands supported, and a few new commands
+  * [Ardb commands VS Redis Commands](https://github.com/yinqiwen/ardb/wiki/ARDB-Commands)
 - Different storage engine supported(LevelDB/KyotoCabinet/LMDB)
 - Replication compatible with Redis 2.6/2.8
   * Ardb instance work as slave of Redis 2.6/2.8+ instance

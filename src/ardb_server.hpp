@@ -472,7 +472,6 @@ namespace ardb
 			int SInterCount(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int SDiffCount(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int SRange(ArdbConnContext& ctx, RedisCommandFrame& cmd);
-			int SRevRange(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
 			int ZAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int ZCard(ArdbConnContext& ctx, RedisCommandFrame& cmd);

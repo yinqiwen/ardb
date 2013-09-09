@@ -249,9 +249,10 @@ namespace ardb
 			return ERR_NOT_EXIST;
 		}
 		ValueObject firstObj;
-		if (!strcasecmp(value_end.data(), "+inf"))
+		if (value_end.empty() || !strcasecmp(value_end.data(), "+inf"))
 		{
 			firstObj = meta.max;
+			with_end = true;
 		} else
 		{
 			smart_fill_value(value_end, firstObj);
@@ -304,9 +305,10 @@ namespace ardb
 			return ERR_NOT_EXIST;
 		}
 		ValueObject firstObj;
-		if (!strcasecmp(value_begin.data(), "-inf"))
+		if (value_begin.empty() || !strcasecmp(value_begin.data(), "-inf"))
 		{
 			firstObj = meta.min;
+			with_begin = true;
 		} else
 		{
 			smart_fill_value(value_begin, firstObj);
