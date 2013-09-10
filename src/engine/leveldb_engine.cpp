@@ -39,14 +39,12 @@
 
 namespace ardb
 {
-	int LevelDBComparator::Compare(const leveldb::Slice& a,
-			const leveldb::Slice& b) const
+	int LevelDBComparator::Compare(const leveldb::Slice& a, const leveldb::Slice& b) const
 	{
 		return ardb_compare_keys(a.data(), a.size(), b.data(), b.size());
 	}
 
-	void LevelDBComparator::FindShortestSeparator(std::string* start,
-			const leveldb::Slice& limit) const
+	void LevelDBComparator::FindShortestSeparator(std::string* start, const leveldb::Slice& limit) const
 	{
 		Buffer ak_buf(const_cast<char*>(start->data()), 0, start->size());
 		Buffer bk_buf(const_cast<char*>(limit.data()), 0, limit.size());
@@ -77,9 +75,7 @@ namespace ardb
 				} else
 				{
 					size_t diff_index = ak_buf.GetReadIndex();
-					while ((diff_index < start->size()
-							&& diff_index < limit.size())
-							&& ((*start)[diff_index] == limit[diff_index]))
+					while ((diff_index < start->size() && diff_index < limit.size()) && ((*start)[diff_index] == limit[diff_index]))
 					{
 						diff_index++;
 					}
@@ -92,11 +88,8 @@ namespace ardb
 						{
 							return;
 						}
-						uint8_t diff_byte =
-								static_cast<uint8_t>((*start)[diff_index]);
-						if (diff_byte < static_cast<uint8_t>(0xff)
-								&& diff_byte + 1
-										< static_cast<uint8_t>(limit[diff_index]))
+						uint8_t diff_byte = static_cast<uint8_t>((*start)[diff_index]);
+						if (diff_byte < static_cast<uint8_t>(0xff) && diff_byte + 1 < static_cast<uint8_t>(limit[diff_index]))
 						{
 							(*start)[diff_index]++;
 							start->resize(diff_index + 1);
@@ -130,21 +123,17 @@ namespace ardb
 
 	}
 
-	void LevelDBEngineFactory::ParseConfig(const Properties& props,
-			LevelDBConfig& cfg)
+	void LevelDBEngineFactory::ParseConfig(const Properties& props, LevelDBConfig& cfg)
 	{
 		cfg.path = ".";
 		conf_get_string(props, "data-dir", cfg.path);
 		conf_get_int64(props, "leveldb.block_cache_size", cfg.block_cache_size);
-		conf_get_int64(props, "leveldb.write_buffer_size",
-				cfg.write_buffer_size);
+		conf_get_int64(props, "leveldb.write_buffer_size", cfg.write_buffer_size);
 		conf_get_int64(props, "leveldb.max_open_files", cfg.max_open_files);
 		conf_get_int64(props, "leveldb.block_size", cfg.block_size);
-		conf_get_int64(props, "leveldb.block_restart_interval",
-				cfg.block_restart_interval);
+		conf_get_int64(props, "leveldb.block_restart_interval", cfg.block_restart_interval);
 		conf_get_int64(props, "leveldb.bloom_bits", cfg.bloom_bits);
-		conf_get_int64(props, "leveldb.batch_commit_watermark",
-				cfg.batch_commit_watermark);
+		conf_get_int64(props, "leveldb.batch_commit_watermark", cfg.batch_commit_watermark);
 	}
 
 	KeyValueEngine* LevelDBEngineFactory::CreateDB(const std::string& name)
@@ -240,34 +229,30 @@ namespace ardb
 		m_options.max_open_files = cfg.max_open_files;
 		if (cfg.bloom_bits > 0)
 		{
-			m_options.filter_policy = leveldb::NewBloomFilterPolicy(
-					cfg.bloom_bits);
+			m_options.filter_policy = leveldb::NewBloomFilterPolicy(cfg.bloom_bits);
 		}
 
 		make_dir(cfg.path);
 		m_db_path = cfg.path;
-		leveldb::Status status = leveldb::DB::Open(m_options, cfg.path.c_str(),
-				&m_db);
+		leveldb::Status status = leveldb::DB::Open(m_options, cfg.path.c_str(), &m_db);
 		do
 		{
-			if (!status.ok())
+			if (status.ok())
 			{
-				ERROR_LOG("Failed to init engine:%s",
-						status.ToString().c_str());
-				if (status.IsCorruption())
+				break;
+			} else if (status.IsCorruption())
+			{
+				ERROR_LOG("Failed to init engine:%s", status.ToString().c_str());
+				status = leveldb::RepairDB(cfg.path.c_str(), m_options);
+				if (!status.ok())
 				{
-					status = leveldb::RepairDB(cfg.path.c_str(), m_options);
-					if (!status.ok())
-					{
-						ERROR_LOG("Failed to repair:%s for %s",
-								cfg.path.c_str(), status.ToString().c_str());
-						return -1;
-					}
-					status = leveldb::DB::Open(m_options, cfg.path.c_str(),
-							&m_db);
+					ERROR_LOG("Failed to repair:%s for %s", cfg.path.c_str(), status.ToString().c_str());
+					return -1;
 				}
+				status = leveldb::DB::Open(m_options, cfg.path.c_str(), &m_db);
 			} else
 			{
+				ERROR_LOG("Failed to init engine:%s", status.ToString().c_str());
 				break;
 			}
 		} while (1);
@@ -374,7 +359,7 @@ namespace ardb
 		leveldb::ReadOptions options;
 		options.fill_cache = cache;
 		ContextHolder& holder = m_context.GetValue();
-		if(NULL == holder.snapshot)
+		if (NULL == holder.snapshot)
 		{
 			holder.snapshot = m_db->GetSnapshot();
 		}
@@ -388,10 +373,10 @@ namespace ardb
 	void LevelDBEngine::ReleaseContextSnapshot()
 	{
 		ContextHolder& holder = m_context.GetValue();
-		if(NULL != holder.snapshot)
+		if (NULL != holder.snapshot)
 		{
 			holder.snapshot_ref--;
-			if(holder.snapshot_ref == 0)
+			if (holder.snapshot_ref == 0)
 			{
 				m_db->ReleaseSnapshot(holder.snapshot);
 				holder.snapshot = NULL;
