@@ -345,7 +345,7 @@ namespace ardb
 			{ "smembers", REDIS_CMD_SMEMBERS, &ArdbServer::SMembers, 1, 1, "r", 0 },
 			{ "smove", REDIS_CMD_SMOVE, &ArdbServer::SMove, 3, 3, "w", 0 },
 			{ "spop", REDIS_CMD_SPOP, &ArdbServer::SPop, 1, 1, "w", 0 },
-			{ "sranmember", REDIS_CMD_SRANMEMEBER, &ArdbServer::SRandMember, 1, 2, "r", 0 },
+			{ "srandmember", REDIS_CMD_SRANMEMEBER, &ArdbServer::SRandMember, 1, 2, "r", 0 },
 			{ "srem", REDIS_CMD_SREM, &ArdbServer::SRem, 2, -1, "w", 1 },
 			{ "sunion", REDIS_CMD_SUNION, &ArdbServer::SUnion, 2, -1, "r", 0 },
 			{ "sunionstore", REDIS_CMD_SUNIONSTORE, &ArdbServer::SUnionStore, 3, -1, "r", 0 },
