@@ -607,6 +607,7 @@ namespace ardb
 				if (kk->type != HASH_FIELD)
 				{
 					DELETE(kk);
+					DELETE(iter);
 					return 0;
 				}
 				current.assign(kk->key.data(), kk->key.size());
