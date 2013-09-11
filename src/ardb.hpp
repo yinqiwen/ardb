@@ -57,6 +57,7 @@
 #define ERR_INVALID_TYPE -8
 #define ERR_OUTOFRANGE -9
 #define ERR_NOT_EXIST -10
+#define ERR_TOO_LARGE_RESPONSE -11
 
 #define ARDB_GLOBAL_DB 0xFFFFFF
 
@@ -193,8 +194,6 @@ namespace ardb
 			uint64 m_min_expireat;
 
 			bool DBExist(const DBID& db, DBID& nextdb);
-//			int LastDB(DBID& db);
-//			int FirstDB(DBID& db);
 			void CheckExpireKey(const DBID& db);
 			int SetExpiration(const DBID& db, const Slice& key, uint64 expire, bool check_exists);
 			int GetExpiration(const DBID& db, const Slice& key, uint64& expire);

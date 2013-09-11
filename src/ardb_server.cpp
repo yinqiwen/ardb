@@ -178,6 +178,7 @@ namespace ardb
 		conf_get_string(props, "loglevel", cfg.loglevel);
 		conf_get_string(props, "logfile", cfg.logfile);
 		std::string daemonize;
+
 		conf_get_string(props, "daemonize", daemonize);
 
 		conf_get_int64(props, "thread-pool-size", cfg.worker_count);
@@ -185,6 +186,17 @@ namespace ardb
 		{
 			cfg.worker_count = available_processors();
 		}
+
+		std::string slave_readonly = "yes";
+		conf_get_string(props, "slave-read-only", slave_readonly);
+		slave_readonly = string_tolower(slave_readonly);
+		if(slave_readonly == "yes"){
+			cfg.slave_readonly = true;
+		}else
+		{
+			cfg.slave_readonly = false;
+		}
+
 		conf_get_int64(props, "repl-backlog-size", cfg.repl_backlog_size);
 		conf_get_int64(props, "repl-ping-slave-period", cfg.repl_ping_slave_period);
 		conf_get_int64(props, "repl-timeout", cfg.repl_timeout);
@@ -2007,8 +2019,12 @@ namespace ardb
 	int ArdbServer::SMembers(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
 		ValueArray vs;
-		m_db->SMembers(ctx.currentDB, cmd.GetArguments()[0], vs);
-		fill_array_reply(ctx.reply, vs);
+		int ret = m_db->SMembers(ctx.currentDB, cmd.GetArguments()[0], vs);
+		if(ret == ERR_TOO_LARGE_RESPONSE){
+			fill_error_reply(ctx.reply, "ERR too many elements in set, use SRANGE/SREVRANGE to fetch.");
+		}else{
+			fill_array_reply(ctx.reply, vs);
+		}
 		return 0;
 	}
 
@@ -2872,18 +2888,19 @@ namespace ardb
 		RedisCommandHandlerSetting* setting = FindRedisCommandHandlerSetting(cmd);
 		DEBUG_LOG("Process recved cmd:%s", args.ToString().c_str());
 		kServerStat.IncRecvReq();
+
 		int ret = 0;
 		if (NULL != setting)
 		{
 			args.SetType(setting->type);
 			/**
-			 * Return error if ardb is saving data for all cmds(leveldb may also change files when reading)
+			 * Return error if ardb is slave  & slave_readonly setting is true for write commaand)
 			 */
-//			if (m_repli_serv.IsSavingData())
-//			{
-//				fill_error_reply(ctx.reply, "ERR server is saving data");
-//				return ret;
-//			}
+			if (!m_cfg.master_host.empty() && m_cfg.slave_readonly && (setting->flags & ARDB_CMD_WRITE))
+			{
+				fill_error_reply(ctx.reply, "ERR server is slave ready only");
+				return ret;
+			}
 			bool valid_cmd = true;
 			if (setting->min_arity > 0)
 			{

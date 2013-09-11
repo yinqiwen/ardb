@@ -83,6 +83,7 @@ namespace ardb
 			int64 repl_timeout;
 			int64 repl_backlog_size;
 			int64 repl_state_persist_period;
+			bool slave_readonly;
 
 			int64 lua_time_limit;
 
@@ -95,8 +96,8 @@ namespace ardb
 			std::string loglevel;
 			std::string logfile;
 			ArdbServerConfig() :
-					daemonize(false), listen_port(0), unixsocketperm(755), max_clients(10000), tcp_keepalive(0), timeout(0), slowlog_log_slower_than(10000), slowlog_max_len(128), repl_data_dir("./repl"), backup_dir("./backup"), repl_ping_slave_period(10), repl_timeout(60), repl_backlog_size(100 * 1024 * 1024), repl_state_persist_period(1), lua_time_limit(0), master_port(0), worker_count(1), loglevel(
-							"INFO")
+					daemonize(false), listen_port(0), unixsocketperm(755), max_clients(10000), tcp_keepalive(0), timeout(0), slowlog_log_slower_than(10000), slowlog_max_len(128), repl_data_dir("./repl"), backup_dir("./backup"), repl_ping_slave_period(10), repl_timeout(60), repl_backlog_size(100 * 1024 * 1024), repl_state_persist_period(1), slave_readonly(true), lua_time_limit(0), master_port(0), worker_count(
+							1), loglevel("INFO")
 			{
 			}
 	};

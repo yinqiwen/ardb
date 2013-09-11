@@ -34,6 +34,7 @@
 #define MAX_SET_UNION_NUM 100000
 #define MAX_SET_DIFF_NUM  500000
 #define MAX_SET_OP_STORE_NUM 10000
+#define MAX_SET_QUERY_NUM 1000000
 
 namespace ardb
 {
@@ -325,8 +326,6 @@ namespace ardb
 								return 0;
 							}
 						}
-						std::string str;
-						v->ToString(str);
 					}
 					if (end.Compare(sek->value) < 0)
 					{
@@ -412,6 +411,10 @@ namespace ardb
 		if (0 != GetSetMetaValue(db, key, meta))
 		{
 			return ERR_NOT_EXIST;
+		}
+		if(meta.size >= MAX_SET_QUERY_NUM)
+		{
+			return ERR_TOO_LARGE_RESPONSE;
 		}
 		SetKeyObject sk(key, meta.min, db);
 		struct SMembersWalk: public WalkHandler
@@ -672,6 +675,7 @@ namespace ardb
 			if (!cmp->empty())
 			{
 				fromObjs[firtidx] = *(cmp->rbegin());
+				std::string str1, str2;
 			}else
 			{
 				fromObjs[firtidx] = metas[firtidx].max;
@@ -701,6 +705,9 @@ namespace ardb
 					ValueArray* p = cmp;
 					cmp = result;
 					result = p;
+				}else
+				{
+
 				}
 				if(fromObjs[idx] >= metas[idx].max)
 				{
@@ -989,7 +996,7 @@ namespace ardb
 				uint32 count;
 				void OnSubset(ValueArray& array)
 				{
-					//INFO_LOG("size = %u",array.size());
+					INFO_LOG("size = %u",array.size());
 					count += array.size();
 				}
 		} callback;
@@ -1039,6 +1046,7 @@ namespace ardb
 				}
 				void OnSubset(ValueArray& array)
 				{
+					INFO_LOG("######%u",array.size());
 					BatchWriteGuard guard(db->GetEngine());
 					meta.size += array.size();
 					meta.max = *(array.rbegin());
