@@ -1954,7 +1954,7 @@ namespace ardb
 		{
 			keys.push_back(cmd.GetArguments()[i]);
 		}
-		ValueSet vs;
+		ValueArray vs;
 		m_db->SDiff(ctx.currentDB, keys, vs);
 		fill_array_reply(ctx.reply, vs);
 		return 0;
@@ -1967,7 +1967,6 @@ namespace ardb
 		{
 			keys.push_back(cmd.GetArguments()[i]);
 		}
-		ValueSet vs;
 		int ret = m_db->SDiffStore(ctx.currentDB, cmd.GetArguments()[0], keys);
 		fill_int_reply(ctx.reply, ret);
 		return 0;
@@ -1980,7 +1979,7 @@ namespace ardb
 		{
 			keys.push_back(cmd.GetArguments()[i]);
 		}
-		ValueSet vs;
+		ValueArray vs;
 		m_db->SInter(ctx.currentDB, keys, vs);
 		fill_array_reply(ctx.reply, vs);
 		return 0;
@@ -1993,7 +1992,6 @@ namespace ardb
 		{
 			keys.push_back(cmd.GetArguments()[i]);
 		}
-		ValueSet vs;
 		int ret = m_db->SInterStore(ctx.currentDB, cmd.GetArguments()[0], keys);
 		fill_int_reply(ctx.reply, ret);
 		return 0;
@@ -2066,7 +2064,7 @@ namespace ardb
 		{
 			keys.push_back(cmd.GetArguments()[i]);
 		}
-		ValueSet vs;
+		ValueArray vs;
 		m_db->SUnion(ctx.currentDB, keys, vs);
 		fill_array_reply(ctx.reply, vs);
 		return 0;

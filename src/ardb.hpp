@@ -193,8 +193,8 @@ namespace ardb
 			uint64 m_min_expireat;
 
 			bool DBExist(const DBID& db, DBID& nextdb);
-			int LastDB(DBID& db);
-			int FirstDB(DBID& db);
+//			int LastDB(DBID& db);
+//			int FirstDB(DBID& db);
 			void CheckExpireKey(const DBID& db);
 			int SetExpiration(const DBID& db, const Slice& key, uint64 expire, bool check_exists);
 			int GetExpiration(const DBID& db, const Slice& key, uint64& expire);
@@ -244,7 +244,7 @@ namespace ardb
 					virtual void OnSubset(ValueArray& array) = 0;
 					virtual ~SetOperationCallback(){}
 			};
-			int SetRange(const DBID& db, const Slice& key, const ValueObject& value_begin, const ValueObject& value_end, uint32 limit, bool with_begin, ValueArray& values);
+			int SetRange(const DBID& db, const Slice& key, const ValueObject& value_begin, const ValueObject& value_end, int32 limit, bool with_begin, ValueArray& values);
 			typedef void OnSubResults(ValueArray& set);
 			int SInter(const DBID& db, SliceArray& keys, SetOperationCallback* callback, uint32 max_subset_num);
 			int SUnion(const DBID& db, SliceArray& keys, SetOperationCallback* callback, uint32 max_subset_num);
@@ -446,10 +446,10 @@ namespace ardb
 			int SMembers(const DBID& db, const Slice& key, ValueArray& values);
 			int SRange(const DBID& db, const Slice& key, const Slice& value_begin, int count, bool with_begin, ValueArray& values);
 			int SRevRange(const DBID& db, const Slice& key, const Slice& value_end, int count, bool with_end, ValueArray& values);
-			int SDiff(const DBID& db, SliceArray& keys, ValueSet& values);
+			int SDiff(const DBID& db, SliceArray& keys, ValueArray& values);
 			int SDiffCount(const DBID& db, SliceArray& keys, uint32& count);
 			int SDiffStore(const DBID& db, const Slice& dst, SliceArray& keys);
-			int SInter(const DBID& db, SliceArray& keys, ValueSet& values);
+			int SInter(const DBID& db, SliceArray& keys, ValueArray& values);
 			int SInterCount(const DBID& db, SliceArray& keys, uint32& count);
 			int SInterStore(const DBID& db, const Slice& dst, SliceArray& keys);
 			bool SIsMember(const DBID& db, const Slice& key, const Slice& value);
@@ -459,7 +459,7 @@ namespace ardb
 			int SPop(const DBID& db, const Slice& key, std::string& value);
 			int SRandMember(const DBID& db, const Slice& key, ValueArray& values, int count = 1);
 			int SUnionCount(const DBID& db, SliceArray& keys, uint32& count);
-			int SUnion(const DBID& db, SliceArray& keys, ValueSet& values);
+			int SUnion(const DBID& db, SliceArray& keys, ValueArray& values);
 			int SUnionStore(const DBID& db, const Slice& dst, SliceArray& keys);
 			int SClear(const DBID& db, const Slice& key);
 

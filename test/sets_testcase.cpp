@@ -59,7 +59,7 @@ void test_set_diff(Ardb& db)
 	keys.push_back("myset1");
 	keys.push_back("myset2");
 	keys.push_back("myset3");
-	ValueSet values;
+	ValueArray values;
 	db.SDiff(dbid, keys, values);
 	CHECK_FATAL(values.size() != 2, "Sdiff failed:");
 	CHECK_FATAL(values.begin()->ToString(str) != "b", "Sdiff store failed:");
@@ -89,13 +89,13 @@ void test_set_inter(Ardb& db)
 	keys.push_back("myset1");
 	keys.push_back("myset2");
 	keys.push_back("myset3");
-	ValueSet values;
+	ValueArray values;
 	db.SInter(dbid, keys, values);
 	std::string str;
 	CHECK_FATAL( values.size() != 1, "Sinter failed:");
-	CHECK_FATAL(values.begin()->ToString(str) != "c", "Sinter store failed:");
-	db.SInterStore(dbid, "myset2", keys);
-	CHECK_FATAL( db.SCard(dbid, "myset2") != 1, "SInterStore myset2 failed:");
+	CHECK_FATAL(values.begin()->ToString(str) != "c", "Sinter store failed.");
+	db.SInterStore(dbid, "myset4", keys);
+	CHECK_FATAL( db.SCard(dbid, "myset4") != 1, "SInterStore myset4 failed");
 }
 
 void test_set_union(Ardb& db)
@@ -117,7 +117,7 @@ void test_set_union(Ardb& db)
 	keys.push_back("myset1");
 	keys.push_back("myset2");
 	keys.push_back("myset3");
-	ValueSet values;
+	ValueArray values;
 	db.SUnion(dbid, keys, values);
 	CHECK_FATAL(values.size() != 5, "SUnion failed:");
 	std::string str;

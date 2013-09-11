@@ -29,7 +29,11 @@
 
 #include "ardb.hpp"
 #include <algorithm>
-#include <vector>
+
+#define MAX_SET_INTER_NUM 500000
+#define MAX_SET_UNION_NUM 100000
+#define MAX_SET_DIFF_NUM  500000
+#define MAX_SET_OP_STORE_NUM 10000
 
 namespace ardb
 {
@@ -295,7 +299,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::SetRange(const DBID& db, const Slice& key, const ValueObject& value_begin, const ValueObject& value_end, uint32 limit, bool with_begin, ValueArray& values)
+	int Ardb::SetRange(const DBID& db, const Slice& key, const ValueObject& value_begin, const ValueObject& value_end, int32 limit, bool with_begin, ValueArray& values)
 	{
 		if (limit == 0)
 		{
@@ -308,7 +312,7 @@ namespace ardb
 				const ValueObject& first;
 				const ValueObject& end;
 				bool with_first;
-				uint32 l;
+				int32 l;
 				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
 					SetKeyObject* sek = (SetKeyObject*) k;
@@ -329,13 +333,13 @@ namespace ardb
 						return -1;
 					}
 					z_values.push_back(sek->value);
-					if (z_values.size() >= (uint32) l)
+					if (l > 0 && z_values.size() >= (uint32) l)
 					{
 						return -1;
 					}
 					return 0;
 				}
-				SGetWalk(ValueArray& vs, uint32 count, const ValueObject& s, const ValueObject& e, bool with) :
+				SGetWalk(ValueArray& vs, int32 count, const ValueObject& s, const ValueObject& e, bool with) :
 						z_values(vs), first(s), end(e), with_first(with), l(count)
 				{
 				}
@@ -462,94 +466,40 @@ namespace ardb
 
 	int Ardb::SDiffCount(const DBID& db, SliceArray& keys, uint32& count)
 	{
-		ValueSet cs;
-		int ret = SDiff(db, keys, cs);
-		if (ret == 0)
+		struct CountCallback: public SetOperationCallback
 		{
-			count = cs.size();
-		}
-		return ret;
+				uint32 count;
+				void OnSubset(ValueArray& array)
+				{
+					//INFO_LOG("size = %u",array.size());
+					count += array.size();
+				}
+		} callback;
+		callback.count = 0;
+		SDiff(db, keys, &callback, MAX_SET_DIFF_NUM);
+		count = callback.count;
+		return 0;
 	}
 
-	int Ardb::SDiff(const DBID& db, SliceArray& keys, ValueSet& values)
+	int Ardb::SDiff(const DBID& db, SliceArray& keys, ValueArray& values)
 	{
 		if (keys.size() < 2)
 		{
 			return ERR_INVALID_ARGS;
 		}
-		SetMetaValueArray metas;
-		SliceArray::iterator kit = keys.begin();
-		while (kit != keys.end())
+		struct DiffCallback: public SetOperationCallback
 		{
-			SetMetaValue meta;
-			GetSetMetaValue(db, *kit, meta);
-			metas.push_back(meta);
-			kit++;
-		}
-		struct SDiffWalk: public WalkHandler
-		{
-				ValueSet& vset;
-				uint32 idx;
-				ValueObject vlimit;
-				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
-				{
-					SetKeyObject* sek = (SetKeyObject*) k;
-					if (idx == 0)
-					{
-						vset.insert(sek->value);
-					} else
-					{
-						if (vset.count(sek->value) != 0)
-						{
-							vset.erase(sek->value);
-						}
-						if (vset.size() == 0)
-						{
-							return -1;
-						}
-						if (vlimit.type != EMPTY && sek->value.Compare(vlimit) > 0)
-						{
-							return -1;
-						}
-					}
-					return 0;
-				}
-				SDiffWalk(ValueSet& vs, uint32 i, const ValueObject& limit) :
-						vset(vs), idx(i), vlimit(limit)
+				ValueArray& vs;
+				DiffCallback(ValueArray& v) :
+						vs(v)
 				{
 				}
-		};
-		for (uint32 i = 0; i < keys.size(); i++)
-		{
-			Slice k = keys[i];
-			ValueObject search_value;
-			ValueObject limit;
-			if (i > 0)
-			{
-				if (values.size() == 0)
+				void OnSubset(ValueArray& array)
 				{
-					break;
+					vs.insert(vs.end(), array.begin(), array.end());
 				}
-				if (metas[i].min.Compare(*(values.rbegin())) > 0)
-				{
-					continue;
-				} else if (metas[i].max.Compare(*(values.begin())) < 0)
-				{
-					continue;
-				}
-				if (metas[i].min.Compare(*(values.begin())) < 0)
-				{
-					search_value = *(values.begin());
-				}
-				if (metas[i].max.Compare(*(values.rbegin())) > 0)
-				{
-					limit = *(values.rbegin());
-				}
-			}
-			SetKeyObject sk(k, search_value, db);
-			SDiffWalk walk(values, i, limit);
-			Walk(sk, false, &walk);
-		}
+		} callback(values);
+		SDiff(db, keys, &callback, MAX_SET_DIFF_NUM);
 		return 0;
 	}
 
@@ -559,40 +509,41 @@ namespace ardb
 		{
 			return ERR_INVALID_ARGS;
 		}
-		ValueSet vs;
-		if (0 == SDiff(db, keys, vs) && vs.size() > 0)
+		struct DiffCallback: public SetOperationCallback
 		{
-			BatchWriteGuard guard(GetEngine());
-			SClear(db, dst);
-			KeyLockerGuard keyguard(m_key_locker, db, dst);
-			SetMetaValue meta;
-			while (!vs.empty())
-			{
-				ValueSet::iterator it = vs.begin();
-				const ValueObject& v = *it;
-				std::string str;
-				Slice sv(v.ToString(str));
-				SetKeyObject sk(dst, sv, db);
-				ValueObject empty;
-				empty.type = EMPTY;
-				SetValue(sk, empty);
-				meta.size++;
-				if (meta.min.type == EMPTY || sk.value.Compare(meta.min) < 0)
+				Ardb* db;
+				const DBID& dbid;
+				const Slice& key;
+				SetMetaValue meta;
+				DiffCallback(Ardb* a, const DBID& id, const Slice& k) :
+						db(a), dbid(id), key(k)
 				{
-					meta.min = sk.value;
 				}
-				if (meta.max.type == EMPTY || sk.value.Compare(meta.max) > 0)
+				void OnSubset(ValueArray& array)
 				{
-					meta.max = sk.value;
+					BatchWriteGuard guard(db->GetEngine());
+					meta.size += array.size();
+					meta.max = *(array.rbegin());
+					if (meta.min.type == EMPTY)
+					{
+						meta.min = *(array.begin());
+					}
+					ValueArray::iterator it = array.begin();
+					while (it != array.end())
+					{
+						SetKeyObject sk(key, *it, dbid);
+						ValueObject empty;
+						db->SetValue(sk, empty);
+						it++;
+					}
+					db->SetSetMetaValue(dbid, key, meta);
 				}
-				//reduce memory footprint for huge data set
-				vs.erase(it);
-			}
-			SetSetMetaValue(db, dst, meta);
-			return meta.size;
-		}
-		return 0;
-
+		} callback(this, db, dst);
+		callback.db = this;
+		SClear(db, dst);
+		KeyLockerGuard keyguard(m_key_locker, db, dst);
+		SDiff(db, keys, &callback, MAX_SET_OP_STORE_NUM);
+		return callback.meta.size;
 	}
 
 	int Ardb::SInterCount(const DBID& db, SliceArray& keys, uint32& count)
@@ -607,71 +558,170 @@ namespace ardb
 				}
 		} callback;
 		callback.count = 0;
-		SInter(db, keys, &callback, 1000000);
+		SInter(db, keys, &callback, MAX_SET_INTER_NUM);
 		count = callback.count;
+		return 0;
+	}
+
+	int Ardb::SDiff(const DBID& db, SliceArray& keys, SetOperationCallback* callback, uint32 max_subset_num)
+	{
+		if (keys.size() < 2)
+		{
+			return ERR_INVALID_ARGS;
+		}
+		SetMetaValueArray metas;
+		SliceArray::iterator kit = keys.begin();
+		while (kit != keys.end())
+		{
+			SetMetaValue meta;
+			GetSetMetaValue(db, *kit, meta);
+			metas.push_back(meta);
+			kit++;
+		}
+		std::vector<ValueObject> fromObjs;
+		for (uint32 i = 0; i < keys.size(); i++)
+		{
+			fromObjs.push_back(metas[i].min);
+		}
+		bool isfirst = true;
+		while (true)
+		{
+			ValueArray base;
+			ValueArray next;
+			ValueArray* cmp = &base;
+			ValueArray* result = &next;
+			SetRange(db, keys[0], fromObjs[0], metas[0].max, max_subset_num, isfirst, *cmp);
+			if (cmp->empty())
+			{
+				return 0;
+			}
+			fromObjs[0] = *(cmp->rbegin());
+			for (uint32 i = 1; i < keys.size(); i++)
+			{
+				ValueArray tmp;
+				SetRange(db, keys[i], fromObjs[i], fromObjs[0], -1, isfirst, tmp);
+				if (!tmp.empty())
+				{
+					fromObjs[i] = *(tmp.rbegin());
+				} else
+				{
+					fromObjs[i] = fromObjs[0];
+				}
+				result->clear();
+				result->resize(cmp->size());
+				ValueArray::iterator ret = std::set_difference(cmp->begin(), cmp->end(), tmp.begin(), tmp.end(), result->begin());
+				if (ret == result->begin())
+				{
+					break;
+				} else
+				{
+					result->resize(ret - result->begin());
+					ValueArray* p = cmp;
+					cmp = result;
+					result = p;
+				}
+			}
+			isfirst = false;
+			callback->OnSubset(*cmp);
+		}
 		return 0;
 	}
 
 	int Ardb::SUnion(const DBID& db, SliceArray& keys, SetOperationCallback* callback, uint32 max_subset_num)
 	{
-//		if (keys.size() < 2)
-//		{
-//			return ERR_INVALID_ARGS;
-//		}
-//		int32 min_size = -1;
-//		SetMetaValueArray metas;
-//		SliceArray::iterator kit = keys.begin();
-//		while (kit != keys.end())
-//		{
-//			SetMetaValue meta;
-//			GetSetMetaValue(db, *kit, meta);
-//			metas.push_back(meta);
-//			kit++;
-//		}
-//		std::vector<ValueObject> fromObjs;
-//		for (uint32 i = 0; i < keys.size(); i++)
-//		{
-//			fromObjs.push_back(metas[i].min);
-//		}
-//		bool isfirst = true;
-//		while (true)
-//		{
-//			ValueArray base;
-//			ValueArray next;
-//			ValueArray* cmp = &base;
-//			ValueArray* result = &next;
-//			SetRange(db, keys[0], fromObjs[0], metas[0].max, max_subset_num, isfirst, *cmp);
-//			if (!cmp->empty())
-//			{
-//				fromObjs[0] = *(cmp->rbegin());
-//			}
-//
-//			for (uint32 i = 1; i < keys.size(); i++)
-//			{
-//				ValueArray tmp;
-//				SetRange(db, keys[i], fromObjs[i], metas[0].max, max_subset_num, isfirst, tmp);
-//				if (!tmp.empty())
-//				{
-//					fromObjs[i] = *(tmp.rbegin());
-//				}
-//				result->clear();
-//				result->resize(cmp->size());
-//				ValueArray::iterator ret = std::set_intersection(cmp->begin(), cmp->end(), tmp.begin(), tmp.end(), result->begin());
-//				if (ret == result->begin())
-//				{
-//					break;
-//				} else
-//				{
-//					result->resize(ret - result->begin());
-//					//callback(*result);
-//					callback->OnSubset(*result);
-//					ValueArray* p = cmp;
-//					cmp = result;
-//					result = p;
-//				}
-//			}
-//			isfirst = false;
-//		}
+		if (keys.size() < 2)
+		{
+			return ERR_INVALID_ARGS;
+		}
+		SetMetaValueArray metas;
+		ValueObject min;
+		ValueObject max;
+		SliceArray::iterator kit = keys.begin();
+		while (kit != keys.end())
+		{
+			SetMetaValue meta;
+			GetSetMetaValue(db, *kit, meta);
+			metas.push_back(meta);
+			if (min.type == EMPTY || min.Compare(meta.min) < 0)
+			{
+				min = meta.min;
+			}
+			if (max.type == EMPTY || max.Compare(meta.max) > 0)
+			{
+				max = meta.max;
+			}
+			kit++;
+		}
+		std::vector<ValueObject> fromObjs;
+		std::set<uint32> readySetKeyIdxs;
+		for (uint32 i = 0; i < keys.size(); i++)
+		{
+			fromObjs.push_back(metas[i].min);
+			readySetKeyIdxs.insert(i);
+		}
+
+		bool isfirst = true;
+		while (!readySetKeyIdxs.empty())
+		{
+			ValueArray base;
+			ValueArray next;
+			ValueArray* cmp = &base;
+			ValueArray* result = &next;
+			uint32 firtidx = *(readySetKeyIdxs.begin());
+			SetRange(db, keys[0], fromObjs[firtidx], metas[firtidx].max, max_subset_num, isfirst, *cmp);
+			if (!cmp->empty())
+			{
+				fromObjs[firtidx] = *(cmp->rbegin());
+			}else
+			{
+				fromObjs[firtidx] = metas[firtidx].max;
+			}
+
+			std::set<uint32>::iterator iit = readySetKeyIdxs.begin();
+			iit++;
+			std::set<uint32> finishedidxs;
+			while (iit != readySetKeyIdxs.end())
+			{
+				uint32 idx = *iit;
+				ValueArray tmp;
+				SetRange(db, keys[idx], fromObjs[idx], fromObjs[firtidx], -1, isfirst, tmp);
+				if (!tmp.empty())
+				{
+					fromObjs[idx] = *(tmp.rbegin());
+				} else
+				{
+					fromObjs[idx] = fromObjs[firtidx];
+				}
+				result->clear();
+				result->resize(cmp->size() + tmp.size());
+				ValueArray::iterator ret = std::set_union(cmp->begin(), cmp->end(), tmp.begin(), tmp.end(), result->begin());
+				if (ret != result->begin())
+				{
+					result->resize(ret - result->begin());
+					ValueArray* p = cmp;
+					cmp = result;
+					result = p;
+				}
+				if(fromObjs[idx] >= metas[idx].max)
+				{
+					finishedidxs.insert(idx);
+				}
+				iit++;
+			}
+
+			isfirst = false;
+			callback->OnSubset(*cmp);
+			if (fromObjs[firtidx] >= metas[firtidx].max)
+			{
+				finishedidxs.insert(firtidx);
+			}
+			std::set<uint32>::iterator eit = finishedidxs.begin();
+			while(eit != finishedidxs.end())
+			{
+				readySetKeyIdxs.erase(*eit);
+				eit++;
+			}
+		}
 		return 0;
 	}
 
@@ -727,6 +777,9 @@ namespace ardb
 			ValueArray next;
 			ValueArray* cmp = &base;
 			ValueArray* result = &next;
+			/*
+			 * Use the smallest set as the base set
+			 */
 			SetRange(db, keys[min_idx], fromObjs[min_idx], max, max_subset_num, isfirst, *cmp);
 			if (cmp->empty())
 			{
@@ -737,14 +790,15 @@ namespace ardb
 			{
 				if (i != min_idx)
 				{
+					result->clear();
+					result->resize(cmp->size());
 					ValueArray tmp;
-					SetRange(db, keys[i], fromObjs[i], max, max_subset_num, isfirst, tmp);
+					SetRange(db, keys[i], fromObjs[i], fromObjs[min_idx], -1, isfirst, tmp);
 					if (tmp.empty())
 					{
 						return 0;
 					}
 					fromObjs[i] = *(tmp.rbegin());
-					result->clear();
 					result->resize(cmp->size());
 					ValueArray::iterator ret = std::set_intersection(cmp->begin(), cmp->end(), tmp.begin(), tmp.end(), result->begin());
 					if (ret == result->begin())
@@ -753,8 +807,6 @@ namespace ardb
 					} else
 					{
 						result->resize(ret - result->begin());
-						//callback(*result);
-						callback->OnSubset(*result);
 						ValueArray* p = cmp;
 						cmp = result;
 						result = p;
@@ -762,116 +814,31 @@ namespace ardb
 				}
 			}
 			isfirst = false;
+			callback->OnSubset(*cmp);
 		}
 		return 0;
 	}
 
-	int Ardb::SInter(const DBID& db, SliceArray& keys, ValueSet& values)
+	int Ardb::SInter(const DBID& db, SliceArray& keys, ValueArray& values)
 	{
 		if (keys.size() < 2)
 		{
 			return ERR_INVALID_ARGS;
 		}
-		int32 min_size = -1;
-		SetMetaValueArray metas;
-		uint32 min_idx = 0;
-		uint32 idx = 0;
-		ValueObject min;
-		ValueObject max;
-		SliceArray::iterator kit = keys.begin();
-		while (kit != keys.end())
+		struct InterCallback: public SetOperationCallback
 		{
-			SetMetaValue meta;
-			if (0 == GetSetMetaValue(db, *kit, meta))
-			{
-				if (min_size == -1 || min_size > (int32) meta.size)
-				{
-					min_size = meta.size;
-					min_idx = idx;
-				}
-			}
-			if (min.type == EMPTY || min.Compare(meta.min) < 0)
-			{
-				min = meta.min;
-			}
-			if (max.type == EMPTY || max.Compare(meta.max) > 0)
-			{
-				max = meta.max;
-			}
-			metas.push_back(meta);
-			kit++;
-			idx++;
-		}
-
-		struct SInterWalk: public WalkHandler
-		{
-				ValueSet& z_cmp;
-				ValueSet& z_result;
-				const ValueObject& s_min;
-				const ValueObject& s_max;
-				const ValueObject* current_min;
-				const ValueObject* current_max;
-				SInterWalk(ValueSet& cmp, ValueSet& result, const ValueObject& min, const ValueObject& max) :
-						z_cmp(cmp), z_result(result), s_min(min), s_max(max), current_min(
-						NULL), current_max(NULL)
+				ValueArray& vs;
+				InterCallback(ValueArray& v) :
+						vs(v)
 				{
 				}
-				int OnKeyValue(KeyObject* k, ValueObject* value, uint32 cursor)
+				void OnSubset(ValueArray& array)
 				{
-					SetKeyObject* sk = (SetKeyObject*) k;
-					if (sk->value.Compare(s_min) < 0)
-					{
-						return 0;
-					}
-					if (sk->value.Compare(s_max) > 0)
-					{
-						return -1;
-					}
-					if ((&z_cmp != &z_result) && z_cmp.count(sk->value) == 0)
-					{
-						return 0;
-					}
-					std::pair<ValueSet::iterator, bool> iter = z_result.insert(sk->value);
-					if (NULL == current_min)
-					{
-						current_min = &(*(iter.first));
-					}
-					current_max = &(*(iter.first));
-					return 0;
+					std::string str;
+					vs.insert(vs.end(), array.begin(), array.end());
 				}
-		};
-		ValueSet cmp1;
-		SetKeyObject cmp_start(keys[min_idx], min, db);
-		SInterWalk walk(cmp1, cmp1, min, max);
-		Walk(cmp_start, false, &walk);
-		ValueSet* cmp = &cmp1;
-		ValueSet* result = &values;
-		for (uint32_t i = 0; i < keys.size(); i++)
-		{
-			if (i != min_idx)
-			{
-				SetKeyObject tmp(keys.at(i), min, db);
-				SInterWalk walk(*cmp, *result, min, max);
-				Walk(tmp, false, &walk);
-				cmp->clear();
-				ValueSet* old = cmp;
-				cmp = result;
-				result = old;
-				if (NULL != walk.current_min && min.Compare(*walk.current_min) < 0)
-				{
-					min = *walk.current_min;
-				}
-				if (NULL != walk.current_max && max.Compare(*walk.current_max) > 0)
-				{
-					max = *walk.current_max;
-				}
-			}
-		}
-		if (cmp != &values)
-		{
-			values.clear();
-			values.insert(cmp->begin(), cmp->end());
-		}
+		} callback(values);
+		SInter(db, keys, &callback, MAX_SET_INTER_NUM);
 		return 0;
 	}
 
@@ -886,6 +853,7 @@ namespace ardb
 				Ardb* db;
 				const DBID& dbid;
 				const Slice& key;
+				SetMetaValue meta;
 				InterCallback(Ardb* a, const DBID& id, const Slice& k) :
 						db(a), dbid(id), key(k)
 				{
@@ -893,8 +861,6 @@ namespace ardb
 				void OnSubset(ValueArray& array)
 				{
 					BatchWriteGuard guard(db->GetEngine());
-					SetMetaValue meta;
-					db->GetSetMetaValue(dbid, key, meta);
 					meta.size += array.size();
 					meta.max = *(array.rbegin());
 					if (meta.min.type == EMPTY)
@@ -915,8 +881,8 @@ namespace ardb
 		callback.db = this;
 		SClear(db, dst);
 		KeyLockerGuard keyguard(m_key_locker, db, dst);
-		SInter(db, keys, &callback, 10000);
-		return 0;
+		SInter(db, keys, &callback, MAX_SET_OP_STORE_NUM);
+		return callback.meta.size;
 	}
 
 	int Ardb::SMove(const DBID& db, const Slice& src, const Slice& dst, const Slice& value)
@@ -1018,67 +984,84 @@ namespace ardb
 
 	int Ardb::SUnionCount(const DBID& db, SliceArray& keys, uint32& count)
 	{
-		ValueSet cs;
-		int ret = SUnion(db, keys, cs);
-		if (ret == 0)
+		struct CountCallback: public SetOperationCallback
 		{
-			count = cs.size();
-		}
-		return ret;
+				uint32 count;
+				void OnSubset(ValueArray& array)
+				{
+					//INFO_LOG("size = %u",array.size());
+					count += array.size();
+				}
+		} callback;
+		callback.count = 0;
+		SUnion(db, keys, &callback, MAX_SET_UNION_NUM);
+		count = callback.count;
+		return 0;
 	}
 
-	int Ardb::SUnion(const DBID& db, SliceArray& keys, ValueSet& values)
+	int Ardb::SUnion(const DBID& db, SliceArray& keys, ValueArray& values)
 	{
-		for (uint32 i = 0; i < keys.size(); i++)
+		if (keys.size() < 2)
 		{
-			Slice k = keys.at(i);
-			ValueArray vss;
-			SMembers(db, k, vss);
-			ValueArray::iterator vit = vss.begin();
-			while (vit != vss.end())
-			{
-				values.insert(*vit);
-				vit++;
-			}
+			return ERR_INVALID_ARGS;
 		}
+		struct UnionCallback: public SetOperationCallback
+		{
+				ValueArray& result;
+				UnionCallback(ValueArray& r) :
+						result(r)
+				{
+				}
+				void OnSubset(ValueArray& array)
+				{
+					result.insert(result.end(), array.begin(), array.end());
+				}
+		} callback(values);
+		SUnion(db, keys, &callback, MAX_SET_UNION_NUM);
 		return 0;
 	}
 
 	int Ardb::SUnionStore(const DBID& db, const Slice& dst, SliceArray& keys)
 	{
-		ValueSet ss;
-		if (0 == SUnion(db, keys, ss) && ss.size() > 0)
+		if (keys.size() < 2)
 		{
-			BatchWriteGuard guard(GetEngine());
-			SClear(db, dst);
-			KeyLockerGuard keyguard(m_key_locker, db, dst);
-			SetMetaValue meta;
-			while (!ss.empty())
-			{
-				ValueSet::iterator it = ss.begin();
-				const ValueObject& v = *it;
-				std::string str;
-				Slice sv(v.ToString(str));
-				SetKeyObject sk(dst, sv, db);
-				ValueObject empty;
-				empty.type = EMPTY;
-				SetValue(sk, empty);
-				meta.size++;
-				if (meta.min.type == EMPTY || sk.value.Compare(meta.min) < 0)
-				{
-					meta.min = sk.value;
-				}
-				if (meta.max.type == EMPTY || sk.value.Compare(meta.max) > 0)
-				{
-					meta.max = sk.value;
-				}
-				//reduce memory footprint for huge data set
-				ss.erase(it);
-			}
-			SetSetMetaValue(db, dst, meta);
-			return meta.size;
+			return ERR_INVALID_ARGS;
 		}
-		return 0;
+		struct UnionCallback: public SetOperationCallback
+		{
+				Ardb* db;
+				const DBID& dbid;
+				const Slice& key;
+				SetMetaValue meta;
+				UnionCallback(Ardb* a, const DBID& id, const Slice& k) :
+						db(a), dbid(id), key(k)
+				{
+				}
+				void OnSubset(ValueArray& array)
+				{
+					BatchWriteGuard guard(db->GetEngine());
+					meta.size += array.size();
+					meta.max = *(array.rbegin());
+					if (meta.min.type == EMPTY)
+					{
+						meta.min = *(array.begin());
+					}
+					ValueArray::iterator it = array.begin();
+					while (it != array.end())
+					{
+						SetKeyObject sk(key, *it, dbid);
+						ValueObject empty;
+						db->SetValue(sk, empty);
+						it++;
+					}
+					db->SetSetMetaValue(dbid, key, meta);
+				}
+		} callback(this, db, dst);
+		callback.db = this;
+		SClear(db, dst);
+		KeyLockerGuard keyguard(m_key_locker, db, dst);
+		SUnion(db, keys, &callback, MAX_SET_OP_STORE_NUM);
+		return callback.meta.size;
 	}
 }
 

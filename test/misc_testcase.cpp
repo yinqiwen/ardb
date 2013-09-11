@@ -6,6 +6,15 @@
  */
 #include "test_common.hpp"
 
+//#include "lua_scripting.hpp"
+//
+//void test_lua(){
+//	LUAInterpreter iter(NULL);
+//	SliceArray keys, args;
+//	RedisReply r;
+//	iter.Eval("ardb.log(redis.LOG_WARNING, \"adasds\")", keys, args, false, r);
+//}
+
 void test_type(Ardb& db)
 {
 	DBID dbid = 0;

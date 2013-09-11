@@ -312,24 +312,22 @@ namespace ardb
 						{
 							while (running)
 							{
-								DBID firstDB = 0, lastDB = 0;
-								if (0 == adb->LastDB(lastDB) && 0 == adb->FirstDB(firstDB))
+								DBID dbid = 0;
+								while (dbid < ARDB_GLOBAL_DB)
 								{
-									for (DBID db = firstDB; db <= lastDB; db++)
+									DBID nexdb = 0;
+									if (adb->DBExist(dbid, nexdb))
 									{
-										DBID nexdb = db;
-										if (adb->DBExist(db, nexdb))
+										adb->CheckExpireKey(dbid);
+										dbid++;
+									} else
+									{
+										if (nexdb == dbid || nexdb == ARDB_GLOBAL_DB)
 										{
-											adb->CheckExpireKey(db);
-										} else
-										{
-											if (nexdb == db)
-											{
-												break;
-											}
-											adb->CheckExpireKey(nexdb);
-											db = nexdb;
+											break;
 										}
+										adb->CheckExpireKey(nexdb);
+										dbid = nexdb + 1;
 									}
 								}
 								uint64 end = get_current_epoch_micros();
@@ -622,49 +620,49 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::FirstDB(DBID& db)
-	{
-		int ret = -1;
-		Iterator* iter = NewIterator();
-		iter->SeekToFirst();
-		if (NULL != iter && iter->Valid())
-		{
-			Slice tmpkey = iter->Key();
-			KeyObject* kk = decode_key(tmpkey, NULL);
-			if (NULL != kk)
-			{
-				db = kk->db;
-				ret = 0;
-			}
-			DELETE(kk);
-		}
-		DELETE(iter);
-		return ret;
-	}
+//	int Ardb::FirstDB(DBID& db)
+//	{
+//		int ret = -1;
+//		Iterator* iter = NewIterator();
+//		iter->SeekToFirst();
+//		if (NULL != iter && iter->Valid())
+//		{
+//			Slice tmpkey = iter->Key();
+//			KeyObject* kk = decode_key(tmpkey, NULL);
+//			if (NULL != kk)
+//			{
+//				db = kk->db;
+//				ret = 0;
+//			}
+//			DELETE(kk);
+//		}
+//		DELETE(iter);
+//		return ret;
+//	}
 
-	int Ardb::LastDB(DBID& db)
-	{
-		int ret = -1;
-		Iterator* iter = NewIterator(ARDB_GLOBAL_DB);
-		if (NULL != iter && iter->Valid())
-		{
-			//Skip last KEY_END entry
-			iter->Prev();
-		}
-		if (NULL != iter && iter->Valid())
-		{
-			Slice tmpkey = iter->Key();
-			KeyObject* kk = decode_key(tmpkey, NULL);
-			if (NULL != kk)
-			{
-				db = kk->db;
-				ret = 0;
-			}
-			DELETE(kk);
-		}
-		DELETE(iter);
-		return ret;
-	}
+//	int Ardb::LastDB(DBID& db)
+//	{
+//		int ret = -1;
+//		Iterator* iter = NewIterator(ARDB_GLOBAL_DB);
+//		if (NULL != iter && iter->Valid())
+//		{
+//			//Skip last KEY_END entry
+//			iter->Prev();
+//		}
+//		if (NULL != iter && iter->Valid())
+//		{
+//			Slice tmpkey = iter->Key();
+//			KeyObject* kk = decode_key(tmpkey, NULL);
+//			if (NULL != kk)
+//			{
+//				db = kk->db;
+//				ret = 0;
+//			}
+//			DELETE(kk);
+//		}
+//		DELETE(iter);
+//		return ret;
+//	}
 
 	bool Ardb::DBExist(const DBID& db, DBID& nextdb)
 	{
