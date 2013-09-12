@@ -210,7 +210,6 @@ namespace ardb
 			KeyObject* kk = decode_key(tmpkey, &k);
 			if (NULL == kk)
 			{
-				DELETE(kk);
 				break;
 			}
 			ValueObject v;
@@ -241,6 +240,7 @@ namespace ardb
 			}
 			HashKeyObject* hk = (HashKeyObject*) kk;
 			std::string filed(hk->field.data(), hk->field.size());
+			DELETE(kk);
 			fields.push_back(filed);
 			ValueObject v;
 			values.push_back(v);

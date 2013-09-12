@@ -42,7 +42,8 @@
 			if(NULL != k && k->key.compare(KEY.key) == 0)\
 			{                                            \
 				TYPE = k->type;                          \
-	         }                                           \
+	        }                                            \
+	        DELETE(k);                                   \
 	    }\
 	    DELETE(iter);\
 }while(0)
