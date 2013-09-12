@@ -227,6 +227,8 @@ namespace ardb
 			int GetTableSchemaValue(const DBID& db, const Slice& key, TableSchemaValue& meta);
 			void SetTableSchemaValue(const DBID& db, const Slice& key, TableSchemaValue& meta);
 			int HGetValue(const DBID& db, const Slice& key, const Slice& field, ValueObject* value);
+			int HLastField(const DBID& db, const Slice& key,  std::string& field);
+			int HFirstField(const DBID& db, const Slice& key,  std::string& field);
 			int TInterRowKeys(const DBID& db, const Slice& tableName, TableSchemaValue& schema, Condition& cond, SliceSet& prefetch_keyset, TableKeyIndexValueTable& interset, TableKeyIndexValueTable& results);
 			int TUnionRowKeys(const DBID& db, const Slice& tableName, TableSchemaValue& schema, Condition& cond, SliceSet& prefetch_keyset, TableKeyIndexValueTable& results);
 			int TGetIndexs(const DBID& db, const Slice& tableName, TableSchemaValue& schema, Conditions& conds, SliceSet& prefetch_keyset, TableKeyIndexValueTable*& indexs, TableKeyIndexValueTable*& temp);
@@ -392,7 +394,8 @@ namespace ardb
 			int HVals(const DBID& db, const Slice& key, StringArray& values);
 			int HLen(const DBID& db, const Slice& key);
 			int HClear(const DBID& db, const Slice& key);
-
+			int HRange(const DBID& db, const Slice& key, const Slice& from, int32 limit, StringArray& fields, ValueArray& values);
+			int HRevRange(const DBID& db, const Slice& key, const Slice& from, int32 limit, StringArray& fields, ValueArray& values);
 			/*
 			 * List operations
 			 */

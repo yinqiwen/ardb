@@ -386,8 +386,6 @@ namespace ardb
 								return 0;
 							}
 						}
-						std::string str;
-						v->ToString(str);
 					}
 					z_values.push_back(sek->value);
 					if (l > 0 && z_values.size() >= (uint32) l)

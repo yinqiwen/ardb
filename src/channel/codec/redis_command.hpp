@@ -198,6 +198,8 @@ namespace ardb
 			REDIS_CMD_EVALSHA = 157,
 			REDIS_CMD_SCRIPT = 158,
 			REDIS_CMD_KEYSCOUNT = 159,
+			REDIS_CMD_HRANGE = 160,
+			REDIS_CMD_HREVRANGE = 161,
 		};
 
 		class RedisCommandDecoder;

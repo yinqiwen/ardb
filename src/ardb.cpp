@@ -408,6 +408,7 @@ namespace ardb
 		while (NULL != iter && iter->Valid())
 		{
 			Slice tmpkey = iter->Key();
+
 			KeyObject* kk = decode_key(tmpkey, &key);
 			if (NULL == kk || kk->type != key.type || kk->key.compare(key.key) != 0)
 			{

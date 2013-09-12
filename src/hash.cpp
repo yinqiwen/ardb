@@ -1,10 +1,10 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
- * 
+ *
  *Redistribution and use in source and binary forms, with or without
  *modification, are permitted provided that the following conditions are met:
- * 
+ *
  *  * Redistributions of source code must retain the above copyright notice,
  *    this list of conditions and the following disclaimer.
  *  * Redistributions in binary form must reproduce the above copyright
@@ -13,69 +13,37 @@
  *  * Neither the name of Redis nor the names of its contributors may be used
  *    to endorse or promote products derived from this software without
  *    specific prior written permission.
- * 
+ *
  *THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- *ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS 
+ *ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
  *BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
  *CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
  *SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
  *INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
  *CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF 
+ *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
-
-/*
-*Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
-*All rights reserved.
-* 
-*Redistribution and use in source and binary forms, with or without
-*modification, are permitted provided that the following conditions are met:
-* 
-*  * Redistributions of source code must retain the above copyright notice,
-*    this list of conditions and the following disclaimer.
-*  * Redistributions in binary form must reproduce the above copyright
-*    notice, this list of conditions and the following disclaimer in the
-*    documentation and/or other materials provided with the distribution.
-*  * Neither the name of Redis nor the names of its contributors may be used
-*    to endorse or promote products derived from this software without
-*    specific prior written permission.
-* 
-*THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-*AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-*IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-*ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS 
-*BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-*CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-*SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-*INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-*CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-*ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF 
-*THE POSSIBILITY OF SUCH DAMAGE.
-*/
 
 #include "ardb.hpp"
 
 namespace ardb
 {
-	int Ardb::SetHashValue(const DBID& db, const Slice& key, const Slice& field,
-			ValueObject& value)
+	int Ardb::SetHashValue(const DBID& db, const Slice& key, const Slice& field, ValueObject& value)
 	{
 		HashKeyObject k(key, field, db);
 		return SetValue(k, value);
 	}
-	int Ardb::HSet(const DBID& db, const Slice& key, const Slice& field,
-			const Slice& value)
+	int Ardb::HSet(const DBID& db, const Slice& key, const Slice& field, const Slice& value)
 	{
 		ValueObject valueobject;
 		smart_fill_value(value, valueobject);
 		return SetHashValue(db, key, field, valueobject) == 0 ? 1 : 0;
 	}
 
-	int Ardb::HSetNX(const DBID& db, const Slice& key, const Slice& field,
-			const Slice& value)
+	int Ardb::HSetNX(const DBID& db, const Slice& key, const Slice& field, const Slice& value)
 	{
 		if (HExists(db, key, field))
 		{
@@ -87,7 +55,7 @@ namespace ardb
 	int Ardb::HDel(const DBID& db, const Slice& key, const Slice& field)
 	{
 		HashKeyObject k(key, field, db);
-		return DelValue( k);
+		return DelValue(k);
 	}
 
 	int Ardb::HDel(const DBID& db, const Slice& key, const SliceArray& fields)
@@ -102,8 +70,7 @@ namespace ardb
 		return fields.size();
 	}
 
-	int Ardb::HGetValue(const DBID& db, const Slice& key, const Slice& field,
-			ValueObject* value)
+	int Ardb::HGetValue(const DBID& db, const Slice& key, const Slice& field, ValueObject* value)
 	{
 		HashKeyObject k(key, field, db);
 		if (0 == GetValue(k, value))
@@ -113,8 +80,7 @@ namespace ardb
 		return ERR_NOT_EXIST;
 	}
 
-	int Ardb::HGet(const DBID& db, const Slice& key, const Slice& field,
-			std::string* value)
+	int Ardb::HGet(const DBID& db, const Slice& key, const Slice& field, std::string* value)
 	{
 		HashKeyObject k(key, field, db);
 		ValueObject v;
@@ -129,8 +95,7 @@ namespace ardb
 		return ERR_NOT_EXIST;
 	}
 
-	int Ardb::HMSet(const DBID& db, const Slice& key, const SliceArray& fields,
-			const SliceArray& values)
+	int Ardb::HMSet(const DBID& db, const Slice& key, const SliceArray& fields, const SliceArray& values)
 	{
 		if (fields.size() != values.size())
 		{
@@ -148,8 +113,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::HMGet(const DBID& db, const Slice& key, const SliceArray& fields,
-			ValueArray& values)
+	int Ardb::HMGet(const DBID& db, const Slice& key, const SliceArray& fields, ValueArray& values)
 	{
 		SliceArray::const_iterator it = fields.begin();
 		int i = 0;
@@ -184,7 +148,7 @@ namespace ardb
 				}
 		} walk(this);
 		BatchWriteGuard guard(GetEngine());
-		Walk( sk, false, &walk);
+		Walk(sk, false, &walk);
 		SetExpiration(db, key, 0, false);
 		return 0;
 	}
@@ -250,8 +214,7 @@ namespace ardb
 				break;
 			}
 			ValueObject v;
-			Buffer readbuf(const_cast<char*>(it->Value().data()), 0,
-					it->Value().size());
+			Buffer readbuf(const_cast<char*>(it->Value().data()), 0, it->Value().size());
 			decode_value(readbuf, v);
 			std::string str;
 			values.push_back(v.ToString(str));
@@ -262,8 +225,7 @@ namespace ardb
 		return values.empty() ? ERR_NOT_EXIST : 0;
 	}
 
-	int Ardb::HGetAll(const DBID& db, const Slice& key, StringArray& fields,
-			ValueArray& values)
+	int Ardb::HGetAll(const DBID& db, const Slice& key, StringArray& fields, ValueArray& values)
 	{
 		Slice empty;
 		HashKeyObject k(key, empty, db);
@@ -282,8 +244,7 @@ namespace ardb
 			fields.push_back(filed);
 			ValueObject v;
 			values.push_back(v);
-			Buffer readbuf(const_cast<char*>(it->Value().data()), 0,
-					it->Value().size());
+			Buffer readbuf(const_cast<char*>(it->Value().data()), 0, it->Value().size());
 			decode_value(readbuf, values[i]);
 			i++;
 			it->Next();
@@ -297,8 +258,7 @@ namespace ardb
 		return HGet(db, key, field, NULL) == 0;
 	}
 
-	int Ardb::HIncrby(const DBID& db, const Slice& key, const Slice& field,
-			int64_t increment, int64_t& value)
+	int Ardb::HIncrby(const DBID& db, const Slice& key, const Slice& field, int64_t increment, int64_t& value)
 	{
 		ValueObject v;
 		v.type = INTEGER;
@@ -313,8 +273,7 @@ namespace ardb
 		return SetHashValue(db, key, field, v);
 	}
 
-	int Ardb::HMIncrby(const DBID& db, const Slice& key, const SliceArray& fields,
-			const Int64Array& increments, Int64Array& vs)
+	int Ardb::HMIncrby(const DBID& db, const Slice& key, const SliceArray& fields, const Int64Array& increments, Int64Array& vs)
 	{
 		if (fields.size() != increments.size())
 		{
@@ -335,8 +294,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::HIncrbyFloat(const DBID& db, const Slice& key, const Slice& field,
-			double increment, double& value)
+	int Ardb::HIncrbyFloat(const DBID& db, const Slice& key, const Slice& field, double increment, double& value)
 	{
 		ValueObject v;
 		v.type = DOUBLE;
@@ -354,6 +312,154 @@ namespace ardb
 		v.v.double_v += increment;
 		value = v.v.double_v;
 		return SetHashValue(db, key, field, v);
+	}
+
+	int Ardb::HRange(const DBID& db, const Slice& key, const Slice& from, int32 limit, StringArray& fields, ValueArray& values)
+	{
+		if (limit == 0)
+		{
+			return 0;
+		}
+		HashKeyObject hk(key, from, db);
+		struct HGetWalk: public WalkHandler
+		{
+				StringArray& h_fileds;
+				ValueArray& z_values;
+				const Slice& first;
+				int l;
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+				{
+					HashKeyObject* sek = (HashKeyObject*) k;
+					if (0 == cursor)
+					{
+						if (first.compare(sek->field) == 0)
+						{
+							return 0;
+						}
+					}
+					h_fileds.push_back(std::string(sek->field.data(), sek->field.size()));
+					z_values.push_back(*v);
+					if (l > 0 && z_values.size() >= (uint32) l)
+					{
+						return -1;
+					}
+					return 0;
+				}
+				HGetWalk(StringArray& fs, ValueArray& vs, int count, const Slice& s) :
+						h_fileds(fs), z_values(vs), first(s), l(count)
+				{
+				}
+		} walk(fields, values, limit, from);
+		Walk(hk, false, &walk);
+		return 0;
+	}
+
+	int Ardb::HFirstField(const DBID& db, const Slice& key, std::string& field)
+	{
+		HashKeyObject hk(key, "", db);
+		Iterator* iter = FindValue(hk, false);
+		if (iter != NULL && iter->Valid())
+		{
+			KeyObject* kk = decode_key(iter->Key(), NULL);
+			if (NULL != kk && kk->type == HASH_FIELD && kk->key.compare(key) == 0)
+			{
+				HashKeyObject* tmp = (HashKeyObject*) kk;
+				field.assign(tmp->field.data(), tmp->field.size());
+				DELETE(kk);
+				DELETE(iter);
+				return 0;
+			}
+			DELETE(kk);
+		}
+		DELETE(iter);
+		return -1;
+	}
+
+	int Ardb::HLastField(const DBID& db, const Slice& key, std::string& field)
+	{
+		std::string next;
+		next_key(key, next);
+		HashKeyObject hk(key, next, db);
+		Iterator* iter = FindValue(hk, false);
+		if (iter != NULL && iter->Valid())
+		{
+			iter->Prev();
+			if (iter->Valid())
+			{
+				KeyObject* kk = decode_key(iter->Key(), NULL);
+				if (NULL != kk && kk->type == HASH_FIELD && kk->key.compare(key) == 0)
+				{
+					HashKeyObject* tmp = (HashKeyObject*) kk;
+					field.assign(tmp->field.data(), tmp->field.size());
+					DELETE(kk);
+					DELETE(iter);
+					return 0;
+				}
+				DELETE(kk);
+			}
+		}
+		DELETE(iter);
+		return -1;
+	}
+
+	int Ardb::HRevRange(const DBID& db, const Slice& key, const Slice& from, int32 limit, StringArray& fields, ValueArray& values)
+	{
+		if (limit == 0)
+		{
+			return 0;
+		}
+		HashKeyObject hk(key, from, db);
+		std::string last_field;
+		std::string first_field;
+		if (from.size() == 0)
+		{
+			if (0 != HLastField(db, key, last_field))
+			{
+				return 0;
+			}
+			hk.field = last_field;
+		}
+		if(0 != HFirstField(db, key, first_field))
+		{
+			return 0;
+		}
+		struct HGetWalk: public WalkHandler
+		{
+				StringArray& h_fileds;
+				ValueArray& z_values;
+				const Slice& first;
+				const std::string& first_field;
+				int l;
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+				{
+					HashKeyObject* sek = (HashKeyObject*) k;
+					if (0 == cursor)
+					{
+						if (first.compare(sek->field) == 0)
+						{
+							return 0;
+						}
+					}
+					std::string filed(sek->field.data(), sek->field.size());
+					h_fileds.push_back(filed);
+					z_values.push_back(*v);
+					if (l > 0 && z_values.size() >= (uint32) l)
+					{
+						return -1;
+					}
+					if(filed.compare(first_field) == 0)
+					{
+						return -1;
+					}
+					return 0;
+				}
+				HGetWalk(StringArray& fs, ValueArray& vs, int count, const Slice& s, const std::string& ff) :
+						h_fileds(fs), z_values(vs), first(s), first_field(ff), l(count)
+				{
+				}
+		} walk(fields, values, limit, from, first_field);
+		Walk(hk, true, &walk);
+		return 0;
 	}
 }
 

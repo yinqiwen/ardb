@@ -346,6 +346,8 @@ namespace ardb
 			{ "hset", REDIS_CMD_HSET, &ArdbServer::HSet, 3, 3, "w", 0 },
 			{ "hsetnx", REDIS_CMD_HSETNX, &ArdbServer::HSetNX, 3, 3, "w", 0 },
 			{ "hmset", REDIS_CMD_HMSET, &ArdbServer::HMSet, 3, -1, "w", 0 },
+			{ "hrange", REDIS_CMD_HRANGE, &ArdbServer::HRange, 1, 5, "r", 0 },
+			{ "hrevrange", REDIS_CMD_HREVRANGE, &ArdbServer::HRange, 1, 5, "r", 0 },
 			{ "scard", REDIS_CMD_SCARD, &ArdbServer::SCard, 1, 1, "r", 0 },
 			{ "sadd", REDIS_CMD_SADD, &ArdbServer::SAdd, 2, -1, "w", 0 },
 			{ "sdiff", REDIS_CMD_SDIFF, &ArdbServer::SDiff, 2, -1, "r", 0 },
@@ -1821,6 +1823,59 @@ namespace ardb
 		fill_str_array_reply(ctx.reply, keys);
 		return 0;
 	}
+	int ArdbServer::HRange(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+	{
+		uint32 limit = 100000; //return max 100000 keys one time
+		std::string from;
+		if (cmd.GetArguments().size() > 1)
+		{
+			for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+			{
+				if (!strcasecmp(cmd.GetArguments()[i].c_str(), "limit"))
+				{
+					if (i + 1 >= cmd.GetArguments().size() || !string_touint32(cmd.GetArguments()[i + 1], limit))
+					{
+						fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+						return 0;
+					}
+					i++;
+				} else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "from"))
+				{
+					if (i + 1 >= cmd.GetArguments().size())
+					{
+						fill_error_reply(ctx.reply, "ERR 'from' need two args followed");
+						return 0;
+					}
+					from = cmd.GetArguments()[i + 1];
+					i += 1;
+				} else
+				{
+					fill_error_reply(ctx.reply, " Syntax error ");
+					return 0;
+				}
+			}
+		}
+		StringArray fields;
+		ValueArray vals;
+		if (cmd.GetType() == REDIS_CMD_HRANGE)
+		{
+			m_db->HRange(ctx.currentDB, cmd.GetArguments()[0], from, limit, fields, vals);
+		} else
+		{
+			m_db->HRevRange(ctx.currentDB, cmd.GetArguments()[0], from, limit, fields, vals);
+		}
+		ctx.reply.type = REDIS_REPLY_ARRAY;
+		for (uint32 i = 0; i < fields.size(); i++)
+		{
+			RedisReply reply1, reply2;
+			fill_str_reply(reply1, fields[i]);
+			std::string str;
+			fill_str_reply(reply2, vals[i].ToString(str));
+			ctx.reply.elements.push_back(reply1);
+			ctx.reply.elements.push_back(reply2);
+		}
+		return 0;
+	}
 
 	int ArdbServer::HMGet(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
@@ -1983,7 +2038,7 @@ namespace ardb
 			keystrs.insert(cmd.GetArguments()[i]);
 		}
 
-		if(keystrs.size() != keys.size())
+		if (keystrs.size() != keys.size())
 		{
 			fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
 			return 0;
@@ -2004,7 +2059,7 @@ namespace ardb
 			keystrs.insert(cmd.GetArguments()[i]);
 		}
 
-		if(keystrs.size() != keys.size())
+		if (keystrs.size() != keys.size())
 		{
 			fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
 			return 0;
@@ -2023,7 +2078,7 @@ namespace ardb
 			keys.push_back(cmd.GetArguments()[i]);
 			keystrs.insert(cmd.GetArguments()[i]);
 		}
-		if(keystrs.size() != keys.size())
+		if (keystrs.size() != keys.size())
 		{
 			fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
 			return 0;
@@ -2044,7 +2099,7 @@ namespace ardb
 			keystrs.insert(cmd.GetArguments()[i]);
 		}
 
-		if(keystrs.size() != keys.size())
+		if (keystrs.size() != keys.size())
 		{
 			fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
 			return 0;
@@ -2130,7 +2185,7 @@ namespace ardb
 			keystrs.insert(cmd.GetArguments()[i]);
 		}
 
-		if(keystrs.size() != keys.size())
+		if (keystrs.size() != keys.size())
 		{
 			fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
 			return 0;
@@ -2151,7 +2206,7 @@ namespace ardb
 			keystrs.insert(cmd.GetArguments()[i]);
 		}
 
-		if(keystrs.size() != keys.size())
+		if (keystrs.size() != keys.size())
 		{
 			fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
 			return 0;
@@ -2171,7 +2226,7 @@ namespace ardb
 			keystrs.insert(cmd.GetArguments()[i]);
 		}
 
-		if(keystrs.size() != keys.size())
+		if (keystrs.size() != keys.size())
 		{
 			fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
 			return 0;
@@ -2191,7 +2246,7 @@ namespace ardb
 			keystrs.insert(cmd.GetArguments()[i]);
 		}
 
-		if(keystrs.size() != keys.size())
+		if (keystrs.size() != keys.size())
 		{
 			fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
 			return 0;
@@ -2211,7 +2266,7 @@ namespace ardb
 			keystrs.insert(cmd.GetArguments()[i]);
 		}
 
-		if(keystrs.size() != keys.size())
+		if (keystrs.size() != keys.size())
 		{
 			fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
 			return 0;
