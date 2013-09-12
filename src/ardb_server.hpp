@@ -369,6 +369,7 @@ namespace ardb
 			int SlowLog(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int Client(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int Keys(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+			int KeysCount(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
 			int Multi(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int Discard(ArdbConnContext& ctx, RedisCommandFrame& cmd);

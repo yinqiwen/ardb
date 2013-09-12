@@ -185,8 +185,6 @@ namespace ardb
 			KeyValueEngineFactory* m_engine_factory;
 			KeyValueEngine* m_engine;
 			ThreadMutex m_mutex;
-//			KeyWatcher* m_key_watcher;
-//			RawKeyListener* m_raw_key_listener;
 
 			ThreadLocal<DBWatcher> m_watcher;
 
@@ -355,6 +353,8 @@ namespace ardb
 			int Rename(const DBID& db, const Slice& key1, const Slice& key2);
 			int RenameNX(const DBID& db, const Slice& key1, const Slice& key2);
 			int Keys(const DBID& db, const std::string& pattern, const KeyObject& from, uint32 limit, StringArray& ret, KeyType& last_keytype);
+			int KeysCount(const DBID& db, const std::string& pattern, int64& count);
+
 			int Move(DBID srcdb, const Slice& key, DBID dstdb);
 
 			int Append(const DBID& db, const Slice& key, const Slice& value);

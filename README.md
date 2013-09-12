@@ -78,6 +78,7 @@ LevelDB Options: block_cache_size=512m, write_buffer_size=512m, thread_pool_size
   - BitOPCount
   - SRange/SRevRange
   - Import
+  - KeysCount
   
 
 

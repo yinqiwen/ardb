@@ -406,6 +406,7 @@ namespace ardb
 			{ "renamenx", REDIS_CMD_RENAMENX, &ArdbServer::RenameNX, 2, 2, "w", 0 },
 			{ "sort", REDIS_CMD_SORT, &ArdbServer::Sort, 1, -1, "w", 0 },
 			{ "keys", REDIS_CMD_KEYS, &ArdbServer::Keys, 1, 6, "r", 0 },
+			{ "keyscount", REDIS_CMD_KEYSCOUNT, &ArdbServer::KeysCount, 1, 6, "r", 0 },
 			{ "__set__", REDIS_CMD_RAWSET, &ArdbServer::RawSet, 2, 2, "w", 0 },
 			{ "__del__", REDIS_CMD_RAWDEL, &ArdbServer::RawDel, 1, 1, "w", 0 },
 			{ "tcreate", REDIS_CMD_TCREATE, &ArdbServer::TCreate, 2, -1, "w", 0 },
@@ -601,6 +602,14 @@ namespace ardb
 		m_db->RawDel(cmd.GetArguments()[0]);
 		return 0;
 	}
+	int ArdbServer::KeysCount(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+	{
+		int64 count = 0;
+		m_db->KeysCount(ctx.currentDB, cmd.GetArguments()[0], count);
+		fill_int_reply(ctx.reply, count);
+		return 0;
+	}
+
 	int ArdbServer::Keys(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
 		StringArray keys;
@@ -2138,7 +2147,7 @@ namespace ardb
 	int ArdbServer::SRange(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
 		ValueArray vs;
-		int32 count = -1;
+		int32 count = 1000000;
 		Slice start;
 		if (cmd.GetArguments().size() > 1)
 		{

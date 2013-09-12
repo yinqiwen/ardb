@@ -135,8 +135,7 @@ namespace ardb
 			{
 				smart_fill_value(*vit, valueobject);
 				SetValue(keyobject, valueobject);
-			}
-			else
+			} else
 			{
 				guard.MarkFailed();
 				return -1;
@@ -156,8 +155,7 @@ namespace ardb
 			{
 				return ERR_KEY_EXIST;
 			}
-		}
-		else if (1 == nxx)
+		} else if (1 == nxx)
 		{
 			if (0 != GetValue(k, NULL))
 			{
@@ -399,16 +397,14 @@ namespace ardb
 			{
 				DELETE(kk);
 				break;
-			}
-			else
+			} else
 			{
 				ExpireKeyObject* ek = (ExpireKeyObject*) kk;
 				if (ek->expireat <= get_current_epoch_micros())
 				{
 					Del(db, ek->key);
 					DELETE(kk);
-				}
-				else
+				} else
 				{
 					DELETE(kk);
 					break;
@@ -539,10 +535,61 @@ namespace ardb
 		return ERR_NOT_EXIST;
 	}
 
-	int Ardb::Keys(const DBID& db, const std::string& pattern, const KeyObject& from, uint32 limit, StringArray& ret,
-	        KeyType& last_keytype)
+	int Ardb::KeysCount(const DBID& db, const std::string& pattern, int64& count)
 	{
+		count = 0;
+		KeyType types[] =
+		{ KV, SET_META, ZSET_META, LIST_META, TABLE_META, BITSET_META };
+		for (uint32 i = 0; i < arraysize(types); i++)
+		{
+			std::string startkey;
+			KeyObject start(startkey, types[i], db);
+			Iterator* iter = FindValue(start);
+			while (NULL != iter && iter->Valid())
+			{
+				Slice tmpkey = iter->Key();
+				KeyObject* kk = decode_key(tmpkey, NULL);
+				if (kk->type != types[i])
+				{
+					DELETE(kk);
+					break;
+				}
+				count++;
+				DELETE(kk);
+				iter->Next();
+			}
+			DELETE(iter);
+		}
 
+		// hash keys
+		std::string startkey;
+		while (true)
+		{
+			KeyObject start(startkey, HASH_FIELD, db);
+			Iterator* iter = FindValue(start);
+			std::string current(startkey.data(), startkey.size());
+			if (NULL != iter && iter->Valid())
+			{
+				Slice tmpkey = iter->Key();
+				KeyObject* kk = decode_key(tmpkey, NULL);
+				if (kk->type != HASH_FIELD)
+				{
+					DELETE(kk);
+					DELETE(iter);
+					return 0;
+				}
+				current.assign(kk->key.data(), kk->key.size());
+				count++;
+				DELETE(kk);
+			}
+			DELETE(iter);
+			next_key(current, startkey);
+		}
+		return 0;
+	}
+
+	int Ardb::Keys(const DBID& db, const std::string& pattern, const KeyObject& from, uint32 limit, StringArray& ret, KeyType& last_keytype)
+	{
 		if (from.type != HASH_FIELD || from.type == KEY_END)
 		{
 			KeyType srctype = from.type;

@@ -1046,7 +1046,6 @@ namespace ardb
 				}
 				void OnSubset(ValueArray& array)
 				{
-					INFO_LOG("######%u",array.size());
 					BatchWriteGuard guard(db->GetEngine());
 					meta.size += array.size();
 					meta.max = *(array.rbegin());
