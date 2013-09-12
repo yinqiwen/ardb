@@ -996,7 +996,6 @@ namespace ardb
 				uint32 count;
 				void OnSubset(ValueArray& array)
 				{
-					INFO_LOG("size = %u",array.size());
 					count += array.size();
 				}
 		} callback;

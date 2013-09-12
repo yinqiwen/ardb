@@ -57,6 +57,7 @@
 //#define ARDB_CMD_ASKING 4096               /* "k" flag */
 
 #define ARDB_PROCESS_WITHOUT_REPLICATION 1
+#define ARDB_PROCESS_REPL_WRITE 2
 
 using namespace ardb::codec;
 namespace ardb

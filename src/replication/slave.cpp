@@ -82,13 +82,13 @@ namespace ardb
 	void Slave::HandleRedisCommand(Channel* ch, RedisCommandFrame& cmd)
 	{
 		DEBUG_LOG("Recv master cmd %s", cmd.ToString().c_str());
-		int flag = 0;
+		int flag = ARDB_PROCESS_REPL_WRITE;
 		if (m_slave_state == SLAVE_STATE_SYNCED)
 		{
 			m_sync_offset += cmd.GetRawDataSize();
 		} else
 		{
-			flag = ARDB_PROCESS_WITHOUT_REPLICATION;
+			flag |= ARDB_PROCESS_WITHOUT_REPLICATION;
 		}
 		if (m_slave_state == SLAVE_STATE_WAITING_PSYNC_REPLY && m_server_type == ARDB_DB_SERVER_TYPE)
 		{
