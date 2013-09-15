@@ -42,51 +42,70 @@
 #include "channel/all_includes.hpp"
 #include "util/mmap.hpp"
 #include "repl.hpp"
+#include "ardb_data.hpp"
 
 using namespace ardb::codec;
 
 namespace ardb
 {
-	class ReplBacklog: public Runnable
-	{
-		private:
-			uint64 m_backlog_size;
-			uint64 m_backlog_idx;
-			uint64 m_end_offset;
-			uint64 m_histlen;
-			uint64 m_begin_offset;
-			uint64 m_last_sync_offset;
+    class ArdbServer;
+    class ReplBacklog: public Runnable
+    {
+        private:
+            uint64 m_backlog_size;
+            uint64 m_backlog_idx;
+            uint64 m_end_offset;
+            uint64 m_histlen;
+            uint64 m_begin_offset;
+            uint64 m_last_sync_offset;
 
-			std::string m_server_key;
-			bool m_sync_state_change;
+            std::string m_server_key;
+            bool m_sync_state_change;
 
-			MMapBuf m_sync_state_buf;
-			MMapBuf m_backlog;
+            MMapBuf m_sync_state_buf;
+            MMapBuf m_backlog;
 
-			void Run();
+            DBID m_current_dbid;
 
-			bool LoadSyncState(const std::string& path);
-		public:
-			ReplBacklog();
-			int Init(const std::string& path, uint64 backlog_size);
-			void PersistSyncState();
-			void Feed(Buffer& cmd);
-			bool IsValidOffset(int64 offset);
-			bool IsValidOffset(const std::string& server_key, int64 offset);
-			const std::string& GetServerKey();
-			uint64 GetReplEndOffset();
-			uint64 GetReplStartOffset();
-			int64 GetBacklogSize()
-			{
-				return (int64) m_backlog_size;
-			}
-			int64 GetHistLen()
-			{
-				return (int64) m_histlen;
-			}
-			size_t WriteChannel(Channel* channle, int64 offset, size_t len);
+            void Run();
 
-	};
+            bool LoadSyncState(const std::string& path);
+        public:
+            ReplBacklog();
+            int Init(ArdbServer* server);
+            void PersistSyncState();
+
+//            void Feed(RedisCommandFrame& cmd,const DBID& dbid);
+            void Feed(Buffer& cmd);
+            bool IsValidOffset(int64 offset);
+            bool IsValidOffset(const std::string& server_key, int64 offset);
+            const std::string& GetServerKey();
+            uint64 GetReplEndOffset();
+            uint64 GetReplStartOffset();
+            int64 GetBacklogSize()
+            {
+                return (int64) m_backlog_size;
+            }
+            int64 GetHistLen()
+            {
+                return (int64) m_histlen;
+            }
+            DBID GetCurrentDBID()
+            {
+                return m_current_dbid;
+            }
+            void SetCurrentDBID(DBID id)
+            {
+                m_current_dbid = id;
+            }
+            void ClearDBID()
+            {
+                m_current_dbid = ARDB_GLOBAL_DB;
+            }
+            size_t WriteChannel(Channel* channle, int64 offset, size_t len);
+            void UpdateState(const std::string& serverkey, int64 offset);
+
+    };
 }
 
 #endif /* BACKLOG_HPP_ */

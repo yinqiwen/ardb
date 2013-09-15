@@ -617,7 +617,7 @@ namespace ardb
 				{
 					Slice tmpkey = iter->Key();
 					KeyObject* kk = decode_key(tmpkey, NULL);
-					if (kk->type != types[i])
+					if (kk->type != types[i] || kk->db != db)
 					{
 						DELETE(kk);
 						break;
@@ -651,7 +651,7 @@ namespace ardb
 			{
 				Slice tmpkey = iter->Key();
 				KeyObject* kk = decode_key(tmpkey, NULL);
-				if (kk->type != HASH_FIELD)
+				if (kk->type != HASH_FIELD|| kk->db != db)
 				{
 					DELETE(kk);
 					DELETE(iter);

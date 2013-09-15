@@ -187,17 +187,6 @@ namespace ardb
 			cfg.worker_count = available_processors();
 		}
 
-		std::string slave_readonly = "yes";
-		conf_get_string(props, "slave-read-only", slave_readonly);
-		slave_readonly = string_tolower(slave_readonly);
-		if (slave_readonly == "yes")
-		{
-			cfg.slave_readonly = true;
-		} else
-		{
-			cfg.slave_readonly = false;
-		}
-
 		conf_get_int64(props, "repl-backlog-size", cfg.repl_backlog_size);
 		conf_get_int64(props, "repl-ping-slave-period", cfg.repl_ping_slave_period);
 		conf_get_int64(props, "repl-timeout", cfg.repl_timeout);
@@ -777,10 +766,7 @@ namespace ardb
 			info.append("ardb_version:").append(ARDB_VERSION).append("\r\n");
 			info.append("ardb_home:").append(m_cfg.home).append("\r\n");
 			info.append("engine:").append(m_engine.GetName()).append("\r\n");
-			if (m_cfg.repl_backlog_size > 0)
-			{
-				info.append("server_key:").append(m_master_serv.GetReplBacklog().GetServerKey()).append("\r\n");
-			}
+			info.append("server_key:").append(m_master_serv.GetReplBacklog().GetServerKey()).append("\r\n");
 			char tmp[256];
 			sprintf(tmp, "%"PRId64, m_cfg.listen_port);
 			info.append("tcp_port:").append(tmp).append("\r\n");
@@ -822,15 +808,15 @@ namespace ardb
 				info.append("master_host:").append(m_cfg.master_host).append("\r\n");
 				info.append("master_port:").append(stringfromll(m_cfg.master_port)).append("\r\n");
 				info.append("master_link_status:").append(m_slave_client.IsMasterConnected() ? "up" : "down").append("\r\n");
-				info.append("slave_repl_offset:").append(stringfromll(m_slave_client.SyncOffset())).append("\r\n");
+				info.append("slave_repl_offset:").append(stringfromll(m_repl_backlog.GetReplEndOffset())).append("\r\n");
 			}
 
 			info.append("connected_slaves: ").append(stringfromll(m_master_serv.ConnectedSlaves())).append("\r\n");
 			m_master_serv.PrintSlaves(info);
-			info.append("master_repl_offset: ").append(stringfromll(m_master_serv.GetReplBacklog().GetReplEndOffset())).append("\r\n");
-			info.append("repl_backlog_size: ").append(stringfromll(m_master_serv.GetReplBacklog().GetBacklogSize())).append("\r\n");
-			info.append("repl_backlog_first_byte_offset: ").append(stringfromll(m_master_serv.GetReplBacklog().GetReplStartOffset())).append("\r\n");
-			info.append("repl_backlog_histlen: ").append(stringfromll(m_master_serv.GetReplBacklog().GetHistLen())).append("\r\n");
+			info.append("master_repl_offset: ").append(stringfromll(m_repl_backlog.GetReplEndOffset())).append("\r\n");
+			info.append("repl_backlog_size: ").append(stringfromll(m_repl_backlog.GetBacklogSize())).append("\r\n");
+			info.append("repl_backlog_first_byte_offset: ").append(stringfromll(m_repl_backlog.GetReplStartOffset())).append("\r\n");
+			info.append("repl_backlog_histlen: ").append(stringfromll(m_repl_backlog.GetHistLen())).append("\r\n");
 		}
 
 		if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "stats"))
@@ -3038,9 +3024,10 @@ namespace ardb
 		{
 			args.SetType(setting->type);
 			/**
-			 * Return error if ardb is slave  & slave_readonly setting is true for write commaand)
+			 * Return error if ardb is slave  for write command)
+			 * Slave is always read only
 			 */
-			if (!m_cfg.master_host.empty() && m_cfg.slave_readonly && (setting->flags & ARDB_CMD_WRITE) && !(flags & ARDB_PROCESS_REPL_WRITE))
+			if (!m_cfg.master_host.empty() && (setting->flags & ARDB_CMD_WRITE) && !(flags & ARDB_PROCESS_REPL_WRITE))
 			{
 				fill_error_reply(ctx.reply, "ERR server is ready only slave.");
 				return ret;
@@ -3071,8 +3058,11 @@ namespace ardb
 					fill_error_reply(ctx.reply, "ERR only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context");
 				} else
 				{
+				    if(!(flags & ARDB_PROCESS_FEED_REPLICATION_ONLY))
+				    {
+				        ret = DoRedisCommand(ctx, setting, args);
+				    }
 
-					ret = DoRedisCommand(ctx, setting, args);
 				}
 			}
 		} else
@@ -3085,7 +3075,12 @@ namespace ardb
 		 * Feed commands which modified data
 		 */
 		DBWatcher& watcher = m_db->GetDBWatcher();
-		if (watcher.data_changed && (flags & ARDB_PROCESS_WITHOUT_REPLICATION) == 0)
+		if((flags & ARDB_PROCESS_FEED_REPLICATION_ONLY) || (flags & ARDB_PROCESS_FORCE_REPLICATION))
+		{
+		    //feed to replication
+		    m_master_serv.FeedSlaves(ctx.currentDB, args);
+		}
+		else if((watcher.data_changed && (flags & ARDB_PROCESS_WITHOUT_REPLICATION) == 0))
 		{
 			if (args.GetType() == REDIS_CMD_EXEC)
 			{
@@ -3295,14 +3290,15 @@ namespace ardb
 		ArdbLogger::InitDefaultLogger(m_cfg.loglevel, m_cfg.logfile);
 
 		m_rdb.Init(m_db);
-		if (m_cfg.repl_backlog_size > 0)
+		if(0 != m_repl_backlog.Init(this))
 		{
-			if (0 != m_master_serv.Init())
-			{
-				goto sexit;
-			}
+		    goto sexit;
 		}
-		if (!m_slave_client.Init())
+		if (0 != m_master_serv.Init())
+		{
+		    goto sexit;
+		}
+		if (0 != m_slave_client.Init())
 		{
 			goto sexit;
 		}

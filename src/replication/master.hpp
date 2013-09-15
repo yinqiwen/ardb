@@ -95,10 +95,9 @@ namespace ardb
 			SlavePortTable m_slave_port_table;
 			ThreadMutex m_port_table_mutex;
 
-			ReplBacklog m_backlog;
+			ReplBacklog& m_backlog;
 			bool m_dumping_db;
 			int64 m_dumpdb_offset;
-			DBID m_current_dbid;
 
 			Thread* m_thread;
 			bool m_thread_running;
@@ -118,7 +117,7 @@ namespace ardb
 			void OnSoftSignal(uint32 soft_signo, uint32 appendinfo);
 			void OfferReplInstruction(ReplicationInstruction& inst);
 			void WriteCmdToSlaves(RedisCommandFrame& cmd);
-			void WriteSlaves(const DBID& dbid, RedisCommandFrame& cmd, bool dbid_related);
+			void WriteSlaves(const DBID& dbid, RedisCommandFrame& cmd);
 		public:
 			Master(ArdbServer* server);
 			int Init();
@@ -134,6 +133,7 @@ namespace ardb
 				return m_backlog;
 			}
 			void PrintSlaves(std::string& str);
+			void DisconnectAllSlaves();
 			~Master();
 	};
 }

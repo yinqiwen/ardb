@@ -47,6 +47,8 @@
 #include "util/buffer_helper.hpp"
 #include "util/helpers.hpp"
 
+#define ARDB_GLOBAL_DB 0xFFFFFF
+
 #define COMPARE_NUMBER(a, b)  (a == b?0:(a>b?1:-1))
 
 #define COMPARE_SLICE(a, b)  (a.size() == b.size()?(a.compare(b)):(a.size()>b.size()?1:-1))

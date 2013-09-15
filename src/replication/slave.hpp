@@ -30,8 +30,7 @@
 /*
  * slave_client.hpp
  *
- *  Created on: 2013年8月20日
- *      Author: wqy
+ *  Created on: 2013-09-09      Author: wqy
  */
 
 #ifndef SLAVE_CLIENT_HPP_
@@ -40,7 +39,7 @@
 #include "util/mmap.hpp"
 #include "ardb.hpp"
 #include "rdb.hpp"
-#include "repl.hpp"
+#include "repl_backlog.hpp"
 
 using namespace ardb::codec;
 
@@ -63,8 +62,6 @@ namespace ardb
 
 			uint8 m_server_type;
 			bool m_server_support_psync;
-			std::string m_server_key;
-			int64 m_sync_offset;
 			/*
 			 * empty means all db
 			 */
@@ -76,8 +73,7 @@ namespace ardb
 			 * Redis dump file
 			 */
 			RedisDumpFile* m_rdb;
-
-			MMapBuf m_sync_state_buf;
+			ReplBacklog& m_backlog;
 
 			void HandleRedisCommand(Channel* ch, RedisCommandFrame& cmd);
 			void HandleRedisReply(Channel* ch, RedisReply& reply);
@@ -87,11 +83,10 @@ namespace ardb
 			void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e);
 			void ChannelConnected(ChannelHandlerContext& ctx, ChannelStateEvent& e);
 			void Timeout();
-			void PersistSyncState();
-			bool LoadSyncState();
 			void Routine();
 			void InitCron();
 			RedisDumpFile* GetNewRedisDumpFile();
+			ArdbConnContext* GetArdbConnContext();
 		public:
 			Slave(ArdbServer* serv);
 			bool Init();
@@ -107,10 +102,6 @@ namespace ardb
 			void Close();
 			void Stop();
 			bool IsMasterConnected();
-			int64 SyncOffset()
-			{
-				return m_sync_offset;
-			}
 	};
 }
 
