@@ -282,6 +282,10 @@ namespace ardb
                         ch->Close();
                         return;
                     }
+                    /*
+                     * Delete all data before receiving resyncing data
+                     */
+                    m_serv->m_db->FlushAll();
                     m_backlog.UpdateState(ss[1], offset);
                     if (m_server_type == ARDB_DB_SERVER_TYPE)
                     {

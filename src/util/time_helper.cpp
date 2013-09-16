@@ -51,7 +51,7 @@ namespace ardb
 	static uint32 init_tm()
 	{
 		static bool k_inited = false;
-		time_t now = time(NULL);
+		uint32 now = time(NULL);
 		if (!k_inited || now >= k_tomorrow_day_start_ts)
 		{
 			reinit_tm(now);

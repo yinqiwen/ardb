@@ -200,9 +200,9 @@ namespace ardb
 		unsigned char *c = NULL;
 
 		if ((clen = ReadLen(NULL)) == REDIS_RDB_LENERR)
-			return NULL;
+			return false;
 		if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR)
-			return NULL;
+			return false;
 		str.resize(len);
 		NEW(c, unsigned char[clen]);
 		if (NULL == c)
@@ -870,8 +870,8 @@ namespace ardb
 			 * where casting to long long is safe. Then using two castings we
 			 * make sure the decimal part is zero. If all this is true we use
 			 * integer printing function that is much faster. */
-			double min = -4503599627370495; /* (2^52)-1 */
-			double max = 4503599627370496; /* -(2^52) */
+			double min = -4503599627370495LL; /* (2^52)-1 */
+			double max = 4503599627370496LL; /* -(2^52) */
 			if (val > min && val < max && val == ((double) ((long long) val)))
 			{
 				ll2string((char*) buf + 1, sizeof(buf), (long long) val);
@@ -1196,7 +1196,8 @@ namespace ardb
 							{
 								DUMP_CHECK_WRITE(r.WriteLen(db->SCard(key->db, key->key)));
 							}
-							DUMP_CHECK_WRITE(r.WriteStringObject(value));
+							SetKeyObject* sk = (SetKeyObject*)key;
+							DUMP_CHECK_WRITE(r.WriteStringObject(&(sk->value)));
 							break;
 						}
 						case ZSET_ELEMENT:

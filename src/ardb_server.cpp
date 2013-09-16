@@ -2151,12 +2151,24 @@ namespace ardb
 	int ArdbServer::SRem(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
 		SliceArray keys;
-		for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+		std::set<std::string> keystrs;
+		for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
 		{
 			keys.push_back(cmd.GetArguments()[i]);
+			keystrs.insert(cmd.GetArguments()[i]);
+		}
+
+		if (keystrs.size() != keys.size())
+		{
+			fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
+			return 0;
 		}
 		ValueSet vs;
 		int ret = m_db->SRem(ctx.currentDB, cmd.GetArguments()[0], keys);
+		if(ret < 0)
+		{
+			ret = 0;
+		}
 		fill_int_reply(ctx.reply, ret);
 		return 0;
 	}
@@ -2274,7 +2286,7 @@ namespace ardb
 			{
 				if (!strcasecmp(cmd.GetArguments()[i].c_str(), "limit"))
 				{
-					if (i + 1 >= cmd.GetArguments().size() || !string_toint32(cmd.GetArguments()[i + 1], count))
+					if (i + 1 >= cmd.GetArguments().size() || !string_toint32(cmd.GetArguments()[i + 1], count) || count < 0)
 					{
 						fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
 						return 0;
@@ -3058,10 +3070,10 @@ namespace ardb
 					fill_error_reply(ctx.reply, "ERR only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context");
 				} else
 				{
-				    if(!(flags & ARDB_PROCESS_FEED_REPLICATION_ONLY))
-				    {
-				        ret = DoRedisCommand(ctx, setting, args);
-				    }
+					if (!(flags & ARDB_PROCESS_FEED_REPLICATION_ONLY))
+					{
+						ret = DoRedisCommand(ctx, setting, args);
+					}
 
 				}
 			}
@@ -3075,12 +3087,11 @@ namespace ardb
 		 * Feed commands which modified data
 		 */
 		DBWatcher& watcher = m_db->GetDBWatcher();
-		if((flags & ARDB_PROCESS_FEED_REPLICATION_ONLY) || (flags & ARDB_PROCESS_FORCE_REPLICATION))
+		if ((flags & ARDB_PROCESS_FEED_REPLICATION_ONLY) || (flags & ARDB_PROCESS_FORCE_REPLICATION))
 		{
-		    //feed to replication
-		    m_master_serv.FeedSlaves(ctx.currentDB, args);
-		}
-		else if((watcher.data_changed && (flags & ARDB_PROCESS_WITHOUT_REPLICATION) == 0))
+			//feed to replication
+			m_master_serv.FeedSlaves(ctx.currentDB, args);
+		} else if ((watcher.data_changed && (flags & ARDB_PROCESS_WITHOUT_REPLICATION) == 0))
 		{
 			if (args.GetType() == REDIS_CMD_EXEC)
 			{
@@ -3290,13 +3301,13 @@ namespace ardb
 		ArdbLogger::InitDefaultLogger(m_cfg.loglevel, m_cfg.logfile);
 
 		m_rdb.Init(m_db);
-		if(0 != m_repl_backlog.Init(this))
+		if (0 != m_repl_backlog.Init(this))
 		{
-		    goto sexit;
+			goto sexit;
 		}
 		if (0 != m_master_serv.Init())
 		{
-		    goto sexit;
+			goto sexit;
 		}
 		if (0 != m_slave_client.Init())
 		{

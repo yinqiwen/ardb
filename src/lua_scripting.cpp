@@ -78,11 +78,11 @@ namespace ardb
 			}
 			case REDIS_REPLY_ARRAY:
 			{
-				if (reply.elements.empty())
-				{
-					lua_pushboolean(lua, 0);
-					return;
-				}
+//				if (reply.elements.empty())
+//				{
+//					lua_pushboolean(lua, 0);
+//					return;
+//				}
 				lua_newtable(lua);
 				for (uint32 j = 0; j < reply.elements.size(); j++)
 				{
@@ -453,7 +453,7 @@ namespace ardb
 			luaPushError(lua, "First argument must be a number (log level).");
 			return 1;
 		}
-		level = lua_tonumber(lua, -argc);
+		level = (int)lua_tonumber(lua, -argc);
 		if (level < FATAL_LOG_LEVEL || level > TRACE_LOG_LEVEL)
 		{
 			luaPushError(lua, "Invalid debug level.");

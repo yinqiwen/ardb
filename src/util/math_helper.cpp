@@ -51,9 +51,9 @@ namespace ardb
 		return random();
 	}
 
-	static const uint64 P12 = 10000L * 10000L * 10000L;
-	static const uint64 P11 = 1000000L * 100000L;
-	static const uint64 P10 = 100000L * 100000L;
+	static const uint64 P12 = 10000LL * 10000LL * 10000LL;
+	static const uint64 P11 = 1000000LL * 100000LL;
+	static const uint64 P10 = 100000LL * 100000LL;
 	static const uint64 P09 = 100000L * 10000L;
 	static const uint64 P08 = 10000L * 10000L;
 	static const uint64 P07 = 10000L * 1000L;

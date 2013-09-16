@@ -180,7 +180,7 @@ namespace ardb
 		}
 		char *endptr = NULL;
 		double val = strtod(str, &endptr);
-		if (NULL == endptr || (endptr - str) != slen)
+		if (NULL == endptr || (uint32)(endptr - str) != slen)
 		{
 			return false;
 		}
