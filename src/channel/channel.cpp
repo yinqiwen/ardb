@@ -506,9 +506,12 @@ void Channel::OnWrite()
 		{
 			if (NULL != m_file_sending->on_complete)
 			{
-				m_file_sending->on_complete(m_file_sending->data);
+				IOCallback* cb = m_file_sending->on_complete;
+				void* cbdata = m_file_sending->data;
+				DELETE(m_file_sending);
+				cb(cbdata);
 			}
-			DELETE(m_file_sending);
+
 		} else
 		{
 			return;

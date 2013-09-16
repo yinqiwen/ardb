@@ -1152,6 +1152,7 @@ namespace ardb
 					if (cursor == 0 || (key->db != currentDb))
 					{
 						currentDb = key->db;
+						currentKey.clear();
 						DUMP_CHECK_WRITE(r.WriteType(REDIS_RDB_OPCODE_SELECTDB));
 						DUMP_CHECK_WRITE(r.WriteLen(currentDb));
 					}

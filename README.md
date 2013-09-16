@@ -29,6 +29,7 @@ It should compile to several executables in 'src' directory, such as ardb-server
 - Backup data online
   * Use 'save/bgsave' to backup data
   * Use 'import' to import backup data
+  * [Backup & Restore](https://github.com/yinqiwen/ardb/wiki/Backup-Commands)
 - Simple Table data structure [Table In Ardb](https://github.com/yinqiwen/ardb/wiki/Table-In-Ardb)
 
 ## Client API

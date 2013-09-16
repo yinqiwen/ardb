@@ -98,6 +98,7 @@ namespace ardb
 			ReplBacklog& m_backlog;
 			bool m_dumping_db;
 			int64 m_dumpdb_offset;
+			DBID m_dumping_dbid;
 
 			Thread* m_thread;
 			bool m_thread_running;
