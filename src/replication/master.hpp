@@ -74,9 +74,11 @@ namespace ardb
 			bool isRedisSlave;
 			uint8 state;
 
+			DBID syncing_from;
+
 			DBIDSet syncdbs;
 			SlaveConnection() :
-					conn(NULL), sync_offset(0), acktime(0), port(0), repldbfd(-1), isRedisSlave(false), state(0)
+					conn(NULL), sync_offset(0), acktime(0), port(0), repldbfd(-1), isRedisSlave(false), state(0), syncing_from(ARDB_GLOBAL_DB)
 			{
 			}
 	};
@@ -98,7 +100,6 @@ namespace ardb
 			ReplBacklog& m_backlog;
 			bool m_dumping_db;
 			int64 m_dumpdb_offset;
-			DBID m_dumping_dbid;
 
 			Thread* m_thread;
 			bool m_thread_running;

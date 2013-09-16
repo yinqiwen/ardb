@@ -24,7 +24,7 @@ namespace ardb
 	 * Master
 	 */
 	Master::Master(ArdbServer* server) :
-			m_server(server), m_notify_channel(NULL), m_backlog(server->m_repl_backlog), m_dumping_db(false), m_dumpdb_offset(-1), m_dumping_dbid(0), m_thread(NULL), m_thread_running(false)
+			m_server(server), m_notify_channel(NULL), m_backlog(server->m_repl_backlog), m_dumping_db(false), m_dumpdb_offset(-1), m_thread(NULL), m_thread_running(false)
 	{
 
 	}
@@ -259,7 +259,7 @@ namespace ardb
 			}
 			m_server->m_db->VisitDB(ARDB_GLOBAL_DB, &visitor);
 		}
-		if (m_dumping_dbid != ARDB_GLOBAL_DB)
+		if (currentDB != ARDB_GLOBAL_DB)
 		{
 			Buffer select;
 			select.Printf("select %u\r\n", currentDB);
@@ -329,11 +329,12 @@ namespace ardb
 
 	void Master::SendCacheToSlave(SlaveConnection& slave)
 	{
-		if(slave.isRedisSlave && ARDB_GLOBAL_DB != m_dumping_dbid)
+		if (slave.isRedisSlave && ARDB_GLOBAL_DB != slave.syncing_from)
 		{
 			//need send 'select <currentdb>' first
-			RedisCommandFrame select("select %u", m_dumping_dbid);
+			RedisCommandFrame select("select %u", slave.syncing_from);
 			slave.conn->Write(select);
+			slave.syncing_from = ARDB_GLOBAL_DB;
 		}
 		slave.state = SLAVE_STATE_SYNING_CACHE_DATA;
 		slave.conn->EnableWriting();
@@ -390,17 +391,16 @@ namespace ardb
 				//FULLRESYNC
 				if (!m_dumping_db)
 				{
-					m_dumping_dbid = m_backlog.GetCurrentDBID();
+					slave.syncing_from = m_backlog.GetCurrentDBID();
 				}
 				uint64 offset = m_backlog.GetReplEndOffset() - 1;
-				if (m_dumping_dbid != ARDB_GLOBAL_DB)
+				if (slave.syncing_from != ARDB_GLOBAL_DB && slave.isRedisSlave)
 				{
-					RedisCommandFrame select("select %u", m_dumping_dbid);
+					RedisCommandFrame select("select %u", slave.syncing_from);
 					Buffer buf;
 					RedisCommandEncoder::Encode(buf, select);
 					offset -= buf.ReadableBytes();
 				}
-
 				msg.Printf("+FULLRESYNC %s %lld\r\n", m_backlog.GetServerKey().c_str(), offset);
 				slave.state = SLAVE_STATE_WAITING_DUMP_DATA;
 			}
