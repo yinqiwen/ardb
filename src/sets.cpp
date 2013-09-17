@@ -670,16 +670,15 @@ namespace ardb
 			ValueArray* cmp = &base;
 			ValueArray* result = &next;
 			uint32 firtidx = *(readySetKeyIdxs.begin());
-			SetRange(db, keys[0], fromObjs[firtidx], metas[firtidx].max, max_subset_num, isfirst, *cmp);
+			std::string str1, str2;
+			SetRange(db, keys[firtidx], fromObjs[firtidx], metas[firtidx].max, max_subset_num, isfirst, *cmp);
 			if (!cmp->empty())
 			{
 				fromObjs[firtidx] = *(cmp->rbegin());
-				std::string str1, str2;
 			}else
 			{
 				fromObjs[firtidx] = metas[firtidx].max;
 			}
-
 			std::set<uint32>::iterator iit = readySetKeyIdxs.begin();
 			iit++;
 			std::set<uint32> finishedidxs;
