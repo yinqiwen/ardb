@@ -2153,15 +2153,13 @@ namespace ardb
 	{
 		SliceArray keys;
 		std::set<std::string> keystrs;
-		for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
+		for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
 		{
 			keys.push_back(cmd.GetArguments()[i]);
-			if(i > 0){
-				keystrs.insert(cmd.GetArguments()[i]);
-			}
+			keystrs.insert(cmd.GetArguments()[i]);
 		}
 
-		if (keystrs.size() != keys.size() - 1)
+		if (keystrs.size() != keys.size())
 		{
 			fill_error_reply(ctx.reply, "ERR duplication values in arguments");
 			return 0;
@@ -2186,7 +2184,7 @@ namespace ardb
 			keystrs.insert(cmd.GetArguments()[i]);
 		}
 
-		if (keystrs.size() != keys.size() - 1)
+		if (keystrs.size() != keys.size())
 		{
 			fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
 			return 0;
