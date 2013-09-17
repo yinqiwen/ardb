@@ -3036,12 +3036,12 @@ namespace ardb
 		{
 			args.SetType(setting->type);
 			/**
-			 * Return error if ardb is slave  for write command)
+			 * Return error if ardb is slave for write command
 			 * Slave is always read only
 			 */
 			if (!m_cfg.master_host.empty() && (setting->flags & ARDB_CMD_WRITE) && !(flags & ARDB_PROCESS_REPL_WRITE))
 			{
-				fill_error_reply(ctx.reply, "ERR server is ready only slave.");
+				fill_error_reply(ctx.reply, "ERR server is read only slave.");
 				return ret;
 			}
 			bool valid_cmd = true;

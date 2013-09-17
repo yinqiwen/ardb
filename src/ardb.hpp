@@ -100,6 +100,8 @@ namespace ardb
 			}
 	};
 
+
+
 	class BatchWriteGuard
 	{
 		private:

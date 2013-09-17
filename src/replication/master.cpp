@@ -121,7 +121,7 @@ namespace ardb
 				{
 					if (!m_server->m_cfg.master_host.empty())
 					{
-
+						ERROR_LOG("Can NOT happen since slave instance can NOT generate select command.");
 					} else
 					{
 						RedisCommandFrame select("select %u", dbid);
