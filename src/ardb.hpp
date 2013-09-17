@@ -214,6 +214,7 @@ namespace ardb
 			int TryZAdd(const DBID& db, const Slice& key, ZSetMetaValue& meta, double score, const Slice& value);
 			int GetSetMetaValue(const DBID& db, const Slice& key, SetMetaValue& meta);
 			void SetSetMetaValue(const DBID& db, const Slice& key, SetMetaValue& meta);
+			void FindSetMinMaxValue(const DBID& db, const Slice& key, ValueObject& min, ValueObject& max);
 
 			int GetBitSetMetaValue(const DBID& db, const Slice& key, BitSetMetaValue& meta);
 			void SetBitSetMetaValue(const DBID& db, const Slice& key, BitSetMetaValue& meta);

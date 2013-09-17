@@ -58,6 +58,45 @@ namespace ardb
 		encode_value(*(v.v.raw), meta.max);
 	}
 
+	void Ardb::FindSetMinMaxValue(const DBID& db, const Slice& key, ValueObject& min, ValueObject& max)
+	{
+		min.Clear();
+		max.Clear();
+		SetKeyObject sk(key, Slice(), db);
+		Iterator* iter = FindValue(sk, false);
+		if (NULL != iter && iter->Valid())
+		{
+			KeyObject* kk = decode_key(iter->Key(), &sk);
+			if (NULL != kk)
+			{
+				SetKeyObject* mink = (SetKeyObject*) kk;
+				min = mink->value;
+			}
+			DELETE(kk);
+		}
+		DELETE(iter);
+
+		std::string next;
+		next_key(key, next);
+		SetKeyObject sk1(next, Slice(), db);
+		iter = FindValue(sk1, false);
+		if (NULL != iter && iter->Valid())
+		{
+			iter->Prev();
+		}
+		if (NULL != iter && iter->Valid())
+		{
+			KeyObject* kk = decode_key(iter->Key(), &sk);
+			if (NULL != kk)
+			{
+				SetKeyObject* mink = (SetKeyObject*) kk;
+				max = mink->value;
+			}
+			DELETE(kk);
+		}
+		DELETE(iter);
+	}
+
 	int Ardb::GetSetMetaValue(const DBID& db, const Slice& key, SetMetaValue& meta)
 	{
 		KeyObject k(key, SET_META, db);
@@ -189,59 +228,54 @@ namespace ardb
 		{
 			return ERR_NOT_EXIST;
 		}
-		BatchWriteGuard guard(GetEngine());
 		int count = 0;
-		SliceArray::const_iterator it = values.begin();
-		while (it != values.end())
+		bool retrive_min_max = false;
 		{
-			SetKeyObject sk(key, *it, db);
-			if (0 == GetValue(sk, NULL))
+			BatchWriteGuard guard(GetEngine());
+			SliceArray::const_iterator it = values.begin();
+			while (it != values.end())
 			{
-				meta.size--;
-				DelValue(sk);
-				count++;
+				SetKeyObject sk(key, *it, db);
+				if (0 == GetValue(sk, NULL))
+				{
+					meta.size--;
+					DelValue(sk);
+					count++;
+					if (sk.value == meta.max || sk.value == meta.min)
+					{
+						retrive_min_max = true;
+					}
+				}
+				it++;
 			}
-			it++;
+			if (count > 0)
+			{
+				if (meta.size == 0)
+				{
+					KeyObject k(key, SET_META, db);
+					DelValue(k);
+				} else
+				{
+					if (!retrive_min_max)
+					{
+						SetSetMetaValue(db, key, meta);
+					}
+				}
+			}
 		}
-		if (count > 0)
+		if (retrive_min_max)
 		{
-			if (meta.size == 0)
-			{
-				KeyObject k(key, SET_META, db);
-				DelValue(k);
-			} else
-			{
-				SetSetMetaValue(db, key, meta);
-			}
+			FindSetMinMaxValue(db, key, meta.min, meta.max);
+			SetSetMetaValue(db, key, meta);
 		}
 		return count;
 	}
 
 	int Ardb::SRem(const DBID& db, const Slice& key, const Slice& value)
 	{
-		KeyLockerGuard keyguard(m_key_locker, db, key);
-		SetMetaValue meta;
-		if (0 != GetSetMetaValue(db, key, meta))
-		{
-			return ERR_NOT_EXIST;
-		}
-		SetKeyObject sk(key, value, db);
-		if (0 == GetValue(sk, NULL))
-		{
-			meta.size--;
-			BatchWriteGuard guard(GetEngine());
-			DelValue(sk);
-			if (meta.size == 0)
-			{
-				KeyObject k(key, SET_META, db);
-				DelValue(k);
-			} else
-			{
-				SetSetMetaValue(db, key, meta);
-			}
-			return 1;
-		}
-		return 0;
+		SliceArray vs;
+		vs.push_back(value);
+		return SRem(db, key, vs);
 	}
 
 	int Ardb::SRevRange(const DBID& db, const Slice& key, const Slice& value_end, int count, bool with_end, ValueArray& values)
@@ -410,7 +444,7 @@ namespace ardb
 		{
 			return ERR_NOT_EXIST;
 		}
-		if(meta.size >= MAX_SET_QUERY_NUM)
+		if (meta.size >= MAX_SET_QUERY_NUM)
 		{
 			return ERR_TOO_LARGE_RESPONSE;
 		}
@@ -624,7 +658,10 @@ namespace ardb
 				}
 			}
 			isfirst = false;
-			callback->OnSubset(*cmp);
+			if(!cmp->empty())
+			{
+				callback->OnSubset(*cmp);
+			}
 		}
 		return 0;
 	}
@@ -675,7 +712,7 @@ namespace ardb
 			if (!cmp->empty())
 			{
 				fromObjs[firtidx] = *(cmp->rbegin());
-			}else
+			} else
 			{
 				fromObjs[firtidx] = metas[firtidx].max;
 			}
@@ -703,11 +740,11 @@ namespace ardb
 					ValueArray* p = cmp;
 					cmp = result;
 					result = p;
-				}else
+				} else
 				{
 
 				}
-				if(fromObjs[idx] >= metas[idx].max)
+				if (fromObjs[idx] >= metas[idx].max)
 				{
 					finishedidxs.insert(idx);
 				}
@@ -715,13 +752,16 @@ namespace ardb
 			}
 
 			isfirst = false;
-			callback->OnSubset(*cmp);
+			if(!cmp->empty())
+			{
+				callback->OnSubset(*cmp);
+			}
 			if (fromObjs[firtidx] >= metas[firtidx].max)
 			{
 				finishedidxs.insert(firtidx);
 			}
 			std::set<uint32>::iterator eit = finishedidxs.begin();
-			while(eit != finishedidxs.end())
+			while (eit != finishedidxs.end())
 			{
 				readySetKeyIdxs.erase(*eit);
 				eit++;
@@ -819,7 +859,11 @@ namespace ardb
 				}
 			}
 			isfirst = false;
-			callback->OnSubset(*cmp);
+			if(!cmp->empty())
+			{
+				callback->OnSubset(*cmp);
+			}
+
 		}
 		return 0;
 	}
@@ -839,7 +883,6 @@ namespace ardb
 				}
 				void OnSubset(ValueArray& array)
 				{
-					std::string str;
 					vs.insert(vs.end(), array.begin(), array.end());
 				}
 		} callback(values);
@@ -1045,20 +1088,24 @@ namespace ardb
 				{
 					BatchWriteGuard guard(db->GetEngine());
 					meta.size += array.size();
-					meta.max = *(array.rbegin());
-					if (meta.min.type == EMPTY)
+					if(array.size() > 0)
 					{
-						meta.min = *(array.begin());
+						meta.max = *(array.rbegin());
+						if (meta.min.type == EMPTY)
+						{
+							meta.min = *(array.begin());
+						}
+						ValueArray::iterator it = array.begin();
+						while (it != array.end())
+						{
+							SetKeyObject sk(key, *it, dbid);
+							ValueObject empty;
+							db->SetValue(sk, empty);
+							it++;
+						}
+						db->SetSetMetaValue(dbid, key, meta);
 					}
-					ValueArray::iterator it = array.begin();
-					while (it != array.end())
-					{
-						SetKeyObject sk(key, *it, dbid);
-						ValueObject empty;
-						db->SetValue(sk, empty);
-						it++;
-					}
-					db->SetSetMetaValue(dbid, key, meta);
+
 				}
 		} callback(this, db, dst);
 		callback.db = this;
