@@ -2045,7 +2045,7 @@ namespace ardb
 			keystrs.insert(cmd.GetArguments()[i]);
 		}
 
-		if (keystrs.size() != keys.size() - 1 || keystrs.count(cmd.GetArguments()[0]) > 0)
+		if (keystrs.size() != keys.size() || keystrs.count(cmd.GetArguments()[0]) > 0)
 		{
 			fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
 			return 0;
@@ -2086,7 +2086,7 @@ namespace ardb
 			keystrs.insert(cmd.GetArguments()[i]);
 		}
 
-		if (keystrs.size() != keys.size() - 1  || keystrs.count(cmd.GetArguments()[0]) > 0)
+		if (keystrs.size() != keys.size() || keystrs.count(cmd.GetArguments()[0]) > 0)
 		{
 			fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
 			return 0;
@@ -2207,7 +2207,7 @@ namespace ardb
 			keystrs.insert(cmd.GetArguments()[i]);
 		}
 
-		if (keystrs.size() != keys.size() - 1 || keystrs.count(cmd.GetArguments()[0]) > 0)
+		if (keystrs.size() != keys.size() || keystrs.count(cmd.GetArguments()[0]) > 0)
 		{
 			fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
 			return 0;
