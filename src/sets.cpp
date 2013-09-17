@@ -613,6 +613,7 @@ namespace ardb
 				ValueArray::iterator ret = std::set_difference(cmp->begin(), cmp->end(), tmp.begin(), tmp.end(), result->begin());
 				if (ret == result->begin())
 				{
+					cmp->clear();
 					break;
 				} else
 				{
