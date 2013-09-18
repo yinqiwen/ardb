@@ -2673,6 +2673,10 @@ namespace ardb
 			return 0;
 		}
 		int count = m_db->ZInterStore(ctx.currentDB, cmd.GetArguments()[0], keys, ws, type);
+		if(count < 0)
+		{
+			count = 0;
+		}
 		fill_int_reply(ctx.reply, count);
 		return 0;
 	}

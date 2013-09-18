@@ -34,6 +34,8 @@
 CXX=g++
 CC=gcc
 
+ARDB_VERSION=0.5.1
+
 uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 
 LIB_PATH=$(PWD)/../deps
@@ -75,8 +77,8 @@ LUA_LIBA=${LUA_PATH}/src/liblua.a
 OPTIMIZATION?=-O2
 OPT=$(OPTIMIZATION)
 
-CXXFLAGS=-Wall -g  ${OPT}  -fPIC -D__STDC_FORMAT_MACROS
-CCFLAGS=-Wall -std=gnu99 ${OPT} -pedantic -g -fPIC -D__STDC_FORMAT_MACROS
+CXXFLAGS=-Wall -g  ${OPT}  -fPIC -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"'
+CCFLAGS=-Wall -std=gnu99 ${OPT} -pedantic -g -fPIC -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"'
 LDFLAGS=-g 
 
 LUA_CFLAGS+= -O2 -Wall -DLUA_ANSI $(CCFLAGS)
@@ -240,8 +242,14 @@ clean_test:
 	
 noopt:
 	$(MAKE) OPT="-O0"
+	
 valgrind:
 	$(MAKE) OPT="-O0" MALLOC="libc"
+	
+dist:clean all
+	rm -rf ardb-${ARDB_VERSION};mkdir -p ardb-${ARDB_VERSION}/bin ardb-${ARDB_VERSION}/conf ardb-${ARDB_VERSION}/logs ardb-${ARDB_VERSION}/data ardb-${ARDB_VERSION}/repl ardb-${ARDB_VERSION}/backup; \
+	cp ardb-server ardb-${ARDB_VERSION}/bin; cp ardb-test ardb-${ARDB_VERSION}/bin; cp ../ardb.conf ardb-${ARDB_VERSION}/conf; \
+	tar czvf ardb-bin-${ARDB_VERSION}.tar.gz ardb-${ARDB_VERSION}; rm -rf ardb-${ARDB_VERSION};
 
 clean:
 	rm -f $(LEVELDB_TEST) $(KCDB_TEST) ${CORE_OBJECTS} ${LEVELDB_OBJECTS} \
