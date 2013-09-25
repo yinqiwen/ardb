@@ -46,7 +46,7 @@
 namespace ardb
 {
 	Slave::Slave(ArdbServer* serv) :
-			m_serv(serv), m_client(NULL), m_rest_chunk_len(0), m_slave_state(
+			m_serv(serv), m_client(NULL), m_slave_state(
 			SLAVE_STATE_CLOSED), m_cron_inited(false), m_ping_recved_time(0), m_server_type(
 			ARDB_DB_SERVER_TYPE), m_server_support_psync(false), m_actx(
 			NULL), m_rdb(NULL), m_backlog(serv->m_repl_backlog)

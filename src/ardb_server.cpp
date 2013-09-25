@@ -36,6 +36,8 @@
 #include <fnmatch.h>
 #include <sstream>
 
+#include "channel/zookeeper/zookeeper_client.hpp"
+
 namespace ardb
 {
 	static ServerStat kServerStat;
@@ -174,6 +176,8 @@ namespace ardb
 		make_dir(cfg.repl_data_dir);
 		make_dir(cfg.backup_dir);
 		cfg.repl_data_dir = real_path(cfg.repl_data_dir);
+
+		conf_get_string(props, "zookeeper-servers", cfg.zookeeper_servers);
 
 		conf_get_string(props, "loglevel", cfg.loglevel);
 		conf_get_string(props, "logfile", cfg.logfile);
@@ -3260,7 +3264,6 @@ namespace ardb
 			return -1;
 		}
 		m_service = new ChannelService(m_cfg.max_clients + 32);
-
 		ChannelOptions ops;
 		ops.tcp_nodelay = true;
 		if (m_cfg.tcp_keepalive > 0)
@@ -3323,12 +3326,20 @@ namespace ardb
 			m_slave_client.SetSyncDBs(m_cfg.syncdbs);
 			m_slave_client.ConnectMaster(m_cfg.master_host, m_cfg.master_port);
 		}
+
+		if(0 != m_ha_agent.Init(this))
+		{
+			goto sexit;
+		}
+
 		m_service->SetThreadPoolSize(m_cfg.worker_count);
 		m_service->RegisterUserEventCallback(LUAInterpreter::ScriptEventCallback, this);
 		INFO_LOG("Server started, Ardb version %s", ARDB_VERSION);
 		INFO_LOG("The server is now ready to accept connections on port %d", m_cfg.listen_port);
+
 		m_service->Start();
 		sexit: m_master_serv.Stop();
+		m_ha_agent.Close();
 		DELETE(m_db);
 		DELETE(m_service);
 		ArdbLogger::DestroyDefaultLogger();

@@ -1123,7 +1123,7 @@ namespace ardb
 				{
 					std::string colname(nit->data(), nit->size());
 					ValueObject& vv = tit->second[colname];
-					NameValueTable::iterator found = tit->second.find(colname);
+					//NameValueTable::iterator found = tit->second.find(colname);
 					if (options.with_alpha)
 					{
 						value_convert_to_raw(vv);

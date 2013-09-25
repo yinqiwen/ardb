@@ -38,6 +38,7 @@
 #include "ardb.hpp"
 #include "replication/slave.hpp"
 #include "replication/master.hpp"
+#include "ha/agent.hpp"
 #include "lua_scripting.hpp"
 
 /* Command flags. Please check the command table defined in the redis.c file
@@ -98,13 +99,16 @@ namespace ardb
 			int64 worker_count;
 			std::string loglevel;
 			std::string logfile;
+
+			std::string zookeeper_servers;
+
 			ArdbServerConfig() :
 					daemonize(false), listen_port(0), unixsocketperm(755), max_clients(10000), tcp_keepalive(0), timeout(0), slowlog_log_slower_than(10000), slowlog_max_len(128), repl_data_dir("./repl"), backup_dir("./backup"), repl_ping_slave_period(10), repl_timeout(60), repl_backlog_size(100 * 1024 * 1024), repl_state_persist_period(1), slave_cleardb_before_fullresync(true), lua_time_limit(0), master_port(
 							0), worker_count(1), loglevel("INFO")
 			{
 			}
 	};
-	class ArdbConnContext;
+	struct ArdbConnContext;
 	typedef btree::btree_set<ArdbConnContext*> ContextSet;
 
 	struct ArdbConncetion
@@ -330,6 +334,8 @@ namespace ardb
 			Slave m_slave_client;
 			ArdbDumpFile m_rdb;
 
+			ZKAgent m_ha_agent;
+
 			WatchKeyContextTable m_watch_context_table;
 			ThreadMutex m_watch_mutex;
 			PubSubContextTable m_pubsub_context_table;
@@ -351,6 +357,7 @@ namespace ardb
 			friend class Backup;
 			friend class ReplBacklog;
 			friend class LUAInterpreter;
+			friend class ZKAgent;
 
 			void FillInfoResponse(const std::string& section, std::string& content);
 

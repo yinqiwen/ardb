@@ -64,6 +64,12 @@ LEVELDB_PATH=${LIB_PATH}/${LEVELDB_VER}
 LEVELDB_FILE=${LEVELDB_PATH}.tar.gz
 LEVELDB_LIBA=${LEVELDB_PATH}/libleveldb.a
 
+ZOOKEEPER_VER=zookeeper-3.4.5
+ZOOKEEPER_PATH=${LIB_PATH}/${ZOOKEEPER_VER}
+ZOOKEEPER_FILE=${ZOOKEEPER_PATH}.tar.gz
+ZOOKEEPER_LIBA=${ZOOKEEPER_PATH}/.libs/libzkst.a
+ZOOKEEPER_LIBHTA=${ZOOKEEPER_PATH}/.libs/libhashtable.a
+
 KCDB_VER=kyotocabinet-1.2.76
 KCDB_PATH=${LIB_PATH}/${KCDB_VER}
 KCDB_FILE=${KCDB_PATH}.tar.gz
@@ -77,14 +83,15 @@ LUA_LIBA=${LUA_PATH}/src/liblua.a
 OPTIMIZATION?=-O2
 OPT=$(OPTIMIZATION)
 
-CXXFLAGS=-Wall -g  ${OPT}  -fPIC -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"'
+#CXXFLAGS=-Wall -g  ${OPT}  -fPIC -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"' 
+CXXFLAGS=-Wall -g  ${OPT}  -fPIC -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"'  -Wno-mismatched-tags
 CCFLAGS=-Wall -std=gnu99 ${OPT} -pedantic -g -fPIC -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"'
 LDFLAGS=-g 
 
 LUA_CFLAGS+= -O2 -Wall -DLUA_ANSI $(CCFLAGS)
 LUA_LDFLAGS+= $(LDFLAGS)
 
-INCS=-I./  -I${LIB_PATH}/cpp-btree  -I${LUA_PATH}/src -I${SNAPPY_PATH}
+INCS=-I./  -I${LIB_PATH}/cpp-btree  -I${LUA_PATH}/src -I${SNAPPY_PATH} -I${ZOOKEEPER_PATH}/include -I${ZOOKEEPER_PATH}/generated
 
 # Default allocator
 ifeq ($(uname_S),Linux)
@@ -100,7 +107,7 @@ MALLOC_LIBA=${JEMALLOC_LIBA}
 DEP_LIBS=jemalloc
 endif
 
-LIBS= ${LUA_LIBA} ${MALLOC_LIBA} -lpthread
+LIBS= ${LUA_LIBA} ${ZOOKEEPER_LIBA} ${ZOOKEEPER_LIBHTA} ${MALLOC_LIBA} -lpthread
 
 %.o : %.cpp
 	${CXX} -c ${CXXFLAGS} ${INCS} $< -o $@
@@ -109,7 +116,7 @@ LIBS= ${LUA_LIBA} ${MALLOC_LIBA} -lpthread
 	${CC} -c ${CCFLAGS} ${INCS} $< -o $@
 
 
-CHANNEL_CPP_VPATH=channel channel/socket channel/fifo channel/codec channel/timer channel/signal
+CHANNEL_CPP_VPATH=channel channel/socket channel/fifo channel/codec channel/timer channel/signal channel/zookeeper
 CHANNEL_C_VPATH=channel/redis 
 CHANNEL_CPPFILES := $(foreach dir, $(CHANNEL_CPP_VPATH), $(wildcard $(dir)/*.cpp))
 CHANNEL_CFILES := $(foreach dir, $(CHANNEL_C_VPATH), $(wildcard $(dir)/*.c))
@@ -130,7 +137,7 @@ TESTOBJ := ../test/ardb_test.o
 
 SERVER_OBJECTS := ardb_server.o lua_scripting.o transaction.o slowlog.o clients.o \
                   replication/rdb.o replication/slave.o replication/repl_backlog.o \
-                  replication/master.o pubsub.o  main.o
+                  replication/master.o ha/agent.o pubsub.o  main.o
 
 #DIST_LIB = libardb.so
 DIST_LIBA = libardb.a
@@ -232,6 +239,13 @@ lua:
       :; \
     else \
       cd ${LIB_PATH};cd ${LUA_PATH}/src; make all CFLAGS="$(LUA_CFLAGS)" MYLDFLAGS="$(LUA_LDFLAGS)";\
+    fi
+
+zookeeper:
+	@if test -f ${ZOOKEEPER_LIBA}; then\
+      :; \
+    else \
+      cd ${LIB_PATH};tar zxvf ${ZOOKEEPER_FILE};cd ${ZOOKEEPER_PATH}; ./configure;make;\
     fi
 
 clean_launch_obj:

@@ -180,7 +180,6 @@ namespace ardb
 				keystr = keystr.substr(4, keystr.size() - 5);
 
 				int keytype = Type(db, keystr);
-				DEBUG_LOG("#####replace value:%s %d", keystr.c_str(), keytype);
 				int len = -1;
 				switch (keytype)
 				{

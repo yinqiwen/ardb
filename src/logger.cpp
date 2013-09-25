@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -36,8 +36,9 @@ namespace ardb
 {
 	static ArdbLogHandler* kLogHandler = 0;
 	static IsLogEnable* kLogChecker = 0;
-	static const char* kLogLevelNames[] = { "FATAL", "ERROR", "WARN", "INFO",
-	        "DEBUG", "TRACE" };
+	static GetLogStream* kLogStream = 0;
+	static const char* kLogLevelNames[] =
+	{ "FATAL", "ERROR", "WARN", "INFO", "DEBUG", "TRACE" };
 	static const unsigned int k_default_log_line_buf_size = 256;
 	static LogLevel kDeafultLevel = DEBUG_LOG_LEVEL;
 	static FILE* kLogFile = stdout;
@@ -67,17 +68,14 @@ namespace ardb
 			fclose(kLogFile);
 			kLogFile = stdout;
 		}
-		std::stringstream oldest_file(
-		        std::stringstream::in | std::stringstream::out);
+		std::stringstream oldest_file(std::stringstream::in | std::stringstream::out);
 		oldest_file << kLogFilePath << "." << k_max_rolling_index;
 		remove(oldest_file.str().c_str());
 
 		for (int i = k_max_rolling_index - 1; i >= 1; --i)
 		{
-			std::stringstream source_oss(
-			        std::stringstream::in | std::stringstream::out);
-			std::stringstream target_oss(
-			        std::stringstream::in | std::stringstream::out);
+			std::stringstream source_oss(std::stringstream::in | std::stringstream::out);
+			std::stringstream target_oss(std::stringstream::in | std::stringstream::out);
 
 			source_oss << kLogFilePath << "." << i;
 			target_oss << kLogFilePath << "." << (i + 1);
@@ -94,16 +92,14 @@ namespace ardb
 		rename(kLogFilePath.c_str(), path.c_str());
 	}
 
-	static void default_loghandler(LogLevel level, const char* filename,
-	        const char* function, int line, const char* format, ...)
+	static void default_loghandler(LogLevel level, const char* filename, const char* function, int line, const char* format, ...)
 	{
 		const char* levelstr = 0;
 		uint64_t timestamp = get_current_epoch_millis();
 		if (level > 0 && level < ALL_LOG_LEVEL)
 		{
 			levelstr = kLogLevelNames[level - 1];
-		}
-		else
+		} else
 		{
 			levelstr = "???";
 		}
@@ -139,10 +135,8 @@ namespace ardb
 		uint32 mills = timestamp % 1000;
 		char timetag[256];
 		struct tm& tm = get_current_tm();
-		sprintf(timetag, "%02u-%02u %02u:%02u:%02u", tm.tm_mon + 1, tm.tm_mday,
-		        tm.tm_hour, tm.tm_min, tm.tm_sec);
-		fprintf(kLogFile, "[%u] %s,%03u %s %s\n", getpid(), timetag, mills,
-		        levelstr, record.c_str());
+		sprintf(timetag, "%02u-%02u %02u:%02u:%02u", tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+		fprintf(kLogFile, "[%u] %s,%03u %s %s\n", getpid(), timetag, mills, levelstr, record.c_str());
 		fflush(kLogFile);
 		if (!kLogFilePath.empty() && kLogFile != stdout)
 		{
@@ -150,8 +144,7 @@ namespace ardb
 			if (file_size < 0)
 			{
 				reopen_default_logfile();
-			}
-			else if ((uint32)file_size >= k_max_file_size)
+			} else if ((uint32) file_size >= k_max_file_size)
 			{
 				rollover_default_logfile();
 				reopen_default_logfile();
@@ -180,10 +173,11 @@ namespace ardb
 		}
 		return kLogChecker;
 	}
-	void ArdbLogger::InstallLogHandler(ArdbLogHandler* h, IsLogEnable* c)
+	void ArdbLogger::InstallLogHandler(LoggerSetting& setting)
 	{
-		kLogHandler = h;
-		kLogChecker = c;
+		kLogHandler = setting.handler;
+		kLogChecker = setting.enable;
+		kLogStream = setting.logstream;
 	}
 
 	void ArdbLogger::SetLogLevel(const std::string& level)
@@ -198,8 +192,7 @@ namespace ardb
 		}
 	}
 
-	void ArdbLogger::InitDefaultLogger(const std::string& level,
-	        const std::string& logfile)
+	void ArdbLogger::InitDefaultLogger(const std::string& level, const std::string& logfile)
 	{
 		if (!logfile.empty() && (logfile != "stdout" && logfile != "stderr"))
 		{
@@ -215,6 +208,15 @@ namespace ardb
 		{
 			fclose(kLogFile);
 		}
+	}
+
+	FILE* ArdbLogger::GetLogStream()
+	{
+		if (!kLogFile)
+		{
+			return stderr;
+		}
+		return kLogFile;
 	}
 }
 

@@ -46,7 +46,7 @@ namespace ardb
 	int make_tcp_nodelay(int fd);
 
 	int file_read_full(const std::string& path, Buffer& content);
-	int file_write_content(const std::string& path, std::string& content);
+	int file_write_content(const std::string& path, const std::string& content);
 
 	int list_subdirs(const std::string& path, std::deque<std::string>& dirs);
 	int list_subfiles(const std::string& path, std::deque<std::string>& fs);
@@ -56,6 +56,8 @@ namespace ardb
 	int sha1sum_file(const std::string& file, std::string& hash);
 
 	std::string real_path(const std::string& path);
+
+	bool is_valid_fd(int fd);
 }
 
 #endif /* FILEHELPER_HPP_ */

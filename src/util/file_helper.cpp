@@ -39,7 +39,9 @@
 #include <sys/ioctl.h>
 #include <stdio.h>
 #include <dirent.h>
+#include <errno.h>
 #include "sha1.h"
+
 
 namespace ardb
 {
@@ -166,7 +168,7 @@ namespace ardb
 		return setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(yes));
 	}
 
-	int file_write_content(const std::string& path, std::string& content)
+	int file_write_content(const std::string& path, const std::string& content)
 	{
 		make_file(path);
 		FILE *fp;
@@ -354,6 +356,10 @@ namespace ardb
 	    std::string newpath(tmp);
 		free(tmp);
 		return newpath;
+	}
 
+	bool is_valid_fd(int fd)
+	{
+		 return fcntl(fd, F_GETFD) != -1 || errno != EBADF;
 	}
 }

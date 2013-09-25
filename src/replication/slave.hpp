@@ -45,7 +45,7 @@ using namespace ardb::codec;
 
 namespace ardb
 {
-	class ArdbConnContext;
+	struct ArdbConnContext;
 	class ArdbServer;
 	class Slave: public ChannelUpstreamHandler<RedisMessage>
 	{
@@ -53,7 +53,6 @@ namespace ardb
 			ArdbServer* m_serv;
 			Channel* m_client;
 			SocketHostAddress m_master_addr;
-			uint32 m_rest_chunk_len;
 			uint32 m_slave_state;
 			bool m_cron_inited;
 			uint32 m_ping_recved_time;

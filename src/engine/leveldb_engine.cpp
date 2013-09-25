@@ -48,7 +48,7 @@ namespace ardb
 	{
 		Buffer ak_buf(const_cast<char*>(start->data()), 0, start->size());
 		Buffer bk_buf(const_cast<char*>(limit.data()), 0, limit.size());
-		if (!start->size() > 4 && limit.size() > 4)
+		if (start->size() > 4 && limit.size() > 4)
 		{
 			uint32 aheader, bheader;
 			BufferHelper::ReadFixUInt32(ak_buf, aheader);

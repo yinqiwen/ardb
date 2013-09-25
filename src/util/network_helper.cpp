@@ -38,6 +38,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <ifaddrs.h>
 
 namespace ardb
 {
@@ -89,13 +90,11 @@ namespace ardb
 			{
 				sockaddr_in* in = (sockaddr_in*) (addr);
 				ret = SocketInetAddress(*in);
-			}
-			else if (addr->sa_family == AF_INET6)
+			} else if (addr->sa_family == AF_INET6)
 			{
 				sockaddr_in6* in6 = (sockaddr_in6*) (addr);
 				ret = SocketInetAddress(*in6);
-			}
-			else if (addr->sa_family == AF_UNIX)
+			} else if (addr->sa_family == AF_UNIX)
 			{
 				sockaddr_un* un = (sockaddr_un*) (addr);
 				ret = SocketInetAddress(*un);
@@ -120,8 +119,7 @@ namespace ardb
 				return SocketHostAddress(host, ntohs(paddr->sin_port));
 			}
 			return invalid;
-		}
-		else
+		} else
 		{
 			//ipv6
 			char host[INET6_ADDRSTRLEN + 1];
@@ -164,13 +162,11 @@ namespace ardb
 			{
 				sockaddr_in* in = (sockaddr_in*) addr;
 				return SocketInetAddress(*in);
-			}
-			else if (addr->sa_family == AF_INET6)
+			} else if (addr->sa_family == AF_INET6)
 			{
 				sockaddr_in6* in6 = (sockaddr_in6*) addr;
 				return SocketInetAddress(*in6);
-			}
-			else if (addr->sa_family == AF_UNIX)
+			} else if (addr->sa_family == AF_UNIX)
 			{
 				sockaddr_un* un = (sockaddr_un*) addr;
 				return SocketInetAddress(*un);
@@ -198,13 +194,11 @@ namespace ardb
 			{
 				sockaddr_in* in = (sockaddr_in*) addr;
 				return SocketInetAddress(*in);
-			}
-			else if (addr->sa_family == AF_INET6)
+			} else if (addr->sa_family == AF_INET6)
 			{
 				sockaddr_in6* in6 = (sockaddr_in6*) addr;
 				return SocketInetAddress(*in6);
-			}
-			else if (addr->sa_family == AF_UNIX)
+			} else if (addr->sa_family == AF_UNIX)
 			{
 				sockaddr_un* un = (sockaddr_un*) addr;
 				return SocketInetAddress(*un);
@@ -229,8 +223,7 @@ namespace ardb
 			uint64_t temp = htonl(v & 0xFFFFFFFF);
 			temp <<= 32;
 			return temp | htonl(v >> 32);
-		}
-		else
+		} else
 		{
 			return v;
 		}
@@ -274,8 +267,7 @@ namespace ardb
 
 			if (0 == strcmp(ifName.c_str(), ifr[intrface].ifr_name))
 			{
-				SocketHostAddress addr = get_host_address(
-				        ifr[intrface].ifr_addr);
+				SocketHostAddress addr = get_host_address(ifr[intrface].ifr_addr);
 				ip = addr.GetHost();
 				::close(fd);
 				return 0;
@@ -288,40 +280,53 @@ namespace ardb
 
 	int get_local_host_ip_list(std::vector<std::string>& iplist)
 	{
-		int fd;
-		int intrface;
-		struct ifconf ifc;
-		struct ifreq ifr[kMaxNICCount];
+		struct ifaddrs * ifAddrStruct = NULL;
+		struct ifaddrs * ifa = NULL;
+		void * tmpAddrPtr = NULL;
 
-		if (-1 == (fd = socket(AF_INET, SOCK_DGRAM, 0)))
+		getifaddrs(&ifAddrStruct);
+
+		for (ifa = ifAddrStruct; ifa != NULL; ifa = ifa->ifa_next)
 		{
-			return -1;
+			if (ifa->ifa_addr->sa_family == AF_INET)
+			{ // check it is IP4
+			  // is a valid IP4 Address
+				tmpAddrPtr = &((struct sockaddr_in *) ifa->ifa_addr)->sin_addr;
+				char addressBuffer[INET_ADDRSTRLEN];
+				inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
+				iplist.push_back(addressBuffer);
+			} else if (ifa->ifa_addr->sa_family == AF_INET6)
+			{ // check it is IP6
+			  // is a valid IP6 Address
+				tmpAddrPtr = &((struct sockaddr_in6 *) ifa->ifa_addr)->sin6_addr;
+				char addressBuffer[INET6_ADDRSTRLEN];
+				inet_ntop(AF_INET6, tmpAddrPtr, addressBuffer, INET6_ADDRSTRLEN);
+				iplist.push_back(addressBuffer);
+			}
+		}
+		if (ifAddrStruct != NULL)
+			freeifaddrs(ifAddrStruct);
+		return 0;
+	}
+
+	int get_local_host_ipv4(std::string& ip)
+	{
+		std::vector<std::string> ips;
+
+		if (0 == get_local_host_ip_list(ips))
+		{
+
+			for (uint32 i = 0; i < ips.size(); i++)
+			{
+				if (ips[i].find("127.0.0") != std::string::npos || ips[i].find(":") != std::string::npos)
+				{
+					continue;
+				}
+				ip = ips[i];
+				return 0;
+			}
 		}
 
-		ifc.ifc_len = sizeof(ifr);
-		ifc.ifc_buf = (caddr_t) ifr;
-
-		if (-1 == ioctl(fd, SIOCGIFCONF, (char *) &ifc))
-		{
-			::close(fd);
-			return -1;
-		}
-
-		intrface = ifc.ifc_len / sizeof(struct ifreq);
-		while (intrface-- > 0)
-		{
-			/*Get IP of the net card */
-			if (-1 == ioctl(fd, SIOCGIFADDR, (char *) &ifr[intrface]))
-				continue;
-			if (NULL == ifr[intrface].ifr_name)
-				continue;
-
-			SocketHostAddress addr = get_host_address(ifr[intrface].ifr_addr);
-			std::string ip = addr.GetHost();
-			iplist.push_back(ip);
-		}
-
-		close(fd);
 		return -1;
 	}
 
@@ -331,7 +336,7 @@ namespace ardb
 		get_local_host_ip_list(iplist);
 		for (uint32 i = 0; i < iplist.size(); i++)
 		{
-			if(iplist[i] == ip)
+			if (iplist[i] == ip)
 			{
 				return true;
 			}
