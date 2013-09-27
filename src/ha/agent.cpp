@@ -7,9 +7,8 @@
 #include "agent.hpp"
 #include "ardb_server.hpp"
 
-#define ZK_STATE_CREATE_ROOT 1
-#define ZK_STATE_CREATE_SERVER_ROOT 2
-#define ZK_STATE_CREATE_NODE 3
+#define ZK_STATE_CREATE_NODE 1
+
 #define ZK_STATE_CONNECTED 4
 
 namespace ardb
@@ -58,12 +57,6 @@ namespace ardb
 			}
 			fclose(idfile);
 		}
-		Buffer tmp;
-		std::string zknodefile = cfg.home + "/.zknode";
-		file_read_full(zknodefile, tmp);
-		m_zk_node = tmp.AsString();
-
-		DEBUG_LOG("zookeeper node:%s, clientid= %"PRId64, m_zk_node.c_str(), m_zk_clientid.client_id);
 		Reconnect();
 		return 0;
 	}
@@ -102,56 +95,23 @@ namespace ardb
 		DEBUG_LOG("Create %s on zk with rc:%d", path.c_str(), rc);
 		if (rc == ZOK || rc == ZNODEEXISTS)
 		{
-			switch (m_state)
+			switch(m_state)
 			{
-				case ZK_STATE_CREATE_ROOT:
-				{
-					m_state = ZK_STATE_CREATE_SERVER_ROOT;
-					ZKACLArray acls;
-					m_zk_client->Create("/ardb/servers", "", acls, 0);
-					break;
-				}
-				case ZK_STATE_CREATE_SERVER_ROOT:
-				{
-					m_state = ZK_STATE_CREATE_NODE;
-					std::string path = "/ardb/servers/" + m_server->m_repl_backlog.GetServerKey();
-					int flag = ZOO_EPHEMERAL | ZOO_SEQUENCE;
-					if (!m_zk_node.empty())
-					{
-						path = m_zk_node;
-						flag = ZOO_EPHEMERAL;
-					}
-					ZKACLArray acls;
-					std::string localip;
-					get_local_host_ipv4(localip);
-					if (localip.empty())
-					{
-						localip = "127.0.0.1";
-					}
-					char data[100];
-					std::string role = m_server->m_cfg.master_host.empty() ? "master" : "slave";
-					sprintf(data, "%s:%s:%"PRId64, role.c_str(), localip.c_str(), m_server->m_cfg.listen_port);
-					m_zk_client->Create(path.c_str(), data, acls, flag);
-					break;
-				}
 				case ZK_STATE_CREATE_NODE:
 				{
 					m_state = ZK_STATE_CONNECTED;
-					m_zk_node = path;
-					ArdbServerConfig& cfg = m_server->m_cfg;
-					std::string zknodefile = cfg.home + "/.zknode";
-					file_write_content(zknodefile, path);
 					break;
 				}
 				default:
 				{
-					ERROR_LOG("Invalid state:%d to process oncreate event.", m_state);
+					ERROR_LOG("Invalid state:%d", m_state);
 					break;
 				}
 			}
 		} else
 		{
 			ERROR_LOG("Failed to create path:%s at state:%d for reason:%s", path.c_str(), m_state, zerror(rc));
+			//OnSessionExpired();
 			Reconnect();
 		}
 	}
@@ -173,9 +133,19 @@ namespace ardb
 			}
 			fclose(idfile);
 		}
-		m_state = ZK_STATE_CREATE_ROOT;
+		m_state = ZK_STATE_CREATE_NODE;
+		DEBUG_LOG("Create zknodes");
 		ZKACLArray acls;
-		m_zk_client->Create("/ardb", "", acls, 0);
+		std::string localip;
+		get_local_host_ipv4(localip);
+		if (localip.empty())
+		{
+			localip = "127.0.0.1";
+		}
+		std::string role = m_server->m_cfg.master_host.empty() ? "master" : "slave";
+		char znode[512];
+		sprintf(znode, "/ardb/servers/%s/%s:%"PRId64, m_server->m_repl_backlog.GetServerKey().c_str(), localip.c_str(), m_server->m_cfg.listen_port);
+		m_zk_client->Create(znode, role, acls, ZOO_EPHEMERAL);
 	}
 
 	void ZKAgent::OnAuthFailed()
@@ -186,12 +156,9 @@ namespace ardb
 	{
 		DEBUG_LOG("ZK session expired.");
 		memset(&m_zk_clientid, 0, sizeof(m_zk_clientid));
-		m_zk_node.clear();
 		ArdbServerConfig& cfg = m_server->m_cfg;
 		std::string zkidfile = cfg.home + "/.zkcid";
-		std::string zknodefile = cfg.home + "/.zknode";
 		unlink(zkidfile.c_str());
-		unlink(zknodefile.c_str());
 		Reconnect();
 	}
 
@@ -199,13 +166,15 @@ namespace ardb
 	{
 		ArdbServerConfig& cfg = m_server->m_cfg;
 		ZookeeperClient* newzk = NULL;
-		NEW(newzk, ZookeeperClient(*(m_server->m_service)));
+		if(NULL == m_zk_client)
+		{
+			NEW(m_zk_client, ZookeeperClient(*(m_server->m_service)));
+		}
+		m_zk_client->Close();
 		ZKOptions options;
 		options.cb = this;
 		options.clientid = m_zk_clientid;
-		newzk->Connect(cfg.zookeeper_servers, options);
-		Close();
-		m_zk_client = newzk;
+		m_zk_client->Connect(cfg.zookeeper_servers, options);
 	}
 
 	void ZKAgent::Close()

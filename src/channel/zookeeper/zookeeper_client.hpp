@@ -75,6 +75,7 @@ namespace ardb
 			std::string id;
 	};
 	typedef std::vector<ZKACL> ZKACLArray;
+
 	class ZookeeperClient:public Runnable
 	{
 		private:
@@ -82,20 +83,23 @@ namespace ardb
 			zhandle_t* m_zk;
 			ZKAsyncCallback* m_callback;
 			int m_zk_fd;
-			int32 m_timer_id;
 			void Run();
 			static void WatchCallback(zhandle_t *zh, int type, int state, const char *path, void *watcherCtx);
 			static void CreateCB(int rc, const char *value, const void *data);
+			static void RecursiveCreateCB(int rc, const char *value, const void *data);
 			static void ExistsCompletionCB(int rc, const struct Stat *stat, const void *data);
 		    static void AuthCB(int rc, const void *data);
 		    static void ZKIOCallback(struct aeEventLoop *eventLoop, int fd, void *clientData, int mask);
+		    void CheckConn();
 		public:
 			ZookeeperClient(ChannelService& serv);
 			int Connect(const std::string& servers, const ZKOptions& options);
 			int Exists(const std::string& path, bool watch);
-			int Create(const std::string& path, const std::string& value, const ZKACLArray& acls, int flags);
-	        int Auth(const std::string& scheme,const std::string& cert);
+			int Create(const std::string& path, const std::string& value, const ZKACLArray& acls, int flags, bool recursive = true);
+			int Auth(const std::string& scheme,const std::string& cert);
 	        int GetClientID(clientid_t& id);
+	        int Lock(const std::string& path);
+	        int UnLock(const std::string& path);
 	        void Close();
 	        ~ZookeeperClient();
 	};
