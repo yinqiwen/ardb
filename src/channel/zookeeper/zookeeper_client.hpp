@@ -83,6 +83,7 @@ namespace ardb
 			zhandle_t* m_zk;
 			ZKAsyncCallback* m_callback;
 			int m_zk_fd;
+			int32 m_timer_task_id;
 			void Run();
 			static void WatchCallback(zhandle_t *zh, int type, int state, const char *path, void *watcherCtx);
 			static void CreateCB(int rc, const char *value, const void *data);

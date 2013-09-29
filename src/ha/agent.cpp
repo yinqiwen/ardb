@@ -112,6 +112,7 @@ namespace ardb
 		{
 			ERROR_LOG("Failed to create path:%s at state:%d for reason:%s", path.c_str(), m_state, zerror(rc));
 			//OnSessionExpired();
+			memset(&m_zk_clientid, 0, sizeof(m_zk_clientid));
 			Reconnect();
 		}
 	}
@@ -165,7 +166,6 @@ namespace ardb
 	void ZKAgent::Reconnect()
 	{
 		ArdbServerConfig& cfg = m_server->m_cfg;
-		ZookeeperClient* newzk = NULL;
 		if(NULL == m_zk_client)
 		{
 			NEW(m_zk_client, ZookeeperClient(*(m_server->m_service)));

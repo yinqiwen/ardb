@@ -64,7 +64,7 @@ namespace ardb
 	}
 
 	ZookeeperClient::ZookeeperClient(ChannelService& serv) :
-			m_serv(serv), m_zk(NULL), m_callback(NULL), m_zk_fd(-1)
+			m_serv(serv), m_zk(NULL), m_callback(NULL), m_zk_fd(-1),m_timer_task_id(-1)
 	{
 
 	}
@@ -75,7 +75,7 @@ namespace ardb
 		struct timeval tv;
 		int fd;
 		int rc = zookeeper_interest(m_zk, &fd, &interest, &tv);
-		if (rc == ZOK && fd != -1)
+		if (rc == ZOK)
 		{
 			if(fd != -1)
 			{
@@ -88,7 +88,7 @@ namespace ardb
 				{
 					events |= AE_WRITABLE;
 				}
-				aeDeleteFileEvent(m_serv.GetRawEventLoop(), fd, AE_WRITABLE|AE_WRITABLE);
+				aeDeleteFileEvent(m_serv.GetRawEventLoop(), fd, AE_READABLE|AE_WRITABLE);
 				aeCreateFileEvent(m_serv.GetRawEventLoop(), fd, events, ZookeeperClient::ZKIOCallback, this);
 				m_zk_fd = fd;
 			}
@@ -97,19 +97,26 @@ namespace ardb
 			{
 				wait = 1000;
 			}
-			m_serv.GetTimer().Schedule(this, wait, -1);
+			if(m_timer_task_id == -1)
+			{
+				m_timer_task_id = m_serv.GetTimer().Schedule(this, wait, -1,MILLIS);
+			}
 		} else
 		{
 			if (rc != ZOK)
 			{
-				//Close();
-				m_serv.GetTimer().Schedule(this, 1000, -1);
+				if(m_timer_task_id == -1)
+				{
+					m_timer_task_id = m_serv.GetTimer().Schedule(this, 1000, -1,MILLIS);
+				}
 			}
 		}
+
 	}
 
 	void ZookeeperClient::Run()
 	{
+		m_timer_task_id = -1;
 		CheckConn();
 	}
 
@@ -290,15 +297,10 @@ namespace ardb
 		{
 			if(-1 != m_zk_fd)
 			{
-				aeDeleteFileEvent(m_serv.GetRawEventLoop(), m_zk_fd, AE_WRITABLE|AE_WRITABLE);
-				//DEBUG_LOG("##delete events for %d", m_zk_fd);
-				close(m_zk_fd);
+				aeDeleteFileEvent(m_serv.GetRawEventLoop(), m_zk_fd, AE_READABLE|AE_WRITABLE);
 				m_zk_fd = -1;
 			}
-			uint64 s = get_current_epoch_millis();
 			zookeeper_close(m_zk);
-			uint64 e= get_current_epoch_millis();
-			INFO_LOG("Cost %llums to close.", (e-s));
 			m_zk = NULL;
 		}
 	}

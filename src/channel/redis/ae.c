@@ -410,8 +410,8 @@ int aeProcessEvents(aeEventLoop *eventLoop, int flags)
 				tvp = NULL; /* wait forever */
 			}
 		}
-
 		numevents = aeApiPoll(eventLoop, tvp);
+
 		for (j = 0; j < numevents; j++)
 		{
 			aeFileEvent *fe = &eventLoop->events[eventLoop->fired[j].fd];
