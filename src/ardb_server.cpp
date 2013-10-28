@@ -2548,7 +2548,7 @@ namespace ardb
 		bool withscores = false;
 		if (cmd.GetArguments().size() == 4)
 		{
-			if (string_tolower(cmd.GetArguments()[3]) != "WITHSCORES")
+			if (string_tolower(cmd.GetArguments()[3]) != "withscores")
 			{
 				fill_error_reply(ctx.reply, "ERR syntax error");
 				return 0;
