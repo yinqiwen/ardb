@@ -159,10 +159,13 @@ namespace ardb
 		}
 	}
 
-	static void LoadRDBRoutine(void* cb)
+	void Slave::LoadRDBRoutine(void* cb)
 	{
-		Channel* client = (Channel*) cb;
-		client->GetService().Continue();
+	    Slave* slave = (Slave*) cb;
+	    if(NULL != slave->m_client)
+	    {
+		slave->m_client->GetService().Continue();
+	    }
 	}
 	void Slave::HandleRedisReply(Channel* ch, RedisReply& reply)
 	{
@@ -324,7 +327,7 @@ namespace ardb
 			{
 				m_serv->m_db->FlushAll();
 			}
-			m_rdb->Load(LoadRDBRoutine, m_client);
+			m_rdb->Load(Slave::LoadRDBRoutine, this);
 			m_slave_state = SLAVE_STATE_SYNCED;
 			m_rdb->Remove();
 			DELETE(m_rdb);

@@ -86,6 +86,7 @@ namespace ardb
 			void InitCron();
 			RedisDumpFile* GetNewRedisDumpFile();
 			ArdbConnContext* GetArdbConnContext();
+			static void LoadRDBRoutine(void* cb);
 		public:
 			Slave(ArdbServer* serv);
 			bool Init();
