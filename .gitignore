@@ -11,3 +11,4 @@ snappy-*/
 gperftools-*/
 jemalloc-*/
 leveldb-*/
+/Debug

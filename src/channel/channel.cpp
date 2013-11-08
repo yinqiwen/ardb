@@ -43,7 +43,6 @@ static uint32 kChannelIDSeed = 1;
 
 void Channel::IOEventCallback(struct aeEventLoop *eventLoop, int fd, void *clientData, int mask)
 {
-	//DEBUG_LOG("############Mask is %d", mask);
 	Channel* channel = (Channel*) clientData;
 	bool fired = false;
 	if (mask & AE_READABLE)

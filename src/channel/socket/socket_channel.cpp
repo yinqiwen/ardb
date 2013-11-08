@@ -217,7 +217,9 @@ bool SocketChannel::DoConnect(Address* remote)
 		}
 
 	}
+
 	m_state = SOCK_CONNECTING;
+	//DEBUG_LOG("###Switch to %d", m_state);
 	return true;
 }
 
@@ -281,6 +283,7 @@ void SocketChannel::setRemoteAddress(Address* addr)
 
 int SocketChannel::GetSocketFD(int domain)
 {
+        //DEBUG_LOG("###FD = %d", m_fd);
 	if (m_fd < 0)
 	{
 		int fd = ::socket(domain, GetProtocol(), 0);
@@ -312,13 +315,15 @@ int SocketChannel::GetSocketFD(int domain)
 			return -1;
 		}
 		m_fd = fd;
+		//DEBUG_LOG("###Create FD = %d", m_fd);
 	}
 	return m_fd;
 }
 
 void SocketChannel::OnWrite()
 {
-	if (SOCK_CONNECTING == m_state)
+        //DEBUG_LOG("############st is %d", m_state);
+	if (SOCK_CONNECTING == m_state || SOCK_INIT == m_state)
 	{
 		aeDeleteFileEvent(GetService().GetRawEventLoop(), m_fd, AE_WRITABLE);
 		m_state = SOCK_CONNECTED;

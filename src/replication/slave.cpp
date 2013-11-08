@@ -86,6 +86,7 @@ namespace ardb
 
 	void Slave::ChannelConnected(ChannelHandlerContext& ctx, ChannelStateEvent& e)
 	{
+	        DEBUG_LOG("Master conn connected.");
 		Buffer info;
 		info.Printf("info Server\r\n");
 		ctx.GetChannel()->Write(info);
@@ -183,7 +184,7 @@ namespace ardb
 					size_t end = reply.str.find("\n", start);
 					std::string v = reply.str.substr(start + strlen(redis_ver_key), end - start - strlen(redis_ver_key));
 					v = trim_string(v);
-					m_server_support_psync = (compare_version<3>(v, "2.8.0") >= 0);
+					m_server_support_psync = (compare_version<3>(v, "2.7.0") >= 0);
 					INFO_LOG("[Slave]Remote master is a Redis %s instance, support partial sync:%u", v.c_str(), m_server_support_psync);
 
 				} else
@@ -404,7 +405,7 @@ namespace ardb
 		SocketHostAddress addr(host, port);
 		if (m_master_addr == addr && NULL != m_client)
 		{
-			return 0;
+		    return 0;
 		}
 		m_master_addr = addr;
 		Close();
@@ -417,6 +418,7 @@ namespace ardb
 		m_decoder.SwitchToReplyDecoder();
 		m_slave_state = SLAVE_STATE_CONNECTING;
 		m_client->Connect(&m_master_addr);
+		DEBUG_LOG("Connecting master %s:%u %d", host.c_str(), port);
 		return 0;
 	}
 
