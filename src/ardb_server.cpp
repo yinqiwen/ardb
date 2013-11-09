@@ -35,7 +35,7 @@
 #include <stdarg.h>
 #include <fnmatch.h>
 #include <sstream>
-
+#include "util/file_helper.hpp"
 #include "channel/zookeeper/zookeeper_client.hpp"
 
 namespace ardb
@@ -159,6 +159,8 @@ namespace ardb
 
 		setenv("ARDB_HOME", cfg.home.c_str(), 1);
 		replace_env_var(const_cast<Properties&>(props));
+
+		conf_get_string(props, "pidfile", cfg.pidfile);
 
 		conf_get_int64(props, "port", cfg.listen_port);
 		conf_get_int64(props, "tcp-keepalive", cfg.tcp_keepalive);
@@ -408,8 +410,8 @@ namespace ardb
 			{ "tcreate", REDIS_CMD_TCREATE, &ArdbServer::TCreate, 2, -1, "w", 0 },
 			{ "tlen", REDIS_CMD_TLEN, &ArdbServer::TLen, 1, 1, "r", 0 },
 			{ "tdesc", REDIS_CMD_TDESC, &ArdbServer::TDesc, 1, 1, "r", 0 },
-			{ "tinsert", REDIS_CMD_TINSERT, &ArdbServer::TInsert, 6, -1, "w", 0 },
-			{ "treplace", REDIS_CMD_TREPLACE, &ArdbServer::TInsert, 6, -1, "w", 0 },
+			{ "tinsert", REDIS_CMD_TINSERT, &ArdbServer::TInsert, 2, -1, "w", 0 },
+			{ "treplace", REDIS_CMD_TREPLACE, &ArdbServer::TInsert, 2, -1, "w", 0 },
 			{ "tget", REDIS_CMD_TGET, &ArdbServer::TGet, 2, -1, "w", 0 },
 			{ "tgetall", REDIS_CMD_TGETALL, &ArdbServer::TGetAll, 1, 1, "r", 0 },
 			{ "tdel", REDIS_CMD_TDEL, &ArdbServer::TDel, 1, -1, "w", 0 },
@@ -3251,6 +3253,14 @@ namespace ardb
 		{
 			daemonize();
 		}
+        if (!m_cfg.pidfile.empty())
+        {
+            char tmp[200];
+            sprintf(tmp, "%d", getpid());
+            std::string content = tmp;
+            file_write_content(m_cfg.pidfile, content);
+        }
+
 		if (0 != chdir(m_cfg.home.c_str()))
 		{
 			ERROR_LOG("Faild to change dir to home:%s", m_cfg.home.c_str());

@@ -100,6 +100,8 @@ namespace ardb
 			std::string loglevel;
 			std::string logfile;
 
+			std::string pidfile;
+
 			std::string zookeeper_servers;
 
 			ArdbServerConfig() :
