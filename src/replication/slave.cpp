@@ -49,7 +49,7 @@ namespace ardb
             m_serv(serv), m_client(NULL), m_slave_state(
             SLAVE_STATE_CLOSED), m_cron_inited(false), m_ping_recved_time(0), m_server_type(
             ARDB_DB_SERVER_TYPE), m_server_support_psync(false), m_actx(
-            NULL), m_rdb(NULL), m_backlog(serv->m_repl_backlog),m_routine_ts(0)
+            NULL), m_rdb(NULL), m_backlog(serv->m_repl_backlog), m_routine_ts(0)
     {
     }
 
@@ -150,8 +150,7 @@ namespace ardb
     void Slave::Routine()
     {
         uint32 now = time(NULL);
-        if (m_slave_state == SLAVE_STATE_SYNCED
-                || m_slave_state == SLAVE_STATE_LOADING_DUMP_DATA)
+        if (m_slave_state == SLAVE_STATE_SYNCED)
         {
             if (m_ping_recved_time > 0
                     && now - m_ping_recved_time >= m_serv->m_cfg.repl_timeout)
@@ -162,11 +161,12 @@ namespace ardb
                             m_ping_recved_time);
                     Timeout();
                     return;
-                } else
-                {
-                    WARN_LOG("Cost too many time to load data from rdb file.");
                 }
             }
+        }
+        if (m_slave_state == SLAVE_STATE_SYNCED
+                || m_slave_state == SLAVE_STATE_LOADING_DUMP_DATA)
+        {
             if (m_server_support_psync)
             {
                 Buffer ack;
@@ -175,6 +175,7 @@ namespace ardb
                 m_client->Write(ack);
             }
         }
+
         m_routine_ts = now;
     }
 
@@ -185,7 +186,7 @@ namespace ardb
         {
             slave->m_client->GetService().Continue();
         }
-        if(time(NULL) - slave->m_routine_ts > 10)
+        if (time(NULL) - slave->m_routine_ts > 10)
         {
             slave->Routine();
         }
@@ -367,7 +368,15 @@ namespace ardb
                 m_serv->m_db->FlushAll();
             }
             INFO_LOG("Start loading RDB dump file.");
+            if (NULL != m_client)
+            {
+                m_client->DetachFD();
+            }
             m_rdb->Load(Slave::LoadRDBRoutine, this);
+            if (NULL != m_client)
+            {
+                m_client->AttachFD();
+            }
             m_slave_state = SLAVE_STATE_SYNCED;
             m_rdb->Remove();
             DELETE(m_rdb);
