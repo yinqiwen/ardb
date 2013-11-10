@@ -116,12 +116,11 @@ namespace ardb
 			}
 			default:
 			{
-
 				if (m_backlog.GetCurrentDBID() != dbid)
 				{
 					if (!m_server->m_cfg.master_host.empty())
 					{
-						ERROR_LOG("Can NOT happen since slave instance can NOT generate select command.");
+						ERROR_LOG("Can NOT happen since slave instance can NOT generate select command to switch DB from %u to %u", m_backlog.GetCurrentDBID(), dbid);
 					} else
 					{
 						RedisCommandFrame select("select %u", dbid);
@@ -569,7 +568,7 @@ namespace ardb
 
 	void Master::DisconnectAllSlaves()
 	{
-		INFO_LOG("[REPL]Disconnect all slaves since data ");
+		INFO_LOG("[REPL]Disconnect all slaves.");
 		ReplicationInstruction inst(NULL, REPL_INSTRUCTION_DELETE_SLAVES);
 		OfferReplInstruction(inst);
 	}

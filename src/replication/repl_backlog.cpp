@@ -136,36 +136,6 @@ namespace ardb
         return 0;
     }
 
-//    void ReplBacklog::Feed(RedisCommandFrame& cmd, const DBID& dbid)
-//    {
-//        switch (cmd.GetType())
-//        {
-//            case REDIS_CMD_SELECT:
-//            {
-//                string_touint32(cmd.GetArguments()[0], m_current_dbid);
-//                break;
-//            }
-//            case REDIS_CMD_PING:
-//            {
-//                break;
-//            }
-//            default:
-//            {
-//                if (m_current_dbid != dbid)
-//                {
-//                    m_current_dbid = dbid;
-//                    RedisCommandFrame select("select %u", dbid);
-//                    Buffer buffer(256);
-//                    RedisCommandEncoder::Encode(buffer, select);
-//                    Feed(buffer);
-//                }
-//                break;
-//            }
-//        }
-//        Buffer buffer(256);
-//        RedisCommandEncoder::Encode(buffer, cmd);
-//        Feed(buffer);
-//    }
 
     void ReplBacklog::Feed(Buffer& buffer)
     {

@@ -74,6 +74,8 @@ namespace ardb
 			RedisDumpFile* m_rdb;
 			ReplBacklog& m_backlog;
 
+			time_t m_routine_ts;
+
 			void HandleRedisCommand(Channel* ch, RedisCommandFrame& cmd);
 			void HandleRedisReply(Channel* ch, RedisReply& reply);
 			void HandleRedisDumpChunk(Channel* ch, RedisDumpFileChunk& chunk);
