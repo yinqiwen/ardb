@@ -120,7 +120,7 @@ namespace ardb
 				{
 					if (!m_server->m_cfg.master_host.empty())
 					{
-						ERROR_LOG("Can NOT happen since slave instance can NOT generate select command to switch DB from %u to %u", m_backlog.GetCurrentDBID(), dbid);
+						ERROR_LOG("Can NOT happen since slave instance can NOT generate select command for cmd:%s to switch DB from %u to %u", cmd.GetCommand().c_str(), m_backlog.GetCurrentDBID(), dbid);
 					} else
 					{
 						RedisCommandFrame select("select %u", dbid);
