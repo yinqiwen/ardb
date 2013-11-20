@@ -59,10 +59,15 @@ SNAPPY_PATH=${LIB_PATH}/${SNAPPY_VER}
 SNAPPY_FILE=${SNAPPY_PATH}.tar.gz
 SNAPPY_LIBA=${SNAPPY_PATH}/.libs/libsnappy.a
 
-LEVELDB_VER=leveldb-1.13.0
+LEVELDB_VER=leveldb-1.14.0
 LEVELDB_PATH=${LIB_PATH}/${LEVELDB_VER}
 LEVELDB_FILE=${LEVELDB_PATH}.tar.gz
 LEVELDB_LIBA=${LEVELDB_PATH}/libleveldb.a
+
+ROCKSDB_VER=rocksdb-2.6.fb
+ROCKSDB_PATH=${LIB_PATH}/${ROCKSDB_VER}
+ROCKSDB_FILE=${ROCKSDB_PATH}.tar.gz
+ROCKSDB_LIBA=${ROCKSDB_PATH}/librocksdb.a
 
 ZOOKEEPER_VER=zookeeper-3.4.5
 ZOOKEEPER_PATH=${LIB_PATH}/${ZOOKEEPER_VER}
@@ -130,7 +135,8 @@ CORE_OBJECTS := ardb.o ardb_data.o hash.o kv.o lists.o logger.o sets.o \
                 zsets.o strings.o bits.o table.o sort.o \
                 $(UTIL_OBJECTS)
 
-LEVELDB_ENGINE :=  engine/leveldb_engine.o       
+LEVELDB_ENGINE :=  engine/leveldb_engine.o    
+ROCKSDB_ENGINE :=  engine/rocksdb_engine.o     
 KCDB_ENGINE :=  engine/kyotocabinet_engine.o     
 LMDB_ENGINE :=  engine/lmdb_engine.o     
 TESTOBJ := ../test/ardb_test.o
@@ -154,6 +160,7 @@ ifeq ($(storage_engine), kyotocabinet)
   STORAGE_ENGINE_OBJ=${KCDB_ENGINE}
   STORAGE_ENGINE=kyotocabinet ${STORAGE_ENGINE_OBJ}
   INCS+=-I${KCDB_PATH}
+  
   LIBS:= ${KCDB_LIBA} ${LIBS} -lz
   CXXFLAGS+=-D__USE_KYOTOCABINET__
 else
@@ -164,7 +171,15 @@ ifeq ($(storage_engine), lmdb)
   LIBS:= ${LMDB_LIBA} ${LIBS}
   CXXFLAGS+=-D__USE_LMDB__
 else
-  $(error Only leveldb/kyotocabinet/lmdb supported as env storage_engine's value)
+ifeq ($(storage_engine), rocksdb)
+  STORAGE_ENGINE_OBJ=${ROCKSDB_ENGINE}
+  STORAGE_ENGINE=rocksdb ${STORAGE_ENGINE_OBJ}
+  INCS+=-I${ROCKSDB_PATH}/include
+  LIBS:= ${ROCKSDB_LIBA} ${SNAPPY_LIBA} ${LIBS}
+  CXXFLAGS+=-D__USE_ROCKSDB__ -std=c++11
+else
+  $(error Only leveldb/kyotocabinet/lmdb/rocksdb supported as env storage_engine's value)
+endif
 endif 
 endif
 endif
@@ -232,6 +247,14 @@ leveldb:snappy
     else \
       cd ${LIB_PATH};tar zxvf ${LEVELDB_FILE};cd ${LEVELDB_PATH};\
       CXXFLAGS="-I${SNAPPY_PATH}" CFLAGS="-I${SNAPPY_PATH}" LDFLAGS="${SNAPPY_PATH}/.libs" make libleveldb.a;\
+    fi
+    
+rocksdb:snappy
+	@if test -f ${ROCKSDB_LIBA}; then\
+      :; \
+    else \
+      cd ${LIB_PATH};tar zxvf ${ROCKSDB_FILE};cd ${ROCKSDB_PATH};\
+      CXXFLAGS="-I${SNAPPY_PATH}" CFLAGS="-I${SNAPPY_PATH}" LDFLAGS="${SNAPPY_PATH}/.libs" make librocksdb.a;\
     fi
 
 lua:

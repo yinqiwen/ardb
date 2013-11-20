@@ -26,15 +26,15 @@
  *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF 
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef LEVELDB_ENGINE_HPP_
-#define LEVELDB_ENGINE_HPP_
+#ifndef ROCKSDB_ENGINE_HPP_
+#define ROCKSDB_ENGINE_HPP_
 
+#include "rocksdb/db.h"
+#include "rocksdb/write_batch.h"
+#include "rocksdb/comparator.h"
+#include "rocksdb/cache.h"
+#include "rocksdb/filter_policy.h"
 
-#include "leveldb/db.h"
-#include "leveldb/write_batch.h"
-#include "leveldb/comparator.h"
-#include "leveldb/cache.h"
-#include "leveldb/filter_policy.h"
 #include "ardb.hpp"
 #include "util/config_helper.hpp"
 #include "util/thread/thread_local.hpp"
@@ -42,12 +42,12 @@
 
 namespace ardb
 {
-    class LevelDBEngine;
-    class LevelDBIterator: public Iterator
+    class RocksDBEngine;
+    class RocksDBIterator: public Iterator
     {
 	private:
-	    LevelDBEngine* m_engine;
-	    leveldb::Iterator* m_iter;
+	    RocksDBEngine* m_engine;
+	    rocksdb::Iterator* m_iter;
 	    void Next();
 	    void Prev();
 	    Slice Key() const;
@@ -56,22 +56,22 @@ namespace ardb
 	    void SeekToFirst();
 	    void SeekToLast();
 	public:
-	    LevelDBIterator(LevelDBEngine* engine, leveldb::Iterator* iter) :
+	    RocksDBIterator(RocksDBEngine* engine, rocksdb::Iterator* iter) :
 			    m_engine(engine), m_iter(iter)
 	    {
 
 	    }
-	    ~LevelDBIterator();
+	    ~RocksDBIterator();
     };
 
-    class LevelDBComparator: public leveldb::Comparator
+    class RocksDBComparator: public rocksdb::Comparator
     {
 	public:
 	    // Three-way comparison.  Returns value:
 	    //   < 0 iff "a" < "b",
 	    //   == 0 iff "a" == "b",
 	    //   > 0 iff "a" > "b"
-	    int Compare(const leveldb::Slice& a, const leveldb::Slice& b) const;
+	    int Compare(const rocksdb::Slice& a, const rocksdb::Slice& b) const;
 
 	    // The name of the comparator.  Used to check for comparator
 	    // mismatches (i.e., a DB created with one comparator is
@@ -81,11 +81,11 @@ namespace ardb
 	    // the comparator implementation changes in a way that will cause
 	    // the relative ordering of any two keys to change.
 	    //
-	    // Names starting with "leveldb." are reserved and should not be used
+	    // Names starting with "RocksDB." are reserved and should not be used
 	    // by any clients of this package.
 	    const char* Name() const
 	    {
-		return "ARDBLevelDB";
+		return "ARDBRocksDB";
 	    }
 
 	    // Advanced functions: these are used to reduce the space requirements
@@ -95,7 +95,7 @@ namespace ardb
 	    // Simple comparator implementations may return with *start unchanged,
 	    // i.e., an implementation of this method that does nothing is correct.
 	    void FindShortestSeparator(std::string* start,
-			    const leveldb::Slice& limit) const;
+			    const rocksdb::Slice& limit) const;
 
 	    // Changes *key to a short string >= *key.
 	    // Simple comparator implementations may return with *key unchanged,
@@ -103,7 +103,7 @@ namespace ardb
 	    void FindShortSuccessor(std::string* key) const;
     };
 
-    struct LevelDBConfig
+    struct RocksDBConfig
     {
 	    std::string path;
 	    int64 block_cache_size;
@@ -113,7 +113,7 @@ namespace ardb
 	    int64 block_restart_interval;
 	    int64 bloom_bits;
 	    int64 batch_commit_watermark;
-	    LevelDBConfig() :
+	    RocksDBConfig() :
 			    block_cache_size(0), write_buffer_size(0), max_open_files(
 					    10240), block_size(0), block_restart_interval(
 					    0), bloom_bits(10), batch_commit_watermark(
@@ -121,18 +121,18 @@ namespace ardb
 	    {
 	    }
     };
-    class LevelDBEngineFactory;
-    class LevelDBEngine: public KeyValueEngine
+    class RocksDBEngineFactory;
+    class RocksDBEngine: public KeyValueEngine
     {
 	private:
-	    leveldb::DB* m_db;
-	    LevelDBComparator m_comparator;
+	    rocksdb::DB* m_db;
+	    RocksDBComparator m_comparator;
 	    struct ContextHolder
 	    {
-		    leveldb::WriteBatch batch;
+		    rocksdb::WriteBatch batch;
 		    uint32 ref;
 		    uint32 count;
-		    const leveldb::Snapshot* snapshot;
+		    const rocksdb::Snapshot* snapshot;
 		    uint32 snapshot_ref;
 
 		    void ReleaseRef()
@@ -163,14 +163,14 @@ namespace ardb
 	    ThreadLocal<ContextHolder> m_context;
 	    std::string m_db_path;
 
-	    LevelDBConfig m_cfg;
-	    leveldb::Options m_options;
-	    friend class LevelDBEngineFactory;
+	    RocksDBConfig m_cfg;
+	    rocksdb::Options m_options;
+	    friend class RocksDBEngineFactory;
 	    int FlushWriteBatch(ContextHolder& holder);
 	public:
-	    LevelDBEngine();
-	    ~LevelDBEngine();
-	    int Init(const LevelDBConfig& cfg);
+	    RocksDBEngine();
+	    ~RocksDBEngine();
+	    int Init(const RocksDBConfig& cfg);
 	    int Put(const Slice& key, const Slice& value);
 	    int Get(const Slice& key, std::string* value);
 	    int Del(const Slice& key);
@@ -183,20 +183,20 @@ namespace ardb
 	    void ReleaseContextSnapshot();
     };
 
-    class LevelDBEngineFactory: public KeyValueEngineFactory
+    class RocksDBEngineFactory: public KeyValueEngineFactory
     {
 	private:
-	    LevelDBConfig m_cfg;
+	    RocksDBConfig m_cfg;
 	    static void ParseConfig(const Properties& props,
-			    LevelDBConfig& cfg);
+			    RocksDBConfig& cfg);
 	public:
-	    LevelDBEngineFactory(const Properties& cfg);
+	    RocksDBEngineFactory(const Properties& cfg);
 	    KeyValueEngine* CreateDB(const std::string& name);
 	    void DestroyDB(KeyValueEngine* engine);
 	    void CloseDB(KeyValueEngine* engine);
 	    const std::string GetName()
 	    {
-		return "LevelDB";
+		return "RocksDB";
 	    }
     };
 }

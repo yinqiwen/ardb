@@ -14,6 +14,10 @@ typedef ardb::KCDBEngineFactory SelectedDBEngineFactory;
 #include "engine/lmdb_engine.hpp"
 #define _DB_PATH "LMDB"
 typedef ardb::LMDBEngineFactory SelectedDBEngineFactory;
+#elif defined __USE_ROCKSDB__
+#define _DB_PATH "RocksDB"
+#include "engine/rocksdb_engine.hpp"
+typedef ardb::RocksDBEngineFactory SelectedDBEngineFactory;
 #else
 #include "engine/leveldb_engine.hpp"
 typedef ardb::LevelDBEngineFactory SelectedDBEngineFactory;
