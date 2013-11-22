@@ -125,7 +125,7 @@ namespace ardb
 		m_zk_client->GetClientID(m_zk_clientid);
 		if (NULL != idfile)
 		{
-			DEBUG_LOG("Save zookeeper clientid= %"PRId64, m_zk_clientid.client_id);
+			DEBUG_LOG("Save zookeeper clientid= %" PRId64, m_zk_clientid.client_id);
 			int rc = fwrite(&m_zk_clientid, sizeof(m_zk_clientid), 1, idfile);
 			if (rc != 1)
 			{

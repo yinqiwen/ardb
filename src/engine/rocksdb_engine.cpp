@@ -139,15 +139,15 @@ namespace ardb
     {
 	cfg.path = ".";
 	conf_get_string(props, "data-dir", cfg.path);
-	conf_get_int64(props, "LevelDB.block_cache_size", cfg.block_cache_size);
-	conf_get_int64(props, "LevelDB.write_buffer_size",
+	conf_get_int64(props, "leveldb.block_cache_size", cfg.block_cache_size);
+	conf_get_int64(props, "leveldb.write_buffer_size",
 			cfg.write_buffer_size);
-	conf_get_int64(props, "LevelDB.max_open_files", cfg.max_open_files);
-	conf_get_int64(props, "LevelDB.block_size", cfg.block_size);
-	conf_get_int64(props, "LevelDB.block_restart_interval",
+	conf_get_int64(props, "leveldb.max_open_files", cfg.max_open_files);
+	conf_get_int64(props, "leveldb.block_size", cfg.block_size);
+	conf_get_int64(props, "leveldb.block_restart_interval",
 			cfg.block_restart_interval);
-	conf_get_int64(props, "LevelDB.bloom_bits", cfg.bloom_bits);
-	conf_get_int64(props, "LevelDB.batch_commit_watermark",
+	conf_get_int64(props, "leveldb.bloom_bits", cfg.bloom_bits);
+	conf_get_int64(props, "leveldb.batch_commit_watermark",
 			cfg.batch_commit_watermark);
     }
 
@@ -216,8 +216,6 @@ namespace ardb
     RocksDBEngine::~RocksDBEngine()
     {
 	DELETE(m_db);
-	//DELETE(m_options.block_cache);
-	//DELETE(m_options.filter_policy);
     }
     int RocksDBEngine::Init(const RocksDBConfig& cfg)
     {

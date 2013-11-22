@@ -64,7 +64,28 @@ namespace ardb
 
 	enum KeyType
 	{
-		KV = 0, SET_META = 1, SET_ELEMENT = 2, ZSET_META = 3, ZSET_ELEMENT_SCORE = 4, ZSET_ELEMENT = 5, HASH_META = 6, HASH_FIELD = 7, LIST_META = 8, LIST_ELEMENT = 9, TABLE_META = 10, TABLE_INDEX = 11, TABLE_COL = 12, TABLE_SCHEMA = 13, BITSET_META = 14, BITSET_ELEMENT = 15, KEY_EXPIRATION_ELEMENT = 16, KEY_EXPIRATION_MAPPING = 17, SCRIPT = 18, KEY_END = 100,
+		KV = 0,
+		SET_META = 1,
+		SET_ELEMENT = 2,
+		ZSET_META = 3,
+		ZSET_ELEMENT_SCORE = 4,
+		ZSET_ELEMENT = 5,
+		HASH_META = 6,
+		HASH_FIELD = 7,
+		LIST_META = 8,
+		LIST_ELEMENT = 9,
+		TABLE_META = 10,
+		TABLE_INDEX = 11,
+		TABLE_COL = 12,
+		TABLE_SCHEMA = 13,
+		BITSET_META = 14,
+		BITSET_ELEMENT = 15,
+		KEY_EXPIRATION_ELEMENT = 16,
+		KEY_EXPIRATION_MAPPING = 17,
+		SCRIPT = 18,
+
+		ZSET_SORTED_SCORES = 19,
+		KEY_END = 100,
 	};
 
 	enum ValueDataType
@@ -411,6 +432,12 @@ namespace ardb
 			ValueObject value;
 			ZSetScoreKeyObject(const Slice& k, const Slice& v, DBID id);
 			ZSetScoreKeyObject(const Slice& k, const ValueObject& v, DBID id);
+	};
+
+	struct ZSetSortedScoresKeyObject: public KeyObject
+	{
+		double start_score;
+		ZSetSortedScoresKeyObject(const Slice& k, double score, DBID id);
 	};
 
 	struct ZSetMetaValue

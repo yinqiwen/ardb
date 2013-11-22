@@ -42,68 +42,76 @@
 
 namespace ardb
 {
-	typedef std::vector<std::string> ZKServerList;
+    typedef std::vector<std::string> ZKServerList;
 
-	class ZookeeperClient;
-	struct ZKAsyncCallback
-	{
-			virtual void OnWatch(int type, int state, const char *path) = 0;
-			virtual void OnStat(const std::string& path, const struct Stat* stat, int rc) = 0;
-			virtual void OnCreated(const std::string& path, int rc) = 0;
-			virtual void OnAuth(const std::string& scheme,const std::string& cert, int rc) = 0;
-			virtual ~ZKAsyncCallback()
-			{
-			}
-	};
+    class ZookeeperClient;
+    struct ZKAsyncCallback
+    {
+	    virtual void OnWatch(int type, int state, const char *path) = 0;
+	    virtual void OnStat(const std::string& path,
+			    const struct Stat* stat, int rc) = 0;
+	    virtual void OnCreated(const std::string& path, int rc) = 0;
+	    virtual void OnAuth(const std::string& scheme,
+			    const std::string& cert, int rc) = 0;
+	    virtual ~ZKAsyncCallback()
+	    {
+	    }
+    };
 
-	struct ZKOptions
-	{
-			clientid_t clientid;
-			int recv_timeout;
-			ZKAsyncCallback* cb;
-			ZKOptions() :
-					recv_timeout(10000), cb(NULL)
-			{
-				memset(&clientid, 0, sizeof(clientid));
-			}
-	};
+    struct ZKOptions
+    {
+	    clientid_t clientid;
+	    int recv_timeout;
+	    ZKAsyncCallback* cb;
+	    ZKOptions() :
+			    recv_timeout(10000), cb(NULL)
+	    {
+		memset(&clientid, 0, sizeof(clientid));
+	    }
+    };
 
-	struct ZKACL
-	{
-			int perm;
-			std::string scheme;
-			std::string id;
-	};
-	typedef std::vector<ZKACL> ZKACLArray;
+    struct ZKACL
+    {
+	    int perm;
+	    std::string scheme;
+	    std::string id;
+    };
+    typedef std::vector<ZKACL> ZKACLArray;
 
-	class ZookeeperClient:public Runnable
-	{
-		private:
-			ChannelService& m_serv;
-			zhandle_t* m_zk;
-			ZKAsyncCallback* m_callback;
-			int m_zk_fd;
-			int32 m_timer_task_id;
-			void Run();
-			static void WatchCallback(zhandle_t *zh, int type, int state, const char *path, void *watcherCtx);
-			static void CreateCB(int rc, const char *value, const void *data);
-			static void RecursiveCreateCB(int rc, const char *value, const void *data);
-			static void ExistsCompletionCB(int rc, const struct Stat *stat, const void *data);
-		    static void AuthCB(int rc, const void *data);
-		    static void ZKIOCallback(struct aeEventLoop *eventLoop, int fd, void *clientData, int mask);
-		    void CheckConn();
-		public:
-			ZookeeperClient(ChannelService& serv);
-			int Connect(const std::string& servers, const ZKOptions& options);
-			int Exists(const std::string& path, bool watch);
-			int Create(const std::string& path, const std::string& value, const ZKACLArray& acls, int flags, bool recursive = true);
-			int Auth(const std::string& scheme,const std::string& cert);
-	        int GetClientID(clientid_t& id);
-	        int Lock(const std::string& path);
-	        int UnLock(const std::string& path);
-	        void Close();
-	        ~ZookeeperClient();
-	};
+    class ZookeeperClient: public Runnable
+    {
+	private:
+	    ChannelService& m_serv;
+	    zhandle_t* m_zk;
+	    ZKAsyncCallback* m_callback;
+	    int m_zk_fd;
+	    int32 m_timer_task_id;
+	    void Run();
+	    static void WatchCallback(zhandle_t *zh, int type, int state,
+			    const char *path, void *watcherCtx);
+	    static void CreateCB(int rc, const char *value, const void *data);
+	    static void RecursiveCreateCB(int rc, const char *value,
+			    const void *data);
+	    static void ExistsCompletionCB(int rc, const struct Stat *stat,
+			    const void *data);
+	    static void AuthCB(int rc, const void *data);
+	    static void ZKIOCallback(struct aeEventLoop *eventLoop, int fd,
+			    void *clientData, int mask);
+	    void CheckConn();
+	public:
+	    ZookeeperClient(ChannelService& serv);
+	    int Connect(const std::string& servers, const ZKOptions& options);
+	    int Exists(const std::string& path, bool watch);
+	    int Create(const std::string& path, const std::string& value,
+			    const ZKACLArray& acls, int flags, bool recursive =
+					    true);
+	    int Auth(const std::string& scheme, const std::string& cert);
+	    int GetClientID(clientid_t& id);
+	    int Lock(const std::string& path);
+	    int UnLock(const std::string& path);
+	    void Close();
+	    ~ZookeeperClient();
+    };
 }
 
 #endif /* ZOOKEEPER_CLIENT_HPP_ */
