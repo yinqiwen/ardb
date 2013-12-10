@@ -32,6 +32,7 @@
 #include <sstream>
 #include "comparator.hpp"
 #include "util/thread/thread.hpp"
+#include "helper/db_helpers.hpp"
 
 #define  GET_KEY_TYPE(KEY, TYPE)   do{ \
 		Iterator* iter = FindValue(KEY, true);  \
@@ -264,8 +265,8 @@ namespace ardb
 
 	//static const char* REPO_NAME = "data";
 	Ardb::Ardb(KeyValueEngineFactory* engine, bool multi_thread) :
-			m_engine_factory(engine), m_engine(NULL), m_expire_check_thread(
-			NULL), m_min_expireat(0)
+			m_engine_factory(engine), m_engine(NULL), m_db_helper(
+			NULL)
 	{
 		m_key_locker.enable = multi_thread;
 	}
@@ -295,66 +296,15 @@ namespace ardb
 				ver.type = INTEGER;
 				SetValue(verkey, ver);
 			}
+			/**
+			 * Init db helper
+			 */
+			NEW(m_db_helper, DBHelper(this));
+			m_db_helper->Start();
+
 			if (NULL != m_engine)
 			{
 				INFO_LOG("Init storage engine success.");
-
-				//launch a threading task to check expired keys
-				struct ExpireCheckThread: public Thread
-				{
-						Ardb* adb;
-						volatile bool running;
-						uint32 check_period;
-						ExpireCheckThread(Ardb* db, uint32 period) :
-								adb(db), running(true), check_period(period)
-						{
-						}
-						void Run()
-						{
-							while (running)
-							{
-								DBID dbid = 0;
-								while (dbid < ARDB_GLOBAL_DB)
-								{
-									DBID nexdb = 0;
-									if (adb->DBExist(dbid, nexdb))
-									{
-										adb->CheckExpireKey(dbid);
-										dbid++;
-									} else
-									{
-										if (nexdb == dbid || nexdb == ARDB_GLOBAL_DB)
-										{
-											break;
-										}
-										adb->CheckExpireKey(nexdb);
-										dbid = nexdb + 1;
-									}
-								}
-								uint64 end = get_current_epoch_micros();
-								uint64 sleep = check_period;
-								if (adb->m_min_expireat > end)
-								{
-									sleep = (adb->m_min_expireat - end) / 1000;
-									if (sleep > check_period)
-									{
-										sleep = check_period;
-									}
-									if (sleep == 0)
-									{
-										sleep = 1;
-									}
-								}
-								Thread::Sleep(sleep);
-							}
-						}
-						~ExpireCheckThread()
-						{
-							running = false;
-						}
-				};
-				m_expire_check_thread = new ExpireCheckThread(this, check_expire_period);
-				m_expire_check_thread->Start();
 			}
 		}
 		return m_engine != NULL;
@@ -362,7 +312,11 @@ namespace ardb
 
 	Ardb::~Ardb()
 	{
-		DELETE(m_expire_check_thread);
+	    if(NULL != m_db_helper)
+	    {
+	        m_db_helper->StopSelf();
+	        DELETE(m_db_helper);
+	    }
 		if (NULL != m_engine)
 		{
 			m_engine_factory->CloseDB(m_engine);

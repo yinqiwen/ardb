@@ -369,10 +369,6 @@ namespace ardb
 		}
 		if (expire > 0)
 		{
-			if (m_min_expireat == 0 || expire < m_min_expireat)
-			{
-				m_min_expireat = expire;
-			}
 			KeyObject ek(key, KEY_EXPIRATION_MAPPING, db);
 			ValueObject expire_value((int64) expire);
 			SetValue(ek, expire_value);
@@ -383,14 +379,27 @@ namespace ardb
 		return 0;
 	}
 
-	void Ardb::CheckExpireKey(const DBID& db)
+	void Ardb::CheckExpireKey(const DBID& db, uint64 maxexec,
+            uint32 maxcheckitems)
 	{
+	    uint32 checked = 0;
+	    uint64 start = get_current_epoch_micros();
 		Slice empty;
 		ExpireKeyObject keyobject(empty, 0, db);
 		Iterator* iter = FindValue(keyobject, true);
 		BatchWriteGuard guard(GetEngine());
 		while (NULL != iter && iter->Valid())
 		{
+		    uint64 now = get_current_epoch_micros();
+		    if(now - start >= maxexec*1000)
+		    {
+		        break;
+		    }
+		    if(checked >= maxcheckitems)
+		    {
+		        break;
+		    }
+		    checked++;
 			Slice tmpkey = iter->Key();
 			KeyObject* kk = decode_key(tmpkey, NULL);
 			if (NULL == kk || kk->type != KEY_EXPIRATION_ELEMENT)
@@ -400,8 +409,11 @@ namespace ardb
 			} else
 			{
 				ExpireKeyObject* ek = (ExpireKeyObject*) kk;
-				if (ek->expireat <= get_current_epoch_micros())
+				KeyObject mek(ek->key, KEY_EXPIRATION_MAPPING, ek->db);
+				if (ek->expireat <= now)
 				{
+				    DelValue(mek);
+				    DelValue(*ek);
 					Del(db, ek->key);
 					DELETE(kk);
 				} else

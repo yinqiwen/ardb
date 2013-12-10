@@ -37,7 +37,7 @@ using namespace ardb;
 
 ChannelService::ChannelService(uint32 setsize) :
 		m_setsize(setsize), m_eventLoop(NULL), m_timer(NULL), m_signal_channel(
-		        NULL), m_self_soft_signal_channel(NULL), m_soft_signal_channel4father(NULL),m_running(false), m_thread_pool_size(
+		        NULL), m_self_soft_signal_channel(NULL), m_running(false), m_thread_pool_size(
 		        1), m_tid(0), m_user_cb(NULL), m_user_cb_data(NULL)
 {
 	m_eventLoop = aeCreateEventLoop(m_setsize);
@@ -46,6 +46,9 @@ ChannelService::ChannelService(uint32 setsize) :
 	{
 		m_self_soft_signal_channel->Register(CHANNEL_REMOVE, this);
 		//m_self_soft_signal_channel->Register(WAKEUP, this);
+		m_self_soft_signal_channel->Register(USER_DEFINED, this);
+
+		m_self_soft_signal_channel->Register(WAKEUP, this);
 		m_self_soft_signal_channel->Register(USER_DEFINED, this);
 	}
 }
@@ -66,9 +69,9 @@ void ChannelService::FireUserEvent(uint32 ev)
 	while (it != m_sub_pool.end())
 	{
 		ChannelService* serv = *it;
-		if(NULL != serv->m_soft_signal_channel4father)
+		if(NULL != serv->m_self_soft_signal_channel)
 		{
-			serv->m_soft_signal_channel4father->FireSoftSignal(USER_DEFINED, ev);
+			serv->m_self_soft_signal_channel->FireSoftSignal(USER_DEFINED, ev);
 		}
 		it++;
 	}
@@ -276,9 +279,6 @@ void ChannelService::StartSubPool()
 		for (uint32 i = 0; i < m_thread_pool_size; i++)
 		{
 			ChannelService* s = new ChannelService(m_setsize);
-			s->m_soft_signal_channel4father = s->NewSoftSignalChannel();
-			s->m_soft_signal_channel4father->Register(WAKEUP, s);
-			s->m_soft_signal_channel4father->Register(USER_DEFINED, s);
 			s->RegisterUserEventCallback(m_user_cb, m_user_cb_data);
 			m_sub_pool.push_back(s);
 			LaunchThread* launch = new LaunchThread(s);
@@ -532,9 +532,9 @@ void ChannelService::Routine()
 
 void ChannelService::Wakeup()
 {
-	if (NULL != m_soft_signal_channel4father)
+	if (NULL != m_self_soft_signal_channel)
 	{
-		m_soft_signal_channel4father->FireSoftSignal(WAKEUP, 1);
+	    m_self_soft_signal_channel->FireSoftSignal(WAKEUP, 1);
 	}
 }
 

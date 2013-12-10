@@ -127,7 +127,7 @@ CHANNEL_CPPFILES := $(foreach dir, $(CHANNEL_CPP_VPATH), $(wildcard $(dir)/*.cpp
 CHANNEL_CFILES := $(foreach dir, $(CHANNEL_C_VPATH), $(wildcard $(dir)/*.c))
 CHANNEL_OBJECTS := $(patsubst %.cpp, %.o, $(CHANNEL_CPPFILES)) $(patsubst %.c, %.o, $(CHANNEL_CFILES))
 
-UTIL_VPATH=./util ./util/exception  ./util/thread ./redis
+UTIL_VPATH=./util ./util/exception  ./util/thread ./redis ./helper
 UTIL_CPPFILES := $(foreach dir, $(UTIL_VPATH), $(wildcard $(dir)/*.cpp))
 UTIL_CFILES := $(foreach dir, $(UTIL_VPATH), $(wildcard $(dir)/*.c))
 UTIL_OBJECTS := $(patsubst %.cpp, %.o, $(UTIL_CPPFILES)) $(patsubst %.c, %.o, $(UTIL_CFILES))
@@ -198,8 +198,8 @@ lib:$(DEP_LIBS) $(DIST_LIBA) lua zookeeper
 server:${STORAGE_ENGINE} lib clean_launch_obj $(SERVER_OBJECTS) $(CHANNEL_OBJECTS) 
 	${CXX} -o ardb-server $(SERVER_OBJECTS)  $(CORE_OBJECTS) $(CHANNEL_OBJECTS) ${STORAGE_ENGINE_OBJ} $(LIBS)
 
-test:${STORAGE_ENGINE} lib $(CORE_OBJECTS) ${TESTOBJ}
-	${CXX} -o ardb-test ${STORAGE_ENGINE_OBJ} ${TESTOBJ} $(CORE_OBJECTS) $(LIBS) 
+test:${STORAGE_ENGINE} lib $(CORE_OBJECTS) ${TESTOBJ} $(CHANNEL_OBJECTS)
+	${CXX} -o ardb-test ${STORAGE_ENGINE_OBJ} ${TESTOBJ} $(CORE_OBJECTS) $(CHANNEL_OBJECTS) $(LIBS) 
 	
 tcmalloc:
 	@if test -f ${TCMALLOC_LIBA}; then\
