@@ -566,7 +566,11 @@ namespace ardb
 					DELETE(kk);
 					break;
 				}
-				count++;
+				std::string key(kk->key.data(), kk->key.size());
+				if (fnmatch(pattern.c_str(), key.c_str(), 0) == 0)
+				{
+				    count++;
+				}
 				DELETE(kk);
 				iter->Next();
 			}
@@ -591,7 +595,10 @@ namespace ardb
 					return 0;
 				}
 				current.assign(kk->key.data(), kk->key.size());
-				count++;
+				if (fnmatch(pattern.c_str(), current.c_str(), 0) == 0)
+				{
+					count++;
+				}
 				DELETE(kk);
 			}
 			DELETE(iter);
@@ -634,7 +641,12 @@ namespace ardb
 						DELETE(kk);
 						break;
 					}
-					ret.push_back(std::string(kk->key.data(), kk->key.size()));
+					std::string key(kk->key.data(), kk->key.size());
+					if (fnmatch(pattern.c_str(), key.c_str(), 0) == 0)
+					{
+					    ret.push_back(std::string(kk->key.data(), kk->key.size()));
+					}
+
 					DELETE(kk);
 					if (ret.size() == limit)
 					{
@@ -670,7 +682,10 @@ namespace ardb
 					return 0;
 				}
 				current.assign(kk->key.data(), kk->key.size());
-				ret.push_back(current);
+				if (fnmatch(pattern.c_str(), current.c_str(), 0) == 0)
+				{
+				    ret.push_back(current);
+				}
 				DELETE(kk);
 				if (ret.size() == limit)
 				{
