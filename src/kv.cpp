@@ -644,7 +644,7 @@ namespace ardb
 					std::string key(kk->key.data(), kk->key.size());
 					if (fnmatch(pattern.c_str(), key.c_str(), 0) == 0)
 					{
-					    ret.push_back(std::string(kk->key.data(), kk->key.size()));
+					    ret.push_back(key);
 					}
 
 					DELETE(kk);
@@ -670,7 +670,7 @@ namespace ardb
 		{
 			KeyObject start(startkey, HASH_FIELD, db);
 			Iterator* iter = FindValue(start);
-			std::string current(startkey.data(), startkey.size());
+			std::string current = startkey;
 			if (NULL != iter && iter->Valid())
 			{
 				Slice tmpkey = iter->Key();
