@@ -190,6 +190,10 @@ namespace ardb
 
             ThreadLocal<DBWatcher> m_watcher;
 
+            int GetMeta(const DBID& db, const Slice& key, CommonMetaValue& mata, bool onlyHead);
+            CommonMetaValue* DelMeta(const DBID& db, const Slice& key);
+            int GetType(const DBID& db, const Slice& key, KeyType& type);
+            int SetMeta(KeyObject& key, CommonMetaValue& meta);
             int SetExpiration(const DBID& db, const Slice& key, uint64 expire,
                     bool check_exists);
             int GetExpiration(const DBID& db, const Slice& key, uint64& expire);
@@ -376,7 +380,7 @@ namespace ardb
             Ardb(KeyValueEngineFactory* factory, bool multi_thread = true);
             ~Ardb();
 
-            bool Init(uint32 check_expire_period = 50);
+            bool Init();
 
             int RawSet(const Slice& key, const Slice& value);
             int RawDel(const Slice& key);
@@ -394,8 +398,8 @@ namespace ardb
                     uint32_t secs);
             int PSetEx(const DBID& db, const Slice& key, const Slice& value,
                     uint32_t ms);
-            int Get(const DBID& db, const Slice& key, std::string* value);
-            int MGet(const DBID& db, SliceArray& keys, ValueArray& values);
+            int Get(const DBID& db, const Slice& key, std::string& value);
+            int MGet(const DBID& db, SliceArray& keys, StringArray& values);
             int Del(const DBID& db, const Slice& key);
             int Del(const DBID& db, const SliceArray& keys);
             bool Exists(const DBID& db, const Slice& key);
