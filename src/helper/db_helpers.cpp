@@ -1,7 +1,7 @@
 /*
  * db_helpers.cpp
  *
- *  Created on: 2013Äê12ÔÂ10ÈÕ
+ *  Created on: 2013-12-10
  *      Author: wqy
  */
 #include "db_helpers.hpp"

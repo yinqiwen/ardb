@@ -373,6 +373,7 @@ namespace ardb
 
     void Ardb::CheckExpireKey(const DBID& db, uint64 maxexec,
             uint32 maxcheckitems)
+<<<<<<< HEAD
     {
         uint32 checked = 0;
         uint64 start = get_current_epoch_micros();
@@ -679,5 +680,325 @@ namespace ardb
         }
         return 0;
     }
+=======
+	{
+	    uint32 checked = 0;
+	    uint64 start = get_current_epoch_micros();
+		Slice empty;
+		ExpireKeyObject keyobject(empty, 0, db);
+		Iterator* iter = FindValue(keyobject, true);
+		BatchWriteGuard guard(GetEngine());
+		while (NULL != iter && iter->Valid())
+		{
+		    uint64 now = get_current_epoch_micros();
+		    if(now - start >= maxexec*1000)
+		    {
+		        break;
+		    }
+		    if(checked >= maxcheckitems)
+		    {
+		        break;
+		    }
+		    checked++;
+			Slice tmpkey = iter->Key();
+			KeyObject* kk = decode_key(tmpkey, NULL);
+			if (NULL == kk || kk->type != KEY_EXPIRATION_ELEMENT)
+			{
+				DELETE(kk);
+				break;
+			} else
+			{
+				ExpireKeyObject* ek = (ExpireKeyObject*) kk;
+				KeyObject mek(ek->key, KEY_EXPIRATION_MAPPING, ek->db);
+				if (ek->expireat <= now)
+				{
+				    DelValue(mek);
+				    DelValue(*ek);
+					Del(db, ek->key);
+					DELETE(kk);
+				} else
+				{
+					DELETE(kk);
+					break;
+				}
+			}
+			iter->Next();
+		}
+		DELETE(iter);
+	}
+
+	int Ardb::Strlen(const DBID& db, const Slice& key)
+	{
+		std::string v;
+		if (0 == Get(db, key, &v))
+		{
+			return v.size();
+		}
+		return 0;
+	}
+	int Ardb::Expire(const DBID& db, const Slice& key, uint32_t secs)
+	{
+		uint64_t now = get_current_epoch_micros();
+		uint64_t expire = now + (uint64_t) secs * 1000000L;
+		return SetExpiration(db, key, expire, true);
+	}
+
+	int Ardb::Expireat(const DBID& db, const Slice& key, uint32_t ts)
+	{
+		uint64_t expire = (uint64_t) ts * 1000000L;
+		return SetExpiration(db, key, expire, true);
+	}
+
+	int Ardb::Persist(const DBID& db, const Slice& key)
+	{
+		return SetExpiration(db, key, 0, true);
+	}
+
+	int Ardb::Pexpire(const DBID& db, const Slice& key, uint32_t ms)
+	{
+		uint64_t now = get_current_epoch_micros();
+		uint64_t expire = now + (uint64_t) ms * 1000;
+		return SetExpiration(db, key, expire, true);
+	}
+
+	int Ardb::Pexpireat(const DBID& db, const Slice& key, uint64_t ms)
+	{
+		return SetExpiration(db, key, ms, true);
+	}
+
+	int64 Ardb::PTTL(const DBID& db, const Slice& key)
+	{
+		uint64 expire = 0;
+		if (0 == GetExpiration(db, key, expire))
+		{
+			int ttl = 0;
+			if (expire > 0)
+			{
+				uint64_t now = get_current_epoch_micros();
+				if (expire < now)
+				{
+					Del(db, key);
+					return ERR_NOT_EXIST;
+				}
+				uint64_t ttlsus = expire - now;
+				ttl = ttlsus / 1000;
+				if (ttlsus % 1000 >= 500)
+				{
+					ttl++;
+				}
+			}
+			return ttl;
+		}
+		return ERR_NOT_EXIST;
+	}
+
+	int64 Ardb::TTL(const DBID& db, const Slice& key)
+	{
+		int ttl = PTTL(db, key);
+		if (ttl > 0)
+		{
+			ttl = ttl / 1000;
+			if (ttl % 1000L >= 500)
+			{
+				ttl++;
+			}
+		}
+		return ttl;
+	}
+
+	int Ardb::Rename(const DBID& db, const Slice& key1, const Slice& key2)
+	{
+		ValueObject v;
+		KeyObject k1(key1, KV, db);
+		if (0 == GetValue(k1, &v))
+		{
+			BatchWriteGuard guard(GetEngine());
+			Del(db, key1);
+			KeyObject k2(key2, KV, db);
+			return SetValue(k2, v);
+		}
+		return ERR_NOT_EXIST;
+	}
+
+	int Ardb::RenameNX(const DBID& db, const Slice& key1, const Slice& key2)
+	{
+		std::string v1;
+		if (0 == Get(db, key1, &v1))
+		{
+			if (0 == Get(db, key2, NULL))
+			{
+				return 0;
+			}
+			BatchWriteGuard guard(GetEngine());
+			Del(db, key1);
+			return Set(db, key2, v1) != 0 ? -1 : 1;
+		}
+		return ERR_NOT_EXIST;
+	}
+
+	int Ardb::Move(DBID srcdb, const Slice& key, DBID dstdb)
+	{
+		std::string v;
+		if (0 == Get(srcdb, key, &v))
+		{
+			Del(srcdb, key);
+			return Set(dstdb, key, v);
+		}
+		return ERR_NOT_EXIST;
+	}
+
+	int Ardb::KeysCount(const DBID& db, const std::string& pattern, int64& count)
+	{
+		count = 0;
+		KeyType types[] =
+		{ KV, SET_META, ZSET_META, LIST_META, TABLE_META, BITSET_META };
+		for (uint32 i = 0; i < arraysize(types); i++)
+		{
+			std::string startkey;
+			KeyObject start(startkey, types[i], db);
+			Iterator* iter = FindValue(start);
+			while (NULL != iter && iter->Valid())
+			{
+				Slice tmpkey = iter->Key();
+				KeyObject* kk = decode_key(tmpkey, NULL);
+				if (kk->type != types[i])
+				{
+					DELETE(kk);
+					break;
+				}
+				std::string key(kk->key.data(), kk->key.size());
+				if (fnmatch(pattern.c_str(), key.c_str(), 0) == 0)
+				{
+				    count++;
+				}
+				DELETE(kk);
+				iter->Next();
+			}
+			DELETE(iter);
+		}
+
+		// hash keys
+		std::string startkey;
+		while (true)
+		{
+			KeyObject start(startkey, HASH_FIELD, db);
+			Iterator* iter = FindValue(start);
+			std::string current(startkey.data(), startkey.size());
+			if (NULL != iter && iter->Valid())
+			{
+				Slice tmpkey = iter->Key();
+				KeyObject* kk = decode_key(tmpkey, NULL);
+				if (kk->type != HASH_FIELD)
+				{
+					DELETE(kk);
+					DELETE(iter);
+					return 0;
+				}
+				current.assign(kk->key.data(), kk->key.size());
+				if (fnmatch(pattern.c_str(), current.c_str(), 0) == 0)
+				{
+					count++;
+				}
+				DELETE(kk);
+			}
+			DELETE(iter);
+			next_key(current, startkey);
+		}
+		return 0;
+	}
+
+	int Ardb::Keys(const DBID& db, const std::string& pattern, const KeyObject& from, uint32 limit, StringArray& ret, KeyType& last_keytype)
+	{
+		if (from.type != HASH_FIELD || from.type == KEY_END)
+		{
+			KeyType srctype = from.type;
+			if (srctype == KEY_END)
+			{
+				srctype = KV;
+			}
+
+			KeyType types[] =
+			{ KV, SET_META, ZSET_META, LIST_META, TABLE_META, BITSET_META };
+			for (uint32 i = 0; i < arraysize(types); i++)
+			{
+				if (types[i] < srctype)
+				{
+					continue;
+				}
+				std::string startkey;
+				if (from.type == types[i])
+				{
+					next_key(from.key, startkey);
+				}
+				KeyObject start(startkey, types[i], db);
+				Iterator* iter = FindValue(start);
+				while (NULL != iter && iter->Valid())
+				{
+					Slice tmpkey = iter->Key();
+					KeyObject* kk = decode_key(tmpkey, NULL);
+					if (kk->type != types[i] || kk->db != db)
+					{
+						DELETE(kk);
+						break;
+					}
+					std::string key(kk->key.data(), kk->key.size());
+					if (fnmatch(pattern.c_str(), key.c_str(), 0) == 0)
+					{
+					    ret.push_back(key);
+					}
+
+					DELETE(kk);
+					if (ret.size() == limit)
+					{
+						last_keytype = types[i];
+						DELETE(iter);
+						return 0;
+					}
+					iter->Next();
+				}
+				DELETE(iter);
+			}
+		}
+
+		// hash keys
+		std::string startkey;
+		if (from.type == HASH_FIELD)
+		{
+			next_key(from.key, startkey);
+		}
+		while (true)
+		{
+			KeyObject start(startkey, HASH_FIELD, db);
+			Iterator* iter = FindValue(start);
+			std::string current = startkey;
+			if (NULL != iter && iter->Valid())
+			{
+				Slice tmpkey = iter->Key();
+				KeyObject* kk = decode_key(tmpkey, NULL);
+				if (kk->type != HASH_FIELD|| kk->db != db)
+				{
+					DELETE(kk);
+					DELETE(iter);
+					return 0;
+				}
+				current.assign(kk->key.data(), kk->key.size());
+				if (fnmatch(pattern.c_str(), current.c_str(), 0) == 0)
+				{
+				    ret.push_back(current);
+				}
+				DELETE(kk);
+				if (ret.size() == limit)
+				{
+					last_keytype = HASH_FIELD;
+					DELETE(iter);
+					return 0;
+				}
+			}
+			DELETE(iter);
+			next_key(current, startkey);
+		}
+		return 0;
+	}
+>>>>>>> 180fb4fcd4d68a7d5632c028f9c2958835cce814
 }
 
