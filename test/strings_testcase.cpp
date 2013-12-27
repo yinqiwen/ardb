@@ -16,7 +16,7 @@ void test_strings_append(Ardb& db)
 	//append
 	db.Set(dbid, "skey", "abc");
 	db.Append(dbid, "skey", "abc");
-	int ret = db.Get(dbid, "skey", &v);
+	int ret = db.Get(dbid, "skey", v);
 	CHECK_FATAL( ret != 0, "Failed to get skey.");
 	CHECK_FATAL( v != "abcabc", "Invalid str:%s", v.c_str());
 }
@@ -36,7 +36,7 @@ void test_strings_setrange(Ardb& db)
 	std::string v;
 	db.Set(dbid, "skey", "abcabc");
 	db.SetRange(dbid, "skey", 3, "12345");
-	db.Get(dbid, "skey", &v);
+	db.Get(dbid, "skey", v);
 	CHECK_FATAL(v != "abc12345", "SetRange failed:%s", v.c_str());
 }
 
@@ -65,7 +65,7 @@ void test_strings_decr(Ardb& db)
 	db.Decr(dbid, "intkey", iv);
 	CHECK_FATAL(iv != 9, "Decr1 failed %"PRId64, iv);
 	db.Decrby(dbid, "intkey", 2, iv);
-	CHECK_FATAL( iv != 7, "Decrby failed");
+	CHECK_FATAL( iv != 7, "Decrby failed: %"PRId64, iv);
 }
 
 void test_strings_incr(Ardb& db)
@@ -93,15 +93,15 @@ void test_strings_setnx(Ardb& db)
 {
 	DBID dbid = 0;
 	db.Set(dbid, "intkey1", "123");
-	CHECK_FATAL(db.SetNX(dbid, "intkey1", "2345") != 0, "SetNX intkey failed");
+	CHECK_FATAL(db.SetNX(dbid, "intkey1", "2345") == 0, "SetNX intkey failed");
 	db.Del(dbid, "intkey1");
-	CHECK_FATAL( db.SetNX(dbid, "intkey1", "2345") == 0, "SetNX intkey failed");
+	CHECK_FATAL(db.SetNX(dbid, "intkey1", "2345") != 0, "SetNX intkey failed");
 }
 
 void test_strings_expire(Ardb& db)
 {
 	DBID dbid = 0;
-	ValueObject v;
+	ValueData v;
 	db.Set(dbid, "intkey1", "123");
 	db.Expire(dbid, "intkey1", 1);
 	CHECK_FATAL(db.Exists(dbid, "intkey1") == false, "Expire intkey1 failed");

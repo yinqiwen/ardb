@@ -58,7 +58,8 @@ int main(int argc, char** argv)
 	SelectedDBEngineFactory engine(cfg);
 	std::cout << "ARDB Test(" << engine.GetName() << ")" << std::endl;
 	Ardb db(&engine);
-	db.Init(2000);
+	ArdbConfig config;
+	db.Init(config);
 	test_all(db);
 	return 0;
 }

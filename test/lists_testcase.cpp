@@ -22,8 +22,8 @@ void test_lists_lpush(Ardb& db)
 	CHECK_FATAL(db.LLen(dbid, "mylist") != 4,
 			"lpush/llen mylist failed:%d", db.LLen(dbid, "mylist"));
 	std::string v;
-	db.LIndex(dbid, "mylist", 0, v);
-	CHECK_FATAL(v!="value3", "LIndex failed:%s", v.c_str());
+	ret = db.LIndex(dbid, "mylist", 0, v);
+	CHECK_FATAL(v!="value3", "LIndex failed %d:%s", ret, v.c_str());
 }
 
 void test_lists_rpush(Ardb& db)

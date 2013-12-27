@@ -25,13 +25,12 @@ void test_type(Ardb& db)
 	db.Set(dbid, "skey", "abc");
 	db.SetBit(dbid, "mybits", 1, 1);
 
-	CHECK_FATAL( db.Type(dbid, "myset") != SET_ELEMENT, "type failed.");
-	CHECK_FATAL( db.Type(dbid, "mylist") != LIST_META, "type failed.");
-	CHECK_FATAL( db.Type(dbid, "myzset1") != ZSET_ELEMENT_SCORE,
-			"type failed.");
-	CHECK_FATAL( db.Type(dbid, "myhash") != HASH_FIELD, "type failed.");
-	CHECK_FATAL( db.Type(dbid, "skey") != KV, "type failed.");
-	CHECK_FATAL( db.Type(dbid, "mybits") != BITSET_META, "type failed.");
+	CHECK_FATAL(db.Type(dbid, "myset") != SET_META, "type failed.");
+	CHECK_FATAL(db.Type(dbid, "mylist") != LIST_META, "type failed.");
+	CHECK_FATAL(db.Type(dbid, "myzset1") != ZSET_META, "type failed.");
+	CHECK_FATAL(db.Type(dbid, "myhash") != HASH_META, "type failed.");
+	CHECK_FATAL(db.Type(dbid, "skey") != STRING_META, "type failed.");
+	CHECK_FATAL(db.Type(dbid, "mybits") != BITSET_META, "type failed.");
 }
 
 void test_sort_list(Ardb& db)
@@ -47,10 +46,14 @@ void test_sort_list(Ardb& db)
 	ValueArray vs;
 	db.Sort(dbid, "mylist", args, vs);
 	CHECK_FATAL(vs.size() != 4, "sort result size error:%zu", vs.size());
-	CHECK_FATAL(vs[0].v.int_v != 9, "sort result[0]:%"PRId64, vs[0].v.int_v);
-	CHECK_FATAL(vs[1].v.int_v != 10, "sort result[0]:%"PRId64, vs[1].v.int_v);
-	CHECK_FATAL(vs[2].v.int_v != 100, "sort result[0]:%"PRId64, vs[2].v.int_v);
-	CHECK_FATAL(vs[3].v.int_v != 1000, "sort result[0]:%"PRId64, vs[3].v.int_v);
+	CHECK_FATAL(vs[0].integer_value != 9, "sort result[0]:%"PRId64,
+	        vs[0].integer_value);
+	CHECK_FATAL(vs[1].integer_value != 10, "sort result[0]:%"PRId64,
+	        vs[1].integer_value);
+	CHECK_FATAL(vs[2].integer_value != 100, "sort result[0]:%"PRId64,
+	        vs[2].integer_value);
+	CHECK_FATAL(vs[3].integer_value != 1000, "sort result[0]:%"PRId64,
+	        vs[3].integer_value);
 
 	vs.clear();
 
@@ -58,8 +61,10 @@ void test_sort_list(Ardb& db)
 	string_to_string_array("limit 1 2", args);
 	db.Sort(dbid, "mylist", args, vs);
 	CHECK_FATAL(vs.size() != 2, "sort result size error:%zu", vs.size());
-	CHECK_FATAL(vs[0].v.int_v != 10, "sort result[0]:%"PRId64, vs[0].v.int_v);
-	CHECK_FATAL(vs[1].v.int_v != 100, "sort result[0]:%"PRId64, vs[1].v.int_v);
+	CHECK_FATAL(vs[0].integer_value != 10, "sort result[0]:%"PRId64,
+	        vs[0].integer_value);
+	CHECK_FATAL(vs[1].integer_value != 100, "sort result[0]:%"PRId64,
+	        vs[1].integer_value);
 
 	vs.clear();
 	args.clear();
@@ -70,10 +75,14 @@ void test_sort_list(Ardb& db)
 	db.Set(dbid, "weight_1000", "700");
 	db.Sort(dbid, "mylist", args, vs);
 	CHECK_FATAL(vs.size() != 4, "sort result size error:%zu", vs.size());
-	CHECK_FATAL(vs[0].v.int_v != 1000, "sort result[0]:%"PRId64, vs[0].v.int_v);
-	CHECK_FATAL(vs[1].v.int_v != 9, "sort result[0]:%"PRId64, vs[1].v.int_v);
-	CHECK_FATAL(vs[2].v.int_v != 10, "sort result[0]:%"PRId64, vs[2].v.int_v);
-	CHECK_FATAL(vs[3].v.int_v != 100, "sort result[0]:%"PRId64, vs[3].v.int_v);
+	CHECK_FATAL(vs[0].integer_value != 1000, "sort result[0]:%"PRId64,
+	        vs[0].integer_value);
+	CHECK_FATAL(vs[1].integer_value != 9, "sort result[0]:%"PRId64,
+	        vs[1].integer_value);
+	CHECK_FATAL(vs[2].integer_value != 10, "sort result[0]:%"PRId64,
+	        vs[2].integer_value);
+	CHECK_FATAL(vs[3].integer_value != 100, "sort result[0]:%"PRId64,
+	        vs[3].integer_value);
 
 	db.HSet(dbid, "myhash", "field_100", "hash100");
 	db.HSet(dbid, "myhash", "field_10", "hash10");
@@ -86,18 +95,22 @@ void test_sort_list(Ardb& db)
 	db.Sort(dbid, "mylist", args, vs);
 	std::string str;
 	CHECK_FATAL(vs.size() != 8, "sort result size error:%zu", vs.size());
-	CHECK_FATAL(vs[0].ToString(str) != "hash1000",
-			"sort result[0]:%s", str.c_str());
-	CHECK_FATAL(vs[2].ToString(str) != "hash9",
-			"sort result[2]:%s", str.c_str());
-	CHECK_FATAL(vs[4].ToString(str) != "hash10",
-			"sort result[4]:%s", str.c_str());
-	CHECK_FATAL(vs[6].ToString(str) != "hash100",
-			"sort result[6]:%s", str.c_str());
-	CHECK_FATAL(vs[1].v.int_v != 1000, "sort result[1]:%"PRId64, vs[1].v.int_v);
-	CHECK_FATAL(vs[3].v.int_v != 9, "sort result[3]:%"PRId64, vs[3].v.int_v);
-	CHECK_FATAL(vs[5].v.int_v != 10, "sort result[5]:%"PRId64, vs[5].v.int_v);
-	CHECK_FATAL(vs[7].v.int_v != 100, "sort result[7]:%"PRId64, vs[7].v.int_v);
+	CHECK_FATAL(vs[0].ToString(str) != "hash1000", "sort result[0]:%s",
+	        str.c_str());
+	CHECK_FATAL(vs[2].ToString(str) != "hash9", "sort result[2]:%s",
+	        str.c_str());
+	CHECK_FATAL(vs[4].ToString(str) != "hash10", "sort result[4]:%s",
+	        str.c_str());
+	CHECK_FATAL(vs[6].ToString(str) != "hash100", "sort result[6]:%s",
+	        str.c_str());
+	CHECK_FATAL(vs[1].integer_value != 1000, "sort result[1]:%"PRId64,
+	        vs[1].integer_value);
+	CHECK_FATAL(vs[3].integer_value != 9, "sort result[3]:%"PRId64,
+	        vs[3].integer_value);
+	CHECK_FATAL(vs[5].integer_value != 10, "sort result[5]:%"PRId64,
+	        vs[5].integer_value);
+	CHECK_FATAL(vs[7].integer_value != 100, "sort result[7]:%"PRId64,
+	        vs[7].integer_value);
 }
 
 void test_sort_set(Ardb& db)
@@ -150,14 +163,14 @@ void test_sort_set(Ardb& db)
 	vs.clear();
 	db.Sort(dbid, "myset", args, vs);
 	CHECK_FATAL(vs.size() != 8, "sort result size error:%zu", vs.size());
-	CHECK_FATAL(vs[0].ToString(str) != "hash1000",
-			"sort result[0]:%s", str.c_str());
-	CHECK_FATAL(vs[2].ToString(str) != "hash9",
-			"sort result[2]:%s", str.c_str());
-	CHECK_FATAL(vs[4].ToString(str) != "hash10",
-			"sort result[4]:%s", str.c_str());
-	CHECK_FATAL(vs[6].ToString(str) != "hash100",
-			"sort result[6]:%s", str.c_str());
+	CHECK_FATAL(vs[0].ToString(str) != "hash1000", "sort result[0]:%s",
+	        str.c_str());
+	CHECK_FATAL(vs[2].ToString(str) != "hash9", "sort result[2]:%s",
+	        str.c_str());
+	CHECK_FATAL(vs[4].ToString(str) != "hash10", "sort result[4]:%s",
+	        str.c_str());
+	CHECK_FATAL(vs[6].ToString(str) != "hash100", "sort result[6]:%s",
+	        str.c_str());
 	CHECK_FATAL(vs[1].ToString(str) != "ab4", "sort result[1]:%s", str.c_str());
 	CHECK_FATAL(vs[3].ToString(str) != "ab3", "sort result[3]:%s", str.c_str());
 	CHECK_FATAL(vs[5].ToString(str) != "ab2", "sort result[5]:%s", str.c_str());
@@ -210,38 +223,54 @@ void test_sort_zset(Ardb& db)
 	db.HSet(dbid, "myhash_v10", "field", "1000");
 
 	string_to_string_array("by weight_* get myhash_*->field aggregate sum",
-			args);
+	        args);
 	db.Sort(dbid, "myzset", args, vs);
 	CHECK_FATAL(vs.size() != 1, "sort result size error:%zu", vs.size());
-	CHECK_FATAL(vs[0].ToString(str) != "1119",
-			"sort result[0]:%s", str.c_str());
+	CHECK_FATAL(vs[0].ToString(str) != "1119", "sort result[0]:%s",
+	        str.c_str());
 
 	string_to_string_array("by weight_* get myhash_*->field aggregate min",
-			args);
+	        args);
 	db.Sort(dbid, "myzset", args, vs);
 	CHECK_FATAL(vs.size() != 1, "sort result size error:%zu", vs.size());
 	CHECK_FATAL(vs[0].ToString(str) != "9", "sort result[0]:%s", str.c_str());
 
 	string_to_string_array("by weight_* get myhash_*->field aggregate max",
-			args);
+	        args);
 	db.Sort(dbid, "myzset", args, vs);
 	CHECK_FATAL(vs.size() != 1, "sort result size error:%zu", vs.size());
-	CHECK_FATAL(vs[0].ToString(str) != "1000",
-			"sort result[0]:%s", str.c_str());
+	CHECK_FATAL(vs[0].ToString(str) != "1000", "sort result[0]:%s",
+	        str.c_str());
 
 	string_to_string_array("by weight_* get myhash_*->field aggregate avg",
-			args);
+	        args);
 	db.Sort(dbid, "myzset", args, vs);
 	CHECK_FATAL(vs.size() != 1, "sort result size error:%zu", vs.size());
-	CHECK_FATAL(vs[0].ToString(str) != "279.75",
-			"sort result[0]:%s", str.c_str());
+	CHECK_FATAL(vs[0].ToString(str) != "279.75", "sort result[0]:%s",
+	        str.c_str());
 
 	string_to_string_array("by weight_* get myhash_*->field aggregate count",
-			args);
+	        args);
 	db.Sort(dbid, "myzset", args, vs);
 	CHECK_FATAL(vs.size() != 1, "sort result size error:%zu", vs.size());
-	CHECK_FATAL(vs[0].ToString(str) != "4",
-			"sort result[0]:%s", str.c_str());
+	CHECK_FATAL(vs[0].ToString(str) != "4", "sort result[0]:%s", str.c_str());
+}
+
+void test_keys(Ardb& db)
+{
+	DBID dbid = 0;
+	db.HSet(dbid, "myhash_v0", "field", "100");
+	db.SAdd(dbid, "myset_v0", "field");
+	db.LPush(dbid, "mylist", "122");
+	db.ZAdd(dbid, "myzset", 3, "v0");
+	db.Set(dbid, "mykey", "12312");
+
+	StringArray ret;
+	db.Keys(dbid, "my*", "", 100, ret);
+	CHECK_FATAL(ret.size() < 5, "keys my* size error:%zu", ret.size());
+	ret.clear();
+	db.Keys(dbid, "*set*", "", 100, ret);
+	CHECK_FATAL(ret.size() < 2, "keys *set* size error:%zu", ret.size());
 }
 
 void test_misc(Ardb& db)
@@ -250,4 +279,5 @@ void test_misc(Ardb& db)
 	test_sort_list(db);
 	test_sort_set(db);
 	test_sort_zset(db);
+	test_keys(db);
 }
