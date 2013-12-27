@@ -31,7 +31,7 @@
 #define NOVA_DATAGRAMPACKET_HPP_
 
 #include "socket_inet_address.hpp"
-#include "buffer.hpp"
+#include "buffer/buffer.hpp"
 namespace ardb
 {
 	class DatagramPacket

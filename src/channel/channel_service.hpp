@@ -47,7 +47,6 @@
 #include <list>
 #include <set>
 #include <utility>
-#include <tr1/unordered_map>
 
 using std::map;
 using std::list;
@@ -72,7 +71,7 @@ namespace ardb
 			typedef std::list<uint32> RemoveChannelQueue;
 			//typedef zmq::ypipe_t<Runnable*, 10> TaskList;
 			typedef SPSCQueue<Runnable*> TaskList;
-			typedef std::tr1::unordered_map<uint32, Channel*> ChannelTable;
+			typedef std::map<uint32, Channel*> ChannelTable;
 			typedef std::vector<ChannelService*> ChannelServicePool;
 			typedef std::vector<Thread*> ThreadVector;
 			ChannelTable m_channel_table;

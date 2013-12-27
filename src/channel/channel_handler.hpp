@@ -32,7 +32,6 @@
 #include <stdexcept>
 #include <typeinfo>
 #include <set>
-#include <tr1/unordered_set>
 #include "channel/channel_state_event.hpp"
 #include "channel/exception_event.hpp"
 #include "channel/message_event.hpp"

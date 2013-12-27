@@ -103,16 +103,16 @@ namespace ardb
 		typename T::iterator it = v.begin();
 		while (it != v.end())
 		{
-			const ValueObject& vo = *it;
+			ValueData& vo = *it;
 			RedisReply r;
-			if (vo.type == EMPTY)
+			if (vo.type == EMPTY_VALUE)
 			{
 				r.type = REDIS_REPLY_NIL;
 			} else
 			{
 				std::string str;
-				vo.ToString(str);
-				fill_str_reply(r, str);
+				vo.ToBytes();
+				fill_str_reply(r, vo.bytes_value);
 			}
 			reply.elements.push_back(r);
 			it++;
@@ -198,6 +198,15 @@ namespace ardb
 		conf_get_int64(props, "repl-timeout", cfg.repl_timeout);
 		conf_get_int64(props, "repl-state-persist-period", cfg.repl_state_persist_period);
 		conf_get_int64(props, "lua-time-limit", cfg.lua_time_limit);
+
+		conf_get_int64(props, "hash-max-ziplist-entries", cfg.db_cfg.hash_max_ziplist_entries);
+		conf_get_int64(props, "hash_max-ziplist-value", cfg.db_cfg.hash_max_ziplist_value);
+		conf_get_int64(props, "set-max-ziplist-entries", cfg.db_cfg.set_max_ziplist_entries);
+		conf_get_int64(props, "set-max-ziplist-value", cfg.db_cfg.set_max_ziplist_value);
+		conf_get_int64(props, "list-max-ziplist-entries", cfg.db_cfg.list_max_ziplist_entries);
+		conf_get_int64(props, "list-max-ziplist-value", cfg.db_cfg.list_max_ziplist_value);
+		conf_get_int64(props, "zset-max-ziplist-entries", cfg.db_cfg.zset_max_ziplist_entries);
+		conf_get_int64(props, "zset_max_ziplist_value", cfg.db_cfg.zset_max_ziplist_value);
 
 		std::string slaveof;
 		if (conf_get_string(props, "slaveof", slaveof))
@@ -407,17 +416,6 @@ namespace ardb
 			{ "keyscount", REDIS_CMD_KEYSCOUNT, &ArdbServer::KeysCount, 1, 6, "r", 0 },
 			{ "__set__", REDIS_CMD_RAWSET, &ArdbServer::RawSet, 2, 2, "w", 0 },
 			{ "__del__", REDIS_CMD_RAWDEL, &ArdbServer::RawDel, 1, 1, "w", 0 },
-			{ "tcreate", REDIS_CMD_TCREATE, &ArdbServer::TCreate, 2, -1, "w", 0 },
-			{ "tlen", REDIS_CMD_TLEN, &ArdbServer::TLen, 1, 1, "r", 0 },
-			{ "tdesc", REDIS_CMD_TDESC, &ArdbServer::TDesc, 1, 1, "r", 0 },
-			{ "tinsert", REDIS_CMD_TINSERT, &ArdbServer::TInsert, 2, -1, "w", 0 },
-			{ "treplace", REDIS_CMD_TREPLACE, &ArdbServer::TInsert, 2, -1, "w", 0 },
-			{ "tget", REDIS_CMD_TGET, &ArdbServer::TGet, 2, -1, "w", 0 },
-			{ "tgetall", REDIS_CMD_TGETALL, &ArdbServer::TGetAll, 1, 1, "r", 0 },
-			{ "tdel", REDIS_CMD_TDEL, &ArdbServer::TDel, 1, -1, "w", 0 },
-			{ "tdelcol", REDIS_CMD_TDELCOL, &ArdbServer::TDelCol, 2, 2, "w", 0 },
-			{ "tcreateindex", REDIS_CMD_TCREATEINDEX, &ArdbServer::TCreateIndex, 2, 2, "w", 0 },
-			{ "tupdate", REDIS_CMD_TUPDATE, &ArdbServer::TUpdate, 4, -1, "w", 0 },
 			{ "eval", REDIS_CMD_EVAL, &ArdbServer::Eval, 2, -1, "s", 0 },
 			{ "evalsha", REDIS_CMD_EVALSHA, &ArdbServer::EvalSHA, 2, -1, "s", 0 },
 			{ "script", REDIS_CMD_SCRIPT, &ArdbServer::Script, 1, -1, "s", 0 }, };
@@ -611,7 +609,7 @@ namespace ardb
 	int ArdbServer::Keys(ArdbConnContext& ctx, RedisCommandFrame& cmd)
 	{
 		StringArray keys;
-		KeyObject from(Slice(), KEY_END, ctx.currentDB);
+		std::string from;
 		uint32 limit = 100000; //return max 100000 keys one time
 		if (cmd.GetArguments().size() > 1)
 		{
@@ -627,18 +625,13 @@ namespace ardb
 					i++;
 				} else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "from"))
 				{
-					if (i + 2 >= cmd.GetArguments().size())
+					if (i + 1 >= cmd.GetArguments().size())
 					{
-						fill_error_reply(ctx.reply, "ERR 'from' need two args followed");
+						fill_error_reply(ctx.reply, "ERR 'from' need one args followed");
 						return 0;
 					}
-					from.key = cmd.GetArguments()[i + 2];
-					if (-1 == string_to_type(from.type, cmd.GetArguments()[i + 1]))
-					{
-						fill_error_reply(ctx.reply, "ERR 'from' followed invalid type string.");
-						return 0;
-					}
-					i += 2;
+					from = cmd.GetArguments()[i + 1];
+					i++;
 				} else
 				{
 					fill_error_reply(ctx.reply, " Syntax error, try KEYS ");
@@ -646,19 +639,8 @@ namespace ardb
 				}
 			}
 		}
-		KeyType last_type = KEY_END;
-		m_db->Keys(ctx.currentDB, cmd.GetArguments()[0], from, limit, keys, last_type);
+		m_db->Keys(ctx.currentDB, cmd.GetArguments()[0], from, limit, keys);
 		fill_str_array_reply(ctx.reply, keys);
-		if (last_type != KEY_END)
-		{
-			std::string typestr;
-			type_to_string(last_type, typestr);
-			RedisReply last;
-			last.type = REDIS_REPLY_ARRAY;
-			last.elements.push_back(RedisReply(typestr));
-			last.elements.push_back(RedisReply(*(keys.rbegin())));
-			ctx.reply.elements.push_back(last);
-		}
 		return 0;
 	}
 	int ArdbServer::HClear(ArdbConnContext& ctx, RedisCommandFrame& cmd)
@@ -1016,8 +998,8 @@ namespace ardb
 	{
 		uint64 micros = get_current_epoch_micros();
 		ValueArray vs;
-		vs.push_back(ValueObject((int64) micros / 1000000));
-		vs.push_back(ValueObject((int64) micros % 1000000));
+		vs.push_back(ValueData((int64) micros / 1000000));
+		vs.push_back(ValueData((int64) micros % 1000000));
 		fill_array_reply(ctx.reply, vs);
 		return 0;
 	}
@@ -1091,7 +1073,7 @@ namespace ardb
 		int ret = m_db->Type(ctx.currentDB, cmd.GetArguments()[0]);
 		switch (ret)
 		{
-			case SET_ELEMENT:
+			case SET_META:
 			{
 				fill_status_reply(ctx.reply, "set");
 				break;
@@ -1101,24 +1083,19 @@ namespace ardb
 				fill_status_reply(ctx.reply, "list");
 				break;
 			}
-			case ZSET_ELEMENT_SCORE:
+			case ZSET_META:
 			{
 				fill_status_reply(ctx.reply, "zset");
 				break;
 			}
-			case HASH_FIELD:
+			case HASH_META:
 			{
 				fill_status_reply(ctx.reply, "hash");
 				break;
 			}
-			case KV:
+			case STRING_META:
 			{
 				fill_status_reply(ctx.reply, "string");
-				break;
-			}
-			case TABLE_META:
-			{
-				fill_status_reply(ctx.reply, "table");
 				break;
 			}
 			case BITSET_META:
@@ -1306,7 +1283,7 @@ namespace ardb
 	{
 		const std::string& key = cmd.GetArguments()[0];
 		std::string value;
-		if (0 == m_db->Get(ctx.currentDB, key, &value))
+		if (0 == m_db->Get(ctx.currentDB, key, value))
 		{
 			fill_str_reply(ctx.reply, value);
 			//ctx.reply.type = REDIS_REPLY_NIL;
@@ -1431,9 +1408,9 @@ namespace ardb
 		{
 			keys.push_back(cmd.GetArguments()[i]);
 		}
-		ValueArray res;
+		StringArray res;
 		m_db->MGet(ctx.currentDB, keys, res);
-		fill_array_reply(ctx.reply, res);
+		fill_str_array_reply(ctx.reply, res);
 		return 0;
 	}
 
@@ -1851,10 +1828,10 @@ namespace ardb
 		ValueArray vals;
 		if (cmd.GetType() == REDIS_CMD_HRANGE)
 		{
-			m_db->HRange(ctx.currentDB, cmd.GetArguments()[0], from, limit, fields, vals);
+			//m_db->HRange(ctx.currentDB, cmd.GetArguments()[0], from, limit, fields, vals);
 		} else
 		{
-			m_db->HRevRange(ctx.currentDB, cmd.GetArguments()[0], from, limit, fields, vals);
+			//m_db->HRevRange(ctx.currentDB, cmd.GetArguments()[0], from, limit, fields, vals);
 		}
 		ctx.reply.type = REDIS_REPLY_ARRAY;
 		for (uint32 i = 0; i < fields.size(); i++)
@@ -2885,139 +2862,7 @@ namespace ardb
 	}
 
 //=========================Tables cmds================================
-	int ArdbServer::TCreate(ArdbConnContext& ctx, RedisCommandFrame& cmd)
-	{
-		SliceArray ks;
-		for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
-		{
-			ks.push_back(cmd.GetArguments()[i]);
-		}
-		m_db->TCreate(ctx.currentDB, cmd.GetArguments()[0], ks);
-		fill_status_reply(ctx.reply, "OK");
-		return 0;
-	}
 
-	int ArdbServer::TLen(ArdbConnContext& ctx, RedisCommandFrame& cmd)
-	{
-		int len = m_db->TCount(ctx.currentDB, cmd.GetArguments()[0]);
-		fill_int_reply(ctx.reply, len);
-		return 0;
-	}
-
-	int ArdbServer::TGetAll(ArdbConnContext& ctx, RedisCommandFrame& cmd)
-	{
-		ValueArray vs;
-		m_db->TGetAll(ctx.currentDB, cmd.GetArguments()[0], vs);
-		fill_array_reply(ctx.reply, vs);
-		return 0;
-	}
-
-	int ArdbServer::TGet(ArdbConnContext& ctx, RedisCommandFrame& cmd)
-	{
-		TableQueryOptions options;
-		if (!TableQueryOptions::Parse(cmd.GetArguments(), 1, options))
-		{
-			fill_error_reply(ctx.reply, "ERR syntax error");
-			return 0;
-		}
-		ValueArray vs;
-		std::string err;
-		int ret = m_db->TGet(ctx.currentDB, cmd.GetArguments()[0], options, vs, err);
-		if (ret == 0)
-		{
-			fill_array_reply(ctx.reply, vs);
-		} else
-		{
-			fill_error_reply(ctx.reply, "%s", err.c_str());
-		}
-		return 0;
-	}
-	int ArdbServer::TUpdate(ArdbConnContext& ctx, RedisCommandFrame& cmd)
-	{
-		TableUpdateOptions options;
-		if (!TableUpdateOptions::Parse(cmd.GetArguments(), 1, options))
-		{
-			fill_error_reply(ctx.reply, "ERR syntax error");
-			return 0;
-		}
-		int ret = m_db->TUpdate(ctx.currentDB, cmd.GetArguments()[0], options);
-		if (ret >= 0)
-		{
-			fill_int_reply(ctx.reply, ret);
-		} else
-		{
-			fill_error_reply(ctx.reply, "ERR no record found for condition");
-		}
-		return 0;
-	}
-
-	int ArdbServer::TCreateIndex(ArdbConnContext& ctx, RedisCommandFrame& cmd)
-	{
-		m_db->TCreateIndex(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1]);
-		fill_status_reply(ctx.reply, "OK");
-		return 0;
-	}
-
-	int ArdbServer::TDelCol(ArdbConnContext& ctx, RedisCommandFrame& cmd)
-	{
-		m_db->TDelCol(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1]);
-		fill_status_reply(ctx.reply, "OK");
-		return 0;
-	}
-	int ArdbServer::TDel(ArdbConnContext& ctx, RedisCommandFrame& cmd)
-	{
-		TableDeleteOptions options;
-		if (!TableDeleteOptions::Parse(cmd.GetArguments(), 1, options))
-		{
-			fill_error_reply(ctx.reply, "ERR syntax error");
-			return 0;
-		}
-		std::string err;
-		int ret = m_db->TDel(ctx.currentDB, cmd.GetArguments()[0], options, err);
-		if (ret >= 0)
-		{
-			fill_int_reply(ctx.reply, ret);
-		} else
-		{
-			fill_error_reply(ctx.reply, "%s", err.c_str());
-		}
-		return 0;
-	}
-
-	int ArdbServer::TDesc(ArdbConnContext& ctx, RedisCommandFrame& cmd)
-	{
-		std::string str;
-		int ret = m_db->TDesc(ctx.currentDB, cmd.GetArguments()[0], str);
-		if (ret == 0)
-		{
-			fill_str_reply(ctx.reply, str);
-		} else
-		{
-			fill_error_reply(ctx.reply, "ERR Not Found");
-		}
-		return 0;
-	}
-
-	int ArdbServer::TInsert(ArdbConnContext& ctx, RedisCommandFrame& cmd)
-	{
-		TableInsertOptions options;
-		if (!TableInsertOptions::Parse(cmd.GetArguments(), 1, options))
-		{
-			fill_error_reply(ctx.reply, "ERR syntax error");
-			return 0;
-		}
-		std::string err;
-		int ret = m_db->TInsert(ctx.currentDB, cmd.GetArguments()[0], options, cmd.GetCommand() == "treplace", err);
-		if (ret != 0)
-		{
-			ctx.reply.str = err;
-			ctx.reply.type = REDIS_REPLY_ERROR;
-		} else
-		{
-			fill_status_reply(ctx.reply, "OK");
-		}
-		return 0;
-	}
 
 	ArdbServer::RedisCommandHandlerSetting * ArdbServer::FindRedisCommandHandlerSetting(std::string & cmd)
 	{
@@ -3268,7 +3113,7 @@ namespace ardb
 		}
 		//m_engine = new SelectedDBEngineFactory(props);
 		m_db = new Ardb(&m_engine, m_cfg.worker_count > 1);
-		if (!m_db->Init())
+		if (!m_db->Init(m_cfg.db_cfg))
 		{
 			ERROR_LOG("Failed to init DB.");
 			return -1;

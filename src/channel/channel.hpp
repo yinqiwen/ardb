@@ -31,7 +31,7 @@
 #define NOVA_CHANNEL2_HPP_
 #include "common.hpp"
 #include "channel/redis/ae.h"
-#include "util/buffer_helper.hpp"
+#include "buffer/buffer_helper.hpp"
 #include "channel/channel_pipeline.hpp"
 #include "util/helpers.hpp"
 #include <map>

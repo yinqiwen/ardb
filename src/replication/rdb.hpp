@@ -37,7 +37,7 @@
 #define RDB_HPP_
 #include <string>
 #include "common.hpp"
-#include "util/buffer_helper.hpp"
+#include "buffer/buffer_helper.hpp"
 #include "ardb.hpp"
 
 namespace ardb
@@ -82,7 +82,7 @@ namespace ardb
 			int WriteRawString(const char *s, size_t len);
 			int WriteLzfStringObject(const char *s, size_t len);
 			int WriteTime(time_t t);
-			int WriteStringObject(ValueObject* o);
+			int WriteStringObject(ValueData& o);
 		public:
 			RedisDumpFile(Ardb* db, const std::string& file);
 			int Load(DumpRoutine* cb, void *data);

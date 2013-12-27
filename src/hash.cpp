@@ -29,21 +29,117 @@
 
 #include "ardb.hpp"
 
+
 namespace ardb
 {
-	int Ardb::SetHashValue(const DBID& db, const Slice& key, const Slice& field, ValueObject& value)
+	HashMetaValue* Ardb::GetHashMeta(const DBID& db, const Slice& key, int& err,
+	bool& create)
 	{
-		HashKeyObject k(key, field, db);
-		return SetValue(k, value);
-	}
-	int Ardb::HSet(const DBID& db, const Slice& key, const Slice& field, const Slice& value)
-	{
-		ValueObject valueobject;
-		smart_fill_value(value, valueobject);
-		return SetHashValue(db, key, field, valueobject) == 0 ? 1 : 0;
+		CommonMetaValue* meta = GetMeta(db, key, false);
+		if (NULL != meta && meta->header.type != HASH_META)
+		{
+			DELETE(meta);
+			err = ERR_INVALID_TYPE;
+			return NULL;
+		}
+		if (NULL == meta)
+		{
+			err = ERR_NOT_EXIST;
+			meta = new HashMetaValue;
+			create = true;
+		} else
+		{
+			create = false;
+		}
+		return (HashMetaValue*) meta;
 	}
 
-	int Ardb::HSetNX(const DBID& db, const Slice& key, const Slice& field, const Slice& value)
+	int Ardb::GetHashZipEntry(HashMetaValue* meta, const ValueData& field,
+	        ValueData*& value)
+	{
+		HashFieldMap::iterator it = meta->values.find(field);
+		if (it != meta->values.end())
+		{
+			value = &(it->second);
+			return 0;
+		}
+		return ERR_NOT_EXIST;
+	}
+
+	int Ardb::HSetValue(HashKeyObject& key, HashMetaValue* meta,
+	        CommonValueObject& value)
+	{
+		KeyLockerGuard lockGuard(m_key_locker, key.db, key.key);
+		BatchWriteGuard guard(GetEngine());
+		if (!meta->ziped)
+		{
+			return SetKeyValueObject(key, value);
+		} else
+		{
+			ValueData* value_entry = NULL;
+			bool zipSave = true;
+			if (0 == GetHashZipEntry(meta, key.field, value_entry))
+			{
+				*value_entry = value.data; //set new value
+				if (value.data.type
+				        == BYTES_VALUE&& value.data.bytes_value.size() >= (uint32)m_config.hash_max_ziplist_value)
+				{
+					zipSave = false;
+				}
+			} else
+			{
+				if (key.field.type
+				        == BYTES_VALUE&& value.data.bytes_value.size() >= (uint32)m_config.hash_max_ziplist_value)
+				{
+					zipSave = false;
+				} else if (meta->values.size()
+				        >= (uint32)m_config.hash_max_ziplist_entries)
+				{
+					zipSave = false;
+				} else
+				{
+					zipSave = true;
+				}
+				meta->values[key.field] = value.data;
+			}
+			if (!zipSave)
+			{
+				meta->ziped = false;
+				HashFieldMap::iterator it = meta->values.begin();
+				if (it != meta->values.end())
+				{
+					HashKeyObject k(key.key, it->first, key.db);
+					CommonValueObject v(it->second);
+					SetKeyValueObject(k, v);
+					it++;
+				}
+				meta->values.clear();
+			}
+		}
+		SetMeta(key.db, key.key, *meta);
+		return 0;
+	}
+	int Ardb::HSet(const DBID& db, const Slice& key, const Slice& field,
+	        const Slice& value)
+	{
+		int err = 0;
+		bool createHash = false;
+		HashMetaValue* meta = GetHashMeta(db, key, err, createHash);
+		if (NULL == meta)
+		{
+			DELETE(meta);
+			return err;
+		}
+		CommonValueObject valueobject;
+		valueobject.data.SetValue(value, true);
+		HashKeyObject hk(key, field, db);
+		int ret = HSetValue(hk, meta, valueobject) == 0 ? 1 : 0;
+		DELETE(meta);
+		return ret;
+	}
+
+	int Ardb::HSetNX(const DBID& db, const Slice& key, const Slice& field,
+	        const Slice& value)
 	{
 		if (HExists(db, key, field))
 		{
@@ -52,50 +148,86 @@ namespace ardb
 		return HSet(db, key, field, value) > 0 ? 1 : 0;
 	}
 
-	int Ardb::HDel(const DBID& db, const Slice& key, const Slice& field)
-	{
-		HashKeyObject k(key, field, db);
-		return DelValue(k);
-	}
-
 	int Ardb::HDel(const DBID& db, const Slice& key, const SliceArray& fields)
 	{
+		int err = 0;
+		bool createHash = false;
+		HashMetaValue* meta = GetHashMeta(db, key, err, createHash);
+		if (NULL == meta || createHash)
+		{
+			DELETE(meta);
+			return err;
+		}
 		BatchWriteGuard guard(GetEngine());
 		SliceArray::const_iterator it = fields.begin();
 		while (it != fields.end())
 		{
-			HDel(db, key, *it);
+			if (meta->ziped)
+			{
+				ValueData field_value;
+				field_value.SetValue(*it, true);
+				meta->values.erase(field_value);
+			} else
+			{
+				HashKeyObject k(key, *it, db);
+				DelValue(k);
+			}
 			it++;
 		}
+		if (meta->ziped)
+		{
+			SetMeta(db, key, *meta);
+		}
+		DELETE(meta);
 		return fields.size();
 	}
 
-	int Ardb::HGetValue(const DBID& db, const Slice& key, const Slice& field, ValueObject* value)
+	int Ardb::HGetValue(HashKeyObject& key, HashMetaValue* meta,
+	        CommonValueObject& value)
 	{
-		HashKeyObject k(key, field, db);
-		if (0 == GetValue(k, value))
+		if (meta->ziped)
 		{
-			return 0;
+			ValueData* v = NULL;
+			if (0 == GetHashZipEntry(meta, key.field, v))
+			{
+				value.data = *v;
+				return 0;
+			}
+			return ERR_NOT_EXIST;
+		} else
+		{
+			return GetKeyValueObject(key, value);
 		}
-		return ERR_NOT_EXIST;
 	}
 
-	int Ardb::HGet(const DBID& db, const Slice& key, const Slice& field, std::string* value)
+	int Ardb::HGet(const DBID& db, const Slice& key, const Slice& field,
+	        std::string* value)
 	{
-		HashKeyObject k(key, field, db);
-		ValueObject v;
-		if (0 == GetValue(k, &v))
+		int err = 0;
+		bool createHash = false;
+		HashMetaValue* meta = GetHashMeta(db, key, err, createHash);
+		if (NULL == meta || createHash)
+		{
+			DELETE(meta);
+			return err;
+		}
+		HashKeyObject hk(key, field, db);
+		CommonValueObject valueObj;
+		int ret = HGetValue(hk, meta, valueObj);
+		DELETE(meta);
+		if (ret == 0)
 		{
 			if (NULL != value)
 			{
-				v.ToString(*value);
+				valueObj.data.ToString(*value);
 			}
 			return 0;
 		}
-		return ERR_NOT_EXIST;
+		return ret;
 	}
 
-	int Ardb::HMSet(const DBID& db, const Slice& key, const SliceArray& fields, const SliceArray& values)
+	int Ardb::HMSet(const DBID& db, const Slice& key, const SliceArray& fields,
+	        const SliceArray& values)
 	{
 		if (fields.size() != values.size())
 		{
@@ -113,143 +245,246 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::HMGet(const DBID& db, const Slice& key, const SliceArray& fields, ValueArray& values)
+	int Ardb::HMGet(const DBID& db, const Slice& key, const SliceArray& fields,
+	        ValueArray& values)
 	{
+		int err = 0;
+		bool createHash = false;
+		HashMetaValue* meta = GetHashMeta(db, key, err, createHash);
+		if (NULL == meta || createHash)
+		{
+			DELETE(meta);
+			return err;
+		}
 		SliceArray::const_iterator it = fields.begin();
-		int i = 0;
 		while (it != fields.end())
 		{
-			ValueObject v;
-			values.push_back(v);
-			HGetValue(db, key, *it, &values[i]);
+			CommonValueObject valueObj;
+			HashKeyObject hk(key, *it, db);
+			HGetValue(hk, meta, valueObj);
+			values.push_back(valueObj.data);
 			it++;
-			i++;
 		}
+		DELETE(meta);
 		return 0;
 	}
 
 	int Ardb::HClear(const DBID& db, const Slice& key)
 	{
-		Slice empty;
-		HashKeyObject sk(key, empty, db);
-		struct HClearWalk: public WalkHandler
+		int err = 0;
+		bool createHash = false;
+		HashMetaValue* meta = GetHashMeta(db, key, err, createHash);
+		if (NULL == meta || createHash)
 		{
-				Ardb* z_db;
-
-				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
-				{
-					HashKeyObject* sek = (HashKeyObject*) k;
-					z_db->DelValue(*sek);
-					return 0;
-				}
-				HClearWalk(Ardb* db) :
-						z_db(db)
-				{
-				}
-		} walk(this);
-		BatchWriteGuard guard(GetEngine());
-		Walk(sk, false, &walk);
-		SetExpiration(db, key, 0, false);
+			DELETE(meta);
+			return err;
+		}
+		if (!meta->ziped)
+		{
+			Slice empty;
+			HashKeyObject sk(key, empty, db);
+			struct HClearWalk: public WalkHandler
+			{
+					Ardb* z_db;
+					int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+					{
+						HashKeyObject* sek = (HashKeyObject*) k;
+						z_db->DelValue(*sek);
+						return 0;
+					}
+					HClearWalk(Ardb* db) :
+							z_db(db)
+					{
+					}
+			} walk(this);
+			BatchWriteGuard guard(GetEngine());
+			Walk(sk, false, false, &walk);
+		}
+		DelMeta(db, key, meta);
+		DELETE(meta);
 		return 0;
 	}
 
 	int Ardb::HKeys(const DBID& db, const Slice& key, StringArray& fields)
 	{
-		Slice empty;
-		HashKeyObject k(key, empty, db);
-		Iterator* it = FindValue(k);
-		while (NULL != it && it->Valid())
+		int err = 0;
+		bool createHash = false;
+		HashMetaValue* meta = GetHashMeta(db, key, err, createHash);
+		if (NULL == meta || createHash)
 		{
-			Slice tmpkey = it->Key();
-			KeyObject* kk = decode_key(tmpkey, &k);
-			if (NULL == kk)
-			{
-				DELETE(kk);
-				break;
-			}
-			HashKeyObject* hk = (HashKeyObject*) kk;
-			std::string filed(hk->field.data(), hk->field.size());
-			fields.push_back(filed);
-			it->Next();
-			DELETE(kk);
+			DELETE(meta);
+			return err;
 		}
-		DELETE(it);
+		if (meta->ziped)
+		{
+			HashFieldMap::iterator it = meta->values.begin();
+			while (it != meta->values.end())
+			{
+				std::string str;
+				fields.push_back(it->first.ToString(str));
+				it++;
+			}
+		} else
+		{
+			Slice empty;
+			HashKeyObject k(key, empty, db);
+			Iterator* it = FindValue(k);
+			while (NULL != it && it->Valid())
+			{
+				Slice tmpkey = it->Key();
+				KeyObject* kk = decode_key(tmpkey, &k);
+				if (NULL == kk)
+				{
+					DELETE(kk);
+					break;
+				}
+				HashKeyObject* hk = (HashKeyObject*) kk;
+				std::string filed;
+				hk->field.ToString(filed);
+				fields.push_back(filed);
+				it->Next();
+				DELETE(kk);
+			}
+			DELETE(it);
+		}
+		DELETE(meta);
 		return fields.empty() ? ERR_NOT_EXIST : 0;
 	}
 
 	int Ardb::HLen(const DBID& db, const Slice& key)
 	{
-		Slice empty;
-		HashKeyObject k(key, empty, db);
-		Iterator* it = FindValue(k);
-		int len = 0;
-		while (NULL != it && it->Valid())
+		int err = 0;
+		bool createHash = false;
+		HashMetaValue* meta = GetHashMeta(db, key, err, createHash);
+		if (NULL == meta || createHash)
 		{
-			Slice tmpkey = it->Key();
-			KeyObject* kk = decode_key(tmpkey, &k);
-			if (NULL == kk)
-			{
-				break;
-			}
-			len++;
-			it->Next();
-			DELETE(kk);
+			DELETE(meta);
+			return err;
 		}
-		DELETE(it);
+		int len = 0;
+		if (meta->ziped)
+		{
+			len = meta->values.size();
+		} else
+		{
+			Slice empty;
+			HashKeyObject k(key, empty, db);
+			Iterator* it = FindValue(k);
+			while (NULL != it && it->Valid())
+			{
+				Slice tmpkey = it->Key();
+				KeyObject* kk = decode_key(tmpkey, &k);
+				if (NULL == kk)
+				{
+					break;
+				}
+				len++;
+				it->Next();
+				DELETE(kk);
+			}
+			DELETE(it);
+		}
+		DELETE(meta);
 		return len;
 	}
 
 	int Ardb::HVals(const DBID& db, const Slice& key, StringArray& values)
 	{
-		Slice empty;
-		HashKeyObject k(key, empty, db);
-		Iterator* it = FindValue(k);
-		while (NULL != it && it->Valid())
+		int err = 0;
+		bool createHash = false;
+		HashMetaValue* meta = GetHashMeta(db, key, err, createHash);
+		if (NULL == meta || createHash)
 		{
-			Slice tmpkey = it->Key();
-			KeyObject* kk = decode_key(tmpkey, &k);
-			if (NULL == kk)
-			{
-				break;
-			}
-			ValueObject v;
-			Buffer readbuf(const_cast<char*>(it->Value().data()), 0, it->Value().size());
-			decode_value(readbuf, v);
-			std::string str;
-			values.push_back(v.ToString(str));
-			it->Next();
-			DELETE(kk);
+			DELETE(meta);
+			return err;
 		}
-		DELETE(it);
+		if (meta->ziped)
+		{
+			HashFieldMap::iterator it = meta->values.begin();
+			while (it != meta->values.end())
+			{
+				std::string str;
+				values.push_back(it->second.ToString(str));
+				it++;
+			}
+		} else
+		{
+			Slice empty;
+			HashKeyObject k(key, empty, db);
+			Iterator* it = FindValue(k);
+			while (NULL != it && it->Valid())
+			{
+				Slice tmpkey = it->Key();
+				KeyObject* kk = decode_key(tmpkey, &k);
+				if (NULL == kk)
+				{
+					break;
+				}
+				ValueData v;
+				Buffer readbuf(const_cast<char*>(it->Value().data()), 0,
+				        it->Value().size());
+				decode_value(readbuf, v);
+				std::string str;
+				values.push_back(v.ToString(str));
+				it->Next();
+				DELETE(kk);
+			}
+			DELETE(it);
+		}
+		DELETE(meta);
 		return values.empty() ? ERR_NOT_EXIST : 0;
 	}
 
-	int Ardb::HGetAll(const DBID& db, const Slice& key, StringArray& fields, ValueArray& values)
+	int Ardb::HGetAll(const DBID& db, const Slice& key, StringArray& fields,
+	        ValueArray& values)
 	{
-		Slice empty;
-		HashKeyObject k(key, empty, db);
-		Iterator* it = FindValue(k);
-		int i = 0;
-		while (NULL != it && it->Valid())
+		int err = 0;
+		bool createHash = false;
+		HashMetaValue* meta = GetHashMeta(db, key, err, createHash);
+		if (NULL == meta || createHash)
 		{
-			Slice tmpkey = it->Key();
-			KeyObject* kk = decode_key(tmpkey, &k);
-			if (NULL == kk)
-			{
-				break;
-			}
-			HashKeyObject* hk = (HashKeyObject*) kk;
-			std::string filed(hk->field.data(), hk->field.size());
-			DELETE(kk);
-			fields.push_back(filed);
-			ValueObject v;
-			values.push_back(v);
-			Buffer readbuf(const_cast<char*>(it->Value().data()), 0, it->Value().size());
-			decode_value(readbuf, values[i]);
-			i++;
-			it->Next();
+			DELETE(meta);
+			return err;
 		}
-		DELETE(it);
+		if (meta->ziped)
+		{
+			HashFieldMap::iterator it = meta->values.begin();
+			while (it != meta->values.end())
+			{
+				values.push_back(it->first);
+				values.push_back(it->second);
+				it++;
+			}
+		} else
+		{
+			Slice empty;
+			HashKeyObject k(key, empty, db);
+			Iterator* it = FindValue(k);
+			int i = 0;
+			while (NULL != it && it->Valid())
+			{
+				Slice tmpkey = it->Key();
+				KeyObject* kk = decode_key(tmpkey, &k);
+				if (NULL == kk)
+				{
+					break;
+				}
+				HashKeyObject* hk = (HashKeyObject*) kk;
+				std::string filed;
+				hk->field.ToString(filed);
+				DELETE(kk);
+				fields.push_back(filed);
+				ValueData v;
+				values.push_back(v);
+				Buffer readbuf(const_cast<char*>(it->Value().data()), 0,
+				        it->Value().size());
+				decode_value(readbuf, values[i]);
+				i++;
+				it->Next();
+			}
+			DELETE(it);
+		}
+		DELETE(meta);
 		return fields.empty() ? ERR_NOT_EXIST : 0;
 	}
 
@@ -258,22 +493,42 @@ namespace ardb
 		return HGet(db, key, field, NULL) == 0;
 	}
 
-	int Ardb::HIncrby(const DBID& db, const Slice& key, const Slice& field, int64_t increment, int64_t& value)
+	int Ardb::HIncrby(const DBID& db, const Slice& key, const Slice& field,
+	        int64_t increment, int64_t& value)
 	{
-		ValueObject v;
-		v.type = INTEGER;
-		HGetValue(db, key, field, &v);
-		value_convert_to_number(v);
-		if (v.type != INTEGER)
+		int err = 0;
+		bool createHash = false;
+		HashMetaValue* meta = GetHashMeta(db, key, err, createHash);
+		if (NULL == meta)
 		{
-			return ERR_INVALID_TYPE;
+			DELETE(meta);
+			return err;
 		}
-		v.v.int_v += increment;
-		value = v.v.int_v;
-		return SetHashValue(db, key, field, v);
+		HashKeyObject hk(key, field, db);
+		CommonValueObject valueObj;
+		int ret = HGetValue(hk, meta, valueObj);
+		if (0 == ret)
+		{
+			if (valueObj.data.type != INTEGER_VALUE)
+			{
+				DELETE(meta);
+				return ERR_INVALID_TYPE;
+			}
+			valueObj.data.Incrby(increment);
+			value = valueObj.data.integer_value;
+		} else
+		{
+			valueObj.data.SetValue(increment);
+			value = valueObj.data.integer_value;
+		}
+		ret = HSetValue(hk, meta, valueObj);
+		DELETE(meta);
+		return ret;
 	}
 
-	int Ardb::HMIncrby(const DBID& db, const Slice& key, const SliceArray& fields, const Int64Array& increments, Int64Array& vs)
+	int Ardb::HMIncrby(const DBID& db, const Slice& key,
+	        const SliceArray& fields, const Int64Array& increments,
+	        Int64Array& vs)
 	{
 		if (fields.size() != increments.size())
 		{
@@ -294,64 +549,38 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::HIncrbyFloat(const DBID& db, const Slice& key, const Slice& field, double increment, double& value)
+	int Ardb::HIncrbyFloat(const DBID& db, const Slice& key, const Slice& field,
+	        double increment, double& value)
 	{
-		ValueObject v;
-		v.type = DOUBLE;
-		HGetValue(db, key, field, &v);
-		value_convert_to_number(v);
-		if (v.type != DOUBLE && v.type != INTEGER)
+		int err = 0;
+		bool createHash = false;
+		HashMetaValue* meta = GetHashMeta(db, key, err, createHash);
+		if (NULL == meta)
 		{
-			return ERR_INVALID_TYPE;
+			DELETE(meta);
+			return err;
 		}
-		if (v.type == INTEGER)
+		HashKeyObject hk(key, field, db);
+		CommonValueObject valueObj;
+		int ret = HGetValue(hk, meta, valueObj);
+		if (0 == ret)
 		{
-			int64_t tmp = v.v.int_v;
-			v.v.double_v = tmp;
+			if (valueObj.data.type != INTEGER_VALUE
+			        && valueObj.data.type != DOUBLE_VALUE)
+			{
+				DELETE(meta);
+				return ERR_INVALID_TYPE;
+			}
+			valueObj.data.IncrbyFloat(increment);
+			value = valueObj.data.double_value;
+		} else
+		{
+			valueObj.data.SetValue(increment);
+			value = valueObj.data.double_value;
 		}
-		v.v.double_v += increment;
-		value = v.v.double_v;
-		return SetHashValue(db, key, field, v);
-	}
-
-	int Ardb::HRange(const DBID& db, const Slice& key, const Slice& from, int32 limit, StringArray& fields, ValueArray& values)
-	{
-		if (limit == 0)
-		{
-			return 0;
-		}
-		HashKeyObject hk(key, from, db);
-		struct HGetWalk: public WalkHandler
-		{
-				StringArray& h_fileds;
-				ValueArray& z_values;
-				const Slice& first;
-				int l;
-				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
-				{
-					HashKeyObject* sek = (HashKeyObject*) k;
-					if (0 == cursor)
-					{
-						if (first.compare(sek->field) == 0)
-						{
-							return 0;
-						}
-					}
-					h_fileds.push_back(std::string(sek->field.data(), sek->field.size()));
-					z_values.push_back(*v);
-					if (l > 0 && z_values.size() >= (uint32) l)
-					{
-						return -1;
-					}
-					return 0;
-				}
-				HGetWalk(StringArray& fs, ValueArray& vs, int count, const Slice& s) :
-						h_fileds(fs), z_values(vs), first(s), l(count)
-				{
-				}
-		} walk(fields, values, limit, from);
-		Walk(hk, false, &walk);
-		return 0;
+		ret = HSetValue(hk, meta, valueObj);
+		DELETE(meta);
+		return ret;
 	}
 
 	int Ardb::HFirstField(const DBID& db, const Slice& key, std::string& field)
@@ -361,10 +590,11 @@ namespace ardb
 		if (iter != NULL && iter->Valid())
 		{
 			KeyObject* kk = decode_key(iter->Key(), NULL);
-			if (NULL != kk && kk->type == HASH_FIELD && kk->key.compare(key) == 0)
+			if (NULL != kk && kk->type == HASH_FIELD
+			        && kk->key.compare(key) == 0)
 			{
 				HashKeyObject* tmp = (HashKeyObject*) kk;
-				field.assign(tmp->field.data(), tmp->field.size());
+				tmp->field.ToString(field);
 				DELETE(kk);
 				DELETE(iter);
 				return 0;
@@ -387,10 +617,11 @@ namespace ardb
 			if (iter->Valid())
 			{
 				KeyObject* kk = decode_key(iter->Key(), NULL);
-				if (NULL != kk && kk->type == HASH_FIELD && kk->key.compare(key) == 0)
+				if (NULL != kk && kk->type == HASH_FIELD
+				        && kk->key.compare(key) == 0)
 				{
 					HashKeyObject* tmp = (HashKeyObject*) kk;
-					field.assign(tmp->field.data(), tmp->field.size());
+					tmp->field.ToString(field);
 					DELETE(kk);
 					DELETE(iter);
 					return 0;
@@ -402,64 +633,112 @@ namespace ardb
 		return -1;
 	}
 
-	int Ardb::HRevRange(const DBID& db, const Slice& key, const Slice& from, int32 limit, StringArray& fields, ValueArray& values)
-	{
-		if (limit == 0)
-		{
-			return 0;
-		}
-		HashKeyObject hk(key, from, db);
-		std::string last_field;
-		std::string first_field;
-		if (from.size() == 0)
-		{
-			if (0 != HLastField(db, key, last_field))
-			{
-				return 0;
-			}
-			hk.field = last_field;
-		}
-		if(0 != HFirstField(db, key, first_field))
-		{
-			return 0;
-		}
-		struct HGetWalk: public WalkHandler
-		{
-				StringArray& h_fileds;
-				ValueArray& z_values;
-				const Slice& first;
-				const std::string& first_field;
-				int l;
-				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
-				{
-					HashKeyObject* sek = (HashKeyObject*) k;
-					if (0 == cursor)
-					{
-						if (first.compare(sek->field) == 0)
-						{
-							return 0;
-						}
-					}
-					std::string filed(sek->field.data(), sek->field.size());
-					h_fileds.push_back(filed);
-					z_values.push_back(*v);
-					if (l > 0 && z_values.size() >= (uint32) l)
-					{
-						return -1;
-					}
-					if(filed.compare(first_field) == 0)
-					{
-						return -1;
-					}
-					return 0;
-				}
-				HGetWalk(StringArray& fs, ValueArray& vs, int count, const Slice& s, const std::string& ff) :
-						h_fileds(fs), z_values(vs), first(s), first_field(ff), l(count)
-				{
-				}
-		} walk(fields, values, limit, from, first_field);
-		Walk(hk, true, &walk);
-		return 0;
-	}
+//	int Ardb::HRange(const DBID& db, const Slice& key, const Slice& from,
+//	        int32 limit, StringArray& fields, ValueArray& values)
+//	{
+//		if (limit == 0)
+//		{
+//			return 0;
+//		}
+//
+//		HashKeyObject hk(key, from, db);
+//		struct HGetWalk: public WalkHandler
+//		{
+//				StringArray& h_fileds;
+//				ValueArray& z_values;
+//				const ValueObject& first;
+//				int l;
+//				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+//				{
+//					HashKeyObject* sek = (HashKeyObject*) k;
+//					if (0 == cursor)
+//					{
+//						if (first.Compare(sek->field) == 0)
+//						{
+//							return 0;
+//						}
+//					}
+//					std::string fstr;
+//					sek->field.ToString(fstr);
+//					h_fileds.push_back(fstr);
+//					z_values.push_back(*v);
+//					if (l > 0 && z_values.size() >= (uint32) l)
+//					{
+//						return -1;
+//					}
+//					return 0;
+//				}
+//				HGetWalk(StringArray& fs, ValueArray& vs, int count,
+//				        const ValueObject& s) :
+//						h_fileds(fs), z_values(vs), first(s), l(count)
+//				{
+//				}
+//		} walk(fields, values, limit, hk.field);
+//		Walk(hk, false, &walk);
+//		return 0;
+//	}
+//
+//	int Ardb::HRevRange(const DBID& db, const Slice& key, const Slice& from,
+//	        int32 limit, StringArray& fields, ValueArray& values)
+//	{
+//		if (limit == 0)
+//		{
+//			return 0;
+//		}
+//		HashKeyObject hk(key, from, db);
+//		std::string last_field;
+//		std::string first_field;
+//		if (from.size() == 0)
+//		{
+//			if (0 != HLastField(db, key, last_field))
+//			{
+//				return 0;
+//			}
+//			hk.field = last_field;
+//		}
+//		if (0 != HFirstField(db, key, first_field))
+//		{
+//			return 0;
+//		}
+//		struct HGetWalk: public WalkHandler
+//		{
+//				StringArray& h_fileds;
+//				ValueArray& z_values;
+//				const Slice& first;
+//				const std::string& first_field;
+//				int l;
+//				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+//				{
+//					HashKeyObject* sek = (HashKeyObject*) k;
+//					if (0 == cursor)
+//					{
+//						if (first.compare(sek->field) == 0)
+//						{
+//							return 0;
+//						}
+//					}
+//					std::string filed(sek->field.data(), sek->field.size());
+//					h_fileds.push_back(filed);
+//					z_values.push_back(*v);
+//					if (l > 0 && z_values.size() >= (uint32) l)
+//					{
+//						return -1;
+//					}
+//					if (filed.compare(first_field) == 0)
+//					{
+//						return -1;
+//					}
+//					return 0;
+//				}
+//				HGetWalk(StringArray& fs, ValueArray& vs, int count,
+//				        const Slice& s, const std::string& ff) :
+//						h_fileds(fs), z_values(vs), first(s), first_field(ff), l(
+//						        count)
+//				{
+//				}
+//		} walk(fields, values, limit, from, first_field);
+//		Walk(hk, true, &walk);
+//		return 0;
+//	}
 }
 

@@ -15,7 +15,7 @@ namespace ardb
 
     void DBHelper::Run()
     {
-        m_serv.GetTimer().Schedule(&m_expire_check, 1, 1, SECONDS);
+        m_serv.GetTimer().Schedule(&m_expire_check, 10, 10, MILLIS);
         m_serv.Start();
     }
 

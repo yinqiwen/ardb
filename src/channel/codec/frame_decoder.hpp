@@ -31,7 +31,7 @@
 #define NOVA_FRAMEDECODER_HPP_
 
 #include "channel/channel_upstream_handler.hpp"
-#include "util/buffer.hpp"
+#include "buffer/buffer.hpp"
 
 using namespace ardb;
 using ardb::Buffer;

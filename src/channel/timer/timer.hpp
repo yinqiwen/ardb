@@ -34,7 +34,6 @@
 #include "timer_task.hpp"
 #include "timer_task_queue.hpp"
 #include <map>
-#include <tr1/unordered_map>
 
 using ardb::TimeUnit;
 namespace ardb
@@ -42,7 +41,7 @@ namespace ardb
 	class Timer
 	{
 		protected:
-			typedef std::tr1::unordered_map<uint32, TimerTask*> TimerTaskMap;
+			typedef std::map<uint32, TimerTask*> TimerTaskMap;
 			TimerTaskQueue m_task_queue;
 			TimerTaskMap m_task_table;
 			virtual void BeforeScheduled(TimerTask* task)

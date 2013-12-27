@@ -34,7 +34,7 @@
 CXX=g++
 CC=gcc
 
-ARDB_VERSION=0.5.1
+ARDB_VERSION=0.6.0
 
 uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 
@@ -88,15 +88,14 @@ LUA_LIBA=${LUA_PATH}/src/liblua.a
 OPTIMIZATION?=-O2
 OPT=$(OPTIMIZATION)
 
-#CXXFLAGS=-Wall -g  ${OPT}  -fPIC -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"' 
-CXXFLAGS=-Wall -g  ${OPT}  -fPIC -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"'  -Wno-mismatched-tags
+CXXFLAGS=-Wall -g  ${OPT}  -fPIC -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"' 
 CCFLAGS=-Wall -std=gnu99 ${OPT} -pedantic -g -fPIC -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"'
 LDFLAGS=-g 
 
 LUA_CFLAGS+= -O2 -Wall -DLUA_ANSI $(CCFLAGS)
 LUA_LDFLAGS+= $(LDFLAGS)
 
-INCS=-I./  -I${LIB_PATH}/cpp-btree  -I${LUA_PATH}/src -I${SNAPPY_PATH} -I${ZOOKEEPER_PATH}/include -I${ZOOKEEPER_PATH}/generated
+INCS=-I./  -I${LUA_PATH}/src -I${SNAPPY_PATH} -I${ZOOKEEPER_PATH}/include -I${ZOOKEEPER_PATH}/generated
 
 # Default allocator
 ifeq ($(uname_S),Linux)
@@ -127,12 +126,12 @@ CHANNEL_CPPFILES := $(foreach dir, $(CHANNEL_CPP_VPATH), $(wildcard $(dir)/*.cpp
 CHANNEL_CFILES := $(foreach dir, $(CHANNEL_C_VPATH), $(wildcard $(dir)/*.c))
 CHANNEL_OBJECTS := $(patsubst %.cpp, %.o, $(CHANNEL_CPPFILES)) $(patsubst %.c, %.o, $(CHANNEL_CFILES))
 
-UTIL_VPATH=./util ./util/exception  ./util/thread ./redis ./helper
+UTIL_VPATH=./util ./util/exception  ./util/thread ./redis ./helper ./buffer
 UTIL_CPPFILES := $(foreach dir, $(UTIL_VPATH), $(wildcard $(dir)/*.cpp))
 UTIL_CFILES := $(foreach dir, $(UTIL_VPATH), $(wildcard $(dir)/*.c))
 UTIL_OBJECTS := $(patsubst %.cpp, %.o, $(UTIL_CPPFILES)) $(patsubst %.c, %.o, $(UTIL_CFILES))
-CORE_OBJECTS := ardb.o ardb_data.o hash.o kv.o lists.o logger.o sets.o \
-                zsets.o strings.o bits.o table.o sort.o \
+CORE_OBJECTS := ardb.o data_format.o hash.o kv.o lists.o logger.o sets.o \
+                zsets.o strings.o bits.o sort.o \
                 $(UTIL_OBJECTS)
 
 LEVELDB_ENGINE :=  engine/leveldb_engine.o    
@@ -246,7 +245,7 @@ leveldb:snappy
       :; \
     else \
       cd ${LIB_PATH};tar zxvf ${LEVELDB_FILE};cd ${LEVELDB_PATH};\
-      CXXFLAGS="-I${SNAPPY_PATH}" CFLAGS="-I${SNAPPY_PATH}" LDFLAGS="${SNAPPY_PATH}/.libs" make libleveldb.a;\
+      CXXFLAGS="-I${SNAPPY_PATH} -fno-access-control" CFLAGS="-I${SNAPPY_PATH}" LDFLAGS="${SNAPPY_PATH}/.libs" make libleveldb.a;\
     fi
     
 rocksdb:snappy

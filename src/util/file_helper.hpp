@@ -30,7 +30,7 @@
 #ifndef NOVA_FILEHELPER_HPP_
 #define NOVA_FILEHELPER_HPP_
 #include "common.hpp"
-#include "buffer.hpp"
+#include "buffer/buffer.hpp"
 #include <string>
 #include <deque>
 

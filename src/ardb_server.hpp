@@ -30,8 +30,6 @@
 #ifndef ARDB_SERVER_HPP_
 #define ARDB_SERVER_HPP_
 #include <string>
-#include <btree_map.h>
-#include <btree_set.h>
 #include "channel/all_includes.hpp"
 #include "util/config_helper.hpp"
 #include "util/thread/thread_local.hpp"
@@ -104,6 +102,7 @@ namespace ardb
 
 			std::string zookeeper_servers;
 
+			ArdbConfig db_cfg;
 			ArdbServerConfig() :
 					daemonize(false), listen_port(0), unixsocketperm(755), max_clients(10000), tcp_keepalive(0), timeout(0), slowlog_log_slower_than(10000), slowlog_max_len(128), repl_data_dir("./repl"), backup_dir("./backup"), repl_ping_slave_period(10), repl_timeout(60), repl_backlog_size(100 * 1024 * 1024), repl_state_persist_period(1), slave_cleardb_before_fullresync(true), lua_time_limit(0), master_port(
 							0), worker_count(1), loglevel("INFO")
@@ -111,7 +110,7 @@ namespace ardb
 			}
 	};
 	struct ArdbConnContext;
-	typedef btree::btree_set<ArdbConnContext*> ContextSet;
+	typedef std::set<ArdbConnContext*> ContextSet;
 
 	struct ArdbConncetion
 	{
@@ -131,7 +130,7 @@ namespace ardb
 	class ClientConnHolder
 	{
 		private:
-			typedef btree::btree_map<uint32, ArdbConncetion> ArdbConncetionTable;
+			typedef std::map<uint32, ArdbConncetion> ArdbConncetionTable;
 			ArdbConncetionTable m_conn_table;
 			bool m_client_stat_enable;
 			ThreadMutex m_mutex;
@@ -324,9 +323,9 @@ namespace ardb
 			Ardb* m_db;
 			KeyValueEngineFactory& m_engine;
 
-			typedef btree::btree_map<std::string, RedisCommandHandlerSetting> RedisCommandHandlerSettingTable;
-			typedef btree::btree_map<WatchKey, ContextSet> WatchKeyContextTable;
-			typedef btree::btree_map<std::string, ContextSet> PubSubContextTable;
+			typedef std::map<std::string, RedisCommandHandlerSetting> RedisCommandHandlerSettingTable;
+			typedef std::map<WatchKey, ContextSet> WatchKeyContextTable;
+			typedef std::map<std::string, ContextSet> PubSubContextTable;
 
 			RedisCommandHandlerSettingTable m_handler_table;
 			SlowLogHandler m_slowlog_handler;
@@ -522,17 +521,6 @@ namespace ardb
 			int RPopLPush(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int RPush(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int RPushx(ArdbConnContext& ctx, RedisCommandFrame& cmd);
-
-			int TCreate(ArdbConnContext& ctx, RedisCommandFrame& cmd);
-			int TLen(ArdbConnContext& ctx, RedisCommandFrame& cmd);
-			int TInsert(ArdbConnContext& ctx, RedisCommandFrame& cmd);
-			int TGet(ArdbConnContext& ctx, RedisCommandFrame& cmd);
-			int TGetAll(ArdbConnContext& ctx, RedisCommandFrame& cmd);
-			int TUpdate(ArdbConnContext& ctx, RedisCommandFrame& cmd);
-			int TDel(ArdbConnContext& ctx, RedisCommandFrame& cmd);
-			int TDelCol(ArdbConnContext& ctx, RedisCommandFrame& cmd);
-			int TCreateIndex(ArdbConnContext& ctx, RedisCommandFrame& cmd);
-			int TDesc(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
 			int HClear(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 			int SClear(ArdbConnContext& ctx, RedisCommandFrame& cmd);

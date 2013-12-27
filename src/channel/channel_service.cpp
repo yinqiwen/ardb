@@ -30,7 +30,7 @@
 #include "channel/all_includes.hpp"
 #include "util/helpers.hpp"
 #include "util/datagram_packet.hpp"
-#include "util/buffer_helper.hpp"
+#include "buffer/buffer_helper.hpp"
 #include <list>
 
 using namespace ardb;

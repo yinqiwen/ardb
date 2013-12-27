@@ -116,7 +116,8 @@ extern "C"
 namespace ardb
 {
 	RedisDumpFile::RedisDumpFile(Ardb* db, const std::string& file) :
-			m_read_fp(NULL), m_write_fp(NULL), m_file_path(file), m_current_db(0), m_db(db), m_cksm(0), m_routine_cb(NULL), m_routine_cbdata(
+			m_read_fp(NULL), m_write_fp(NULL), m_file_path(file), m_current_db(
+			        0), m_db(db), m_cksm(0), m_routine_cb(NULL), m_routine_cbdata(
 			NULL)
 	{
 	}
@@ -337,7 +338,8 @@ namespace ardb
 		return true;
 	}
 
-	void RedisDumpFile::LoadListZipList(unsigned char* data, const std::string& key)
+	void RedisDumpFile::LoadListZipList(unsigned char* data,
+	        const std::string& key)
 	{
 		unsigned char* iter = ziplistIndex(data, 0);
 		while (iter != NULL)
@@ -382,7 +384,8 @@ namespace ardb
 		}
 		return score;
 	}
-	void RedisDumpFile::LoadZSetZipList(unsigned char* data, const std::string& key)
+	void RedisDumpFile::LoadZSetZipList(unsigned char* data,
+	        const std::string& key)
 	{
 		unsigned char* iter = ziplistIndex(data, 0);
 		while (iter != NULL)
@@ -411,7 +414,8 @@ namespace ardb
 		}
 	}
 
-	void RedisDumpFile::LoadHashZipList(unsigned char* data, const std::string& key)
+	void RedisDumpFile::LoadHashZipList(unsigned char* data,
+	        const std::string& key)
 	{
 		unsigned char* iter = ziplistIndex(data, 0);
 		while (iter != NULL)
@@ -454,7 +458,8 @@ namespace ardb
 		}
 	}
 
-	void RedisDumpFile::LoadSetIntSet(unsigned char* data, const std::string& key)
+	void RedisDumpFile::LoadSetIntSet(unsigned char* data,
+	        const std::string& key)
 	{
 		int ii = 0;
 		int64_t llele = 0;
@@ -567,7 +572,8 @@ namespace ardb
 						unsigned char *fstr, *vstr;
 						unsigned int flen, vlen;
 						unsigned int maxlen = 0;
-						while ((zi = zipmapNext(zi, &fstr, &flen, &vstr, &vlen)) != NULL)
+						while ((zi = zipmapNext(zi, &fstr, &flen, &vstr, &vlen))
+						        != NULL)
 						{
 							if (flen > maxlen)
 								maxlen = flen;
@@ -624,7 +630,8 @@ namespace ardb
 		/*
 		 * routine callback every 100ms
 		 */
-		if (NULL != m_routine_cb && get_current_epoch_millis() - routinetime >= 100)
+		if (NULL != m_routine_cb
+		        && get_current_epoch_millis() - routinetime >= 100)
 		{
 			m_routine_cb(m_routine_cbdata);
 			routinetime = get_current_epoch_millis();
@@ -632,7 +639,8 @@ namespace ardb
 		size_t max_read_bytes = 1024 * 1024 * 2;
 		while (buflen)
 		{
-			size_t bytes_to_read = (max_read_bytes < buflen) ? max_read_bytes : buflen;
+			size_t bytes_to_read =
+			        (max_read_bytes < buflen) ? max_read_bytes : buflen;
 			if (fread(buf, bytes_to_read, 1, m_read_fp) == 0)
 				return false;
 			if (cksm)
@@ -747,10 +755,12 @@ namespace ardb
 			}memrev64ifbe(&cksum);
 			if (cksum == 0)
 			{
-				WARN_LOG("RDB file was saved with checksum disabled: no check performed.");
+				WARN_LOG(
+				        "RDB file was saved with checksum disabled: no check performed.");
 			} else if (cksum != expected)
 			{
-				ERROR_LOG("Wrong RDB checksum. Aborting now(%llu-%llu)", cksum, expected);
+				ERROR_LOG("Wrong RDB checksum. Aborting now(%llu-%llu)", cksum,
+				        expected);
 				exit(1);
 			}
 		}
@@ -758,7 +768,8 @@ namespace ardb
 		INFO_LOG("Redis dump file load finished.");
 		return 0;
 		eoferr: Close();
-		WARN_LOG("Short read or OOM loading DB. Unrecoverable error, aborting now.");
+		WARN_LOG(
+		        "Short read or OOM loading DB. Unrecoverable error, aborting now.");
 		return -1;
 	}
 
@@ -768,7 +779,8 @@ namespace ardb
 		/*
 		 * routine callback every 100ms
 		 */
-		if (NULL != m_routine_cb && get_current_epoch_millis() - routinetime >= 100)
+		if (NULL != m_routine_cb
+		        && get_current_epoch_millis() - routinetime >= 100)
 		{
 			m_routine_cb(m_routine_cbdata);
 			routinetime = get_current_epoch_millis();
@@ -778,7 +790,8 @@ namespace ardb
 		{
 			if ((m_write_fp = fopen(m_file_path.c_str(), "w")) == NULL)
 			{
-				ERROR_LOG("Failed to open redis dump file:%s to write", m_file_path.c_str());
+				ERROR_LOG("Failed to open redis dump file:%s to write",
+				        m_file_path.c_str());
 				return -1;
 			}
 		}
@@ -787,7 +800,8 @@ namespace ardb
 		const char* data = (const char*) buf;
 		while (buflen)
 		{
-			size_t bytes_to_write = (max_write_bytes < buflen) ? max_write_bytes : buflen;
+			size_t bytes_to_write =
+			        (max_write_bytes < buflen) ? max_write_bytes : buflen;
 			if (fwrite(data, bytes_to_write, 1, m_write_fp) == 0)
 				return -1;
 			//check sum here
@@ -814,7 +828,7 @@ namespace ardb
 	{
 		switch (type)
 		{
-			case KV:
+			case STRING_META:
 			{
 				return WriteType(REDIS_RDB_TYPE_STRING);
 			}
@@ -910,7 +924,8 @@ namespace ardb
 			enc[1] = value & 0xFF;
 			enc[2] = (value >> 8) & 0xFF;
 			return 3;
-		} else if (value >= -((long long) 1 << 31) && value <= ((long long) 1 << 31) - 1)
+		} else if (value >= -((long long) 1 << 31)
+		        && value <= ((long long) 1 << 31) - 1)
 		{
 			enc[0] = (REDIS_RDB_ENCVAL << 6) | REDIS_RDB_ENC_INT32;
 			enc[1] = value & 0xFF;
@@ -947,17 +962,17 @@ namespace ardb
 	}
 
 	/* Like rdbSaveStringObjectRaw() but handle encoded objects */
-	int RedisDumpFile::WriteStringObject(ValueObject* o)
+	int RedisDumpFile::WriteStringObject(ValueData& o)
 	{
 		/* Avoid to decode the object, then encode it again, if the
 		 * object is alrady integer encoded. */
-		if (o->type == INTEGER)
+		if (o.type == INTEGER_VALUE)
 		{
-			return WriteLongLongAsStringObject(o->v.int_v);
+			return WriteLongLongAsStringObject(o.integer_value);
 		} else
 		{
-			value_convert_to_raw(*o);
-			return WriteRawString(o->v.raw->GetRawReadBuffer(), o->v.raw->ReadableBytes());
+			o.ToBytes();
+			return WriteRawString(o.bytes_value.data(), o.bytes_value.size());
 		}
 	}
 
@@ -1143,7 +1158,8 @@ namespace ardb
 						r(rr), db(ptr), currentDb(0), err(0)
 				{
 				}
-				int OnKeyValue(KeyObject* key, ValueObject* value, uint32 cursor)
+				int OnKeyValue(KeyObject* key, ValueObject* value,
+				        uint32 cursor)
 				{
 					if (key->db == ARDB_GLOBAL_DB)
 					{
@@ -1153,82 +1169,232 @@ namespace ardb
 					{
 						currentDb = key->db;
 						currentKey.clear();
-						DUMP_CHECK_WRITE(r.WriteType(REDIS_RDB_OPCODE_SELECTDB));
+						DUMP_CHECK_WRITE(
+						        r.WriteType(REDIS_RDB_OPCODE_SELECTDB));
 						DUMP_CHECK_WRITE(r.WriteLen(currentDb));
 					}
-					if (key->type != KV && key->type != LIST_ELEMENT && key->type != ZSET_ELEMENT && key->type != SET_ELEMENT && key->type != BITSET_ELEMENT && key->type != HASH_FIELD)
+					if (key->type != KEY_META && key->type != LIST_ELEMENT
+					        && key->type != ZSET_ELEMENT
+					        && key->type != SET_ELEMENT
+					        && key->type != BITSET_ELEMENT
+					        && key->type != HASH_FIELD)
 					{
 						return 0;
 					}
+					if (key->type == KEY_META)
+					{
+						CommonMetaValue* meta = (CommonMetaValue*) value;
+						key->type = meta->header.type;
+						switch (meta->header.type)
+						{
+							case STRING_META:
+							{
+								key->type = STRING_META;
+								break;
+							}
+							case LIST_META:
+							{
+								ListMetaValue* mmeta = (ListMetaValue*) meta;
+								if (!mmeta->ziped)
+								{
+									return 0;
+								}
+								break;
+							}
+							case HASH_META:
+							{
+								HashMetaValue* mmeta = (HashMetaValue*) meta;
+								if (!mmeta->ziped)
+								{
+									return 0;
+								}
+								break;
+							}
+							case ZSET_META:
+							{
+								ZSetMetaValue* mmeta = (ZSetMetaValue*) meta;
+								if (!mmeta->ziped)
+								{
+									return 0;
+								}
+								break;
+							}
+							case SET_META:
+							{
+								SetMetaValue* mmeta = (SetMetaValue*) meta;
+								if (!mmeta->ziped)
+								{
+									return 0;
+								}
+								break;
+							}
+							case BITSET_META:
+							default:
+							{
+								return 0;
+							}
+						}
+					}
+
 					bool firstElementInKey = false;
-					if (currentKey.size() != key->key.size() || strncmp(currentKey.c_str(), key->key.data(), currentKey.size()))
+					if (currentKey.size() != key->key.size()
+					        || strncmp(currentKey.c_str(), key->key.data(),
+					                currentKey.size()))
 					{
 						int64 expiretime = r.m_db->PTTL(currentDb, key->key);
 						if (expiretime > 0)
 						{
-							DUMP_CHECK_WRITE(r.WriteType(REDIS_RDB_OPCODE_EXPIRETIME_MS));
-							DUMP_CHECK_WRITE(r.WriteMillisecondTime(expiretime));
+							DUMP_CHECK_WRITE(
+							        r.WriteType(REDIS_RDB_OPCODE_EXPIRETIME_MS));
+							DUMP_CHECK_WRITE(
+							        r.WriteMillisecondTime(expiretime));
 						}
 						DUMP_CHECK_WRITE(r.WriteKeyType(key->type));
 						currentKey.assign(key->key.data(), key->key.size());
-						DUMP_CHECK_WRITE(r.WriteRawString(currentKey.data(), currentKey.size()));
+						DUMP_CHECK_WRITE(
+						        r.WriteRawString(currentKey.data(),
+						                currentKey.size()));
 						firstElementInKey = true;
 					}
+
 					switch (key->type)
 					{
-						case KV:
+						case STRING_META:
 						{
-							DUMP_CHECK_WRITE(r.WriteStringObject(value));
+							CommonValueObject* cv = (CommonValueObject*) value;
+							DUMP_CHECK_WRITE(r.WriteStringObject(cv->data));
 							break;
 						}
 						case LIST_ELEMENT:
 						{
+							CommonValueObject* cv = (CommonValueObject*) value;
 							if (firstElementInKey)
 							{
-								DUMP_CHECK_WRITE(r.WriteLen(db->LLen(key->db, key->key)));
+								DUMP_CHECK_WRITE(
+								        r.WriteLen(
+								                db->LLen(key->db, key->key)));
 							}
-							DUMP_CHECK_WRITE(r.WriteStringObject(value));
+							DUMP_CHECK_WRITE(r.WriteStringObject(cv->data));
 							break;
 						}
 						case SET_ELEMENT:
 						{
 							if (firstElementInKey)
 							{
-								DUMP_CHECK_WRITE(r.WriteLen(db->SCard(key->db, key->key)));
+								DUMP_CHECK_WRITE(
+								        r.WriteLen(
+								                db->SCard(key->db, key->key)));
 							}
-							SetKeyObject* sk = (SetKeyObject*)key;
-							DUMP_CHECK_WRITE(r.WriteStringObject(&(sk->value)));
+							SetKeyObject* sk = (SetKeyObject*) key;
+							DUMP_CHECK_WRITE(r.WriteStringObject(sk->value));
 							break;
 						}
 						case ZSET_ELEMENT:
 						{
 							if (firstElementInKey)
 							{
-								DUMP_CHECK_WRITE(r.WriteLen(db->ZCard(key->db, key->key)));
+								DUMP_CHECK_WRITE(
+								        r.WriteLen(
+								                db->ZCard(key->db, key->key)));
 							}
 							ZSetKeyObject* zk = (ZSetKeyObject*) key;
-							DUMP_CHECK_WRITE(r.WriteStringObject(&zk->value));
-							DUMP_CHECK_WRITE(r.WriteDouble(zk->score));
+							DUMP_CHECK_WRITE(r.WriteStringObject(zk->e.value));
+							DUMP_CHECK_WRITE(r.WriteDouble(zk->e.score));
 							break;
 						}
 						case HASH_FIELD:
 						{
 							if (firstElementInKey)
 							{
-								DUMP_CHECK_WRITE(r.WriteLen(db->HLen(key->db, key->key)));
+								DUMP_CHECK_WRITE(
+								        r.WriteLen(
+								                db->HLen(key->db, key->key)));
 							}
 							HashKeyObject* hk = (HashKeyObject*) key;
-							DUMP_CHECK_WRITE(r.WriteRawString(hk->field.data(), hk->field.size()));
-							DUMP_CHECK_WRITE(r.WriteStringObject(value));
+							std::string fstr;
+							hk->field.ToString(fstr);
+							CommonValueObject* cv = (CommonValueObject*) value;
+							DUMP_CHECK_WRITE(
+							        r.WriteRawString(fstr.data(), fstr.size()));
+							DUMP_CHECK_WRITE(r.WriteStringObject(cv->data));
 							break;
 						}
-						case BITSET_ELEMENT:
+						case HASH_META:
 						{
-							if (firstElementInKey)
+							HashMetaValue* mmeta = (HashMetaValue*) value;
+							if (mmeta->ziped)
 							{
-								//TODO
+								DUMP_CHECK_WRITE(
+								        r.WriteLen(mmeta->values.size()));
+								HashFieldMap::iterator it =
+								        mmeta->values.begin();
+								while (it != mmeta->values.end())
+								{
+									std::string field_name;
+									it->first.ToString(field_name);
+									DUMP_CHECK_WRITE(
+									        r.WriteRawString(field_name.data(),
+									                field_name.size()));
+									DUMP_CHECK_WRITE(
+									        r.WriteStringObject(it->second));
+									it++;
+								}
 							}
-							DUMP_CHECK_WRITE(r.WriteStringObject(value));
+							break;
+						}
+						case LIST_META:
+						{
+							ListMetaValue* mmeta = (ListMetaValue*) value;
+							if (mmeta->ziped)
+							{
+								DUMP_CHECK_WRITE(
+								        r.WriteLen(mmeta->zipvs.size()));
+								ValueDataArray::iterator it =
+								        mmeta->zipvs.begin();
+								while (it != mmeta->zipvs.end())
+								{
+									DUMP_CHECK_WRITE(r.WriteStringObject(*it));
+									it++;
+								}
+							}
+							break;
+						}
+						case ZSET_META:
+						{
+							ZSetMetaValue* mmeta = (ZSetMetaValue*) value;
+							if (mmeta->ziped)
+							{
+								DUMP_CHECK_WRITE(
+								        r.WriteLen(mmeta->zipvs.size()));
+								ZSetElementArray::iterator it =
+								        mmeta->zipvs.begin();
+								while (it != mmeta->zipvs.end())
+								{
+									DUMP_CHECK_WRITE(
+									        r.WriteStringObject(it->value));
+									DUMP_CHECK_WRITE(r.WriteDouble(it->score));
+									it++;
+								}
+							}
+							break;
+						}
+						case SET_META:
+						{
+							SetMetaValue* mmeta = (SetMetaValue*) value;
+							if (mmeta->ziped)
+							{
+								DUMP_CHECK_WRITE(
+								        r.WriteLen(mmeta->zipvs.size()));
+								ValueSet::iterator it =
+								        mmeta->zipvs.begin();
+								while (it != mmeta->zipvs.end())
+								{
+									ValueData data = *it;
+									DUMP_CHECK_WRITE(
+									        r.WriteStringObject(data));
+									it++;
+								}
+							}
 							break;
 						}
 						default:
@@ -1239,10 +1405,12 @@ namespace ardb
 					return 0;
 				}
 		} visitor(*this, m_db);
-		m_db->Walk(&visitor);
+		KeyObject s(Slice(), KEY_END, 0);
+		m_db->Walk(s, false, true, &visitor);
 		if (visitor.err != 0)
 		{
-			ERROR_LOG("Failed to write dump file for reason:%s", strerror(visitor.err));
+			ERROR_LOG("Failed to write dump file for reason:%s",
+			        strerror(visitor.err));
 			Close();
 			return -1;
 		}
@@ -1264,7 +1432,8 @@ namespace ardb
 	 * Ardb dump file, used for backup data & import data
 	 */
 	ArdbDumpFile::ArdbDumpFile() :
-			m_read_fp(NULL), m_write_fp(NULL), m_db(NULL), m_cksm(0), m_routine_cb(NULL), m_routine_cbdata(
+			m_read_fp(NULL), m_write_fp(NULL), m_db(NULL), m_cksm(0), m_routine_cb(
+			NULL), m_routine_cbdata(
 			NULL), m_is_saving(false), m_last_save(0)
 	{
 	}
@@ -1295,7 +1464,8 @@ namespace ardb
 		const char* data = (const char*) buf;
 		while (buflen)
 		{
-			size_t bytes_to_write = (max_write_bytes < buflen) ? max_write_bytes : buflen;
+			size_t bytes_to_write =
+			        (max_write_bytes < buflen) ? max_write_bytes : buflen;
 			if (fwrite(data, bytes_to_write, 1, m_write_fp) == 0)
 				return -1;
 			//check sum here
@@ -1324,7 +1494,8 @@ namespace ardb
 		/*
 		 * routine callback every 100ms
 		 */
-		if (NULL != m_routine_cb && get_current_epoch_millis() - routinetime >= 100)
+		if (NULL != m_routine_cb
+		        && get_current_epoch_millis() - routinetime >= 100)
 		{
 			m_routine_cb(m_routine_cbdata);
 			routinetime = get_current_epoch_millis();
@@ -1362,20 +1533,24 @@ namespace ardb
 		if (m_write_buffer.Readable())
 		{
 			std::string compressed;
-			snappy::Compress(m_write_buffer.GetRawReadBuffer(), m_write_buffer.ReadableBytes(), &compressed);
+			snappy::Compress(m_write_buffer.GetRawReadBuffer(),
+			        m_write_buffer.ReadableBytes(), &compressed);
 			if (compressed.size() > (m_write_buffer.ReadableBytes() + 4))
 			{
 				RETURN_NEGATIVE_EXPR(WriteType(ARDB_RDB_TYPE_CHUNK));
 				uint32 len = m_write_buffer.ReadableBytes();
 				RETURN_NEGATIVE_EXPR(WriteLen(len));
-				RETURN_NEGATIVE_EXPR(Write(m_write_buffer.GetRawReadBuffer(), m_write_buffer.ReadableBytes()));
+				RETURN_NEGATIVE_EXPR(
+				        Write(m_write_buffer.GetRawReadBuffer(),
+				                m_write_buffer.ReadableBytes()));
 			} else
 			{
 				RETURN_NEGATIVE_EXPR(WriteType(ARDB_RDB_TYPE_SNAPPY_CHUNK));
 				uint32 rawlen = m_write_buffer.ReadableBytes();
 				RETURN_NEGATIVE_EXPR(WriteLen(rawlen));
 				RETURN_NEGATIVE_EXPR(WriteLen(compressed.size()));
-				RETURN_NEGATIVE_EXPR(Write(compressed.data(), compressed.size()));
+				RETURN_NEGATIVE_EXPR(
+				        Write(compressed.data(), compressed.size()));
 			}
 			m_write_buffer.Clear();
 		}
@@ -1391,7 +1566,8 @@ namespace ardb
 		this->m_file_path = file;
 		if ((m_write_fp = fopen(m_file_path.c_str(), "w")) == NULL)
 		{
-			ERROR_LOG("Failed to open ardb dump file:%s to write", m_file_path.c_str());
+			ERROR_LOG("Failed to open ardb dump file:%s to write",
+			        m_file_path.c_str());
 			return -1;
 		}
 		return 0;
@@ -1402,7 +1578,8 @@ namespace ardb
 		this->m_file_path = file;
 		if ((m_read_fp = fopen(m_file_path.c_str(), "r")) == NULL)
 		{
-			ERROR_LOG("Failed to open ardb dump file:%s to write", m_file_path.c_str());
+			ERROR_LOG("Failed to open ardb dump file:%s to write",
+			        m_file_path.c_str());
 			return -1;
 		}
 		return 0;
@@ -1480,7 +1657,8 @@ namespace ardb
 		/*
 		 * routine callback every 100ms
 		 */
-		if (NULL != m_routine_cb && get_current_epoch_millis() - routinetime >= 100)
+		if (NULL != m_routine_cb
+		        && get_current_epoch_millis() - routinetime >= 100)
 		{
 			m_routine_cb(m_routine_cbdata);
 			routinetime = get_current_epoch_millis();
@@ -1488,7 +1666,8 @@ namespace ardb
 		size_t max_read_bytes = 1024 * 1024 * 2;
 		while (buflen)
 		{
-			size_t bytes_to_read = (max_read_bytes < buflen) ? max_read_bytes : buflen;
+			size_t bytes_to_read =
+			        (max_read_bytes < buflen) ? max_read_bytes : buflen;
 			if (fread(buf, bytes_to_read, 1, m_read_fp) == 0)
 				return false;
 			if (cksm)
@@ -1586,7 +1765,8 @@ namespace ardb
 					goto eoferr;
 				}
 				DELETE_A(newbuf);
-				Buffer readbuf(const_cast<char*>(origin.data()), 0, origin.size());
+				Buffer readbuf(const_cast<char*>(origin.data()), 0,
+				        origin.size());
 				RETURN_NEGATIVE_EXPR(LoadBuffer(readbuf));
 			} else
 			{
@@ -1596,7 +1776,8 @@ namespace ardb
 
 		}
 
-		if(true){
+		if (true)
+		{
 			/* Verify the checksum if RDB version is >= 5 */
 			uint64_t cksum, expected = m_cksm;
 			if (!Read(&cksum, 8))
@@ -1605,7 +1786,8 @@ namespace ardb
 			}memrev64ifbe(&cksum);
 			if (cksum == 0)
 			{
-				WARN_LOG("RDB file was saved with checksum disabled: no check performed.");
+				WARN_LOG(
+				        "RDB file was saved with checksum disabled: no check performed.");
 			} else if (cksum != expected)
 			{
 				ERROR_LOG("Wrong RDB checksum.(%llu-%llu)", cksum, expected);
@@ -1617,7 +1799,8 @@ namespace ardb
 		INFO_LOG("Ardb dump file load finished.");
 		return 0;
 		eoferr: Close();
-		WARN_LOG("Short read or OOM loading DB. Unrecoverable error, aborting now.");
+		WARN_LOG(
+		        "Short read or OOM loading DB. Unrecoverable error, aborting now.");
 		return -1;
 		return 0;
 	}

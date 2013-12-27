@@ -35,16 +35,16 @@ namespace ardb
 {
 	struct SortValue
 	{
-			ValueObject* value;
-			ValueObject cmp;
+			ValueData* value;
+			ValueData cmp;
 			double score;
-			SortValue(ValueObject* v) :
+			SortValue(ValueData* v) :
 					value(v), score(0)
 			{
 			}
 			int Compare(const SortValue& other) const
 			{
-				if (cmp.type == EMPTY && other.cmp.type == EMPTY)
+				if (cmp.type == EMPTY_VALUE && other.cmp.type == EMPTY_VALUE)
 				{
 					return value->Compare(*other.value);
 				}
@@ -138,7 +138,7 @@ namespace ardb
 	}
 
 	int Ardb::GetValueByPattern(const DBID& db, const Slice& pattern,
-			ValueObject& subst, ValueObject& value)
+			ValueData& subst, ValueData& value)
 	{
 		const char *p, *f;
 		const char* spat;
@@ -183,7 +183,7 @@ namespace ardb
 				int len = -1;
 				switch (keytype)
 				{
-					case SET_ELEMENT:
+					case SET_META:
 					{
 						len = SCard(db, keystr);
 						break;
@@ -193,7 +193,7 @@ namespace ardb
 						len = LLen(db, keystr);
 						break;
 					}
-					case ZSET_ELEMENT_SCORE:
+					case ZSET_META:
 					{
 						len = ZCard(db, keystr);
 						break;
@@ -203,18 +203,18 @@ namespace ardb
 						return -1;
 					}
 				}
-				value = ValueObject((int64) len);
+				value.SetValue((int64) len);
 				return 0;
 			}
-			KeyObject k(keystr, KV, db);
-			return GetValue(k, &value);
+			value.type = BYTES_VALUE;
+			return Get(db, keystr, value.bytes_value);
 		} else
 		{
 			size_t pos = keystr.find("->");
 			std::string field = keystr.substr(pos + 2);
 			keystr = keystr.substr(0, pos);
-			HashKeyObject hk(keystr, field, db);
-			return GetValue(hk, &value);
+			value.type = BYTES_VALUE;
+			return HGet(db, keystr, field, &value.bytes_value);
 		}
 	}
 
@@ -237,12 +237,12 @@ namespace ardb
 				LRange(db, key, 0, -1, sortvals);
 				break;
 			}
-			case SET_ELEMENT:
+			case SET_META:
 			{
 				SMembers(db, key, sortvals);
 				break;
 			}
-			case ZSET_ELEMENT_SCORE:
+			case ZSET_META:
 			{
 				QueryOptions tmp;
 				ZRange(db, key, 0, -1, sortvals, tmp);
@@ -304,19 +304,19 @@ namespace ardb
 				{
 					if (NULL != options.by)
 					{
-						value_convert_to_raw(sortvec[i].cmp);
+						sortvec[i].cmp.ToBytes();
 					} else
 					{
-						value_convert_to_raw(sortvals[i]);
+						sortvals[i].ToBytes();
 					}
 				} else
 				{
 					if (NULL != options.by)
 					{
-						value_convert_to_number(sortvec[i].cmp);
+						sortvec[i].cmp.ToNumber();
 					} else
 					{
-						value_convert_to_number(sortvals[i]);
+						sortvals[i].ToNumber();
 					}
 				}
 			}
@@ -337,11 +337,11 @@ namespace ardb
 				if (!options.is_desc)
 				{
 					std::sort(sortvals.begin(), sortvals.end(),
-							less_value<ValueObject>);
+							less_value<ValueData>);
 				} else
 				{
 					std::sort(sortvals.begin(), sortvals.end(),
-							greater_value<ValueObject>);
+							greater_value<ValueData>);
 				}
 			}
 		}
@@ -357,7 +357,7 @@ namespace ardb
 				i < sortvals.size() && count < (uint32) options.limit_count;
 				i++, count++)
 		{
-			ValueObject* patternObj = NULL;
+			ValueData* patternObj = NULL;
 			if (NULL != options.by)
 			{
 				patternObj = sortvec[i].value;
@@ -372,7 +372,7 @@ namespace ardb
 			{
 				for (uint32 j = 0; j < options.get_patterns.size(); j++)
 				{
-					ValueObject vo;
+					ValueData vo;
 					if (GetValueByPattern(db, options.get_patterns[j],
 							*patternObj, vo) < 0)
 					{
@@ -380,6 +380,7 @@ namespace ardb
 								options.get_patterns[j]);
 						vo.Clear();
 					}
+					vo.ToNumber();
 					values.push_back(vo);
 				}
 			}
@@ -394,9 +395,10 @@ namespace ardb
 			{
 				ValueArray result;
 				result.resize(step);
+
 				for (uint32 i = 0; i < result.size(); i++)
 				{
-					for (uint j = i; j < values.size(); j += step)
+					for (uint32 j = i; j < values.size(); j += step)
 					{
 						result[i] += values[j];
 					}
@@ -421,7 +423,7 @@ namespace ardb
 				{
 					for (uint32 j = i; j < values.size(); j += step)
 					{
-						if (result[i].type == EMPTY)
+						if (result[i].type == EMPTY_VALUE)
 						{
 							result[i] = values[j];
 						} else
@@ -449,7 +451,7 @@ namespace ardb
 			{
 				size_t size = values.size() / step;
 				values.clear();
-				values.push_back(ValueObject((int64) size));
+				values.push_back(ValueData((int64) size));
 				break;
 			}
 			default:
@@ -467,10 +469,10 @@ namespace ardb
 
 			while (it != values.end())
 			{
-				if (it->type != EMPTY)
+				if (it->type != EMPTY_VALUE)
 				{
 					ListKeyObject lk(options.store_dst, score, db);
-					SetValue(lk, *it);
+					SetKeyValueObject(lk, *it);
 					score++;
 				}
 				it++;
@@ -479,7 +481,7 @@ namespace ardb
 			meta.min_score = 0;
 			meta.max_score = (score - 1);
 			meta.size = score;
-			SetListMetaValue(db, options.store_dst, meta);
+			SetMeta(db, options.store_dst, meta);
 		}
 		return 0;
 	}
