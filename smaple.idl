@@ -1,0 +1,6 @@
+message TypeExample {
+  1: int f1            # not-nullable integer
+  2: int? f2           # nullable integer
+  3: optional int f3   # not-nullable optional integer, initial value = 0
+  4: optional int? f4  # nullable optional integer, initial value = null
+}

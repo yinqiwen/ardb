@@ -31,7 +31,6 @@ It should compile to several executables in 'src' directory, such as ardb-server
   * Use 'save/bgsave' to backup data
   * Use 'import' to import backup data
   * [Backup & Restore](https://github.com/yinqiwen/ardb/wiki/Backup-Commands)
-- Simple Table data structure [Table In Ardb](https://github.com/yinqiwen/ardb/wiki/Table-In-Ardb)
 
 ## Client API
 Since ardb is a full redis-protocol compatible server, you can use any redis client to connect it. Here lists all redis clients. <http://www.redis.io/clients>
@@ -86,11 +85,6 @@ LevelDB Options: block_cache_size=512m, write_buffer_size=512m, thread_pool_size
   - ZPop/ZRPop
   - HMIncrby
   - \_\_SET\_\_/\_\_DEL\_\_(for replication)
-  - TCreate/TDesc/TLen
-  - TInsert/TReplace
-  - TUpdate/TDel
-  - TCreateIndex
-  - TGet/TGetAll(Table commands)
   - CompactDB/CompactAll
   - BitOPCount
   - SRange/SRevRange
