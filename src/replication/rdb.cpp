@@ -1349,7 +1349,7 @@ namespace ardb
 							{
 								DUMP_CHECK_WRITE(
 								        r.WriteLen(mmeta->zipvs.size()));
-								ValueDataArray::iterator it =
+								ValueDataDeque::iterator it =
 								        mmeta->zipvs.begin();
 								while (it != mmeta->zipvs.end())
 								{

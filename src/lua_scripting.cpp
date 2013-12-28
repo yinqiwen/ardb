@@ -391,7 +391,6 @@ namespace ardb
 		/* Command lookup */
 		if (NULL == setting)
 		{
-			ERROR_LOG("########%s", cmd.GetCommand().data());
 			luaPushError(lua, "Unknown Redis command called from Lua script");
 			return -1;
 		}

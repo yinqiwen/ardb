@@ -45,6 +45,7 @@ namespace ardb
 		if (NULL == meta)
 		{
 			meta = new ListMetaValue;
+			err = ERR_NOT_EXIST;
 			created = true;
 		} else
 		{
@@ -54,8 +55,9 @@ namespace ardb
 	}
 
 	int Ardb::ListPush(const DBID& db, const Slice& key, const Slice& value,
-	        bool athead, bool onlyexist, float withscore)
+	        bool athead, bool onlyexist)
 	{
+		KeyLockerGuard keyguard(m_key_locker, db, key);
 		int err = 0;
 		bool createList = false;
 		ListMetaValue* lmeta = GetListMeta(db, key, err, createList);
@@ -63,46 +65,112 @@ namespace ardb
 		{
 			return err;
 		}
-		KeyLockerGuard keyguard(m_key_locker, db, key);
-		float score = withscore != FLT_MAX ? withscore : 0;
+		if (createList && onlyexist)
+		{
+			DELETE(lmeta);
+			return ERR_NOT_EXIST;
+		}
+		bool zip_save = lmeta->ziped;
+		CommonValueObject lv;
+		lv.data.SetValue(value, true);
+		if (zip_save)
+		{
+			if (lv.data.type == BYTES_VALUE
+			        && lv.data.bytes_value.size()
+			                >= (uint32)m_config.list_max_ziplist_value)
+			{
+				zip_save = false;
+			}
+			if (lmeta->zipvs.size() >= (uint32)m_config.list_max_ziplist_entries)
+			{
+				zip_save = false;
+			}
+		}
+		/*
+		 * save to ziplist
+		 */
+		if (zip_save)
+		{
+			if (athead)
+			{
+				lmeta->zipvs.push_front(lv.data);
+			} else
+			{
+				lmeta->zipvs.push_back(lv.data);
+			}
+			lmeta->size++;
+			err = SetMeta(db, key, *lmeta);
+			if (err == 0)
+			{
+				err = lmeta->size;
+			}
+			DELETE(lmeta);
+			return err;
+		}
+
+		/*
+		 * Convert from ziplist and save new element
+		 */
+		if (lmeta->ziped)
+		{
+			BatchWriteGuard guard(GetEngine());
+			lmeta->ziped = false;
+			ValueDataDeque::iterator it = lmeta->zipvs.begin();
+			int32 score = 0;
+			while (it != lmeta->zipvs.end())
+			{
+				ListKeyObject lk(key, score, db);
+				CommonValueObject element(*it);
+				SetKeyValueObject(lk, element);
+				score++;
+				it++;
+			}
+			lmeta->min_score = 0;
+			lmeta->max_score = score - 1 >= 0 ? score : 0;
+			lmeta->size = lmeta->zipvs.size() + 1;
+			if (athead)
+			{
+				score = -1;
+				lmeta->min_score = -1;
+			} else
+			{
+				lmeta->max_score = score;
+			}
+			ListKeyObject lk(key, score, db);
+			SetKeyValueObject(lk, lv);
+			lmeta->zipvs.clear();
+			err = SetMeta(db, key, *lmeta);
+			if (err == 0)
+			{
+				err = lmeta->size;
+			}
+			DELETE(lmeta);
+			return err;
+		}
+
+		/*
+		 * save element
+		 */
+		float score = 0;
 		if (!createList)
 		{
 			lmeta->size++;
-			if (withscore != FLT_MAX)
+			if (athead)
 			{
-				score = withscore;
-				if (score < lmeta->min_score)
-				{
-					lmeta->min_score = score;
-				} else if (score > lmeta->max_score)
-				{
-					lmeta->max_score = score;
-				}
+				lmeta->min_score--;
+				score = lmeta->min_score;
 			} else
 			{
-				if (athead)
-				{
-					lmeta->min_score--;
-					score = lmeta->min_score;
-				} else
-				{
-					lmeta->max_score++;
-					score = lmeta->max_score;
-				}
+				lmeta->max_score++;
+				score = lmeta->max_score;
 			}
 		} else
 		{
-			if (onlyexist)
-			{
-				return ERR_NOT_EXIST;
-			}
 			lmeta->size++;
 			score = 0;
 		}
 		BatchWriteGuard guard(GetEngine());
 		ListKeyObject lk(key, score, db);
-		CommonValueObject lv;
-		lv.data.SetValue(value, true);
 		if (0 == SetKeyValueObject(lk, lv))
 		{
 			int ret = SetMeta(db, key, *lmeta);
@@ -150,6 +218,52 @@ namespace ardb
 		{
 			return ERR_INVALID_OPERATION;
 		}
+		KeyLockerGuard keyguard(m_key_locker, db, key);
+		int err = 0;
+		bool createList = false;
+		ListMetaValue* meta = GetListMeta(db, key, err, createList);
+		if (NULL == meta || createList || meta->size == 0)
+		{
+			DELETE(meta);
+			return err;
+		}
+		CommonValueObject element(value);
+		if (meta->ziped)
+		{
+			ValueData cmp(pivot);
+			ValueDataDeque::iterator it = meta->zipvs.begin();
+			bool found = false;
+			while (it != meta->zipvs.end())
+			{
+				if (cmp.Compare(*it) == 0)
+				{
+					found = true;
+					if (before)
+					{
+						break;
+					} else
+					{
+						it++;
+						break;
+					}
+				}
+				it++;
+			}
+			if (found)
+			{
+				if (it != meta->zipvs.end())
+				{
+					meta->zipvs.insert(it, element.data);
+				} else
+				{
+					meta->zipvs.push_back(element.data);
+				}
+				meta->size++;
+				SetMeta(db, key, *meta);
+			}
+			DELETE(meta);
+			return found ? 0 : ERR_NOT_EXIST;
+		}
 		ListKeyObject lk(key, -FLT_MAX, db);
 		struct LInsertWalk: public WalkHandler
 		{
@@ -194,6 +308,7 @@ namespace ardb
 		Walk(lk, false, true, &walk);
 		if (!walk.found)
 		{
+			DELETE(meta);
 			return ERR_NOT_EXIST;
 		}
 		float score = 0;
@@ -210,87 +325,101 @@ namespace ardb
 				score = walk.pivot_score + 1;
 			}
 		}
-		return ListPush(db, key, value, true, false, score);
+		BatchWriteGuard guard(GetEngine());
+		ListKeyObject nlk(key, score, db);
+		SetKeyValueObject(nlk, element);
+		meta->size++;
+		SetMeta(db, key, *meta);
+		DELETE(meta);
+		return 0;
 	}
 
 	int Ardb::ListPop(const DBID& db, const Slice& key, bool athead,
 	        std::string& value)
 	{
+		KeyLockerGuard keyguard(m_key_locker, db, key);
 		int err = 0;
 		bool createList = false;
 		ListMetaValue* meta = GetListMeta(db, key, err, createList);
-		if (NULL == meta)
+		if (NULL == meta || createList || meta->size == 0)
 		{
+			DELETE(meta);
 			return err;
 		}
-		KeyLockerGuard keyguard(m_key_locker, db, key);
-		float score;
-		if (!createList)
+		if (meta->ziped)
 		{
-			if (meta->size <= 0)
-			{
-				DELETE(meta);
-				return ERR_NOT_EXIST;
-			}
 			meta->size--;
 			if (athead)
 			{
-				score = meta->min_score;
-				//meta.min_score = meta.min_score + 1;
+				meta->zipvs.front().ToString(value);
+				meta->zipvs.pop_front();
 			} else
 			{
-				score = meta->max_score;
-				//meta.max_score = meta.max_score-1;
+				meta->zipvs.back().ToString(value);
+				meta->zipvs.pop_back();
 			}
-			if (meta->size == 0)
-			{
-				meta->min_score = meta->max_score = 0;
-			}
-			ListKeyObject lk(key, score, db);
-			BatchWriteGuard guard(GetEngine());
-			struct LPopWalk: public WalkHandler
-			{
-					Ardb* ldb;
-					std::string& pop_value;
-					ListMetaValue& lmeta;
-					bool reverse;
-					int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
-					{
-						CommonValueObject* cv = (CommonValueObject*) v;
-						if (cursor == 0)
-						{
-							ListKeyObject* lk = (ListKeyObject*) k;
-							cv->data.ToString(pop_value);
-							ldb->DelValue(*lk);
-							return 0;
-						} else
-						{
-							ListKeyObject* lk = (ListKeyObject*) k;
-							if (reverse)
-							{
-								lmeta.max_score = lk->score;
-							} else
-							{
-								lmeta.min_score = lk->score;
-							}
-							return -1;
-						}
-					}
-					LPopWalk(Ardb* db, std::string& v, ListMetaValue& meta,
-					        bool r) :
-							ldb(db), pop_value(v), lmeta(meta), reverse(r)
-					{
-					}
-			} walk(this, value, *meta, !athead);
-			Walk(lk, !athead, true, &walk);
-			int ret = SetMeta(db, key, *meta);
+			SetMeta(db, key, *meta);
 			DELETE(meta);
-			return ret;
-		} else
+			return 0;
+		}
+
+		float score;
+		if (meta->size <= 0)
 		{
 			DELETE(meta);
 			return ERR_NOT_EXIST;
 		}
+		meta->size--;
+		if (athead)
+		{
+			score = meta->min_score;
+		} else
+		{
+			score = meta->max_score;
+		}
+		if (meta->size == 0)
+		{
+			meta->min_score = meta->max_score = 0;
+		}
+		ListKeyObject lk(key, score, db);
+		BatchWriteGuard guard(GetEngine());
+		struct LPopWalk: public WalkHandler
+		{
+				Ardb* ldb;
+				std::string& pop_value;
+				ListMetaValue& lmeta;
+				bool reverse;
+				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+				{
+					CommonValueObject* cv = (CommonValueObject*) v;
+					if (cursor == 0)
+					{
+						ListKeyObject* lk = (ListKeyObject*) k;
+						cv->data.ToString(pop_value);
+						ldb->DelValue(*lk);
+						return 0;
+					} else
+					{
+						ListKeyObject* lk = (ListKeyObject*) k;
+						if (reverse)
+						{
+							lmeta.max_score = lk->score;
+						} else
+						{
+							lmeta.min_score = lk->score;
+						}
+						return -1;
+					}
+				}
+				LPopWalk(Ardb* db, std::string& v, ListMetaValue& meta, bool r) :
+						ldb(db), pop_value(v), lmeta(meta), reverse(r)
+				{
+				}
+		} walk(this, value, *meta, !athead);
+		Walk(lk, !athead, true, &walk);
+		int ret = SetMeta(db, key, *meta);
+		DELETE(meta);
+		return ret;
 	}
 
 	int Ardb::LPop(const DBID& db, const Slice& key, std::string& value)
@@ -305,6 +434,39 @@ namespace ardb
 	int Ardb::LIndex(const DBID& db, const Slice& key, int index,
 	        std::string& v)
 	{
+		int err = 0;
+		bool createList = false;
+		ListMetaValue* meta = GetListMeta(db, key, err, createList);
+		if (NULL == meta || createList || meta->size == 0)
+		{
+			DELETE(meta);
+			return err;
+		}
+		err = 0;
+		if (meta->ziped)
+		{
+			if (index > 0 && meta->zipvs.size() < (uint32)index)
+			{
+				err = ERR_NOT_EXIST;
+			}
+			if (index < 0)
+			{
+				if (meta->zipvs.size() < (uint32)(0 - index))
+				{
+					err = ERR_NOT_EXIST;
+				} else
+				{
+					index = meta->zipvs.size() + index;
+				}
+			}
+			if (0 == err)
+			{
+				meta->zipvs[index].ToString(v);
+			}
+			DELETE(meta);
+			return err;
+		}
+		DELETE(meta);
 		ListKeyObject lk(key, -FLT_MAX, db);
 		bool reverse = false;
 		if (index < 0)
@@ -374,6 +536,17 @@ namespace ardb
 		{
 			end = 0;
 		}
+		if (meta->ziped)
+		{
+			for (uint32 cursor = start;
+			        cursor < meta->zipvs.size() && cursor < (uint32)end; cursor++)
+			{
+				values.push_back(meta->zipvs[cursor]);
+			}
+			DELETE(meta);
+			return 0;
+		}
+
 		ListKeyObject lk(key, meta->min_score, db);
 		struct LRangeWalk: public WalkHandler
 		{
@@ -414,23 +587,26 @@ namespace ardb
 			DELETE(meta);
 			return err;
 		}
-		ListKeyObject lk(key, -FLT_MAX, db);
-		struct LClearWalk: public WalkHandler
-		{
-				Ardb* z_db;
-				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
-				{
-					ListKeyObject* sek = (ListKeyObject*) k;
-					z_db->DelValue(*sek);
-					return 0;
-				}
-				LClearWalk(Ardb* db) :
-						z_db(db)
-				{
-				}
-		} walk(this);
 		BatchWriteGuard guard(GetEngine());
-		Walk(lk, false, false, &walk);
+		if (!meta->ziped)
+		{
+			ListKeyObject lk(key, -FLT_MAX, db);
+			struct LClearWalk: public WalkHandler
+			{
+					Ardb* z_db;
+					int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+					{
+						ListKeyObject* sek = (ListKeyObject*) k;
+						z_db->DelValue(*sek);
+						return 0;
+					}
+					LClearWalk(Ardb* db) :
+							z_db(db)
+					{
+					}
+			} walk(this);
+			Walk(lk, false, false, &walk);
+		}
 		DelMeta(db, key, meta);
 		DELETE(meta);
 		return 0;
@@ -439,6 +615,7 @@ namespace ardb
 	int Ardb::LRem(const DBID& db, const Slice& key, int count,
 	        const Slice& value)
 	{
+		KeyLockerGuard keyguard(m_key_locker, db, key);
 		int err = 0;
 		bool createList = false;
 		ListMetaValue* meta = GetListMeta(db, key, err, createList);
@@ -447,7 +624,31 @@ namespace ardb
 			DELETE(meta);
 			return err;
 		}
-		KeyLockerGuard keyguard(m_key_locker, db, key);
+		if (meta->ziped)
+		{
+			ValueData element(value);
+			ValueDataDeque::iterator it = meta->zipvs.begin();
+			ValueDataDeque new_zip_vs;
+			while (it != meta->zipvs.end())
+			{
+				if (element != *it)
+				{
+					new_zip_vs.push_back(*it);
+				}
+				it++;
+			}
+			int ret = 0;
+			if (new_zip_vs.size() != meta->zipvs.size())
+			{
+				ret = meta->zipvs.size() - new_zip_vs.size();
+				meta->zipvs = new_zip_vs;
+				meta->size = new_zip_vs.size();
+				SetMeta(db, key, *meta);
+			}
+			DELETE(meta);
+			return ret;
+		}
+
 		ListKeyObject lk(key, meta->min_score, db);
 		int total = count;
 		bool fromhead = true;
@@ -495,19 +696,32 @@ namespace ardb
 	int Ardb::LSet(const DBID& db, const Slice& key, int index,
 	        const Slice& value)
 	{
-		int len = LLen(db, key);
-		if (len <= 0)
+		KeyLockerGuard keyguard(m_key_locker, db, key);
+		int err = 0;
+		bool createList = false;
+		ListMetaValue* meta = GetListMeta(db, key, err, createList);
+		if (NULL == meta || createList || meta->size == 0)
 		{
-			return ERR_NOT_EXIST;
+			DELETE(meta);
+			return err;
 		}
 		if (index < 0)
 		{
-			index += len;
+			index += meta->size;
 		}
-		if (index >= len)
+		if ((uint32)index >= meta->size)
 		{
+			DELETE(meta);
 			return ERR_NOT_EXIST;
 		}
+		if (meta->ziped)
+		{
+			meta->zipvs[index].SetValue(value, true);
+			SetMeta(db, key, *meta);
+			DELETE(meta);
+			return 0;
+		}
+		DELETE(meta);
 		ListKeyObject lk(key, -FLT_MAX, db);
 		struct LSetWalk: public WalkHandler
 		{
@@ -543,6 +757,7 @@ namespace ardb
 
 	int Ardb::LTrim(const DBID& db, const Slice& key, int start, int stop)
 	{
+		KeyLockerGuard keyguard(m_key_locker, db, key);
 		int err = 0;
 		bool createList = false;
 		ListMetaValue* meta = GetListMeta(db, key, err, createList);
@@ -551,10 +766,10 @@ namespace ardb
 			DELETE(meta);
 			return err;
 		}
-		KeyLockerGuard keyguard(m_key_locker, db, key);
 		int len = meta->size;
 		if (len <= 0)
 		{
+			DELETE(meta);
 			return 0;
 		}
 		if (start < 0)
@@ -575,8 +790,26 @@ namespace ardb
 		}
 		if (start >= len)
 		{
+			DELETE(meta);
 			return LClear(db, key);
 		}
+		if (meta->ziped)
+		{
+			ValueDataDeque new_zip_vs;
+			for (uint32 i = start; i < meta->zipvs.size() && i <= (uint32)stop; i++)
+			{
+				new_zip_vs.push_back(meta->zipvs[i]);
+			}
+			if (new_zip_vs.size() != meta->zipvs.size())
+			{
+				meta->zipvs = new_zip_vs;
+				meta->size = new_zip_vs.size();
+				SetMeta(db, key, *meta);
+			}
+			DELETE(meta);
+			return 0;
+		}
+
 		ListKeyObject lk(key, meta->min_score, db);
 		struct LTrimWalk: public WalkHandler
 		{

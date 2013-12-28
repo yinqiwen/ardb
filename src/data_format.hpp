@@ -109,12 +109,34 @@ namespace ardb
 	struct DBItemKey
 	{
 			DBID db;
-			Slice key;
-			DBItemKey(const DBID& id = 0, const Slice& k = "") :
+			std::string key;
+			DBItemKey(const DBID& id = 0, const std::string& k = "") :
 					db(id), key(k)
 			{
 			}
 			bool operator<(const DBItemKey& other) const
+			{
+				if (db > other.db)
+				{
+					return false;
+				}
+				if (db == other.db)
+				{
+					return key.compare(other.key) < 0;
+				}
+				return true;
+			}
+	};
+
+	struct DBItemStackKey
+	{
+			DBID db;
+			Slice key;
+			DBItemStackKey(const DBID& id = 0, const Slice& k = "") :
+					db(id), key(k)
+			{
+			}
+			bool operator<(const DBItemStackKey& other) const
 			{
 				if (db > other.db)
 				{
@@ -367,6 +389,7 @@ namespace ardb
 	};
 
 	typedef std::vector<ValueData> ValueDataArray;
+	typedef std::deque<ValueData> ValueDataDeque;
 	typedef std::map<ValueData, double> ValueScoreMap;
 	typedef std::map<ValueData, ValueData> HashFieldMap;
 	typedef std::set<ValueData> ValueSet;
@@ -379,6 +402,7 @@ namespace ardb
 	typedef std::set<std::string> StringSet;
 	typedef std::set<Slice> SliceSet;
 	typedef std::vector<uint32_t> WeightArray;
+	typedef std::vector<double> ZSetScoreArray;
 	typedef std::map<std::string, std::string> StringStringMap;
 	typedef std::map<uint64, std::string> UInt64StringMap;
 
@@ -386,8 +410,11 @@ namespace ardb
 	{
 			double score;
 			ValueData value;
-			ZSetElement():score(0){}
-			CODEC_DEFINE(score, value)
+			ZSetElement() :
+					score(0)
+			{
+			}
+		CODEC_DEFINE(score, value)
 	};
 	typedef std::vector<ZSetElement> ZSetElementArray;
 
@@ -438,8 +465,7 @@ namespace ardb
 			double min_score;
 			double max_score;
 			bool ziped;
-			ZSetElementArray zipvs;
-		CODEC_DEFINE(size, min_score, max_score, ziped, zipvs)
+			ZSetElementArray zipvs;CODEC_DEFINE(size, min_score, max_score, ziped, zipvs)
 			;
 			ZSetMetaValue() :
 					size(0), min_score(0), max_score(0), ziped(false)
@@ -491,7 +517,7 @@ namespace ardb
 			bool ziped;
 			float min_score;
 			float max_score;
-			ValueDataArray zipvs;CODEC_DEFINE(size,ziped,min_score,max_score,zipvs)
+			ValueDataDeque zipvs;CODEC_DEFINE(size,ziped,min_score,max_score,zipvs)
 			;
 			ListMetaValue() :
 					size(0), ziped(false), min_score(0), max_score(0)

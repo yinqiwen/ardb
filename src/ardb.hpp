@@ -188,13 +188,29 @@ namespace ardb
 			int64 zset_max_ziplist_value;
 			int64 set_max_ziplist_entries;
 			int64 set_max_ziplist_value;
+			int64 zset_max_score_cache_size;
 			ArdbConfig() :
 					hash_max_ziplist_entries(128), hash_max_ziplist_value(64), list_max_ziplist_entries(
 					        128), list_max_ziplist_value(64), zset_max_ziplist_entries(
 					        128), zset_max_ziplist_value(64), set_max_ziplist_entries(
-					        128), set_max_ziplist_value(64)
+					        128), set_max_ziplist_value(64), zset_max_score_cache_size(
+					        16 * 1024 * 1024)
 			{
 			}
+	};
+
+	class ZSetScoreCache
+	{
+		private:
+			uint32 m_mem_size;
+			typedef std::map<std::string, double*> ScoreCache;
+			ScoreCache m_cache;
+		public:
+			int Add(const DBItemKey& key, double score);
+			int Replace(const DBItemKey& key,double old_score, double new_score);
+			int Remove(const DBItemKey& key,double score);
+			int Rank(const DBItemKey& key, double score);
+			int RangeByRank(const DBItemKey& key, int start, int end);
 	};
 
 	class DBHelper;
@@ -267,7 +283,7 @@ namespace ardb
 			Iterator* FindValue(KeyObject& key, bool cache = false);
 
 			int ListPush(const DBID& db, const Slice& key, const Slice& value,
-			        bool athead, bool onlyexist, float withscore = FLT_MAX);
+			        bool athead, bool onlyexist);
 			int ListPop(const DBID& db, const Slice& key, bool athead,
 			        std::string& value);
 
@@ -319,7 +335,7 @@ namespace ardb
 
 			struct KeyLocker
 			{
-					typedef std::set<DBItemKey> DBItemKeySet;
+					typedef std::set<DBItemStackKey> DBItemKeySet;
 					DBItemKeySet m_locked_keys;
 					ThreadMutex m_keys_mutex;
 					ThreadMutexLock m_barrier;
@@ -340,7 +356,7 @@ namespace ardb
 							{
 								LockGuard<ThreadMutex> guard(m_keys_mutex);
 								insert = m_locked_keys.insert(
-								        DBItemKey(db, key)).second;
+								        DBItemStackKey(db, key)).second;
 							}
 							if (insert)
 							{
@@ -360,7 +376,7 @@ namespace ardb
 						}
 						{
 							LockGuard<ThreadMutex> guard(m_keys_mutex);
-							m_locked_keys.erase(DBItemKey(db, key));
+							m_locked_keys.erase(DBItemStackKey(db, key));
 						}
 						LockGuard<ThreadMutexLock> guard(m_barrier);
 						m_barrier.NotifyAll();
