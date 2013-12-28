@@ -204,10 +204,6 @@ namespace ardb
 		ZSetMetaValue* meta = GetZSetMeta(db, key, err, createZset);
 		if (NULL == meta || createZset)
 		{
-			if (createZset)
-			{
-				err = ERR_NOT_EXIST;
-			}
 			DELETE(meta);
 			return err;
 		}

@@ -196,7 +196,7 @@ namespace ardb
 		{
 			case STRING_META:
 			{
-				DelMeta(db,key, meta);
+				DelMeta(db, key, meta);
 				break;
 			}
 			case HASH_META:
@@ -277,7 +277,7 @@ namespace ardb
 		{
 			expire = meta->header.expireat;
 			DELETE(meta);
-			return expire > 0?0:-1;
+			return expire > 0 ? 0 : -1;
 		}
 		return -1;
 	}
@@ -436,40 +436,53 @@ namespace ardb
 
 	int Ardb::Rename(const DBID& db, const Slice& key1, const Slice& key2)
 	{
-		CommonMetaValue* meta = GetMeta(db, key1, true);
+		CommonMetaValue* meta = GetMeta(db, key1, false);
 		if (NULL == meta)
 		{
 			return ERR_NOT_EXIST;
 		}
-		if (meta->header.type != STRING_META)
+		Del(db, key2);
+		int err = 0;
+		switch (meta->header.type)
 		{
-			DELETE(meta);
-			return ERR_INVALID_TYPE;
+			case STRING_META:
+			{
+				BatchWriteGuard guard(GetEngine());
+				StringMetaValue* cmeta = (StringMetaValue*) meta;
+				KeyObject k1(key1, KEY_META, db);
+				DelValue(k1);
+				SetMeta(db, key2, *cmeta);
+				break;
+			}
+			case LIST_META:
+			{
+				ListMetaValue* cmeta = (ListMetaValue*) meta;
+				RenameList(db, key1, key2, cmeta);
+				break;
+			}
+			case HASH_META:
+			{
+				HashMetaValue* cmeta = (HashMetaValue*) meta;
+				RenameHash(db, key1, key2, cmeta);
+				break;
+			}
+			default:
+			{
+				err = ERR_INVALID_TYPE;
+				break;
+			}
 		}
-		BatchWriteGuard guard(GetEngine());
-		KeyObject k1(key1, KEY_META, db);
-		DelValue(k1);
-		KeyObject k2(key2, KEY_META, db);
-		StringMetaValue* smeta = (StringMetaValue*) meta;
-		int ret = SetMeta(k2, *smeta);
-		DELETE(smeta);
-		return ret;
+		DELETE(meta);
+		return err;
 	}
 
 	int Ardb::RenameNX(const DBID& db, const Slice& key1, const Slice& key2)
 	{
-		std::string v1;
-		if (0 == Get(db, key1, v1))
+		if (Exists(db, key2))
 		{
-			if (Exists(db, key2))
-			{
-				return 0;
-			}
-			BatchWriteGuard guard(GetEngine());
-			Del(db, key1);
-			return Set(db, key2, v1) != 0 ? -1 : 1;
+			return ERR_KEY_EXIST;
 		}
-		return ERR_NOT_EXIST;
+		return Rename(db, key1, key2);
 	}
 
 	int Ardb::Move(DBID srcdb, const Slice& key, DBID dstdb)

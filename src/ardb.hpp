@@ -255,6 +255,9 @@ namespace ardb
 			CommonMetaValue* GetMeta(const DBID& db, const Slice& key,
 			        bool onlyHead);
 
+			int RenameList(const DBID& db, const Slice& key1, const Slice& key2, ListMetaValue* meta);
+			int RenameHash(const DBID& db, const Slice& key1, const Slice& key2, HashMetaValue* meta);
+
 			int GetHashZipEntry(HashMetaValue* meta, const ValueData& field,
 			        ValueData*& value);
 			int HGetValue(HashKeyObject& key, HashMetaValue* meta,
@@ -288,7 +291,7 @@ namespace ardb
 			        std::string& value);
 
 			void FindSetMinMaxValue(const DBID& db, const Slice& key,
-			        ValueData& min, ValueData& max);
+			        SetMetaValue* meta);
 
 			int BitsAnd(const DBID& db, SliceArray& keys,
 			        BitSetElementValueMap*& result,
@@ -316,7 +319,7 @@ namespace ardb
 					{
 					}
 			};
-			int SetRange(const DBID& db, const Slice& key,
+			int SetRange(const DBID& db, const Slice& key,SetMetaValue* meta,
 			        const ValueData& value_begin, const ValueData& value_end,
 			        int32 limit, bool with_begin, ValueArray& values);
 			typedef void OnSubResults(ValueArray& set);

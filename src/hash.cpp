@@ -29,11 +29,10 @@
 
 #include "ardb.hpp"
 
-
 namespace ardb
 {
 	HashMetaValue* Ardb::GetHashMeta(const DBID& db, const Slice& key, int& err,
-	bool& create)
+	        bool& create)
 	{
 		CommonMetaValue* meta = GetMeta(db, key, false);
 		if (NULL != meta && meta->header.type != HASH_META)
@@ -81,19 +80,21 @@ namespace ardb
 			if (0 == GetHashZipEntry(meta, key.field, value_entry))
 			{
 				*value_entry = value.data; //set new value
-				if (value.data.type
-				        == BYTES_VALUE&& value.data.bytes_value.size() >= (uint32)m_config.hash_max_ziplist_value)
+				if (value.data.type == BYTES_VALUE
+				        && value.data.bytes_value.size()
+				                >= (uint32) m_config.hash_max_ziplist_value)
 				{
 					zipSave = false;
 				}
 			} else
 			{
-				if (key.field.type
-				        == BYTES_VALUE&& value.data.bytes_value.size() >= (uint32)m_config.hash_max_ziplist_value)
+				if (key.field.type == BYTES_VALUE
+				        && value.data.bytes_value.size()
+				                >= (uint32) m_config.hash_max_ziplist_value)
 				{
 					zipSave = false;
 				} else if (meta->values.size()
-				        >= (uint32)m_config.hash_max_ziplist_entries)
+				        >= (uint32) m_config.hash_max_ziplist_entries)
 				{
 					zipSave = false;
 				} else
@@ -459,30 +460,26 @@ namespace ardb
 		{
 			Slice empty;
 			HashKeyObject k(key, empty, db);
-			Iterator* it = FindValue(k);
-			int i = 0;
-			while (NULL != it && it->Valid())
+			struct HashWalk: public WalkHandler
 			{
-				Slice tmpkey = it->Key();
-				KeyObject* kk = decode_key(tmpkey, &k);
-				if (NULL == kk)
-				{
-					break;
-				}
-				HashKeyObject* hk = (HashKeyObject*) kk;
-				std::string filed;
-				hk->field.ToString(filed);
-				DELETE(kk);
-				fields.push_back(filed);
-				ValueData v;
-				values.push_back(v);
-				Buffer readbuf(const_cast<char*>(it->Value().data()), 0,
-				        it->Value().size());
-				decode_value(readbuf, values[i]);
-				i++;
-				it->Next();
-			}
-			DELETE(it);
+					StringArray& fs;
+					ValueArray& dst;
+					int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+					{
+						CommonValueObject* cv = (CommonValueObject*) v;
+						HashKeyObject* sek = (HashKeyObject*) k;
+						std::string field;
+						sek->field.ToString(field);
+						fs.push_back(field);
+						dst.push_back(cv->data);
+						return 0;
+					}
+					HashWalk(StringArray& ff, ValueArray& vs) :
+							fs(ff), dst(vs)
+					{
+					}
+			} walk(fields, values);
+			Walk(k, false, true, &walk);
 		}
 		DELETE(meta);
 		return fields.empty() ? ERR_NOT_EXIST : 0;
@@ -631,6 +628,43 @@ namespace ardb
 		}
 		DELETE(iter);
 		return -1;
+	}
+
+	int Ardb::RenameHash(const DBID& db, const Slice& key1, const Slice& key2,
+	        HashMetaValue* meta)
+	{
+		BatchWriteGuard guard(GetEngine());
+		if (meta->ziped)
+		{
+			BatchWriteGuard guard(GetEngine());
+			KeyObject k1(key1, KEY_META, db);
+			DelValue(k1);
+			SetMeta(db, key2, *meta);
+		} else
+		{
+			Slice empty;
+			HashKeyObject k(key1, empty, db);
+			struct HashWalk: public WalkHandler
+			{
+					Ardb* z_db;
+					const Slice& dst;
+					int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+					{
+						CommonValueObject* cv = (CommonValueObject*) v;
+						HashKeyObject* sek = (HashKeyObject*) k;
+						sek->key = dst;
+						z_db->SetKeyValueObject(*sek, *cv);
+						return 0;
+					}
+					HashWalk(Ardb* db, const Slice& dstkey) :
+							z_db(db), dst(dstkey)
+					{
+					}
+			} walk(this, key2);
+			Walk(k, false, true, &walk);
+			HClear(db, key1);
+		}
+		return 0;
 	}
 
 //	int Ardb::HRange(const DBID& db, const Slice& key, const Slice& from,

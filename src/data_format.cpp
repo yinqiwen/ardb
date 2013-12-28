@@ -131,6 +131,11 @@ namespace ardb
 				ret = BufferHelper::ReadVarString(buf, bytes_value);
 				break;
 			}
+			case EMPTY_VALUE:
+			{
+				ret = true;
+				break;
+			}
 			default:
 			{
 				break;
@@ -731,6 +736,11 @@ namespace ardb
 			case SET_META:
 			{
 				SetMetaValue & bmeta = (SetMetaValue&) meta;
+				if(bmeta.ziped)
+				{
+					bmeta.max.Clear();
+					bmeta.min.Clear();
+				}
 				bmeta.Encode(buf);
 				break;
 			}
@@ -761,54 +771,75 @@ namespace ardb
 			}
 		} else
 		{
+			ERROR_LOG("Decode meta header failed.");
 			return NULL;
 		}
-//		msgpack::unpacked msg;
-//		size_t offset = msgbuf.GetReadIndex();
-//		msgpack::unpack(&msg, data, size, &offset);
-//		msgpack::object obj = msg.get();
 		CommonMetaValue* meta = NULL;
 		switch (header.type)
 		{
 			case STRING_META:
 			{
 				StringMetaValue * bmeta = new StringMetaValue;
-				bmeta->Decode(msgbuf);
+				if (!bmeta->Decode(msgbuf))
+				{
+					ERROR_LOG("Decode string  meta header failed.");
+					DELETE(bmeta);
+				}
 				meta = bmeta;
 				break;
 			}
 			case BITSET_META:
 			{
 				BitSetMetaValue* bmeta = new BitSetMetaValue;
-				bmeta->Decode(msgbuf);
+				if (!bmeta->Decode(msgbuf))
+				{
+					ERROR_LOG("Decode bitset meta failed.");
+					DELETE(bmeta);
+				}
 				meta = bmeta;
 				break;
 			}
 			case HASH_META:
 			{
 				HashMetaValue* bmeta = new HashMetaValue;
-				bmeta->Decode(msgbuf);
+				if (!bmeta->Decode(msgbuf))
+				{
+					ERROR_LOG("Decode hash meta  failed.");
+					DELETE(bmeta);
+				}
 				meta = bmeta;
 				break;
 			}
 			case LIST_META:
 			{
 				ListMetaValue* bmeta = new ListMetaValue;
-				bmeta->Decode(msgbuf);
+				if (!bmeta->Decode(msgbuf))
+				{
+					ERROR_LOG("Decode list meta  failed.");
+					DELETE(bmeta);
+				}
 				meta = bmeta;
 				break;
 			}
 			case ZSET_META:
 			{
 				ZSetMetaValue* bmeta = new ZSetMetaValue;
-				bmeta->Decode(msgbuf);
+				if (!bmeta->Decode(msgbuf))
+				{
+					ERROR_LOG("Decode zset meta  failed.");
+					DELETE(bmeta);
+				}
 				meta = bmeta;
 				break;
 			}
 			case SET_META:
 			{
 				SetMetaValue* smeta = new SetMetaValue;
-				smeta->Decode(msgbuf);
+				if (!smeta->Decode(msgbuf))
+				{
+					ERROR_LOG("Decode set meta  failed.");
+					DELETE(smeta);
+				}
 				meta = smeta;
 				break;
 			}

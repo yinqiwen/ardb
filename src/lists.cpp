@@ -77,11 +77,12 @@ namespace ardb
 		{
 			if (lv.data.type == BYTES_VALUE
 			        && lv.data.bytes_value.size()
-			                >= (uint32)m_config.list_max_ziplist_value)
+			                >= (uint32) m_config.list_max_ziplist_value)
 			{
 				zip_save = false;
 			}
-			if (lmeta->zipvs.size() >= (uint32)m_config.list_max_ziplist_entries)
+			if (lmeta->zipvs.size()
+			        >= (uint32) m_config.list_max_ziplist_entries)
 			{
 				zip_save = false;
 			}
@@ -445,13 +446,13 @@ namespace ardb
 		err = 0;
 		if (meta->ziped)
 		{
-			if (index > 0 && meta->zipvs.size() < (uint32)index)
+			if (index > 0 && meta->zipvs.size() < (uint32) index)
 			{
 				err = ERR_NOT_EXIST;
 			}
 			if (index < 0)
 			{
-				if (meta->zipvs.size() < (uint32)(0 - index))
+				if (meta->zipvs.size() < (uint32) (0 - index))
 				{
 					err = ERR_NOT_EXIST;
 				} else
@@ -539,7 +540,8 @@ namespace ardb
 		if (meta->ziped)
 		{
 			for (uint32 cursor = start;
-			        cursor < meta->zipvs.size() && cursor < (uint32)end; cursor++)
+			        cursor < meta->zipvs.size() && cursor < (uint32) end;
+			        cursor++)
 			{
 				values.push_back(meta->zipvs[cursor]);
 			}
@@ -709,7 +711,7 @@ namespace ardb
 		{
 			index += meta->size;
 		}
-		if ((uint32)index >= meta->size)
+		if ((uint32) index >= meta->size)
 		{
 			DELETE(meta);
 			return ERR_NOT_EXIST;
@@ -796,7 +798,8 @@ namespace ardb
 		if (meta->ziped)
 		{
 			ValueDataDeque new_zip_vs;
-			for (uint32 i = start; i < meta->zipvs.size() && i <= (uint32)stop; i++)
+			for (uint32 i = start; i < meta->zipvs.size() && i <= (uint32) stop;
+			        i++)
 			{
 				new_zip_vs.push_back(meta->zipvs[i]);
 			}
@@ -872,6 +875,41 @@ namespace ardb
 			return RPush(db, key2, sv);
 		}
 		return ERR_NOT_EXIST;
+	}
+
+	int Ardb::RenameList(const DBID& db, const Slice& key1, const Slice& key2,
+	        ListMetaValue* meta)
+	{
+		BatchWriteGuard guard(GetEngine());
+		if (meta->ziped)
+		{
+			KeyObject k1(key1, KEY_META, db);
+			DelValue(k1);
+			SetMeta(db, key2, *meta);
+		} else
+		{
+			ListKeyObject lk(key1, meta->min_score, db);
+			struct LSetWalk: public WalkHandler
+			{
+					Ardb* z_db;
+					const Slice& dst;
+					int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+					{
+						CommonValueObject* cv = (CommonValueObject*) v;
+						ListKeyObject* sek = (ListKeyObject*) k;
+						sek->key = dst;
+						z_db->SetKeyValueObject(*sek, *cv);
+						return 0;
+					}
+					LSetWalk(Ardb* db, const Slice& v) :
+							z_db(db), dst(v)
+					{
+					}
+			} walk(this, key2);
+			Walk(lk, false, true, &walk);
+			LClear(db, key1);
+		}
+		return 0;
 	}
 }
 

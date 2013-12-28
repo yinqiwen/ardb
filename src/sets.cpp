@@ -40,7 +40,7 @@ namespace ardb
 {
 
 	SetMetaValue* Ardb::GetSetMeta(const DBID& db, const Slice& key, int& err,
-	bool& create)
+	        bool& create)
 	{
 		CommonMetaValue* meta = GetMeta(db, key, false);
 		if (NULL != meta && meta->header.type != SET_META)
@@ -52,18 +52,25 @@ namespace ardb
 		if (NULL == meta)
 		{
 			meta = new SetMetaValue;
+			err = ERR_NOT_EXIST;
 			create = true;
 		} else
 		{
+			SetMetaValue* smeta = (SetMetaValue*) meta;
+			if(smeta->ziped && smeta->zipvs.size() > 0)
+			{
+				smeta->min = *(smeta->zipvs.begin());
+				smeta->max = *(smeta->zipvs.rbegin());
+			}
 			create = false;
 		}
-		return (SetMetaValue*)meta;
+		return (SetMetaValue*) meta;
 	}
 	void Ardb::FindSetMinMaxValue(const DBID& db, const Slice& key,
-	        ValueData& min, ValueData& max)
+	        SetMetaValue* meta)
 	{
-		min.Clear();
-		max.Clear();
+		meta->min.Clear();
+		meta->max.Clear();
 		SetKeyObject sk(key, Slice(), db);
 		Iterator* iter = FindValue(sk, false);
 		if (NULL != iter && iter->Valid())
@@ -72,7 +79,7 @@ namespace ardb
 			if (NULL != kk)
 			{
 				SetKeyObject* mink = (SetKeyObject*) kk;
-				min = mink->value;
+				meta->min = mink->value;
 			}
 			DELETE(kk);
 		}
@@ -92,7 +99,7 @@ namespace ardb
 			if (NULL != kk)
 			{
 				SetKeyObject* mink = (SetKeyObject*) kk;
-				max = mink->value;
+				meta->max = mink->value;
 			}
 			DELETE(kk);
 		}
@@ -119,7 +126,56 @@ namespace ardb
 		{
 			return err;
 		}
-		SetKeyObject sk(key, value, db);
+		bool zip_save = meta->ziped;
+		ValueData element(value);
+		if (zip_save)
+		{
+			if (!meta->zipvs.insert(element).second)
+			{
+				DELETE(meta);
+				return 0;
+			}
+			if (element.type == BYTES_VALUE
+			        && element.bytes_value.size()
+			                >= (uint32) m_config.set_max_ziplist_value)
+			{
+				zip_save = false;
+			}
+			if (meta->zipvs.size() >= (uint32) m_config.set_max_ziplist_entries)
+			{
+				zip_save = false;
+			}
+		}
+		if (zip_save)
+		{
+			meta->size = meta->zipvs.size();
+			SetMeta(db, key, *meta);
+			DELETE(meta);
+			return 1;
+		}
+		/*
+		 * convert from ziplist
+		 */
+		if (meta->ziped)
+		{
+			meta->size = meta->zipvs.size();
+			ValueSet::iterator it = meta->zipvs.begin();
+			while (it != meta->zipvs.end())
+			{
+				SetKeyObject sk(key, *it, db);
+				EmptyValueObject empty;
+				SetKeyValueObject(sk, empty);
+				it++;
+			}
+			meta->min = *(meta->zipvs.begin());
+			meta->max = *(meta->zipvs.rbegin());
+			meta->ziped = false;
+			meta->zipvs.clear();
+			SetMeta(db, key, *meta);
+			return 1;
+		}
+
+		SetKeyObject sk(key, element, db);
 		bool set_changed = createSet;
 		if (meta->max.type == EMPTY_VALUE)
 		{
@@ -191,13 +247,27 @@ namespace ardb
 
 	bool Ardb::SIsMember(const DBID& db, const Slice& key, const Slice& value)
 	{
-		SetKeyObject sk(key, value, db);
-		std::string empty;
-		if (0 != GetRawValue(sk, empty))
+		int err = 0;
+		bool createSet = false;
+		SetMetaValue* meta = GetSetMeta(db, key, err, createSet);
+		if (NULL == meta || createSet)
 		{
-			return false;
+			DELETE(meta);
+			return err;
 		}
-		return true;
+		ValueData element(value);
+		bool exist = false;
+		if (meta->ziped)
+		{
+			exist = meta->zipvs.find(element) != meta->zipvs.end();
+		} else
+		{
+			SetKeyObject sk(key, value, db);
+			std::string empty;
+			exist = (0 == GetRawValue(sk, empty));
+		}
+		DELETE(meta);
+		return exist;
 	}
 
 	int Ardb::SRem(const DBID& db, const Slice& key, const SliceArray& values)
@@ -208,9 +278,30 @@ namespace ardb
 		SetMetaValue* meta = GetSetMeta(db, key, err, createSet);
 		if (NULL == meta || createSet)
 		{
+			if (createSet)
+			{
+				err = 0;
+			}
 			DELETE(meta);
 			return err;
 		}
+		if (meta->ziped)
+		{
+			SliceArray::const_iterator it = values.begin();
+			uint32 size = meta->zipvs.size();
+			while (it != values.end())
+			{
+				ValueData element(*it);
+				meta->zipvs.erase(element);
+				it++;
+			}
+			size = meta->zipvs.size() - size;
+			meta->size = meta->zipvs.size();
+			SetMeta(db, key, *meta);
+			DELETE(meta);
+			return size;
+		}
+
 		int count = 0;
 		bool retrive_min_max = false;
 		{
@@ -247,9 +338,9 @@ namespace ardb
 				}
 			}
 		}
-		if (retrive_min_max)
+		if (retrive_min_max && !meta->ziped)
 		{
-			FindSetMinMaxValue(db, key, meta->min, meta->max);
+			FindSetMinMaxValue(db, key, meta);
 			SetMeta(db, key, *meta);
 		}
 		return count;
@@ -278,6 +369,7 @@ namespace ardb
 			DELETE(meta);
 			return err;
 		}
+
 		ValueData firstObj;
 		if (value_end.empty() || !strcasecmp(value_end.data(), "+inf"))
 		{
@@ -287,11 +379,42 @@ namespace ardb
 		{
 			firstObj.SetValue(value_end, true);
 		}
+
+		if (meta->ziped)
+		{
+			ValueSet::iterator fit = meta->zipvs.lower_bound(firstObj);
+			ValueSet::iterator it = meta->zipvs.begin();
+			while (fit != meta->zipvs.begin() && fit != meta->zipvs.end())
+			{
+				if (!with_end)
+				{
+					if (firstObj.Compare(*fit) != 0)
+					{
+						values.push_back(*it);
+					}
+				} else
+				{
+					values.push_back(*it);
+				}
+				if (values.size() >= (uint32) count)
+				{
+					break;
+				}
+				fit--;
+			}
+			if (fit == meta->zipvs.begin())
+			{
+				values.push_back(*fit);
+			}
+			DELETE(meta);
+			return 0;
+		}
 		SetKeyObject sk(key, firstObj, db);
 		struct SGetWalk: public WalkHandler
 		{
 				ValueArray& z_values;
-				ValueData& first;bool with_first;
+				ValueData& first;
+				bool with_first;
 				int l;
 				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
@@ -322,7 +445,7 @@ namespace ardb
 		return 0;
 	}
 
-	int Ardb::SetRange(const DBID& db, const Slice& key,
+	int Ardb::SetRange(const DBID& db, const Slice& key, SetMetaValue* meta,
 	        const ValueData& value_begin, const ValueData& value_end,
 	        int32 limit, bool with_begin, ValueArray& values)
 	{
@@ -330,12 +453,41 @@ namespace ardb
 		{
 			return 0;
 		}
+		if (meta->ziped)
+		{
+			ValueSet::iterator fit = meta->zipvs.lower_bound(value_begin);
+			while (fit != meta->zipvs.end())
+			{
+				if (value_end.Compare(*fit) < 0)
+				{
+					break;
+				}
+				if (value_begin.Compare(*fit) == 0)
+				{
+					if (with_begin)
+					{
+						values.push_back(*fit);
+					}
+				} else
+				{
+					values.push_back(*fit);
+					if (limit > 0 && values.size() >= (uint32) limit)
+					{
+						break;
+					}
+				}
+				fit++;
+			}
+			return 0;
+		}
+
 		SetKeyObject sk(key, value_begin, db);
 		struct SGetWalk: public WalkHandler
 		{
 				ValueArray& z_values;
 				const ValueData& first;
-				const ValueData& end;bool with_first;
+				const ValueData& end;
+				bool with_first;
 				int32 l;
 				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
 				{
@@ -382,49 +534,26 @@ namespace ardb
 		int err = 0;
 		bool createSet = false;
 		SetMetaValue* meta = GetSetMeta(db, key, err, createSet);
-		if (NULL == meta || createSet)
+		if (NULL == meta || createSet || meta->size == 0)
 		{
 			DELETE(meta);
 			return err;
 		}
 		SetKeyObject sk(key, value_begin, db);
+		ValueData end_obj;
 		if (value_begin.empty() || !strcasecmp(value_begin.data(), "-inf"))
 		{
-			sk.value = meta->min;
+			if (!meta->ziped)
+			{
+				sk.value = meta->min;
+				end_obj = meta->max;
+			} else
+			{
+				end_obj = *(meta->zipvs.rbegin());
+			}
 			with_begin = true;
 		}
-
-		struct SGetWalk: public WalkHandler
-		{
-				ValueArray& z_values;
-				ValueData& first;bool with_first;
-				int l;
-				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
-				{
-					SetKeyObject* sek = (SetKeyObject*) k;
-					if (0 == cursor)
-					{
-						if (!with_first)
-						{
-							if (first.Compare(sek->value) == 0)
-							{
-								return 0;
-							}
-						}
-					}
-					z_values.push_back(sek->value);
-					if (l > 0 && z_values.size() >= (uint32) l)
-					{
-						return -1;
-					}
-					return 0;
-				}
-				SGetWalk(ValueArray& vs, int count, ValueData& s, bool with) :
-						z_values(vs), first(s), with_first(with), l(count)
-				{
-				}
-		} walk(values, count, sk.value, with_begin);
-		Walk(sk, false, false, &walk);
+		SetRange(db, key, meta, sk.value, end_obj, count, with_begin, values);
 		DELETE(meta);
 		return 0;
 	}
@@ -438,6 +567,17 @@ namespace ardb
 		{
 			DELETE(meta);
 			return err;
+		}
+		if (meta->ziped)
+		{
+			ValueSet::iterator it = meta->zipvs.begin();
+			while (it != meta->zipvs.end())
+			{
+				values.push_back(*it);
+				it++;
+			}
+			DELETE(meta);
+			return 0;
 		}
 		if (meta->size >= MAX_SET_QUERY_NUM)
 		{
@@ -476,22 +616,26 @@ namespace ardb
 			DELETE(meta);
 			return err;
 		}
-		struct SClearWalk: public WalkHandler
-		{
-				Ardb* z_db;
-				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
-				{
-					SetKeyObject* sek = (SetKeyObject*) k;
-					z_db->DelValue(*sek);
-					return 0;
-				}
-				SClearWalk(Ardb* db) :
-						z_db(db)
-				{
-				}
-		} walk(this);
 		BatchWriteGuard guard(GetEngine());
-		Walk(sk, false, false, &walk);
+		if (!meta->ziped)
+		{
+			struct SClearWalk: public WalkHandler
+			{
+					Ardb* z_db;
+					int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+					{
+						SetKeyObject* sek = (SetKeyObject*) k;
+						z_db->DelValue(*sek);
+						return 0;
+					}
+					SClearWalk(Ardb* db) :
+							z_db(db)
+					{
+					}
+			} walk(this);
+
+			Walk(sk, false, false, &walk);
+		}
 		DelMeta(db, key, meta);
 		DELETE(meta);
 		return 0;
@@ -551,6 +695,7 @@ namespace ardb
 				DiffCallback(Ardb* a, const DBID& id, const Slice& k) :
 						db(a), dbid(id), key(k)
 				{
+					meta.ziped = false;
 				}
 				void OnSubset(ValueArray& array)
 				{
@@ -630,8 +775,8 @@ namespace ardb
 			ValueArray next;
 			ValueArray* cmp = &base;
 			ValueArray* result = &next;
-			SetRange(db, keys[0], fromObjs[0], metas[0]->max, max_subset_num,
-			        isfirst, *cmp);
+			SetRange(db, keys[0], metas[0], fromObjs[0], metas[0]->max,
+			        max_subset_num, isfirst, *cmp);
 			if (cmp->empty())
 			{
 				return 0;
@@ -640,8 +785,8 @@ namespace ardb
 			for (uint32 i = 1; i < keys.size(); i++)
 			{
 				ValueArray tmp;
-				SetRange(db, keys[i], fromObjs[i], fromObjs[0], -1, isfirst,
-				        tmp);
+				SetRange(db, keys[i], metas[i], fromObjs[i], fromObjs[0], -1,
+				        isfirst, tmp);
 				if (!tmp.empty())
 				{
 					fromObjs[i] = *(tmp.rbegin());
@@ -724,8 +869,8 @@ namespace ardb
 			ValueArray* result = &next;
 			uint32 firtidx = *(readySetKeyIdxs.begin());
 			std::string str1, str2;
-			SetRange(db, keys[firtidx], fromObjs[firtidx], metas[firtidx]->max,
-			        max_subset_num, isfirst, *cmp);
+			SetRange(db, keys[firtidx], metas[firtidx], fromObjs[firtidx],
+			        metas[firtidx]->max, max_subset_num, isfirst, *cmp);
 			if (!cmp->empty())
 			{
 				fromObjs[firtidx] = *(cmp->rbegin());
@@ -740,8 +885,8 @@ namespace ardb
 			{
 				uint32 idx = *iit;
 				ValueArray tmp;
-				SetRange(db, keys[idx], fromObjs[idx], fromObjs[firtidx], -1,
-				        isfirst, tmp);
+				SetRange(db, keys[idx], metas[idx], fromObjs[idx],
+				        fromObjs[firtidx], -1, isfirst, tmp);
 				if (!tmp.empty())
 				{
 					fromObjs[idx] = *(tmp.rbegin());
@@ -824,6 +969,7 @@ namespace ardb
 			}
 			if (meta->size == 0)
 			{
+				delete_pointer_container(metas);
 				return 0;
 			}
 			if (min.type == EMPTY_VALUE || min.Compare(meta->min) < 0)
@@ -853,10 +999,11 @@ namespace ardb
 			/*
 			 * Use the smallest set as the base set
 			 */
-			SetRange(db, keys[min_idx], fromObjs[min_idx], max, max_subset_num,
-			        isfirst, *cmp);
+			SetRange(db, keys[min_idx], metas[min_idx], fromObjs[min_idx], max,
+			        max_subset_num, isfirst, *cmp);
 			if (cmp->empty())
 			{
+				delete_pointer_container(metas);
 				return 0;
 			}
 			fromObjs[min_idx] = *(cmp->rbegin());
@@ -867,8 +1014,8 @@ namespace ardb
 					result->clear();
 					result->resize(cmp->size());
 					ValueArray tmp;
-					SetRange(db, keys[i], fromObjs[i], fromObjs[min_idx], -1,
-					        isfirst, tmp);
+					SetRange(db, keys[i], metas[i], fromObjs[i],
+					        fromObjs[min_idx], -1, isfirst, tmp);
 					if (tmp.empty())
 					{
 						return 0;
@@ -937,6 +1084,7 @@ namespace ardb
 				InterCallback(Ardb* a, const DBID& id, const Slice& k) :
 						db(a), dbid(id), key(k)
 				{
+					meta.ziped = false;
 				}
 				void OnSubset(ValueArray& array)
 				{
@@ -985,9 +1133,26 @@ namespace ardb
 		int err = 0;
 		bool createSet = false;
 		SetMetaValue* meta = GetSetMeta(db, key, err, createSet);
-		if (NULL == meta)
+		if (NULL == meta || createSet || meta->size == 0)
 		{
+			DELETE(meta);
 			return err;
+		}
+		if (meta->ziped)
+		{
+			ValueData v = *(meta->zipvs.begin());
+			v.ToString(value);
+			meta->zipvs.erase(meta->zipvs.begin());
+			meta->size--;
+			if (meta->size <= 0)
+			{
+				DelMeta(db, key, meta);
+			} else
+			{
+				SetMeta(db, key, *meta);
+			}
+			DELETE(meta);
+			return 0;
 		}
 		Slice empty;
 		SetKeyObject sk(key, meta->min, db);
@@ -1017,8 +1182,7 @@ namespace ardb
 		}
 		if (meta->size == 0)
 		{
-			KeyObject k(key, SET_META, db);
-			DelValue(k);
+			DelMeta(db, key, meta);
 		} else
 		{
 			SetMeta(db, key, *meta);
@@ -1031,6 +1195,29 @@ namespace ardb
 	int Ardb::SRandMember(const DBID& db, const Slice& key, ValueArray& values,
 	        int count)
 	{
+		int err = 0;
+		bool createSet = false;
+		SetMetaValue* meta = GetSetMeta(db, key, err, createSet);
+		if (NULL == meta || createSet || meta->size == 0)
+		{
+			DELETE(meta);
+			return err;
+		}
+		if (meta->ziped)
+		{
+			ValueSet::iterator vit = meta->zipvs.begin();
+			while (vit != meta->zipvs.end())
+			{
+				values.push_back(*vit);
+				if (values.size() >= (uint32) count)
+				{
+					break;
+				}
+				vit++;
+			}
+			DELETE(meta);
+			return 0;
+		}
 		Slice empty;
 		SetKeyObject sk(key, empty, db);
 		Iterator* iter = FindValue(sk, true);
@@ -1064,6 +1251,7 @@ namespace ardb
 		{
 			values.push_back(values.front());
 		}
+		DELETE(meta);
 		return 0;
 	}
 
@@ -1120,6 +1308,7 @@ namespace ardb
 				UnionCallback(Ardb* a, const DBID& id, const Slice& k) :
 						db(a), dbid(id), key(k)
 				{
+					meta.ziped = false;
 				}
 				void OnSubset(ValueArray& array)
 				{
