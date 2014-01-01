@@ -5,7 +5,6 @@
  *      Author: wqy
  */
 #include "db_helpers.hpp"
-#include "ardb.hpp"
 
 namespace ardb
 {

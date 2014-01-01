@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -42,51 +42,52 @@ using std::string;
 
 namespace ardb
 {
-	class SocketHostAddress: public Address
-	{
-		private:
-			std::string m_host;
-			uint16 m_port;
-		public:
-			SocketHostAddress(const char* host = "", uint16 port = 0) :
-					m_host(host), m_port(port)
-			{
-			}
-			SocketHostAddress(const string& host, uint16 port) :
-					m_host(host), m_port(port)
-			{
-			}
-			SocketHostAddress(const SocketHostAddress& other) :
-					m_host(other.GetHost()), m_port(other.GetPort())
-			{
-			}
-			const std::string& GetHost() const
-			{
-				return m_host;
-			}
-			uint16 GetPort() const
-			{
-				return m_port;
-			}
-			bool operator==(const SocketHostAddress& other) const
-			{
-				return m_port == other.m_port && m_host == other.m_host;
-			}
-			bool operator<(const SocketHostAddress& other) const
-			{
-				if (m_port < other.m_port)
-				{
-					return true;
-				} else if (m_port > other.m_port)
-				{
-					return false;
-				}
-				return m_host < other.m_host;
-			}
-			virtual ~SocketHostAddress()
-			{
-			}
-	};
+    class SocketHostAddress: public Address
+    {
+        private:
+            std::string m_host;
+            uint16 m_port;
+        public:
+            SocketHostAddress(const char* host = "", uint16 port = 0) :
+                    m_host(host), m_port(port)
+            {
+            }
+            SocketHostAddress(const string& host, uint16 port) :
+                    m_host(host), m_port(port)
+            {
+            }
+            SocketHostAddress(const SocketHostAddress& other) :
+                    m_host(other.GetHost()), m_port(other.GetPort())
+            {
+            }
+            const std::string& GetHost() const
+            {
+                return m_host;
+            }
+            uint16 GetPort() const
+            {
+                return m_port;
+            }
+            bool operator==(const SocketHostAddress& other) const
+            {
+                return m_port == other.m_port && m_host == other.m_host;
+            }
+            bool operator<(const SocketHostAddress& other) const
+            {
+                if (m_port < other.m_port)
+                {
+                    return true;
+                }
+                else if (m_port > other.m_port)
+                {
+                    return false;
+                }
+                return m_host < other.m_host;
+            }
+            virtual ~SocketHostAddress()
+            {
+            }
+    };
 }
 
 #endif /* SOCKETHOSTADDRESS_HPP_ */

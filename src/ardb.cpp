@@ -36,564 +36,584 @@
 namespace ardb
 {
 
-	size_t Ardb::RealPosition(std::string& buf, int pos)
-	{
-		if (pos < 0)
-		{
-			pos = buf.size() + pos;
-		}
-		if (pos > 0 && (uint32) pos >= buf.size())
-		{
-			pos = buf.size() - 1;
-		}
-		if (pos < 0)
-		{
-			pos = 0;
-		}
-		return pos;
-	}
+    size_t Ardb::RealPosition(std::string& buf, int pos)
+    {
+        if (pos < 0)
+        {
+            pos = buf.size() + pos;
+        }
+        if (pos > 0 && (uint32) pos >= buf.size())
+        {
+            pos = buf.size() - 1;
+        }
+        if (pos < 0)
+        {
+            pos = 0;
+        }
+        return pos;
+    }
 
-	//static const char* REPO_NAME = "data";
-	Ardb::Ardb(KeyValueEngineFactory* engine, bool multi_thread) :
-			m_engine_factory(engine), m_engine(NULL), m_db_helper(
-			NULL)
-	{
-		m_key_locker.enable = multi_thread;
-	}
+    //static const char* REPO_NAME = "data";
+    Ardb::Ardb(KeyValueEngineFactory* engine, bool multi_thread) :
+            m_engine_factory(engine), m_engine(NULL), m_db_helper(
+            NULL)
+    {
+        m_key_locker.enable = multi_thread;
+    }
 
-	bool Ardb::Init(const ArdbConfig& cfg)
-	{
-		m_config = cfg;
-		if (NULL == m_engine)
-		{
-			INFO_LOG("Start init storage engine.");
-			m_engine = m_engine_factory->CreateDB(
-			        m_engine_factory->GetName().c_str());
-			if (NULL == m_engine)
-			{
-				return false;
-			}
-			/**
-			 * Init db helper
-			 */
-			NEW(m_db_helper, DBHelper(this));
-			m_db_helper->Start();
+    bool Ardb::Init(const ArdbConfig& cfg)
+    {
+        m_config = cfg;
+        if (NULL == m_engine)
+        {
+            INFO_LOG("Start init storage engine.");
+            m_engine = m_engine_factory->CreateDB(m_engine_factory->GetName().c_str());
+            if (NULL == m_engine)
+            {
+                return false;
+            }
+            if (NULL != m_engine)
+            {
+                /**
+                 * Init db helper
+                 */
+                NEW(m_db_helper, DBHelper(this));
+                m_db_helper->Start();
+                INFO_LOG("Init storage engine success.");
+            }
+        }
+        return m_engine != NULL;
+    }
 
-			if (NULL != m_engine)
-			{
-				INFO_LOG("Init storage engine success.");
-			}
-		}
-		return m_engine != NULL;
-	}
+    Ardb::~Ardb()
+    {
+        if (NULL != m_db_helper)
+        {
+            m_db_helper->StopSelf();
+            m_db_helper->Join();
+            DELETE(m_db_helper);
+        }
+        if (NULL != m_engine)
+        {
+            m_engine_factory->CloseDB(m_engine);
+        }
+    }
 
-	Ardb::~Ardb()
-	{
-		if (NULL != m_db_helper)
-		{
-			m_db_helper->StopSelf();
-			DELETE(m_db_helper);
-		}
-		if (NULL != m_engine)
-		{
-			m_engine_factory->CloseDB(m_engine);
-		}
-	}
+    void Ardb::Walk(KeyObject& key, bool reverse, bool decodeValue, WalkHandler* handler)
+    {
+        bool checkType = false;
+        if (key.type == KEY_END)
+        {
+            key.type = KEY_META;
+            key.key = Slice();
+            checkType = true;
+        }
+        bool isFirstElement = true;
+        Iterator* iter = FindValue(key);
+        if (NULL != iter && !iter->Valid() && reverse)
+        {
+            iter->SeekToLast();
+            isFirstElement = false;
+        }
+        uint32 cursor = 0;
+        while (NULL != iter && iter->Valid())
+        {
+            Slice tmpkey = iter->Key();
+            KeyObject* kk = decode_key(tmpkey, &key);
+            if (NULL == kk || (checkType && (kk->type != key.type || kk->key.compare(key.key) != 0)))
+            {
+                DELETE(kk);
+                if (reverse && isFirstElement)
+                {
+                    iter->Prev();
+                    isFirstElement = false;
+                    continue;
+                }
+                break;
+            }
+            ValueObject* v = decodeValue ? decode_value_obj(kk->type, iter->Value().data(), iter->Value().size()) :
+            NULL;
+            int ret = handler->OnKeyValue(kk, v, cursor++);
+            DELETE(kk);
+            DELETE(v);
+            if (ret < 0)
+            {
+                break;
+            }
+            if (reverse)
+            {
+                iter->Prev();
+            }
+            else
+            {
+                iter->Next();
+            }
+        }
+        DELETE(iter);
+    }
 
-	void Ardb::Walk(KeyObject& key, bool reverse, bool decodeValue,
-	        WalkHandler* handler)
-	{
-		bool checkType = false;
-		if (key.type == KEY_END)
-		{
-			key.type = KEY_META;
-			key.key = Slice();
-			checkType = true;
-		}
-		bool isFirstElement = true;
-		Iterator* iter = FindValue(key);
-		if (NULL != iter && !iter->Valid() && reverse)
-		{
-			iter->SeekToLast();
-			isFirstElement = false;
-		}
-		uint32 cursor = 0;
-		while (NULL != iter && iter->Valid())
-		{
-			Slice tmpkey = iter->Key();
-			KeyObject* kk = decode_key(tmpkey, &key);
-			if (NULL == kk
-			        || (checkType
-			                && (kk->type != key.type
-			                        || kk->key.compare(key.key) != 0)))
-			{
-				DELETE(kk);
-				if (reverse && isFirstElement)
-				{
-					iter->Prev();
-					isFirstElement = false;
-					continue;
-				}
-				break;
-			}
-			ValueObject* v =
-			        decodeValue ?
-			                decode_value_obj(kk->type, iter->Value().data(),
-			                        iter->Value().size()) :
-			                NULL;
-			int ret = handler->OnKeyValue(kk, v, cursor++);
-			DELETE(kk);
-			DELETE(v);
-			if (ret < 0)
-			{
-				break;
-			}
-			if (reverse)
-			{
-				iter->Prev();
-			} else
-			{
-				iter->Next();
-			}
-		}
-		DELETE(iter);
-	}
+    KeyValueEngine* Ardb::GetEngine()
+    {
+        return m_engine;
+    }
 
-	KeyValueEngine* Ardb::GetEngine()
-	{
-		return m_engine;
-	}
+    int Ardb::RawSet(const Slice& key, const Slice& value)
+    {
+        int ret = GetEngine()->Put(key, value);
+        return ret;
+    }
+    int Ardb::RawDel(const Slice& key)
+    {
+        int ret = GetEngine()->Del(key);
+        return ret;
+    }
 
-	int Ardb::RawSet(const Slice& key, const Slice& value)
-	{
-		int ret = GetEngine()->Put(key, value);
-		return ret;
-	}
-	int Ardb::RawDel(const Slice& key)
-	{
-		int ret = GetEngine()->Del(key);
-		return ret;
-	}
+    int Ardb::RawGet(const Slice& key, std::string* value)
+    {
+        return GetEngine()->Get(key, value);
+    }
 
-	int Ardb::RawGet(const Slice& key, std::string* value)
-	{
-		return GetEngine()->Get(key, value);
-	}
+    int Ardb::Type(const DBID& db, const Slice& key)
+    {
+        KeyType type;
+        if (0 == GetType(db, key, type))
+        {
+            return type;
+        }
+        return -1;
+    }
 
-	int Ardb::Type(const DBID& db, const Slice& key)
-	{
-		KeyType type;
-		if (0 == GetType(db, key, type))
-		{
-			return type;
-		}
-		return -1;
-	}
+    void Ardb::VisitDB(const DBID& db, RawValueVisitor* visitor, Iterator* iter)
+    {
+        Iterator* current_iter = iter;
+        if (NULL == current_iter)
+        {
+            current_iter = NewIterator(db);
+        }
+        while (NULL != current_iter && current_iter->Valid())
+        {
+            DBID tmpdb;
+            KeyType t;
+            if (!peek_dbkey_header(current_iter->Key(), tmpdb, t) || tmpdb != db)
+            {
+                break;
+            }
+            int ret = 0;
+            if (t != KEY_END)
+            {
+                ret = visitor->OnRawKeyValue(current_iter->Key(), current_iter->Value());
+            }
+            current_iter->Next();
+            if (ret == -1)
+            {
+                break;
+            }
+        }
+        if (NULL == iter)
+        {
+            DELETE(current_iter);
+        }
+    }
+    void Ardb::VisitAllDB(RawValueVisitor* visitor, Iterator* iter)
+    {
+        Iterator* current_iter = iter;
+        if (NULL == current_iter)
+        {
+            current_iter = NewIterator();
+        }
+        while (NULL != current_iter && current_iter->Valid())
+        {
+            int ret = visitor->OnRawKeyValue(current_iter->Key(), current_iter->Value());
+            current_iter->Next();
+            if (ret == -1)
+            {
+                break;
+            }
+        }
+        if (NULL == iter)
+        {
+            DELETE(current_iter);
+        }
+    }
 
-	void Ardb::VisitDB(const DBID& db, RawValueVisitor* visitor, Iterator* iter)
-	{
-		Iterator* current_iter = iter;
-		if (NULL == current_iter)
-		{
-			current_iter = NewIterator(db);
-		}
-		while (NULL != current_iter && current_iter->Valid())
-		{
-			DBID tmpdb;
-			KeyType t;
-			if (!peek_dbkey_header(current_iter->Key(), tmpdb, t)
-			        || tmpdb != db)
-			{
-				break;
-			}
-			int ret = 0;
-			if (t != KEY_END)
-			{
-				ret = visitor->OnRawKeyValue(current_iter->Key(),
-				        current_iter->Value());
-			}
-			current_iter->Next();
-			if (ret == -1)
-			{
-				break;
-			}
-		}
-		if (NULL == iter)
-		{
-			DELETE(current_iter);
-		}
-	}
-	void Ardb::VisitAllDB(RawValueVisitor* visitor, Iterator* iter)
-	{
-		Iterator* current_iter = iter;
-		if (NULL == current_iter)
-		{
-			current_iter = NewIterator();
-		}
-		while (NULL != current_iter && current_iter->Valid())
-		{
-			int ret = visitor->OnRawKeyValue(current_iter->Key(),
-			        current_iter->Value());
-			current_iter->Next();
-			if (ret == -1)
-			{
-				break;
-			}
-		}
-		if (NULL == iter)
-		{
-			DELETE(current_iter);
-		}
-	}
+    Iterator* Ardb::NewIterator()
+    {
+        Slice empty;
+        return GetEngine()->Find(empty, false);
+    }
+    Iterator* Ardb::NewIterator(const DBID& db)
+    {
+        KeyObject key(Slice(), KEY_META, db);
+        return FindValue(key);
+    }
 
-	Iterator* Ardb::NewIterator()
-	{
-		Slice empty;
-		return GetEngine()->Find(empty, false);
-	}
-	Iterator* Ardb::NewIterator(const DBID& db)
-	{
-		KeyObject key(Slice(), KEY_META, db);
-		return FindValue(key);
-	}
+    void Ardb::PrintDB(const DBID& db)
+    {
+        Slice empty;
+        KeyObject start(empty, KEY_META, db);
+        Iterator* iter = FindValue(start);
+        while (NULL != iter && iter->Valid())
+        {
+            Slice tmpkey = iter->Key();
+            KeyObject* kk = decode_key(tmpkey, NULL);
+            if (kk->db != db)
+            {
+                DELETE(kk);
+                break;
+            }
+            ValueData v;
+            Buffer readbuf(const_cast<char*>(iter->Value().data()), 0, iter->Value().size());
+            decode_value(readbuf, v);
+            if (NULL != kk)
+            {
+                std::string str;
+                std::string keystr(kk->key.data(), kk->key.size());
+                switch (kk->type)
+                {
+                    case HASH_FIELD:
+                    {
+                        HashKeyObject* hk = (HashKeyObject*) kk;
+                        std::string f;
+                        hk->field.ToString(f);
+                        DEBUG_LOG("[Hash]Key=%s, Field=%s, Value=%s", keystr.c_str(), f.c_str(),
+                                v.ToString(str).c_str());
+                        break;
+                    }
+                    case LIST_ELEMENT:
+                    {
+                        //ListKeyObject* hk = (ListKeyObject*) kk;
+                        DEBUG_LOG("[List]Key=%s, Value=%s", keystr.c_str(), v.ToString(str).c_str());
+                        break;
+                    }
+                    case SET_ELEMENT:
+                    {
+                        SetKeyObject* hk = (SetKeyObject*) kk;
+                        std::string f;
+                        hk->value.ToString(f);
+                        DEBUG_LOG("[Set]Key=%s, Member=%s", keystr.c_str(), f.c_str());
+                        break;
+                    }
+                    default:
+                    {
+                        DEBUG_LOG("[%d]Key=%s, Value=%s", kk->type, kk->key.data(), v.ToString(str).c_str());
+                        break;
+                    }
+                }
 
-	void Ardb::PrintDB(const DBID& db)
-	{
-		Slice empty;
-		KeyObject start(empty, KEY_META, db);
-		Iterator* iter = FindValue(start);
-		while (NULL != iter && iter->Valid())
-		{
-			Slice tmpkey = iter->Key();
-			KeyObject* kk = decode_key(tmpkey, NULL);
-			if (kk->db != db)
-			{
-				DELETE(kk);
-				break;
-			}
-			ValueData v;
-			Buffer readbuf(const_cast<char*>(iter->Value().data()), 0,
-			        iter->Value().size());
-			decode_value(readbuf, v);
-			if (NULL != kk)
-			{
-				std::string str;
-				DEBUG_LOG("[%d]Key=%s, Value=%s", kk->type, kk->key.data(),
-				        v.ToString(str).c_str());
-			}
-			DELETE(kk);
-			iter->Next();
-		}
-		DELETE(iter);
-	}
+            }
+            DELETE(kk);
+            iter->Next();
+        }
+        DELETE(iter);
+    }
 
-	int Ardb::CompactAll()
-	{
-		struct CompactTask: public Thread
-		{
-				Ardb* adb;
-				CompactTask(Ardb* db) :
-						adb(db)
-				{
-				}
-				void Run()
-				{
-					adb->GetEngine()->CompactRange(Slice(), Slice());
-					delete this;
-				}
-		};
-		/*
-		 * Start a background thread to compact kvs
-		 */
-		Thread* t = new CompactTask(this);
-		t->Start();
-		return 0;
-		return 0;
-	}
+    int Ardb::CompactAll()
+    {
+        struct CompactTask: public Thread
+        {
+                Ardb* adb;
+                CompactTask(Ardb* db) :
+                        adb(db)
+                {
+                }
+                void Run()
+                {
+                    adb->GetEngine()->CompactRange(Slice(), Slice());
+                    delete this;
+                }
+        };
+        /*
+         * Start a background thread to compact kvs
+         */
+        Thread* t = new CompactTask(this);
+        t->Start();
+        return 0;
+        return 0;
+    }
 
-	bool Ardb::DBExist(const DBID& db, DBID& nextdb)
-	{
-		KeyObject start(Slice(), KEY_META, db);
-		Iterator* iter = FindValue(start, false);
-		bool found = false;
-		nextdb = db;
-		if (NULL != iter && iter->Valid())
-		{
-			Slice tmpkey = iter->Key();
-			KeyObject* kk = decode_key(tmpkey, NULL);
-			if (NULL != kk)
-			{
-				if (kk->db == db)
-				{
-					found = true;
-				} else
-				{
-					nextdb = kk->db;
-				}
-			}
-			DELETE(kk);
-		}
-		DELETE(iter);
-		return found;
-	}
+    bool Ardb::DBExist(const DBID& db, DBID& nextdb)
+    {
+        KeyObject start(Slice(), KEY_META, db);
+        Iterator* iter = FindValue(start, false);
+        bool found = false;
+        nextdb = db;
+        if (NULL != iter && iter->Valid())
+        {
+            Slice tmpkey = iter->Key();
+            KeyObject* kk = decode_key(tmpkey, NULL);
+            if (NULL != kk)
+            {
+                if (kk->db == db)
+                {
+                    found = true;
+                }
+                else
+                {
+                    nextdb = kk->db;
+                }
+            }
+            DELETE(kk);
+        }
+        DELETE(iter);
+        return found;
+    }
 
-	int Ardb::CompactDB(const DBID& db)
-	{
-		struct CompactTask: public Thread
-		{
-				Ardb* adb;
-				DBID dbid;
-				CompactTask(Ardb* db, DBID id) :
-						adb(db), dbid(id)
-				{
-				}
-				void Run()
-				{
-					KeyObject start(Slice(), KEY_META, dbid);
-					KeyObject end(Slice(), KEY_META, dbid + 1);
-					Buffer sbuf, ebuf;
-					encode_key(sbuf, start);
-					encode_key(ebuf, end);
-					adb->GetEngine()->CompactRange(sbuf.AsString(),
-					        ebuf.AsString());
-					delete this;
-				}
-		};
-		/*
-		 * Start a background thread to compact kvs
-		 */
-		Thread* t = new CompactTask(this, db);
-		t->Start();
-		return 0;
-	}
+    int Ardb::CompactDB(const DBID& db)
+    {
+        struct CompactTask: public Thread
+        {
+                Ardb* adb;
+                DBID dbid;
+                CompactTask(Ardb* db, DBID id) :
+                        adb(db), dbid(id)
+                {
+                }
+                void Run()
+                {
+                    KeyObject start(Slice(), KEY_META, dbid);
+                    KeyObject end(Slice(), KEY_META, dbid + 1);
+                    Buffer sbuf, ebuf;
+                    encode_key(sbuf, start);
+                    encode_key(ebuf, end);
+                    adb->GetEngine()->CompactRange(sbuf.AsString(), ebuf.AsString());
+                    delete this;
+                }
+        };
+        /*
+         * Start a background thread to compact kvs
+         */
+        Thread* t = new CompactTask(this, db);
+        t->Start();
+        return 0;
+    }
 
-	int Ardb::FlushDB(const DBID& db)
-	{
-		struct VisitorTask: public RawValueVisitor, public Thread
-		{
-				Ardb* adb;
-				DBID dbid;
-				VisitorTask(Ardb* db, DBID id) :
-						adb(db), dbid(id)
-				{
-				}
-				int OnRawKeyValue(const Slice& key, const Slice& value)
-				{
-					adb->RawDel(key);
-					return 0;
-				}
-				void Run()
-				{
-					adb->GetEngine()->BeginBatchWrite();
-					adb->VisitDB(dbid, this);
-					adb->GetEngine()->CommitBatchWrite();
-					KeyObject start(Slice(), KEY_META, dbid);
-					KeyObject end(Slice(), KEY_META, dbid + 1);
-					Buffer sbuf, ebuf;
-					encode_key(sbuf, start);
-					encode_key(ebuf, end);
-					adb->GetEngine()->CompactRange(sbuf.AsString(),
-					        ebuf.AsString());
-					delete this;
-				}
-		};
-		/*
-		 * Start a background thread to delete kvs
-		 */
-		Thread* t = new VisitorTask(this, db);
-		t->Start();
-		return 0;
-	}
+    int Ardb::FlushDB(const DBID& db)
+    {
+        struct VisitorTask: public RawValueVisitor, public Thread
+        {
+                Ardb* adb;
+                DBID dbid;
+                VisitorTask(Ardb* db, DBID id) :
+                        adb(db), dbid(id)
+                {
+                }
+                int OnRawKeyValue(const Slice& key, const Slice& value)
+                {
+                    adb->RawDel(key);
+                    return 0;
+                }
+                void Run()
+                {
+                    adb->GetEngine()->BeginBatchWrite();
+                    adb->VisitDB(dbid, this);
+                    adb->GetEngine()->CommitBatchWrite();
+                    KeyObject start(Slice(), KEY_META, dbid);
+                    KeyObject end(Slice(), KEY_META, dbid + 1);
+                    Buffer sbuf, ebuf;
+                    encode_key(sbuf, start);
+                    encode_key(ebuf, end);
+                    adb->GetEngine()->CompactRange(sbuf.AsString(), ebuf.AsString());
+                    delete this;
+                }
+        };
+        /*
+         * Start a background thread to delete kvs
+         */
+        Thread* t = new VisitorTask(this, db);
+        t->Start();
+        return 0;
+    }
 
-	int Ardb::FlushAll()
-	{
-		struct VisitorTask: public RawValueVisitor, public Thread
-		{
-				Ardb* db;
-				VisitorTask(Ardb* adb) :
-						db(adb)
-				{
-				}
-				int OnRawKeyValue(const Slice& key, const Slice& value)
-				{
-					db->RawDel(key);
-					return 0;
-				}
-				void Run()
-				{
-					db->GetEngine()->BeginBatchWrite();
-					db->VisitAllDB(this);
-					db->GetEngine()->CommitBatchWrite();
-					db->GetEngine()->CompactRange(Slice(), Slice());
-					delete this;
-				}
-		};
-		/*
-		 * Start a background thread to delete kvs
-		 */
-		Thread* t = new VisitorTask(this);
-		t->Start();
-		return 0;
-	}
+    int Ardb::FlushAll()
+    {
+        struct VisitorTask: public RawValueVisitor, public Thread
+        {
+                Ardb* db;
+                VisitorTask(Ardb* adb) :
+                        db(adb)
+                {
+                }
+                int OnRawKeyValue(const Slice& key, const Slice& value)
+                {
+                    db->RawDel(key);
+                    return 0;
+                }
+                void Run()
+                {
+                    db->GetEngine()->BeginBatchWrite();
+                    db->VisitAllDB(this);
+                    db->GetEngine()->CommitBatchWrite();
+                    db->GetEngine()->CompactRange(Slice(), Slice());
+                    delete this;
+                }
+        };
+        /*
+         * Start a background thread to delete kvs
+         */
+        Thread* t = new VisitorTask(this);
+        t->Start();
+        return 0;
+    }
 
-	Iterator* Ardb::FindValue(KeyObject& key, bool cache)
-	{
-		Buffer keybuf(key.key.size() + 16);
-		encode_key(keybuf, key);
-		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
-		Iterator* iter = GetEngine()->Find(k, cache);
-		return iter;
-	}
+    Iterator* Ardb::FindValue(KeyObject& key, bool cache)
+    {
+        Buffer keybuf(key.key.size() + 16);
+        encode_key(keybuf, key);
+        Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
+        Iterator* iter = GetEngine()->Find(k, cache);
+        return iter;
+    }
 
-	int Ardb::GetRawValue(const KeyObject& key, std::string& value)
-	{
-		Buffer keybuf(key.key.size() + 16);
-		encode_key(keybuf, key);
-		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
-		int ret = GetEngine()->Get(k, &value);
-		if (ret == 0)
-		{
-			return ARDB_OK;
-		}
-		return ERR_NOT_EXIST;
-	}
+    int Ardb::GetRawValue(const KeyObject& key, std::string& value)
+    {
+        Buffer keybuf(key.key.size() + 16);
+        encode_key(keybuf, key);
+        Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
+        int ret = GetEngine()->Get(k, &value);
+        if (ret == 0)
+        {
+            return ARDB_OK;
+        }
+        return ERR_NOT_EXIST;
+    }
 
-	int Ardb::SetRawValue(KeyObject& key, Buffer& value)
-	{
-		DBWatcher& watcher = m_watcher.GetValue();
-		watcher.data_changed = true;
-		if (watcher.on_key_update != NULL)
-		{
-			watcher.on_key_update(key.db, key.key, watcher.on_key_update_data);
-		}
-		Buffer keybuf;
-		keybuf.EnsureWritableBytes(key.key.size() + 16);
-		encode_key(keybuf, key);
-		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
-		Slice v(value.GetRawReadBuffer(), value.ReadableBytes());
-		return RawSet(k, v);
-	}
+    int Ardb::SetRawValue(KeyObject& key, Buffer& value)
+    {
+        DBWatcher& watcher = m_watcher.GetValue();
+        watcher.data_changed = true;
+        if (watcher.on_key_update != NULL)
+        {
+            watcher.on_key_update(key.db, key.key, watcher.on_key_update_data);
+        }
+        Buffer keybuf;
+        keybuf.EnsureWritableBytes(key.key.size() + 16);
+        encode_key(keybuf, key);
+        Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
+        Slice v(value.GetRawReadBuffer(), value.ReadableBytes());
+        return RawSet(k, v);
+    }
 
-	int Ardb::GetType(const DBID& db, const Slice& key, KeyType& type)
-	{
-		CommonMetaValue* meta = GetMeta(db, key, true);
-		if (NULL != meta)
-		{
-			type = meta->header.type;
-			DELETE(meta);
-			return 0;
-		}
-		return ERR_NOT_EXIST;
-	}
-	int Ardb::SetMeta(const DBID& db, const Slice& key, CommonMetaValue& meta)
-	{
-		KeyObject metakey(key, KEY_META, db);
-		return SetMeta(metakey, meta);
-	}
-	int Ardb::SetMeta(KeyObject& key, CommonMetaValue& meta)
-	{
-		DBWatcher& watcher = m_watcher.GetValue();
-		watcher.data_changed = true;
-		if (watcher.on_key_update != NULL)
-		{
-			watcher.on_key_update(key.db, key.key, watcher.on_key_update_data);
-		}
-		if (meta.header.expireat > 0)
-		{
-			SetExpiration(key.db, key.key, meta.header.expireat, false);
-		}
-		Buffer keybuf;
-		keybuf.EnsureWritableBytes(key.key.size() + 16);
-		encode_key(keybuf, key);
-		Buffer valuebuf;
-		valuebuf.EnsureWritableBytes(64);
-		encode_meta(valuebuf, meta);
-		Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
-		Slice v(valuebuf.GetRawReadBuffer(), valuebuf.ReadableBytes());
-		return RawSet(k, v);
-	}
+    int Ardb::GetType(const DBID& db, const Slice& key, KeyType& type)
+    {
+        CommonMetaValue* meta = GetMeta(db, key, true);
+        if (NULL != meta)
+        {
+            type = meta->header.type;
+            DELETE(meta);
+            return 0;
+        }
+        return ERR_NOT_EXIST;
+    }
+    int Ardb::SetMeta(const DBID& db, const Slice& key, CommonMetaValue& meta)
+    {
+        KeyObject metakey(key, KEY_META, db);
+        return SetMeta(metakey, meta);
+    }
+    int Ardb::SetMeta(KeyObject& key, CommonMetaValue& meta)
+    {
+        DBWatcher& watcher = m_watcher.GetValue();
+        watcher.data_changed = true;
+        if (watcher.on_key_update != NULL)
+        {
+            watcher.on_key_update(key.db, key.key, watcher.on_key_update_data);
+        }
+        if (meta.header.expireat > 0)
+        {
+            SetExpiration(key.db, key.key, meta.header.expireat, false);
+        }
+        Buffer keybuf;
+        keybuf.EnsureWritableBytes(key.key.size() + 16);
+        encode_key(keybuf, key);
+        Buffer valuebuf;
+        valuebuf.EnsureWritableBytes(64);
+        encode_meta(valuebuf, meta);
+        Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
+        Slice v(valuebuf.GetRawReadBuffer(), valuebuf.ReadableBytes());
+        return RawSet(k, v);
+    }
 
-	int Ardb::DelMeta(const DBID& db, const Slice& key, CommonMetaValue* meta)
-	{
-		if (NULL == meta)
-		{
-			return -1;
-		}
-		if (meta->header.expireat > 0)
-		{
-			BatchWriteGuard guard(GetEngine());
-			KeyObject k(key, KEY_META, db);
-			DelValue(k);
-			ExpireKeyObject ek(key, meta->header.expireat, db);
-			DelValue(ek);
-		} else
-		{
-			KeyObject k(key, KEY_META, db);
-			DelValue(k);
-		}
-		return 0;
-	}
+    int Ardb::DelMeta(const DBID& db, const Slice& key, CommonMetaValue* meta)
+    {
+        if (NULL == meta)
+        {
+            return -1;
+        }
+        if (meta->header.expireat > 0)
+        {
+            BatchWriteGuard guard(GetEngine());
+            KeyObject k(key, KEY_META, db);
+            DelValue(k);
+            ExpireKeyObject ek(key, meta->header.expireat, db);
+            DelValue(ek);
+        }
+        else
+        {
+            KeyObject k(key, KEY_META, db);
+            DelValue(k);
+        }
+        return 0;
+    }
 
-	CommonMetaValue* Ardb::GetMeta(const DBID& db, const Slice& key,
-	bool onlyHead)
-	{
-		KeyObject verkey(key, KEY_META, db);
-		std::string v;
-		if (0 == GetRawValue(verkey, v) && v.size() > 1)
-		{
-			return decode_meta(v.data(), v.size(), onlyHead);
-		} else
-		{
-			return NULL;
-		}
-	}
+    CommonMetaValue* Ardb::GetMeta(const DBID& db, const Slice& key, bool onlyHead)
+    {
+        KeyObject verkey(key, KEY_META, db);
+        std::string v;
+        if (0 == GetRawValue(verkey, v) && v.size() > 1)
+        {
+            return decode_meta(v.data(), v.size(), onlyHead);
+        }
+        else
+        {
+            return NULL;
+        }
+    }
 
-	int Ardb::GetScript(const std::string& funacname, std::string& funcbody)
-	{
-		KeyObject verkey(funacname, SCRIPT, ARDB_GLOBAL_DB);
-		CommonValueObject v;
-		int ret = GetKeyValueObject(verkey, v);
-		if (0 == ret)
-		{
-			funcbody = v.data.bytes_value;
-			return 0;
-		}
-		return ret;
-	}
-	int Ardb::SaveScript(const std::string& funacname,
-	        const std::string& funcbody)
-	{
-		KeyObject key(funacname, SCRIPT, ARDB_GLOBAL_DB);
-		CommonValueObject v;
-		v.data.SetValue(funcbody, false);
-		return SetKeyValueObject(key, v);
-	}
+    int Ardb::GetScript(const std::string& funacname, std::string& funcbody)
+    {
+        KeyObject verkey(funacname, SCRIPT, ARDB_GLOBAL_DB);
+        CommonValueObject v;
+        int ret = GetKeyValueObject(verkey, v);
+        if (0 == ret)
+        {
+            funcbody = v.data.bytes_value;
+            return 0;
+        }
+        return ret;
+    }
+    int Ardb::SaveScript(const std::string& funacname, const std::string& funcbody)
+    {
+        KeyObject key(funacname, SCRIPT, ARDB_GLOBAL_DB);
+        CommonValueObject v;
+        v.data.SetValue(funcbody, false);
+        return SetKeyValueObject(key, v);
+    }
 
-	int Ardb::FlushScripts()
-	{
-		KeyObject start(Slice(), SCRIPT, ARDB_GLOBAL_DB);
-		Iterator* iter = FindValue(start, false);
-		BatchWriteGuard guard(GetEngine());
-		while (NULL != iter && iter->Valid())
-		{
-			Slice tmpkey = iter->Key();
-			KeyObject* kk = decode_key(tmpkey, NULL);
-			if (NULL != kk)
-			{
-				if (kk->type == SCRIPT)
-				{
-					DelValue(*kk);
-				} else
-				{
-					break;
-				}
-			}
-			DELETE(kk);
-			iter->Next();
-		}
-		DELETE(iter);
-		return 0;
-	}
+    int Ardb::FlushScripts()
+    {
+        KeyObject start(Slice(), SCRIPT, ARDB_GLOBAL_DB);
+        Iterator* iter = FindValue(start, false);
+        BatchWriteGuard guard(GetEngine());
+        while (NULL != iter && iter->Valid())
+        {
+            Slice tmpkey = iter->Key();
+            KeyObject* kk = decode_key(tmpkey, NULL);
+            if (NULL != kk)
+            {
+                if (kk->type == SCRIPT)
+                {
+                    DelValue(*kk);
+                }
+                else
+                {
+                    break;
+                }
+            }
+            DELETE(kk);
+            iter->Next();
+        }
+        DELETE(iter);
+        return 0;
+    }
 
 }
 

@@ -31,146 +31,142 @@
 
 namespace ardb
 {
-	int Ardb::Append(const DBID& db, const Slice& key, const Slice& value)
-	{
-		std::string prev_value;
-		int ret = Get(db, key, prev_value);
-		if (ret == 0 || ret == ERR_NOT_EXIST)
-		{
-			prev_value.append(value.data(), value.size());
-			Set(db, key, prev_value);
-			return prev_value.size();
-		}
-		return ret;
-	}
+    int Ardb::Append(const DBID& db, const Slice& key, const Slice& value)
+    {
+        std::string prev_value;
+        int ret = Get(db, key, prev_value);
+        if (ret == 0 || ret == ERR_NOT_EXIST)
+        {
+            prev_value.append(value.data(), value.size());
+            Set(db, key, prev_value);
+            return prev_value.size();
+        }
+        return ret;
+    }
 
-	int Ardb::Incr(const DBID& db, const Slice& key, int64_t& value)
-	{
-		return Incrby(db, key, 1, value);
-	}
-	int Ardb::Incrby(const DBID& db, const Slice& key, int64_t increment,
-	        int64_t& value)
-	{
-		CommonMetaValue* meta = GetMeta(db, key, false);
-		StringMetaValue* smeta = NULL;
-		if (NULL != meta)
-		{
-			if (meta->header.type != STRING_META)
-			{
-				DELETE(meta);
-				return ERR_INVALID_TYPE;
-			}
-			smeta = (StringMetaValue*) meta;
-			smeta->value.ToNumber();
-			if (smeta->value.type == BYTES_VALUE)
-			{
-				DELETE(smeta);
-				return ERR_INVALID_TYPE;
-			}
-			smeta->value.Incrby(increment);
-			value = smeta->value.integer_value;
-			SetMeta(db, key, *smeta);
-			DELETE(smeta);
-		} else
-		{
-			StringMetaValue nsmeta;
-			nsmeta.value.SetValue(increment);
-			KeyObject k(key, KEY_META, db);
-			SetMeta(k, nsmeta);
-			value = increment;
-		}
-		return 0;
-	}
+    int Ardb::Incr(const DBID& db, const Slice& key, int64_t& value)
+    {
+        return Incrby(db, key, 1, value);
+    }
+    int Ardb::Incrby(const DBID& db, const Slice& key, int64_t increment, int64_t& value)
+    {
+        CommonMetaValue* meta = GetMeta(db, key, false);
+        StringMetaValue* smeta = NULL;
+        if (NULL != meta)
+        {
+            if (meta->header.type != STRING_META)
+            {
+                DELETE(meta);
+                return ERR_INVALID_TYPE;
+            }
+            smeta = (StringMetaValue*) meta;
+            smeta->value.ToNumber();
+            if (smeta->value.type == BYTES_VALUE)
+            {
+                DELETE(smeta);
+                return ERR_INVALID_TYPE;
+            }
+            smeta->value.Incrby(increment);
+            value = smeta->value.integer_value;
+            SetMeta(db, key, *smeta);
+            DELETE(smeta);
+        }
+        else
+        {
+            StringMetaValue nsmeta;
+            nsmeta.value.SetValue(increment);
+            KeyObject k(key, KEY_META, db);
+            SetMeta(k, nsmeta);
+            value = increment;
+        }
+        return 0;
+    }
 
-	int Ardb::Decr(const DBID& db, const Slice& key, int64_t& value)
-	{
-		return Decrby(db, key, 1, value);
-	}
+    int Ardb::Decr(const DBID& db, const Slice& key, int64_t& value)
+    {
+        return Decrby(db, key, 1, value);
+    }
 
-	int Ardb::Decrby(const DBID& db, const Slice& key, int64_t decrement,
-	        int64_t& value)
-	{
-		return Incrby(db, key, 0 - decrement, value);
-	}
+    int Ardb::Decrby(const DBID& db, const Slice& key, int64_t decrement, int64_t& value)
+    {
+        return Incrby(db, key, 0 - decrement, value);
+    }
 
-	int Ardb::IncrbyFloat(const DBID& db, const Slice& key, double increment,
-	        double& value)
-	{
-		CommonMetaValue* meta = GetMeta(db, key, false);
-		StringMetaValue* smeta = NULL;
+    int Ardb::IncrbyFloat(const DBID& db, const Slice& key, double increment, double& value)
+    {
+        CommonMetaValue* meta = GetMeta(db, key, false);
+        StringMetaValue* smeta = NULL;
 
-		if (NULL != meta)
-		{
-			if (meta->header.type != STRING_META)
-			{
-				DELETE(meta);
-				return ERR_INVALID_TYPE;
-			}
-			smeta = (StringMetaValue*) meta;
-			smeta->value.ToNumber();
-			if (smeta->value.type == BYTES_VALUE)
-			{
-				DELETE(smeta);
-				return ERR_INVALID_TYPE;
-			}
-			smeta->value.IncrbyFloat(increment);
-			value = smeta->value.double_value;
-			DELETE(smeta);
-		} else
-		{
-			StringMetaValue nsmeta;
-			nsmeta.value.SetValue(increment);
-			KeyObject k(key, KEY_META, db);
-			SetMeta(k, nsmeta);
-			value = increment;
-		}
-		return 0;
-	}
+        if (NULL != meta)
+        {
+            if (meta->header.type != STRING_META)
+            {
+                DELETE(meta);
+                return ERR_INVALID_TYPE;
+            }
+            smeta = (StringMetaValue*) meta;
+            smeta->value.ToNumber();
+            if (smeta->value.type == BYTES_VALUE)
+            {
+                DELETE(smeta);
+                return ERR_INVALID_TYPE;
+            }
+            smeta->value.IncrbyFloat(increment);
+            value = smeta->value.double_value;
+            DELETE(smeta);
+        }
+        else
+        {
+            StringMetaValue nsmeta;
+            nsmeta.value.SetValue(increment);
+            KeyObject k(key, KEY_META, db);
+            SetMeta(k, nsmeta);
+            value = increment;
+        }
+        return 0;
+    }
 
-	int Ardb::GetRange(const DBID& db, const Slice& key, int start, int end,
-	        std::string& v)
-	{
-		std::string value;
-		int ret = Get(db, key, value);
-		if (ret < 0)
-		{
-			return ret;
-		}
-		start = RealPosition(value, start);
-		end = RealPosition(value, end);
-		if (start > end)
-		{
-			return ERR_OUTOFRANGE;
-		}
-		v = value.substr(start, (end - start + 1));
-		return ARDB_OK;
-	}
+    int Ardb::GetRange(const DBID& db, const Slice& key, int start, int end, std::string& v)
+    {
+        std::string value;
+        int ret = Get(db, key, value);
+        if (ret < 0)
+        {
+            return ret;
+        }
+        start = RealPosition(value, start);
+        end = RealPosition(value, end);
+        if (start > end)
+        {
+            return ERR_OUTOFRANGE;
+        }
+        v = value.substr(start, (end - start + 1));
+        return ARDB_OK;
+    }
 
-	int Ardb::SetRange(const DBID& db, const Slice& key, int start,
-	        const Slice& v)
-	{
-		std::string value;
-		int ret = Get(db, key, value);
-		if (ret < 0)
-		{
-			return ret;
-		}
-		start = RealPosition(value, start);
-		value.resize(start);
-		value.append(v.data(), v.size());
-		return Set(db, key, value) == 0 ? value.size() : 0;
-	}
+    int Ardb::SetRange(const DBID& db, const Slice& key, int start, const Slice& v)
+    {
+        std::string value;
+        int ret = Get(db, key, value);
+        if (ret < 0)
+        {
+            return ret;
+        }
+        start = RealPosition(value, start);
+        value.resize(start);
+        value.append(v.data(), v.size());
+        return Set(db, key, value) == 0 ? value.size() : 0;
+    }
 
-	int Ardb::GetSet(const DBID& db, const Slice& key, const Slice& value,
-	        std::string& v)
-	{
-		if (Get(db, key, v) < 0)
-		{
-			Set(db, key, value);
-			return ERR_NOT_EXIST;
-		}
-		return Set(db, key, value);
-	}
+    int Ardb::GetSet(const DBID& db, const Slice& key, const Slice& value, std::string& v)
+    {
+        if (Get(db, key, v) < 0)
+        {
+            Set(db, key, value);
+            return ERR_NOT_EXIST;
+        }
+        return Set(db, key, value);
+    }
 
 }
 

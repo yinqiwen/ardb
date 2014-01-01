@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -75,7 +75,6 @@
 		fprintf(stdout, "\e[1;32m%-6s\e[m%s:%d: Assertion %s\n", "[PASS]", __FILE__,__LINE__,#cond);\
 	}\
 }while(0)
-
 
 /* Anti-warning macro... */
 #define ARDB_NOTUSED(V) ((void) V)

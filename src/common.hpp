@@ -104,56 +104,54 @@ typedef uint64_t uint64;
 
 namespace ardb
 {
-	template<typename T>
-	struct Type
-	{
-			typedef void Destructor(T* obj);
-	};
+    template<typename T>
+    struct Type
+    {
+            typedef void Destructor(T* obj);
+    };
 
-	template<typename T>
-	void StandardDestructor(T* obj)
-	{
-		if (NULL != obj)
-		{
-			delete obj;
-		}
-	}
-	/**
-	 * Verify type information
-	 */
-	template<typename InheritType>
-	struct InstanceOf
-	{
-		public:
-			bool OK;
-			template<typename BaseType>
-			inline InstanceOf(const BaseType* ptr) :
-					OK(false)
-			{
-				if (NULL != ptr)
-				{
-					const InheritType* sp =
-							dynamic_cast<const InheritType*>(ptr);
-					OK = (NULL != sp);
-				}
-			}
-	};
+    template<typename T>
+    void StandardDestructor(T* obj)
+    {
+        if (NULL != obj)
+        {
+            delete obj;
+        }
+    }
+    /**
+     * Verify type information
+     */
+    template<typename InheritType>
+    struct InstanceOf
+    {
+        public:
+            bool OK;
+            template<typename BaseType>
+            inline InstanceOf(const BaseType* ptr) :
+                    OK(false)
+            {
+                if (NULL != ptr)
+                {
+                    const InheritType* sp = dynamic_cast<const InheritType*>(ptr);
+                    OK = (NULL != sp);
+                }
+            }
+    };
 
-	/**
-	 * A tag interface
-	 */
-	class Object
-	{
-		public:
-			virtual ~Object()
-			{
-			}
-	};
+    /**
+     * A tag interface
+     */
+    class Object
+    {
+        public:
+            virtual ~Object()
+            {
+            }
+    };
 }
 template<typename T, size_t N>
 char (&ArraySizeHelper(T (&array)[N]))[N];
 #define arraysize(array) (sizeof(ArraySizeHelper(array)))
-
 
 #include <stdio.h>
 #include <unistd.h>
@@ -163,7 +161,5 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 #include "util/runnable.hpp"
 #include "util/debug.h"
 #include "logger.hpp"
-
-
 
 #endif /* COMMON_HPP_ */

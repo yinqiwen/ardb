@@ -6,16 +6,17 @@
  */
 #include "db_helpers.hpp"
 
-
 namespace ardb
 {
-    DBHelper::DBHelper(Ardb* db):m_db(db), m_expire_check(db)
+    DBHelper::DBHelper(Ardb* db) :
+            m_db(db), m_expire_check(db), m_zset_scores_cache(db)
     {
     }
 
     void DBHelper::Run()
     {
-        m_serv.GetTimer().Schedule(&m_expire_check, 10, 10, MILLIS);
+        m_serv.GetTimer().Schedule(&m_expire_check, 100, 100, MILLIS);
+        m_serv.GetTimer().Schedule(&m_zset_scores_cache, 10, 10, SECONDS);
         m_serv.Start();
     }
 
@@ -25,6 +26,4 @@ namespace ardb
         m_serv.Wakeup();
     }
 }
-
-
 

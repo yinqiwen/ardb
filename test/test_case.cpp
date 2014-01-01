@@ -14,11 +14,11 @@
 
 void test_all(Ardb& db)
 {
-	test_strings(db);
-	test_hashs(db);
-	test_lists(db);
-	test_sets(db);
-	test_zsets(db);
-	test_bitsets(db);
-	test_misc(db);
+    test_strings(db);
+    test_hashs(db);
+    test_lists(db);
+    test_sets(db);
+    test_zsets(db);
+    test_bitsets(db);
+    test_misc(db);
 }

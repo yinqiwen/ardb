@@ -1,7 +1,6 @@
 /*
  * mmap.hpp
  *
- *  Created on: 2013年8月29日
  *      Author: wqy
  */
 
@@ -11,21 +10,19 @@
 
 namespace ardb
 {
-	class MMapBuf
-	{
-		public:
-			char* m_buf;
-			uint64 m_size;
-		public:
-			MMapBuf() :
-					m_buf(0), m_size(0)
-			{
-			}
+    class MMapBuf
+    {
+        public:
+            char* m_buf;
+            uint64 m_size;
+        public:
+            MMapBuf() :
+                    m_buf(0), m_size(0)
+            {
+            }
             int Init(const std::string& path, uint64 size);
             ~MMapBuf();
-	};
+    };
 }
-
-
 
 #endif /* MMAP_HPP_ */

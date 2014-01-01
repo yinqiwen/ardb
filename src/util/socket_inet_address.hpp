@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -41,75 +41,78 @@
 
 namespace ardb
 {
-	class SocketInetAddress: public Address
-	{
-		private:
-		    union MyAddrUnion{
-		    	char m_addrbuf[sizeof(sockaddr_un)];
-		    	struct sockaddr m_addr;
-		    }m_addr_union;
+    class SocketInetAddress: public Address
+    {
+        private:
+            union MyAddrUnion
+            {
+                    char m_addrbuf[sizeof(sockaddr_un)];
+                    struct sockaddr m_addr;
+            } m_addr_union;
 
-			//				struct sockaddr_in* m_addr4;
-			//				struct sockaddr_in6* m_addr6;
-			//				struct sockaddr_un* m_addru;
-		public:
-			SocketInetAddress(const sockaddr* addr, uint8 size)
-			{
-				memcpy(m_addr_union.m_addrbuf, &addr, size);
-			}
-			SocketInetAddress(const struct sockaddr_in& addr)
-			{
-				memcpy(m_addr_union.m_addrbuf, &addr, sizeof(addr));
-			}
-			SocketInetAddress(const struct sockaddr_in6& addr)
-			{
-				memcpy(m_addr_union.m_addrbuf, &addr, sizeof(addr));
-			}
-			SocketInetAddress(const struct sockaddr_un& addr)
-			{
-				memcpy(m_addr_union.m_addrbuf, &addr, sizeof(addr));
-			}
-			SocketInetAddress()
-			{
-				memset(&m_addr_union.m_addrbuf, 0, sizeof(struct sockaddr_in));
-			}
+            //				struct sockaddr_in* m_addr4;
+            //				struct sockaddr_in6* m_addr6;
+            //				struct sockaddr_un* m_addru;
+        public:
+            SocketInetAddress(const sockaddr* addr, uint8 size)
+            {
+                memcpy(m_addr_union.m_addrbuf, &addr, size);
+            }
+            SocketInetAddress(const struct sockaddr_in& addr)
+            {
+                memcpy(m_addr_union.m_addrbuf, &addr, sizeof(addr));
+            }
+            SocketInetAddress(const struct sockaddr_in6& addr)
+            {
+                memcpy(m_addr_union.m_addrbuf, &addr, sizeof(addr));
+            }
+            SocketInetAddress(const struct sockaddr_un& addr)
+            {
+                memcpy(m_addr_union.m_addrbuf, &addr, sizeof(addr));
+            }
+            SocketInetAddress()
+            {
+                memset(&m_addr_union.m_addrbuf, 0, sizeof(struct sockaddr_in));
+            }
 
-			const sockaddr& GetRawSockAddr() const
-			{
-				return m_addr_union.m_addr;
-			}
+            const sockaddr& GetRawSockAddr() const
+            {
+                return m_addr_union.m_addr;
+            }
 
-			int GetRawSockAddrSize() const
-			{
-				if (IsIPV6())
-				{
-					return sizeof(sockaddr_in6);
-				} else if (IsUnix())
-				{
-					return sizeof(sockaddr_un);
-				}
-				return sizeof(sockaddr_in);
-			}
-			bool IsIPV6() const
-			{
-				return AF_INET6 == GetRawSockAddr().sa_family;
-			}
-			bool IsUnix() const
-			{
-				return AF_UNIX == GetRawSockAddr().sa_family;
-			}
-			int GetDomain() const
-			{
-				if (IsIPV6())
-				{
-					return AF_INET6;
-				} else if (IsUnix())
-				{
-					return AF_UNIX;
-				}
-				return AF_INET;
-			}
-	};
+            int GetRawSockAddrSize() const
+            {
+                if (IsIPV6())
+                {
+                    return sizeof(sockaddr_in6);
+                }
+                else if (IsUnix())
+                {
+                    return sizeof(sockaddr_un);
+                }
+                return sizeof(sockaddr_in);
+            }
+            bool IsIPV6() const
+            {
+                return AF_INET6 == GetRawSockAddr().sa_family;
+            }
+            bool IsUnix() const
+            {
+                return AF_UNIX == GetRawSockAddr().sa_family;
+            }
+            int GetDomain() const
+            {
+                if (IsIPV6())
+                {
+                    return AF_INET6;
+                }
+                else if (IsUnix())
+                {
+                    return AF_UNIX;
+                }
+                return AF_INET;
+            }
+    };
 }
 
 #endif /* SOCKETINETADDRESS_HPP_ */

@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -32,7 +32,8 @@
 
 using namespace ardb;
 
-SocketAddress::SocketAddress(const string& host, uint32 port):SocketHostAddress(host,port),m_inet_addr(get_inet_address(host,port))
+SocketAddress::SocketAddress(const string& host, uint32 port) :
+        SocketHostAddress(host, port), m_inet_addr(get_inet_address(host, port))
 {
 
 }

@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -35,13 +35,13 @@
 namespace ardb
 {
 
-	class SocketAddress: public SocketHostAddress
-	{
-		private:
-			SocketInetAddress m_inet_addr;
-		public:
-			SocketAddress(const string& host, uint32 port);
-	};
+    class SocketAddress: public SocketHostAddress
+    {
+        private:
+            SocketInetAddress m_inet_addr;
+        public:
+            SocketAddress(const string& host, uint32 port);
+    };
 }
 
 #endif /* SOCKETADDRESS_HPP_ */

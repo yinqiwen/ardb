@@ -30,7 +30,8 @@
 /*
  * backlog.hpp
  *
- *  Created on: 2013-08-29      Author: wqy
+ *  Created on: 2013-08-29
+ *  Author: wqy
  */
 
 #ifndef BACKLOG_HPP_

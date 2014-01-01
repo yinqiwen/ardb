@@ -560,7 +560,6 @@ namespace ardb
 
 	void Master::FeedSlaves(const DBID& dbid, RedisCommandFrame& cmd)
 	{
-
 		RedisCommandWithDBID* newcmd = new RedisCommandWithDBID(dbid, cmd);
 		ReplicationInstruction inst(newcmd, REPL_INSTRUCTION_FEED_CMD);
 		OfferReplInstruction(inst);

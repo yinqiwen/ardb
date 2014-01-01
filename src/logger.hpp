@@ -34,37 +34,46 @@
 
 namespace ardb
 {
-	enum LogLevel
-	{
-		NONE_LOG_LEVEL = 0, FATAL_LOG_LEVEL = 1, ERROR_LOG_LEVEL = 2, WARN_LOG_LEVEL = 3, INFO_LOG_LEVEL = 4, DEBUG_LOG_LEVEL = 5, TRACE_LOG_LEVEL = 6, ALL_LOG_LEVEL = 7,
+    enum LogLevel
+    {
+        NONE_LOG_LEVEL = 0,
+        FATAL_LOG_LEVEL = 1,
+        ERROR_LOG_LEVEL = 2,
+        WARN_LOG_LEVEL = 3,
+        INFO_LOG_LEVEL = 4,
+        DEBUG_LOG_LEVEL = 5,
+        TRACE_LOG_LEVEL = 6,
+        ALL_LOG_LEVEL = 7,
 
-		INVALID_LOG_LEVEL = 100
-	};
-	typedef void ArdbLogHandler(LogLevel level, const char* filename, const char* function, int line, const char* format, ...);
-	typedef bool IsLogEnable(LogLevel level);
-	typedef FILE* GetLogStream();
+        INVALID_LOG_LEVEL = 100
+    };
+    typedef void ArdbLogHandler(LogLevel level, const char* filename,
+                    const char* function, int line, const char* format, ...);
+    typedef bool IsLogEnable(LogLevel level);
+    typedef FILE* GetLogStream();
 
-	struct LoggerSetting
-	{
-			ArdbLogHandler* handler;
-			IsLogEnable* enable;
-			GetLogStream* logstream;
-			LoggerSetting() :
-					handler(NULL), enable(NULL), logstream(NULL)
-			{
-			}
-	};
+    struct LoggerSetting
+    {
+            ArdbLogHandler* handler;
+            IsLogEnable* enable;
+            GetLogStream* logstream;
+            LoggerSetting() :
+                            handler(NULL), enable(NULL), logstream(NULL)
+            {
+            }
+    };
 
-	struct ArdbLogger
-	{
-			static ArdbLogHandler* GetLogHandler();
-			static IsLogEnable* GetLogChecker();
-			static void InstallLogHandler(LoggerSetting& setting);
-			static void InitDefaultLogger(const std::string& level, const std::string& logfile);
-			static void SetLogLevel(const std::string& level);
-			static void DestroyDefaultLogger();
-			static FILE* GetLogStream();
-	};
+    struct ArdbLogger
+    {
+            static ArdbLogHandler* GetLogHandler();
+            static IsLogEnable* GetLogChecker();
+            static void InstallLogHandler(LoggerSetting& setting);
+            static void InitDefaultLogger(const std::string& level,
+                            const std::string& logfile);
+            static void SetLogLevel(const std::string& level);
+            static void DestroyDefaultLogger();
+            static FILE* GetLogStream();
+    };
 }
 
 #define DEBUG_ENABLED() ((ardb::ArdbLogger::GetLogChecker())(ardb::DEBUG_LOG_LEVEL))

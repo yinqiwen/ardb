@@ -60,7 +60,7 @@ namespace ardb
 			T& GetValue()
 			{
 				T* local_thread_value = static_cast<T*>(pthread_getspecific(
-						m_key));
+				        m_key));
 				if (NULL == local_thread_value)
 				{
 					T* newObj = InitialValue();
@@ -75,7 +75,7 @@ namespace ardb
 			T& GetValue(InstanceCreator* creator, void* data)
 			{
 				T* local_thread_value = static_cast<T*>(pthread_getspecific(
-						m_key));
+				        m_key));
 				if (NULL == local_thread_value)
 				{
 					T* newObj = creator(data);
@@ -92,7 +92,6 @@ namespace ardb
 			}
 	};
 
-
 	template<typename T>
 	class ThreadLocal<T*>
 	{
@@ -103,16 +102,21 @@ namespace ardb
 				T* obj = static_cast<T*>(x);
 				delete obj;
 			}
+			static void Empty(void *x)
+			{
+
+			}
 			T** InitialValue()
 			{
-				T** t = new(T*);
+				T** t = new (T*);
 				*t = NULL;
 				return t;
 			}
 		public:
-			ThreadLocal()
+			ThreadLocal(bool destroy = true)
 			{
-				pthread_key_create(&m_key, &ThreadLocal::Destroy);
+				pthread_key_create(&m_key,
+				        destroy ? &ThreadLocal::Destroy : &ThreadLocal::Empty);
 			}
 
 			~ThreadLocal()
@@ -123,7 +127,7 @@ namespace ardb
 			T*& GetValue()
 			{
 				T** local_thread_value = static_cast<T**>(pthread_getspecific(
-						m_key));
+				        m_key));
 				if (NULL == local_thread_value)
 				{
 					T** newObj = InitialValue();

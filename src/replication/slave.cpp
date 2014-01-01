@@ -98,7 +98,6 @@ namespace ardb
 
     void Slave::HandleRedisCommand(Channel* ch, RedisCommandFrame& cmd)
     {
-
         int flag = ARDB_PROCESS_REPL_WRITE;
         if (m_slave_state == SLAVE_STATE_SYNCED
                 || m_slave_state == SLAVE_STATE_LOADING_DUMP_DATA)

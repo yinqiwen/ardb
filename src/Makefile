@@ -49,6 +49,11 @@ JEMALLOC_PATH=${LIB_PATH}/${JEMALLOC_VER}
 JEMALLOC_FILE=${JEMALLOC_PATH}.tar.bz2
 JEMALLOC_LIBA=${JEMALLOC_PATH}/lib/libjemalloc.a
 
+SPARSEHASH_VER=sparsehash-2.0.2
+SPARSEHASH_PATH=${LIB_PATH}/${SPARSEHASH_VER}
+SPARSEHASH_FILE=${SPARSEHASH_PATH}.tar.gz
+SPARSEHASH_CONFIGH=${SPARSEHASH_PATH}/src/config.h
+
 GPERF_VER=gperftools-2.0
 GPERF_PATH=${LIB_PATH}/${GPERF_VER}
 GPERF_FILE=${GPERF_PATH}.tar.gz
@@ -95,7 +100,7 @@ LDFLAGS=-g
 LUA_CFLAGS+= -O2 -Wall -DLUA_ANSI $(CCFLAGS)
 LUA_LDFLAGS+= $(LDFLAGS)
 
-INCS=-I./  -I${LUA_PATH}/src -I${SNAPPY_PATH} -I${ZOOKEEPER_PATH}/include -I${ZOOKEEPER_PATH}/generated
+INCS=-I./ -I${SPARSEHASH_PATH}/src -I${LUA_PATH}/src -I${SNAPPY_PATH} -I${ZOOKEEPER_PATH}/include -I${ZOOKEEPER_PATH}/generated
 
 # Default allocator
 ifeq ($(uname_S),Linux)
@@ -104,11 +109,13 @@ else
 	MALLOC=libc
 endif
 
+#DEP_LIBS=sparsehash
+
 ifeq ($(MALLOC),libc)
 #do nothing
 else
 MALLOC_LIBA=${JEMALLOC_LIBA}
-DEP_LIBS=jemalloc
+DEP_LIBS+=jemalloc
 endif
 
 LIBS= ${LUA_LIBA} ${ZOOKEEPER_LIBA} ${ZOOKEEPER_LIBHTA} ${MALLOC_LIBA} -lpthread
@@ -197,7 +204,7 @@ lib:$(DEP_LIBS) $(DIST_LIBA) lua zookeeper
 server:${STORAGE_ENGINE} lib clean_launch_obj $(SERVER_OBJECTS) $(CHANNEL_OBJECTS) 
 	${CXX} -o ardb-server $(SERVER_OBJECTS)  $(CORE_OBJECTS) $(CHANNEL_OBJECTS) ${STORAGE_ENGINE_OBJ} $(LIBS)
 
-test:${STORAGE_ENGINE} lib $(CORE_OBJECTS) ${TESTOBJ} $(CHANNEL_OBJECTS)
+test:clean_test ${STORAGE_ENGINE} lib $(CORE_OBJECTS) ${TESTOBJ} $(CHANNEL_OBJECTS)
 	${CXX} -o ardb-test ${STORAGE_ENGINE_OBJ} ${TESTOBJ} $(CORE_OBJECTS) $(CHANNEL_OBJECTS) $(LIBS) 
 	
 tcmalloc:
@@ -214,6 +221,14 @@ jemalloc:
     else \
       cd ${LIB_PATH};tar jxvf ${JEMALLOC_FILE};cd ${JEMALLOC_PATH};\
       ./configure;make build_lib_static;\
+    fi
+
+sparsehash:
+	@if test -f ${SPARSEHASH_CONFIGH}; then\
+      :; \
+    else \
+      cd ${LIB_PATH};tar zxvf ${SPARSEHASH_FILE};cd ${SPARSEHASH_PATH};\
+      ./configure;make;\
     fi
     
 snappy:

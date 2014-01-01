@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -31,14 +31,14 @@
 #define NOVA_ADDRESS_HPP_
 namespace ardb
 {
-	//Just a tag interface
-	class Address
-	{
-		public:
-			virtual ~Address()
-			{
-			}
-	};
+    //Just a tag interface
+    class Address
+    {
+        public:
+            virtual ~Address()
+            {
+            }
+    };
 }
 
 #endif /* ADDRESS_HPP_ */

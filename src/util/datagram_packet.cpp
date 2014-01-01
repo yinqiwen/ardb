@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -32,21 +32,20 @@
 using namespace ardb;
 
 DatagramPacket::DatagramPacket(uint32 size) :
-		m_buffer(NULL), m_is_buffer_self(true)
+        m_buffer(NULL), m_is_buffer_self(true)
 {
-	NEW(m_buffer, Buffer(size));
+    NEW(m_buffer, Buffer(size));
 }
-DatagramPacket::DatagramPacket(Buffer* buffer,
-		const SocketInetAddress& addr) :
-		m_addr(addr), m_buffer(buffer), m_is_buffer_self(false)
+DatagramPacket::DatagramPacket(Buffer* buffer, const SocketInetAddress& addr) :
+        m_addr(addr), m_buffer(buffer), m_is_buffer_self(false)
 {
 
 }
 
 DatagramPacket::~DatagramPacket()
 {
-	if (m_is_buffer_self)
-	{
-		DELETE(m_buffer);
-	}
+    if (m_is_buffer_self)
+    {
+        DELETE(m_buffer);
+    }
 }

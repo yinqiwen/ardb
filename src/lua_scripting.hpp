@@ -40,7 +40,7 @@ namespace ardb
             static int Log(lua_State *lua);
             static int SHA1Hex(lua_State *lua);
             static int ReturnSingleFieldTable(lua_State *lua,
-                    const std::string& field);
+                            const std::string& field);
             static int ErrorReplyCommand(lua_State *lua);
             static int StatusReplyCommand(lua_State *lua);
             static int MathRandom(lua_State *lua);
@@ -49,20 +49,21 @@ namespace ardb
             int LoadLibs();
             int RemoveUnsupportedFunctions();
             int CreateLuaFunction(const std::string& funcname,
-                    const std::string& body, std::string& err);
+                            const std::string& body, std::string& err);
             int Init();
             void Reset();
         public:
             LUAInterpreter(ArdbServer* server);
             int Eval(const std::string& func, SliceArray& keys,
-                    SliceArray& args, bool isSHA1Func, RedisReply& reply);
+                            SliceArray& args, bool isSHA1Func,
+                            RedisReply& reply);
             bool Exists(const std::string& sha);
             int Load(const std::string& func, std::string& ret);
             int Flush();
             int Kill(const std::string& funcname);
 
             static void ScriptEventCallback(ChannelService* serv, uint32 ev,
-                    void* data);
+                            void* data);
             ~LUAInterpreter();
     };
 }

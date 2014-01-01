@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -40,27 +40,27 @@
 
 namespace ardb
 {
-	class SocketUnixAddress: public Address
-	{
-		private:
-			std::string m_path;
-		public:
-			SocketUnixAddress(const std::string& path) :
-					m_path(path)
-			{
-			}
-			SocketUnixAddress(const SocketUnixAddress& other) :
-					m_path(other.GetPath())
-			{
-			}
-			SocketUnixAddress()
-			{
-			}
-			const std::string& GetPath() const
-			{
-				return m_path;
-			}
-	};
+    class SocketUnixAddress: public Address
+    {
+        private:
+            std::string m_path;
+        public:
+            SocketUnixAddress(const std::string& path) :
+                    m_path(path)
+            {
+            }
+            SocketUnixAddress(const SocketUnixAddress& other) :
+                    m_path(other.GetPath())
+            {
+            }
+            SocketUnixAddress()
+            {
+            }
+            const std::string& GetPath() const
+            {
+                return m_path;
+            }
+    };
 }
 
 #endif /* SOCKET_UNIX_ADDRESS_HPP_ */

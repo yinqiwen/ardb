@@ -244,7 +244,7 @@ namespace ardb
 			}
 			case ZSET_META:
 			{
-				QueryOptions tmp;
+				ZSetQueryOptions tmp;
 				ZRange(db, key, 0, -1, sortvals, tmp);
 				if (NULL == options.by)
 				{

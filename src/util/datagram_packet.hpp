@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -34,26 +34,25 @@
 #include "buffer/buffer.hpp"
 namespace ardb
 {
-	class DatagramPacket
-	{
-		private:
-			SocketInetAddress m_addr;
-			Buffer* m_buffer;
-			bool m_is_buffer_self;
-		public:
-			DatagramPacket(uint32 size);
-			DatagramPacket(Buffer* buffer,
-					const SocketInetAddress& addr);
-			Buffer& GetBuffer()
-			{
-				return *m_buffer;
-			}
-			SocketInetAddress& GetInetAddress()
-			{
-				return m_addr;
-			}
-			~DatagramPacket();
-	};
+    class DatagramPacket
+    {
+        private:
+            SocketInetAddress m_addr;
+            Buffer* m_buffer;
+            bool m_is_buffer_self;
+        public:
+            DatagramPacket(uint32 size);
+            DatagramPacket(Buffer* buffer, const SocketInetAddress& addr);
+            Buffer& GetBuffer()
+            {
+                return *m_buffer;
+            }
+            SocketInetAddress& GetInetAddress()
+            {
+                return m_addr;
+            }
+            ~DatagramPacket();
+    };
 }
 
 #endif /* DATAGRAMPACKET_HPP_ */

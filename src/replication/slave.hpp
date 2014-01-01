@@ -45,66 +45,66 @@ using namespace ardb::codec;
 
 namespace ardb
 {
-	struct ArdbConnContext;
-	class ArdbServer;
-	class Slave: public ChannelUpstreamHandler<RedisMessage>
-	{
-		private:
-			ArdbServer* m_serv;
-			Channel* m_client;
-			SocketHostAddress m_master_addr;
-			uint32 m_slave_state;
-			bool m_cron_inited;
-			uint32 m_ping_recved_time;
-			RedisMessageDecoder m_decoder;
-			NullRedisReplyEncoder m_encoder;
+    struct ArdbConnContext;
+    class ArdbServer;
+    class Slave: public ChannelUpstreamHandler<RedisMessage>
+    {
+        private:
+            ArdbServer* m_serv;
+            Channel* m_client;
+            SocketHostAddress m_master_addr;
+            uint32 m_slave_state;
+            bool m_cron_inited;
+            uint32 m_ping_recved_time;
+            RedisMessageDecoder m_decoder;
+            NullRedisReplyEncoder m_encoder;
 
-			uint8 m_server_type;
-			bool m_server_support_psync;
-			/*
-			 * empty means all db
-			 */
-			DBIDSet m_sync_dbs;
+            uint8 m_server_type;
+            bool m_server_support_psync;
+            /*
+             * empty means all db
+             */
+            DBIDSet m_sync_dbs;
 
-			ArdbConnContext *m_actx;
+            ArdbConnContext *m_actx;
 
-			/**
-			 * Redis dump file
-			 */
-			RedisDumpFile* m_rdb;
-			ReplBacklog& m_backlog;
+            /**
+             * Redis dump file
+             */
+            RedisDumpFile* m_rdb;
+            ReplBacklog& m_backlog;
 
-			time_t m_routine_ts;
+            time_t m_routine_ts;
 
-			void HandleRedisCommand(Channel* ch, RedisCommandFrame& cmd);
-			void HandleRedisReply(Channel* ch, RedisReply& reply);
-			void HandleRedisDumpChunk(Channel* ch, RedisDumpFileChunk& chunk);
-			void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisMessage>& e);
-			//void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisReply>& e);
-			void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e);
-			void ChannelConnected(ChannelHandlerContext& ctx, ChannelStateEvent& e);
-			void Timeout();
-			void Routine();
-			void InitCron();
-			RedisDumpFile* GetNewRedisDumpFile();
-			ArdbConnContext* GetArdbConnContext();
-			static void LoadRDBRoutine(void* cb);
-		public:
-			Slave(ArdbServer* serv);
-			bool Init();
-			const SocketHostAddress& GetMasterAddress()
-			{
-				return m_master_addr;
-			}
-			void SetSyncDBs(DBIDSet& dbs)
-			{
-				m_sync_dbs = dbs;
-			}
-			int ConnectMaster(const std::string& host, uint32 port);
-			void Close();
-			void Stop();
-			bool IsMasterConnected();
-	};
+            void HandleRedisCommand(Channel* ch, RedisCommandFrame& cmd);
+            void HandleRedisReply(Channel* ch, RedisReply& reply);
+            void HandleRedisDumpChunk(Channel* ch, RedisDumpFileChunk& chunk);
+            void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisMessage>& e);
+            //void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisReply>& e);
+            void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e);
+            void ChannelConnected(ChannelHandlerContext& ctx, ChannelStateEvent& e);
+            void Timeout();
+            void Routine();
+            void InitCron();
+            RedisDumpFile* GetNewRedisDumpFile();
+            ArdbConnContext* GetArdbConnContext();
+            static void LoadRDBRoutine(void* cb);
+        public:
+            Slave(ArdbServer* serv);
+            bool Init();
+            const SocketHostAddress& GetMasterAddress()
+            {
+                return m_master_addr;
+            }
+            void SetSyncDBs(DBIDSet& dbs)
+            {
+                m_sync_dbs = dbs;
+            }
+            int ConnectMaster(const std::string& host, uint32 port);
+            void Close();
+            void Stop();
+            bool IsMasterConnected();
+    };
 }
 
 #endif /* SLAVE_CLIENT_HPP_ */

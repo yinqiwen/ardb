@@ -59,6 +59,10 @@ int main(int argc, char** argv)
 	std::cout << "ARDB Test(" << engine.GetName() << ")" << std::endl;
 	Ardb db(&engine);
 	ArdbConfig config;
+	config.hash_max_ziplist_entries = 16;
+	config.zset_max_ziplist_entries = 16;
+	config.set_max_ziplist_entries = 16;
+	config.list_max_ziplist_entries = 16;
 	db.Init(config);
 	test_all(db);
 	return 0;

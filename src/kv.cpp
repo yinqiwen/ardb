@@ -99,36 +99,42 @@ namespace ardb
 	int Ardb::Set(const DBID& db, const Slice& key, const Slice& value, int ex,
 	        int px, int nxx)
 	{
-		CommonMetaValue* meta = GetMeta(db, key, true);
-		if (NULL != meta && meta->header.type != STRING_META)
+		if (-1 == nxx || 1 == nxx || m_config.check_type_before_set_string)
 		{
+			CommonMetaValue* meta = GetMeta(db, key, true);
+			if (NULL != meta && meta->header.type != STRING_META)
+			{
+				DELETE(meta);
+				return ERR_INVALID_TYPE;
+			}
+			if (-1 == nxx && NULL != meta)
+			{
+				DELETE(meta);
+				return ERR_KEY_EXIST;
+			}
+			if (1 == nxx && NULL == meta)
+			{
+				DELETE(meta);
+				return ERR_NOT_EXIST;
+			}
 			DELETE(meta);
-			return ERR_INVALID_TYPE;
-		}
-		if (-1 == nxx && NULL != meta)
-		{
-			DELETE(meta);
-			return ERR_KEY_EXIST;
-		}
-		if (1 == nxx && NULL == meta)
-		{
-			DELETE(meta);
-			return ERR_NOT_EXIST;
 		}
 		uint64 expireat = 0;
-		uint64_t now = get_current_epoch_micros();
-		if (px > 0)
+		if (px > 0 || ex > 0)
 		{
-			expireat = now + (uint64_t) px * 1000L;
-		}
-		if (ex > 0)
-		{
-			expireat = now + (uint64_t) ex * 1000L * 1000L;
+			uint64_t now = get_current_epoch_micros();
+			if (px > 0)
+			{
+				expireat = now + (uint64_t) px * 1000L;
+			}
+			if (ex > 0)
+			{
+				expireat = now + (uint64_t) ex * 1000L * 1000L;
+			}
 		}
 		StringMetaValue smeta;
 		smeta.value.SetValue(value, false);
 		smeta.header.expireat = expireat;
-		DELETE(meta);
 		return SetMeta(db, key, smeta);
 	}
 
@@ -457,13 +463,25 @@ namespace ardb
 			case LIST_META:
 			{
 				ListMetaValue* cmeta = (ListMetaValue*) meta;
-				RenameList(db, key1, key2, cmeta);
+				RenameList(db, key1, db, key2, cmeta);
 				break;
 			}
 			case HASH_META:
 			{
 				HashMetaValue* cmeta = (HashMetaValue*) meta;
-				RenameHash(db, key1, key2, cmeta);
+				RenameHash(db, key1, db, key2, cmeta);
+				break;
+			}
+			case SET_META:
+			{
+				SetMetaValue* cmeta = (SetMetaValue*) meta;
+				RenameSet(db, key1, db, key2, cmeta);
+				break;
+			}
+			case ZSET_META:
+			{
+				ZSetMetaValue* cmeta = (ZSetMetaValue*) meta;
+				RenameZSet(db, key1, db, key2, cmeta);
 				break;
 			}
 			default:
@@ -487,13 +505,56 @@ namespace ardb
 
 	int Ardb::Move(DBID srcdb, const Slice& key, DBID dstdb)
 	{
-		std::string v;
-		if (0 == Get(srcdb, key, v))
+		CommonMetaValue* meta = GetMeta(srcdb, key, false);
+		if (NULL == meta)
 		{
-			Del(srcdb, key);
-			return Set(dstdb, key, v);
+			return ERR_NOT_EXIST;
 		}
-		return ERR_NOT_EXIST;
+		Del(dstdb, key);
+		int err = 0;
+		switch (meta->header.type)
+		{
+			case STRING_META:
+			{
+				BatchWriteGuard guard(GetEngine());
+				StringMetaValue* cmeta = (StringMetaValue*) meta;
+				KeyObject k1(key, KEY_META, srcdb);
+				DelValue(k1);
+				SetMeta(dstdb, key, *cmeta);
+				break;
+			}
+			case LIST_META:
+			{
+				ListMetaValue* cmeta = (ListMetaValue*) meta;
+				RenameList(srcdb, key, dstdb, key, cmeta);
+				break;
+			}
+			case HASH_META:
+			{
+				HashMetaValue* cmeta = (HashMetaValue*) meta;
+				RenameHash(srcdb, key, dstdb, key, cmeta);
+				break;
+			}
+			case SET_META:
+			{
+				SetMetaValue* cmeta = (SetMetaValue*) meta;
+				RenameSet(srcdb, key, dstdb, key, cmeta);
+				break;
+			}
+			case ZSET_META:
+			{
+				ZSetMetaValue* cmeta = (ZSetMetaValue*) meta;
+				RenameZSet(srcdb, key, dstdb, key, cmeta);
+				break;
+			}
+			default:
+			{
+				err = ERR_INVALID_TYPE;
+				break;
+			}
+		}
+		DELETE(meta);
+		return err;
 	}
 
 	int Ardb::KeysCount(const DBID& db, const std::string& pattern,

@@ -1366,7 +1366,7 @@ namespace ardb
 							{
 								DUMP_CHECK_WRITE(
 								        r.WriteLen(mmeta->zipvs.size()));
-								ZSetElementArray::iterator it =
+								ZSetElementDeque::iterator it =
 								        mmeta->zipvs.begin();
 								while (it != mmeta->zipvs.end())
 								{

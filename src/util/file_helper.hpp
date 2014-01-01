@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -36,28 +36,28 @@
 
 namespace ardb
 {
-	bool is_file_exist(const std::string& path);
-	bool is_dir_exist(const std::string& path);
-	bool make_dir(const std::string& path);
-	bool make_file(const std::string& path);
+    bool is_file_exist(const std::string& path);
+    bool is_dir_exist(const std::string& path);
+    bool make_dir(const std::string& path);
+    bool make_file(const std::string& path);
 
-	int make_fd_nonblocking(int fd);
-	int make_fd_blocking(int fd);
-	int make_tcp_nodelay(int fd);
+    int make_fd_nonblocking(int fd);
+    int make_fd_blocking(int fd);
+    int make_tcp_nodelay(int fd);
 
-	int file_read_full(const std::string& path, Buffer& content);
-	int file_write_content(const std::string& path, const std::string& content);
+    int file_read_full(const std::string& path, Buffer& content);
+    int file_write_content(const std::string& path, const std::string& content);
 
-	int list_subdirs(const std::string& path, std::deque<std::string>& dirs);
-	int list_subfiles(const std::string& path, std::deque<std::string>& fs);
+    int list_subdirs(const std::string& path, std::deque<std::string>& dirs);
+    int list_subfiles(const std::string& path, std::deque<std::string>& fs);
 
-	int64 file_size(const std::string& path);
+    int64 file_size(const std::string& path);
 
-	int sha1sum_file(const std::string& file, std::string& hash);
+    int sha1sum_file(const std::string& file, std::string& hash);
 
-	std::string real_path(const std::string& path);
+    std::string real_path(const std::string& path);
 
-	bool is_valid_fd(int fd);
+    bool is_valid_fd(int fd);
 }
 
 #endif /* FILEHELPER_HPP_ */

@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -39,30 +39,30 @@ using std::list;
 
 namespace ardb
 {
-	SocketInetAddress get_inet_address(const string& host, uint16 port);
-	SocketInetAddress get_inet_address(const SocketHostAddress& addr);
-	SocketInetAddress get_inet_address(const SocketUnixAddress& addr);
-	SocketHostAddress get_host_address(const sockaddr& addr);
-	SocketHostAddress get_host_address(const SocketInetAddress& addr);
-	SocketUnixAddress get_unix_address(const sockaddr& addr);
-	SocketUnixAddress get_unix_address(const SocketInetAddress& addr);
+    SocketInetAddress get_inet_address(const string& host, uint16 port);
+    SocketInetAddress get_inet_address(const SocketHostAddress& addr);
+    SocketInetAddress get_inet_address(const SocketUnixAddress& addr);
+    SocketHostAddress get_host_address(const sockaddr& addr);
+    SocketHostAddress get_host_address(const SocketInetAddress& addr);
+    SocketUnixAddress get_unix_address(const sockaddr& addr);
+    SocketUnixAddress get_unix_address(const SocketInetAddress& addr);
 
-	SocketInetAddress
-	get_socket_inet_address(int32 fd);
-	SocketHostAddress
-	get_host_address(int32 fd);
-	SocketInetAddress
-	get_remote_inet_address(int32 fd);
-	SocketHostAddress
-	get_remote_host_address(int32 fd);
+    SocketInetAddress
+    get_socket_inet_address(int32 fd);
+    SocketHostAddress
+    get_host_address(int32 fd);
+    SocketInetAddress
+    get_remote_inet_address(int32 fd);
+    SocketHostAddress
+    get_remote_host_address(int32 fd);
 
-	uint64 ntohll(uint64 v);
-	uint64 htonll(uint64 v);
+    uint64 ntohll(uint64 v);
+    uint64 htonll(uint64 v);
 
-	int get_ip_by_nic_name(const std::string& ifName, std::string& ip);
-	int get_local_host_ip_list(std::vector<std::string>& iplist);
-	int get_local_host_ipv4(std::string& ip);
-	bool is_local_ip(const std::string& ip);
+    int get_ip_by_nic_name(const std::string& ifName, std::string& ip);
+    int get_local_host_ip_list(std::vector<std::string>& iplist);
+    int get_local_host_ipv4(std::string& ip);
+    bool is_local_ip(const std::string& ip);
 }
 
 #endif /* NETWORKHELPER_HPP_ */

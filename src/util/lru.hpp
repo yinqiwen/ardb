@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -33,31 +33,33 @@
 #include <list>
 #include <utility>
 #include <map>
+#include <google/sparse_hash_map>
 namespace ardb
 {
 	template<typename K, typename V>
 	class LRUCache
 	{
+	    public:
+	        typedef std::pair<K, V> CacheEntry;
+            typedef std::list<CacheEntry> CacheList;
 		private:
 			typedef K key_type;
 			typedef V value_type;
-			typedef std::pair<K, V> CacheEntry;
-			typedef std::list<CacheEntry> CacheList;
 			typedef std::map<K, typename CacheList::iterator> CacheEntryMap;
+			//typedef google::sparse_hash_map<K, typename CacheList::iterator> CacheEntryMap;
 			CacheList m_cache_list;
 			CacheEntryMap m_entry_map;
 			uint32 m_max_size;
-			bool GetLRUElement(value_type& value, bool remove)
+			bool GetLRUElement(CacheEntry& value, bool remove)
 			{
 				if (m_cache_list.empty())
 				{
 					return false;
 				}
-				CacheEntry& entry = m_cache_list.back();
-				value = entry.second;
+				value = m_cache_list.back();
 				if (remove)
 				{
-					m_entry_map.erase(entry.first);
+					m_entry_map.erase(value.first);
 					m_cache_list.pop_back();
 				}
 				return true;
@@ -76,14 +78,35 @@ namespace ardb
 				m_cache_list.clear();
 				m_entry_map.clear();
 			}
+			size_t Size()
+			{
+			    return m_entry_map.size();
+			}
+			CacheList& GetCacheList()
+			{
+			    return m_cache_list;
+			}
 			bool PopFront()
 			{
-				value_type value;
+			    CacheEntry value;
 				return GetLRUElement(value, true);
 			}
-			bool PeekFront(value_type& value)
+			bool PeekFront(CacheEntry& value)
 			{
 				return GetLRUElement(value, false);
+			}
+			bool Erase(const key_type& key, value_type& value)
+			{
+				typename CacheEntryMap::iterator found = m_entry_map.find(key);
+				if (found != m_entry_map.end())
+				{
+					typename CacheList::iterator list_it = found->second;
+					value = list_it->second;
+					m_cache_list.erase(list_it);
+					m_entry_map.erase(found);
+					return true;
+				}
+				return false;
 			}
 			bool Get(const key_type& key, value_type& value)
 			{
@@ -100,21 +123,22 @@ namespace ardb
 				return false;
 			}
 			bool Insert(const key_type& key, const value_type& value,
-					value_type& erased)
+			        CacheEntry& erased)
 			{
 				typename CacheEntryMap::iterator found = m_entry_map.find(key);
 				bool erased_old = false;
 				if (found != m_entry_map.end())
 				{
 					erased_old = true;
-					erased = found->second->second;
+					erased.first = key;
+					erased.second = found->second->second;
 					m_cache_list.erase(found->second);
 				}
 				m_cache_list.push_front(std::make_pair(key, value));
 				m_entry_map[key] = m_cache_list.begin();
 				if (m_entry_map.size() > m_max_size)
 				{
-					erased = m_cache_list.back().second;
+					erased = m_cache_list.back();
 					m_entry_map.erase(m_cache_list.back().first);
 					m_cache_list.pop_back();
 					erased_old = true;
