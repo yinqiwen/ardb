@@ -31,8 +31,7 @@
 
 namespace ardb
 {
-    HashMetaValue* Ardb::GetHashMeta(const DBID& db, const Slice& key, int& err,
-                    bool& create)
+    HashMetaValue* Ardb::GetHashMeta(const DBID& db, const Slice& key, int& err, bool& create)
     {
         CommonMetaValue* meta = GetMeta(db, key, false);
         if (NULL != meta && meta->header.type != HASH_META)
@@ -54,8 +53,7 @@ namespace ardb
         return (HashMetaValue*) meta;
     }
 
-    int Ardb::GetHashZipEntry(HashMetaValue* meta, const ValueData& field,
-                    ValueData*& value)
+    int Ardb::GetHashZipEntry(HashMetaValue* meta, const ValueData& field, ValueData*& value)
     {
         HashFieldMap::iterator it = meta->values.find(field);
         if (it != meta->values.end())
@@ -66,8 +64,7 @@ namespace ardb
         return ERR_NOT_EXIST;
     }
 
-    int Ardb::HSetValue(HashKeyObject& key, HashMetaValue* meta,
-                    CommonValueObject& value)
+    int Ardb::HSetValue(HashKeyObject& key, HashMetaValue* meta, CommonValueObject& value)
     {
         KeyLockerGuard lockGuard(m_key_locker, key.db, key.key);
         BatchWriteGuard guard(GetEngine());
@@ -88,8 +85,7 @@ namespace ardb
             {
                 *value_entry = value.data; //set new value
                 if (value.data.type == BYTES_VALUE
-                                && value.data.bytes_value.size()
-                                                >= (uint32) m_config.hash_max_ziplist_value)
+                        && value.data.bytes_value.size() >= (uint32) m_config.hash_max_ziplist_value)
                 {
                     zipSave = false;
                 }
@@ -97,13 +93,11 @@ namespace ardb
             else
             {
                 if (key.field.type == BYTES_VALUE
-                                && value.data.bytes_value.size()
-                                                >= (uint32) m_config.hash_max_ziplist_value)
+                        && value.data.bytes_value.size() >= (uint32) m_config.hash_max_ziplist_value)
                 {
                     zipSave = false;
                 }
-                else if (meta->values.size()
-                                >= (uint32) m_config.hash_max_ziplist_entries)
+                else if (meta->values.size() >= (uint32) m_config.hash_max_ziplist_entries)
                 {
                     zipSave = false;
                 }
@@ -132,8 +126,7 @@ namespace ardb
         }
         return 0;
     }
-    int Ardb::HSet(const DBID& db, const Slice& key, const Slice& field,
-                    const Slice& value)
+    int Ardb::HSet(const DBID& db, const Slice& key, const Slice& field, const Slice& value)
     {
         int err = 0;
         bool createHash = false;
@@ -151,8 +144,7 @@ namespace ardb
         return ret;
     }
 
-    int Ardb::HSetNX(const DBID& db, const Slice& key, const Slice& field,
-                    const Slice& value)
+    int Ardb::HSetNX(const DBID& db, const Slice& key, const Slice& field, const Slice& value)
     {
         if (HExists(db, key, field))
         {
@@ -204,8 +196,7 @@ namespace ardb
         return fields.size();
     }
 
-    int Ardb::HGetValue(HashKeyObject& key, HashMetaValue* meta,
-                    CommonValueObject& value)
+    int Ardb::HGetValue(HashKeyObject& key, HashMetaValue* meta, CommonValueObject& value)
     {
         if (meta->ziped)
         {
@@ -223,8 +214,7 @@ namespace ardb
         }
     }
 
-    int Ardb::HGet(const DBID& db, const Slice& key, const Slice& field,
-                    std::string* value)
+    int Ardb::HGet(const DBID& db, const Slice& key, const Slice& field, std::string* value)
     {
         int err = 0;
         bool createHash = false;
@@ -249,27 +239,37 @@ namespace ardb
         return ret;
     }
 
-    int Ardb::HMSet(const DBID& db, const Slice& key, const SliceArray& fields,
-                    const SliceArray& values)
+    int Ardb::HMSet(const DBID& db, const Slice& key, const SliceArray& fields, const SliceArray& values)
     {
         if (fields.size() != values.size())
         {
             return ERR_INVALID_ARGS;
+        }
+        int err = 0;
+        bool createHash = false;
+        HashMetaValue* meta = GetHashMeta(db, key, err, createHash);
+        if (NULL == meta)
+        {
+            DELETE(meta);
+            return err;
         }
         BatchWriteGuard guard(GetEngine());
         SliceArray::const_iterator it = fields.begin();
         SliceArray::const_iterator sit = values.begin();
         while (it != fields.end())
         {
-            HSet(db, key, *it, *sit);
+            CommonValueObject valueobject;
+            valueobject.data.SetValue(*sit, true);
+            HashKeyObject hk(key, *it, db);
+            HSetValue(hk, meta, valueobject);
             it++;
             sit++;
         }
+        DELETE(meta);
         return 0;
     }
 
-    int Ardb::HMGet(const DBID& db, const Slice& key, const SliceArray& fields,
-                    ValueArray& values)
+    int Ardb::HMGet(const DBID& db, const Slice& key, const SliceArray& fields, ValueArray& values)
     {
         int err = 0;
         bool createHash = false;
@@ -316,7 +316,7 @@ namespace ardb
                         return 0;
                     }
                     HClearWalk(Ardb* db) :
-                                    z_db(db)
+                            z_db(db)
                     {
                     }
             } walk(this);
@@ -463,8 +463,7 @@ namespace ardb
                     break;
                 }
                 ValueData v;
-                Buffer readbuf(const_cast<char*>(it->Value().data()), 0,
-                                it->Value().size());
+                Buffer readbuf(const_cast<char*>(it->Value().data()), 0, it->Value().size());
                 decode_value(readbuf, v);
                 std::string str;
                 values.push_back(v.ToString(str));
@@ -483,8 +482,7 @@ namespace ardb
         return values.empty() ? ERR_NOT_EXIST : 0;
     }
 
-    int Ardb::HGetAll(const DBID& db, const Slice& key, StringArray& fields,
-                    ValueArray& values)
+    int Ardb::HGetAll(const DBID& db, const Slice& key, StringArray& fields, ValueArray& values)
     {
         int err = 0;
         bool createHash = false;
@@ -525,7 +523,7 @@ namespace ardb
                         return 0;
                     }
                     HashWalk(StringArray& ff, ValueArray& vs) :
-                                    fs(ff), dst(vs)
+                            fs(ff), dst(vs)
                     {
                     }
             } walk(fields, values);
@@ -546,8 +544,7 @@ namespace ardb
         return HGet(db, key, field, NULL) == 0;
     }
 
-    int Ardb::HIncrby(const DBID& db, const Slice& key, const Slice& field,
-                    int64_t increment, int64_t& value)
+    int Ardb::HIncrby(const DBID& db, const Slice& key, const Slice& field, int64_t increment, int64_t& value)
     {
         int err = 0;
         bool createHash = false;
@@ -580,16 +577,14 @@ namespace ardb
         return ret;
     }
 
-    int Ardb::HMIncrby(const DBID& db, const Slice& key,
-                    const SliceArray& fields, const Int64Array& increments,
-                    Int64Array& vs)
+    int Ardb::HMIncrby(const DBID& db, const Slice& key, const SliceArray& fields, const Int64Array& increments,
+            Int64Array& vs)
     {
         if (fields.size() != increments.size())
         {
             return ERR_INVALID_ARGS;
         }
         vs.clear();
-        BatchWriteGuard guard(GetEngine());
         SliceArray::const_iterator it = fields.begin();
         Int64Array::const_iterator sit = increments.begin();
         while (it != fields.end())
@@ -603,8 +598,7 @@ namespace ardb
         return 0;
     }
 
-    int Ardb::HIncrbyFloat(const DBID& db, const Slice& key, const Slice& field,
-                    double increment, double& value)
+    int Ardb::HIncrbyFloat(const DBID& db, const Slice& key, const Slice& field, double increment, double& value)
     {
         int err = 0;
         bool createHash = false;
@@ -619,8 +613,7 @@ namespace ardb
         int ret = HGetValue(hk, meta, valueObj);
         if (0 == ret)
         {
-            if (valueObj.data.type != INTEGER_VALUE
-                            && valueObj.data.type != DOUBLE_VALUE)
+            if (valueObj.data.type != INTEGER_VALUE && valueObj.data.type != DOUBLE_VALUE)
             {
                 DELETE(meta);
                 return ERR_INVALID_TYPE;
@@ -645,8 +638,7 @@ namespace ardb
         if (iter != NULL && iter->Valid())
         {
             KeyObject* kk = decode_key(iter->Key(), NULL);
-            if (NULL != kk && kk->type == HASH_FIELD
-                            && kk->key.compare(key) == 0)
+            if (NULL != kk && kk->type == HASH_FIELD && kk->key.compare(key) == 0)
             {
                 HashKeyObject* tmp = (HashKeyObject*) kk;
                 tmp->field.ToString(field);
@@ -672,8 +664,7 @@ namespace ardb
             if (iter->Valid())
             {
                 KeyObject* kk = decode_key(iter->Key(), NULL);
-                if (NULL != kk && kk->type == HASH_FIELD
-                                && kk->key.compare(key) == 0)
+                if (NULL != kk && kk->type == HASH_FIELD && kk->key.compare(key) == 0)
                 {
                     HashKeyObject* tmp = (HashKeyObject*) kk;
                     tmp->field.ToString(field);
@@ -688,8 +679,7 @@ namespace ardb
         return -1;
     }
 
-    int Ardb::RenameHash(const DBID& db1, const Slice& key1, const DBID& db2,
-                    const Slice& key2, HashMetaValue* meta)
+    int Ardb::RenameHash(const DBID& db1, const Slice& key1, const DBID& db2, const Slice& key2, HashMetaValue* meta)
     {
         BatchWriteGuard guard(GetEngine());
         if (meta->ziped)
@@ -720,9 +710,8 @@ namespace ardb
                         hm.size++;
                         return 0;
                     }
-                    HashWalk(Ardb* db, const DBID& dbid, const Slice& dstkey,
-                                    HashMetaValue& m) :
-                                    z_db(db), dstdb(dbid), dst(dstkey), hm(m)
+                    HashWalk(Ardb* db, const DBID& dbid, const Slice& dstkey, HashMetaValue& m) :
+                            z_db(db), dstdb(dbid), dst(dstkey), hm(m)
                     {
                     }
             } walk(this, db2, key2, hmeta);

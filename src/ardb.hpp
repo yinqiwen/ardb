@@ -200,20 +200,6 @@ namespace ardb
             }
     };
 
-    class ZSetScoreCache
-    {
-        private:
-            uint32 m_mem_size;
-            typedef std::map<std::string, double*> ScoreCache;
-            ScoreCache m_cache;
-        public:
-            int Add(const DBItemKey& key, double score);
-            int Replace(const DBItemKey& key, double old_score, double new_score);
-            int Remove(const DBItemKey& key, double score);
-            int Rank(const DBItemKey& key, double score);
-            int RangeByRank(const DBItemKey& key, int start, int end);
-    };
-
     class DBHelper;
     class ZSetScoresCacheManager;
     class Ardb
