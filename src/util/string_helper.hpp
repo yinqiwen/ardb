@@ -125,6 +125,7 @@ namespace ardb
 	bool has_suffix(const std::string& str, const std::string& suffix);
 
 	std::string random_string(uint32 len);
+	std::string random_between_string(const std::string& min, const std::string& max);
 	std::string random_hex_string(uint32 len);
 
 	std::string sha1_sum(const std::string& str);

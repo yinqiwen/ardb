@@ -329,6 +329,18 @@ namespace ardb
 		return true;
 	}
 
+	bool BufferHelper::ReadVarUInt32IfEqual(Buffer& buffer, uint32_t v)
+	{
+	    size_t idx = buffer.GetReadIndex();
+	    uint32_t cmp = 0;
+	    if(ReadVarUInt32(buffer, cmp) && cmp == v)
+	    {
+	        return true;
+	    }
+	    buffer.SetReadIndex(idx);
+	    return false;
+	}
+
 	bool BufferHelper::ReadVarInt32(Buffer& buffer, int32_t& i)
 	{
 		uint64_t result;

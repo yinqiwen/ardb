@@ -264,6 +264,8 @@ namespace ardb
         }
         make_dir(cfg.data_base_path);
         cfg.data_base_path = real_path(cfg.data_base_path);
+
+        conf_get_string(props, "additional-misc-info", cfg.additional_misc_info);
         ArdbLogger::SetLogLevel(cfg.loglevel);
         return 0;
     }
@@ -356,8 +358,7 @@ namespace ardb
                 { "hset", REDIS_CMD_HSET, &ArdbServer::HSet, 3, 3, "w", 0 },
                 { "hsetnx", REDIS_CMD_HSETNX, &ArdbServer::HSetNX, 3, 3, "w", 0 },
                 { "hmset", REDIS_CMD_HMSET, &ArdbServer::HMSet, 3, -1, "w", 0 },
-                { "hrange", REDIS_CMD_HRANGE, &ArdbServer::HRange, 1, 5, "r", 0 },
-                { "hrevrange", REDIS_CMD_HREVRANGE, &ArdbServer::HRange, 1, 5, "r", 0 },
+                { "hscan", REDIS_CMD_HSCAN, &ArdbServer::HScan, 2, 6, "r", 0 },
                 { "scard", REDIS_CMD_SCARD, &ArdbServer::SCard, 1, 1, "r", 0 },
                 { "sadd", REDIS_CMD_SADD, &ArdbServer::SAdd, 2, -1, "w", 0 },
                 { "sdiff", REDIS_CMD_SDIFF, &ArdbServer::SDiff, 2, -1, "r", 0 },
@@ -375,8 +376,7 @@ namespace ardb
                 { "sunion", REDIS_CMD_SUNION, &ArdbServer::SUnion, 2, -1, "r", 0 },
                 { "sunionstore", REDIS_CMD_SUNIONSTORE, &ArdbServer::SUnionStore, 3, -1, "r", 0 },
                 { "sunioncount", REDIS_CMD_SUNIONCOUNT, &ArdbServer::SUnionCount, 2, -1, "r", 0 },
-                { "srange", REDIS_CMD_SRANGE, &ArdbServer::SRange, 1, 5, "r", 0 },
-                { "srevrange", REDIS_CMD_SREVREANGE, &ArdbServer::SRange, 1, 5, "r", 0 },
+                { "sscan", REDIS_CMD_SSCAN, &ArdbServer::SScan, 2, 6, "r", 0 },
                 { "zadd", REDIS_CMD_ZADD, &ArdbServer::ZAdd, 3, -1, "w", 0 },
                 { "rtazadd", REDIS_CMD_ZADD, &ArdbServer::ZAdd, 3, -1, "w", 0 }, /*Compatible with a modified Redis version*/
                 { "zcard", REDIS_CMD_ZCARD, &ArdbServer::ZCard, 1, 1, "r", 0 },
@@ -396,6 +396,7 @@ namespace ardb
                 { "zunionstore", REDIS_CMD_ZUNIONSTORE, &ArdbServer::ZUnionStore, 3, -1, "w", 0 },
                 { "zrevrank", REDIS_CMD_ZREVRANK, &ArdbServer::ZRevRank, 2, 2, "r", 0 },
                 { "zscore", REDIS_CMD_ZSCORE, &ArdbServer::ZScore, 2, 2, "r", 0 },
+                { "zscan", REDIS_CMD_ZSCORE, &ArdbServer::ZScan, 2, 6, "r", 0 },
                 { "lindex", REDIS_CMD_LINDEX, &ArdbServer::LIndex, 2, 2, "r", 0 },
                 { "linsert", REDIS_CMD_LINSERT, &ArdbServer::LInsert, 4, 4, "w", 0 },
                 { "llen", REDIS_CMD_LLEN, &ArdbServer::LLen, 1, 1, "r", 0 },
@@ -424,7 +425,9 @@ namespace ardb
                 { "__del__", REDIS_CMD_RAWDEL, &ArdbServer::RawDel, 1, 1, "w", 0 },
                 { "eval", REDIS_CMD_EVAL, &ArdbServer::Eval, 2, -1, "s", 0 },
                 { "evalsha", REDIS_CMD_EVALSHA, &ArdbServer::EvalSHA, 2, -1, "s", 0 },
-                { "script", REDIS_CMD_SCRIPT, &ArdbServer::Script, 1, -1, "s", 0 }, };
+                { "script", REDIS_CMD_SCRIPT, &ArdbServer::Script, 1, -1, "s", 0 },
+                { "randomkey", REDIS_CMD_RANDOMKEY, &ArdbServer::Randomkey, 0, 0, "r", 0 },
+                { "scan", REDIS_CMD_SCAN, &ArdbServer::Scan, 1, 5, "r", 0 }, };
 
         uint32 arraylen = arraysize(settingTable);
         for (uint32 i = 0; i < arraylen; i++)
@@ -618,6 +621,64 @@ namespace ardb
         int64 count = 0;
         m_db->KeysCount(ctx.currentDB, cmd.GetArguments()[0], count);
         fill_int_reply(ctx.reply, count);
+        return 0;
+    }
+    int ArdbServer::Randomkey(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        std::string key;
+        if (0 == m_db->Randomkey(ctx.currentDB, key))
+        {
+            fill_str_reply(ctx.reply, key);
+        }
+        else
+        {
+            ctx.reply.type = REDIS_REPLY_NIL;
+        }
+        return 0;
+    }
+    int ArdbServer::Scan(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        StringArray keys;
+        std::string pattern;
+        uint32 limit = 10000; //return max 10000 keys one time
+        if (cmd.GetArguments().size() > 2)
+        {
+            for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+            {
+                if (!strcasecmp(cmd.GetArguments()[i].c_str(), "count"))
+                {
+                    if (i + 1 >= cmd.GetArguments().size() || !string_touint32(cmd.GetArguments()[i + 1], limit))
+                    {
+                        fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+                        return 0;
+                    }
+                    i++;
+                }
+                else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "match"))
+                {
+                    if (i + 1 >= cmd.GetArguments().size())
+                    {
+                        fill_error_reply(ctx.reply, "ERR 'MATCH' need one args followed");
+                        return 0;
+                    }
+                    pattern = cmd.GetArguments()[i + 1];
+                    i++;
+                }
+                else
+                {
+                    fill_error_reply(ctx.reply, " Syntax error, try scan 0 ");
+                    return 0;
+                }
+            }
+        }
+        std::string newcursor = "0";
+        StringArray results;
+        m_db->Scan(ctx.currentDB, cmd.GetArguments()[0], pattern, limit, results, newcursor);
+        ctx.reply.type = REDIS_REPLY_ARRAY;
+        ctx.reply.elements.push_back(RedisReply(newcursor));
+        RedisReply rs;
+        fill_str_array_reply(rs, results);
+        ctx.reply.elements.push_back(rs);
         return 0;
     }
 
@@ -844,7 +905,17 @@ namespace ardb
 
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "memory"))
         {
-            info.append("# Memory\r\n");
+            //info.append("# Memory\r\n");
+        }
+
+        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "misc"))
+        {
+            if (!m_cfg.additional_misc_info.empty())
+            {
+                info.append("# Misc\r\n");
+                string_replace(m_cfg.additional_misc_info, "\\n", "\r\n");
+                info.append(m_cfg.additional_misc_info).append("\r\n");
+            }
         }
     }
 
@@ -1041,7 +1112,7 @@ namespace ardb
     int ArdbServer::Time(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         uint64 micros = get_current_epoch_micros();
-        ValueArray vs;
+        ValueDataArray vs;
         vs.push_back(ValueData((int64) micros / 1000000));
         vs.push_back(ValueData((int64) micros % 1000000));
         fill_array_reply(ctx.reply, vs);
@@ -1078,7 +1149,7 @@ namespace ardb
 
     int ArdbServer::Sort(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        ValueArray vs;
+        ValueDataArray vs;
         std::string key = cmd.GetArguments()[0];
         cmd.GetArguments().pop_front();
         int ret = m_db->Sort(ctx.currentDB, key, cmd.GetArguments(), vs);
@@ -1798,7 +1869,7 @@ namespace ardb
 
     int ArdbServer::Sync(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        if (m_cfg.repl_backlog_size <= 0)
+        if (!m_repl_backlog.IsInited())
         {
             fill_error_reply(ctx.reply, "ERR Ardb instance's replication log not enabled, can NOT serve as master.");
             return -1;
@@ -1809,7 +1880,7 @@ namespace ardb
 
     int ArdbServer::PSync(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        if (m_cfg.repl_backlog_size <= 0)
+        if (!m_repl_backlog.IsInited())
         {
             fill_error_reply(ctx.reply,
                     "ERR Ardb instance's replication backlog not enabled, can NOT serve as master.");
@@ -1856,15 +1927,15 @@ namespace ardb
         fill_str_array_reply(ctx.reply, keys);
         return 0;
     }
-    int ArdbServer::HRange(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    int ArdbServer::HScan(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        uint32 limit = 100000; //return max 100000 keys one time
-        std::string from;
-        if (cmd.GetArguments().size() > 1)
+        std::string pattern;
+        uint32 limit = 10000; //return max 10000 keys one time
+        if (cmd.GetArguments().size() > 2)
         {
-            for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+            for (uint32 i = 2; i < cmd.GetArguments().size(); i++)
             {
-                if (!strcasecmp(cmd.GetArguments()[i].c_str(), "limit"))
+                if (!strcasecmp(cmd.GetArguments()[i].c_str(), "count"))
                 {
                     if (i + 1 >= cmd.GetArguments().size() || !string_touint32(cmd.GetArguments()[i + 1], limit))
                     {
@@ -1873,49 +1944,94 @@ namespace ardb
                     }
                     i++;
                 }
-                else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "from"))
+                else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "match"))
                 {
                     if (i + 1 >= cmd.GetArguments().size())
                     {
-                        fill_error_reply(ctx.reply, "ERR 'from' need two args followed");
+                        fill_error_reply(ctx.reply, "ERR 'MATCH' need one args followed");
                         return 0;
                     }
-                    from = cmd.GetArguments()[i + 1];
-                    i += 1;
+                    pattern = cmd.GetArguments()[i + 1];
+                    i++;
                 }
                 else
                 {
-                    fill_error_reply(ctx.reply, " Syntax error ");
+                    fill_error_reply(ctx.reply, " Syntax error, try scan 0 ");
                     return 0;
                 }
             }
         }
-        StringArray fields;
-        ValueArray vals;
-        if (cmd.GetType() == REDIS_CMD_HRANGE)
-        {
-            //m_db->HRange(ctx.currentDB, cmd.GetArguments()[0], from, limit, fields, vals);
-        }
-        else
-        {
-            //m_db->HRevRange(ctx.currentDB, cmd.GetArguments()[0], from, limit, fields, vals);
-        }
+        std::string newcursor = "0";
+        ValueDataArray vs;
+        m_db->HScan(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], pattern, limit, vs, newcursor);
         ctx.reply.type = REDIS_REPLY_ARRAY;
-        for (uint32 i = 0; i < fields.size(); i++)
-        {
-            RedisReply reply1, reply2;
-            fill_str_reply(reply1, fields[i]);
-            std::string str;
-            fill_str_reply(reply2, vals[i].ToString(str));
-            ctx.reply.elements.push_back(reply1);
-            ctx.reply.elements.push_back(reply2);
-        }
+        ctx.reply.elements.push_back(RedisReply(newcursor));
+        RedisReply rs;
+        fill_array_reply(rs, vs);
+        ctx.reply.elements.push_back(rs);
         return 0;
     }
 
+//    int ArdbServer::HRange(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+//    {
+//        uint32 limit = 100000; //return max 100000 keys one time
+//        std::string from;
+//        if (cmd.GetArguments().size() > 1)
+//        {
+//            for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+//            {
+//                if (!strcasecmp(cmd.GetArguments()[i].c_str(), "limit"))
+//                {
+//                    if (i + 1 >= cmd.GetArguments().size() || !string_touint32(cmd.GetArguments()[i + 1], limit))
+//                    {
+//                        fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+//                        return 0;
+//                    }
+//                    i++;
+//                }
+//                else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "from"))
+//                {
+//                    if (i + 1 >= cmd.GetArguments().size())
+//                    {
+//                        fill_error_reply(ctx.reply, "ERR 'from' need two args followed");
+//                        return 0;
+//                    }
+//                    from = cmd.GetArguments()[i + 1];
+//                    i += 1;
+//                }
+//                else
+//                {
+//                    fill_error_reply(ctx.reply, " Syntax error ");
+//                    return 0;
+//                }
+//            }
+//        }
+//        StringArray fields;
+//        ValueArray vals;
+//        if (cmd.GetType() == REDIS_CMD_HRANGE)
+//        {
+//            //m_db->HRange(ctx.currentDB, cmd.GetArguments()[0], from, limit, fields, vals);
+//        }
+//        else
+//        {
+//            //m_db->HRevRange(ctx.currentDB, cmd.GetArguments()[0], from, limit, fields, vals);
+//        }
+//        ctx.reply.type = REDIS_REPLY_ARRAY;
+//        for (uint32 i = 0; i < fields.size(); i++)
+//        {
+//            RedisReply reply1, reply2;
+//            fill_str_reply(reply1, fields[i]);
+//            std::string str;
+//            fill_str_reply(reply2, vals[i].ToString(str));
+//            ctx.reply.elements.push_back(reply1);
+//            ctx.reply.elements.push_back(reply2);
+//        }
+//        return 0;
+//    }
+
     int ArdbServer::HMGet(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        ValueArray vals;
+        ValueDataArray vals;
         SliceArray fs;
         for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
         {
@@ -1996,7 +2112,7 @@ namespace ardb
     int ArdbServer::HGetAll(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         StringArray fields;
-        ValueArray results;
+        ValueDataArray results;
         m_db->HGetAll(ctx.currentDB, cmd.GetArguments()[0], fields, results);
         ctx.reply.type = REDIS_REPLY_ARRAY;
         for (uint32 i = 0; i < fields.size(); i++)
@@ -2080,7 +2196,7 @@ namespace ardb
             fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
             return 0;
         }
-        ValueArray vs;
+        ValueDataArray vs;
         m_db->SDiff(ctx.currentDB, keys, vs);
         fill_array_reply(ctx.reply, vs);
         return 0;
@@ -2121,7 +2237,7 @@ namespace ardb
             fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
             return 0;
         }
-        ValueArray vs;
+        ValueDataArray vs;
         m_db->SInter(ctx.currentDB, keys, vs);
         fill_array_reply(ctx.reply, vs);
         return 0;
@@ -2156,7 +2272,7 @@ namespace ardb
 
     int ArdbServer::SMembers(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        ValueArray vs;
+        ValueDataArray vs;
         int ret = m_db->SMembers(ctx.currentDB, cmd.GetArguments()[0], vs);
         if (ret == ERR_TOO_LARGE_RESPONSE)
         {
@@ -2186,7 +2302,7 @@ namespace ardb
 
     int ArdbServer::SRandMember(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        ValueArray vs;
+        ValueDataArray vs;
         int32 count = 1;
         if (cmd.GetArguments().size() > 1)
         {
@@ -2241,7 +2357,7 @@ namespace ardb
             fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
             return 0;
         }
-        ValueArray vs;
+        ValueDataArray vs;
         m_db->SUnion(ctx.currentDB, keys, vs);
         fill_array_reply(ctx.reply, vs);
         return 0;
@@ -2328,54 +2444,99 @@ namespace ardb
         return 0;
     }
 
-    int ArdbServer::SRange(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    int ArdbServer::SScan(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        ValueArray vs;
-        int32 count = 1000000;
-        Slice start;
-        if (cmd.GetArguments().size() > 1)
+        std::string pattern;
+        uint32 limit = 10000; //return max 10000 keys one time
+        if (cmd.GetArguments().size() > 2)
         {
-            for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+            for (uint32 i = 2; i < cmd.GetArguments().size(); i++)
             {
-                if (!strcasecmp(cmd.GetArguments()[i].c_str(), "limit"))
+                if (!strcasecmp(cmd.GetArguments()[i].c_str(), "count"))
                 {
-                    if (i + 1 >= cmd.GetArguments().size() || !string_toint32(cmd.GetArguments()[i + 1], count)
-                            || count < 0)
+                    if (i + 1 >= cmd.GetArguments().size() || !string_touint32(cmd.GetArguments()[i + 1], limit))
                     {
                         fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
                         return 0;
                     }
                     i++;
                 }
-                else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "from"))
+                else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "match"))
                 {
                     if (i + 1 >= cmd.GetArguments().size())
                     {
-                        fill_error_reply(ctx.reply, "ERR 'from' need two args followed");
+                        fill_error_reply(ctx.reply, "ERR 'MATCH' need one args followed");
                         return 0;
                     }
-                    start = Slice(cmd.GetArguments()[i + 1]);
-                    i += 1;
+                    pattern = cmd.GetArguments()[i + 1];
+                    i++;
                 }
                 else
                 {
-                    fill_error_reply(ctx.reply, " Syntax error, try KEYS ");
+                    fill_error_reply(ctx.reply, " Syntax error, try scan 0 ");
                     return 0;
                 }
             }
         }
-        bool with_first = false;
-        if (cmd.GetType() == REDIS_CMD_SRANGE)
-        {
-            m_db->SRange(ctx.currentDB, cmd.GetArguments()[0], start, count, with_first, vs);
-        }
-        else
-        {
-            m_db->SRevRange(ctx.currentDB, cmd.GetArguments()[0], start, count, with_first, vs);
-        }
-        fill_array_reply(ctx.reply, vs);
+        std::string newcursor = "0";
+        ValueDataArray vs;
+        m_db->SScan(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], pattern, limit, vs, newcursor);
+        ctx.reply.type = REDIS_REPLY_ARRAY;
+        ctx.reply.elements.push_back(RedisReply(newcursor));
+        RedisReply rs;
+        fill_array_reply(rs, vs);
+        ctx.reply.elements.push_back(rs);
         return 0;
     }
+
+//    int ArdbServer::SRange(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+//    {
+//        ValueArray vs;
+//        int32 count = 1000000;
+//        Slice start;
+//        if (cmd.GetArguments().size() > 1)
+//        {
+//            for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+//            {
+//                if (!strcasecmp(cmd.GetArguments()[i].c_str(), "limit"))
+//                {
+//                    if (i + 1 >= cmd.GetArguments().size() || !string_toint32(cmd.GetArguments()[i + 1], count)
+//                            || count < 0)
+//                    {
+//                        fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+//                        return 0;
+//                    }
+//                    i++;
+//                }
+//                else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "from"))
+//                {
+//                    if (i + 1 >= cmd.GetArguments().size())
+//                    {
+//                        fill_error_reply(ctx.reply, "ERR 'from' need two args followed");
+//                        return 0;
+//                    }
+//                    start = Slice(cmd.GetArguments()[i + 1]);
+//                    i += 1;
+//                }
+//                else
+//                {
+//                    fill_error_reply(ctx.reply, " Syntax error, try KEYS ");
+//                    return 0;
+//                }
+//            }
+//        }
+//        bool with_first = false;
+//        if (cmd.GetType() == REDIS_CMD_SRANGE)
+//        {
+//            m_db->SRange(ctx.currentDB, cmd.GetArguments()[0], start, count, with_first, vs);
+//        }
+//        else
+//        {
+//            m_db->SRevRange(ctx.currentDB, cmd.GetArguments()[0], start, count, with_first, vs);
+//        }
+//        fill_array_reply(ctx.reply, vs);
+//        return 0;
+//    }
 
 //===========================Sorted Sets cmds==============================
     int ArdbServer::ZAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd)
@@ -2416,7 +2577,7 @@ namespace ardb
         }
         if (with_limit)
         {
-            ValueArray vs;
+            ValueDataArray vs;
             m_db->ZAddLimit(ctx.currentDB, cmd.GetArguments()[0], scores, svs, limit, vs);
             fill_array_reply(ctx.reply, vs);
         }
@@ -2478,7 +2639,7 @@ namespace ardb
         }
         ZSetQueryOptions options;
         options.withscores = withscores;
-        ValueArray vs;
+        ValueDataArray vs;
         m_db->ZRange(ctx.currentDB, cmd.GetArguments()[0], start, stop, vs, options);
         fill_array_reply(ctx.reply, vs);
         return 0;
@@ -2532,7 +2693,7 @@ namespace ardb
             }
         }
 
-        ValueArray vs;
+        ValueDataArray vs;
         m_db->ZRangeByScore(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], cmd.GetArguments()[2], vs,
                 options);
         fill_array_reply(ctx.reply, vs);
@@ -2564,7 +2725,7 @@ namespace ardb
                 return 0;
             }
         }
-        ValueArray vs;
+        ValueDataArray vs;
         bool reverse = (strcasecmp(cmd.GetCommand().c_str(), "zrpop") == 0);
         m_db->ZPop(ctx.currentDB, cmd.GetArguments()[0], reverse, num, vs);
         fill_array_reply(ctx.reply, vs);
@@ -2623,7 +2784,7 @@ namespace ardb
         }
         ZSetQueryOptions options;
         options.withscores = withscores;
-        ValueArray vs;
+        ValueDataArray vs;
         m_db->ZRevRange(ctx.currentDB, cmd.GetArguments()[0], start, stop, vs, options);
         fill_array_reply(ctx.reply, vs);
         return 0;
@@ -2642,7 +2803,7 @@ namespace ardb
             }
         }
 
-        ValueArray vs;
+        ValueDataArray vs;
         m_db->ZRevRangeByScore(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], cmd.GetArguments()[2], vs,
                 options);
         fill_array_reply(ctx.reply, vs);
@@ -2766,6 +2927,51 @@ namespace ardb
         return 0;
     }
 
+    int ArdbServer::ZScan(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        std::string pattern;
+        uint32 limit = 10000; //return max 10000 keys one time
+        if (cmd.GetArguments().size() > 2)
+        {
+            for (uint32 i = 2; i < cmd.GetArguments().size(); i++)
+            {
+                if (!strcasecmp(cmd.GetArguments()[i].c_str(), "count"))
+                {
+                    if (i + 1 >= cmd.GetArguments().size() || !string_touint32(cmd.GetArguments()[i + 1], limit))
+                    {
+                        fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+                        return 0;
+                    }
+                    i++;
+                }
+                else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "match"))
+                {
+                    if (i + 1 >= cmd.GetArguments().size())
+                    {
+                        fill_error_reply(ctx.reply, "ERR 'MATCH' need one args followed");
+                        return 0;
+                    }
+                    pattern = cmd.GetArguments()[i + 1];
+                    i++;
+                }
+                else
+                {
+                    fill_error_reply(ctx.reply, " Syntax error, try scan 0 ");
+                    return 0;
+                }
+            }
+        }
+        std::string newcursor = "0";
+        ValueDataArray vs;
+        m_db->ZScan(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], pattern, limit, vs, newcursor);
+        ctx.reply.type = REDIS_REPLY_ARRAY;
+        ctx.reply.elements.push_back(RedisReply(newcursor));
+        RedisReply rs;
+        fill_array_reply(rs, vs);
+        ctx.reply.elements.push_back(rs);
+        return 0;
+    }
+
     int ArdbServer::ZScore(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         double score;
@@ -2861,7 +3067,7 @@ namespace ardb
             fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
             return 0;
         }
-        ValueArray vs;
+        ValueDataArray vs;
         m_db->LRange(ctx.currentDB, cmd.GetArguments()[0], start, stop, vs);
         fill_array_reply(ctx.reply, vs);
         return 0;
@@ -3043,32 +3249,35 @@ namespace ardb
          * Feed commands which modified data
          */
         DBWatcher& watcher = m_db->GetDBWatcher();
-        if ((flags & ARDB_PROCESS_FEED_REPLICATION_ONLY) || (flags & ARDB_PROCESS_FORCE_REPLICATION))
+        if (m_repl_backlog.IsInited())
         {
-            //feed to replication
-            m_master_serv.FeedSlaves(ctx.currentDB, args);
-        }
-        else if ((watcher.data_changed && (flags & ARDB_PROCESS_WITHOUT_REPLICATION) == 0))
-        {
-            if (args.GetType() == REDIS_CMD_EXEC)
+            if ((flags & ARDB_PROCESS_FEED_REPLICATION_ONLY) || (flags & ARDB_PROCESS_FORCE_REPLICATION))
             {
                 //feed to replication
-                if (NULL != ctx.transaction_cmds)
-                {
-                    RedisCommandFrame multi("MULTI");
-                    m_master_serv.FeedSlaves(ctx.currentDB, multi);
-                    for (uint32 i = 0; i < ctx.transaction_cmds->size(); i++)
-                    {
-                        RedisCommandFrame& transc_cmd = ctx.transaction_cmds->at(i);
-                        m_master_serv.FeedSlaves(ctx.currentDB, transc_cmd);
-                    }
-                    RedisCommandFrame exec("EXEC");
-                    m_master_serv.FeedSlaves(ctx.currentDB, exec);
-                }
-            }
-            else
-            {
                 m_master_serv.FeedSlaves(ctx.currentDB, args);
+            }
+            else if ((watcher.data_changed && (flags & ARDB_PROCESS_WITHOUT_REPLICATION) == 0))
+            {
+                if (args.GetType() == REDIS_CMD_EXEC)
+                {
+                    //feed to replication
+                    if (NULL != ctx.transaction_cmds)
+                    {
+                        RedisCommandFrame multi("MULTI");
+                        m_master_serv.FeedSlaves(ctx.currentDB, multi);
+                        for (uint32 i = 0; i < ctx.transaction_cmds->size(); i++)
+                        {
+                            RedisCommandFrame& transc_cmd = ctx.transaction_cmds->at(i);
+                            m_master_serv.FeedSlaves(ctx.currentDB, transc_cmd);
+                        }
+                        RedisCommandFrame exec("EXEC");
+                        m_master_serv.FeedSlaves(ctx.currentDB, exec);
+                    }
+                }
+                else
+                {
+                    m_master_serv.FeedSlaves(ctx.currentDB, args);
+                }
             }
         }
         watcher.Clear();
@@ -3268,10 +3477,7 @@ namespace ardb
         ArdbLogger::InitDefaultLogger(m_cfg.loglevel, m_cfg.logfile);
 
         m_rdb.Init(m_db);
-        if (0 != m_repl_backlog.Init(this))
-        {
-            goto sexit;
-        }
+        m_repl_backlog.Init(this);
         if (0 != m_master_serv.Init())
         {
             goto sexit;

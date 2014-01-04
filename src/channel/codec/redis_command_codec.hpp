@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -35,35 +35,30 @@
 
 namespace ardb
 {
-	namespace codec
-	{
-		class RedisMessageDecoder;
-		class RedisCommandDecoder: public StackFrameDecoder<RedisCommandFrame>
-		{
-			protected:
-				int ProcessInlineBuffer(ChannelHandlerContext& ctx,
-				        Buffer& buffer, RedisCommandFrame& frame);
-				int ProcessMultibulkBuffer(ChannelHandlerContext& ctx,
-				        Buffer& buffer, RedisCommandFrame& frame);
-				bool Decode(ChannelHandlerContext& ctx, Channel* channel,
-				        Buffer& buffer, RedisCommandFrame& msg);
-				friend  class RedisMessageDecoder;
-			public:
-				RedisCommandDecoder()
-				{
-				}
-		};
+    namespace codec
+    {
+        class RedisMessageDecoder;
+        class RedisCommandDecoder: public StackFrameDecoder<RedisCommandFrame>
+        {
+            protected:
+                int ProcessInlineBuffer(ChannelHandlerContext& ctx, Buffer& buffer, RedisCommandFrame& frame);
+                int ProcessMultibulkBuffer(ChannelHandlerContext& ctx, Buffer& buffer, RedisCommandFrame& frame);
+                bool Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, RedisCommandFrame& msg);
+                friend class RedisMessageDecoder;
+            public:
+                RedisCommandDecoder()
+                {
+                }
+        };
 
-		class RedisCommandEncoder: public ChannelDownstreamHandler<
-		        RedisCommandFrame>
-		{
-			private:
-				bool WriteRequested(ChannelHandlerContext& ctx,
-				        MessageEvent<RedisCommandFrame>& e);
-			public:
-				static bool Encode(Buffer& buf, RedisCommandFrame& cmd);
-		};
-	}
+        class RedisCommandEncoder: public ChannelDownstreamHandler<RedisCommandFrame>
+        {
+            private:
+                bool WriteRequested(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e);
+            public:
+                static bool Encode(Buffer& buf, RedisCommandFrame& cmd);
+        };
+    }
 }
 
 #endif /* REDIS_FRAME_DECODER_HPP_ */

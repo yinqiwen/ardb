@@ -66,15 +66,13 @@ LevelDB Options: block_cache_size=512m, write_buffer_size=512m, thread_pool_size
 
          
 
-## Ardb vs Redis(2.6) 
+## Ardb vs Redis(2.8) 
  * Unsupported Redis Commands:
   - DUMP 
   - MIGRATE
   - OBJECT
-  - RANDOMKEY
   - RESTORE
   - BLPOP/BRPOP
-  - SRANDMEMBER
   - AUTH
   - CONFIG RESETSTAT
   - DEBUG/MONITOR
@@ -87,10 +85,8 @@ LevelDB Options: block_cache_size=512m, write_buffer_size=512m, thread_pool_size
   - \_\_SET\_\_/\_\_DEL\_\_(for replication)
   - CompactDB/CompactAll
   - BitOPCount
-  - SRange/SRevRange
   - Import
   - KeysCount
-  - HRange/HRevRange
   
 
 

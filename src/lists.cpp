@@ -538,7 +538,7 @@ namespace ardb
         return ERR_NOT_EXIST;
     }
 
-    int Ardb::LRange(const DBID& db, const Slice& key, int start, int end, ValueArray& values)
+    int Ardb::LRange(const DBID& db, const Slice& key, int start, int end, ValueDataArray& values)
     {
         int err = 0;
         bool createList = false;
@@ -584,7 +584,7 @@ namespace ardb
         {
                 uint32 l_start;
                 uint32 l_stop;
-                ValueArray& found_values;
+                ValueDataArray& found_values;
                 int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
                 {
                     CommonValueObject* cv = (CommonValueObject*) v;
@@ -598,7 +598,7 @@ namespace ardb
                     }
                     return 0;
                 }
-                LRangeWalk(int start, int stop, ValueArray& vs) :
+                LRangeWalk(int start, int stop, ValueDataArray& vs) :
                         l_start(start), l_stop(stop), found_values(vs)
                 {
                 }

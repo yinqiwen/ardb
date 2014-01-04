@@ -29,6 +29,7 @@
 
 #include "ardb.hpp"
 #include "helper/db_helpers.hpp"
+#include <fnmatch.h>
 
 #define MAX_ZSET_RANGE_NUM  1000
 
@@ -173,7 +174,7 @@ namespace ardb
     }
 
     int Ardb::ZAddLimit(const DBID& db, const Slice& key, DoubleArray& scores, const SliceArray& svs, int setlimit,
-            ValueArray& pops)
+            ValueDataArray& pops)
     {
         int err = 0;
         bool createZset = false;
@@ -478,7 +479,7 @@ namespace ardb
         return err;
     }
 
-    int Ardb::ZPop(const DBID& db, const Slice& key, bool reverse, uint32 num, ValueArray& pops)
+    int Ardb::ZPop(const DBID& db, const Slice& key, bool reverse, uint32 num, ValueDataArray& pops)
     {
         KeyLockerGuard keyguard(m_key_locker, db, key);
         int err = 0;
@@ -509,7 +510,7 @@ namespace ardb
         {
                 Ardb* z_db;
                 uint32 count;
-                ValueArray& vs;
+                ValueDataArray& vs;
                 DoubleDeque poped_score;
                 int OnKeyValue(KeyObject* k, ValueObject* value, uint32 cursor)
                 {
@@ -526,7 +527,7 @@ namespace ardb
                     }
                     return 0;
                 }
-                ZPopWalk(Ardb* db, uint32 i, ValueArray& v) :
+                ZPopWalk(Ardb* db, uint32 i, ValueDataArray& v) :
                         z_db(db), count(i), vs(v), poped_score(0)
                 {
                 }
@@ -957,7 +958,7 @@ namespace ardb
         return walk.z_count;
     }
 
-    int Ardb::ZRange(const DBID& db, const Slice& key, int start, int stop, ValueArray& values,
+    int Ardb::ZRange(const DBID& db, const Slice& key, int start, int stop, ValueDataArray& values,
             ZSetQueryOptions& options)
     {
         int err = 0;
@@ -1014,7 +1015,7 @@ namespace ardb
             struct ZRangeWalk: public WalkHandler
             {
                     double z_stop;
-                    ValueArray& z_values;
+                    ValueDataArray& z_values;
                     ZSetQueryOptions& z_options;
                     int z_count;
                     int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
@@ -1034,7 +1035,7 @@ namespace ardb
                         z_count++;
                         return 0;
                     }
-                    ZRangeWalk(double stop, ValueArray& v, ZSetQueryOptions& options) :
+                    ZRangeWalk(double stop, ValueDataArray& v, ZSetQueryOptions& options) :
                             z_stop(stop), z_values(v), z_options(options), z_count(0)
                     {
                     }
@@ -1046,7 +1047,7 @@ namespace ardb
     }
 
     int Ardb::ZRangeByScore(const DBID& db, const Slice& key, const std::string& min, const std::string& max,
-            ValueArray& values, ZSetQueryOptions& options)
+            ValueDataArray& values, ZSetQueryOptions& options)
     {
         int err = 0;
         bool createZset = false;
@@ -1101,7 +1102,7 @@ namespace ardb
         ZSetKeyObject tmp(key, empty, min_score, db);
         struct ZRangeByScoreWalk: public WalkHandler
         {
-                ValueArray& z_values;
+                ValueDataArray& z_values;
                 ZSetQueryOptions& z_options;
                 double z_min_score;
                 double z_max_score;
@@ -1148,7 +1149,7 @@ namespace ardb
                     }
                     return 0;
                 }
-                ZRangeByScoreWalk(ValueArray& v, ZSetQueryOptions& options) :
+                ZRangeByScoreWalk(ValueDataArray& v, ZSetQueryOptions& options) :
                         z_values(v), z_options(options), z_min_score(0), z_max_score(0), z_containmin(true), z_containmax(
                                 true), z_count(0)
                 {
@@ -1163,7 +1164,7 @@ namespace ardb
         return walk.z_count;
     }
 
-    int Ardb::ZRevRange(const DBID& db, const Slice& key, int start, int stop, ValueArray& values,
+    int Ardb::ZRevRange(const DBID& db, const Slice& key, int start, int stop, ValueDataArray& values,
             ZSetQueryOptions& options)
     {
         int err = 0;
@@ -1220,7 +1221,7 @@ namespace ardb
             struct ZRangeWalk: public WalkHandler
             {
                     double z_stop;
-                    ValueArray& z_values;
+                    ValueDataArray& z_values;
                     ZSetQueryOptions& z_options;
                     int z_count;
                     int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
@@ -1240,7 +1241,7 @@ namespace ardb
                         z_count++;
                         return 0;
                     }
-                    ZRangeWalk(double stop, ValueArray& v, ZSetQueryOptions& options) :
+                    ZRangeWalk(double stop, ValueDataArray& v, ZSetQueryOptions& options) :
                             z_stop(stop), z_values(v), z_options(options), z_count(0)
                     {
                     }
@@ -1252,7 +1253,7 @@ namespace ardb
     }
 
     int Ardb::ZRevRangeByScore(const DBID& db, const Slice& key, const std::string& max, const std::string& min,
-            ValueArray& values, ZSetQueryOptions& options)
+            ValueDataArray& values, ZSetQueryOptions& options)
     {
         int err = 0;
         bool createZset = false;
@@ -1308,7 +1309,7 @@ namespace ardb
         ZSetKeyObject tmp(key, empty, max_score, db);
         struct ZRangeByScoreWalk: public WalkHandler
         {
-                ValueArray& z_values;
+                ValueDataArray& z_values;
                 ZSetQueryOptions& z_options;
                 double z_min_score;
                 bool z_containmin;
@@ -1355,7 +1356,7 @@ namespace ardb
                     }
                     return 0;
                 }
-                ZRangeByScoreWalk(ValueArray& v, ZSetQueryOptions& options) :
+                ZRangeByScoreWalk(ValueDataArray& v, ZSetQueryOptions& options) :
                         z_values(v), z_options(options), z_count(0)
                 {
                 }
@@ -1803,6 +1804,97 @@ namespace ardb
             SetMeta(db2, key2, zmeta);
             ZClear(db1, key1);
         }
+        return 0;
+    }
+
+    int Ardb::ZScan(const DBID& db, const std::string& key, const std::string& cursor, const std::string& pattern,
+            uint32 limit, ValueDataArray& vs, std::string& newcursor)
+    {
+        int err = 0;
+        bool createHash = false;
+        ZSetMetaValue* meta = GetZSetMeta(db, key, 1, err, createHash);
+        if (NULL == meta || createHash)
+        {
+            DELETE(meta);
+            return err;
+        }
+        ZSetElement fromobj;
+        if (cursor == "0")
+        {
+            fromobj.score = -DBL_MAX;
+        }
+        else
+        {
+            string_todouble(cursor, fromobj.score);
+        }
+        if (meta->ziped)
+        {
+            ZSetElementDeque::iterator fit = std::upper_bound(meta->zipvs.begin(), meta->zipvs.end(), fromobj,
+                    less_by_zset_score);
+            while (fit != meta->zipvs.end())
+            {
+                std::string fstr;
+                fit->value.ToString(fstr);
+                if ((pattern.empty() || fnmatch(pattern.c_str(), fstr.c_str(), 0) == 0))
+                {
+                    vs.push_back(ValueData(fit->score));
+                    vs.push_back(fit->value);
+                }
+                if (vs.size() >= (limit * 2))
+                {
+                    break;
+                }
+                fit++;
+            }
+        }
+        else
+        {
+            ZSetKeyObject hk(key, fromobj, db);
+            struct ZGetWalk: public WalkHandler
+            {
+                    ValueDataArray& h_vs;
+                    const ZSetElement& first;
+                    int l;
+                    const std::string& h_pattern;
+                    int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+                    {
+                        ZSetKeyObject* sek = (ZSetKeyObject*) k;
+                        if (0 == cursor)
+                        {
+                            if (first.score == sek->e.score)
+                            {
+                                return 0;
+                            }
+                        }
+                        std::string fstr;
+                        sek->e.value.ToString(fstr);
+                        if ((h_pattern.empty() || fnmatch(h_pattern.c_str(), fstr.c_str(), 0) == 0))
+                        {
+                            h_vs.push_back(ValueData(sek->e.score));
+                            h_vs.push_back(sek->e.value);
+                        }
+                        if (l > 0 && h_vs.size() >= (uint32) l * 2)
+                        {
+                            return -1;
+                        }
+                        return 0;
+                    }
+                    ZGetWalk(ValueDataArray& fs, int count, const ZSetElement& s, const std::string& p) :
+                            h_vs(fs), first(s), l(count), h_pattern(p)
+                    {
+                    }
+            } walk(vs, limit, fromobj, pattern);
+            Walk(hk, false, true, &walk);
+        }
+        if (vs.empty())
+        {
+            newcursor = "0";
+        }
+        else
+        {
+            vs[vs.size() - 2].ToString(newcursor);
+        }
+        DELETE(meta);
         return 0;
     }
 }

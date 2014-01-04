@@ -345,6 +345,10 @@ namespace ardb
             }
             default:
             {
+                if (bytes_value.size() != other.bytes_value.size())
+                {
+                    return COMPARE_NUMBER(bytes_value.size(), other.bytes_value.size());
+                }
                 return bytes_value.compare(other.bytes_value);
             }
         }
@@ -363,6 +367,12 @@ namespace ardb
     {
         e.score = s;
         e.value = v;
+    }
+
+    ZSetKeyObject::ZSetKeyObject(const Slice& k, const ZSetElement& ee, DBID id) :
+            KeyObject(k, ZSET_ELEMENT, id), e(ee)
+    {
+
     }
 
     ZSetKeyObject::ZSetKeyObject(const Slice& k, const Slice& v, double s, DBID id) :

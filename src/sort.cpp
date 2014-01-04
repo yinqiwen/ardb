@@ -219,7 +219,7 @@ namespace ardb
 	}
 
 	int Ardb::Sort(const DBID& db, const Slice& key, const StringArray& args,
-			ValueArray& values)
+			ValueDataArray& values)
 	{
 		values.clear();
 		SortOptions options;
@@ -229,7 +229,7 @@ namespace ardb
 			return ERR_INVALID_ARGS;
 		}
 		int type = Type(db, key);
-		ValueArray sortvals;
+		ValueDataArray sortvals;
 		switch (type)
 		{
 			case LIST_META:
@@ -393,7 +393,7 @@ namespace ardb
 			case AGGREGATE_SUM:
 			case AGGREGATE_AVG:
 			{
-				ValueArray result;
+				ValueDataArray result;
 				result.resize(step);
 
 				for (uint32 i = 0; i < result.size(); i++)
@@ -417,7 +417,7 @@ namespace ardb
 			case AGGREGATE_MAX:
 			case AGGREGATE_MIN:
 			{
-				ValueArray result;
+				ValueDataArray result;
 				result.resize(step);
 				for (uint32 i = 0; i < result.size(); i++)
 				{
@@ -464,7 +464,7 @@ namespace ardb
 		{
 			BatchWriteGuard guard(GetEngine());
 			LClear(db, options.store_dst);
-			ValueArray::iterator it = values.begin();
+			ValueDataArray::iterator it = values.begin();
 			uint64 score = 0;
 
 			while (it != values.end())

@@ -102,19 +102,15 @@ namespace ardb
 
             std::string zookeeper_servers;
 
+            std::string additional_misc_info;
+
             ArdbConfig db_cfg;
             ArdbServerConfig() :
-                            daemonize(false), listen_port(0), unixsocketperm(
-                                            755), max_clients(10000), tcp_keepalive(
-                                            0), timeout(0), slowlog_log_slower_than(
-                                            10000), slowlog_max_len(128), repl_data_dir(
-                                            "./repl"), backup_dir("./backup"), repl_ping_slave_period(
-                                            10), repl_timeout(60), repl_backlog_size(
-                                            100 * 1024 * 1024), repl_state_persist_period(
-                                            1), slave_cleardb_before_fullresync(
-                                            true), lua_time_limit(0), master_port(
-                                            0), worker_count(1), loglevel(
-                                            "INFO")
+                    daemonize(false), listen_port(0), unixsocketperm(755), max_clients(10000), tcp_keepalive(0), timeout(
+                            0), slowlog_log_slower_than(10000), slowlog_max_len(128), repl_data_dir("./repl"), backup_dir(
+                            "./backup"), repl_ping_slave_period(10), repl_timeout(60), repl_backlog_size(
+                            100 * 1024 * 1024), repl_state_persist_period(1), slave_cleardb_before_fullresync(true), lua_time_limit(
+                            0), master_port(0), worker_count(1), loglevel("INFO")
             {
             }
     };
@@ -131,7 +127,7 @@ namespace ardb
             DBID currentDB;
             std::string lastCmd;
             ArdbConncetion() :
-                            conn(NULL), birth(0), lastTs(0), currentDB(0)
+                    conn(NULL), birth(0), lastTs(0), currentDB(0)
             {
             }
     };
@@ -145,7 +141,7 @@ namespace ardb
             ThreadMutex m_mutex;
         public:
             ClientConnHolder() :
-                            m_client_stat_enable(false)
+                    m_client_stat_enable(false)
             {
             }
             void TouchConn(Channel* conn, const std::string& currentCmd);
@@ -183,7 +179,7 @@ namespace ardb
             ThreadMutex m_mutex;
         public:
             SlowLogHandler(const ArdbServerConfig& cfg) :
-                            m_cfg(cfg)
+                    m_cfg(cfg)
             {
             }
             void PushSlowCommand(const RedisCommandFrame& cmd, uint64 micros);
@@ -203,11 +199,11 @@ namespace ardb
             DBID db;
             std::string key;
             WatchKey() :
-                            db(0)
+                    db(0)
             {
             }
             WatchKey(const DBID& id, const std::string& k) :
-                            db(id), key(k)
+                    db(id), key(k)
             {
             }
             inline bool operator<(const WatchKey& other) const
@@ -247,13 +243,10 @@ namespace ardb
             const char* lua_executing_func;
 
             ArdbConnContext() :
-                            currentDB(0), conn(NULL), in_transaction(false), fail_transc(
-                                            false), is_slave_conn(false), transaction_cmds(
-                            NULL), watch_key_set(NULL), pubsub_channle_set(
-                            NULL), pattern_pubsub_channle_set(NULL), lua_time_start(
-                                            0), lua_timeout(false), lua_kill(
-                                            false), lua_executing_func(
-                            NULL)
+                    currentDB(0), conn(NULL), in_transaction(false), fail_transc(false), is_slave_conn(false), transaction_cmds(
+                    NULL), watch_key_set(NULL), pubsub_channle_set(
+                    NULL), pattern_pubsub_channle_set(NULL), lua_time_start(0), lua_timeout(false), lua_kill(false), lua_executing_func(
+                    NULL)
             {
             }
             uint64 SubChannelSize()
@@ -271,8 +264,7 @@ namespace ardb
             }
             bool IsSubscribedConn()
             {
-                return NULL != pubsub_channle_set
-                                || NULL != pattern_pubsub_channle_set;
+                return NULL != pubsub_channle_set || NULL != pattern_pubsub_channle_set;
             }
             bool IsInTransaction()
             {
@@ -304,15 +296,11 @@ namespace ardb
             ArdbConnContext ardbctx;
             bool processing;
             bool delete_after_processing;
-            void MessageReceived(ChannelHandlerContext& ctx,
-                            MessageEvent<RedisCommandFrame>& e);
-            void ChannelClosed(ChannelHandlerContext& ctx,
-                            ChannelStateEvent& e);
-            void ChannelConnected(ChannelHandlerContext& ctx,
-                            ChannelStateEvent& e);
+            void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e);
+            void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e);
+            void ChannelConnected(ChannelHandlerContext& ctx, ChannelStateEvent& e);
             RedisRequestHandler(ArdbServer* s) :
-                            server(s), processing(false), delete_after_processing(
-                                            false)
+                    server(s), processing(false), delete_after_processing(false)
             {
             }
     };
@@ -320,8 +308,7 @@ namespace ardb
     class ArdbServer
     {
         public:
-            typedef int (ArdbServer::*RedisCommandHandler)(ArdbConnContext&,
-                            RedisCommandFrame&);
+            typedef int (ArdbServer::*RedisCommandHandler)(ArdbConnContext&, RedisCommandFrame&);
 
             static LUAInterpreter* LUAInterpreterCreator(void* data);
             struct RedisCommandHandlerSetting
@@ -364,13 +351,9 @@ namespace ardb
             ThreadLocal<ArdbConnContext*> m_ctx_local;
             ThreadLocal<LUAInterpreter> m_ctx_lua;
 
-            RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(
-                            std::string& cmd);
-            int DoRedisCommand(ArdbConnContext& ctx,
-                            RedisCommandHandlerSetting* setting,
-                            RedisCommandFrame& cmd);
-            int ProcessRedisCommand(ArdbConnContext& ctx,
-                            RedisCommandFrame& cmd, int flags);
+            RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(std::string& cmd);
+            int DoRedisCommand(ArdbConnContext& ctx, RedisCommandHandlerSetting* setting, RedisCommandFrame& cmd);
+            int ProcessRedisCommand(ArdbConnContext& ctx, RedisCommandFrame& cmd, int flags);
 
             void HandleReply(ArdbConnContext* ctx);
 
@@ -382,11 +365,9 @@ namespace ardb
             friend class LUAInterpreter;
             friend class ZKAgent;
 
-            void FillInfoResponse(const std::string& section,
-                            std::string& content);
+            void FillInfoResponse(const std::string& section, std::string& content);
 
-            static void OnKeyUpdated(const DBID& dbid, const Slice& key,
-                            void* data);
+            static void OnKeyUpdated(const DBID& dbid, const Slice& key, void* data);
             //int OnAllKeyDeleted(const DBID& dbid);
             void ClearWatchKeys(ArdbConnContext& ctx);
             void ClearSubscribes(ArdbConnContext& ctx);
@@ -407,6 +388,8 @@ namespace ardb
             int Client(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int Keys(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int KeysCount(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            int Randomkey(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            int Scan(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
             int Multi(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int Discard(ArdbConnContext& ctx, RedisCommandFrame& cmd);
@@ -492,7 +475,8 @@ namespace ardb
             int HSet(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int HSetNX(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int HVals(ArdbConnContext& ctx, RedisCommandFrame& cmd);
-            int HRange(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            //int HRange(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            int HScan(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
             int SAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int SCard(ArdbConnContext& ctx, RedisCommandFrame& cmd);
@@ -511,7 +495,7 @@ namespace ardb
             int SUnionCount(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int SInterCount(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int SDiffCount(ArdbConnContext& ctx, RedisCommandFrame& cmd);
-            int SRange(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            int SScan(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
             int ZAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int ZCard(ArdbConnContext& ctx, RedisCommandFrame& cmd);
@@ -530,6 +514,7 @@ namespace ardb
             int ZInterStore(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int ZUnionStore(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int ZScore(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            int ZScan(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
             int LIndex(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int LInsert(ArdbConnContext& ctx, RedisCommandFrame& cmd);
@@ -557,8 +542,7 @@ namespace ardb
 
             Timer& GetTimer();
         public:
-            static int ParseConfig(const Properties& props,
-                            ArdbServerConfig& cfg);
+            static int ParseConfig(const Properties& props, ArdbServerConfig& cfg);
             ArdbServer(KeyValueEngineFactory& engine);
             const ArdbServerConfig& GetServerConfig()
             {

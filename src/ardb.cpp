@@ -615,5 +615,54 @@ namespace ardb
         return 0;
     }
 
+    int Ardb::NextKey(const DBID& db, const std::string& key, std::string& nextkey)
+    {
+        KeyObject start(key, KEY_META, db);
+        Iterator* iter = FindValue(start);
+        int err = ERR_NOT_EXIST;
+        if (NULL != iter && iter->Valid())
+        {
+            Slice tmpkey = iter->Key();
+            KeyObject* kk = decode_key(tmpkey, NULL);
+            if (NULL != kk && kk->type == KEY_META && kk->db == db)
+            {
+                nextkey.assign(kk->key.data(), kk->key.size());
+                err = 0;
+            }
+            DELETE(kk);
+        }
+        DELETE(iter);
+        return err;
+    }
+    int Ardb::LastKey(const DBID& db, std::string& lastkey)
+    {
+        KeyObject start(Slice(), STRING_META, db);
+        Iterator* iter = FindValue(start);
+        if (NULL == iter || !iter->Valid())
+        {
+            DELETE(iter);
+            iter = NewIterator();
+            iter->SeekToLast();
+        }
+        else
+        {
+            iter->Prev();
+        }
+        int err = ERR_NOT_EXIST;
+        if (iter->Valid())
+        {
+            Slice tmpkey = iter->Key();
+            KeyObject* kk = decode_key(tmpkey, NULL);
+            if (NULL != kk && kk->type == KEY_META && kk->db == db)
+            {
+                lastkey.assign(kk->key.data(), kk->key.size());
+                err = 0;
+            }
+            DELETE(kk);
+        }
+        DELETE(iter);
+        return err;
+    }
+
 }
 

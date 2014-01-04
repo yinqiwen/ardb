@@ -316,14 +316,13 @@ namespace ardb
             }
     };
 
-    typedef std::vector<ValueData> ValueDataArray;
+    typedef std::deque<ValueData> ValueDataArray;
     typedef std::deque<ValueData> ValueDataDeque;
     typedef std::pair<double, uint32> ScoreCount;
     typedef std::map<ValueData, double> ValueScoreMap;
     typedef std::map<ValueData, ScoreCount> ValueScoreCountMap;
     typedef std::map<ValueData, ValueData> HashFieldMap;
     typedef std::set<ValueData> ValueSet;
-    typedef std::deque<ValueData> ValueArray;
     typedef std::vector<double> DoubleArray;
 
     typedef std::deque<Slice> SliceArray;
@@ -358,6 +357,7 @@ namespace ardb
     struct ZSetKeyObject: public KeyObject
     {
             ZSetElement e;
+            ZSetKeyObject(const Slice& k, const ZSetElement& ee, DBID id);
             ZSetKeyObject(const Slice& k, const Slice& v, double s, DBID id);
             ZSetKeyObject(const Slice& k, const ValueData& v, double s, DBID id);
     };
@@ -387,8 +387,15 @@ namespace ardb
     };
     struct StringMetaValue: public CommonMetaValue
     {
-            ValueData value;CODEC_DEFINE(value)
-            ;
+            ValueData value;
+            bool Encode(Buffer& buf)
+            {
+                return value.Encode(buf);
+            }
+            bool Decode(Buffer& buf)
+            {
+                return value.Decode(buf);
+            }
             StringMetaValue()
             {
                 header.type = STRING_META;
@@ -577,7 +584,7 @@ namespace ardb
     typedef std::vector<SetMetaValue*> SetMetaValueArray;
     typedef std::map<std::string, ValueData> NameValueTable;
 
-    typedef std::deque<ValueArray> ValueArrayArray;
+    typedef std::deque<ValueDataArray> ValueArrayArray;
     typedef std::map<uint64, BitSetElementValue> BitSetElementValueMap;
 
     template<typename T>

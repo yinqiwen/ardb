@@ -67,6 +67,7 @@ namespace ardb
             MMapBuf m_backlog;
 
             DBID m_current_dbid;
+            bool m_inited;
 
             void Run();
 
@@ -74,6 +75,10 @@ namespace ardb
         public:
             ReplBacklog();
             int Init(ArdbServer* server);
+            bool IsInited()
+            {
+                return m_inited;
+            }
             void PersistSyncState();
 
 //            void Feed(RedisCommandFrame& cmd,const DBID& dbid);

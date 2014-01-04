@@ -28,6 +28,7 @@
  */
 
 #include "ardb.hpp"
+#include <fnmatch.h>
 
 namespace ardb
 {
@@ -269,7 +270,7 @@ namespace ardb
         return 0;
     }
 
-    int Ardb::HMGet(const DBID& db, const Slice& key, const SliceArray& fields, ValueArray& values)
+    int Ardb::HMGet(const DBID& db, const Slice& key, const SliceArray& fields, ValueDataArray& values)
     {
         int err = 0;
         bool createHash = false;
@@ -482,7 +483,7 @@ namespace ardb
         return values.empty() ? ERR_NOT_EXIST : 0;
     }
 
-    int Ardb::HGetAll(const DBID& db, const Slice& key, StringArray& fields, ValueArray& values)
+    int Ardb::HGetAll(const DBID& db, const Slice& key, StringArray& fields, ValueDataArray& values)
     {
         int err = 0;
         bool createHash = false;
@@ -511,7 +512,7 @@ namespace ardb
             struct HashWalk: public WalkHandler
             {
                     StringArray& fs;
-                    ValueArray& dst;
+                    ValueDataArray& dst;
                     int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
                     {
                         CommonValueObject* cv = (CommonValueObject*) v;
@@ -522,7 +523,7 @@ namespace ardb
                         dst.push_back(cv->data);
                         return 0;
                     }
-                    HashWalk(StringArray& ff, ValueArray& vs) :
+                    HashWalk(StringArray& ff, ValueDataArray& vs) :
                             fs(ff), dst(vs)
                     {
                     }
@@ -719,6 +720,94 @@ namespace ardb
             SetMeta(db2, key2, hmeta);
             HClear(db1, key1);
         }
+        return 0;
+    }
+
+    int Ardb::HScan(const DBID& db, const std::string& key, const std::string& cursor, const std::string& pattern,
+            uint32 limit, ValueDataArray& vs, std::string& newcursor)
+    {
+        int err = 0;
+        bool createHash = false;
+        HashMetaValue* meta = GetHashMeta(db, key, err, createHash);
+        if (NULL == meta)
+        {
+            DELETE(meta);
+            return err;
+        }
+        std::string from = cursor;
+        if (cursor == "0")
+        {
+            from = "";
+        }
+        ValueData fromobj(from);
+        if (meta->ziped)
+        {
+            HashFieldMap::iterator fit = meta->values.upper_bound(fromobj);
+            while (fit != meta->values.end())
+            {
+                std::string fstr;
+                fit->first.ToString(fstr);
+                if ((pattern.empty() || fnmatch(pattern.c_str(), fstr.c_str(), 0) == 0))
+                {
+                    vs.push_back(fit->first);
+                    vs.push_back(fit->second);
+                }
+                if (vs.size() >= (limit * 2))
+                {
+                    break;
+                }
+                fit++;
+            }
+        }
+        else
+        {
+            HashKeyObject hk(key, from, db);
+            struct HGetWalk: public WalkHandler
+            {
+                    ValueDataArray& h_vs;
+                    const ValueData& first;
+                    int l;
+                    const std::string& h_pattern;
+                    int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+                    {
+                        HashKeyObject* sek = (HashKeyObject*) k;
+                        if (0 == cursor)
+                        {
+                            if (first == sek->field)
+                            {
+                                return 0;
+                            }
+                        }
+                        CommonValueObject* cv = (CommonValueObject*) v;
+                        std::string fstr;
+                        sek->field.ToString(fstr);
+                        if ((h_pattern.empty() || fnmatch(h_pattern.c_str(), fstr.c_str(), 0) == 0))
+                        {
+                            h_vs.push_back(sek->field);
+                            h_vs.push_back(cv->data);
+                        }
+                        if (l > 0 && h_vs.size() >= (uint32) l * 2)
+                        {
+                            return -1;
+                        }
+                        return 0;
+                    }
+                    HGetWalk(ValueDataArray& fs, int count, const ValueData& s, const std::string& p) :
+                            h_vs(fs), first(s), l(count), h_pattern(p)
+                    {
+                    }
+            } walk(vs, limit, hk.field, pattern);
+            Walk(hk, false, true, &walk);
+        }
+        if (vs.empty())
+        {
+            newcursor = "0";
+        }
+        else
+        {
+            vs[vs.size() - 2].ToString(newcursor);
+        }
+        DELETE(meta);
         return 0;
     }
 

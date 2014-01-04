@@ -47,73 +47,75 @@
 
 namespace ardb
 {
-	namespace codec
-	{
-		struct RedisMessage
-		{
-				RedisReply reply;
-				RedisCommandFrame command;
-				RedisDumpFileChunk chunk;
-				uint8 type;
-				RedisMessage() :
-						type(REDIS_COMMAND_DECODER_TYPE)
-				{
-				}
-				bool IsReply()
-				{
-					return type == REDIS_REPLY_DECODER_TYPE;
-				}
-				bool IsCommand()
-				{
-					return type == REDIS_COMMAND_DECODER_TYPE;
-				}
-				bool IsDumpFile()
-				{
-					return type == REDIS_DUMP_DECODER_TYPE;
-				}
-		};
+    namespace codec
+    {
+        struct RedisMessage
+        {
+                RedisReply reply;
+                RedisCommandFrame command;
+                RedisDumpFileChunk chunk;
+                uint8 type;
+                RedisMessage() :
+                        type(REDIS_COMMAND_DECODER_TYPE)
+                {
+                }
+                bool IsReply()
+                {
+                    return type == REDIS_REPLY_DECODER_TYPE;
+                }
+                bool IsCommand()
+                {
+                    return type == REDIS_COMMAND_DECODER_TYPE;
+                }
+                bool IsDumpFile()
+                {
+                    return type == REDIS_DUMP_DECODER_TYPE;
+                }
+        };
 
-		class RedisMessageDecoder: public StackFrameDecoder<RedisMessage>
-		{
-			protected:
-				uint8 m_decoder_type;
-				RedisCommandDecoder m_cmd_decoder;
-				RedisReplyDecoder m_reply_decoder;
-				RedisDumpFileChunkDecoder m_dump_file_decoder;
-				bool Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, RedisMessage& msg)
-				{
-					msg.type = m_decoder_type;
-					if (msg.IsReply())
-					{
-						return m_reply_decoder.Decode(ctx, channel, buffer, msg.reply);
-					} else if (msg.IsCommand())
-					{
-						return m_cmd_decoder.Decode(ctx, channel, buffer, msg.command);
-					} else
-					{
-						return m_dump_file_decoder.Decode(ctx, channel, buffer, msg.chunk);
-					}
-				}
-			public:
-				RedisMessageDecoder() :
-						m_decoder_type(REDIS_COMMAND_DECODER_TYPE)
-				{
-				}
+        class RedisMessageDecoder: public StackFrameDecoder<RedisMessage>
+        {
+            protected:
+                uint8 m_decoder_type;
+                RedisCommandDecoder m_cmd_decoder;
+                RedisReplyDecoder m_reply_decoder;
+                RedisDumpFileChunkDecoder m_dump_file_decoder;
+                bool Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, RedisMessage& msg)
+                {
+                    msg.type = m_decoder_type;
+                    if (msg.IsReply())
+                    {
+                        return m_reply_decoder.Decode(ctx, channel, buffer, msg.reply);
+                    }
+                    else if (msg.IsCommand())
+                    {
+                        return m_cmd_decoder.Decode(ctx, channel, buffer, msg.command);
+                    }
+                    else
+                    {
+                        return m_dump_file_decoder.Decode(ctx, channel, buffer, msg.chunk);
+                    }
+                }
+            public:
+                RedisMessageDecoder() :
+                        m_decoder_type(REDIS_COMMAND_DECODER_TYPE)
+                {
+                }
 
-				void SwitchToCommandDecoder()
-				{
-					m_decoder_type = REDIS_COMMAND_DECODER_TYPE;
-				}
-				void SwitchToReplyDecoder()
-				{
-					m_decoder_type = REDIS_REPLY_DECODER_TYPE;
-				}
-				void SwitchToDumpFileDecoder()
-				{
-					m_decoder_type = REDIS_DUMP_DECODER_TYPE;
-				}
-		};
-	}
+                void SwitchToCommandDecoder()
+                {
+                    m_decoder_type = REDIS_COMMAND_DECODER_TYPE;
+                }
+                void SwitchToReplyDecoder()
+                {
+                    m_decoder_type = REDIS_REPLY_DECODER_TYPE;
+                }
+                void SwitchToDumpFileDecoder()
+                {
+                    m_decoder_type = REDIS_DUMP_DECODER_TYPE;
+                }
+        };
+    }
 }
 
 #endif /* REDIS_MESSAGE_DECODER_HPP_ */

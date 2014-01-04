@@ -66,6 +66,8 @@ namespace ardb
 			static bool ReadVarUInt64(Buffer& buffer, uint64_t& i);
 			static bool ReadVarInt64(Buffer& buffer, int64_t& i);
 			static bool ReadVarUInt32(Buffer& buffer, uint32_t& i);
+			static bool ReadVarUInt32IfEqual(Buffer& buffer, uint32_t v);
+
 			static bool ReadVarInt32(Buffer& buffer, int32_t& i);
 			static bool ReadVarUInt16(Buffer& buffer, uint16_t& i);
 			static bool ReadVarInt16(Buffer& buffer, int16_t& i);
