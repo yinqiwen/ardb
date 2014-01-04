@@ -19,8 +19,6 @@ namespace ardb
     class ServerStat
     {
         private:
-            size_t m_recved_req;
-            size_t m_sent_reply;
 #ifdef HAVE_ATOMIC
             //do nothing
 #else
@@ -36,26 +34,41 @@ namespace ardb
                 m_lock.Unlock();
 #endif
             }
+            void DecValue(size_t& v)
+            {
+#ifdef HAVE_ATOMIC
+                __sync_add_and_fetch(&v, -1);
+#else
+                m_lock.Lock();
+                v--;
+                m_lock.Unlock();
+#endif
+            }
+        public:
+            size_t m_stat_numcommands;
+            size_t m_connected_clients;
+            size_t m_stat_numconnections;
         public:
             ServerStat() :
-                    m_recved_req(0), m_sent_reply(0)
+                    m_stat_numcommands(0), m_connected_clients(0), m_stat_numconnections(0)
             {
             }
-            void IncRecvReq()
+            void IncRecvCommands()
             {
-                IncValue(m_recved_req);
+                IncValue(m_stat_numcommands);
             }
-            void IncSentReply()
+            void IncAcceptedClient()
             {
-                IncValue(m_sent_reply);
+                IncValue(m_connected_clients);
+                IncValue(m_stat_numconnections);
             }
-            size_t GetSentReplyCount()
+            void DecAcceptedClient()
             {
-                return m_sent_reply;
+                DecValue(m_connected_clients);
             }
-            size_t GetRecvReqCount()
+            size_t GetNumOfRecvCommands()
             {
-                return m_recved_req;
+                return m_stat_numcommands;
             }
     };
 }

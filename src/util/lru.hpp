@@ -33,7 +33,6 @@
 #include <list>
 #include <utility>
 #include <map>
-#include <google/sparse_hash_map>
 namespace ardb
 {
 	template<typename K, typename V>

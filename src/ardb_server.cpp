@@ -896,11 +896,8 @@ namespace ardb
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "stats"))
         {
             info.append("# Stats\r\n");
-            char tmp[256];
-            sprintf(tmp, "%zu", kServerStat.GetRecvReqCount());
-            info.append("recv_req:").append(tmp).append("\r\n");
-            sprintf(tmp, "%zu", kServerStat.GetSentReplyCount());
-            info.append("sent_reply:").append(tmp).append("\r\n");
+            info.append("total_commands_processed:").append(stringfromll(kServerStat.GetNumOfRecvCommands())).append(
+                    "\r\n");
         }
 
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "memory"))
@@ -3184,7 +3181,7 @@ namespace ardb
         lower_string(cmd);
         RedisCommandHandlerSetting* setting = FindRedisCommandHandlerSetting(cmd);
         DEBUG_LOG("Process recved cmd:%s", args.ToString().c_str());
-        kServerStat.IncRecvReq();
+        kServerStat.IncRecvCommands();
 
         int ret = 0;
         if (NULL != setting)
@@ -3341,7 +3338,6 @@ namespace ardb
         int ret = server->ProcessRedisCommand(ardbctx, *cmd, 0);
         if (ardbctx.reply.type != 0)
         {
-            kServerStat.IncSentReply();
             ardbctx.conn->Write(ardbctx.reply);
             ardbctx.reply.Clear();
         }
@@ -3361,6 +3357,7 @@ namespace ardb
         server->m_clients_holder.EraseConn(ctx.GetChannel());
         server->ClearWatchKeys(ardbctx);
         server->ClearSubscribes(ardbctx);
+        kServerStat.DecAcceptedClient();
     }
 
     void RedisRequestHandler::ChannelConnected(ChannelHandlerContext& ctx, ChannelStateEvent& e)
@@ -3369,6 +3366,7 @@ namespace ardb
         {
             server->TouchIdleConn(ctx.GetChannel());
         }
+        kServerStat.IncAcceptedClient();
     }
 
     static void daemonize(void)

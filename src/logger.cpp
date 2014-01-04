@@ -44,8 +44,8 @@ namespace ardb
     static LogLevel kDeafultLevel = DEBUG_LOG_LEVEL;
     static FILE* kLogFile = stdout;
     static std::string kLogFilePath;
-    static const uint32 k_max_file_size = 20 * 1024 * 1024;
-    static const uint32 k_max_rolling_index = 100;
+    static const uint32 k_max_file_size = 100 * 1024 * 1024;
+    static const uint32 k_max_rolling_index = 2;
 
     static void reopen_default_logfile()
     {

@@ -394,6 +394,7 @@ namespace ardb
     {
         std::string str;
         m_db->GetProperty("leveldb.stats", &str);
+        m_db->GetProperty("leveldb.sstables", &str);
         return str;
     }
 
