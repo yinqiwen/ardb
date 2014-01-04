@@ -835,8 +835,17 @@ namespace ardb
             info.append("ardb_version:").append(ARDB_VERSION).append("\r\n");
             info.append("ardb_home:").append(m_cfg.home).append("\r\n");
             info.append("engine:").append(m_engine.GetName()).append("\r\n");
-            info.append("server_key:").append(m_master_serv.GetReplBacklog().GetServerKey()).append("\r\n");
             char tmp[256];
+            sprintf(tmp, "%d.%d.%d",
+#ifdef __GNUC__
+                    __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__
+#else
+                    0,0,0
+#endif
+                    );
+            info.append("gcc_version:").append(tmp).append("\r\n");
+            info.append("server_key:").append(m_master_serv.GetReplBacklog().GetServerKey()).append("\r\n");
+
             sprintf(tmp, "%"PRId64, m_cfg.listen_port);
             info.append("tcp_port:").append(tmp).append("\r\n");
         }
@@ -905,6 +914,8 @@ namespace ardb
                     "\r\n");
             info.append("total_connections_received:").append(stringfromll(kServerStat.stat_numconnections.get())).append(
                     "\r\n");
+            info.append("period_commands_processed(1min):").append(
+                    stringfromll(kServerStat.stat_period_numcommands.get())).append("\r\n");
         }
 
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "memory"))
@@ -3501,7 +3512,7 @@ namespace ardb
         {
             goto sexit;
         }
-
+        m_service->GetTimer().Schedule(&kServerStat, 1, 1, MINUTES);
         m_service->SetThreadPoolSize(m_cfg.worker_count);
         m_service->RegisterUserEventCallback(LUAInterpreter::ScriptEventCallback, this);
         INFO_LOG("Server started, Ardb version %s", ARDB_VERSION);
