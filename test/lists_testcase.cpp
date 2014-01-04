@@ -124,7 +124,7 @@ void test_lists_zip_lrange(Ardb& db)
     db.RPush(dbid, "mylist", "value3");
     db.RPush(dbid, "mylist", "value4");
 
-    ValueArray array;
+    ValueDataArray array;
     db.LRange(dbid, "mylist", 1, 2, array);
     CHECK_FATAL(array.size() != 2, "lrange failed:");
     array.clear();
@@ -143,7 +143,7 @@ void test_lists_nonzip_lrange(Ardb& db)
         db.RPush(dbid, "mylist", value);
     }
 
-    ValueArray array;
+    ValueDataArray array;
     db.LRange(dbid, "mylist", 1, 2, array);
     CHECK_FATAL(array.size() != 2, "lrange failed:");
     array.clear();

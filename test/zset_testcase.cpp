@@ -25,7 +25,7 @@ void test_zsets_addrem(Ardb& db)
     CHECK_FATAL(db.ZCard(dbid, "myzset") != 3, "zadd myzset failed:%d", db.ZCard(dbid, "myzset"));
     db.ZRem(dbid, "myzset", "v2");
     CHECK_FATAL(db.ZCard(dbid, "myzset") != 2, "zrem myzset failed:%d", db.ZCard(dbid, "myzset"));
-    ValueArray values;
+    ValueDataArray values;
     ZSetQueryOptions options;
     db.ZRange(dbid, "myzset", 0, -1, values, options);
     std::string str;
@@ -44,7 +44,7 @@ void test_zsets_zrange(Ardb& db)
     db.ZAdd(dbid, "myzset", 3, "two");
     ZSetQueryOptions options;
     options.withscores = true;
-    ValueArray values;
+    ValueDataArray values;
     db.ZRange(dbid, "myzset", 0, -1, values, options);
     std::string str;
     CHECK_FATAL(values.size() != 6, "Fail:%zu", values.size());
@@ -97,7 +97,7 @@ void test_zsets_zrank(Ardb& db)
     uint64 end = get_current_epoch_millis();
     INFO_LOG("Cost %lldms to write %u zset elements", (end-start), maxzsetsize);
     start = get_current_epoch_millis();
-    int rank = db.ZRank(dbid, "myzset", "value5001");
+    rank = db.ZRank(dbid, "myzset", "value5001");
     CHECK_FATAL(rank != 5001, "Fail:%d", rank);
     end = get_current_epoch_millis();
     INFO_LOG("Cost %lldms to rank.", (end-start));
@@ -127,7 +127,7 @@ void test_zsets_zrev(Ardb& db)
     db.ZAdd(dbid, "myzset", 3, "three");
     ZSetQueryOptions options;
     options.withscores = true;
-    ValueArray values;
+    ValueDataArray values;
     std::string str;
     db.ZRevRange(dbid, "myzset", 0, -1, values, options);
     CHECK_FATAL(values.size() != 6, "Fail:%zu", values.size());
@@ -160,7 +160,7 @@ void test_zsets_incr(Ardb& db)
     db.ZIncrby(dbid, "myzset", 2, "one", score);
     ZSetQueryOptions options;
     options.withscores = true;
-    ValueArray values;
+    ValueDataArray values;
     db.ZRange(dbid, "myzset", 0, -1, values, options);
     std::string str;
     CHECK_FATAL(values.size() != 4, "Fail:%zu", values.size());
@@ -189,7 +189,7 @@ void test_zsets_inter(Ardb& db)
     CHECK_FATAL(zcard != 2, "Fail:%d", zcard);
     ZSetQueryOptions options;
     options.withscores = true;
-    ValueArray values;
+    ValueDataArray values;
     db.ZRange(dbid, "myzset3", 0, -1, values, options);
     std::string str;
     CHECK_FATAL(values.size() != 4, "Fail:%zu", values.size());
@@ -217,7 +217,7 @@ void test_zsets_union(Ardb& db)
     CHECK_FATAL(db.ZCard(dbid, "myzset3") != 3, "Fail:");
     ZSetQueryOptions options;
     options.withscores = true;
-    ValueArray values;
+    ValueDataArray values;
     db.ZRange(dbid, "myzset3", 0, -1, values, options);
     std::string str;
     CHECK_FATAL(values.size() != 6, "Fail:%zu", values.size());

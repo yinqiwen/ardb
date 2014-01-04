@@ -51,7 +51,7 @@ void test_set_member(Ardb& db)
     db.SAdd(dbid, "myset", "v2");
     db.SAdd(dbid, "myset", "v3");
     CHECK_FATAL(db.SIsMember(dbid, "myset", "v0") != false, "SIsMember myset failed:");
-    ValueArray members;
+    ValueDataArray members;
     db.SMembers(dbid, "myset", members);
     CHECK_FATAL(members.size() != 3, "SMembers myset failed:");
     CHECK_FATAL(members[0].ToString(str) != "v1", "SMembers myset failed:");
@@ -95,7 +95,7 @@ void test_set_diff(Ardb& db)
     keys.push_back("myset1");
     keys.push_back("myset2");
     keys.push_back("myset3");
-    ValueArray values;
+    ValueDataArray values;
     db.SDiff(dbid, keys, values);
     CHECK_FATAL(values.size() != 2, "Sdiff failed:%zu", values.size());
     CHECK_FATAL(values.begin()->ToString(str) != "b", "Sdiff store failed:");
@@ -133,7 +133,7 @@ void test_set_inter(Ardb& db)
     keys.push_back("myset1");
     keys.push_back("myset2");
     keys.push_back("myset3");
-    ValueArray values;
+    ValueDataArray values;
     db.SInter(dbid, keys, values);
     std::string str;
     CHECK_FATAL(values.size() != 1, "Sinter failed:");
@@ -169,7 +169,7 @@ void test_set_union(Ardb& db)
     keys.push_back("myset1");
     keys.push_back("myset2");
     keys.push_back("myset3");
-    ValueArray values;
+    ValueDataArray values;
     db.SUnion(dbid, keys, values);
     CHECK_FATAL(values.size() != 105, "SUnion failed:%zu", values.size());
     std::string str;

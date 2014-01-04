@@ -59,7 +59,7 @@ void test_hash_zip_hgetall(Ardb& db)
     db.HSet(dbid, "myhash", "field1", "value1");
     db.HSet(dbid, "myhash", "field2", "value2");
     db.HSet(dbid, "myhash", "field3", "value3");
-    ValueArray values;
+    ValueDataArray values;
     StringArray fields;
     db.HGetAll(dbid, "myhash", fields, values);
     CHECK_FATAL(fields.size() != 3, "hgetall myhash failed:%zu", fields.size());
@@ -81,7 +81,7 @@ void test_hash_nonzip_hgetall(Ardb& db)
         db.HSet(dbid, "myhash", field, value);
     }
 
-    ValueArray values;
+    ValueDataArray values;
     StringArray fields;
     db.HGetAll(dbid, "myhash", fields, values);
     CHECK_FATAL(fields.size() != (uint32 )(db.GetConfig().hash_max_ziplist_entries + 10), "hgetall myhash failed:%zu",
