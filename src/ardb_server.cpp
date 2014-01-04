@@ -843,7 +843,7 @@ namespace ardb
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "clients"))
         {
             info.append("# Clients\r\n");
-            info.append("connected_clients:").append(stringfromll(kServerStat.m_connected_clients)).append("\r\n");
+            info.append("connected_clients:").append(stringfromll(kServerStat.connected_clients.get())).append("\r\n");
         }
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "databases"))
         {
@@ -901,9 +901,9 @@ namespace ardb
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "stats"))
         {
             info.append("# Stats\r\n");
-            info.append("total_commands_processed:").append(stringfromll(kServerStat.GetNumOfRecvCommands())).append(
+            info.append("total_commands_processed:").append(stringfromll(kServerStat.stat_numcommands.get())).append(
                     "\r\n");
-            info.append("total_connections_received:").append(stringfromll(kServerStat.m_stat_numconnections)).append(
+            info.append("total_connections_received:").append(stringfromll(kServerStat.stat_numconnections.get())).append(
                     "\r\n");
         }
 

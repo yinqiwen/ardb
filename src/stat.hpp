@@ -12,63 +12,32 @@
 #include <stddef.h>
 #include <string.h>
 #include "common.hpp"
-#include "util/thread/thread_mutex_lock.hpp"
+#include "util/atomic_counter.hpp"
 
 namespace ardb
 {
-    class ServerStat
+    struct ServerStat
     {
-        private:
-#ifdef HAVE_ATOMIC
-            //do nothing
-#else
-            ThreadMutexLock m_lock;
-#endif
-            void IncValue(size_t& v)
-            {
-#ifdef HAVE_ATOMIC
-                __sync_add_and_fetch(&v, 1);
-#else
-                m_lock.Lock();
-                v++;
-                m_lock.Unlock();
-#endif
-            }
-            void DecValue(size_t& v)
-            {
-#ifdef HAVE_ATOMIC
-                __sync_add_and_fetch(&v, -1);
-#else
-                m_lock.Lock();
-                v--;
-                m_lock.Unlock();
-#endif
-            }
         public:
-            size_t m_stat_numcommands;
-            size_t m_connected_clients;
-            size_t m_stat_numconnections;
-        public:
+            atomic_counter_t stat_numcommands;
+            atomic_counter_t connected_clients;
+            atomic_counter_t stat_numconnections;
             ServerStat() :
-                    m_stat_numcommands(0), m_connected_clients(0), m_stat_numconnections(0)
+                    stat_numcommands(0), connected_clients(0), stat_numconnections(0)
             {
             }
             void IncRecvCommands()
             {
-                IncValue(m_stat_numcommands);
+                stat_numcommands.add(1);
             }
             void IncAcceptedClient()
             {
-                IncValue(m_connected_clients);
-                IncValue(m_stat_numconnections);
+                connected_clients.add(1);
+                stat_numconnections.add(1);
             }
             void DecAcceptedClient()
             {
-                DecValue(m_connected_clients);
-            }
-            size_t GetNumOfRecvCommands()
-            {
-                return m_stat_numcommands;
+                connected_clients.sub(1);
             }
     };
 }

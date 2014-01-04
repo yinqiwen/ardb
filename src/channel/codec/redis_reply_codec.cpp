@@ -29,7 +29,7 @@
 
 #include "channel/all_includes.hpp"
 #include "redis_reply_codec.hpp"
-#include "util/buffer_helper.hpp"
+#include "buffer/buffer_helper.hpp"
 
 #include <limits.h>
 
