@@ -30,6 +30,7 @@
 #include "ardb.hpp"
 #include "helper/db_helpers.hpp"
 #include <fnmatch.h>
+#include <algorithm>
 
 #define MAX_ZSET_RANGE_NUM  1000
 
