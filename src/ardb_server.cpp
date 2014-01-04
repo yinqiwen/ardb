@@ -840,6 +840,11 @@ namespace ardb
             sprintf(tmp, "%"PRId64, m_cfg.listen_port);
             info.append("tcp_port:").append(tmp).append("\r\n");
         }
+        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "clients"))
+        {
+            info.append("# Clients\r\n");
+            info.append("connected_clients:").append(stringfromll(kServerStat.m_connected_clients)).append("\r\n");
+        }
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "databases"))
         {
             info.append("# Databases\r\n");
@@ -897,6 +902,8 @@ namespace ardb
         {
             info.append("# Stats\r\n");
             info.append("total_commands_processed:").append(stringfromll(kServerStat.GetNumOfRecvCommands())).append(
+                    "\r\n");
+            info.append("total_connections_received:").append(stringfromll(kServerStat.m_stat_numconnections)).append(
                     "\r\n");
         }
 
