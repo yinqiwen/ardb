@@ -275,7 +275,7 @@ namespace ardb
             m_db_helper->GetZSetScoresCache().Insert(db, key, meta, score);
             return 1;
         }
-
+        BatchWriteGuard guard(GetEngine());
         ZSetScoreKeyObject zk(key, value, db);
         CommonValueObject zv;
         if (!check_value || 0 != GetKeyValueObject(zk, zv))
