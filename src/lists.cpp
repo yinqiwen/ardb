@@ -114,7 +114,7 @@ namespace ardb
             BatchWriteGuard guard(GetEngine());
             lmeta->ziped = false;
             ValueDataDeque::iterator it = lmeta->zipvs.begin();
-            int32 score = 0;
+            int64 score = 0;
             while (it != lmeta->zipvs.end())
             {
                 ListKeyObject lk(key, score, db);
@@ -123,17 +123,17 @@ namespace ardb
                 score++;
                 it++;
             }
-            lmeta->min_score = 0;
-            lmeta->max_score = score - 1 >= 0 ? score : 0;
+            lmeta->min_score.SetIntValue(0);
+            lmeta->max_score.SetIntValue(score - 1 >= 0 ? score : 0);
             lmeta->size = lmeta->zipvs.size() + 1;
             if (athead)
             {
                 score = -1;
-                lmeta->min_score = -1;
+                lmeta->min_score.SetIntValue(-1);
             }
             else
             {
-                lmeta->max_score = score;
+                lmeta->max_score.SetIntValue(score);
             }
             ListKeyObject lk(key, score, db);
             SetKeyValueObject(lk, lv);
@@ -150,19 +150,19 @@ namespace ardb
         /*
          * save element
          */
-        float score = 0;
+        int64 score = 0;
         if (!createList)
         {
             lmeta->size++;
             if (athead)
             {
-                lmeta->min_score--;
-                score = lmeta->min_score;
+                lmeta->min_score.Incrby(-1);
+                score = (int64) (lmeta->min_score.NumberValue());
             }
             else
             {
-                lmeta->max_score++;
-                score = lmeta->max_score;
+                lmeta->max_score.Incrby(1);
+                score = (int64) (lmeta->max_score.NumberValue());
             }
         }
         else
@@ -274,7 +274,7 @@ namespace ardb
                 BatchWriteGuard guard(GetEngine());
                 if (convert_to_nonzip)
                 {
-                    int32 score = 0;
+                    int64 score = 0;
                     ValueDataDeque::iterator it = meta->zipvs.begin();
                     while (it != meta->zipvs.end())
                     {
@@ -284,8 +284,8 @@ namespace ardb
                         score++;
                         it++;
                     }
-                    meta->min_score = 0;
-                    meta->max_score = score - 1 >= 0 ? score : 0;
+                    meta->min_score.SetIntValue(0);
+                    meta->max_score.SetIntValue(score - 1 >= 0 ? score : 0);
                     meta->zipvs.clear();
                 }
                 SetMeta(db, key, *meta);
@@ -297,8 +297,8 @@ namespace ardb
         struct LInsertWalk: public WalkHandler
         {
                 bool before_pivot;
-                float pivot_score;
-                float next_score;
+                ValueData pivot_score;
+                ValueData next_score;
                 bool found;
                 ValueData cmp_value;
                 int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
@@ -340,20 +340,30 @@ namespace ardb
             DELETE(meta);
             return ERR_NOT_EXIST;
         }
-        float score = 0;
-        if (walk.next_score != -FLT_MAX)
+        ValueData score((int64) 0);
+        if (walk.next_score.type != EMPTY_VALUE)
         {
-            score = (walk.next_score + walk.pivot_score) / 2;
+            double sv = (walk.next_score.NumberValue() + walk.pivot_score.NumberValue()) / 2;
+            if ((int64) sv < walk.next_score.NumberValue() && (int64) sv < walk.pivot_score.NumberValue())
+            {
+                score.SetIntValue((int64) sv);
+            }
+            else
+            {
+                score.SetDoubleValue(sv);
+            }
         }
         else
         {
             if (before)
             {
-                score = walk.pivot_score - 1;
+                walk.pivot_score.Incrby(-1);
+                score.SetIntValue((int64) walk.pivot_score.NumberValue());
             }
             else
             {
-                score = walk.pivot_score + 1;
+                walk.pivot_score.Incrby(1);
+                score.SetIntValue((int64) walk.pivot_score.NumberValue());
             }
         }
         BatchWriteGuard guard(GetEngine());
@@ -394,7 +404,7 @@ namespace ardb
             return 0;
         }
 
-        float score;
+        ValueData score;
         if (meta->size <= 0)
         {
             DELETE(meta);
@@ -411,7 +421,8 @@ namespace ardb
         }
         if (meta->size == 0)
         {
-            meta->min_score = meta->max_score = 0;
+            meta->min_score.SetIntValue(0);
+            meta->max_score.SetIntValue(0);
         }
         ListKeyObject lk(key, score, db);
         BatchWriteGuard guard(GetEngine());
@@ -865,11 +876,11 @@ namespace ardb
                     ListKeyObject* lek = (ListKeyObject*) k;
                     if (cursor >= lstart && cursor <= lstop)
                     {
-                        if (lek->score < lmeta.min_score)
+                        if (COMPARE_NUMBER(lek->score.NumberValue(), lmeta.min_score.NumberValue()) < 0)
                         {
                             lmeta.min_score = lek->score;
                         }
-                        if (lek->score > lmeta.max_score)
+                        if (COMPARE_NUMBER(lek->score.NumberValue(), lmeta.max_score.NumberValue()) > 0)
                         {
                             lmeta.max_score = lek->score;
                         }

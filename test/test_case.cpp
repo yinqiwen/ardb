@@ -11,6 +11,7 @@
 #include "zset_testcase.cpp"
 #include "bitset_testcase.cpp"
 #include "misc_testcase.cpp"
+#include "performance_testcase.cpp"
 
 void test_all(Ardb& db)
 {
@@ -21,4 +22,5 @@ void test_all(Ardb& db)
     test_zsets(db);
     test_bitsets(db);
     test_misc(db);
+    test_performance(db);
 }

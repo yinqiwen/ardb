@@ -51,7 +51,14 @@
 
 namespace ardb
 {
-    std::string ValueData::ToString(std::string& str) const
+    std::string ValueData::AsString()const
+    {
+        std::string str;
+        ToString(str);
+        return str;
+    }
+
+    std::string& ValueData::ToString(std::string& str) const
     {
         switch (type)
         {
@@ -362,7 +369,7 @@ namespace ardb
         type = EMPTY_VALUE;
     }
 
-    ZSetKeyObject::ZSetKeyObject(const Slice& k, const ValueData& v, double s, DBID id) :
+    ZSetKeyObject::ZSetKeyObject(const Slice& k, const ValueData& v, const ValueData& s, DBID id) :
             KeyObject(k, ZSET_ELEMENT, id)
     {
         e.score = s;
@@ -375,7 +382,7 @@ namespace ardb
 
     }
 
-    ZSetKeyObject::ZSetKeyObject(const Slice& k, const Slice& v, double s, DBID id) :
+    ZSetKeyObject::ZSetKeyObject(const Slice& k, const Slice& v, const ValueData& s, DBID id) :
             KeyObject(k, ZSET_ELEMENT, id)
     {
         e.score = s;
@@ -443,11 +450,11 @@ namespace ardb
             }
             case LIST_ELEMENT:
             {
-                float ascore, bscore;
-                found_a = BufferHelper::ReadFixFloat(ak_buf, ascore);
-                found_b = BufferHelper::ReadFixFloat(bk_buf, bscore);
+                ValueData av, bv;
+                found_a = decode_value(ak_buf, av);
+                found_b = decode_value(bk_buf, bv);
                 COMPARE_EXIST(found_a, found_b);
-                ret = COMPARE_NUMBER(ascore, bscore);
+                ret = COMPARE_NUMBER(av.NumberValue(), bv.NumberValue());
                 break;
             }
             case ZSET_ELEMENT_SCORE:
@@ -462,10 +469,11 @@ namespace ardb
             }
             case ZSET_ELEMENT:
             {
-                double ascore, bscore;
-                found_a = BufferHelper::ReadFixDouble(ak_buf, ascore);
-                found_b = BufferHelper::ReadFixDouble(bk_buf, bscore);
-                ret = COMPARE_NUMBER(ascore, bscore);
+                ValueData ascore, bscore;
+                found_a = decode_value(ak_buf, ascore);
+                found_b = decode_value(bk_buf, bscore);
+                COMPARE_EXIST(found_a, found_b);
+                ret = COMPARE_NUMBER(ascore.NumberValue(), bscore.NumberValue());
                 if (ret == 0)
                 {
                     ValueData av, bv;
@@ -527,7 +535,7 @@ namespace ardb
             case LIST_ELEMENT:
             {
                 const ListKeyObject& lk = (const ListKeyObject&) key;
-                BufferHelper::WriteFixFloat(buf, lk.score);
+                encode_value(buf, lk.score);
                 break;
             }
             case SET_ELEMENT:
@@ -539,7 +547,7 @@ namespace ardb
             case ZSET_ELEMENT:
             {
                 const ZSetKeyObject& sk = (const ZSetKeyObject&) key;
-                BufferHelper::WriteFixDouble(buf, sk.e.score);
+                encode_value(buf, sk.e.score);
                 encode_value(buf, sk.e.value);
                 break;
             }
@@ -631,12 +639,13 @@ namespace ardb
             }
             case LIST_ELEMENT:
             {
-                float score;
-                if (!BufferHelper::ReadFixFloat(buf, score))
+                ListKeyObject* hk = new ListKeyObject(keystr, ValueData((int64) 0), db);
+                if (!decode_value(buf, hk->score))
                 {
+                    DELETE(hk);
                     return NULL;
                 }
-                return new ListKeyObject(keystr, score, db);
+                return hk;
             }
 
             case SET_ELEMENT:
@@ -651,14 +660,12 @@ namespace ardb
             }
             case ZSET_ELEMENT:
             {
-                ZSetKeyObject* zsk = new ZSetKeyObject(keystr, Slice(), 0, db);
-                double score;
-                if (!BufferHelper::ReadFixDouble(buf, score) || !decode_value(buf, zsk->e.value))
+                ZSetKeyObject* zsk = new ZSetKeyObject(keystr, Slice(), ValueData((int64)0), db);
+                if (!decode_value(buf, zsk->e.score) || !decode_value(buf, zsk->e.value))
                 {
                     DELETE(zsk);
                     return NULL;
                 }
-                zsk->e.score = score;
                 return zsk;
             }
             case ZSET_ELEMENT_SCORE:

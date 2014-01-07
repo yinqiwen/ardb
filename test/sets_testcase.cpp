@@ -136,10 +136,10 @@ void test_set_inter(Ardb& db)
     ValueDataArray values;
     db.SInter(dbid, keys, values);
     std::string str;
-    CHECK_FATAL(values.size() != 1, "Sinter failed:");
-    CHECK_FATAL(values.begin()->ToString(str) != "c", "Sinter store failed.");
+    CHECK_FATAL(values.size() != 1, "Sinter failed:%zu", values.size());
+    CHECK_FATAL(values.begin()->ToString(str) != "c", "Sinter store failed:%s", str.c_str());
     db.SInterStore(dbid, "myset4", keys);
-    CHECK_FATAL(db.SCard(dbid, "myset4") != 1, "SInterStore myset4 failed");
+    CHECK_FATAL(db.SCard(dbid, "myset4") != 1, "SInterStore myset4 failed:%d", db.SCard(dbid, "myset4"));
 }
 
 void test_set_union(Ardb& db)

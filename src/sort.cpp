@@ -203,7 +203,7 @@ namespace ardb
 						return -1;
 					}
 				}
-				value.SetValue((int64) len);
+				value.SetIntValue(len);
 				return 0;
 			}
 			value.type = BYTES_VALUE;
@@ -465,7 +465,7 @@ namespace ardb
 			BatchWriteGuard guard(GetEngine());
 			LClear(db, options.store_dst);
 			ValueDataArray::iterator it = values.begin();
-			uint64 score = 0;
+			int64 score = 0;
 
 			while (it != values.end())
 			{
@@ -478,8 +478,8 @@ namespace ardb
 				it++;
 			}
 			ListMetaValue meta;
-			meta.min_score = 0;
-			meta.max_score = (score - 1);
+			meta.min_score.SetIntValue(0);
+			meta.max_score.SetIntValue(score - 1);
 			meta.size = score;
 			SetMeta(db, options.store_dst, meta);
 		}

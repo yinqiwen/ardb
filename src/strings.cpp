@@ -74,7 +74,7 @@ namespace ardb
         else
         {
             StringMetaValue nsmeta;
-            nsmeta.value.SetValue(increment);
+            nsmeta.value.SetIntValue(increment);
             KeyObject k(key, KEY_META, db);
             SetMeta(k, nsmeta);
             value = increment;
@@ -118,7 +118,7 @@ namespace ardb
         else
         {
             StringMetaValue nsmeta;
-            nsmeta.value.SetValue(increment);
+            nsmeta.value.SetDoubleValue(increment);
             KeyObject k(key, KEY_META, db);
             SetMeta(k, nsmeta);
             value = increment;

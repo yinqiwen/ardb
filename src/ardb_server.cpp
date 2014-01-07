@@ -76,6 +76,14 @@ namespace ardb
         reply.str = v;
     }
 
+    static inline void fill_value_reply(RedisReply& reply, const ValueData& v)
+    {
+        reply.type = REDIS_REPLY_STRING;
+        std::string str;
+        v.ToString(str);
+        reply.str = str;
+    }
+
     static bool check_uint32_arg(RedisReply& reply, const std::string& arg, uint32& v)
     {
         if (!string_touint32(arg, v))
@@ -2561,7 +2569,7 @@ namespace ardb
             fill_error_reply(ctx.reply, "ERR wrong number of arguments for ZAdd");
             return 0;
         }
-        DoubleArray scores;
+        ValueDataArray scores;
         SliceArray svs;
         bool with_limit = false;
         uint32 limit = 0;
@@ -2581,8 +2589,8 @@ namespace ardb
                 with_limit = true;
                 break;
             }
-            double score;
-            if (!string_todouble(cmd.GetArguments()[i], score))
+            ValueData score(cmd.GetArguments()[i]);
+            if (score.type != INTEGER_VALUE && score.type != DOUBLE_VALUE)
             {
                 fill_error_reply(ctx.reply, "ERR value is not a float or out of range");
                 return 0;
@@ -2624,13 +2632,15 @@ namespace ardb
 
     int ArdbServer::ZIncrby(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        double increment, value;
-        if (!string_todouble(cmd.GetArguments()[1], increment))
+        ValueData increment(cmd.GetArguments()[1]);
+        if (increment.type != INTEGER_VALUE && increment.type != DOUBLE_VALUE)
         {
             fill_error_reply(ctx.reply, "ERR value is not a float or out of range");
             return 0;
         }
+        ValueData value;
         m_db->ZIncrby(ctx.currentDB, cmd.GetArguments()[0], increment, cmd.GetArguments()[2], value);
+        fill_value_reply(ctx.reply, value);
         return 0;
     }
 
@@ -2989,7 +2999,7 @@ namespace ardb
 
     int ArdbServer::ZScore(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        double score;
+        ValueData score;
         int ret = m_db->ZScore(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], score);
         if (ret < 0)
         {
@@ -2997,7 +3007,7 @@ namespace ardb
         }
         else
         {
-            fill_double_reply(ctx.reply, score);
+            fill_value_reply(ctx.reply, score);
         }
         return 0;
     }

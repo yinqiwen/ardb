@@ -1299,7 +1299,7 @@ namespace ardb
 							}
 							ZSetKeyObject* zk = (ZSetKeyObject*) key;
 							DUMP_CHECK_WRITE(r.WriteStringObject(zk->e.value));
-							DUMP_CHECK_WRITE(r.WriteDouble(zk->e.score));
+							DUMP_CHECK_WRITE(r.WriteDouble(zk->e.score.NumberValue()));
 							break;
 						}
 						case HASH_FIELD:
@@ -1372,7 +1372,7 @@ namespace ardb
 								{
 									DUMP_CHECK_WRITE(
 									        r.WriteStringObject(it->value));
-									DUMP_CHECK_WRITE(r.WriteDouble(it->score));
+									DUMP_CHECK_WRITE(r.WriteDouble(it->score.NumberValue()));
 									it++;
 								}
 							}

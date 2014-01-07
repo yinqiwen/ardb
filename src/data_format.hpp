@@ -196,12 +196,12 @@ namespace ardb
             {
             }
             void SetValue(const Slice& value, bool auto_convert);
-            void SetValue(int64 value)
+            void SetIntValue(int64 value)
             {
                 type = INTEGER_VALUE;
                 integer_value = value;
             }
-            void SetValue(double value)
+            void SetDoubleValue(double value)
             {
                 type = DOUBLE_VALUE;
                 double_value = value;
@@ -239,7 +239,8 @@ namespace ardb
             double NumberValue() const;
             bool Encode(Buffer& buf) const;
             bool Decode(Buffer& buf);
-            std::string ToString(std::string& str) const;
+            std::string& ToString(std::string& str) const;
+            std::string AsString()const;
             int ToNumber();
             int ToBytes();
             int Incrby(int64 value);
@@ -339,15 +340,28 @@ namespace ardb
 
     struct ZSetElement
     {
-            double score;
+            ValueData score;
             ValueData value;
             ZSetElement() :
-                    score(0)
+                    score((int64) 0)
+            {
+            }
+            ZSetElement(const Slice& v, const ValueData& s) :
+                    score(s), value(v)
+            {
+            }
+            ZSetElement(const Slice& v, int64 s) :
+                    score(s), value(v)
             {
             }
             ZSetElement(const Slice& v, double s) :
                     score(s), value(v)
             {
+                uint64 c = (uint64) s;
+                if ((double) c == s)
+                {
+                    score.SetIntValue(c);
+                }
             }
         CODEC_DEFINE(score, value)
     };
@@ -358,8 +372,8 @@ namespace ardb
     {
             ZSetElement e;
             ZSetKeyObject(const Slice& k, const ZSetElement& ee, DBID id);
-            ZSetKeyObject(const Slice& k, const Slice& v, double s, DBID id);
-            ZSetKeyObject(const Slice& k, const ValueData& v, double s, DBID id);
+            ZSetKeyObject(const Slice& k, const Slice& v, const ValueData& s, DBID id);
+            ZSetKeyObject(const Slice& k, const ValueData& v, const ValueData& s, DBID id);
     };
     struct ZSetScoreKeyObject: public KeyObject
     {
@@ -461,12 +475,12 @@ namespace ardb
     {
             uint32_t size;
             bool ziped;
-            float min_score;
-            float max_score;
+            ValueData min_score;
+            ValueData max_score;
             ValueDataDeque zipvs;CODEC_DEFINE(size,ziped,min_score,max_score,zipvs)
             ;
             ListMetaValue() :
-                    size(0), ziped(false), min_score(0), max_score(0)
+                    size(0), ziped(false), min_score((int64) 0), max_score((int64) 0)
             {
                 header.type = LIST_META;
             }
@@ -516,8 +530,16 @@ namespace ardb
     };
     struct ListKeyObject: public KeyObject
     {
-            float score;
-            ListKeyObject(const Slice& k, double s, DBID id) :
+            ValueData score;
+            ListKeyObject(const Slice& k, const ValueData& s, DBID id) :
+                    KeyObject(k, LIST_ELEMENT, id), score(s)
+            {
+            }
+            ListKeyObject(const Slice& k, const double& s, DBID id) :
+                    KeyObject(k, LIST_ELEMENT, id), score(s)
+            {
+            }
+            ListKeyObject(const Slice& k, const int64& s, DBID id) :
                     KeyObject(k, LIST_ELEMENT, id), score(s)
             {
             }

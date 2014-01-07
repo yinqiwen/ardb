@@ -13,15 +13,16 @@ void test_zsets_addrem(Ardb& db)
 {
     DBID dbid = 0;
     db.ZClear(dbid, "myzset");
-    db.ZAdd(dbid, "myzset", 3, "v0");
-    db.ZAdd(dbid, "myzset", 2, "v1");
-    db.ZAdd(dbid, "myzset", 1, "v2");
-    CHECK_FATAL(db.ZCard(dbid, "myzset") != 3, "zadd myzset failed:%d", db.ZCard(dbid, "myzset"));
-    double score = 0;
-    db.ZScore(dbid, "myzset", "v1", score);
-    CHECK_FATAL(score != 2, "zscore myzset failed:%f", score);
 
-    db.ZAdd(dbid, "myzset", 0, "v2");
+    db.ZAdd(dbid, "myzset", ValueData((int64)3), "v0");
+    db.ZAdd(dbid, "myzset", ValueData((int64)2), "v1");
+    db.ZAdd(dbid, "myzset", ValueData((int64)1), "v2");
+    CHECK_FATAL(db.ZCard(dbid, "myzset") != 3, "zadd myzset failed:%d", db.ZCard(dbid, "myzset"));
+    ValueData score((int64)0);
+    db.ZScore(dbid, "myzset", "v1", score);
+    CHECK_FATAL(score.NumberValue() != 2, "zscore myzset failed:%f", score.NumberValue());
+
+    db.ZAdd(dbid, "myzset", ValueData((int64)0), "v2");
     CHECK_FATAL(db.ZCard(dbid, "myzset") != 3, "zadd myzset failed:%d", db.ZCard(dbid, "myzset"));
     db.ZRem(dbid, "myzset", "v2");
     CHECK_FATAL(db.ZCard(dbid, "myzset") != 2, "zrem myzset failed:%d", db.ZCard(dbid, "myzset"));
@@ -38,10 +39,10 @@ void test_zsets_zrange(Ardb& db)
 {
     DBID dbid = 0;
     db.ZClear(dbid, "myzset");
-    db.ZAdd(dbid, "myzset", 1, "one");
-    db.ZAdd(dbid, "myzset", 1, "uno");
-    db.ZAdd(dbid, "myzset", 2, "two");
-    db.ZAdd(dbid, "myzset", 3, "two");
+    db.ZAdd(dbid, "myzset", ValueData((int64)1), "one");
+    db.ZAdd(dbid, "myzset", ValueData((int64)1), "uno");
+    db.ZAdd(dbid, "myzset", ValueData((int64)2), "two");
+    db.ZAdd(dbid, "myzset", ValueData((int64)3), "two");
     ZSetQueryOptions options;
     options.withscores = true;
     ValueDataArray values;
@@ -65,9 +66,9 @@ void test_zsets_zcount(Ardb& db)
 {
     DBID dbid = 0;
     db.ZClear(dbid, "myzset");
-    db.ZAdd(dbid, "myzset", 1, "one");
-    db.ZAdd(dbid, "myzset", 2, "two");
-    db.ZAdd(dbid, "myzset", 3, "three");
+    db.ZAdd(dbid, "myzset", ValueData((int64)1), "one");
+    db.ZAdd(dbid, "myzset", ValueData((int64)2), "two");
+    db.ZAdd(dbid, "myzset", ValueData((int64)3), "three");
     int count = db.ZCount(dbid, "myzset", "-inf", "+inf");
     CHECK_FATAL(count != 3, "Fail:%d", count);
     count = db.ZCount(dbid, "myzset", "(1", "3");
@@ -78,9 +79,9 @@ void test_zsets_zrank(Ardb& db)
 {
     DBID dbid = 0;
     db.ZClear(dbid, "myzset");
-    db.ZAdd(dbid, "myzset", 1, "one");
-    db.ZAdd(dbid, "myzset", 2, "two");
-    db.ZAdd(dbid, "myzset", 3, "three");
+    db.ZAdd(dbid, "myzset", ValueData((int64)1), "one");
+    db.ZAdd(dbid, "myzset", ValueData((int64)2), "two");
+    db.ZAdd(dbid, "myzset", ValueData((int64)3), "three");
     db.ZCount(dbid, "myzset", "-inf", "+inf");
     int rank = db.ZRank(dbid, "myzset", "three");
     CHECK_FATAL(rank != 2, "Fail:%d", rank);
@@ -92,7 +93,7 @@ void test_zsets_zrank(Ardb& db)
     {
         char value[16];
         sprintf(value, "value%u", i);
-        db.ZAdd(dbid, "myzset", i, value);
+        db.ZAdd(dbid, "myzset", ValueData((int64)i), value);
     }
     uint64 end = get_current_epoch_millis();
     INFO_LOG("Cost %lldms to write %u zset elements", (end-start), maxzsetsize);
@@ -107,13 +108,13 @@ void test_zsets_zrem(Ardb& db)
 {
     DBID dbid = 0;
     db.ZClear(dbid, "myzset");
-    db.ZAdd(dbid, "myzset", 1, "one");
-    db.ZAdd(dbid, "myzset", 2, "two");
-    db.ZAdd(dbid, "myzset", 3, "three");
+    db.ZAdd(dbid, "myzset", ValueData((int64)1), "one");
+    db.ZAdd(dbid, "myzset", ValueData((int64)2), "two");
+    db.ZAdd(dbid, "myzset", ValueData((int64)3), "three");
     int count = db.ZRemRangeByRank(dbid, "myzset", 0, 1);
     CHECK_FATAL(count != 2, "Fail:%d", count);
-    db.ZAdd(dbid, "myzset", 1, "one");
-    db.ZAdd(dbid, "myzset", 2, "two");
+    db.ZAdd(dbid, "myzset", ValueData((int64)1), "one");
+    db.ZAdd(dbid, "myzset", ValueData((int64)2), "two");
     count = db.ZRemRangeByScore(dbid, "myzset", "-inf", "(2");
     CHECK_FATAL(count != 1, "Fail:%d", count);
 }
@@ -122,9 +123,9 @@ void test_zsets_zrev(Ardb& db)
 {
     DBID dbid = 0;
     db.ZClear(dbid, "myzset");
-    db.ZAdd(dbid, "myzset", 1, "one");
-    db.ZAdd(dbid, "myzset", 2, "two");
-    db.ZAdd(dbid, "myzset", 3, "three");
+    db.ZAdd(dbid, "myzset", ValueData((int64)1), "one");
+    db.ZAdd(dbid, "myzset", ValueData((int64)2), "two");
+    db.ZAdd(dbid, "myzset", ValueData((int64)3), "three");
     ZSetQueryOptions options;
     options.withscores = true;
     ValueDataArray values;
@@ -154,10 +155,10 @@ void test_zsets_incr(Ardb& db)
 {
     DBID dbid = 0;
     db.ZClear(dbid, "myzset");
-    db.ZAdd(dbid, "myzset", 1, "one");
-    db.ZAdd(dbid, "myzset", 2, "two");
-    double score;
-    db.ZIncrby(dbid, "myzset", 2, "one", score);
+    db.ZAdd(dbid, "myzset", ValueData((int64)1), "one");
+    db.ZAdd(dbid, "myzset", ValueData((int64)2), "two");
+    ValueData score;
+    db.ZIncrby(dbid, "myzset", ValueData((int64)2), "one", score);
     ZSetQueryOptions options;
     options.withscores = true;
     ValueDataArray values;
@@ -172,11 +173,11 @@ void test_zsets_inter(Ardb& db)
     DBID dbid = 0;
     db.ZClear(dbid, "myzset1");
     db.ZClear(dbid, "myzset2");
-    db.ZAdd(dbid, "myzset1", 1, "one");
-    db.ZAdd(dbid, "myzset1", 2, "two");
-    db.ZAdd(dbid, "myzset2", 1, "one");
-    db.ZAdd(dbid, "myzset2", 2, "two");
-    db.ZAdd(dbid, "myzset2", 3, "three");
+    db.ZAdd(dbid, "myzset1", ValueData((int64)1), "one");
+    db.ZAdd(dbid, "myzset1", ValueData((int64)2), "two");
+    db.ZAdd(dbid, "myzset2", ValueData((int64)1), "one");
+    db.ZAdd(dbid, "myzset2", ValueData((int64)2), "two");
+    db.ZAdd(dbid, "myzset2", ValueData((int64)3), "three");
     SliceArray keys;
     keys.push_back("myzset1");
     keys.push_back("myzset2");
@@ -201,11 +202,11 @@ void test_zsets_union(Ardb& db)
     DBID dbid = 0;
     db.ZClear(dbid, "myzset1");
     db.ZClear(dbid, "myzset2");
-    db.ZAdd(dbid, "myzset1", 1, "one");
-    db.ZAdd(dbid, "myzset1", 2, "two");
-    db.ZAdd(dbid, "myzset2", 1, "one");
-    db.ZAdd(dbid, "myzset2", 2, "two");
-    db.ZAdd(dbid, "myzset2", 3, "three");
+    db.ZAdd(dbid, "myzset1", ValueData((int64)1), "one");
+    db.ZAdd(dbid, "myzset1", ValueData((int64)2), "two");
+    db.ZAdd(dbid, "myzset2", ValueData((int64)1), "one");
+    db.ZAdd(dbid, "myzset2", ValueData((int64)2), "two");
+    db.ZAdd(dbid, "myzset2", ValueData((int64)3), "three");
     SliceArray keys;
     keys.push_back("myzset1");
     keys.push_back("myzset2");
@@ -230,7 +231,7 @@ void test_zset_expire(Ardb& db)
 {
     DBID dbid = 0;
     db.ZClear(dbid, "myzset");
-    db.ZAdd(dbid, "myzset", 1, "one");
+    db.ZAdd(dbid, "myzset", ValueData((int64)1), "one");
     db.Expire(dbid, "myzset", 1);
     CHECK_FATAL(db.Exists(dbid, "myzset") == false, "Expire myzset failed");
     sleep(2);

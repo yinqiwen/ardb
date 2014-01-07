@@ -252,7 +252,7 @@ namespace ardb
             int HGetValue(HashKeyObject& key, HashMetaValue* meta, CommonValueObject& value);
             int HSetValue(HashKeyObject& key, HashMetaValue* meta, CommonValueObject& value);
 
-            int TryZAdd(const DBID& db, const Slice& key, ZSetMetaValue& meta, double score, const Slice& value,
+            int TryZAdd(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score, const Slice& value,
                     bool check_value);
 
             int GetType(const DBID& db, const Slice& key, KeyType& type);
@@ -272,7 +272,7 @@ namespace ardb
             int ListPop(const DBID& db, const Slice& key, bool athead, std::string& value);
 
             void FindSetMinMaxValue(const DBID& db, const Slice& key, SetMetaValue* meta);
-            int FindZSetMinMaxScore(const DBID& db, const Slice& key, ZSetMetaValue* meta, double& min, double& max);
+            //int FindZSetMinMaxScore(const DBID& db, const Slice& key, ZSetMetaValue* meta, double& min, double& max);
 
             int BitsAnd(const DBID& db, SliceArray& keys, BitSetElementValueMap*& result, BitSetElementValueMap*& tmp);
             int BitsOr(const DBID& db, SliceArray& keys, BitSetElementValueMap*& result, bool isXor);
@@ -488,16 +488,16 @@ namespace ardb
             /*
              * Sorted Set operations
              */
-            int ZAdd(const DBID& db, const Slice& key, double score, const Slice& value);
-            int ZAdd(const DBID& db, const Slice& key, DoubleArray& scores, const SliceArray& svs);
-            int ZAddLimit(const DBID& db, const Slice& key, DoubleArray& scores, const SliceArray& svs, int setlimit,
+            int ZAdd(const DBID& db, const Slice& key, const ValueData& score, const Slice& value);
+            int ZAdd(const DBID& db, const Slice& key, ValueDataArray& scores, const SliceArray& svs);
+            int ZAddLimit(const DBID& db, const Slice& key, ValueDataArray& scores, const SliceArray& svs, int setlimit,
                     ValueDataArray& pops);
             int ZCard(const DBID& db, const Slice& key);
-            int ZScore(const DBID& db, const Slice& key, const Slice& value, double& score);
+            int ZScore(const DBID& db, const Slice& key, const Slice& value, ValueData& score);
             int ZRem(const DBID& db, const Slice& key, const Slice& value);
             int ZPop(const DBID& db, const Slice& key, bool reverse, uint32 num, ValueDataArray& pops);
             int ZCount(const DBID& db, const Slice& key, const std::string& min, const std::string& max);
-            int ZIncrby(const DBID& db, const Slice& key, double increment, const Slice& value, double& score);
+            int ZIncrby(const DBID& db, const Slice& key, const ValueData& increment, const Slice& value, ValueData& score);
             int ZRank(const DBID& db, const Slice& key, const Slice& member);
             int ZRevRank(const DBID& db, const Slice& key, const Slice& member);
             int ZRemRangeByRank(const DBID& db, const Slice& key, int start, int stop);

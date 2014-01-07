@@ -74,7 +74,7 @@ namespace ardb
     }
     void Ardb::FindSetMinMaxValue(const DBID& db, const Slice& key, SetMetaValue* meta)
     {
-        if (meta->ziped)
+        if (meta->ziped || !meta->dirty)
         {
             return;
         }
@@ -98,17 +98,24 @@ namespace ardb
         next_key(key, next);
         SetKeyObject sk1(next, Slice(), db);
         iter = FindValue(sk1, false);
-        if (NULL != iter && iter->Valid())
+        if (NULL != iter)
         {
-            iter->Prev();
+            if (iter->Valid())
+            {
+                iter->Prev();
+            }
+            else
+            {
+                iter->SeekToLast();
+            }
         }
         if (NULL != iter && iter->Valid())
         {
             KeyObject* kk = decode_key(iter->Key(), &sk);
-            if (NULL != kk)
+            if (NULL != kk && kk->type == SET_ELEMENT && kk->db == db && kk->key.compare(key) == 0)
             {
-                SetKeyObject* mink = (SetKeyObject*) kk;
-                meta->max = mink->value;
+                SetKeyObject* maxk = (SetKeyObject*) kk;
+                meta->max = maxk->value;
             }
             DELETE(kk);
         }
@@ -339,10 +346,7 @@ namespace ardb
             DELETE(meta);
             return err;
         }
-        if (meta->dirty)
-        {
-            FindSetMinMaxValue(db, key, meta);
-        }
+        FindSetMinMaxValue(db, key, meta);
         ValueData firstObj;
         if (value_end.empty() || !strcasecmp(value_end.data(), "+inf"))
         {
@@ -992,8 +996,9 @@ namespace ardb
             int err = 0;
             bool createSet = false;
             SetMetaValue* meta = GetSetMeta(db, *kit, err, createSet);
-            if (NULL == meta)
+            if (NULL == meta || createSet)
             {
+                DELETE(meta);
                 delete_pointer_container(metas);
                 return err;
             }
@@ -1070,6 +1075,7 @@ namespace ardb
                     else
                     {
                         result->resize(ret - result->begin());
+
                         ValueDataArray* p = cmp;
                         cmp = result;
                         result = p;

@@ -115,7 +115,7 @@ namespace ardb
                         int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
                         {
                             ZSetKeyObject* zsk = (ZSetKeyObject*) k;
-                            z_scores->push_back(zsk->e.score);
+                            z_scores->push_back(zsk->e.score.NumberValue());
                             return 0;
                         }
                         ZWalk(DoubleDeque* s) :

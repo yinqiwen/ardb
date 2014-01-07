@@ -570,7 +570,7 @@ namespace ardb
         }
         else
         {
-            valueObj.data.SetValue(increment);
+            valueObj.data.SetIntValue(increment);
             value = valueObj.data.integer_value;
         }
         ret = HSetValue(hk, meta, valueObj);
@@ -624,7 +624,7 @@ namespace ardb
         }
         else
         {
-            valueObj.data.SetValue(increment);
+            valueObj.data.SetDoubleValue(increment);
             value = valueObj.data.double_value;
         }
         ret = HSetValue(hk, meta, valueObj);

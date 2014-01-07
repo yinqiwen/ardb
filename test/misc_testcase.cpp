@@ -20,7 +20,7 @@ void test_type(Ardb& db)
     DBID dbid = 0;
     db.SAdd(dbid, "myset", "123");
     db.LPush(dbid, "mylist", "value0");
-    db.ZAdd(dbid, "myzset1", 1, "one");
+    db.ZAdd(dbid, "myzset1", ValueData((int64)1), "one");
     db.HSet(dbid, "myhash", "field1", "value1");
     db.Set(dbid, "skey", "abc");
     db.SetBit(dbid, "mybits", 1, 1);
@@ -159,10 +159,10 @@ void test_sort_zset(Ardb& db)
 {
     DBID dbid = 0;
     db.ZClear(dbid, "myzset");
-    db.ZAdd(dbid, "myzset", 0, "v0");
-    db.ZAdd(dbid, "myzset", 10, "v10");
-    db.ZAdd(dbid, "myzset", 3, "v3");
-    db.ZAdd(dbid, "myzset", 5, "v5");
+    db.ZAdd(dbid, "myzset", ValueData((int64)0), "v0");
+    db.ZAdd(dbid, "myzset", ValueData((int64)10), "v10");
+    db.ZAdd(dbid, "myzset", ValueData((int64)3), "v3");
+    db.ZAdd(dbid, "myzset", ValueData((int64)5), "v5");
 
     StringArray args;
     ValueDataArray vs;
@@ -232,7 +232,7 @@ void test_keys(Ardb& db)
     db.HSet(dbid, "myhash_v0", "field", "100");
     db.SAdd(dbid, "myset_v0", "field");
     db.LPush(dbid, "mylist", "122");
-    db.ZAdd(dbid, "myzset", 3, "v0");
+    db.ZAdd(dbid, "myzset", ValueData((int64)3), "v0");
     db.Set(dbid, "mykey", "12312");
 
     StringArray ret;
