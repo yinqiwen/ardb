@@ -352,10 +352,10 @@ namespace ardb
             }
             default:
             {
-                if (bytes_value.size() != other.bytes_value.size())
-                {
-                    return COMPARE_NUMBER(bytes_value.size(), other.bytes_value.size());
-                }
+//                if (bytes_value.size() != other.bytes_value.size())
+//                {
+//                    return COMPARE_NUMBER(bytes_value.size(), other.bytes_value.size());
+//                }
                 return bytes_value.compare(other.bytes_value);
             }
         }

@@ -88,7 +88,7 @@ void test_hash_nonzip_hgetall(Ardb& db)
             fields.size());
     CHECK_FATAL(fields[1].compare("field1") != 0, "hgetall myhash failed:%s", fields[1].c_str());
     std::string str;
-    int ret = values[2].ToString(str).compare("value2");
+    int ret = values[2].ToString(str).compare("value10");
     CHECK_FATAL(ret != 0, "hgetall myhash failed:%s", str.c_str());
 }
 
@@ -151,7 +151,7 @@ void test_hash_nonzip_hvals(Ardb& db)
     db.HVals(dbid, "myhash", values);
     CHECK_FATAL(values.size() != (uint32 )(db.GetConfig().hash_max_ziplist_entries + 10), "hgetall myhash failed:%zu",
             values.size());
-    int ret = values[2].compare("value2");
+    int ret = values[2].compare("value10");
     CHECK_FATAL(ret != 0, "hvals myhash failed:%s", values[2].c_str());
 }
 
