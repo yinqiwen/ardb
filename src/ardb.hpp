@@ -314,7 +314,7 @@ namespace ardb
 
             struct KeyLocker
             {
-                    typedef std::set<DBItemStackKey> DBItemKeySet;
+                    typedef TreeSet<DBItemStackKey>::Type DBItemKeySet;
                     DBItemKeySet m_locked_keys;
                     ThreadMutex m_keys_mutex;
                     ThreadMutexLock m_barrier;

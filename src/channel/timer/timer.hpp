@@ -41,7 +41,7 @@ namespace ardb
 	class Timer
 	{
 		protected:
-			typedef std::map<uint32, TimerTask*> TimerTaskMap;
+			typedef TreeMap<uint32, TimerTask*>::Type TimerTaskMap;
 			TimerTaskQueue m_task_queue;
 			TimerTaskMap m_task_table;
 			virtual void BeforeScheduled(TimerTask* task)

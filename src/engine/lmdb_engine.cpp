@@ -30,8 +30,7 @@
 
 #include "lmdb_engine.hpp"
 #include "ardb.hpp"
-#include "ardb_data.hpp"
-#include "comparator.hpp"
+#include "data_format.hpp"
 #include "util/helpers.hpp"
 #include <string.h>
 

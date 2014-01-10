@@ -48,7 +48,7 @@ namespace ardb
 	class SoftSignalChannel: public PipeChannel, public ChannelUpstreamHandler<uint64>
 	{
 		private:
-			typedef std::map<uint32, std::vector<SoftSignalHandler*> > SignalHandlerMap;
+			typedef TreeMap<uint32, std::vector<SoftSignalHandler*> >::Type SignalHandlerMap;
 			SignalHandlerMap m_hander_map;
 			ardb::codec::UInt64FrameDecoder m_decoder;
 

@@ -92,8 +92,8 @@ namespace ardb
             ArdbServer* m_server;
             SoftSignalChannel* m_notify_channel;
             MPSCQueue<ReplicationInstruction> m_inst_queue;
-            typedef std::map<uint32, SlaveConnection*> SlaveConnTable;
-            typedef std::map<uint32, uint32> SlavePortTable;
+            typedef TreeMap<uint32, SlaveConnection*>::Type SlaveConnTable;
+            typedef TreeMap<uint32, uint32>::Type SlavePortTable;
             SlaveConnTable m_slave_table;
             SlavePortTable m_slave_port_table;
             ThreadMutex m_port_table_mutex;

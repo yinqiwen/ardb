@@ -39,8 +39,6 @@
 #include <stdint.h>
 #include <float.h>
 #include <math.h>
-#include <map>
-#include <set>
 #include <list>
 #include <vector>
 #include <deque>
@@ -74,7 +72,7 @@ namespace ardb
      */
     typedef uint32 DBID;
 
-    typedef std::set<DBID> DBIDSet;
+    typedef TreeSet<DBID>::Type DBIDSet;
 
     enum KeyType
     {
@@ -320,23 +318,23 @@ namespace ardb
     typedef std::deque<ValueData> ValueDataArray;
     typedef std::deque<ValueData> ValueDataDeque;
     typedef std::pair<double, uint32> ScoreCount;
-    typedef std::map<ValueData, double> ValueScoreMap;
-    typedef std::map<ValueData, ScoreCount> ValueScoreCountMap;
-    typedef std::map<ValueData, ValueData> HashFieldMap;
-    typedef std::set<ValueData> ValueSet;
+    typedef TreeMap<ValueData, double>::Type ValueScoreMap;
+    typedef TreeMap<ValueData, ScoreCount>::Type ValueScoreCountMap;
+    typedef TreeMap<ValueData, ValueData>::Type HashFieldMap;
+    typedef TreeSet<ValueData>::Type ValueSet;
     typedef std::vector<double> DoubleArray;
 
     typedef std::deque<Slice> SliceArray;
     typedef std::deque<std::string> StringArray;
     typedef std::vector<int64> Int64Array;
     typedef std::vector<uint32> UInt32Array;
-    typedef std::map<std::string, Slice> StringSliceMap;
-    typedef std::set<std::string> StringSet;
-    typedef std::set<Slice> SliceSet;
+    typedef TreeMap<std::string, Slice>::Type StringSliceMap;
+    typedef TreeSet<std::string>::Type StringSet;
+    typedef TreeSet<Slice>::Type SliceSet;
     typedef std::vector<uint32_t> WeightArray;
     typedef std::vector<double> ZSetScoreArray;
-    typedef std::map<std::string, std::string> StringStringMap;
-    typedef std::map<uint64, std::string> UInt64StringMap;
+    typedef TreeMap<std::string, std::string>::Type StringStringMap;
+    typedef TreeMap<uint64, std::string>::Type UInt64StringMap;
 
     struct ZSetElement
     {
@@ -604,10 +602,10 @@ namespace ardb
      */
     typedef std::vector<ZSetMetaValue*> ZSetMetaValueArray;
     typedef std::vector<SetMetaValue*> SetMetaValueArray;
-    typedef std::map<std::string, ValueData> NameValueTable;
+    typedef TreeMap<std::string, ValueData>::Type NameValueTable;
 
     typedef std::deque<ValueDataArray> ValueArrayArray;
-    typedef std::map<uint64, BitSetElementValue> BitSetElementValueMap;
+    typedef TreeMap<uint64, BitSetElementValue>::Type BitSetElementValueMap;
 
     template<typename T>
     void delete_pointer_container(T& t)

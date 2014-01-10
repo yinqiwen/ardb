@@ -44,7 +44,7 @@ namespace ardb
 		private:
 			typedef K key_type;
 			typedef V value_type;
-			typedef std::map<K, typename CacheList::iterator> CacheEntryMap;
+			typedef typename TreeMap<K, typename CacheList::iterator>::Type CacheEntryMap;
 			//typedef google::sparse_hash_map<K, typename CacheList::iterator> CacheEntryMap;
 			CacheList m_cache_list;
 			CacheEntryMap m_entry_map;

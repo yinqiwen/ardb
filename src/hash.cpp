@@ -620,12 +620,12 @@ namespace ardb
                 return ERR_INVALID_TYPE;
             }
             valueObj.data.IncrbyFloat(increment);
-            value = valueObj.data.double_value;
+            value = valueObj.data.NumberValue();
         }
         else
         {
             valueObj.data.SetDoubleValue(increment);
-            value = valueObj.data.double_value;
+            value = valueObj.data.NumberValue();
         }
         ret = HSetValue(hk, meta, valueObj);
         DELETE(meta);

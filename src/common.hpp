@@ -155,11 +155,35 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 
 #include <stdio.h>
 #include <unistd.h>
+#include <btree_set.h>
+#include <btree_map.h>
+#include <map>
+#include <set>
 #include "config.h"
 #include "constants.hpp"
 #include "util/address.hpp"
 #include "util/runnable.hpp"
 #include "util/debug.h"
 #include "logger.hpp"
+
+/*
+ * Define a macro to for tree set/map
+ */
+namespace ardb
+{
+
+    template<typename Key, typename Compare = std::less<Key> >
+    struct TreeSet
+    {
+            typedef btree::btree_set<Key, Compare> Type;
+            // typedef std::set<Key, Compare> Type;
+    };
+    template<typename Key, typename Value, typename Compare = std::less<Key> >
+    struct TreeMap
+    {
+            typedef btree::btree_map<Key, Value, Compare> Type;
+            // typedef std::map<Key, Value, Compare> Type;
+    };
+}
 
 #endif /* COMMON_HPP_ */

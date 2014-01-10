@@ -37,7 +37,6 @@
 #include <map>
 #include <vector>
 #include <string>
-using std::map;
 using std::vector;
 using std::string;
 namespace ardb
@@ -96,7 +95,8 @@ namespace ardb
 			Channel* m_channel;
 			ChannelHandlerContext* m_head;
 			ChannelHandlerContext* m_tail;
-			map<string, ChannelHandlerContext*> m_name2ctx;
+			typedef TreeMap<string, ChannelHandlerContext*>::Type ChannelHandlerContextTable;
+			ChannelHandlerContextTable m_name2ctx;
 			ChannelHandlerContext* Init(const string& name,
 					ChannelHandler* handler);
 

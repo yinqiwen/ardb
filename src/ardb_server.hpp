@@ -115,7 +115,7 @@ namespace ardb
             }
     };
     struct ArdbConnContext;
-    typedef std::set<ArdbConnContext*> ContextSet;
+    typedef TreeSet<ArdbConnContext*>::Type ContextSet;
 
     struct ArdbConncetion
     {
@@ -135,7 +135,7 @@ namespace ardb
     class ClientConnHolder
     {
         private:
-            typedef std::map<uint32, ArdbConncetion> ArdbConncetionTable;
+            typedef TreeMap<uint32, ArdbConncetion>::Type ArdbConncetionTable;
             ArdbConncetionTable m_conn_table;
             bool m_client_stat_enable;
             ThreadMutex m_mutex;
@@ -221,8 +221,8 @@ namespace ardb
     };
 
     typedef std::deque<RedisCommandFrame> TransactionCommandQueue;
-    typedef std::set<WatchKey> WatchKeySet;
-    typedef std::set<std::string> PubSubChannelSet;
+    typedef TreeSet<WatchKey>::Type WatchKeySet;
+    typedef TreeSet<std::string>::Type PubSubChannelSet;
 
     struct ArdbConnContext
     {
@@ -328,9 +328,9 @@ namespace ardb
             Ardb* m_db;
             KeyValueEngineFactory& m_engine;
 
-            typedef std::map<std::string, RedisCommandHandlerSetting> RedisCommandHandlerSettingTable;
-            typedef std::map<WatchKey, ContextSet> WatchKeyContextTable;
-            typedef std::map<std::string, ContextSet> PubSubContextTable;
+            typedef TreeMap<std::string, RedisCommandHandlerSetting>::Type RedisCommandHandlerSettingTable;
+            typedef TreeMap<WatchKey, ContextSet>::Type WatchKeyContextTable;
+            typedef TreeMap<std::string, ContextSet>::Type PubSubContextTable;
 
             RedisCommandHandlerSettingTable m_handler_table;
             SlowLogHandler m_slowlog_handler;

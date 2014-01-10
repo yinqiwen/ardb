@@ -169,7 +169,7 @@ void ChannelPipeline::Clear()
 {
 	m_head = NULL;
 	m_tail = NULL;
-	map<string, ChannelHandlerContext*>::iterator it = m_name2ctx.begin();
+	ChannelHandlerContextTable::iterator it = m_name2ctx.begin();
 	while (it != m_name2ctx.end())
 	{
 		ChannelHandlerContext* ctx = it->second;

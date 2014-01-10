@@ -37,13 +37,14 @@
 #define STRUCT_CODEC_MACROS_HPP_
 #include "buffer/buffer_helper.hpp"
 #include "buffer/struct_code_templates.hpp"
-#include "buffer/struct_code_templates2.hpp"
 #include <string>
 #include <list>
 #include <map>
 #include <vector>
 #include <deque>
 #include <utility>
+#include <btree_set.h>
+#include <btree_map.h>
 
 using ardb::Buffer;
 
@@ -700,6 +701,19 @@ namespace ardb
     }
 
     template<typename T>
+    inline bool encode_arg(Buffer& buf, btree::btree_set<T>& a0)
+    {
+        BufferHelper::WriteVarUInt32(buf, a0.size());
+        typename btree::btree_set<T>::iterator iter = a0.begin();
+        while (iter != a0.end())
+        {
+            encode_arg(buf, *iter);
+            iter++;
+        }
+        return true;
+    }
+
+    template<typename T>
     inline bool encode_arg(Buffer& buf, std::vector<T>& a0)
     {
         BufferHelper::WriteVarUInt32(buf, a0.size());
@@ -739,6 +753,20 @@ namespace ardb
         return true;
     }
 
+    template<typename K, typename V>
+    inline bool encode_arg(Buffer& buf, btree::btree_map<K, V>& a0)
+    {
+        BufferHelper::WriteVarUInt32(buf, a0.size());
+        typename btree::btree_map<K, V>::iterator iter = a0.begin();
+        while (iter != a0.end())
+        {
+            encode_arg(buf, iter->first);
+            encode_arg(buf, iter->second);
+            iter++;
+        }
+        return true;
+    }
+
     template<typename T>
     inline bool decode_arg(Buffer& buf, std::list<T>& a0)
     {
@@ -763,6 +791,28 @@ namespace ardb
 
     template<typename T>
     inline bool decode_arg(Buffer& buf, std::set<T>& a0)
+    {
+        uint32 size;
+        if (!BufferHelper::ReadVarUInt32(buf, size))
+        {
+            return false;
+        }
+        uint32 i = 0;
+        while (i < size)
+        {
+            T t;
+            if (!decode_arg(buf, t))
+            {
+                return false;
+            }
+            a0.insert(t);
+            i++;
+        }
+        return true;
+    }
+
+    template<typename T>
+    inline bool decode_arg(Buffer& buf, btree::btree_set<T>& a0)
     {
         uint32 size;
         if (!BufferHelper::ReadVarUInt32(buf, size))
@@ -849,6 +899,30 @@ namespace ardb
         }
         return true;
     }
+
+    template<typename K, typename V>
+    inline bool decode_arg(Buffer& buf, btree::btree_map<K, V>& a0)
+    {
+        uint32 size;
+        if (!BufferHelper::ReadVarUInt32(buf, size))
+        {
+            return false;
+        }
+        uint32 i = 0;
+        while (i < size)
+        {
+            K k;
+            V v;
+            if (!decode_arg(buf, k) || !decode_arg(buf, v))
+            {
+                return false;
+            }
+            a0.insert(std::make_pair(k, v));
+            i++;
+        }
+        return true;
+    }
+
 }
 
 #endif /* STRUCT_CODEC_MACROS_HPP_ */

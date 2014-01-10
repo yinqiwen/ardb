@@ -46,7 +46,7 @@ namespace ardb
 	class SignalChannel: public Channel
 	{
 		private:
-			typedef std::map<uint32, std::vector<SignalHandler*> > SignalHandlerMap;
+			typedef TreeMap<uint32, std::vector<SignalHandler*> >::Type SignalHandlerMap;
 			SignalHandlerMap m_hander_map;
 			static void SignalCB(int signo, siginfo_t* info, void* ctx);
 			static SignalChannel* m_singleton_instance;

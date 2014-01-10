@@ -71,7 +71,7 @@ namespace ardb
 			typedef std::list<uint32> RemoveChannelQueue;
 			//typedef zmq::ypipe_t<Runnable*, 10> TaskList;
 			typedef SPSCQueue<Runnable*> TaskList;
-			typedef std::map<uint32, Channel*> ChannelTable;
+			typedef TreeMap<uint32, Channel*>::Type ChannelTable;
 			typedef std::vector<ChannelService*> ChannelServicePool;
 			typedef std::vector<Thread*> ThreadVector;
 			ChannelTable m_channel_table;
