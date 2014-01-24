@@ -45,11 +45,10 @@ ChannelService::ChannelService(uint32 setsize) :
     if (NULL != m_self_soft_signal_channel)
     {
         m_self_soft_signal_channel->Register(CHANNEL_REMOVE, this);
-        //m_self_soft_signal_channel->Register(WAKEUP, this);
         m_self_soft_signal_channel->Register(USER_DEFINED, this);
 
         m_self_soft_signal_channel->Register(WAKEUP, this);
-        m_self_soft_signal_channel->Register(USER_DEFINED, this);
+        m_self_soft_signal_channel->Register(CHANNEL_ASNC_WRITE, this);
     }
 }
 

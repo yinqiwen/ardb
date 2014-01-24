@@ -3238,7 +3238,8 @@ namespace ardb
         std::string v;
         for (uint32 i = 0; i < cmd.GetArguments().size() - 1; i++)
         {
-            if (m_db->LPop(ctx.currentDB, cmd.GetArguments()[i], v))
+            v.clear();
+            if (m_db->LPop(ctx.currentDB, cmd.GetArguments()[i], v) >= 0 && !v.empty())
             {
                 ctx.reply.type = REDIS_REPLY_ARRAY;
                 ctx.reply.elements.push_back(RedisReply(cmd.GetArguments()[i]));
@@ -3273,7 +3274,8 @@ namespace ardb
         std::string v;
         for (uint32 i = 0; i < cmd.GetArguments().size() - 1; i++)
         {
-            if (m_db->RPop(ctx.currentDB, cmd.GetArguments()[i], v))
+            v.clear();
+            if (m_db->RPop(ctx.currentDB, cmd.GetArguments()[i], v) >= 0 && !v.empty())
             {
                 ctx.reply.type = REDIS_REPLY_ARRAY;
                 ctx.reply.elements.push_back(RedisReply(cmd.GetArguments()[i]));
@@ -3306,7 +3308,7 @@ namespace ardb
             return 0;
         }
         std::string v;
-        if (0 == m_db->RPopLPush(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], v))
+        if (0 == m_db->RPopLPush(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], v) && !v.empty())
         {
             ctx.reply.type = REDIS_REPLY_ARRAY;
             ctx.reply.elements.push_back(RedisReply(cmd.GetArguments()[1]));
