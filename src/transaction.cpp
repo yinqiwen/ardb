@@ -33,11 +33,7 @@ namespace ardb
 {
     int ArdbServer::Multi(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        ctx.in_transaction = true;
-        if (NULL == ctx.transaction_cmds)
-        {
-            ctx.transaction_cmds = new TransactionCommandQueue;
-        }
+        ctx.GetTransc().in_transaction = true;
         ctx.reply.type = REDIS_REPLY_STATUS;
         ctx.reply.str = "OK";
         return 0;
@@ -45,8 +41,7 @@ namespace ardb
 
     int ArdbServer::Discard(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        ctx.in_transaction = false;
-        DELETE(ctx.transaction_cmds);
+        ctx.ClearTransaction();
         ctx.reply.type = REDIS_REPLY_STATUS;
         ctx.reply.str = "OK";
         return 0;
@@ -54,7 +49,7 @@ namespace ardb
 
     int ArdbServer::Exec(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        if (ctx.fail_transc || !ctx.in_transaction)
+        if (!ctx.IsInTransaction() || ctx.GetTransc().fail_transc)
         {
             ctx.reply.type = REDIS_REPLY_NIL;
         }
@@ -62,59 +57,52 @@ namespace ardb
         {
             RedisReply r;
             r.type = REDIS_REPLY_ARRAY;
-            if (NULL != ctx.transaction_cmds)
+            for (uint32 i = 0; i < ctx.GetTransc().transaction_cmds.size(); i++)
             {
-                for (uint32 i = 0; i < ctx.transaction_cmds->size(); i++)
-                {
-                    RedisCommandFrame& cmd = ctx.transaction_cmds->at(i);
-                    DoRedisCommand(ctx, FindRedisCommandHandlerSetting(cmd.GetCommand()), cmd);
-                    r.elements.push_back(ctx.reply);
-                }
+                RedisCommandFrame& cmd = ctx.GetTransc().transaction_cmds.at(i);
+                DoRedisCommand(ctx, FindRedisCommandHandlerSetting(cmd.GetCommand()), cmd);
+                r.elements.push_back(ctx.reply);
             }
             ctx.reply = r;
         }
-        ctx.in_transaction = false;
-        DELETE(ctx.transaction_cmds);
+        ctx.ClearTransaction();
         ClearWatchKeys(ctx);
         return 0;
     }
 
     void ArdbServer::ClearWatchKeys(ArdbConnContext& ctx)
     {
-        if (NULL != ctx.watch_key_set)
+        LockGuard<ThreadMutex> guard(m_watch_mutex);
+        WatchKeySet::iterator it = ctx.GetTransc().watch_key_set.begin();
+        while (it != ctx.GetTransc().watch_key_set.end())
         {
-            LockGuard<ThreadMutex> guard(m_watch_mutex);
-            WatchKeySet::iterator it = ctx.watch_key_set->begin();
-            while (it != ctx.watch_key_set->end())
+            WatchKeyContextTable::iterator found = m_watch_context_table.find(*it);
+            if (found != m_watch_context_table.end())
             {
-                WatchKeyContextTable::iterator found = m_watch_context_table.find(*it);
-                if (found != m_watch_context_table.end())
+                ContextSet& list = found->second;
+                ContextSet::iterator lit = list.begin();
+                while (lit != list.end())
                 {
-                    ContextSet& list = found->second;
-                    ContextSet::iterator lit = list.begin();
-                    while (lit != list.end())
+                    if (*lit == &ctx)
                     {
-                        if (*lit == &ctx)
-                        {
-                            list.erase(lit);
-                            break;
-                        }
-                        lit++;
+                        list.erase(lit);
+                        break;
                     }
-                    if (list.empty())
-                    {
-                        m_watch_context_table.erase(found);
-                    }
+                    lit++;
                 }
-                it++;
+                if (list.empty())
+                {
+                    m_watch_context_table.erase(found);
+                }
             }
-            if (m_watch_context_table.empty())
-            {
-                m_db->GetDBWatcher().on_key_update = NULL;
-                m_db->GetDBWatcher().on_key_update_data = NULL;
-            }
+            it++;
         }
-        DELETE(ctx.watch_key_set);
+        if (m_watch_context_table.empty())
+        {
+            m_db->GetDBWatcher().on_key_update = NULL;
+            m_db->GetDBWatcher().on_key_update_data = NULL;
+        }
+        ctx.GetTransc().watch_key_set.clear();
     }
 
     void ArdbServer::OnKeyUpdated(const DBID& dbid, const Slice& key, void* data)
@@ -147,7 +135,7 @@ namespace ardb
                     {
                         if (*lit != server->m_ctx_local.GetValue())
                         {
-                            (*lit)->fail_transc = true;
+                            (*lit)->GetTransc().fail_transc = true;
                         }
                         lit++;
                     }
@@ -163,15 +151,11 @@ namespace ardb
         ctx.reply.str = "OK";
         m_db->GetDBWatcher().on_key_update = ArdbServer::OnKeyUpdated;
         m_db->GetDBWatcher().on_key_update_data = this;
-        if (NULL == ctx.watch_key_set)
-        {
-            ctx.watch_key_set = new WatchKeySet;
-        }
         ArgumentArray::iterator it = cmd.GetArguments().begin();
         while (it != cmd.GetArguments().end())
         {
             WatchKey k(ctx.currentDB, *it);
-            ctx.watch_key_set->insert(k);
+            ctx.GetTransc().watch_key_set.insert(k);
             LockGuard<ThreadMutex> guard(m_watch_mutex);
             WatchKeyContextTable::iterator found = m_watch_context_table.find(k);
             if (found == m_watch_context_table.end())

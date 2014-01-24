@@ -201,7 +201,6 @@ namespace ardb
     };
 
     class DBHelper;
-    class ZSetScoresCacheManager;
     class Ardb
     {
         private:
@@ -212,7 +211,6 @@ namespace ardb
             ThreadMutex m_mutex;
 
             ThreadLocal<DBWatcher> m_watcher;
-
             template<typename T>
             int SetKeyValueObject(KeyObject& key, T& obj)
             {
@@ -238,7 +236,7 @@ namespace ardb
             ListMetaValue* GetListMeta(const DBID& db, const Slice& key, int& err, bool& create);
             SetMetaValue* GetSetMeta(const DBID& db, const Slice& key, int& err, bool& create);
             HashMetaValue* GetHashMeta(const DBID& db, const Slice& key, int& err, bool& create);
-            ZSetMetaValue* GetZSetMeta(const DBID& db, const Slice& key, int zipsort_by_score, int& err, bool& create);
+            ZSetMetaValue* GetZSetMeta(const DBID& db, const Slice& key, uint8 sort_func, int& err, bool& create);
             CommonMetaValue* GetMeta(const DBID& db, const Slice& key, bool onlyHead);
 
             int RenameList(const DBID& db1, const Slice& key1, const DBID& db2, const Slice& key2, ListMetaValue* meta);
@@ -247,13 +245,17 @@ namespace ardb
             int RenameZSet(const DBID& db1, const Slice& key1, const DBID& db2, const Slice& key2, ZSetMetaValue* meta);
 
             int GetZSetZipEntry(ZSetMetaValue* meta, const ValueData& value, ZSetElement& entry, bool remove);
-            int InsertZSetZipEntry(ZSetMetaValue* meta, ZSetElement& entry, bool sort_by_score);
+            int InsertZSetZipEntry(ZSetMetaValue* meta, ZSetElement& entry, uint8 sort_func);
             int GetHashZipEntry(HashMetaValue* meta, const ValueData& field, ValueData*& value);
             int HGetValue(HashKeyObject& key, HashMetaValue* meta, CommonValueObject& value);
             int HSetValue(HashKeyObject& key, HashMetaValue* meta, CommonValueObject& value);
 
             int TryZAdd(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score, const Slice& value,
                     bool check_value);
+            uint32 ZRankByScore(const DBID& db, const Slice& key,ZSetMetaValue& meta, const ValueData& score, bool contains_score);
+            int ZGetByRank(const DBID& db, const Slice& key,ZSetMetaValue& meta, uint32 rank, ZSetElement& e);
+            int ZInsertRangeScore(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score);
+            int ZDeleteRangeScore(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score);
 
             int GetType(const DBID& db, const Slice& key, KeyType& type);
             int SetMeta(KeyObject& key, CommonMetaValue& meta);
@@ -381,7 +383,6 @@ namespace ardb
             DBHelper* m_db_helper;
             ArdbConfig m_config;
 
-            friend class ZSetScoresCacheManager;
         public:
             Ardb(KeyValueEngineFactory* factory, bool multi_thread = true);
             ~Ardb();

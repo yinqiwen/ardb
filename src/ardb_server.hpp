@@ -60,6 +60,9 @@
 #define ARDB_PROCESS_FORCE_REPLICATION 4
 #define ARDB_PROCESS_FEED_REPLICATION_ONLY 8
 
+#define SCRIPT_KILL_EVENT 1
+#define SCRIPT_FLUSH_EVENT 2
+
 using namespace ardb::codec;
 namespace ardb
 {
@@ -224,68 +227,140 @@ namespace ardb
     typedef TreeSet<WatchKey>::Type WatchKeySet;
     typedef TreeSet<std::string>::Type PubSubChannelSet;
 
-    struct ArdbConnContext
+    struct LUAConnContext
     {
-            DBID currentDB;
-            Channel* conn;
-            RedisReply reply;
-            bool in_transaction;
-            bool fail_transc;
-            bool is_slave_conn;
-            TransactionCommandQueue* transaction_cmds;
-            WatchKeySet* watch_key_set;
-            PubSubChannelSet* pubsub_channle_set;
-            PubSubChannelSet* pattern_pubsub_channle_set;
-
             uint64 lua_time_start;
             bool lua_timeout;
             bool lua_kill;
             const char* lua_executing_func;
 
-            ArdbConnContext() :
-                    currentDB(0), conn(NULL), in_transaction(false), fail_transc(false), is_slave_conn(false), transaction_cmds(
-                    NULL), watch_key_set(NULL), pubsub_channle_set(
-                    NULL), pattern_pubsub_channle_set(NULL), lua_time_start(0), lua_timeout(false), lua_kill(false), lua_executing_func(
-                    NULL)
+            LUAConnContext() :
+                    lua_time_start(0), lua_timeout(false), lua_kill(false), lua_executing_func(NULL)
             {
             }
+    };
+
+    struct PubSubContext
+    {
+            PubSubChannelSet pubsub_channle_set;
+            PubSubChannelSet pattern_pubsub_channle_set;
+    };
+
+    struct BlockListContext
+    {
+            std::string dest_key;
+            int32 blocking_timer_task_id;
+            uint8 pop_type;
+            WatchKeySet keys;
+            BlockListContext() :
+                    blocking_timer_task_id(-1), pop_type(0)
+            {
+            }
+    };
+
+    struct TransactionContext
+    {
+            bool in_transaction;
+            bool fail_transc;
+            TransactionCommandQueue transaction_cmds;
+            WatchKeySet watch_key_set;
+            TransactionContext() :
+                    in_transaction(false), fail_transc(false)
+            {
+            }
+    };
+
+    struct ArdbConnContext
+    {
+            DBID currentDB;
+            Channel* conn;
+            RedisReply reply;
+            bool is_slave_conn;
+            TransactionContext* transc;
+            PubSubContext* pubsub;
+            LUAConnContext* lua;
+            BlockListContext* block;
+
+            ArdbConnContext() :
+                    currentDB(0), conn(NULL), is_slave_conn(false), transc(NULL), pubsub(
+                    NULL), lua(
+                    NULL), block(NULL)
+            {
+            }
+            LUAConnContext& GetLua()
+            {
+                if (NULL == lua)
+                {
+                    NEW(lua, LUAConnContext);
+                }
+                return *lua;
+            }
+            TransactionContext& GetTransc()
+            {
+                if (NULL == transc)
+                {
+                    NEW(transc, TransactionContext);
+                }
+                return *transc;
+            }
+            PubSubContext& GetPubSub()
+            {
+                if (NULL == pubsub)
+                {
+                    NEW(pubsub, PubSubContext);
+                }
+                return *pubsub;
+            }
+            BlockListContext& GetBlockList()
+            {
+                if (NULL == block)
+                {
+                    NEW(block, BlockListContext);
+                }
+                return *block;
+            }
+
+            void ClearBlockList()
+            {
+                DELETE(block);
+            }
+            void ClearPubSub()
+            {
+                DELETE(pubsub);
+            }
+
             uint64 SubChannelSize()
             {
                 uint32 size = 0;
-                if (NULL != pubsub_channle_set)
+                if (NULL != pubsub)
                 {
-                    size = pubsub_channle_set->size();
-                }
-                if (NULL != pattern_pubsub_channle_set)
-                {
-                    size += pattern_pubsub_channle_set->size();
+                    size = pubsub->pattern_pubsub_channle_set.size();
+                    size += pubsub->pubsub_channle_set.size();
                 }
                 return size;
             }
             bool IsSubscribedConn()
             {
-                return NULL != pubsub_channle_set || NULL != pattern_pubsub_channle_set;
+                return NULL != pubsub;
             }
             bool IsInTransaction()
             {
-                return in_transaction && NULL != transaction_cmds;
+                return NULL != transc && transc->in_transaction;
             }
             bool IsInScripting()
             {
-                return lua_executing_func != NULL;
+                return lua != NULL && lua->lua_executing_func != NULL;
             }
-            void ClearTransactionContex()
+            void ClearTransaction()
             {
-                in_transaction = false;
-                fail_transc = false;
-                DELETE(transaction_cmds);
+                DELETE(transc);
             }
             ~ArdbConnContext()
             {
-                DELETE(transaction_cmds);
-                DELETE(watch_key_set);
-                DELETE(pubsub_channle_set);
-                DELETE(pattern_pubsub_channle_set);
+                DELETE(transc);
+                DELETE(pubsub);
+                DELETE(block);
+                DELETE(lua);
             }
     };
 
@@ -331,6 +406,18 @@ namespace ardb
             typedef TreeMap<std::string, RedisCommandHandlerSetting>::Type RedisCommandHandlerSettingTable;
             typedef TreeMap<WatchKey, ContextSet>::Type WatchKeyContextTable;
             typedef TreeMap<std::string, ContextSet>::Type PubSubContextTable;
+            typedef TreeMap<WatchKey, ArdbConnContext*>::Type BlockContextTable;
+
+            struct BlockTimeoutTask: public Runnable
+            {
+                    ArdbServer* server;
+                    ArdbConnContext* ctx;
+                    BlockTimeoutTask(ArdbServer* s, ArdbConnContext* c) :
+                            server(s), ctx(c)
+                    {
+                    }
+                    void Run();
+            };
 
             RedisCommandHandlerSettingTable m_handler_table;
             SlowLogHandler m_slowlog_handler;
@@ -347,6 +434,8 @@ namespace ardb
             PubSubContextTable m_pubsub_context_table;
             PubSubContextTable m_pattern_pubsub_context_table;
             ThreadMutex m_pubsub_mutex;
+            BlockContextTable m_blocking_conns;
+            ThreadMutex m_block_mutex;
 
             ThreadLocal<ArdbConnContext*> m_ctx_local;
             ThreadLocal<LUAInterpreter> m_ctx_lua;
@@ -356,6 +445,8 @@ namespace ardb
             int ProcessRedisCommand(ArdbConnContext& ctx, RedisCommandFrame& cmd, int flags);
 
             void HandleReply(ArdbConnContext* ctx);
+
+            static void AsyncWriteBlockListReply(Channel* ch, void * data);
 
             friend class RedisRequestHandler;
             friend class Slave;
@@ -371,8 +462,12 @@ namespace ardb
             //int OnAllKeyDeleted(const DBID& dbid);
             void ClearWatchKeys(ArdbConnContext& ctx);
             void ClearSubscribes(ArdbConnContext& ctx);
+            void ClearClosedConnContext(ArdbConnContext& ctx);
 
             void TouchIdleConn(Channel* ch);
+            void BlockConn(ArdbConnContext& ctx, uint32 timeout);
+            void UnblockConn(ArdbConnContext& ctx);
+            void CheckBlockingConnectionsByListKey(const WatchKey& key);
 
             int Time(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int FlushDB(ArdbConnContext& ctx, RedisCommandFrame& cmd);
@@ -530,6 +625,9 @@ namespace ardb
             int RPopLPush(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int RPush(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int RPushx(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            int BLPop(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            int BRPop(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            int BRPopLPush(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
             int HClear(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int SClear(ArdbConnContext& ctx, RedisCommandFrame& cmd);
@@ -541,6 +639,8 @@ namespace ardb
             int Script(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
             Timer& GetTimer();
+
+            static void ServerEventCallback(ChannelService* serv, uint32 ev, void* data);
         public:
             static int ParseConfig(const Properties& props, ArdbServerConfig& cfg);
             ArdbServer(KeyValueEngineFactory& engine);

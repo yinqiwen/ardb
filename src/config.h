@@ -101,7 +101,7 @@
 #if (__i386 || __amd64) && __GNUC__
 #define GNUC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
 #if GNUC_VERSION >= 40100
-#define HAVE_ATOMIC
+#define HAVE_SYNC_OP
 #endif
 #endif
 

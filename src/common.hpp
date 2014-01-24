@@ -42,6 +42,19 @@
         }                    \
     }while(0)
 
+#define NEW2(Ptr,Type, CONSTRCTOR) Type* Ptr = NULL;\
+    do\
+    { \
+        try                  \
+        {                    \
+           Ptr = new CONSTRCTOR;   \
+        }                    \
+        catch(std::bad_alloc)\
+        {                    \
+            Ptr = NULL;      \
+        }                    \
+    }while(0)
+
 #define DELETE(Ptr)     do\
     {                   \
         if(NULL != Ptr) \

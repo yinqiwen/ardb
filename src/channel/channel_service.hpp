@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -43,9 +43,7 @@
 #include "channel/socket/serversocket_channel.hpp"
 #include "channel/fifo/fifo_channel.hpp"
 #include "timer/timer.hpp"
-#include <map>
 #include <list>
-#include <set>
 #include <utility>
 
 using std::map;
@@ -55,121 +53,123 @@ using std::make_pair;
 
 namespace ardb
 {
-	enum ChannelSoftSignal
-	{
-		CHANNEL_REMOVE = 1, WAKEUP = 2, USER_DEFINED = 3,
-	};
+    enum ChannelSoftSignal
+    {
+        CHANNEL_REMOVE = 1, WAKEUP = 2, USER_DEFINED = 3, CHANNEL_ASNC_WRITE = 4
+    };
 
-	class ChannelService;
-	typedef void UserEventCallback(ChannelService* serv, uint32 ev, void* data);
-	/**
-	 * event loop service
-	 */
-	class ChannelService: public Runnable, public SoftSignalHandler
-	{
-		private:
-			typedef std::list<uint32> RemoveChannelQueue;
-			//typedef zmq::ypipe_t<Runnable*, 10> TaskList;
-			typedef SPSCQueue<Runnable*> TaskList;
-			typedef TreeMap<uint32, Channel*>::Type ChannelTable;
-			typedef std::vector<ChannelService*> ChannelServicePool;
-			typedef std::vector<Thread*> ThreadVector;
-			ChannelTable m_channel_table;
-			uint32 m_setsize;
-			aeEventLoop* m_eventLoop;
-			TimerChannel* m_timer;
-			SignalChannel* m_signal_channel;
-			SoftSignalChannel* m_self_soft_signal_channel;
-			RemoveChannelQueue m_remove_queue;
+    class ChannelService;
+    typedef void UserEventCallback(ChannelService* serv, uint32 ev, void* data);
+    /**
+     * event loop service
+     */
+    class ChannelService: public Runnable, public SoftSignalHandler
+    {
+        private:
+            typedef std::list<uint32> RemoveChannelQueue;
+            //typedef zmq::ypipe_t<Runnable*, 10> TaskList;
+            typedef SPSCQueue<Runnable*> TaskList;
+            typedef TreeMap<uint32, Channel*>::Type ChannelTable;
+            typedef std::vector<ChannelService*> ChannelServicePool;
+            typedef std::vector<Thread*> ThreadVector;
 
-			bool m_running;
+            typedef MPSCQueue<ChannelAsyncWriteContext> AsyncWriteQueue;
+            ChannelTable m_channel_table;
+            uint32 m_setsize;
+            aeEventLoop* m_eventLoop;
+            TimerChannel* m_timer;
+            SignalChannel* m_signal_channel;
+            SoftSignalChannel* m_self_soft_signal_channel;
+            RemoveChannelQueue m_remove_queue;
+            AsyncWriteQueue  m_async_write_queue;
 
-			uint32 m_thread_pool_size;
-			ChannelServicePool m_sub_pool;
-			ThreadVector m_sub_pool_ts;
+            bool m_running;
 
-			pthread_t m_tid;
+            uint32 m_thread_pool_size;
+            ChannelServicePool m_sub_pool;
+            ThreadVector m_sub_pool_ts;
 
-			TaskList m_pending_tasks;
+            pthread_t m_tid;
 
-			UserEventCallback* m_user_cb;
-			void* m_user_cb_data;
+            TaskList m_pending_tasks;
 
-			bool EventSunk(ChannelPipeline* pipeline, ChannelEvent& e)
-			{
-				ERROR_LOG(
-						"Not support this operation!Please register a channel handler to handle this event.");
-				return false;
-			}
-			bool EventSunk(ChannelPipeline* pipeline, ChannelStateEvent& e);
-			bool EventSunk(ChannelPipeline* pipeline, MessageEvent<Buffer>& e);
-			bool EventSunk(ChannelPipeline* pipeline,
-					MessageEvent<DatagramPacket>& e);
+            UserEventCallback* m_user_cb;
+            void* m_user_cb_data;
 
-			void OnSoftSignal(uint32 soft_signo, uint32 appendinfo);
+            bool EventSunk(ChannelPipeline* pipeline, ChannelEvent& e)
+            {
+                ERROR_LOG("Not support this operation!Please register a channel handler to handle this event.");
+                return false;
+            }
+            bool EventSunk(ChannelPipeline* pipeline, ChannelStateEvent& e);
+            bool EventSunk(ChannelPipeline* pipeline, MessageEvent<Buffer>& e);
+            bool EventSunk(ChannelPipeline* pipeline, MessageEvent<DatagramPacket>& e);
 
-			void Run();
-			friend class Channel;
-			friend class ChannelPipeline;
-			friend class ChannelHandlerContext;
-			friend class SocketChannel;
-			friend class ClientSocketChannel;
-			friend class ServerSocketChannel;
-			friend class DatagramChannel;
-			friend class TimerChannel;
-			friend class SignalChannel;
+            void OnSoftSignal(uint32 soft_signo, uint32 appendinfo);
 
-			TimerChannel* NewTimerChannel();
-			SignalChannel* NewSignalChannel();
+            void Run();
+            friend class Channel;
+            friend class ChannelPipeline;
+            friend class ChannelHandlerContext;
+            friend class SocketChannel;
+            friend class ClientSocketChannel;
+            friend class ServerSocketChannel;
+            friend class DatagramChannel;
+            friend class TimerChannel;
+            friend class SignalChannel;
 
-			Channel* CloneChannel(Channel* ch);
-			void DeleteChannel(Channel* ch);
-			void RemoveChannel(Channel* ch);
-			void VerifyRemoveQueue();
-			void StartSubPool();
-			void AttachAcceptedChannel(SocketChannel *ch);
-		public:
-			ChannelService(uint32 setsize = 10240);
-			void SetThreadPoolSize(uint32 size);
-			uint32 GetThreadPoolSize();
-			ChannelService& GetNextChannelService();
+            TimerChannel* NewTimerChannel();
+            SignalChannel* NewSignalChannel();
 
-			void Routine();
-			void Wakeup();
-			bool IsInLoopThread() const;
-			Channel* GetChannel(uint32 channelID);
-			Timer& GetTimer();
-			SignalChannel& GetSignalChannel();
-			SoftSignalChannel* NewSoftSignalChannel();
+            Channel* CloneChannel(Channel* ch);
+            void DeleteChannel(Channel* ch);
+            void RemoveChannel(Channel* ch);
+            void VerifyRemoveQueue();
+            void StartSubPool();
+            void AttachAcceptedChannel(SocketChannel *ch);
+            void AsyncWrite(const ChannelAsyncWriteContext& ctx);
+        public:
+            ChannelService(uint32 setsize = 10240);
+            void SetThreadPoolSize(uint32 size);
+            uint32 GetThreadPoolSize();
+            ChannelService& GetNextChannelService();
+            ChannelService& GetIdlestChannelService();
 
-			ClientSocketChannel* NewClientSocketChannel();
-			ServerSocketChannel* NewServerSocketChannel();
-			PipeChannel* NewPipeChannel(int readFd, int writeFD);
-			DatagramChannel* NewDatagramSocketChannel();
+            void Routine();
+            void Wakeup();
+            bool IsInLoopThread() const;
+            Channel* GetChannel(uint32 channelID);
+            Timer& GetTimer();
+            SignalChannel& GetSignalChannel();
+            SoftSignalChannel* NewSoftSignalChannel();
 
-			Channel* AttachChannel(Channel* ch, bool transfer_service_only =
-					false);
-			bool DetachChannel(Channel* ch, bool remove = false);
+            ClientSocketChannel* NewClientSocketChannel();
+            ServerSocketChannel* NewServerSocketChannel();
+            PipeChannel* NewPipeChannel(int readFd, int writeFD);
+            DatagramChannel* NewDatagramSocketChannel();
 
-			//In most time , you should not invoke this method
-			inline aeEventLoop* GetRawEventLoop()
-			{
-				return m_eventLoop;
-			}
-			/**
-			 * Start Event loop
-			 */
-			void Start();
-			void Stop();
-			void Continue();
-			void CloseAllChannels(bool fireCloseEvent = true);
-			void CloseAllChannelFD(std::set<Channel*>& exceptions);
+            Channel* AttachChannel(Channel* ch, bool transfer_service_only = false);
+            bool DetachChannel(Channel* ch, bool remove = false);
 
-			void RegisterUserEventCallback(UserEventCallback* cb, void* data);
-			void FireUserEvent(uint32 ev);
+            //In most time , you should not invoke this method
+            inline aeEventLoop* GetRawEventLoop()
+            {
+                return m_eventLoop;
+            }
+            /**
+             * Start Event loop
+             */
+            void Start();
+            void Stop();
+            void Continue();
+            void CloseAllChannels(bool fireCloseEvent = true);
+            void CloseAllChannelFD(std::set<Channel*>& exceptions);
 
-			~ChannelService();
-	};
+            void RegisterUserEventCallback(UserEventCallback* cb, void* data);
+            void FireUserEvent(uint32 ev);
+
+            ~ChannelService();
+    };
 }
 
 #endif /* CHANNELSERVICE_HPP_ */

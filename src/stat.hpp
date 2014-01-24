@@ -19,31 +19,31 @@ namespace ardb
     struct ServerStat:public Runnable
     {
         public:
-            atomic_counter_t stat_numcommands;
-            atomic_counter_t stat_period_numcommands;
-            atomic_counter_t connected_clients;
-            atomic_counter_t stat_numconnections;
+            AtomicInt64 stat_numcommands;
+            AtomicInt64 stat_period_numcommands;
+            AtomicInt64 connected_clients;
+            AtomicInt64 stat_numconnections;
             ServerStat() :
                     stat_numcommands(0), connected_clients(0), stat_numconnections(0)
             {
             }
             void Run()
             {
-                stat_period_numcommands.set(0);
+                stat_period_numcommands.Set(0);
             }
             void IncRecvCommands()
             {
-                stat_numcommands.add(1);
-                stat_period_numcommands.add(1);
+                stat_numcommands.Add(1);
+                stat_period_numcommands.Add(1);
             }
             void IncAcceptedClient()
             {
-                connected_clients.add(1);
-                stat_numconnections.add(1);
+                connected_clients.Add(1);
+                stat_numconnections.Add(1);
             }
             void DecAcceptedClient()
             {
-                connected_clients.sub(1);
+                connected_clients.Sub(1);
             }
     };
 }

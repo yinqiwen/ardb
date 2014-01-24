@@ -80,34 +80,21 @@ namespace ardb
         }
         else
         {
-            ValueData* value_entry = NULL;
             bool zipSave = true;
-            if (0 == GetHashZipEntry(meta, key.field, value_entry))
+            if (key.field.type == BYTES_VALUE
+                    && value.data.bytes_value.size() >= (uint32) m_config.hash_max_ziplist_value)
             {
-                *value_entry = value.data; //set new value
-                if (value.data.type == BYTES_VALUE
-                        && value.data.bytes_value.size() >= (uint32) m_config.hash_max_ziplist_value)
-                {
-                    zipSave = false;
-                }
+                zipSave = false;
+            }
+            else if (meta->values.size() >= (uint32) m_config.hash_max_ziplist_entries)
+            {
+                zipSave = false;
             }
             else
             {
-                if (key.field.type == BYTES_VALUE
-                        && value.data.bytes_value.size() >= (uint32) m_config.hash_max_ziplist_value)
-                {
-                    zipSave = false;
-                }
-                else if (meta->values.size() >= (uint32) m_config.hash_max_ziplist_entries)
-                {
-                    zipSave = false;
-                }
-                else
-                {
-                    zipSave = true;
-                }
-                meta->values[key.field] = value.data;
+                zipSave = true;
             }
+            meta->values[key.field] = value.data;
             if (!zipSave)
             {
                 meta->ziped = false;

@@ -389,14 +389,14 @@ namespace ardb
         e.value.SetValue(v, true);
     }
 
-    ZSetScoreKeyObject::ZSetScoreKeyObject(const Slice& k, const ValueData& v, DBID id) :
-            KeyObject(k, ZSET_ELEMENT_SCORE, id), value(v)
+    ZSetNodeKeyObject::ZSetNodeKeyObject(const Slice& k, const ValueData& v, DBID id) :
+            KeyObject(k, ZSET_ELEMENT_NODE, id), value(v)
     {
 
     }
 
-    ZSetScoreKeyObject::ZSetScoreKeyObject(const Slice& k, const Slice& v, DBID id) :
-            KeyObject(k, ZSET_ELEMENT_SCORE, id)
+    ZSetNodeKeyObject::ZSetNodeKeyObject(const Slice& k, const Slice& v, DBID id) :
+            KeyObject(k, ZSET_ELEMENT_NODE, id)
     {
         value.SetValue(v, true);
     }
@@ -457,7 +457,7 @@ namespace ardb
                 ret = COMPARE_NUMBER(av.NumberValue(), bv.NumberValue());
                 break;
             }
-            case ZSET_ELEMENT_SCORE:
+            case ZSET_ELEMENT_NODE:
             case SET_ELEMENT:
             {
                 ValueData av, bv;
@@ -551,9 +551,9 @@ namespace ardb
                 encode_value(buf, sk.e.value);
                 break;
             }
-            case ZSET_ELEMENT_SCORE:
+            case ZSET_ELEMENT_NODE:
             {
-                const ZSetScoreKeyObject& zk = (const ZSetScoreKeyObject&) key;
+                const ZSetNodeKeyObject& zk = (const ZSetNodeKeyObject&) key;
                 encode_value(buf, zk.value);
                 break;
             }
@@ -574,7 +574,6 @@ namespace ardb
             case SET_META:
             case BITSET_META:
             case SCRIPT:
-            case ZSET_SCORES:
             case KEY_META:
             default:
             {
@@ -668,9 +667,9 @@ namespace ardb
                 }
                 return zsk;
             }
-            case ZSET_ELEMENT_SCORE:
+            case ZSET_ELEMENT_NODE:
             {
-                ZSetScoreKeyObject* zsk = new ZSetScoreKeyObject(keystr, Slice(), db);
+                ZSetNodeKeyObject* zsk = new ZSetNodeKeyObject(keystr, Slice(), db);
                 if (!decode_value(buf, zsk->value))
                 {
                     DELETE(zsk);
@@ -702,7 +701,6 @@ namespace ardb
             case BITSET_META:
             case KEY_META:
             case SCRIPT:
-            case ZSET_SCORES:
             default:
             {
                 return new KeyObject(keystr, (KeyType) type, db);
@@ -882,7 +880,7 @@ namespace ardb
 
             case HASH_FIELD:
             case LIST_ELEMENT:
-            case ZSET_ELEMENT_SCORE:
+            case ZSET_ELEMENT_NODE:
             case SCRIPT:
             {
                 CommonValueObject* obj = new CommonValueObject;
@@ -892,12 +890,6 @@ namespace ardb
             case BITSET_ELEMENT:
             {
                 BitSetElementValue* obj = new BitSetElementValue;
-                obj->Decode(buffer);
-                return obj;
-            }
-            case ZSET_SCORES:
-            {
-                ZSetScoresObject* obj = new ZSetScoresObject;
                 obj->Decode(buffer);
                 return obj;
             }

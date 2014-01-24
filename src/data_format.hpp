@@ -56,6 +56,9 @@
 
 #define COMPARE_SLICE(a, b)  (a.size() == b.size()?(a.compare(b)):(a.size()>b.size()?1:-1))
 
+#define ZSET_ENCODING_ZIPLIST  1
+#define ZSET_ENCODING_HASH     2
+
 #define COMPARE_EXIST(a, b)  do{ \
 	if(!a && !b) return 0;\
 	if(a != b) return COMPARE_NUMBER(a,b); \
@@ -83,7 +86,7 @@ namespace ardb
 
         SET_ELEMENT = 20,
 
-        ZSET_ELEMENT_SCORE = 30, ZSET_ELEMENT = 31, ZSET_SCORES = 32,
+        ZSET_ELEMENT_NODE = 30, ZSET_ELEMENT = 31,
 
         HASH_FIELD = 40,
 
@@ -208,6 +211,10 @@ namespace ardb
                     type(EMPTY_VALUE), integer_value(0), double_value(0)
             {
             }
+            inline bool Empty() const
+            {
+                return type == EMPTY_VALUE || type == MAX_VALUE_TYPE;
+            }
             inline bool operator<(const ValueData& other) const
             {
                 return Compare(other) < 0;
@@ -238,7 +245,7 @@ namespace ardb
             bool Encode(Buffer& buf) const;
             bool Decode(Buffer& buf);
             std::string& ToString(std::string& str) const;
-            std::string AsString()const;
+            std::string AsString() const;
             int ToNumber();
             int ToBytes();
             int Incrby(int64 value);
@@ -269,49 +276,6 @@ namespace ardb
             bool Decode(Buffer& buf)
             {
                 return true;
-            }
-    };
-    typedef std::deque<double> DoubleDeque;
-    struct ZSetScoresObject: public ValueObject
-    {
-            DoubleDeque* scores;
-            ZSetScoresObject() :
-                    scores(NULL)
-            {
-            }
-            bool Encode(Buffer& buf) const
-            {
-                BufferHelper::WriteVarUInt32(buf, NULL != scores ? scores->size() : 0);
-                if (NULL != scores && scores->size() > 0)
-                {
-                    buf.EnsureWritableBytes(scores->size() * sizeof(double));
-                    char* write_buf = const_cast<char*>(buf.GetRawWriteBuffer());
-                    double* direct_buf = (double*) write_buf;
-                    std::copy(scores->begin(), scores->end(), direct_buf);
-                    buf.AdvanceWriteIndex(scores->size() * sizeof(double));
-                }
-                return true;
-            }
-            bool Decode(Buffer& buf)
-            {
-                uint32 size = 0;
-                if (!BufferHelper::ReadVarUInt32(buf, size) || buf.ReadableBytes() < size * sizeof(double))
-                {
-                    return false;
-                }
-                if (size > 0)
-                {
-                    char* read_buf = const_cast<char*>(buf.GetRawReadBuffer());
-                    double* direct_buf = (double*) read_buf;
-                    scores = new DoubleDeque;
-                    scores->resize(size);
-                    std::copy(direct_buf, direct_buf + size, scores->begin());
-                }
-                return true;
-            }
-            ~ZSetScoresObject()
-            {
-                DELETE(scores);
             }
     };
 
@@ -352,6 +316,14 @@ namespace ardb
                     score(s), value(v)
             {
             }
+            inline bool operator<(const ZSetElement& x)
+            {
+                if (score < x.score)
+                    return true;
+                if (score == x.score)
+                    return value < x.value;
+                return false;
+            }
             ZSetElement(const Slice& v, double s) :
                     score(s), value(v)
             {
@@ -361,8 +333,58 @@ namespace ardb
                     score.SetIntValue(c);
                 }
             }
+            bool Empty()
+            {
+                return score.Empty() && value.Empty();
+            }
+            void Clear()
+            {
+                score.Clear();
+                value.Clear();
+            }
         CODEC_DEFINE(score, value)
     };
+
+//    struct ZSetLevelElement
+//    {
+//            ZSetElement forward;
+//            uint32 span;
+//            ZSetLevelElement() :
+//                    span(0)
+//            {
+//            }
+//    };
+//    typedef std::vector<ZSetLevelElement> ZSetLevelArray;
+
+    struct ZRangeSpec
+    {
+            ValueData min, max;
+            bool contain_min, contain_max;
+            ZRangeSpec() :
+                    contain_min(false), contain_max(false)
+            {
+            }
+    };
+
+    struct ZScoreRangeCounter
+    {
+            double min, max;
+            uint32 count;
+            CODEC_DEFINE(min, max, count)
+            ZScoreRangeCounter() :
+                    min(0), max(0),count(0)
+            {
+            }
+            inline bool operator<(const ZScoreRangeCounter& x)
+            {
+                if (min < x.min)
+                    return true;
+                if (min == x.min)
+                    return max < x.max;
+                return false;
+            }
+    };
+    typedef std::deque<ZScoreRangeCounter> ZScoreRangeCounterArray;
     typedef std::deque<ZSetElement> ZSetElementDeque;
     typedef std::vector<ZSetElementDeque> ZSetElementDequeArray;
 
@@ -373,11 +395,11 @@ namespace ardb
             ZSetKeyObject(const Slice& k, const Slice& v, const ValueData& s, DBID id);
             ZSetKeyObject(const Slice& k, const ValueData& v, const ValueData& s, DBID id);
     };
-    struct ZSetScoreKeyObject: public KeyObject
+    struct ZSetNodeKeyObject: public KeyObject
     {
             ValueData value;
-            ZSetScoreKeyObject(const Slice& k, const Slice& v, DBID id);
-            ZSetScoreKeyObject(const Slice& k, const ValueData& v, DBID id);
+            ZSetNodeKeyObject(const Slice& k, const Slice& v, DBID id);
+            ZSetNodeKeyObject(const Slice& k, const ValueData& v, DBID id);
     };
 
     struct MetaValueHeader
@@ -416,14 +438,15 @@ namespace ardb
 
     struct ZSetMetaValue: public CommonMetaValue
     {
-            bool dirty;
-            bool ziped;
-            bool zip_sort_by_score;
+            uint8 encoding;
+            uint8 sort_func;
             uint32 size;
-            ZSetElementDeque zipvs;CODEC_DEFINE(dirty, ziped, zip_sort_by_score, size,zipvs)
+            ZSetElementDeque zipvs;
+            ZScoreRangeCounterArray ranges;
+            CODEC_DEFINE(encoding, sort_func, size,zipvs, ranges)
             ;
             ZSetMetaValue() :
-                    dirty(false), ziped(true), zip_sort_by_score(false), size(0)
+                    encoding(true), sort_func(0), size(0)
             {
                 header.type = ZSET_META;
             }

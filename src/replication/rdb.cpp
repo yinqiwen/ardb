@@ -1213,7 +1213,7 @@ namespace ardb
 							case ZSET_META:
 							{
 								ZSetMetaValue* mmeta = (ZSetMetaValue*) meta;
-								if (!mmeta->ziped)
+								if (!mmeta->encoding)
 								{
 									return 0;
 								}
@@ -1362,7 +1362,7 @@ namespace ardb
 						case ZSET_META:
 						{
 							ZSetMetaValue* mmeta = (ZSetMetaValue*) value;
-							if (mmeta->ziped)
+							if (ZSET_ENCODING_ZIPLIST == mmeta->encoding)
 							{
 								DUMP_CHECK_WRITE(
 								        r.WriteLen(mmeta->zipvs.size()));

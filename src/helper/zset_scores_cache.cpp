@@ -27,7 +27,7 @@ namespace ardb
             int err = 0;
             bool createZset = false;
             ZSetMetaValue* meta = m_db->GetZSetMeta(it->first.db, it->first.key, -1, err, createZset);
-            if (NULL == meta || createZset || meta->ziped || !meta->dirty)
+            if (NULL == meta || createZset || meta->encoding || !meta->dirty)
             {
                 DELETE(meta);
                 DoubleDeque* scores = NULL;
@@ -67,7 +67,7 @@ namespace ardb
                 bool createZset = false;
                 ZSetMetaValue* meta = m_db->GetZSetMeta(erased_scores.first.db, erased_scores.first.key, -1, err,
                         createZset);
-                if (NULL != meta && !meta->ziped && !createZset)
+                if (NULL != meta && !meta->encoding && !createZset)
                 {
                     meta->dirty = false;
                     BatchWriteGuard guard(m_db->GetEngine());
@@ -327,11 +327,7 @@ namespace ardb
             uint32 step = *cit;
             if (step > scores->size())
             {
-                step = scores->size();
-            }
-            if (step >= scores->size())
-            {
-                return ERR_NOT_EXIST;
+                step = scores->size() - 1;
             }
             result.push_back(scores->at(step));
             cit++;

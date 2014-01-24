@@ -34,6 +34,13 @@
 
 #define MAX_ZSET_RANGE_NUM  1000
 
+#define SORT_BY_NOSORT 0
+#define SORT_BY_VALUE 1
+#define SORT_BY_SCORE 2
+
+#define MAX_ZSET_RANGE_COUNT_TABLE_SIZE  4096
+#define MAX_ZSET_RANGE_SIZE  512
+
 namespace ardb
 {
     static int parse_score(const std::string& score_str, double& score, bool& contain)
@@ -63,6 +70,18 @@ namespace ardb
         return 0;
     }
 
+    static int parse_zrange(const std::string& min, const std::string& max, ZRangeSpec& range)
+    {
+        range.max.type = DOUBLE_VALUE;
+        range.min.type = DOUBLE_VALUE;
+        int ret = parse_score(min, range.min.double_value, range.contain_min);
+        if (0 == ret)
+        {
+            ret = parse_score(max, range.max.double_value, range.contain_max);
+        }
+        return ret;
+    }
+
     static bool less_by_zset_score(const ZSetElement& v1, const ZSetElement& v2)
     {
         return v1.score.NumberValue() < v2.score.NumberValue();
@@ -73,7 +92,7 @@ namespace ardb
         return v1.value < v2.value;
     }
 
-    ZSetMetaValue* Ardb::GetZSetMeta(const DBID& db, const Slice& key, int zipsort_by_score, int& err, bool& created)
+    ZSetMetaValue* Ardb::GetZSetMeta(const DBID& db, const Slice& key, uint8 sort_func, int& err, bool& created)
     {
         CommonMetaValue* meta = GetMeta(db, key, false);
         if (NULL != meta && meta->header.type != ZSET_META)
@@ -91,15 +110,16 @@ namespace ardb
         else
         {
             ZSetMetaValue* zmeta = (ZSetMetaValue*) meta;
-            if (zmeta->ziped)
+            if (zmeta->encoding == ZSET_ENCODING_ZIPLIST)
             {
                 zmeta->size = zmeta->zipvs.size();
-                if (zipsort_by_score >= 0)
+                if (sort_func > 0)
                 {
-                    if (zmeta->zip_sort_by_score != zipsort_by_score)
+                    if (zmeta->sort_func != sort_func)
                     {
+                        zmeta->sort_func = sort_func;
                         std::sort(zmeta->zipvs.begin(), zmeta->zipvs.end(),
-                                zipsort_by_score ? less_by_zset_score : less_by_zset_value);
+                                sort_func == SORT_BY_SCORE ? less_by_zset_score : less_by_zset_value);
                     }
                 }
             }
@@ -108,30 +128,39 @@ namespace ardb
         return (ZSetMetaValue*) meta;
     }
 
-    int Ardb::InsertZSetZipEntry(ZSetMetaValue* meta, ZSetElement& entry, bool sort_by_score)
+    int Ardb::InsertZSetZipEntry(ZSetMetaValue* meta, ZSetElement& entry, uint8 sort_func)
     {
-        if (meta->zip_sort_by_score != sort_by_score)
+        if (sort_func > 0)
         {
-            std::sort(meta->zipvs.begin(), meta->zipvs.end(), sort_by_score ? less_by_zset_score : less_by_zset_value);
-        }
-        ZSetElementDeque::iterator it = std::lower_bound(meta->zipvs.begin(), meta->zipvs.end(), entry,
-                sort_by_score ? less_by_zset_score : less_by_zset_value);
-        if (it != meta->zipvs.end())
-        {
-            meta->zipvs.insert(it, entry);
+            if (meta->sort_func != sort_func)
+            {
+                meta->sort_func = sort_func;
+                std::sort(meta->zipvs.begin(), meta->zipvs.end(),
+                        sort_func == SORT_BY_SCORE ? less_by_zset_score : less_by_zset_value);
+            }
+            ZSetElementDeque::iterator it = std::lower_bound(meta->zipvs.begin(), meta->zipvs.end(), entry,
+                    sort_func == SORT_BY_SCORE ? less_by_zset_score : less_by_zset_value);
+            if (it != meta->zipvs.end())
+            {
+                meta->zipvs.insert(it, entry);
+            }
+            else
+            {
+                meta->zipvs.push_back(entry);
+            }
         }
         else
         {
-            meta->zipvs.push_back(entry);
+            ERROR_LOG("Insert zset with sort func:0");
         }
         return 0;
     }
 
     int Ardb::GetZSetZipEntry(ZSetMetaValue* meta, const ValueData& value, ZSetElement& entry, bool remove)
     {
-        if (meta->zip_sort_by_score)
+        if (meta->sort_func != SORT_BY_VALUE)
         {
-            meta->zip_sort_by_score = false;
+            meta->sort_func = SORT_BY_VALUE;
             std::sort(meta->zipvs.begin(), meta->zipvs.end(), less_by_zset_value);
         }
         ZSetElement serachEntry;
@@ -153,33 +182,12 @@ namespace ardb
         return -1;
     }
 
-//    int Ardb::FindZSetMinMaxScore(const DBID& db, const Slice& key, ZSetMetaValue* meta, double& min, double& max)
-//    {
-//        if (meta->ziped)
-//        {
-//            if (!meta->zipvs.empty())
-//            {
-//                min = meta->zipvs.begin()->score;
-//                max = meta->zipvs.rbegin()->score;
-//            }
-//            else
-//            {
-//                min = max = 0;
-//            }
-//        }
-//        else
-//        {
-//            //TODO
-//        }
-//        return 0;
-//    }
-
     int Ardb::ZAddLimit(const DBID& db, const Slice& key, ValueDataArray& scores, const SliceArray& svs, int setlimit,
             ValueDataArray& pops)
     {
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, 0, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_VALUE, err, createZset);
         if (NULL == meta)
         {
             DELETE(meta);
@@ -202,6 +210,126 @@ namespace ardb
         return 0;
     }
 
+    static bool less_by_zrange_score(const ZScoreRangeCounter& v1, const double& v2)
+    {
+        return v1.max < v2;
+    }
+
+    int Ardb::ZDeleteRangeScore(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score)
+    {
+        double v = score.NumberValue();
+        ZScoreRangeCounterArray::iterator fit = std::lower_bound(meta.ranges.begin(), meta.ranges.end(), v,
+                less_by_zrange_score);
+        if (fit == meta.ranges.end())
+        {
+            ERROR_LOG("Failed to find score range.");
+            return -1;
+        }
+        fit->count--;
+        ZScoreRangeCounterArray::iterator before = fit - 1;
+        ZScoreRangeCounterArray::iterator after = fit + 1;
+        if (fit->count == 0)
+        {
+            meta.ranges.erase(fit);
+        }
+        else
+        {
+            if (before != meta.ranges.end())
+            {
+                if (before->count + fit->count < MAX_ZSET_RANGE_SIZE)
+                {
+                    before->count = before->count + fit->count;
+                    before->max = fit->max;
+                    meta.ranges.erase(fit);
+                    return 0;
+                }
+            }
+            if (after != meta.ranges.end())
+            {
+                if (after->count + fit->count < MAX_ZSET_RANGE_SIZE)
+                {
+                    after->count = before->count + fit->count;
+                    after->min = fit->min;
+                    meta.ranges.erase(fit);
+                    return 0;
+                }
+            }
+        }
+        return 0;
+    }
+
+    int Ardb::ZInsertRangeScore(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score)
+    {
+        double v = score.NumberValue();
+        ZScoreRangeCounterArray::iterator fit = std::lower_bound(meta.ranges.begin(), meta.ranges.end(), v,
+                less_by_zrange_score);
+        if (fit == meta.ranges.end())
+        {
+            if (meta.ranges.size() > 0)
+            {
+                fit = meta.ranges.end();
+                fit--;
+                fit->max = v;
+                fit->count++;
+            }
+            else
+            {
+                ZScoreRangeCounter range;
+                range.min = range.max = v;
+                range.count = 1;
+                meta.ranges.push_back(range);
+                return 0;
+            }
+        }
+        else
+        {
+            fit->count++;
+        }
+        if (meta.ranges.size() < MAX_ZSET_RANGE_COUNT_TABLE_SIZE && fit->count > MAX_ZSET_RANGE_SIZE
+                && (fit->count) * meta.ranges.size() > meta.size && fit->min < fit->max)
+        {
+            //split range
+            ZSetElement ele;
+            ele.score.SetDoubleValue(fit->min);
+            uint32 split_count = meta.ranges.size() / 2;
+            ZSetKeyObject tmp(key, ele, db);
+            struct ZRangeWalk: public WalkHandler
+            {
+                    int64 z_count;
+                    double z_split_cur_max;
+                    double z_split_next_min;
+                    int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+                    {
+                        ZSetKeyObject* zsk = (ZSetKeyObject*) k;
+                        z_count--;
+                        if (0 == z_count)
+                        {
+                            z_split_cur_max = zsk->e.score.NumberValue();
+                            return 0;
+                        }
+                        else if (-1 == z_count)
+                        {
+                            z_split_next_min = zsk->e.score.NumberValue();
+                            return -1;
+                        }
+                        return 0;
+                    }
+                    ZRangeWalk(uint32 count) :
+                            z_count(count), z_split_cur_max(0), z_split_next_min(0)
+                    {
+                    }
+            } walk(split_count);
+            Walk(tmp, false, false, &walk);
+            ZScoreRangeCounter next_range;
+            next_range.min = walk.z_split_next_min;
+            next_range.max = fit->max;
+            fit->count = split_count;
+            fit->max = walk.z_split_cur_max;
+            meta.ranges.insert(fit, next_range);
+        }
+        return 0;
+    }
+
     /*
      * returns  0:no meta change
      *          1:meta change
@@ -209,7 +337,7 @@ namespace ardb
     int Ardb::TryZAdd(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score, const Slice& value,
             bool check_value)
     {
-        bool zip_save = meta.ziped;
+        bool zip_save = meta.encoding == ZSET_ENCODING_ZIPLIST;
         ZSetElement element(value, score);
         if (zip_save)
         {
@@ -222,7 +350,7 @@ namespace ardb
                 }
                 else
                 {
-                    InsertZSetZipEntry(&meta, element, false);
+                    InsertZSetZipEntry(&meta, element, SORT_BY_VALUE);
                     return 1;
                 }
             }
@@ -242,41 +370,42 @@ namespace ardb
         if (zip_save)
         {
             meta.size++;
-            InsertZSetZipEntry(&meta, element, false);
+            InsertZSetZipEntry(&meta, element, SORT_BY_VALUE);
             return 1;
         }
-        if (meta.ziped)
+        if (ZSET_ENCODING_ZIPLIST == meta.encoding)
         {
             BatchWriteGuard guard(GetEngine());
             ZSetElementDeque::iterator it = meta.zipvs.begin();
+            meta.size = 0;
             while (it != meta.zipvs.end())
             {
-                ZSetScoreKeyObject zk(key, it->value, db);
+                ZSetNodeKeyObject zk(key, it->value, db);
                 CommonValueObject zv;
                 zv.data = it->score;
                 SetKeyValueObject(zk, zv);
                 ZSetKeyObject zsk(key, it->value, it->score, db);
                 EmptyValueObject zsv;
                 SetKeyValueObject(zsk, zsv);
-                m_db_helper->GetZSetScoresCache().Insert(db, key, meta, it->score.NumberValue());
+                meta.size++;
+                ZInsertRangeScore(db, key, meta, it->score);
                 it++;
             }
-            ZSetScoreKeyObject nzk(key, element.value, db);
+            ZSetNodeKeyObject nzk(key, element.value, db);
             CommonValueObject nzv;
             nzv.data = score;
             SetKeyValueObject(nzk, nzv);
             ZSetKeyObject zsk(key, element.value, score, db);
             EmptyValueObject zsv;
             SetKeyValueObject(zsk, zsv);
-            meta.ziped = false;
+            meta.encoding = ZSET_ENCODING_HASH;
             meta.zipvs.clear();
-            meta.dirty = false;
             meta.size++;
-            m_db_helper->GetZSetScoresCache().Insert(db, key, meta, score.NumberValue());
+            ZInsertRangeScore(db, key, meta, score);
             return 1;
         }
         BatchWriteGuard guard(GetEngine());
-        ZSetScoreKeyObject zk(key, value, db);
+        ZSetNodeKeyObject zk(key, value, db);
         CommonValueObject zv;
         if (!check_value || 0 != GetKeyValueObject(zk, zv))
         {
@@ -285,24 +414,23 @@ namespace ardb
             ZSetKeyObject zsk(key, value, score, db);
             EmptyValueObject zsv;
             SetKeyValueObject(zsk, zsv);
-            meta.dirty = true;
             meta.size++;
-            m_db_helper->GetZSetScoresCache().Insert(db, key, meta, score.NumberValue());
+            ZInsertRangeScore(db, key, meta, score);
             return 1;
         }
         else
         {
             if (zv.data.NumberValue() != score.NumberValue())
             {
-                m_db_helper->GetZSetScoresCache().Remove(db, key, meta, zv.data.NumberValue());
-                ZSetKeyObject zsk(key, value, zv.data.double_value, db);
+                ZSetKeyObject zsk(key, value, zv.data, db);
                 DelValue(zsk);
+                ZDeleteRangeScore(db, key, meta, zv.data);
                 zsk.e.score = score;
                 EmptyValueObject zsv;
                 SetKeyValueObject(zsk, zsv);
                 zv.data = score;
                 SetKeyValueObject(zk, zv);
-                m_db_helper->GetZSetScoresCache().Insert(db, key, meta, score.NumberValue());
+                ZInsertRangeScore(db, key, meta, score);
                 return 1;
             }
         }
@@ -321,7 +449,7 @@ namespace ardb
         KeyLockerGuard keyguard(m_key_locker, db, key);
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, 0, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_VALUE, err, createZset);
         if (NULL == meta)
         {
             DELETE(meta);
@@ -351,7 +479,7 @@ namespace ardb
     {
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, -1, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_NOSORT, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
@@ -366,17 +494,17 @@ namespace ardb
     {
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, -1, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_NOSORT, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
             return err;
         }
-        if (meta->ziped)
+        if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
             ZSetElement e;
             e.value.SetValue(value, true);
-            if (!meta->zip_sort_by_score)
+            if (SORT_BY_VALUE == meta->sort_func)
             {
                 ZSetElementDeque::iterator fit = std::lower_bound(meta->zipvs.begin(), meta->zipvs.end(), e,
                         less_by_zset_value);
@@ -411,7 +539,7 @@ namespace ardb
         }
         else
         {
-            ZSetScoreKeyObject zk(key, value, db);
+            ZSetNodeKeyObject zk(key, value, db);
             CommonValueObject zv;
             if (0 != GetKeyValueObject(zk, zv))
             {
@@ -432,13 +560,13 @@ namespace ardb
         KeyLockerGuard keyguard(m_key_locker, db, key);
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, 0, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_VALUE, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
             return err;
         }
-        if (meta->ziped)
+        if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
             ValueData v(value);
             ZSetElement element;
@@ -446,7 +574,7 @@ namespace ardb
             {
                 element.score += increment;
                 score = element.score;
-                InsertZSetZipEntry(meta, element, false);
+                InsertZSetZipEntry(meta, element, SORT_BY_VALUE);
                 SetMeta(db, key, *meta);
             }
             else
@@ -456,21 +584,21 @@ namespace ardb
             DELETE(meta);
             return err;
         }
-        ZSetScoreKeyObject zk(key, value, db);
+        ZSetNodeKeyObject zk(key, value, db);
         CommonValueObject zv;
         if (0 == GetKeyValueObject(zk, zv))
         {
             BatchWriteGuard guard(GetEngine());
-            ZSetKeyObject zsk(key, value, zv.data.double_value, db);
+            ZSetKeyObject zsk(key, value, zv.data, db);
             DelValue(zsk);
-            m_db_helper->GetZSetScoresCache().Remove(db, key, *meta, zv.data.double_value);
+            ZDeleteRangeScore(db, key, *meta, zv.data);
             zsk.e.score += increment;
             zv.data = zsk.e.score;
             EmptyValueObject zsv;
             SetKeyValueObject(zsk, zsv);
             score = zsk.e.score;
             SetKeyValueObject(zk, zv);
-            m_db_helper->GetZSetScoresCache().Insert(db, key, *meta, score.NumberValue());
+            ZInsertRangeScore(db, key, *meta, score);
             err = 0;
         }
         else
@@ -486,18 +614,17 @@ namespace ardb
         KeyLockerGuard keyguard(m_key_locker, db, key);
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, 1, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_SCORE, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
             return err;
         }
-        if (meta->ziped)
+        if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
             for (uint32 i = 0; i < num && meta->zipvs.size() > 0; i++)
             {
                 pops.push_back(meta->zipvs.front().value);
-                m_db_helper->GetZSetScoresCache().Remove(db, key, *meta, meta->zipvs.front().score.NumberValue());
                 meta->zipvs.pop_front();
             }
             meta->size = meta->zipvs.size();
@@ -511,35 +638,33 @@ namespace ardb
         struct ZPopWalk: public WalkHandler
         {
                 Ardb* z_db;
+                ZSetMetaValue& z_meta;
                 uint32 count;
                 ValueDataArray& vs;
-                DoubleDeque poped_score;
                 int OnKeyValue(KeyObject* k, ValueObject* value, uint32 cursor)
                 {
                     ZSetKeyObject* sek = (ZSetKeyObject*) k;
-                    ZSetScoreKeyObject tmp(sek->key, sek->e.value, sek->db);
+                    ZSetNodeKeyObject tmp(sek->key, sek->e.value, sek->db);
                     vs.push_back(sek->e.value);
                     count--;
-                    poped_score.push_back(sek->e.score.NumberValue());
                     z_db->DelValue(*sek);
                     z_db->DelValue(tmp);
+                    z_db->ZDeleteRangeScore(sek->db, sek->key, z_meta, sek->e.score);
                     if (count == 0)
                     {
                         return -1;
                     }
                     return 0;
                 }
-                ZPopWalk(Ardb* db, uint32 i, ValueDataArray& v) :
-                        z_db(db), count(i), vs(v), poped_score(0)
+                ZPopWalk(Ardb* db, ZSetMetaValue& meta, uint32 i, ValueDataArray& v) :
+                        z_db(db), z_meta(meta), count(i), vs(v)
                 {
                 }
-        } walk(this, num, pops);
+        } walk(this, *meta, num, pops);
         Walk(sk, reverse, false, &walk);
         if (walk.count < num)
         {
             meta->size -= (num - walk.count);
-            meta->dirty = true;
-            m_db_helper->GetZSetScoresCache().RemoveScores(db, key, *meta, walk.poped_score);
             SetMeta(db, key, *meta);
         }
         DELETE(meta);
@@ -551,14 +676,14 @@ namespace ardb
         KeyLockerGuard keyguard(m_key_locker, db, key);
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, -1, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_NOSORT, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
             return err;
         }
         BatchWriteGuard guard(GetEngine());
-        if (!meta->ziped)
+        if (ZSET_ENCODING_ZIPLIST != meta->encoding)
         {
             Slice empty;
             ZSetKeyObject sk(key, empty, -DBL_MAX, db);
@@ -568,7 +693,7 @@ namespace ardb
                     int OnKeyValue(KeyObject* k, ValueObject* value, uint32 cursor)
                     {
                         ZSetKeyObject* sek = (ZSetKeyObject*) k;
-                        ZSetScoreKeyObject tmp(sek->key, sek->e.value, sek->db);
+                        ZSetNodeKeyObject tmp(sek->key, sek->e.value, sek->db);
                         z_db->DelValue(*sek);
                         z_db->DelValue(tmp);
                         return 0;
@@ -579,7 +704,6 @@ namespace ardb
                     }
             } walk(this);
             Walk(sk, false, false, &walk);
-            m_db_helper->GetZSetScoresCache().RemoveAll(db, key);
         }
         DelMeta(db, key, meta);
         DELETE(meta);
@@ -591,14 +715,14 @@ namespace ardb
         KeyLockerGuard keyguard(m_key_locker, db, key);
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, false, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_VALUE, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
             return err;
         }
-        ZSetScoreKeyObject zk(key, value, db);
-        if (meta->ziped)
+        ZSetNodeKeyObject zk(key, value, db);
+        if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
             ZSetElement entry;
             if (0 == GetZSetZipEntry(meta, zk.value, entry, true))
@@ -618,46 +742,108 @@ namespace ardb
             ZSetKeyObject zsk(key, value, zv.data, db);
             DelValue(zsk);
             meta->size--;
+            ZDeleteRangeScore(db, key, *meta, zv.data);
             SetMeta(db, key, *meta);
             DELETE(meta);
-            m_db_helper->GetZSetScoresCache().Remove(db, key, *meta, zv.data.NumberValue());
             return 0;
         }
         DELETE(meta);
         return ERR_NOT_EXIST;
     }
 
+    uint32 Ardb::ZRankByScore(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score,
+            bool contains_score)
+    {
+        double v = score.NumberValue();
+        ZScoreRangeCounterArray::iterator fit = std::lower_bound(meta.ranges.begin(), meta.ranges.end(), v,
+                less_by_zrange_score);
+        if (fit == meta.ranges.end())
+        {
+            return meta.size;
+        }
+        else
+        {
+            uint32 rank = 0;
+            ZScoreRangeCounterArray::iterator bit = meta.ranges.begin();
+            while (bit != fit)
+            {
+                rank += bit->count;
+                bit++;
+            }
+            if (fit->max == score.NumberValue())
+            {
+                rank += fit->count;
+                rank--;
+                return rank;
+            }
+            if (fit->min == score.NumberValue())
+            {
+                return rank;
+            }
+            ZSetElement from;
+            from.score.SetDoubleValue(fit->min);
+            ZSetKeyObject zk(key, from, db);
+            struct ZRankWalk: public WalkHandler
+            {
+                    uint32& z_rank;
+                    const ValueData& z_score;
+                    bool z_equal_score;
+                    int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+                    {
+                        ZSetKeyObject* sek = (ZSetKeyObject*) k;
+                        if (sek->e.score >= z_score)
+                        {
+                            z_equal_score = sek->e.score.NumberValue() == z_score.NumberValue();
+                            return -1;
+                        }
+                        z_rank++;
+                        return 0;
+                    }
+                    ZRankWalk(uint32& r, const ValueData& s) :
+                            z_rank(r), z_score(s), z_equal_score(false)
+                    {
+                    }
+            } walk(rank, score);
+            Walk(zk, false, true, &walk);
+            if (walk.z_equal_score && !contains_score)
+            {
+                rank--;
+            }
+            return rank;
+        }
+    }
+
     int Ardb::ZCount(const DBID& db, const Slice& key, const std::string& min, const std::string& max)
     {
-        bool containmin = true;
-        bool containmax = true;
-        double min_score, max_score;
-        if (parse_score(min, min_score, containmin) < 0 || parse_score(max, max_score, containmax) < 0)
+        ZRangeSpec range;
+        if (parse_zrange(min, max, range))
         {
             return ERR_INVALID_ARGS;
         }
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, 1, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_SCORE, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
             return err;
         }
         int count = 0;
-        if (meta->ziped)
+        if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
-            ZSetElement min_ele(Slice(), min_score);
-            ZSetElement max_ele(Slice(), max_score);
+            ZSetElement min_ele(Slice(), range.min);
+            ZSetElement max_ele(Slice(), range.max);
             ZSetElementDeque::iterator min_it = std::lower_bound(meta->zipvs.begin(), meta->zipvs.end(), min_ele,
                     less_by_zset_score);
             ZSetElementDeque::iterator max_it = std::lower_bound(meta->zipvs.begin(), meta->zipvs.end(), max_ele,
                     less_by_zset_score);
-            while (!containmin && min_it != meta->zipvs.end() && min_it->score.NumberValue() == min_score)
+            while (!range.contain_min && min_it != meta->zipvs.end()
+                    && min_it->score.NumberValue() == range.min.NumberValue())
             {
                 min_it++;
             }
-            while (!containmax && max_it != meta->zipvs.end() && max_it->score.NumberValue() == max_score)
+            while (!range.contain_max && max_it != meta->zipvs.end()
+                    && max_it->score.NumberValue() == range.max.NumberValue())
             {
                 max_it--;
             }
@@ -675,9 +861,9 @@ namespace ardb
         }
         else
         {
-            DoubleDeque result;
-            m_db_helper->GetZSetScoresCache().Range(db, key, *meta, min_score, max_score, result);
-            count = result.size();
+            uint32 min_rank = ZRankByScore(db, key, *meta, range.min, range.contain_min);
+            uint32 max_rank = ZRankByScore(db, key, *meta, range.max, range.contain_max);
+            count = max_rank - min_rank + 1;
         }
         DELETE(meta);
         return count;
@@ -687,7 +873,7 @@ namespace ardb
     {
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, 1, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_SCORE, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
@@ -695,7 +881,7 @@ namespace ardb
         }
         ValueData element(member);
         int32 rank = 0;
-        if (meta->ziped)
+        if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
             bool found = false;
             ZSetElementDeque::iterator it = meta->zipvs.begin();
@@ -719,7 +905,7 @@ namespace ardb
             ValueData score;
             if (0 == ZScore(db, key, member, score))
             {
-                rank = m_db_helper->GetZSetScoresCache().Rank(db, key, *meta, score.NumberValue());
+                rank = ZRankByScore(db, key, *meta, score, true);
             }
             else
             {
@@ -734,7 +920,7 @@ namespace ardb
     {
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, 1, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_SCORE, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
@@ -742,7 +928,7 @@ namespace ardb
         }
         ValueData element(member);
         int32 rank = 0;
-        if (meta->ziped)
+        if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
             bool found = false;
             ZSetElementDeque::reverse_iterator it = meta->zipvs.rbegin();
@@ -766,7 +952,8 @@ namespace ardb
             ValueData score;
             if (0 == ZScore(db, key, member, score))
             {
-                rank = m_db_helper->GetZSetScoresCache().RevRank(db, key, *meta, score.NumberValue());
+                rank = ZRankByScore(db, key, *meta, score, true);
+                rank = meta->size - rank;
             }
             else
             {
@@ -777,12 +964,57 @@ namespace ardb
         return rank;
     }
 
+    int Ardb::ZGetByRank(const DBID& db, const Slice& key, ZSetMetaValue& meta, uint32 rank, ZSetElement& e)
+    {
+        uint32 v_rank = 0;
+        ZScoreRangeCounterArray::iterator bit = meta.ranges.begin();
+        while (bit != meta.ranges.end())
+        {
+            if ((v_rank + bit->count - 1) >= rank)
+            {
+                break;
+            }
+            v_rank += bit->count;
+            bit++;
+        }
+        if (bit == meta.ranges.end())
+        {
+            return -1;
+        }
+        ZSetElement from;
+        from.score.SetDoubleValue(bit->min);
+        ZSetKeyObject zk(key, from, db);
+        struct ZGetWalk: public WalkHandler
+        {
+                uint32 z_rank_start;
+                uint32 z_rank_stop;
+                ZSetElement& z_ele;
+                int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+                {
+                    ZSetKeyObject* sek = (ZSetKeyObject*) k;
+                    if (z_rank_start == z_rank_stop)
+                    {
+                        z_ele = sek->e;
+                        return -1;
+                    }
+                    z_rank_start++;
+                    return 0;
+                }
+                ZGetWalk(uint32 start, uint32 end, ZSetElement& e) :
+                        z_rank_start(start), z_rank_stop(end), z_ele(e)
+                {
+                }
+        } walk(v_rank, rank, e);
+        Walk(zk, false, true, &walk);
+        return 0;
+    }
+
     int Ardb::ZRemRangeByRank(const DBID& db, const Slice& key, int start, int stop)
     {
         KeyLockerGuard keyguard(m_key_locker, db, key);
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, 1, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_SCORE, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
@@ -802,7 +1034,7 @@ namespace ardb
             return ERR_INVALID_ARGS;
         }
         int count = 0;
-        if (meta->ziped)
+        if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
             ZSetElementDeque::iterator esit = meta->zipvs.begin() + start;
             ZSetElementDeque::iterator eeit = meta->zipvs.end();
@@ -818,49 +1050,36 @@ namespace ardb
             DELETE(meta);
             return count;
         }
-        DoubleDeque result;
-        UInt32Array ranks;
-        ranks.push_back(start);
-        ranks.push_back(stop);
-
-        if (0 == m_db_helper->GetZSetScoresCache().GetScoresByRanks(db, key, *meta, ranks, result))
+        ZSetElement ele;
+        ZGetByRank(db, key, *meta, start, ele);
+        ZSetKeyObject sk(key, ele, db);
+        struct ZClearWalk: public WalkHandler
         {
-            Slice empty;
-            ZSetKeyObject tmp(key, empty, result[0], db);
-            BatchWriteGuard guard(GetEngine());
-            struct ZRemRangeByRankWalk: public WalkHandler
-            {
-                    Ardb* z_db;
-                    double z_stop;
-                    ZSetMetaValue& z_meta;
-                    int z_count;
-                    int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+                Ardb* z_db;
+                ZSetMetaValue& z_meta;
+                uint32 count;
+                int OnKeyValue(KeyObject* k, ValueObject* value, uint32 cursor)
+                {
+                    ZSetKeyObject* sek = (ZSetKeyObject*) k;
+                    ZSetNodeKeyObject tmp(sek->key, sek->e.value, sek->db);
+                    z_db->DelValue(*sek);
+                    z_db->DelValue(tmp);
+                    z_db->ZDeleteRangeScore(sek->db, sek->key, z_meta, sek->e.score);
+                    count--;
+                    if (count == 0)
                     {
-                        ZSetKeyObject* zsk = (ZSetKeyObject*) k;
-                        if (zsk->e.score.NumberValue() > z_stop)
-                        {
-                            return -1;
-                        }
-                        ZSetScoreKeyObject zk(zsk->key, zsk->e.value, zsk->db);
-                        z_db->DelValue(zk);
-                        z_db->DelValue(*zsk);
-                        z_db->m_db_helper->GetZSetScoresCache().Remove(zsk->db, zsk->key, z_meta,
-                                zsk->e.score.NumberValue());
-                        z_meta.size--;
-                        z_count++;
-                        return 0;
+                        return -1;
                     }
-                    ZRemRangeByRankWalk(Ardb* db, double stop, ZSetMetaValue& meta) :
-                            z_db(db), z_stop(stop), z_meta(meta), z_count(0)
-                    {
-                    }
-            } walk(this, result[1], *meta);
-            Walk(tmp, false, false, &walk);
-            SetMeta(db, key, *meta);
-            count = walk.z_count;
-        }
+                    return 0;
+                }
+                ZClearWalk(Ardb* db, ZSetMetaValue& meta, uint32 c) :
+                        z_db(db), z_meta(meta), count(c)
+                {
+                }
+        } walk(this, *meta, stop - start + 1);
+        Walk(sk, false, false, &walk);
         DELETE(meta);
-        return count;
+        return stop - start + 1 - walk.count;
     }
 
     int Ardb::ZRemRangeByScore(const DBID& db, const Slice& key, const std::string& min, const std::string& max)
@@ -868,24 +1087,22 @@ namespace ardb
         KeyLockerGuard keyguard(m_key_locker, db, key);
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, 1, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_SCORE, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
             return err;
         }
-        bool containmin = true;
-        bool containmax = true;
-        double min_score, max_score;
-        if (parse_score(min, min_score, containmin) < 0 || parse_score(max, max_score, containmax) < 0)
+        ZRangeSpec range;
+        if (parse_zrange(min, max, range) < 0)
         {
             DELETE(meta);
             return ERR_INVALID_ARGS;
         }
-        if (meta->ziped)
+        if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
-            ZSetElement min_ele(Slice(), min_score);
-            ZSetElement max_ele(Slice(), max_score);
+            ZSetElement min_ele(Slice(), range.min);
+            ZSetElement max_ele(Slice(), range.max);
             ZSetElementDeque::iterator min_it = std::lower_bound(meta->zipvs.begin(), meta->zipvs.end(), min_ele,
                     less_by_zset_score);
             ZSetElementDeque::iterator max_it = std::lower_bound(meta->zipvs.begin(), meta->zipvs.end(), max_ele,
@@ -894,11 +1111,13 @@ namespace ardb
 
             if (min_it != meta->zipvs.end())
             {
-                while (!containmin && min_it != meta->zipvs.end() && min_it->score.NumberValue() == min_score)
+                while (!range.contain_min && min_it != meta->zipvs.end()
+                        && min_it->score.NumberValue() == range.min.NumberValue())
                 {
                     min_it++;
                 }
-                while (!containmax && max_it != meta->zipvs.end() && max_it->score.NumberValue() == max_score)
+                while (!range.contain_max && max_it != meta->zipvs.end()
+                        && max_it->score.NumberValue() == range.max.NumberValue())
                 {
                     max_it--;
                 }
@@ -915,47 +1134,40 @@ namespace ardb
             return count;
         }
         Slice empty;
-        ZSetKeyObject tmp(key, empty, min_score, db);
+        ZSetKeyObject tmp(key, empty, range.min, db);
         BatchWriteGuard guard(GetEngine());
         struct ZRemRangeByScoreWalk: public WalkHandler
         {
                 Ardb* z_db;
-                double z_min_score;
-                double z_max_score;
+                ZRangeSpec z_range;
                 ZSetMetaValue& z_meta;
-                bool z_contains_min;
-                bool z_contains_max;
                 int z_count;
                 int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
                 {
                     ZSetKeyObject* zsk = (ZSetKeyObject*) k;
-                    if (zsk->e.score.NumberValue() > z_max_score)
+                    if (zsk->e.score.NumberValue() > z_range.max.NumberValue())
                     {
                         return -1;
                     }
-                    if (!z_contains_min && zsk->e.score.NumberValue() == z_min_score)
+                    if (!z_range.contain_min && zsk->e.score.NumberValue() == z_range.min.NumberValue())
                     {
                         return 0;
                     }
-                    if (!z_contains_max && zsk->e.score.NumberValue() == z_max_score)
+                    if (!z_range.contain_max && zsk->e.score.NumberValue() == z_range.max.NumberValue())
                     {
                         return -1;
                     }
-                    ZSetScoreKeyObject zk(zsk->key, zsk->e.value, zsk->db);
+                    ZSetNodeKeyObject zk(zsk->key, zsk->e.value, zsk->db);
                     z_db->DelValue(zk);
                     z_db->DelValue(*zsk);
-                    z_db->m_db_helper->GetZSetScoresCache().Remove(zsk->db, zsk->key, z_meta,
-                            zsk->e.score.NumberValue());
                     z_meta.size--;
                     return 0;
                 }
-                ZRemRangeByScoreWalk(Ardb* db, ZSetMetaValue& meta, double min, double max, bool contains_min,
-                        bool contains_max) :
-                        z_db(db), z_min_score(min), z_max_score(max), z_meta(meta), z_contains_min(contains_min), z_contains_max(
-                                contains_max), z_count(0)
+                ZRemRangeByScoreWalk(Ardb* db, ZSetMetaValue& meta, ZRangeSpec& range) :
+                        z_db(db), z_range(range), z_meta(meta), z_count(0)
                 {
                 }
-        } walk(this, *meta, min_score, max_score, containmin, containmax);
+        } walk(this, *meta, range);
         Walk(tmp, false, false, &walk);
         SetMeta(db, key, *meta);
         DELETE(meta);
@@ -967,7 +1179,7 @@ namespace ardb
     {
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, 1, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_SCORE, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
@@ -986,7 +1198,7 @@ namespace ardb
             DELETE(meta);
             return ERR_INVALID_ARGS;
         }
-        if (meta->ziped)
+        if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
             ZSetElementDeque::iterator esit = meta->zipvs.begin() + start;
             ZSetElementDeque::iterator eeit = meta->zipvs.end();
@@ -1006,42 +1218,35 @@ namespace ardb
             DELETE(meta);
             return options.withscores ? (values.size() / 2) : values.size();
         }
-        DoubleDeque result;
-        UInt32Array ranks;
-        ranks.push_back(start);
-        ranks.push_back(stop);
-        if (0 == m_db_helper->GetZSetScoresCache().GetScoresByRanks(db, key, *meta, ranks, result))
+        ZSetElement ele;
+        ZGetByRank(db, key, *meta, start, ele);
+        ZSetKeyObject tmp(key, ele, db);
+        struct ZRangeWalk: public WalkHandler
         {
-            Slice empty;
-            ZSetKeyObject tmp(key, empty, result[0], db);
-            struct ZRangeWalk: public WalkHandler
-            {
-                    double z_stop;
-                    ValueDataArray& z_values;
-                    ZSetQueryOptions& z_options;
-                    int z_count;
-                    int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+                ValueDataArray& z_values;
+                ZSetQueryOptions& z_options;
+                uint32 z_count;
+                int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+                {
+                    ZSetKeyObject* zsk = (ZSetKeyObject*) k;
+                    z_values.push_back(zsk->e.value);
+                    if (z_options.withscores)
                     {
-                        ZSetKeyObject* zsk = (ZSetKeyObject*) k;
-                        if (zsk->e.score > z_stop)
-                        {
-                            return -1;
-                        }
-                        z_values.push_back(zsk->e.value);
-                        if (z_options.withscores)
-                        {
-                            z_values.push_back(zsk->e.score);
-                        }
-                        z_count++;
-                        return 0;
+                        z_values.push_back(zsk->e.score);
                     }
-                    ZRangeWalk(double stop, ValueDataArray& v, ZSetQueryOptions& options) :
-                            z_stop(stop), z_values(v), z_options(options), z_count(0)
+                    z_count--;
+                    if (0 == z_count)
                     {
+                        return -1;
                     }
-            } walk(result[1], values, options);
-            Walk(tmp, false, false, &walk);
-        }
+                    return 0;
+                }
+                ZRangeWalk(ValueDataArray& v, ZSetQueryOptions& options, uint32 count) :
+                        z_values(v), z_options(options), z_count(count)
+                {
+                }
+        } walk(values, options, stop - start + 1);
+        Walk(tmp, false, false, &walk);
         DELETE(meta);
         return 0;
     }
@@ -1051,35 +1256,35 @@ namespace ardb
     {
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, 1, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_SCORE, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
             return err;
         }
-        bool containmin = true;
-        bool containmax = true;
-        double min_score, max_score;
-        if (parse_score(min, min_score, containmin) < 0 || parse_score(max, max_score, containmax) < 0)
+        ZRangeSpec range;
+        if (parse_zrange(min, max, range) < 0)
         {
             DELETE(meta);
             return ERR_INVALID_ARGS;
         }
-        if (meta->ziped)
+        if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
-            ZSetElement min_ele(Slice(), min_score);
-            ZSetElement max_ele(Slice(), max_score);
+            ZSetElement min_ele(Slice(), range.min);
+            ZSetElement max_ele(Slice(), range.max);
             ZSetElementDeque::iterator min_it = std::lower_bound(meta->zipvs.begin(), meta->zipvs.end(), min_ele,
                     less_by_zset_score);
             ZSetElementDeque::iterator max_it = std::lower_bound(meta->zipvs.begin(), meta->zipvs.end(), max_ele,
                     less_by_zset_score);
             if (min_it != meta->zipvs.end())
             {
-                while (!containmin && min_it != meta->zipvs.end() && min_it->score.NumberValue() == min_score)
+                while (!range.contain_min && min_it != meta->zipvs.end()
+                        && min_it->score.NumberValue() == range.min.NumberValue())
                 {
                     min_it++;
                 }
-                while (!containmax && max_it != meta->zipvs.end() && max_it->score.NumberValue() == max_score)
+                while (!range.contain_max && max_it != meta->zipvs.end()
+                        && max_it->score.NumberValue() == range.max.NumberValue())
                 {
                     max_it--;
                 }
@@ -1097,27 +1302,27 @@ namespace ardb
             return 0;
         }
         Slice empty;
-        ZSetKeyObject tmp(key, empty, min_score, db);
+        ZSetKeyObject tmp(key, empty, range.min, db);
         struct ZRangeByScoreWalk: public WalkHandler
         {
                 ValueDataArray& z_values;
                 ZSetQueryOptions& z_options;
-                double z_min_score;
-                double z_max_score;
-                bool z_containmin;
-                bool z_containmax;
+                ZRangeSpec& z_range;
                 int z_count;
                 int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
                 {
                     ZSetKeyObject* zsk = (ZSetKeyObject*) k;
                     bool inrange = false;
                     inrange =
-                            z_containmin ?
-                                    zsk->e.score.NumberValue() >= z_min_score :
-                                    zsk->e.score.NumberValue() > z_min_score;
+                            z_range.contain_min ?
+                                    zsk->e.score.NumberValue() >= z_range.min.NumberValue() :
+                                    zsk->e.score.NumberValue() > z_range.min.NumberValue();
                     if (inrange)
                     {
-                        inrange = z_containmax ? zsk->e.score.NumberValue() <= z_max_score : zsk->e.score.NumberValue() < z_max_score;
+                        inrange =
+                                z_range.contain_max ?
+                                        zsk->e.score.NumberValue() <= z_range.max.NumberValue() :
+                                        zsk->e.score.NumberValue() < z_range.max.NumberValue();
                     }
                     if (inrange)
                     {
@@ -1143,23 +1348,18 @@ namespace ardb
                             }
                         }
                     }
-                    if (zsk->e.score.NumberValue() == z_max_score
+                    if (zsk->e.score.NumberValue() == z_range.max.NumberValue()
                             || (z_options.withlimit && z_count > (z_options.limit_count + z_options.limit_offset)))
                     {
                         return -1;
                     }
                     return 0;
                 }
-                ZRangeByScoreWalk(ValueDataArray& v, ZSetQueryOptions& options) :
-                        z_values(v), z_options(options), z_min_score(0), z_max_score(0), z_containmin(true), z_containmax(
-                                true), z_count(0)
+                ZRangeByScoreWalk(ValueDataArray& v, ZSetQueryOptions& options, ZRangeSpec& range) :
+                        z_values(v), z_options(options), z_range(range), z_count(0)
                 {
                 }
-        } walk(values, options);
-        walk.z_containmax = containmax;
-        walk.z_containmin = containmin;
-        walk.z_max_score = max_score;
-        walk.z_min_score = min_score;
+        } walk(values, options, range);
         Walk(tmp, false, false, &walk);
         DELETE(meta);
         return walk.z_count;
@@ -1170,7 +1370,7 @@ namespace ardb
     {
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, 1, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_SCORE, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
@@ -1189,7 +1389,7 @@ namespace ardb
             DELETE(meta);
             return ERR_INVALID_ARGS;
         }
-        if (meta->ziped)
+        if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
             ZSetElementDeque::reverse_iterator esit = meta->zipvs.rbegin() + start;
             ZSetElementDeque::reverse_iterator eeit = meta->zipvs.rend();
@@ -1209,42 +1409,35 @@ namespace ardb
             DELETE(meta);
             return 0;
         }
-        DoubleDeque result;
-        UInt32Array ranks;
-        ranks.push_back(start);
-        ranks.push_back(stop);
-        if (0 == m_db_helper->GetZSetScoresCache().GetScoresByRevRanks(db, key, *meta, ranks, result))
+        ZSetElement ele;
+        ZGetByRank(db, key, *meta, stop, ele);
+        ZSetKeyObject tmp(key, ele, db);
+        struct ZRangeWalk: public WalkHandler
         {
-            Slice empty;
-            ZSetKeyObject tmp(key, empty, result[0], db);
-            struct ZRangeWalk: public WalkHandler
-            {
-                    double z_stop;
-                    ValueDataArray& z_values;
-                    ZSetQueryOptions& z_options;
-                    int z_count;
-                    int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+                ValueDataArray& z_values;
+                ZSetQueryOptions& z_options;
+                uint32 z_count;
+                int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+                {
+                    ZSetKeyObject* zsk = (ZSetKeyObject*) k;
+                    z_values.push_back(zsk->e.value);
+                    if (z_options.withscores)
                     {
-                        ZSetKeyObject* zsk = (ZSetKeyObject*) k;
-                        if (zsk->e.score > z_stop)
-                        {
-                            return -1;
-                        }
-                        z_values.push_back(zsk->e.value);
-                        if (z_options.withscores)
-                        {
-                            z_values.push_back(zsk->e.score);
-                        }
-                        z_count++;
-                        return 0;
+                        z_values.push_back(zsk->e.score);
                     }
-                    ZRangeWalk(double stop, ValueDataArray& v, ZSetQueryOptions& options) :
-                            z_stop(stop), z_values(v), z_options(options), z_count(0)
+                    z_count--;
+                    if (0 == z_count)
                     {
+                        return -1;
                     }
-            } walk(result[1], values, options);
-            Walk(tmp, true, false, &walk);
-        }
+                    return 0;
+                }
+                ZRangeWalk(ValueDataArray& v, ZSetQueryOptions& options, uint32 count) :
+                        z_values(v), z_options(options), z_count(count)
+                {
+                }
+        } walk(values, options, stop - start + 1);
+        Walk(tmp, true, false, &walk);
         DELETE(meta);
         return options.withscores ? (values.size() / 2) : values.size();
     }
@@ -1254,35 +1447,38 @@ namespace ardb
     {
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, 1, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_SCORE, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
             return err;
         }
-        bool containmin = true;
-        bool containmax = true;
-        double min_score, max_score;
-        if (parse_score(min, min_score, containmin) < 0 || parse_score(max, max_score, containmax) < 0)
+        ZRangeSpec range;
+        if (parse_zrange(min, max, range) < 0)
         {
             DELETE(meta);
             return ERR_INVALID_ARGS;
         }
-        if (meta->ziped)
+        if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
-            ZSetElement min_ele(Slice(), min_score);
-            ZSetElement max_ele(Slice(), max_score);
+            ZSetElement min_ele(Slice(), range.min);
+            ZSetElement max_ele(Slice(), range.max);
             ZSetElementDeque::iterator min_it = std::lower_bound(meta->zipvs.begin(), meta->zipvs.end(), min_ele,
                     less_by_zset_score);
             ZSetElementDeque::iterator max_it = std::lower_bound(meta->zipvs.begin(), meta->zipvs.end(), max_ele,
                     less_by_zset_score);
             if (min_it != meta->zipvs.end())
             {
-                if (!containmin && min_it->score.NumberValue() == min_score)
+                while (!range.contain_min && min_it->score.NumberValue() == range.min.NumberValue())
                 {
                     min_it++;
                 }
-                if (!containmax && max_it != meta->zipvs.end() && max_it->score.NumberValue() == max_score)
+                while (!range.contain_max && max_it != meta->zipvs.end()
+                        && max_it->score.NumberValue() == range.max.NumberValue())
+                {
+                    max_it--;
+                }
+                if (max_it == meta->zipvs.end())
                 {
                     max_it--;
                 }
@@ -1301,24 +1497,27 @@ namespace ardb
         }
 
         Slice empty;
-        ZSetKeyObject tmp(key, empty, max_score, db);
+        ZSetKeyObject tmp(key, empty, range.max, db);
         struct ZRangeByScoreWalk: public WalkHandler
         {
                 ValueDataArray& z_values;
                 ZSetQueryOptions& z_options;
-                double z_min_score;
-                bool z_containmin;
-                bool z_containmax;
-                double z_max_score;
+                ZRangeSpec& z_range;
                 int z_count;
                 int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
                 {
                     ZSetKeyObject* zsk = (ZSetKeyObject*) k;
                     bool inrange = false;
-                    inrange = z_containmin ? zsk->e.score.NumberValue() >= z_min_score : zsk->e.score.NumberValue() > z_min_score;
+                    inrange =
+                            z_range.contain_min ?
+                                    zsk->e.score.NumberValue() >= z_range.min.NumberValue() :
+                                    zsk->e.score.NumberValue() > z_range.max.NumberValue();
                     if (inrange)
                     {
-                        inrange = z_containmax ? zsk->e.score.NumberValue() <= z_max_score : zsk->e.score.NumberValue() < z_max_score;
+                        inrange =
+                                z_range.contain_max ?
+                                        zsk->e.score.NumberValue() <= z_range.max.NumberValue() :
+                                        zsk->e.score.NumberValue() < z_range.max.NumberValue();
                     }
                     if (inrange)
                     {
@@ -1344,22 +1543,18 @@ namespace ardb
                             }
                         }
                     }
-                    if (zsk->e.score.NumberValue() == z_min_score
+                    if (zsk->e.score.NumberValue() == z_range.min.NumberValue()
                             || (z_options.withlimit && z_count > (z_options.limit_count + z_options.limit_offset)))
                     {
                         return -1;
                     }
                     return 0;
                 }
-                ZRangeByScoreWalk(ValueDataArray& v, ZSetQueryOptions& options) :
-                        z_values(v), z_options(options), z_count(0)
+                ZRangeByScoreWalk(ValueDataArray& v, ZSetQueryOptions& options, ZRangeSpec& range) :
+                        z_values(v), z_options(options), z_range(range), z_count(0)
                 {
                 }
-        } walk(values, options);
-        walk.z_containmax = containmax;
-        walk.z_containmin = containmin;
-        walk.z_max_score = max_score;
-        walk.z_min_score = min_score;
+        } walk(values, options, range);
         Walk(tmp, true, false, &walk);
         DELETE(meta);
         return walk.z_count;
@@ -1372,11 +1567,11 @@ namespace ardb
         {
             return 0;
         }
-        if (meta->ziped)
+        if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
-            if (meta->zip_sort_by_score)
+            if (meta->sort_func != SORT_BY_VALUE)
             {
-                meta->zip_sort_by_score = false;
+                meta->sort_func = SORT_BY_VALUE;
                 std::sort(meta->zipvs.begin(), meta->zipvs.end(), less_by_zset_value);
             }
             ZSetElement entry;
@@ -1403,7 +1598,7 @@ namespace ardb
         }
         else
         {
-            ZSetScoreKeyObject start(key, value_begin, db);
+            ZSetNodeKeyObject start(key, value_begin, db);
             struct ZWalk: public WalkHandler
             {
                     ZSetElementDeque& z_vs;
@@ -1415,7 +1610,7 @@ namespace ardb
                     }
                     int OnKeyValue(KeyObject* k, ValueObject* value, uint32 cursor)
                     {
-                        ZSetScoreKeyObject* zsk = (ZSetScoreKeyObject*) k;
+                        ZSetNodeKeyObject* zsk = (ZSetNodeKeyObject*) k;
                         CommonValueObject* cv = (CommonValueObject*) value;
                         if (z_vs.size() >= z_limit || zsk->value.Compare(end_obj) > 0)
                         {
@@ -1757,7 +1952,7 @@ namespace ardb
     int Ardb::RenameZSet(const DBID& db1, const Slice& key1, const DBID& db2, const Slice& key2, ZSetMetaValue* meta)
     {
         BatchWriteGuard guard(GetEngine());
-        if (meta->ziped)
+        if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
             DelMeta(db1, key1, meta);
             SetMeta(db2, key2, *meta);
@@ -1767,8 +1962,7 @@ namespace ardb
             Slice empty;
             ZSetKeyObject k(key1, Slice(), -DBL_MAX, db1);
             ZSetMetaValue zmeta;
-            zmeta.ziped = false;
-            zmeta.dirty = true;
+            zmeta.encoding = meta->encoding;
             struct SetWalk: public WalkHandler
             {
                     Ardb* z_db;
@@ -1782,11 +1976,10 @@ namespace ardb
                         sek->db = dstdb;
                         EmptyValueObject empty;
                         z_db->SetKeyValueObject(*sek, empty);
-                        ZSetScoreKeyObject zsk(dst, sek->e.value, dstdb);
+                        ZSetNodeKeyObject zsk(dst, sek->e.value, dstdb);
                         CommonValueObject score_obj;
                         score_obj.data = sek->e.score;
                         z_db->SetKeyValueObject(zsk, score_obj);
-                        z_db->m_db_helper->GetZSetScoresCache().Insert(dstdb, dst, zm, sek->e.score.NumberValue());
                         zm.size++;
                         return 0;
                     }
@@ -1823,7 +2016,7 @@ namespace ardb
             fromobj.score.SetDoubleValue(0);
             string_todouble(cursor, fromobj.score.double_value);
         }
-        if (meta->ziped)
+        if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
             ZSetElementDeque::iterator fit = std::upper_bound(meta->zipvs.begin(), meta->zipvs.end(), fromobj,
                     less_by_zset_score);

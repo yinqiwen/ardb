@@ -38,6 +38,10 @@
 #include "util/file_helper.hpp"
 #include "channel/zookeeper/zookeeper_client.hpp"
 
+#define BLOCK_LIST_RPOP 0
+#define BLOCK_LIST_LPOP 1
+#define BLOCK_LIST_RPOPLPUSH 2
+
 namespace ardb
 {
     static ServerStat kServerStat;
@@ -418,6 +422,11 @@ namespace ardb
                 { "rpop", REDIS_CMD_RPOP, &ArdbServer::RPop, 1, 1, "w", 0 },
                 { "rpush", REDIS_CMD_RPUSH, &ArdbServer::RPush, 2, -1, "w", 0 },
                 { "rpushx", REDIS_CMD_RPUSHX, &ArdbServer::RPushx, 2, 2, "w", 0 },
+                { "rpoplpush", REDIS_CMD_RPOPLPUSH, &ArdbServer::RPopLPush, 2, 2, "w", 0 },
+                { "blpop", REDIS_CMD_BLPOP, &ArdbServer::BLPop, 2, -1, "w", 0 },
+                { "brpop", REDIS_CMD_BRPOP, &ArdbServer::BRPop, 2, -1, "w", 0 },
+                { "brpoplpush", REDIS_CMD_BRPOPLPUSH, &ArdbServer::BRPopLPush, 3, 3, "w", 0 },
+                { "rpoplpush", REDIS_CMD_RPOPLPUSH, &ArdbServer::RPopLPush, 2, 2, "w", 0 },
                 { "rpoplpush", REDIS_CMD_RPOPLPUSH, &ArdbServer::RPopLPush, 2, 2, "w", 0 },
                 { "hclear", REDIS_CMD_HCLEAR, &ArdbServer::HClear, 1, 1, "w", 0 },
                 { "zclear", REDIS_CMD_ZCLEAR, &ArdbServer::ZClear, 1, 1, "w", 0 },
@@ -860,7 +869,7 @@ namespace ardb
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "clients"))
         {
             info.append("# Clients\r\n");
-            info.append("connected_clients:").append(stringfromll(kServerStat.connected_clients.get())).append("\r\n");
+            info.append("connected_clients:").append(stringfromll(kServerStat.connected_clients.Get())).append("\r\n");
         }
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "databases"))
         {
@@ -918,12 +927,12 @@ namespace ardb
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "stats"))
         {
             info.append("# Stats\r\n");
-            info.append("total_commands_processed:").append(stringfromll(kServerStat.stat_numcommands.get())).append(
+            info.append("total_commands_processed:").append(stringfromll(kServerStat.stat_numcommands.Get())).append(
                     "\r\n");
-            info.append("total_connections_received:").append(stringfromll(kServerStat.stat_numconnections.get())).append(
+            info.append("total_connections_received:").append(stringfromll(kServerStat.stat_numconnections.Get())).append(
                     "\r\n");
             info.append("period_commands_processed(1min):").append(
-                    stringfromll(kServerStat.stat_period_numcommands.get())).append("\r\n");
+                    stringfromll(kServerStat.stat_period_numcommands.Get())).append("\r\n");
         }
 
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "memory"))
@@ -3039,6 +3048,11 @@ namespace ardb
         int ret = m_db->LInsert(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], cmd.GetArguments()[2],
                 cmd.GetArguments()[3]);
         fill_int_reply(ctx.reply, ret);
+        if (ret > 0)
+        {
+            WatchKey key(ctx.currentDB, cmd.GetArguments()[0]);
+            CheckBlockingConnectionsByListKey(key);
+        }
         return 0;
     }
 
@@ -3075,12 +3089,22 @@ namespace ardb
             count = 0;
         }
         fill_int_reply(ctx.reply, count);
+        if (count > 0)
+        {
+            WatchKey key(ctx.currentDB, cmd.GetArguments()[0]);
+            CheckBlockingConnectionsByListKey(key);
+        }
         return 0;
     }
     int ArdbServer::LPushx(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         int ret = m_db->LPushx(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1]);
         fill_int_reply(ctx.reply, ret);
+        if (ret > 0)
+        {
+            WatchKey key(ctx.currentDB, cmd.GetArguments()[0]);
+            CheckBlockingConnectionsByListKey(key);
+        }
         return 0;
     }
 
@@ -3168,24 +3192,250 @@ namespace ardb
             count = 0;
         }
         fill_int_reply(ctx.reply, count);
+        if (count > 0)
+        {
+            WatchKey key(ctx.currentDB, cmd.GetArguments()[0]);
+            CheckBlockingConnectionsByListKey(key);
+        }
         return 0;
     }
     int ArdbServer::RPushx(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         int ret = m_db->RPushx(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1]);
         fill_int_reply(ctx.reply, ret);
+        if (ret > 0)
+        {
+            WatchKey key(ctx.currentDB, cmd.GetArguments()[0]);
+            CheckBlockingConnectionsByListKey(key);
+        }
         return 0;
     }
 
     int ArdbServer::RPopLPush(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         std::string v;
-        m_db->RPopLPush(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], v);
-        fill_str_reply(ctx.reply, v);
+        if (0 == m_db->RPopLPush(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], v))
+        {
+            fill_str_reply(ctx.reply, v);
+            WatchKey key(ctx.currentDB, cmd.GetArguments()[1]);
+            CheckBlockingConnectionsByListKey(key);
+        }
+        else
+        {
+            ctx.reply.type = REDIS_REPLY_NIL;
+        }
+        return 0;
+    }
+
+    int ArdbServer::BLPop(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        uint32 timeout;
+        if (!string_touint32(cmd.GetArguments()[cmd.GetArguments().size() - 1], timeout))
+        {
+            fill_error_reply(ctx.reply, "ERR timeout is not an integer or out of range");
+            return 0;
+        }
+        std::string v;
+        for (uint32 i = 0; i < cmd.GetArguments().size() - 1; i++)
+        {
+            if (m_db->LPop(ctx.currentDB, cmd.GetArguments()[i], v))
+            {
+                ctx.reply.type = REDIS_REPLY_ARRAY;
+                ctx.reply.elements.push_back(RedisReply(cmd.GetArguments()[i]));
+                ctx.reply.elements.push_back(RedisReply(v));
+                return 0;
+            }
+        }
+        LockGuard<ThreadMutex> guard(m_block_mutex);
+        for (uint32 i = 0; i < cmd.GetArguments().size() - 1; i++)
+        {
+            WatchKey key(ctx.currentDB, cmd.GetArguments()[i]);
+            if (NULL != m_blocking_conns[key] && m_blocking_conns[key] != &ctx)
+            {
+                fill_error_reply(ctx.reply, "ERR duplicate blocking connection on same key.");
+                return 0;
+            }
+            m_blocking_conns[key] = &ctx;
+            ctx.GetBlockList().keys.insert(key);
+        }
+        ctx.GetBlockList().pop_type = BLOCK_LIST_LPOP;
+        BlockConn(ctx, timeout);
+        return 0;
+    }
+    int ArdbServer::BRPop(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        uint32 timeout;
+        if (!string_touint32(cmd.GetArguments()[cmd.GetArguments().size() - 1], timeout))
+        {
+            fill_error_reply(ctx.reply, "ERR timeout is not an integer or out of range");
+            return 0;
+        }
+        std::string v;
+        for (uint32 i = 0; i < cmd.GetArguments().size() - 1; i++)
+        {
+            if (m_db->RPop(ctx.currentDB, cmd.GetArguments()[i], v))
+            {
+                ctx.reply.type = REDIS_REPLY_ARRAY;
+                ctx.reply.elements.push_back(RedisReply(cmd.GetArguments()[i]));
+                ctx.reply.elements.push_back(RedisReply(v));
+                return 0;
+            }
+        }
+        LockGuard<ThreadMutex> guard(m_block_mutex);
+        for (uint32 i = 0; i < cmd.GetArguments().size() - 1; i++)
+        {
+            WatchKey key(ctx.currentDB, cmd.GetArguments()[i]);
+            if (NULL != m_blocking_conns[key] && m_blocking_conns[key] != &ctx)
+            {
+                fill_error_reply(ctx.reply, "ERR duplicate blocking connection on same key.");
+                return 0;
+            }
+            m_blocking_conns[key] = &ctx;
+            ctx.GetBlockList().keys.insert(key);
+        }
+        ctx.GetBlockList().pop_type = BLOCK_LIST_RPOP;
+        BlockConn(ctx, timeout);
+        return 0;
+    }
+    int ArdbServer::BRPopLPush(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        uint32 timeout;
+        if (!string_touint32(cmd.GetArguments()[cmd.GetArguments().size() - 1], timeout))
+        {
+            fill_error_reply(ctx.reply, "ERR timeout is not an integer or out of range");
+            return 0;
+        }
+        std::string v;
+        if (0 == m_db->RPopLPush(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], v))
+        {
+            ctx.reply.type = REDIS_REPLY_ARRAY;
+            ctx.reply.elements.push_back(RedisReply(cmd.GetArguments()[1]));
+            ctx.reply.elements.push_back(RedisReply(v));
+        }
+        else
+        {
+            ctx.GetBlockList().pop_type = BLOCK_LIST_RPOP;
+            WatchKey key(ctx.currentDB, cmd.GetArguments()[0]);
+            if (NULL != m_blocking_conns[key] && m_blocking_conns[key] != &ctx)
+            {
+                fill_error_reply(ctx.reply, "ERR duplicate blocking connection on same key.");
+                return 0;
+            }
+            m_blocking_conns[key] = &ctx;
+            ctx.GetBlockList().keys.insert(key);
+            ctx.GetBlockList().dest_key = cmd.GetArguments()[1];
+            BlockConn(ctx, timeout);
+        }
         return 0;
     }
 
 //=========================Tables cmds================================
+    void ArdbServer::AsyncWriteBlockListReply(Channel* ch, void * data)
+    {
+        ArdbConnContext* ctx = (ArdbConnContext*) data;
+        if (NULL != ctx)
+        {
+            ch->Write(ctx->reply);
+            ctx->reply.Clear();
+        }
+        if (ctx->GetBlockList().blocking_timer_task_id > 0)
+        {
+            ctx->conn->GetService().GetTimer().Cancel(ctx->GetBlockList().blocking_timer_task_id);
+            ctx->GetBlockList().blocking_timer_task_id = -1;
+        }
+        ctx->conn->AttachFD();
+        ctx->ClearBlockList();
+    }
+
+    void ArdbServer::CheckBlockingConnectionsByListKey(const WatchKey& key)
+    {
+        if (m_db->LLen(key.db, key.key) > 0)
+        {
+            LockGuard<ThreadMutex> guard(m_block_mutex);
+            BlockContextTable::iterator found = m_blocking_conns.find(key);
+            if (found != m_blocking_conns.end())
+            {
+                ArdbConnContext* ctx = found->second;
+                std::string v;
+                if (ctx->GetBlockList().pop_type == BLOCK_LIST_LPOP)
+                {
+                    m_db->LPop(key.db, key.key, v);
+                }
+                else if (ctx->GetBlockList().pop_type == BLOCK_LIST_RPOP)
+                {
+                    m_db->RPop(key.db, key.key, v);
+                }
+                else if (ctx->GetBlockList().pop_type == BLOCK_LIST_RPOPLPUSH)
+                {
+                    m_db->RPopLPush(key.db, key.key, ctx->GetBlockList().dest_key, v);
+                }
+                if (!v.empty())
+                {
+                    WatchKeySet::iterator cit = ctx->GetBlockList().keys.begin();
+                    while (cit != ctx->GetBlockList().keys.end())
+                    {
+                        m_blocking_conns.erase(*cit);
+                        cit++;
+                    }
+                    ctx->reply.type = REDIS_REPLY_ARRAY;
+                    ctx->reply.elements.push_back(RedisReply(key.key));
+                    ctx->reply.elements.push_back(RedisReply(v));
+                    ctx->conn->AsyncWrite(AsyncWriteBlockListReply, ctx);
+                }
+            }
+        }
+    }
+
+    void ArdbServer::BlockTimeoutTask::Run()
+    {
+        ctx->reply.type = REDIS_REPLY_NIL;
+        ctx->conn->Write(ctx->reply);
+        server->UnblockConn(*ctx);
+        ctx->reply.Clear();
+    }
+    void ArdbServer::BlockConn(ArdbConnContext& ctx, uint32 timeout)
+    {
+        if (timeout > 0)
+        {
+            NEW2(task, BlockTimeoutTask, BlockTimeoutTask(this, &ctx));
+            ctx.GetBlockList().blocking_timer_task_id = ctx.conn->GetService().GetTimer().ScheduleHeapTask(task,
+                    timeout, -1, SECONDS);
+        }
+        ctx.conn->DetachFD();
+    }
+    void ArdbServer::UnblockConn(ArdbConnContext& ctx)
+    {
+        if (ctx.GetBlockList().blocking_timer_task_id > 0)
+        {
+            ctx.conn->GetService().GetTimer().Cancel(ctx.GetBlockList().blocking_timer_task_id);
+            ctx.GetBlockList().blocking_timer_task_id = -1;
+        }
+        ctx.conn->AttachFD();
+    }
+    void ArdbServer::ClearClosedConnContext(ArdbConnContext& ctx)
+    {
+        ClearWatchKeys(ctx);
+        ClearSubscribes(ctx);
+        {
+            if (ctx.GetBlockList().blocking_timer_task_id > 0)
+            {
+                ctx.conn->GetService().GetTimer().Cancel(ctx.GetBlockList().blocking_timer_task_id);
+                ctx.GetBlockList().blocking_timer_task_id = -1;
+            }
+            LockGuard<ThreadMutex> guard(m_block_mutex);
+            WatchKeySet::iterator it = ctx.GetBlockList().keys.begin();
+            while (it != ctx.GetBlockList().keys.end())
+            {
+                BlockContextTable::iterator fit = m_blocking_conns.find(*it);
+                if (fit != m_blocking_conns.end())
+                {
+                    m_blocking_conns.erase(fit);
+                }
+                it++;
+            }
+            ctx.ClearBlockList();
+        }
+    }
 
     ArdbServer::RedisCommandHandlerSetting *
     ArdbServer::FindRedisCommandHandlerSetting(std::string & cmd)
@@ -3242,10 +3492,8 @@ namespace ardb
             {
                 if (ctx.IsInTransaction() && (cmd != "multi" && cmd != "exec" && cmd != "discard" && cmd != "quit"))
                 {
-                    ctx.transaction_cmds->push_back(args);
+                    ctx.GetTransc().transaction_cmds.push_back(args);
                     fill_status_reply(ctx.reply, "QUEUED");
-                    //ctx.conn->Write(ctx.reply);
-                    //goto _exit;
                 }
                 else if (ctx.IsSubscribedConn()
                         && (cmd != "subscribe" && cmd != "psubscribe" && cmd != "unsubscribe" && cmd != "punsubscribe"
@@ -3260,7 +3508,6 @@ namespace ardb
                     {
                         ret = DoRedisCommand(ctx, setting, args);
                     }
-
                 }
             }
         }
@@ -3286,13 +3533,13 @@ namespace ardb
                 if (args.GetType() == REDIS_CMD_EXEC)
                 {
                     //feed to replication
-                    if (NULL != ctx.transaction_cmds)
+                    if (!ctx.GetTransc().transaction_cmds.empty())
                     {
                         RedisCommandFrame multi("MULTI");
                         m_master_serv.FeedSlaves(ctx.currentDB, multi);
-                        for (uint32 i = 0; i < ctx.transaction_cmds->size(); i++)
+                        for (uint32 i = 0; i < ctx.GetTransc().transaction_cmds.size(); i++)
                         {
-                            RedisCommandFrame& transc_cmd = ctx.transaction_cmds->at(i);
+                            RedisCommandFrame& transc_cmd = ctx.GetTransc().transaction_cmds.at(i);
                             m_master_serv.FeedSlaves(ctx.currentDB, transc_cmd);
                         }
                         RedisCommandFrame exec("EXEC");
@@ -3308,7 +3555,7 @@ namespace ardb
         watcher.Clear();
         if (args.GetType() == REDIS_CMD_EXEC)
         {
-            ctx.ClearTransactionContex();
+            ctx.ClearTransaction();
         }
         return ret;
     }
@@ -3383,8 +3630,7 @@ namespace ardb
     void RedisRequestHandler::ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e)
     {
         server->m_clients_holder.EraseConn(ctx.GetChannel());
-        server->ClearWatchKeys(ardbctx);
-        server->ClearSubscribes(ardbctx);
+        server->ClearClosedConnContext(ardbctx);
         kServerStat.DecAcceptedClient();
     }
 
@@ -3419,10 +3665,27 @@ namespace ardb
         }
     }
 
-    Timer &
-    ArdbServer::GetTimer()
+    Timer& ArdbServer::GetTimer()
     {
         return m_service->GetTimer();
+    }
+
+    void ArdbServer::ServerEventCallback(ChannelService* serv, uint32 ev, void* data)
+    {
+        switch (ev)
+        {
+            case SCRIPT_FLUSH_EVENT:
+            case SCRIPT_KILL_EVENT:
+            {
+                LUAInterpreter::ScriptEventCallback(serv, ev, data);
+                break;
+            }
+
+            default:
+            {
+                break;
+            }
+        }
     }
 
     int ArdbServer::Start(const Properties& props)
@@ -3524,7 +3787,7 @@ namespace ardb
         }
         m_service->GetTimer().Schedule(&kServerStat, 1, 1, MINUTES);
         m_service->SetThreadPoolSize(m_cfg.worker_count);
-        m_service->RegisterUserEventCallback(LUAInterpreter::ScriptEventCallback, this);
+        m_service->RegisterUserEventCallback(ArdbServer::ServerEventCallback, this);
         INFO_LOG("Server started, Ardb version %s", ARDB_VERSION);
         INFO_LOG("The server is now ready to accept connections on port %d", m_cfg.listen_port);
 

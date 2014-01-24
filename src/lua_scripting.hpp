@@ -20,8 +20,6 @@ extern "C"
 
 using namespace ardb::codec;
 
-#define SCRIPT_KILL_EVENT 1
-#define SCRIPT_FLUSH_EVENT 2
 
 namespace ardb
 {

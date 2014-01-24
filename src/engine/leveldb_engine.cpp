@@ -45,80 +45,12 @@ namespace ardb
 
     void LevelDBComparator::FindShortestSeparator(std::string* start, const leveldb::Slice& limit) const
     {
-        Buffer ak_buf(const_cast<char*>(start->data()), 0, start->size());
-        Buffer bk_buf(const_cast<char*>(limit.data()), 0, limit.size());
-        if (start->size() > 4 && limit.size() > 4)
-        {
-            uint32 aheader, bheader;
-            BufferHelper::ReadFixUInt32(ak_buf, aheader);
-            BufferHelper::ReadFixUInt32(bk_buf, bheader);
-            uint8 type1 = aheader & 0xFF;
-            uint8 type2 = bheader & 0xFF;
-            uint32 adb = aheader >> 8;
-            uint32 bdb = bheader >> 8;
-            assert(adb <= bdb);
-            if (adb < bdb || type1 < type2)
-            {
-                start->resize(4);
-                start->assign(limit.data(), 0, 4);
-            }
-            else
-            {
-                uint32 akeysize = 0, bkeysize = 0;
-                assert(BufferHelper::ReadVarUInt32(ak_buf, akeysize));
-                assert(BufferHelper::ReadVarUInt32(bk_buf, bkeysize));
-                assert(akeysize <= bkeysize);
-                if (akeysize < bkeysize)
-                {
-                    start->resize(ak_buf.GetReadIndex());
-                    start->assign(limit.data(), ak_buf.GetReadIndex());
-                }
-                else
-                {
-                    size_t diff_index = ak_buf.GetReadIndex();
-                    while ((diff_index < start->size() && diff_index < limit.size())
-                            && ((*start)[diff_index] == limit[diff_index]))
-                    {
-                        diff_index++;
-                    }
-                    if (diff_index >= start->size())
-                    {
-                        // Do not shorten if one string is a prefix of the other
-                    }
-                    else
-                    {
-                        if (diff_index >= start->size() || limit.size())
-                        {
-                            return;
-                        }
-                        uint8_t diff_byte = static_cast<uint8_t>((*start)[diff_index]);
-                        if (diff_byte < static_cast<uint8_t>(0xff)
-                                && diff_byte + 1 < static_cast<uint8_t>(limit[diff_index]))
-                        {
-                            (*start)[diff_index]++;
-                            start->resize(diff_index + 1);
-                            assert(Compare(*start, limit) < 0);
-                        }
-                    }
-                }
-            }
-        }
+        //DO nothing
     }
 
     void LevelDBComparator::FindShortSuccessor(std::string* key) const
     {
-        if (key->size() >= 4)
-        {
-            Buffer ak_buf(const_cast<char*>(key->data()), 0, key->size());
-            uint32 aheader;
-            BufferHelper::ReadFixUInt32(ak_buf, aheader);
-            uint8 type = aheader & 0xFF;
-            uint32 adb = aheader >> 8;
-            aheader = (adb << 8) + (type + 1);
-            aheader = htonl(aheader);
-            key->resize(4);
-            key->assign((const char*) (&aheader), 4);
-        }
+        //DO nothing
     }
 
     LevelDBEngineFactory::LevelDBEngineFactory(const Properties& props)

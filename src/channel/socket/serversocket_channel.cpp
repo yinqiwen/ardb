@@ -258,7 +258,7 @@ void ServerSocketChannel::OnRead()
 //		fire_channel_open(ch);
 //		fire_channel_connected(ch);
 		m_connected_socks++;
-		GetService().GetNextChannelService().AttachAcceptedChannel(ch);
+		GetService().GetIdlestChannelService().AttachAcceptedChannel(ch);
 	}
 
 }

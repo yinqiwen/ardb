@@ -101,8 +101,7 @@ namespace ardb
 
     /* Set an array of Redis String Objects as a Lua array (table) stored into a
      * global variable. */
-    static void luaSetGlobalArray(lua_State *lua, const std::string& var,
-                    SliceArray& elev)
+    static void luaSetGlobalArray(lua_State *lua, const std::string& var, SliceArray& elev)
     {
         uint32 j;
 
@@ -134,17 +133,14 @@ namespace ardb
         s[j++] = "  if debug.getinfo(2) then\n";
         s[j++] = "    local w = debug.getinfo(2, \"S\").what\n";
         s[j++] = "    if w ~= \"main\" and w ~= \"C\" then\n";
-        s[j++] =
-                        "      error(\"Script attempted to create global variable '\"..tostring(n)..\"'\", 2)\n";
+        s[j++] = "      error(\"Script attempted to create global variable '\"..tostring(n)..\"'\", 2)\n";
         s[j++] = "    end\n";
         s[j++] = "  end\n";
         s[j++] = "  rawset(t, n, v)\n";
         s[j++] = "end\n";
         s[j++] = "mt.__index = function (t, n)\n";
-        s[j++] =
-                        "  if debug.getinfo(2) and debug.getinfo(2, \"S\").what ~= \"C\" then\n";
-        s[j++] =
-                        "    error(\"Script attempted to access unexisting global variable '\"..tostring(n)..\"'\", 2)\n";
+        s[j++] = "  if debug.getinfo(2) and debug.getinfo(2, \"S\").what ~= \"C\" then\n";
+        s[j++] = "    error(\"Script attempted to access unexisting global variable '\"..tostring(n)..\"'\", 2)\n";
         s[j++] = "  end\n";
         s[j++] = "  return rawget(t, n)\n";
         s[j++] = "end\n";
@@ -157,8 +153,7 @@ namespace ardb
         luaL_loadbuffer(lua, code.c_str(), code.size(), "@enable_strict_lua");
         lua_pcall(lua, 0, 0, 0);
     }
-    static void luaLoadLib(lua_State *lua, const char *libname,
-                    lua_CFunction luafunc)
+    static void luaLoadLib(lua_State *lua, const char *libname, lua_CFunction luafunc)
     {
         lua_pushcfunction(lua, luafunc);
         lua_pushstring(lua, libname);
@@ -176,8 +171,7 @@ namespace ardb
         if (lua_getstack(lua, 1, &dbg) && lua_getinfo(lua, "nSl", &dbg))
         {
             char tmp[MAX_LUA_STR_SIZE];
-            snprintf(tmp, MAX_LUA_STR_SIZE - 1, "%s: %d: %s", dbg.source,
-                            dbg.currentline, error);
+            snprintf(tmp, MAX_LUA_STR_SIZE - 1, "%s: %d: %s", dbg.source, dbg.currentline, error);
             lua_pushstring(lua, tmp);
         }
         else
@@ -195,8 +189,7 @@ namespace ardb
             case LUA_TSTRING:
             {
                 reply.type = REDIS_REPLY_STRING;
-                reply.str.append((char*) lua_tostring(lua, -1),
-                                lua_strlen(lua, -1));
+                reply.str.append((char*) lua_tostring(lua, -1), lua_strlen(lua, -1));
                 break;
             }
             case LUA_TBOOLEAN:
@@ -281,7 +274,7 @@ namespace ardb
     ArdbServer* LUAInterpreter::m_server = NULL;
     std::string LUAInterpreter::m_killing_func;
     LUAInterpreter::LUAInterpreter(ArdbServer* server) :
-                    m_lua(NULL)
+            m_lua(NULL)
     {
         m_server = server;
         Init();
@@ -296,8 +289,7 @@ namespace ardb
      * On success REDIS_OK is returned, and nothing is left on the Lua stack.
      * On error REDIS_ERR is returned and an appropriate error is set in the
      * client context. */
-    int LUAInterpreter::CreateLuaFunction(const std::string& funcname,
-                    const std::string& body, std::string& err)
+    int LUAInterpreter::CreateLuaFunction(const std::string& funcname, const std::string& body, std::string& err)
     {
         std::string funcdef = "function ";
         funcdef.append(funcname);
@@ -305,18 +297,15 @@ namespace ardb
         funcdef.append(body);
         funcdef.append(" end");
 
-        if (luaL_loadbuffer(m_lua, funcdef.c_str(), funcdef.size(),
-                        "@user_script"))
+        if (luaL_loadbuffer(m_lua, funcdef.c_str(), funcdef.size(), "@user_script"))
         {
-            err.append("Error compiling script (new function): ").append(
-                            lua_tostring(m_lua, -1)).append("\n");
+            err.append("Error compiling script (new function): ").append(lua_tostring(m_lua, -1)).append("\n");
             lua_pop(m_lua, 1);
             return -1;
         }
         if (lua_pcall(m_lua, 0, 0, 0))
         {
-            err.append("Error running script (new function): ").append(
-                            lua_tostring(m_lua, -1)).append("\n");
+            err.append("Error running script (new function): ").append(lua_tostring(m_lua, -1)).append("\n");
             lua_pop(m_lua, 1);
             return -1;
         }
@@ -357,15 +346,15 @@ namespace ardb
         /* Require at least one argument */
         if (argc == 0)
         {
-            luaPushError(lua,
-                            "Please specify at least one argument for redis.call()");
+            luaPushError(lua, "Please specify at least one argument for redis.call()");
             return 1;
         }
 
         /* Build the arguments vector */
         for (j = 0; j < argc; j++)
         {
-            if (!lua_isstring(lua, j + 1)) break;
+            if (!lua_isstring(lua, j + 1))
+                break;
             std::string arg;
             arg.append(lua_tostring(lua, j + 1), lua_strlen(lua, j + 1));
             cmdargs.push_back(arg);
@@ -376,8 +365,7 @@ namespace ardb
          * integers as well). */
         if (j != argc)
         {
-            luaPushError(lua,
-                            "Lua redis() command arguments must be strings or integers");
+            luaPushError(lua, "Lua redis() command arguments must be strings or integers");
             return 1;
         }
 
@@ -385,9 +373,7 @@ namespace ardb
 
         RedisCommandFrame cmd(cmdargs);
         lower_string(cmd.GetCommand());
-        ArdbServer::RedisCommandHandlerSetting* setting =
-                        m_server->FindRedisCommandHandlerSetting(
-                                        cmd.GetCommand());
+        ArdbServer::RedisCommandHandlerSetting* setting = m_server->FindRedisCommandHandlerSetting(cmd.GetCommand());
         /* Command lookup */
         if (NULL == setting)
         {
@@ -409,7 +395,7 @@ namespace ardb
         RedisReply& reply = ctx->reply;
         reply.Clear();
         m_server->ProcessRedisCommand(*ctx, cmd,
-                        ARDB_PROCESS_WITHOUT_REPLICATION);
+        ARDB_PROCESS_WITHOUT_REPLICATION);
         if (raise_error && reply.type != REDIS_REPLY_ERROR)
         {
             raise_error = 0;
@@ -498,8 +484,7 @@ namespace ardb
         return 1;
     }
 
-    int LUAInterpreter::ReturnSingleFieldTable(lua_State *lua,
-                    const std::string& field)
+    int LUAInterpreter::ReturnSingleFieldTable(lua_State *lua, const std::string& field)
     {
         if (lua_gettop(lua) != 1 || lua_type(lua, -1) != LUA_TSTRING)
         {
@@ -526,8 +511,7 @@ namespace ardb
     {
         /* the `%' avoids the (rare) case of r==1, and is needed also because on
          some systems (SunOS!) `rand()' may return a value larger than RAND_MAX */
-        lua_Number r = (lua_Number) (redisLrand48() % REDIS_LRAND48_MAX)
-                        / (lua_Number) REDIS_LRAND48_MAX;
+        lua_Number r = (lua_Number) (redisLrand48() % REDIS_LRAND48_MAX) / (lua_Number) REDIS_LRAND48_MAX;
         switch (lua_gettop(L))
         { /* check number of arguments */
             case 0:
@@ -566,20 +550,19 @@ namespace ardb
         ARDB_NOTUSED(ar);
         ARDB_NOTUSED(lua);
         ArdbConnContext* ctx = m_server->m_ctx_local.GetValue();
-        uint64 elapsed = get_current_epoch_millis() - ctx->lua_time_start;
-        if (elapsed >= (uint64) m_server->m_cfg.lua_time_limit
-                        && !ctx->lua_timeout)
+        uint64 elapsed = get_current_epoch_millis() - ctx->GetLua().lua_time_start;
+        if (elapsed >= (uint64) m_server->m_cfg.lua_time_limit && !ctx->GetLua().lua_timeout)
         {
             WARN_LOG(
-                            "Lua slow script detected: %s still in execution after %llu milliseconds. You can try killing the script using the SCRIPT KILL command.",
-                            ctx->lua_executing_func, elapsed);
-            ctx->lua_timeout = true;
+                    "Lua slow script detected: %s still in execution after %llu milliseconds. You can try killing the script using the SCRIPT KILL command.",
+                    ctx->GetLua().lua_executing_func, elapsed);
+            ctx->GetLua().lua_timeout = true;
         }
-        if (ctx->lua_timeout)
+        if (ctx->GetLua().lua_timeout)
         {
             ctx->conn->GetService().Continue();
         }
-        if (ctx->lua_kill)
+        if (ctx->GetLua().lua_kill)
         {
             WARN_LOG("Lua script killed by user with SCRIPT KILL.");
             lua_pushstring(lua, "Script killed by user with SCRIPT KILL...");
@@ -667,20 +650,18 @@ namespace ardb
          * information about the caller, that's what makes sense from the point
          * of view of the user debugging a script. */
         {
-            const char *errh_func =
-                            "function __redis__err__handler(err)\n"
-                                            "  local i = debug.getinfo(2,'nSl')\n"
-                                            "  if i and i.what == 'C' then\n"
-                                            "    i = debug.getinfo(3,'nSl')\n"
-                                            "  end\n"
-                                            "  if i then\n"
-                                            "    return i.source .. ':' .. i.currentline .. ': ' .. err\n"
-                                            "  else\n"
-                                            "    return err\n"
-                                            "  end\n"
-                                            "end\n";
-            luaL_loadbuffer(m_lua, errh_func, strlen(errh_func),
-                            "@err_handler_def");
+            const char *errh_func = "function __redis__err__handler(err)\n"
+                    "  local i = debug.getinfo(2,'nSl')\n"
+                    "  if i and i.what == 'C' then\n"
+                    "    i = debug.getinfo(3,'nSl')\n"
+                    "  end\n"
+                    "  if i then\n"
+                    "    return i.source .. ':' .. i.currentline .. ': ' .. err\n"
+                    "  else\n"
+                    "    return err\n"
+                    "  end\n"
+                    "end\n";
+            luaL_loadbuffer(m_lua, errh_func, strlen(errh_func), "@err_handler_def");
             lua_pcall(m_lua, 0, 0, 0);
         }
 
@@ -688,8 +669,8 @@ namespace ardb
         return 0;
     }
 
-    int LUAInterpreter::Eval(const std::string& func, SliceArray& keys,
-                    SliceArray& args, bool isSHA1Func, RedisReply& reply)
+    int LUAInterpreter::Eval(const std::string& func, SliceArray& keys, SliceArray& args, bool isSHA1Func,
+            RedisReply& reply)
     {
         DEBUG_LOG("Exec script:%s", func.c_str());
         redisSrand48(0);
@@ -729,8 +710,7 @@ namespace ardb
                     lua_pop(m_lua, 1);
                     /* remove the error handler from the stack. */
                     reply.type = REDIS_REPLY_ERROR;
-                    reply.str =
-                                    "-NOSCRIPT No matching script. Please use EVAL.";
+                    reply.str = "-NOSCRIPT No matching script. Please use EVAL.";
                     return -1;
                 }
                 funptr = &cachedfunc;
@@ -757,18 +737,18 @@ namespace ardb
             lua_sethook(m_lua, MaskCountHook, LUA_MASKCOUNT, 100000);
             delhook = true;
         }
-        ctx->lua_time_start = get_current_epoch_millis();
-        ctx->lua_executing_func = funcname.c_str() + 2;
-        ctx->lua_kill = false;
+        ctx->GetLua().lua_time_start = get_current_epoch_millis();
+        ctx->GetLua().lua_executing_func = funcname.c_str() + 2;
+        ctx->GetLua().lua_kill = false;
         int errid = lua_pcall(m_lua, 0, 1, -2);
-        ctx->lua_executing_func = NULL;
+        ctx->GetLua().lua_executing_func = NULL;
         if (delhook)
         {
             lua_sethook(m_lua, MaskCountHook, 0, 0); /* Disable hook */
         }
-        if (ctx->lua_timeout)
+        if (ctx->GetLua().lua_timeout)
         {
-            ctx->lua_timeout = false;
+            ctx->GetLua().lua_timeout = false;
         }
         lua_gc(m_lua, LUA_GCSTEP, 1);
 
@@ -776,8 +756,7 @@ namespace ardb
         {
             reply.type = REDIS_REPLY_ERROR;
             char tmp[1024];
-            snprintf(tmp, 1023, "Error running script (call to %s): %s\n",
-                            funcname.c_str(), lua_tostring(m_lua, -1));
+            snprintf(tmp, 1023, "Error running script (call to %s): %s\n", funcname.c_str(), lua_tostring(m_lua, -1));
             reply.str = tmp;
             lua_pop(m_lua, 2);
             /*  Consume the Lua reply and remove error handler. */
@@ -829,8 +808,7 @@ namespace ardb
         return 0;
     }
 
-    void LUAInterpreter::ScriptEventCallback(ChannelService* serv, uint32 ev,
-                    void* data)
+    void LUAInterpreter::ScriptEventCallback(ChannelService* serv, uint32 ev, void* data)
     {
         ArdbServer* server = (ArdbServer*) data;
         ArdbConnContext* ctx = server->m_ctx_local.GetValue();
@@ -843,21 +821,19 @@ namespace ardb
         {
             case SCRIPT_FLUSH_EVENT:
             {
-                LUAInterpreter& lua = server->m_ctx_lua.GetValue(
-                                ArdbServer::LUAInterpreterCreator, server);
+                LUAInterpreter& lua = server->m_ctx_lua.GetValue(ArdbServer::LUAInterpreterCreator, server);
                 lua.Reset();
                 server->m_db->FlushScripts();
                 break;
             }
             case SCRIPT_KILL_EVENT:
             {
-                if (ctx->lua_executing_func != NULL)
+                if (ctx->GetLua().lua_executing_func != NULL)
                 {
                     if (!strcasecmp(m_killing_func.c_str(), "all")
-                                    || !strcasecmp(m_killing_func.c_str(),
-                                                    ctx->lua_executing_func))
+                            || !strcasecmp(m_killing_func.c_str(), ctx->GetLua().lua_executing_func))
                     {
-                        ctx->lua_kill = true;
+                        ctx->GetLua().lua_kill = true;
                     }
                 }
                 break;

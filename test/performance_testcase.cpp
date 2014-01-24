@@ -45,7 +45,7 @@ void test_string_performace(Ardb& db)
 void test_nonzip_hash_performace(Ardb& db)
 {
     DBID dbid = 0;
-    printf("=====================HashSet(NotZiped) Performace Test Start=====================\n");
+    printf("=====================Hash(NotZiped) Performace Test Start=====================\n");
     db.Del(dbid, "perfhashtest");
     uint64 start = get_current_epoch_millis();
 
@@ -70,12 +70,12 @@ void test_nonzip_hash_performace(Ardb& db)
     end = get_current_epoch_millis();
     printf("Cost %llums to execute hget %u times, avg %.2f qps.\n", (end - start), PERF_LOOP_COUNT,
     PERF_LOOP_COUNT * 1000.0 / (end - start));
-    printf("=====================HashSet(NotZiped) Performace Test End=====================\n");
+    printf("=====================Hash(NotZiped) Performace Test End=====================\n");
 }
 
 void test_zip_hash_performace(Ardb& db)
 {
-    printf("=====================HashSet(Ziped) Performace Test Start=====================\n");
+    printf("=====================Hash(Ziped) Performace Test Start=====================\n");
     uint64 start = get_current_epoch_millis();
     DBID dbid = 0;
     for (uint32 i = 0; i < PERF_LOOP_COUNT / 10; i++)
@@ -107,7 +107,7 @@ void test_zip_hash_performace(Ardb& db)
     end = get_current_epoch_millis();
     printf("Cost %llums to execute hget %u times, avg %.2f qps.\n", (end - start), PERF_LOOP_COUNT,
     PERF_LOOP_COUNT * 1000.0 / (end - start));
-    printf("=====================HashSet(Ziped) Performace Test End=====================\n");
+    printf("=====================Hash(Ziped) Performace Test End=====================\n");
 }
 
 void test_nonzip_set_performace(Ardb& db)

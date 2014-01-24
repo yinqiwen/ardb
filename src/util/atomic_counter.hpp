@@ -22,6 +22,7 @@
 
 #include <stdint.h>
 #include "common.hpp"
+#include "atomic.hpp"
 #include "util/thread/thread_mutex_lock.hpp"
 #if (defined __i386__ || defined __x86_64__) && defined __GNUC__
 #define HAVE_ATOMIC_COUNTER_X86
@@ -32,92 +33,66 @@ namespace ardb
 
     //  This class represents an integer that can be incremented/decremented
     //  in atomic fashion.
-    class atomic_counter_t
+    class AtomicInt64
     {
         private:
-#if defined HAVE_ATOMIC
-            //do nothing
-#elif defined HAVE_ATOMIC_COUNTER_X86
-            //do nothing
-#else
+#if defined HAVE_NO_ATOMIC_OP
             ThreadMutexLock m_lock;
 #endif
+            volatile int64_t value;
         public:
-            typedef uint32_t integer_t;
-            inline atomic_counter_t(integer_t value_ = 0) :
+            inline AtomicInt64(int64_t value_ = 0) :
                     value(value_)
             {
             }
 
-            inline ~atomic_counter_t()
-            {
-            }
-
             //  Set counter value (not thread-safe).
-            inline void set(integer_t value_)
+            inline void Set(int64_t value_)
             {
                 value = value_;
             }
 
             //  Atomic addition. Returns the old value.
-            inline integer_t add(integer_t increment_)
+            inline int64_t Add(int64_t increment_)
             {
-                integer_t old_value;
-#if defined HAVE_ATOMIC
-                old_value = __sync_add_and_fetch(&value, increment_);
-#elif defined HAVE_ATOMIC_COUNTER_X86
-                __asm__ volatile (
-                        "lock; xadd %0, %1 \n\t"
-                        : "=r" (old_value), "=m" (value)
-                        : "0" (increment_), "m" (value)
-                        : "cc", "memory");
-#else
+#if defined HAVE_NO_ATOMIC_OP
                 m_lock.Lock();
-                old_value = value;
                 value++;
+                int64_t new_value = value;
                 m_lock.Unlock();
+                return new_value;
+#else
+                return (int64_t) atomic_add_uint64((uint64_t*) &value, increment_);
 #endif
-                return old_value;
             }
 
             //  Atomic subtraction. Returns false if the counter drops to zero.
-            inline bool sub(integer_t decrement)
+            inline bool Sub(int64_t decrement)
             {
-#if defined HAVE_ATOMIC
-                integer_t old_value = __sync_fetch_and_sub(&value, decrement);
-                return old_value - decrement != 0;
-#elif defined HAVE_ATOMIC_COUNTER_X86
-                integer_t oldval = -decrement;
-                volatile integer_t *val = &value;
-                __asm__ volatile ("lock; xaddl %0,%1"
-                        : "=r" (oldval), "=m" (*val)
-                        : "0" (oldval), "m" (*val)
-                        : "cc", "memory");
-                return oldval != decrement;
-#else
+#if defined HAVE_NO_ATOMIC_OP
                 m_lock.Lock();
-                if(value > decrement)
-                {
-                    value -= decrement;
-                }else
-                {
-                    value = 0;
-                }
+                value--;
+                int64_t new_value = value;
                 m_lock.Unlock();
+                return new_value;
+#else
+                return (int64_t) atomic_sub_uint64((uint64_t*) &value, decrement);
 #endif
             }
 
-            inline integer_t get()
+            inline int64_t Get()
             {
                 return value;
             }
 
         private:
-
-            volatile integer_t value;
-
-            atomic_counter_t(const atomic_counter_t&);
-            const atomic_counter_t& operator =(const atomic_counter_t&);
+            AtomicInt64(const AtomicInt64&)
+            {
+            }
+            const AtomicInt64& operator =(const AtomicInt64&)
+            {
+                return *this;
+            }
     };
 
 }
