@@ -1,0 +1,49 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+# Sample debian/rules that uses debhelper.
+#
+# This file was originally written by Joey Hess and Craig Small.
+# As a special exception, when this file is copied by dh-make into a
+# dh-make output file, you may use that output file without restriction.
+# This special exception was added by Craig Small in version 0.37 of dh-make.
+#
+# Modified to make a template file for a multi-binary package with separated
+# build-arch and build-indep targets  by Bill Allombert 2001
+
+# Uncomment this to turn on verbose mode.
+export DH_VERBOSE=1
+
+export DEB_CXXFLAGS_SET=''
+# This has to be exported to make some magic below work.
+export DH_OPTIONS
+
+pkg_base = "debian/ardb"
+src_base = "."
+
+clean:
+	make -C $(src_base) clean
+	rm -rf debian/ardb
+
+build:
+	make -C $(src_base) -j10
+	mkdir -p $(pkg_base)/usr/local/bin
+	mkdir -p $(pkg_base)/etc/ardb
+	install $(src_base)/src/ardb-server $(pkg_base)/usr/local/bin
+	install $(src_base)/ardb.conf $(pkg_base)/etc/ardb
+
+install:
+
+binary:
+	dh_testdir -A
+	dh_testroot -A
+	dh_md5sums -A
+	dh_gencontrol -A
+	dh_builddeb -A
+
+binary-arch:
+
+binary-indep:
+
+%:
+	echo $@
+#	dh $@ 

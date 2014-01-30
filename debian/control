@@ -1,0 +1,14 @@
+Source: ardb
+Section: misc
+Priority: extra
+Maintainer: Pedro Larroy <pedro.larroy.lists@gmail.com>
+Build-Depends: debhelper (>= 8.0.0), g++, make
+Standards-Version: 3.9.2
+Homepage: https://github.com/larroy/ardb
+#Vcs-Git: https://github.com/andymccurdy/redis-py.git
+#Vcs-Browser: https://github.com/larroy/ardb
+
+Package: ardb
+Architecture: amd64
+Depends:
+Description: A redis-protocol compatible persistent storage server, support LevelDB/KyotoCabinet/LMDB as storage engine
