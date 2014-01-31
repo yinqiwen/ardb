@@ -33,10 +33,10 @@
 
 namespace ardb
 {
-	uint32 upper_power_of_two(uint32 t);
-	int32 random_int32();
-	int32 random_between_int32(int32 min, int32 max);
-	uint32 digits10(uint64 v);
+    uint32 upper_power_of_two(uint32 t);
+    int32 random_int32();
+    int32 random_between_int32(int32 min, int32 max);
+    uint32 digits10(uint64 v);
 
 }
 #endif /* MATH_HELPER_HPP_ */

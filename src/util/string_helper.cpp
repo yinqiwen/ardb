@@ -349,10 +349,10 @@ namespace ardb
 
         if (!(value == value))
         {
-//			str[0] = 'n';
-//			str[1] = 'a';
-//			str[2] = 'n';
-//			str[3] = '\0';
+//            str[0] = 'n';
+//            str[1] = 'a';
+//            str[2] = 'n';
+//            str[3] = '\0';
             result = "nan";
             return;
         }

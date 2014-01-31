@@ -36,108 +36,108 @@
 #include "channel/channel_handler_context.hpp"
 namespace ardb
 {
-	/**
-	 * upstream channel event's handler template
-	 * @see channel_pipeline.hpp
-	 */
-	template<typename T>
-	class ChannelUpstreamHandler: public AbstractChannelHandler<T>
-	{
-		protected:
-			virtual void ChannelBound(ChannelHandlerContext& ctx,
-					ChannelStateEvent& e)
-			{
-				ctx.SendUpstream(e);
-			}
-			virtual void ChannelConnected(ChannelHandlerContext& ctx,
-					ChannelStateEvent& e)
-			{
-				ctx.SendUpstream(e);
-			}
-			virtual void ChannelOpen(ChannelHandlerContext& ctx,
-					ChannelStateEvent& e)
-			{
-				ctx.SendUpstream(e);
-			}
-			virtual void ChannelClosed(ChannelHandlerContext& ctx,
-					ChannelStateEvent& e)
-			{
-				ctx.SendUpstream(e);
-			}
-			virtual void ExceptionCaught(ChannelHandlerContext& ctx,
-					ExceptionEvent& e)
-			{
-				ctx.SendUpstream(e);
-			}
-			virtual void ChannelWritable(ChannelHandlerContext& ctx,
-					ChannelStateEvent& e)
-			{
-				ctx.SendUpstream(e);
-			}
-			virtual void MessageReceived(ChannelHandlerContext& ctx,
-					MessageEvent<T>& e) = 0;
-			bool CanHandleUpstream()
-			{
-				return true;
-			}
-		public:
-			inline bool HandleStreamEvent(ChannelHandlerContext& ctx,
-					ChannelStateEvent& e)
-			{
-				switch (e.GetState())
-				{
-					case OPEN:
-					{
-						ChannelOpen(ctx, e);
-						break;
-					}
-					case CLOSED:
-					{
-						ChannelClosed(ctx, e);
-						break;
-					}
-					case BOUND:
-					{
-						ChannelBound(ctx, e);
-						break;
-					}
-					case CONNECTED:
-					{
-						ChannelConnected(ctx, e);
-						break;
-					}
-					case WRITABLE:
-					{
-						ChannelWritable(ctx, e);
-						break;
-					}
-					default:
-					{
-						ctx.SendUpstream(e);
-						break;
-					}
-				}
-				return true;
-			}
+    /**
+     * upstream channel event's handler template
+     * @see channel_pipeline.hpp
+     */
+    template<typename T>
+    class ChannelUpstreamHandler: public AbstractChannelHandler<T>
+    {
+        protected:
+            virtual void ChannelBound(ChannelHandlerContext& ctx,
+                    ChannelStateEvent& e)
+            {
+                ctx.SendUpstream(e);
+            }
+            virtual void ChannelConnected(ChannelHandlerContext& ctx,
+                    ChannelStateEvent& e)
+            {
+                ctx.SendUpstream(e);
+            }
+            virtual void ChannelOpen(ChannelHandlerContext& ctx,
+                    ChannelStateEvent& e)
+            {
+                ctx.SendUpstream(e);
+            }
+            virtual void ChannelClosed(ChannelHandlerContext& ctx,
+                    ChannelStateEvent& e)
+            {
+                ctx.SendUpstream(e);
+            }
+            virtual void ExceptionCaught(ChannelHandlerContext& ctx,
+                    ExceptionEvent& e)
+            {
+                ctx.SendUpstream(e);
+            }
+            virtual void ChannelWritable(ChannelHandlerContext& ctx,
+                    ChannelStateEvent& e)
+            {
+                ctx.SendUpstream(e);
+            }
+            virtual void MessageReceived(ChannelHandlerContext& ctx,
+                    MessageEvent<T>& e) = 0;
+            bool CanHandleUpstream()
+            {
+                return true;
+            }
+        public:
+            inline bool HandleStreamEvent(ChannelHandlerContext& ctx,
+                    ChannelStateEvent& e)
+            {
+                switch (e.GetState())
+                {
+                    case OPEN:
+                    {
+                        ChannelOpen(ctx, e);
+                        break;
+                    }
+                    case CLOSED:
+                    {
+                        ChannelClosed(ctx, e);
+                        break;
+                    }
+                    case BOUND:
+                    {
+                        ChannelBound(ctx, e);
+                        break;
+                    }
+                    case CONNECTED:
+                    {
+                        ChannelConnected(ctx, e);
+                        break;
+                    }
+                    case WRITABLE:
+                    {
+                        ChannelWritable(ctx, e);
+                        break;
+                    }
+                    default:
+                    {
+                        ctx.SendUpstream(e);
+                        break;
+                    }
+                }
+                return true;
+            }
 
-			inline bool HandleStreamEvent(ChannelHandlerContext& ctx,
-					ExceptionEvent& e)
-			{
-				ExceptionCaught(ctx, e);
-				return true;
-			}
+            inline bool HandleStreamEvent(ChannelHandlerContext& ctx,
+                    ExceptionEvent& e)
+            {
+                ExceptionCaught(ctx, e);
+                return true;
+            }
 
-			inline bool HandleStreamEvent(ChannelHandlerContext& ctx,
-					MessageEvent<T>& e)
-			{
-				MessageReceived(ctx, e);
-				return true;
-			}
+            inline bool HandleStreamEvent(ChannelHandlerContext& ctx,
+                    MessageEvent<T>& e)
+            {
+                MessageReceived(ctx, e);
+                return true;
+            }
 
-			virtual ~ChannelUpstreamHandler()
-			{
-			}
-	};
+            virtual ~ChannelUpstreamHandler()
+            {
+            }
+    };
 }
 
 #endif /* CHANNELUPSTREAMHANDLER_HPP_ */

@@ -40,8 +40,8 @@
 
 namespace ardb
 {
-	uint32 available_processors();
-	size_t mem_rss_size();
+    uint32 available_processors();
+    size_t mem_rss_size();
 }
 
 #endif /* SYSTEM_HELPER_HPP_ */

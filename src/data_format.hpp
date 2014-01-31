@@ -60,12 +60,12 @@
 #define ZSET_ENCODING_HASH     2
 
 #define COMPARE_EXIST(a, b)  do{ \
-	if(!a && !b) return 0;\
-	if(a != b) return COMPARE_NUMBER(a,b); \
+    if(!a && !b) return 0;\
+    if(a != b) return COMPARE_NUMBER(a,b); \
 }while(0)
 
 #define RETURN_NONEQ_RESULT(a, b)  do{ \
-	if(a != b) return COMPARE_NUMBER(a,b); \
+    if(a != b) return COMPARE_NUMBER(a,b); \
 }while(0)
 
 namespace ardb

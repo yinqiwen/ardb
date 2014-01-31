@@ -67,7 +67,7 @@ namespace ardb
     }
 #else
 #  define HAVE_NO_ATOMIC_OP 1
-#endif  //end define the 64 bit
+#endif  //end define the 64 bit
 #ifdef HAVE_SYNC_OP
     inline uint32_t atomic_add_uint32(uint32_t *p, uint32_t v)
     {

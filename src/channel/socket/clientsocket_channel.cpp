@@ -34,6 +34,6 @@ using namespace ardb;
 ClientSocketChannel::~ClientSocketChannel()
 {
     //m_service.GetEventChannelService().DestroyEventChannel(
-	//	        m_event_channel);
+    //            m_event_channel);
 
 }

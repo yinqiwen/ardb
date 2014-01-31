@@ -37,34 +37,34 @@
 namespace ardb
 {
 
-	struct SoftSignalHandler
-	{
-			virtual void OnSoftSignal(uint32 soft_signo, uint32 appendinfo) = 0;
-			virtual ~SoftSignalHandler()
-			{
-			}
-	};
+    struct SoftSignalHandler
+    {
+            virtual void OnSoftSignal(uint32 soft_signo, uint32 appendinfo) = 0;
+            virtual ~SoftSignalHandler()
+            {
+            }
+    };
 
-	class SoftSignalChannel: public PipeChannel, public ChannelUpstreamHandler<uint64>
-	{
-		private:
-			typedef TreeMap<uint32, std::vector<SoftSignalHandler*> >::Type SignalHandlerMap;
-			SignalHandlerMap m_hander_map;
-			ardb::codec::UInt64FrameDecoder m_decoder;
+    class SoftSignalChannel: public PipeChannel, public ChannelUpstreamHandler<uint64>
+    {
+        private:
+            typedef TreeMap<uint32, std::vector<SoftSignalHandler*> >::Type SignalHandlerMap;
+            SignalHandlerMap m_hander_map;
+            ardb::codec::UInt64FrameDecoder m_decoder;
 
-			SoftSignalChannel(ChannelService& factory);
-			bool DoOpen();
-			void MessageReceived(ChannelHandlerContext& ctx,
-								MessageEvent<uint64>& e);
-			void FireSignalReceived(uint32 soft_signo, uint32 append_info);
-			~SoftSignalChannel();
-			friend class ChannelService;
-		public:
-			void Register(uint32 signo, SoftSignalHandler* handler);
-			void Unregister(SoftSignalHandler* handler);
-			int FireSoftSignal(uint32 signo, uint32 append_info);
-			void Clear();
-	};
+            SoftSignalChannel(ChannelService& factory);
+            bool DoOpen();
+            void MessageReceived(ChannelHandlerContext& ctx,
+                                MessageEvent<uint64>& e);
+            void FireSignalReceived(uint32 soft_signo, uint32 append_info);
+            ~SoftSignalChannel();
+            friend class ChannelService;
+        public:
+            void Register(uint32 signo, SoftSignalHandler* handler);
+            void Unregister(SoftSignalHandler* handler);
+            int FireSoftSignal(uint32 signo, uint32 append_info);
+            void Clear();
+    };
 }
 
 #endif /* SOFT_SIGNAL_CHANNEL_HPP_ */

@@ -37,26 +37,26 @@ using std::string;
 
 namespace ardb
 {
-	class Exception: public std::exception
-	{
-		protected:
-			string m_cause;
-		public:
-			Exception()
-			{
-			}
-			Exception(const string& cause) :
-					m_cause(cause)
-			{
-			}
-			const string& GetCause() const
-			{
-				return m_cause;
-			}
-			virtual ~Exception() throw ()
-			{
-			}
-	};
+    class Exception: public std::exception
+    {
+        protected:
+            string m_cause;
+        public:
+            Exception()
+            {
+            }
+            Exception(const string& cause) :
+                    m_cause(cause)
+            {
+            }
+            const string& GetCause() const
+            {
+                return m_cause;
+            }
+            virtual ~Exception() throw ()
+            {
+            }
+    };
 }
 
 #endif /* EXCEPTION_HPP_ */

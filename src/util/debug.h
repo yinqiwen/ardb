@@ -63,17 +63,17 @@
     } while (false)
 
 #define CHECK_FATAL(cond, ...)  do{\
-	if(cond){\
-		 (void)fprintf(stderr,               \
-		                "\e[1;35m%-6s\e[m%s:%d: Assertion %s failed in %s\n",     \
-		                "[FAIL]", __FILE__,__LINE__,#cond,__func__);      \
+    if(cond){\
+         (void)fprintf(stderr,               \
+                        "\e[1;35m%-6s\e[m%s:%d: Assertion %s failed in %s\n",     \
+                        "[FAIL]", __FILE__,__LINE__,#cond,__func__);      \
          fprintf(stderr, "\e[1;35m%-6s\e[m", "[FAIL]:"); \
          fprintf(stderr, __VA_ARGS__);\
          fprintf(stderr, "\n"); \
          exit(-1);\
-	}else{\
-		fprintf(stdout, "\e[1;32m%-6s\e[m%s:%d: Assertion %s\n", "[PASS]", __FILE__,__LINE__,#cond);\
-	}\
+    }else{\
+        fprintf(stdout, "\e[1;32m%-6s\e[m%s:%d: Assertion %s\n", "[PASS]", __FILE__,__LINE__,#cond);\
+    }\
 }while(0)
 
 /* Anti-warning macro... */

@@ -39,10 +39,10 @@
 
 /***********************************************************************
 **
-**	lzf -- an extremely fast/free compression/decompression-method
-**	http://liblzf.plan9.de/
+**    lzf -- an extremely fast/free compression/decompression-method
+**    http://liblzf.plan9.de/
 **
-**	This algorithm is believed to be patent-free.
+**    This algorithm is believed to be patent-free.
 **
 ***********************************************************************/
 

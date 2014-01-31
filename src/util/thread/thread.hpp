@@ -40,40 +40,40 @@ using ardb::TimeUnit;
 using ardb::MILLIS;
 namespace ardb
 {
-	enum ThreadState
-	{
-		INITIALIZED, RUNNING, TERMINATED
-	};
+    enum ThreadState
+    {
+        INITIALIZED, RUNNING, TERMINATED
+    };
 
-	struct ThreadOptions
-	{
-			size_t max_stack_size;
-			ThreadOptions() :
-					max_stack_size(8192 * 1024)
-			{
-			}
-	};
+    struct ThreadOptions
+    {
+            size_t max_stack_size;
+            ThreadOptions() :
+                    max_stack_size(8192 * 1024)
+            {
+            }
+    };
 
-	class Thread: public Runnable
-	{
-		private:
-			pthread_t m_tid;
-			Runnable* m_target;
-			ThreadState m_state;
-			static void* ThreadFunc(void* data);
-		public:
-			Thread(Runnable* runner = NULL);
-			virtual ~Thread();
-			virtual void Run();
-			void Start(const ThreadOptions& options = ThreadOptions());
-			void Stop();
-			void Join();
-			ThreadState GetState()
-			{
-				return m_state;
-			}
-			static pthread_t CurrentThreadID();
-			static void Sleep(int64_t time, TimeUnit unit = MILLIS);
-	};
+    class Thread: public Runnable
+    {
+        private:
+            pthread_t m_tid;
+            Runnable* m_target;
+            ThreadState m_state;
+            static void* ThreadFunc(void* data);
+        public:
+            Thread(Runnable* runner = NULL);
+            virtual ~Thread();
+            virtual void Run();
+            void Start(const ThreadOptions& options = ThreadOptions());
+            void Stop();
+            void Join();
+            ThreadState GetState()
+            {
+                return m_state;
+            }
+            static pthread_t CurrentThreadID();
+            static void Sleep(int64_t time, TimeUnit unit = MILLIS);
+    };
 }
 #endif /* THREAD_HPP_ */

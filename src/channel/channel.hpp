@@ -67,22 +67,22 @@
 #define IS_SHM_FIFO_CHANNEL(id) ((id&0xF) == SHM_FIFO_CHANNEL_ID_BIT_MASK)
 
 /* True iff e is an error that means a read/write operation can be retried. */
-#define IO_ERR_RW_RETRIABLE(e)				\
-	((e) == EINTR || (e) == EAGAIN || (e) == EWOULDBLOCK)
+#define IO_ERR_RW_RETRIABLE(e)                \
+    ((e) == EINTR || (e) == EAGAIN || (e) == EWOULDBLOCK)
 /* True iff e is an error that means an connect can be retried. */
-#define SOCKET_ERR_CONNECT_RETRIABLE(e)			\
-	((e) == EINTR || (e) == EINPROGRESS)
+#define SOCKET_ERR_CONNECT_RETRIABLE(e)            \
+    ((e) == EINTR || (e) == EINPROGRESS)
 /* True iff e is an error that means a accept can be retried. */
-#define SOCKET_ERR_ACCEPT_RETRIABLE(e)			\
-	((e) == EINTR || (e) == EAGAIN || (e) == ECONNABORTED)
+#define SOCKET_ERR_ACCEPT_RETRIABLE(e)            \
+    ((e) == EINTR || (e) == EAGAIN || (e) == ECONNABORTED)
 
 /* Just for error reporting - use other constants otherwise */
-#define CHANNEL_EVENT_READING	0x01	/**< error encountered while reading */
-#define CHANNEL_EVENT_WRITING	0x02	/**< error encountered while writing */
-#define CHANNEL_EVENT_EOF		0x10	/**< eof file reached */
-#define CHANNEL_EVENT_ERROR		0x20	/**< unrecoverable error encountered */
-#define CHANNEL_EVENT_TIMEOUT	0x40	/**< user specified timeout reached */
-#define CHANNEL_EVENT_CONNECTED	0x80	/**< connect operation finished. */
+#define CHANNEL_EVENT_READING    0x01    /**< error encountered while reading */
+#define CHANNEL_EVENT_WRITING    0x02    /**< error encountered while writing */
+#define CHANNEL_EVENT_EOF        0x10    /**< eof file reached */
+#define CHANNEL_EVENT_ERROR        0x20    /**< unrecoverable error encountered */
+#define CHANNEL_EVENT_TIMEOUT    0x40    /**< user specified timeout reached */
+#define CHANNEL_EVENT_CONNECTED    0x80    /**< connect operation finished. */
 
 namespace ardb
 {

@@ -36,7 +36,7 @@ static const uint32 kDefaultQueueSize = 128;
 TimerTaskQueue::TimerTaskQueue() :
     m_queue(NULL), m_queue_capacity(0), m_size(0)
 {
-	m_queue = new (TimerTask*[kDefaultQueueSize]);
+    m_queue = new (TimerTask*[kDefaultQueueSize]);
     //NEW(m_queue, TimerTask*[kDefaultQueueSize]);
     memset(m_queue, 0, sizeof(TimerTask*)*kDefaultQueueSize);
     m_queue_capacity = kDefaultQueueSize;

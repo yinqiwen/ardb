@@ -50,9 +50,9 @@ namespace ardb
                     struct sockaddr m_addr;
             } m_addr_union;
 
-            //				struct sockaddr_in* m_addr4;
-            //				struct sockaddr_in6* m_addr6;
-            //				struct sockaddr_un* m_addru;
+            //                struct sockaddr_in* m_addr4;
+            //                struct sockaddr_in6* m_addr6;
+            //                struct sockaddr_un* m_addru;
         public:
             SocketInetAddress(const sockaddr* addr, uint8 size)
             {

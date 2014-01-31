@@ -35,28 +35,28 @@
 using std::string;
 namespace ardb
 {
-	class ChannelException
-	{
-		private:
-			string m_cause;
-			int32 m_errno;
-		public:
-			inline ChannelException():m_errno(-1)
-			{
-			}
-			inline ChannelException(const string& cause, int err = -1) :
-					m_cause(cause), m_errno(err)
-			{
-			}
-			inline int32 GetErrorNo()
-			{
-				return m_errno;
-			}
-			inline const string& GetCause()
-			{
-				return m_cause;
-			}
-	};
+    class ChannelException
+    {
+        private:
+            string m_cause;
+            int32 m_errno;
+        public:
+            inline ChannelException():m_errno(-1)
+            {
+            }
+            inline ChannelException(const string& cause, int err = -1) :
+                    m_cause(cause), m_errno(err)
+            {
+            }
+            inline int32 GetErrorNo()
+            {
+                return m_errno;
+            }
+            inline const string& GetCause()
+            {
+                return m_cause;
+            }
+    };
 }
 
 #endif /* CHANNELEXCEPTION_HPP_ */

@@ -78,11 +78,11 @@ namespace ardb
             }
             case REDIS_REPLY_ARRAY:
             {
-//				if (reply.elements.empty())
-//				{
-//					lua_pushboolean(lua, 0);
-//					return;
-//				}
+//                if (reply.elements.empty())
+//                {
+//                    lua_pushboolean(lua, 0);
+//                    return;
+//                }
                 lua_newtable(lua);
                 for (uint32 j = 0; j < reply.elements.size(); j++)
                 {

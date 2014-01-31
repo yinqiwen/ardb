@@ -34,98 +34,98 @@
 using namespace ardb;
 
 SoftSignalChannel::SoftSignalChannel(ChannelService& factory) :
-		PipeChannel(factory, -1, -1)
+        PipeChannel(factory, -1, -1)
 {
 }
 
 bool SoftSignalChannel::DoOpen()
 {
-	if(!PipeChannel::DoOpen())
-	{
-		return false;
-	}
-	GetPipeline().AddLast("decoder", &m_decoder);
-	GetPipeline().AddLast("handler", this);
-	return true;
+    if(!PipeChannel::DoOpen())
+    {
+        return false;
+    }
+    GetPipeline().AddLast("decoder", &m_decoder);
+    GetPipeline().AddLast("handler", this);
+    return true;
 }
 
 void SoftSignalChannel::MessageReceived(ChannelHandlerContext& ctx,
         MessageEvent<uint64>& e)
 {
-	uint64 v = *(e.GetMessage());
-	uint32 signo = v & 0xFFFFFFFF;
-	uint32 info = ((v >> 32) & 0xFFFFFFFF);
-	FireSignalReceived(signo, info);
+    uint64 v = *(e.GetMessage());
+    uint32 signo = v & 0xFFFFFFFF;
+    uint32 info = ((v >> 32) & 0xFFFFFFFF);
+    FireSignalReceived(signo, info);
 }
 
 void SoftSignalChannel::FireSignalReceived(uint32 signo, uint32 append_info)
 {
-	SignalHandlerMap::iterator it = m_hander_map.find(signo);
-	if (it != m_hander_map.end())
-	{
-		std::vector<SoftSignalHandler*>& vec = it->second;
-		std::vector<SoftSignalHandler*>::iterator vecit = vec.begin();
-		while (vecit != vec.end())
-		{
-			SoftSignalHandler* handler = *vecit;
-			if (NULL != handler)
-			{
-				handler->OnSoftSignal(signo, append_info);
-			}
-			vecit++;
-		}
-	}else
-	{
-		ERROR_LOG("Invalid signo:%u", signo);
-	}
+    SignalHandlerMap::iterator it = m_hander_map.find(signo);
+    if (it != m_hander_map.end())
+    {
+        std::vector<SoftSignalHandler*>& vec = it->second;
+        std::vector<SoftSignalHandler*>::iterator vecit = vec.begin();
+        while (vecit != vec.end())
+        {
+            SoftSignalHandler* handler = *vecit;
+            if (NULL != handler)
+            {
+                handler->OnSoftSignal(signo, append_info);
+            }
+            vecit++;
+        }
+    }else
+    {
+        ERROR_LOG("Invalid signo:%u", signo);
+    }
 }
 
 int SoftSignalChannel::FireSoftSignal(uint32 signo, uint32 info)
 {
-	uint64 v = info;
-	v = (v << 32) + signo;
-	Buffer content((char*) &v, 0, sizeof(v));
-	return WriteNow(&content);
+    uint64 v = info;
+    v = (v << 32) + signo;
+    Buffer content((char*) &v, 0, sizeof(v));
+    return WriteNow(&content);
 }
 
 void SoftSignalChannel::Register(uint32 signo, SoftSignalHandler* handler)
 {
-	SignalHandlerMap::iterator it = m_hander_map.find(signo);
-	if (it == m_hander_map.end() || it->second.empty())
-	{
-		m_hander_map[signo].push_back(handler);
-	}
-	else
-	{
-		it->second.push_back(handler);
-	}
+    SignalHandlerMap::iterator it = m_hander_map.find(signo);
+    if (it == m_hander_map.end() || it->second.empty())
+    {
+        m_hander_map[signo].push_back(handler);
+    }
+    else
+    {
+        it->second.push_back(handler);
+    }
 }
 void SoftSignalChannel::Unregister(SoftSignalHandler* handler)
 {
-	SignalHandlerMap::iterator it = m_hander_map.begin();
-	while (it != m_hander_map.end())
-	{
-		std::vector<SoftSignalHandler*>& vec = it->second;
-		std::vector<SoftSignalHandler*>::iterator vecit = vec.begin();
-		while (vecit != vec.end())
-		{
-			if (handler == (*vecit))
-			{
-				vec.erase(vecit);
-				break;
-			}
-			vecit++;
-		}
-		it++;
-	}
+    SignalHandlerMap::iterator it = m_hander_map.begin();
+    while (it != m_hander_map.end())
+    {
+        std::vector<SoftSignalHandler*>& vec = it->second;
+        std::vector<SoftSignalHandler*>::iterator vecit = vec.begin();
+        while (vecit != vec.end())
+        {
+            if (handler == (*vecit))
+            {
+                vec.erase(vecit);
+                break;
+            }
+            vecit++;
+        }
+        it++;
+    }
 }
 
 void SoftSignalChannel::Clear()
 {
-	m_hander_map.clear();
+    m_hander_map.clear();
 }
 
 SoftSignalChannel::~SoftSignalChannel()
 {
-	Clear();
+    Clear();
 }

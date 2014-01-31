@@ -60,113 +60,113 @@
 namespace ardb
 {
 
-	template<typename T>
-	bool ChannelPipeline::SendUpstream(ChannelHandlerContext* ctx, T& e)
-	{
-		RETURN_FALSE_IF_NULL(ctx);
-		ChannelHandler* handler = ctx->GetHandler();
-		return handler->HandleStreamEvent(*ctx, e);
-	}
+    template<typename T>
+    bool ChannelPipeline::SendUpstream(ChannelHandlerContext* ctx, T& e)
+    {
+        RETURN_FALSE_IF_NULL(ctx);
+        ChannelHandler* handler = ctx->GetHandler();
+        return handler->HandleStreamEvent(*ctx, e);
+    }
 
-	template<typename T>
-	bool ChannelPipeline::SendUpstream(ChannelHandlerContext* ctx,
-			MessageEvent<T>& e)
-	{
-		RETURN_FALSE_IF_NULL(ctx);
+    template<typename T>
+    bool ChannelPipeline::SendUpstream(ChannelHandlerContext* ctx,
+            MessageEvent<T>& e)
+    {
+        RETURN_FALSE_IF_NULL(ctx);
 
-		ChannelHandler* base = ctx->GetHandler();
-		ChannelUpstreamHandler<T> * handler = dynamic_cast<ChannelUpstreamHandler<T>*>(base);
-		//ChannelUpstreamHandler<T> * handler = NULL;
-		//if (ChannelHandlerHelper<T>::CanHandleUpMessageEvent(base))
-		//{
-		//	handler = static_cast<ChannelUpstreamHandler<T>*>(base);
-		//}
-		if (NULL == handler)
-		{
-			return ctx->SendUpstream(e);
-		} else
-		{
-			return handler->HandleStreamEvent(*ctx, e);
-		}
-	}
+        ChannelHandler* base = ctx->GetHandler();
+        ChannelUpstreamHandler<T> * handler = dynamic_cast<ChannelUpstreamHandler<T>*>(base);
+        //ChannelUpstreamHandler<T> * handler = NULL;
+        //if (ChannelHandlerHelper<T>::CanHandleUpMessageEvent(base))
+        //{
+        //    handler = static_cast<ChannelUpstreamHandler<T>*>(base);
+        //}
+        if (NULL == handler)
+        {
+            return ctx->SendUpstream(e);
+        } else
+        {
+            return handler->HandleStreamEvent(*ctx, e);
+        }
+    }
 
-	template<typename T>
-	bool ChannelPipeline::SendDownstream(ChannelHandlerContext* ctx, T& e)
-	{
-		RETURN_FALSE_IF_NULL(ctx);
-		ChannelHandler* handler = ctx->GetHandler();
-		return handler->HandleStreamEvent(*ctx, e);
-	}
+    template<typename T>
+    bool ChannelPipeline::SendDownstream(ChannelHandlerContext* ctx, T& e)
+    {
+        RETURN_FALSE_IF_NULL(ctx);
+        ChannelHandler* handler = ctx->GetHandler();
+        return handler->HandleStreamEvent(*ctx, e);
+    }
 
-	template<typename T>
-	bool ChannelPipeline::SendDownstream(ChannelHandlerContext* ctx,
-			MessageEvent<T>& e)
-	{
-		RETURN_FALSE_IF_NULL(ctx);
+    template<typename T>
+    bool ChannelPipeline::SendDownstream(ChannelHandlerContext* ctx,
+            MessageEvent<T>& e)
+    {
+        RETURN_FALSE_IF_NULL(ctx);
 
-		ChannelHandler* base = ctx->GetHandler();
-		ChannelDownstreamHandler<T> * handler = dynamic_cast<ChannelDownstreamHandler<T>*>(base);
-		//ChannelDownstreamHandler<T> * handler = NULL;
-		//if (ChannelHandlerHelper<T>::CanHandleDownMessageEvent(base))
-		//{
-		//	handler = static_cast<ChannelDownstreamHandler<T>*>(base);
-		//}
-		if (NULL == handler)
-		{
-			return ctx->SendDownstream(e);
-		} else
-		{
-			return handler->HandleStreamEvent(*ctx, e);
-		}
-	}
+        ChannelHandler* base = ctx->GetHandler();
+        ChannelDownstreamHandler<T> * handler = dynamic_cast<ChannelDownstreamHandler<T>*>(base);
+        //ChannelDownstreamHandler<T> * handler = NULL;
+        //if (ChannelHandlerHelper<T>::CanHandleDownMessageEvent(base))
+        //{
+        //    handler = static_cast<ChannelDownstreamHandler<T>*>(base);
+        //}
+        if (NULL == handler)
+        {
+            return ctx->SendDownstream(e);
+        } else
+        {
+            return handler->HandleStreamEvent(*ctx, e);
+        }
+    }
 
-	template<typename T>
-	bool ChannelPipeline::SendUpstream(T& event)
-	{
-		ChannelHandlerContext* ctx = GetActualUpstreamContext(m_head);
-		RETURN_FALSE_IF_NULL(ctx);
-		return SendUpstream(ctx, event);
-	}
+    template<typename T>
+    bool ChannelPipeline::SendUpstream(T& event)
+    {
+        ChannelHandlerContext* ctx = GetActualUpstreamContext(m_head);
+        RETURN_FALSE_IF_NULL(ctx);
+        return SendUpstream(ctx, event);
+    }
 
-	template<typename T>
-	bool ChannelPipeline::SendDownstream(T& event)
-	{
-		ChannelHandlerContext* ctx = GetActualDownstreamContext(m_tail);
-		if (NULL == ctx)
-		{
-			return GetChannel()->GetService().EventSunk(this, event);
-		}
-		return SendDownstream(ctx, event);
-	}
+    template<typename T>
+    bool ChannelPipeline::SendDownstream(T& event)
+    {
+        ChannelHandlerContext* ctx = GetActualDownstreamContext(m_tail);
+        if (NULL == ctx)
+        {
+            return GetChannel()->GetService().EventSunk(this, event);
+        }
+        return SendDownstream(ctx, event);
+    }
 
-	template<typename T>
-	bool ChannelHandlerContext::SendDownstream(T& e)
-	{
-		ChannelHandlerContext* prev = m_pipeline.GetActualDownstreamContext(
-				m_prev);
-		if (NULL == prev)
-		{
-			return m_pipeline.GetChannel()->GetService().EventSunk(&m_pipeline,
-					e);
-		} else
-		{
-			return m_pipeline.SendDownstream(prev, e);
-		}
-	}
+    template<typename T>
+    bool ChannelHandlerContext::SendDownstream(T& e)
+    {
+        ChannelHandlerContext* prev = m_pipeline.GetActualDownstreamContext(
+                m_prev);
+        if (NULL == prev)
+        {
+            return m_pipeline.GetChannel()->GetService().EventSunk(&m_pipeline,
+                    e);
+        } else
+        {
+            return m_pipeline.SendDownstream(prev, e);
+        }
+    }
 
-	template<typename T>
-	bool ChannelHandlerContext::SendUpstream(T& e)
-	{
-		ChannelHandlerContext* next = m_pipeline.GetActualUpstreamContext(
-				m_next);
-		if (NULL != next)
-		{
-			return m_pipeline.SendUpstream(next, e);
-		} else
-		{
-			return false;
-		}
-	}
+    template<typename T>
+    bool ChannelHandlerContext::SendUpstream(T& e)
+    {
+        ChannelHandlerContext* next = m_pipeline.GetActualUpstreamContext(
+                m_next);
+        if (NULL != next)
+        {
+            return m_pipeline.SendUpstream(next, e);
+        } else
+        {
+            return false;
+        }
+    }
 }
 
 #endif /* ALLINCLUDE_HPP_ */

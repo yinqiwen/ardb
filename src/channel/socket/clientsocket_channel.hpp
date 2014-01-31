@@ -33,18 +33,18 @@
 
 namespace ardb
 {
-	class ServerSocketChannel;
-	class ClientSocketChannel: public SocketChannel
-	{
-		protected:
-			friend class ServerSocketChannel;
-		public:
-			ClientSocketChannel(ChannelService& factory) :
-					SocketChannel(factory)
-			{
-			}
-			~ClientSocketChannel();
-	};
+    class ServerSocketChannel;
+    class ClientSocketChannel: public SocketChannel
+    {
+        protected:
+            friend class ServerSocketChannel;
+        public:
+            ClientSocketChannel(ChannelService& factory) :
+                    SocketChannel(factory)
+            {
+            }
+            ~ClientSocketChannel();
+    };
 }
 
 #endif /* CLIENTSOCKETCHANNEL_HPP_ */

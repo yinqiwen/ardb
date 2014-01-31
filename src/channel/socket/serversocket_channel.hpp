@@ -35,22 +35,22 @@
 
 namespace ardb
 {
-	class ServerSocketChannel;
-	class ServerSocketChannel: public SocketChannel
-	{
-		protected:
-			uint32 m_connected_socks;
-			bool DoBind(Address* local);
-			bool DoConnect(Address* remote);
-			bool DoConfigure(const ChannelOptions& options);
-			void OnRead();
-			void OnChildClose(Channel* ch);
-			friend class ChannelService;
-		public:
-			ServerSocketChannel(ChannelService& factory);
-			uint32 ConnectedSockets();
-			~ServerSocketChannel();
-	};
+    class ServerSocketChannel;
+    class ServerSocketChannel: public SocketChannel
+    {
+        protected:
+            uint32 m_connected_socks;
+            bool DoBind(Address* local);
+            bool DoConnect(Address* remote);
+            bool DoConfigure(const ChannelOptions& options);
+            void OnRead();
+            void OnChildClose(Channel* ch);
+            friend class ChannelService;
+        public:
+            ServerSocketChannel(ChannelService& factory);
+            uint32 ConnectedSockets();
+            ~ServerSocketChannel();
+    };
 }
 
 #endif /* SERVERSOCKETCHANNEL_HPP_ */

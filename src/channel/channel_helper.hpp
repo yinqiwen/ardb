@@ -38,61 +38,61 @@ using std::string;
 
 namespace ardb
 {
-	class Channel;
-	class ChannelEvent;
-	class Message;
-	bool fire_channel_bound(Channel* channel);
+    class Channel;
+    class ChannelEvent;
+    class Message;
+    bool fire_channel_bound(Channel* channel);
 
-	bool fire_channel_closed(Channel* channel);
+    bool fire_channel_closed(Channel* channel);
 
-	bool fire_channel_connected(Channel* channel);
+    bool fire_channel_connected(Channel* channel);
 
-	bool fire_channel_disconnected(Channel* channel);
+    bool fire_channel_disconnected(Channel* channel);
 
-	bool fire_channel_interest_changed(Channel* channel);
+    bool fire_channel_interest_changed(Channel* channel);
 
-	bool fire_channel_open(Channel* channel);
+    bool fire_channel_open(Channel* channel);
 
-	bool fire_channel_unbound(Channel* channel);
+    bool fire_channel_unbound(Channel* channel);
 
-	bool
-	fire_exception_caught(Channel* channel, const APIException& cause);
+    bool
+    fire_exception_caught(Channel* channel, const APIException& cause);
 
-	//bool fireMessageReceived(Channel* channel, Object* message, ObjectDestructor destructor=NULL);
+    //bool fireMessageReceived(Channel* channel, Object* message, ObjectDestructor destructor=NULL);
 
-	bool fire_channel_writable(Channel* channel);
+    bool fire_channel_writable(Channel* channel);
 
-	//bool openChannel(Channel* channel);
-	//bool bindChannel(Channel* channel, Address* localAddress);
-	//ChannelEvent* unbindChannel(Channel* channel);
-	//bool writeChannel(Channel* channel, Object* message, ObjectDestructor destructor = NULL);
+    //bool openChannel(Channel* channel);
+    //bool bindChannel(Channel* channel, Address* localAddress);
+    //ChannelEvent* unbindChannel(Channel* channel);
+    //bool writeChannel(Channel* channel, Object* message, ObjectDestructor destructor = NULL);
 
-	template<typename T>
-	bool write_channel(Channel* channel, T* message,
-			typename Type<T>::Destructor* destructor)
-	{
-		MessageEvent<T> event(channel, message, destructor, false);
-		return channel->GetPipeline().SendDownstream(event);
-	}
+    template<typename T>
+    bool write_channel(Channel* channel, T* message,
+            typename Type<T>::Destructor* destructor)
+    {
+        MessageEvent<T> event(channel, message, destructor, false);
+        return channel->GetPipeline().SendDownstream(event);
+    }
 
-	template<typename T>
-	inline bool fire_message_received(Channel* channel, T* message,
-			typename Type<T>::Destructor* destructor)
-	{
-		MessageEvent<T> event(channel, message, destructor, true);
-		return channel->GetPipeline().SendUpstream(event);
-	}
+    template<typename T>
+    inline bool fire_message_received(Channel* channel, T* message,
+            typename Type<T>::Destructor* destructor)
+    {
+        MessageEvent<T> event(channel, message, destructor, true);
+        return channel->GetPipeline().SendUpstream(event);
+    }
 
-	template<typename T>
-	inline bool fire_message_received(ChannelHandlerContext& ctx, T* message,
-			typename Type<T>::Destructor* destructor)
-	{
-		MessageEvent<T> event(ctx.GetChannel(), message, destructor, true);
-		return ctx.SendUpstream(event);
-	}
+    template<typename T>
+    inline bool fire_message_received(ChannelHandlerContext& ctx, T* message,
+            typename Type<T>::Destructor* destructor)
+    {
+        MessageEvent<T> event(ctx.GetChannel(), message, destructor, true);
+        return ctx.SendUpstream(event);
+    }
 
-	bool GetSocketRemoteAddress(Channel* ch, SocketHostAddress& address);
-	bool GetSocketLocalAddress(Channel* channel, SocketHostAddress& address);
+    bool GetSocketRemoteAddress(Channel* ch, SocketHostAddress& address);
+    bool GetSocketLocalAddress(Channel* channel, SocketHostAddress& address);
 
 }
 

@@ -33,35 +33,35 @@
 
 namespace ardb
 {
-	class ThreadMutex
-	{
-		protected:
-			pthread_mutex_t m_mutex;
-		public:
-			ThreadMutex(int type = PTHREAD_MUTEX_DEFAULT)
-			{
-				pthread_mutexattr_t attr;
-				pthread_mutexattr_init(&attr);
-				pthread_mutexattr_settype(&attr, type);
-				pthread_mutex_init(&m_mutex, &attr);
-				pthread_mutexattr_destroy(&attr);
-			}
-			bool Lock()
-			{
-				return 0 == pthread_mutex_lock(&m_mutex);
-			}
-			bool Unlock()
-			{
-				return 0 == pthread_mutex_unlock(&m_mutex);
-			}
-			virtual ~ThreadMutex()
-			{
-				pthread_mutex_destroy(&m_mutex);
-			}
-			pthread_mutex_t& GetRawMutex()
-			{
-				return m_mutex;
-			}
-	};
+    class ThreadMutex
+    {
+        protected:
+            pthread_mutex_t m_mutex;
+        public:
+            ThreadMutex(int type = PTHREAD_MUTEX_DEFAULT)
+            {
+                pthread_mutexattr_t attr;
+                pthread_mutexattr_init(&attr);
+                pthread_mutexattr_settype(&attr, type);
+                pthread_mutex_init(&m_mutex, &attr);
+                pthread_mutexattr_destroy(&attr);
+            }
+            bool Lock()
+            {
+                return 0 == pthread_mutex_lock(&m_mutex);
+            }
+            bool Unlock()
+            {
+                return 0 == pthread_mutex_unlock(&m_mutex);
+            }
+            virtual ~ThreadMutex()
+            {
+                pthread_mutex_destroy(&m_mutex);
+            }
+            pthread_mutex_t& GetRawMutex()
+            {
+                return m_mutex;
+            }
+    };
 }
 #endif /* THREADMUTEX_HPP_ */

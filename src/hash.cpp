@@ -798,112 +798,112 @@ namespace ardb
         return 0;
     }
 
-//	int Ardb::HRange(const DBID& db, const Slice& key, const Slice& from,
-//	        int32 limit, StringArray& fields, ValueArray& values)
-//	{
-//		if (limit == 0)
-//		{
-//			return 0;
-//		}
+//    int Ardb::HRange(const DBID& db, const Slice& key, const Slice& from,
+//            int32 limit, StringArray& fields, ValueArray& values)
+//    {
+//        if (limit == 0)
+//        {
+//            return 0;
+//        }
 //
-//		HashKeyObject hk(key, from, db);
-//		struct HGetWalk: public WalkHandler
-//		{
-//				StringArray& h_fileds;
-//				ValueArray& z_values;
-//				const ValueObject& first;
-//				int l;
-//				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
-//				{
-//					HashKeyObject* sek = (HashKeyObject*) k;
-//					if (0 == cursor)
-//					{
-//						if (first.Compare(sek->field) == 0)
-//						{
-//							return 0;
-//						}
-//					}
-//					std::string fstr;
-//					sek->field.ToString(fstr);
-//					h_fileds.push_back(fstr);
-//					z_values.push_back(*v);
-//					if (l > 0 && z_values.size() >= (uint32) l)
-//					{
-//						return -1;
-//					}
-//					return 0;
-//				}
-//				HGetWalk(StringArray& fs, ValueArray& vs, int count,
-//				        const ValueObject& s) :
-//						h_fileds(fs), z_values(vs), first(s), l(count)
-//				{
-//				}
-//		} walk(fields, values, limit, hk.field);
-//		Walk(hk, false, &walk);
-//		return 0;
-//	}
+//        HashKeyObject hk(key, from, db);
+//        struct HGetWalk: public WalkHandler
+//        {
+//                StringArray& h_fileds;
+//                ValueArray& z_values;
+//                const ValueObject& first;
+//                int l;
+//                int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+//                {
+//                    HashKeyObject* sek = (HashKeyObject*) k;
+//                    if (0 == cursor)
+//                    {
+//                        if (first.Compare(sek->field) == 0)
+//                        {
+//                            return 0;
+//                        }
+//                    }
+//                    std::string fstr;
+//                    sek->field.ToString(fstr);
+//                    h_fileds.push_back(fstr);
+//                    z_values.push_back(*v);
+//                    if (l > 0 && z_values.size() >= (uint32) l)
+//                    {
+//                        return -1;
+//                    }
+//                    return 0;
+//                }
+//                HGetWalk(StringArray& fs, ValueArray& vs, int count,
+//                        const ValueObject& s) :
+//                        h_fileds(fs), z_values(vs), first(s), l(count)
+//                {
+//                }
+//        } walk(fields, values, limit, hk.field);
+//        Walk(hk, false, &walk);
+//        return 0;
+//    }
 //
-//	int Ardb::HRevRange(const DBID& db, const Slice& key, const Slice& from,
-//	        int32 limit, StringArray& fields, ValueArray& values)
-//	{
-//		if (limit == 0)
-//		{
-//			return 0;
-//		}
-//		HashKeyObject hk(key, from, db);
-//		std::string last_field;
-//		std::string first_field;
-//		if (from.size() == 0)
-//		{
-//			if (0 != HLastField(db, key, last_field))
-//			{
-//				return 0;
-//			}
-//			hk.field = last_field;
-//		}
-//		if (0 != HFirstField(db, key, first_field))
-//		{
-//			return 0;
-//		}
-//		struct HGetWalk: public WalkHandler
-//		{
-//				StringArray& h_fileds;
-//				ValueArray& z_values;
-//				const Slice& first;
-//				const std::string& first_field;
-//				int l;
-//				int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
-//				{
-//					HashKeyObject* sek = (HashKeyObject*) k;
-//					if (0 == cursor)
-//					{
-//						if (first.compare(sek->field) == 0)
-//						{
-//							return 0;
-//						}
-//					}
-//					std::string filed(sek->field.data(), sek->field.size());
-//					h_fileds.push_back(filed);
-//					z_values.push_back(*v);
-//					if (l > 0 && z_values.size() >= (uint32) l)
-//					{
-//						return -1;
-//					}
-//					if (filed.compare(first_field) == 0)
-//					{
-//						return -1;
-//					}
-//					return 0;
-//				}
-//				HGetWalk(StringArray& fs, ValueArray& vs, int count,
-//				        const Slice& s, const std::string& ff) :
-//						h_fileds(fs), z_values(vs), first(s), first_field(ff), l(
-//						        count)
-//				{
-//				}
-//		} walk(fields, values, limit, from, first_field);
-//		Walk(hk, true, &walk);
-//		return 0;
-//	}
+//    int Ardb::HRevRange(const DBID& db, const Slice& key, const Slice& from,
+//            int32 limit, StringArray& fields, ValueArray& values)
+//    {
+//        if (limit == 0)
+//        {
+//            return 0;
+//        }
+//        HashKeyObject hk(key, from, db);
+//        std::string last_field;
+//        std::string first_field;
+//        if (from.size() == 0)
+//        {
+//            if (0 != HLastField(db, key, last_field))
+//            {
+//                return 0;
+//            }
+//            hk.field = last_field;
+//        }
+//        if (0 != HFirstField(db, key, first_field))
+//        {
+//            return 0;
+//        }
+//        struct HGetWalk: public WalkHandler
+//        {
+//                StringArray& h_fileds;
+//                ValueArray& z_values;
+//                const Slice& first;
+//                const std::string& first_field;
+//                int l;
+//                int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+//                {
+//                    HashKeyObject* sek = (HashKeyObject*) k;
+//                    if (0 == cursor)
+//                    {
+//                        if (first.compare(sek->field) == 0)
+//                        {
+//                            return 0;
+//                        }
+//                    }
+//                    std::string filed(sek->field.data(), sek->field.size());
+//                    h_fileds.push_back(filed);
+//                    z_values.push_back(*v);
+//                    if (l > 0 && z_values.size() >= (uint32) l)
+//                    {
+//                        return -1;
+//                    }
+//                    if (filed.compare(first_field) == 0)
+//                    {
+//                        return -1;
+//                    }
+//                    return 0;
+//                }
+//                HGetWalk(StringArray& fs, ValueArray& vs, int count,
+//                        const Slice& s, const std::string& ff) :
+//                        h_fileds(fs), z_values(vs), first(s), first_field(ff), l(
+//                                count)
+//                {
+//                }
+//        } walk(fields, values, limit, from, first_field);
+//        Walk(hk, true, &walk);
+//        return 0;
+//    }
 }
 

@@ -33,74 +33,74 @@ using namespace ardb;
 
 void* Thread::ThreadFunc(void* data)
 {
-	Thread* thread = (Thread*) data;
-	thread->m_state = RUNNING;
-	thread->Run();
-	thread->m_state = TERMINATED;
-	return NULL;
+    Thread* thread = (Thread*) data;
+    thread->m_state = RUNNING;
+    thread->Run();
+    thread->m_state = TERMINATED;
+    return NULL;
 }
 
 Thread::Thread(Runnable* runner) :
-	m_target(runner), m_state(INITIALIZED)
+    m_target(runner), m_state(INITIALIZED)
 {
 
 }
 
 Thread::~Thread()
 {
-	if (m_state == RUNNING)
-	{
-		pthread_join(m_tid, NULL);
-	}
+    if (m_state == RUNNING)
+    {
+        pthread_join(m_tid, NULL);
+    }
 }
 
 void Thread::Run()
 {
-	if (NULL != m_target)
-	{
-		m_target->Run();
-	}
-	m_state = TERMINATED;
+    if (NULL != m_target)
+    {
+        m_target->Run();
+    }
+    m_state = TERMINATED;
 }
 
 void Thread::Stop()
 {
-	if (m_state == RUNNING)
-	{
-		pthread_cancel(m_tid);
-	}
-	m_state = TERMINATED;
+    if (m_state == RUNNING)
+    {
+        pthread_cancel(m_tid);
+    }
+    m_state = TERMINATED;
 }
 
 void Thread::Join()
 {
-	pthread_join(m_tid, NULL);
+    pthread_join(m_tid, NULL);
 }
 
 void Thread::Start(const ThreadOptions& options)
 {
-	if (m_state == INITIALIZED)
-	{
-		pthread_attr_t attr;
-		pthread_attr_init(&attr);
-		if(options.max_stack_size > 0)
-		{
-			pthread_attr_setstacksize(&attr, options.max_stack_size);
-		}
-		if (0 != pthread_create(&m_tid, &attr, ThreadFunc, this))
-		{
-			m_state = TERMINATED;
-		}
+    if (m_state == INITIALIZED)
+    {
+        pthread_attr_t attr;
+        pthread_attr_init(&attr);
+        if(options.max_stack_size > 0)
+        {
+            pthread_attr_setstacksize(&attr, options.max_stack_size);
+        }
+        if (0 != pthread_create(&m_tid, &attr, ThreadFunc, this))
+        {
+            m_state = TERMINATED;
+        }
 
-	}
+    }
 }
 
 void Thread::Sleep(int64_t time, TimeUnit unit)
 {
-	usleep(microstime(time, unit));
+    usleep(microstime(time, unit));
 }
 
 pthread_t Thread::CurrentThreadID()
 {
-	return pthread_self();
+    return pthread_self();
 }

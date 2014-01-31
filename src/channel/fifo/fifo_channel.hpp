@@ -34,21 +34,21 @@
 #include <string>
 namespace ardb
 {
-	class PipeChannel: public Channel
-	{
-		protected:
-			int m_read_fd;
-			int m_write_fd;
-			bool DoOpen();
-			bool DoBind(Address* local);
-			bool DoConnect(Address* remote);
-			bool DoClose();
-			int GetWriteFD();
-			int GetReadFD();
-		public:
-			PipeChannel(ChannelService& factory, int readFd = -1, int writeFd = -1);
-			virtual ~PipeChannel();
-	};
+    class PipeChannel: public Channel
+    {
+        protected:
+            int m_read_fd;
+            int m_write_fd;
+            bool DoOpen();
+            bool DoBind(Address* local);
+            bool DoConnect(Address* remote);
+            bool DoClose();
+            int GetWriteFD();
+            int GetReadFD();
+        public:
+            PipeChannel(ChannelService& factory, int readFd = -1, int writeFd = -1);
+            virtual ~PipeChannel();
+    };
 }
 
 #endif /* FIFOCHANNEL_HPP_ */

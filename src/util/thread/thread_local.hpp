@@ -32,116 +32,116 @@
 #include <pthread.h>
 namespace ardb
 {
-	template<typename T>
-	class ThreadLocal
-	{
-		private:
-			pthread_key_t m_key;
-			static void Destroy(void *x)
-			{
-				T* obj = static_cast<T*>(x);
-				delete obj;
-			}
-			T* InitialValue()
-			{
-				return new T;
-			}
-		public:
-			ThreadLocal()
-			{
-				pthread_key_create(&m_key, &ThreadLocal::Destroy);
-			}
+    template<typename T>
+    class ThreadLocal
+    {
+        private:
+            pthread_key_t m_key;
+            static void Destroy(void *x)
+            {
+                T* obj = static_cast<T*>(x);
+                delete obj;
+            }
+            T* InitialValue()
+            {
+                return new T;
+            }
+        public:
+            ThreadLocal()
+            {
+                pthread_key_create(&m_key, &ThreadLocal::Destroy);
+            }
 
-			~ThreadLocal()
-			{
-				//pthread_key_delete(m_key);
-			}
+            ~ThreadLocal()
+            {
+                //pthread_key_delete(m_key);
+            }
 
-			T& GetValue()
-			{
-				T* local_thread_value = static_cast<T*>(pthread_getspecific(
-				        m_key));
-				if (NULL == local_thread_value)
-				{
-					T* newObj = InitialValue();
-					pthread_setspecific(m_key, newObj);
-					local_thread_value = newObj;
-				}
-				return *local_thread_value;
-			}
+            T& GetValue()
+            {
+                T* local_thread_value = static_cast<T*>(pthread_getspecific(
+                        m_key));
+                if (NULL == local_thread_value)
+                {
+                    T* newObj = InitialValue();
+                    pthread_setspecific(m_key, newObj);
+                    local_thread_value = newObj;
+                }
+                return *local_thread_value;
+            }
 
-			typedef T* InstanceCreator(void* data);
+            typedef T* InstanceCreator(void* data);
 
-			T& GetValue(InstanceCreator* creator, void* data)
-			{
-				T* local_thread_value = static_cast<T*>(pthread_getspecific(
-				        m_key));
-				if (NULL == local_thread_value)
-				{
-					T* newObj = creator(data);
-					pthread_setspecific(m_key, newObj);
-					local_thread_value = newObj;
-				}
-				return *local_thread_value;
-			}
+            T& GetValue(InstanceCreator* creator, void* data)
+            {
+                T* local_thread_value = static_cast<T*>(pthread_getspecific(
+                        m_key));
+                if (NULL == local_thread_value)
+                {
+                    T* newObj = creator(data);
+                    pthread_setspecific(m_key, newObj);
+                    local_thread_value = newObj;
+                }
+                return *local_thread_value;
+            }
 
-			void SetValue(const T& v)
-			{
-				T& t = GetValue();
-				t = v;
-			}
-	};
+            void SetValue(const T& v)
+            {
+                T& t = GetValue();
+                t = v;
+            }
+    };
 
-	template<typename T>
-	class ThreadLocal<T*>
-	{
-		private:
-			pthread_key_t m_key;
-			static void Destroy(void *x)
-			{
-				T* obj = static_cast<T*>(x);
-				delete obj;
-			}
-			static void Empty(void *x)
-			{
+    template<typename T>
+    class ThreadLocal<T*>
+    {
+        private:
+            pthread_key_t m_key;
+            static void Destroy(void *x)
+            {
+                T* obj = static_cast<T*>(x);
+                delete obj;
+            }
+            static void Empty(void *x)
+            {
 
-			}
-			T** InitialValue()
-			{
-				T** t = new (T*);
-				*t = NULL;
-				return t;
-			}
-		public:
-			ThreadLocal(bool destroy = true)
-			{
-				pthread_key_create(&m_key,
-				        destroy ? &ThreadLocal::Destroy : &ThreadLocal::Empty);
-			}
+            }
+            T** InitialValue()
+            {
+                T** t = new (T*);
+                *t = NULL;
+                return t;
+            }
+        public:
+            ThreadLocal(bool destroy = true)
+            {
+                pthread_key_create(&m_key,
+                        destroy ? &ThreadLocal::Destroy : &ThreadLocal::Empty);
+            }
 
-			~ThreadLocal()
-			{
-				//pthread_key_delete(m_key);
-			}
+            ~ThreadLocal()
+            {
+                //pthread_key_delete(m_key);
+            }
 
-			T*& GetValue()
-			{
-				T** local_thread_value = static_cast<T**>(pthread_getspecific(
-				        m_key));
-				if (NULL == local_thread_value)
-				{
-					T** newObj = InitialValue();
-					pthread_setspecific(m_key, newObj);
-					local_thread_value = newObj;
-				}
-				return *local_thread_value;
-			}
+            T*& GetValue()
+            {
+                T** local_thread_value = static_cast<T**>(pthread_getspecific(
+                        m_key));
+                if (NULL == local_thread_value)
+                {
+                    T** newObj = InitialValue();
+                    pthread_setspecific(m_key, newObj);
+                    local_thread_value = newObj;
+                }
+                return *local_thread_value;
+            }
 
-			void SetValue(T* v)
-			{
-				T*& t = GetValue();
-				t = v;
-			}
-	};
+            void SetValue(T* v)
+            {
+                T*& t = GetValue();
+                t = v;
+            }
+    };
 }
 #endif /* THREAD_LOCAL_HPP_ */

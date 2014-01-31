@@ -33,38 +33,38 @@
 
 namespace ardb
 {
-	enum ChannelState
-	{
-		OPEN = 1, BOUND = 2, CONNECTED = 3, CLOSED = 4, WRITABLE = 5
-	};
+    enum ChannelState
+    {
+        OPEN = 1, BOUND = 2, CONNECTED = 3, CLOSED = 4, WRITABLE = 5
+    };
 
 
-	class ChannelEventFactory;
-	class ChannelStateEvent: public ChannelEvent
-	{
-		private:
-			ChannelState m_state;
-			Address* m_addr;
+    class ChannelEventFactory;
+    class ChannelStateEvent: public ChannelEvent
+    {
+        private:
+            ChannelState m_state;
+            Address* m_addr;
 
-			friend class ChannelEventFactory;
-		public:
-			inline ChannelStateEvent(Channel* ch, ChannelState state,
-					Address* raw, bool is_up) :
-					ChannelEvent(ch, is_up), m_state(state), m_addr(raw)
-			{
-			}
-			inline ChannelState GetState()
-			{
-				return m_state;
-			}
-			inline Address* GetAddress()
-			{
-				return m_addr;
-			}
-			inline ~ChannelStateEvent()
-			{
-			}
-	};
+            friend class ChannelEventFactory;
+        public:
+            inline ChannelStateEvent(Channel* ch, ChannelState state,
+                    Address* raw, bool is_up) :
+                    ChannelEvent(ch, is_up), m_state(state), m_addr(raw)
+            {
+            }
+            inline ChannelState GetState()
+            {
+                return m_state;
+            }
+            inline Address* GetAddress()
+            {
+                return m_addr;
+            }
+            inline ~ChannelStateEvent()
+            {
+            }
+    };
 }
 
 #endif /* CHANNELSTATEEVENT_HPP_ */

@@ -87,49 +87,49 @@ namespace ardb
 #define DEBUG_LOG(...) do {\
    if(DEBUG_ENABLED())\
    {                 \
-	   (*(ardb::ArdbLogger::GetLogHandler()))(ardb::DEBUG_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
+       (*(ardb::ArdbLogger::GetLogHandler()))(ardb::DEBUG_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
    }\
 }while(0)
 
 #define WARN_LOG(...) do {\
-	if(WARN_ENABLED())\
+    if(WARN_ENABLED())\
     {                 \
-		(*(ardb::ArdbLogger::GetLogHandler()))(ardb::WARN_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
-	}\
+        (*(ardb::ArdbLogger::GetLogHandler()))(ardb::WARN_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
+    }\
 }while(0)
 
 #define TRACE_LOG(...) do {\
-	if(TRACE_ENABLED())\
-	{                 \
-		(*(ardb::ArdbLogger::GetLogHandler()))(ardb::TRACE_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
-	}\
+    if(TRACE_ENABLED())\
+    {                 \
+        (*(ardb::ArdbLogger::GetLogHandler()))(ardb::TRACE_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
+    }\
 }while(0)
 
 #define ERROR_LOG(...) do {\
-	if(ERROR_ENABLED())\
-	{                 \
-		(*(ardb::ArdbLogger::GetLogHandler()))(ardb::ERROR_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
-	}\
+    if(ERROR_ENABLED())\
+    {                 \
+        (*(ardb::ArdbLogger::GetLogHandler()))(ardb::ERROR_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
+    }\
 }while(0)
 
 #define FATAL_LOG(...) do {\
-	if(FATAL_ENABLED())\
+    if(FATAL_ENABLED())\
     {                 \
-		(*(ardb::ArdbLogger::GetLogHandler()))(ardb::FATAL_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
-	}\
+        (*(ardb::ArdbLogger::GetLogHandler()))(ardb::FATAL_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
+    }\
 }while(0)
 
 #define INFO_LOG(...)do {\
-		if(INFO_ENABLED())\
-	    {                 \
-			(*(ardb::ArdbLogger::GetLogHandler()))(ardb::INFO_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
-		}\
-	}while(0)
+        if(INFO_ENABLED())\
+        {                 \
+            (*(ardb::ArdbLogger::GetLogHandler()))(ardb::INFO_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
+        }\
+    }while(0)
 
 #define LOG_WITH_LEVEL(level, ...) do {\
    if(LOG_ENABLED(level))\
    {                 \
-	   (*(ardb::ArdbLogger::GetLogHandler()))(level, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
+       (*(ardb::ArdbLogger::GetLogHandler()))(level, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
    }\
 }while(0)
 

@@ -37,46 +37,46 @@ using std::pair;
 
 namespace ardb
 {
-	namespace codec
-	{
-		/**
-		 *  MESSAGE FORMAT
-		 *  ==============
-		 *
-		 *  Offset:  0        4                   (Length + 4)
-		 *           +--------+------------------------+
-		 *  Fields:  | Length | Actual message content |
-		 *           +--------+------------------------+
-		 *
-		 */
-		class UInt64FrameDecoder: public StackFrameDecoder<uint64>
-		{
-			protected:
-				bool m_header_network_order;
-				bool Decode(ChannelHandlerContext& ctx, Channel* channel,
-				        Buffer& buffer, uint64& msg)
-				{
-					if (buffer.ReadableBytes() < sizeof(uint64))
-					{
-						return false;
-					}
-					buffer.Read(&msg, sizeof(uint64));
-					if (m_header_network_order)
-					{
-						msg = ntohll(msg);
-					}
-					return true;
-				}
-			public:
-				UInt64FrameDecoder() :
-						m_header_network_order(false)
-				{
-				}
-				void SetHeaderNetworkOrder(bool value)
-				{
-					m_header_network_order = value;
-				}
-		};
-	}
+    namespace codec
+    {
+        /**
+         *  MESSAGE FORMAT
+         *  ==============
+         *
+         *  Offset:  0        4                   (Length + 4)
+         *           +--------+------------------------+
+         *  Fields:  | Length | Actual message content |
+         *           +--------+------------------------+
+         *
+         */
+        class UInt64FrameDecoder: public StackFrameDecoder<uint64>
+        {
+            protected:
+                bool m_header_network_order;
+                bool Decode(ChannelHandlerContext& ctx, Channel* channel,
+                        Buffer& buffer, uint64& msg)
+                {
+                    if (buffer.ReadableBytes() < sizeof(uint64))
+                    {
+                        return false;
+                    }
+                    buffer.Read(&msg, sizeof(uint64));
+                    if (m_header_network_order)
+                    {
+                        msg = ntohll(msg);
+                    }
+                    return true;
+                }
+            public:
+                UInt64FrameDecoder() :
+                        m_header_network_order(false)
+                {
+                }
+                void SetHeaderNetworkOrder(bool value)
+                {
+                    m_header_network_order = value;
+                }
+        };
+    }
 }
 #endif /* INTEGERHEADERFRAMEDECODER_HPP_ */

@@ -34,24 +34,24 @@
 using namespace ardb;
 
 APIException::APIException() :
-	Exception()
+    Exception()
 {
-	m_errorno = errno;
-	m_cause = strerror(m_errorno);
+    m_errorno = errno;
+    m_cause = strerror(m_errorno);
 }
 APIException::APIException(int err) :
-	Exception(), m_errorno(err)
+    Exception(), m_errorno(err)
 {
-	m_cause = strerror(m_errorno);
+    m_cause = strerror(m_errorno);
 }
 
 APIException::APIException(const string& cause) :
-	Exception(cause), m_errorno(errno)
+    Exception(cause), m_errorno(errno)
 {
 }
 
 APIException::APIException(const string& cause, int err) :
-	Exception(cause), m_errorno(err)
+    Exception(cause), m_errorno(err)
 {
 }
 

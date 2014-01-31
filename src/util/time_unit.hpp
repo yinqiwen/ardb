@@ -32,10 +32,10 @@
 
 namespace ardb
 {
-	enum TimeUnit
-	{
-		NANOS, MICROS, MILLIS, SECONDS, MINUTES, HOURS, DAYS
-	};
+    enum TimeUnit
+    {
+        NANOS, MICROS, MILLIS, SECONDS, MINUTES, HOURS, DAYS
+    };
 }
 
 #endif /* TIMEUNIT_HPP_ */

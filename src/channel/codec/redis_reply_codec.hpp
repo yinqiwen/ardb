@@ -36,47 +36,47 @@
 
 namespace ardb
 {
-	namespace codec
-	{
-		class RedisMessageDecoder;
-		class RedisReplyDecoder: public StackFrameDecoder<RedisReply>
-		{
-			protected:
-				bool Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, RedisReply& msg);
-				friend class RedisMessageDecoder;
-			public:
-				RedisReplyDecoder();
-		};
+    namespace codec
+    {
+        class RedisMessageDecoder;
+        class RedisReplyDecoder: public StackFrameDecoder<RedisReply>
+        {
+            protected:
+                bool Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, RedisReply& msg);
+                friend class RedisMessageDecoder;
+            public:
+                RedisReplyDecoder();
+        };
 
-		class RedisDumpFileChunkDecoder: public StackFrameDecoder<RedisDumpFileChunk>
-		{
-			protected:
-				int64 m_waiting_chunk_len;
-				int64 m_all_chunk_len;
-				bool Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, RedisDumpFileChunk& msg);
-				friend class RedisMessageDecoder;
-				RedisDumpFileChunkDecoder() :m_waiting_chunk_len(0),m_all_chunk_len(0)
-				{
-				}
-		};
+        class RedisDumpFileChunkDecoder: public StackFrameDecoder<RedisDumpFileChunk>
+        {
+            protected:
+                int64 m_waiting_chunk_len;
+                int64 m_all_chunk_len;
+                bool Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, RedisDumpFileChunk& msg);
+                friend class RedisMessageDecoder;
+                RedisDumpFileChunkDecoder() :m_waiting_chunk_len(0),m_all_chunk_len(0)
+                {
+                }
+        };
 
-		class RedisReplyEncoder: public ChannelDownstreamHandler<RedisReply>
-		{
-			private:
-				bool WriteRequested(ChannelHandlerContext& ctx, MessageEvent<RedisReply>& e);
-			public:
-				static bool Encode(Buffer& buf, RedisReply& reply);
-		};
+        class RedisReplyEncoder: public ChannelDownstreamHandler<RedisReply>
+        {
+            private:
+                bool WriteRequested(ChannelHandlerContext& ctx, MessageEvent<RedisReply>& e);
+            public:
+                static bool Encode(Buffer& buf, RedisReply& reply);
+        };
 
-		class NullRedisReplyEncoder: public ChannelDownstreamHandler<RedisReply>
-		{
-			private:
-				bool WriteRequested(ChannelHandlerContext& ctx, MessageEvent<RedisReply>& e)
-				{
-					return true;
-				}
-		};
-	}
+        class NullRedisReplyEncoder: public ChannelDownstreamHandler<RedisReply>
+        {
+            private:
+                bool WriteRequested(ChannelHandlerContext& ctx, MessageEvent<RedisReply>& e)
+                {
+                    return true;
+                }
+        };
+    }
 }
 
 #endif /* INTERNALMESSAGEDECODER_HPP_ */

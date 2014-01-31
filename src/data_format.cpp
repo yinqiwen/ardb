@@ -35,18 +35,18 @@
 #include "data_format.hpp"
 
 #define  GET_KEY_TYPE(KEY, TYPE)   do{ \
-		Iterator* iter = FindValue(KEY, true);  \
-		if (NULL != iter && iter->Valid()) \
-		{                                  \
-			Slice tmp = iter->Key();       \
-			KeyObject* k = decode_key(tmp, &KEY); \
-			if(NULL != k && k->key.compare(KEY.key) == 0)\
-			{                                            \
-				TYPE = k->type;                          \
-	        }                                            \
-	        DELETE(k);                                   \
-	    }\
-	    DELETE(iter);\
+        Iterator* iter = FindValue(KEY, true);  \
+        if (NULL != iter && iter->Valid()) \
+        {                                  \
+            Slice tmp = iter->Key();       \
+            KeyObject* k = decode_key(tmp, &KEY); \
+            if(NULL != k && k->key.compare(KEY.key) == 0)\
+            {                                            \
+                TYPE = k->type;                          \
+            }                                            \
+            DELETE(k);                                   \
+        }\
+        DELETE(iter);\
 }while(0)
 
 namespace ardb

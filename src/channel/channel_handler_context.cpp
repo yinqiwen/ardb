@@ -34,16 +34,16 @@ using namespace ardb;
 ChannelHandlerContext::ChannelHandlerContext(ChannelPipeline& pipeline,
         ChannelHandlerContext* prev, ChannelHandlerContext* next,
         const string& name, ChannelHandler* handler) :
-	m_prev(prev), m_next(next), m_pipeline(pipeline), m_name(name), m_handler(
-	        handler), m_canHandleUpstream(false), m_canHandleDownstream(false)
+    m_prev(prev), m_next(next), m_pipeline(pipeline), m_name(name), m_handler(
+            handler), m_canHandleUpstream(false), m_canHandleDownstream(false)
 {
-	m_canHandleUpstream = m_handler->CanHandleUpstream();
-	m_canHandleDownstream = m_handler->CanHandleDownstream();
+    m_canHandleUpstream = m_handler->CanHandleUpstream();
+    m_canHandleDownstream = m_handler->CanHandleDownstream();
 }
 
 Channel* ChannelHandlerContext::GetChannel()
 {
-	return GetPipeline().GetChannel();
+    return GetPipeline().GetChannel();
 }
 
 //bool ChannelHandlerContext::SendDownstream(ChannelEvent& e)
@@ -68,12 +68,12 @@ Channel* ChannelHandlerContext::GetChannel()
 //    }
 //    else
 //    {
-//    	return true;
+//        return true;
 //        //return m_pipeline.GetSink()->eventPop(&m_pipeline, e);
 //    }
 //}
 
 Timer& ChannelHandlerContext::GetTimer()
 {
-	return m_pipeline.GetChannel()->GetService().GetTimer();
+    return m_pipeline.GetChannel()->GetService().GetTimer();
 }
