@@ -287,9 +287,14 @@ namespace ardb
     }
 
     ArdbServer::ArdbServer(KeyValueEngineFactory& engine) :
-            m_service(NULL), m_db(NULL), m_engine(engine), m_slowlog_handler(m_cfg), m_master_serv(this), m_slave_client(
-                    this), m_watch_mutex(
-            PTHREAD_MUTEX_RECURSIVE), m_ctx_local(false)
+            m_service(NULL),
+            m_db(NULL),
+            m_engine(engine),
+            m_slowlog_handler(m_cfg),
+            m_master_serv(this),
+            m_slave_client(this),
+            m_watch_mutex(PTHREAD_MUTEX_RECURSIVE),
+            m_ctx_local(false)
     {
         struct RedisCommandHandlerSetting settingTable[] =
             {
