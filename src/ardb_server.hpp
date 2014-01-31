@@ -423,15 +423,16 @@ namespace ardb
             typedef TreeMap<WatchKey, ArdbConnContext*>::Type BlockContextTable;
 
             struct BlockTimeoutTask: public Runnable
-        {
-            ArdbServer* server;
-            ArdbConnContext* ctx;
-            BlockTimeoutTask(ArdbServer* s, ArdbConnContext* c) :
-                server(s), ctx(c)
             {
-            }
-            void Run();
-        };
+                ArdbServer* server;
+                ArdbConnContext* ctx;
+                BlockTimeoutTask(ArdbServer* s, ArdbConnContext* c) :
+                    server(s),
+                    ctx(c)
+                {
+                }
+                void Run();
+            };
 
             RedisCommandHandlerSettingTable m_handler_table;
             SlowLogHandler m_slowlog_handler;

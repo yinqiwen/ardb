@@ -455,8 +455,8 @@ namespace ardb
                 { "randomkey", REDIS_CMD_RANDOMKEY, &ArdbServer::Randomkey, 0, 0, "r", 0 },
                 { "scan", REDIS_CMD_SCAN, &ArdbServer::Scan, 1, 5, "r", 0 }, };
 
-        uint32 arraylen = arraysize(settingTable);
-        for (uint32 i = 0; i < arraylen; i++)
+        const size_t arraylen = arraysize(settingTable);
+        for (size_t i = 0; i < arraylen; ++i)
         {
             settingTable[i].flags = 0;
             const char* f = settingTable[i].sflags;
