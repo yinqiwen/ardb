@@ -388,13 +388,13 @@ namespace ardb
             static LUAInterpreter* LUAInterpreterCreator(void* data);
             struct RedisCommandHandlerSetting
             {
-                    const char* name;
-                    RedisCommandType type;
-                    RedisCommandHandler handler;
-                    int min_arity;
-                    int max_arity;
-                    const char* sflags;
-                    int flags;
+                const char* name;
+                RedisCommandType type;
+                RedisCommandHandler handler;
+                int min_arity;
+                int max_arity;
+                const char* sflags;
+                int flags;
             };
         private:
             ArdbServerConfig m_cfg;
@@ -409,15 +409,15 @@ namespace ardb
             typedef TreeMap<WatchKey, ArdbConnContext*>::Type BlockContextTable;
 
             struct BlockTimeoutTask: public Runnable
+        {
+            ArdbServer* server;
+            ArdbConnContext* ctx;
+            BlockTimeoutTask(ArdbServer* s, ArdbConnContext* c) :
+                server(s), ctx(c)
             {
-                    ArdbServer* server;
-                    ArdbConnContext* ctx;
-                    BlockTimeoutTask(ArdbServer* s, ArdbConnContext* c) :
-                            server(s), ctx(c)
-                    {
-                    }
-                    void Run();
-            };
+            }
+            void Run();
+        };
 
             RedisCommandHandlerSettingTable m_handler_table;
             SlowLogHandler m_slowlog_handler;
