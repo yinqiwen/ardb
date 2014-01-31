@@ -68,71 +68,85 @@ namespace ardb
 {
     struct ArdbServerConfig
     {
-            bool daemonize;
-            std::string listen_host;
-            int64 listen_port;
-            std::string listen_unix_path;
-            int64 unixsocketperm;
-            int64 max_clients;
-            int64 tcp_keepalive;
-            int64 timeout;
-            std::string home;
-            std::string data_base_path;
-            int64 slowlog_log_slower_than;
-            int64 slowlog_max_len;
+        bool daemonize;
+        std::string listen_host;
+        int64 listen_port;
+        std::string listen_unix_path;
+        int64 unixsocketperm;
+        int64 max_clients;
+        int64 tcp_keepalive;
+        int64 timeout;
+        std::string home;
+        std::string data_base_path;
+        int64 slowlog_log_slower_than;
+        int64 slowlog_max_len;
 
-            std::string repl_data_dir;
-            std::string backup_dir;
+        std::string repl_data_dir;
+        std::string backup_dir;
 
-            int64 repl_ping_slave_period;
-            int64 repl_timeout;
-            int64 repl_backlog_size;
-            int64 repl_state_persist_period;
-            bool slave_cleardb_before_fullresync;
+        int64 repl_ping_slave_period;
+        int64 repl_timeout;
+        int64 repl_backlog_size;
+        int64 repl_state_persist_period;
+        bool slave_cleardb_before_fullresync;
 
-            int64 lua_time_limit;
+        int64 lua_time_limit;
 
-            std::string master_host;
-            uint32 master_port;
+        std::string master_host;
+        uint32 master_port;
 
-            DBIDSet syncdbs;
+        DBIDSet syncdbs;
 
-            int64 worker_count;
-            std::string loglevel;
-            std::string logfile;
+        int64 worker_count;
+        std::string loglevel;
+        std::string logfile;
 
-            std::string pidfile;
+        std::string pidfile;
 
-            std::string zookeeper_servers;
+        std::string zookeeper_servers;
 
-            std::string additional_misc_info;
+        std::string additional_misc_info;
 
-            ArdbConfig db_cfg;
-            ArdbServerConfig() :
-                    daemonize(false), listen_port(0), unixsocketperm(755), max_clients(10000), tcp_keepalive(0), timeout(
-                            0), slowlog_log_slower_than(10000), slowlog_max_len(128), repl_data_dir("./repl"), backup_dir(
-                            "./backup"), repl_ping_slave_period(10), repl_timeout(60), repl_backlog_size(
-                            100 * 1024 * 1024), repl_state_persist_period(1), slave_cleardb_before_fullresync(true), lua_time_limit(
-                            0), master_port(0), worker_count(1), loglevel("INFO")
-            {
-            }
+        ArdbConfig db_cfg;
+        ArdbServerConfig() :
+            daemonize(false),
+            listen_port(0),
+            unixsocketperm(755),
+            max_clients(10000),
+            tcp_keepalive(0),
+            timeout(0),
+            slowlog_log_slower_than(10000),
+            slowlog_max_len(128),
+            repl_data_dir("./repl"),
+            backup_dir("./backup"),
+            repl_ping_slave_period(10),
+            repl_timeout(60),
+            repl_backlog_size(100 * 1024 * 1024),
+            repl_state_persist_period(1),
+            slave_cleardb_before_fullresync(true),
+            lua_time_limit(0),
+            master_port(0),
+            worker_count(1),
+            loglevel("INFO")
+        {
+        }
     };
     struct ArdbConnContext;
     typedef TreeSet<ArdbConnContext*>::Type ContextSet;
 
     struct ArdbConncetion
     {
-            Channel* conn;
-            std::string name;
-            std::string addr;
-            uint32 birth;
-            uint32 lastTs;
-            DBID currentDB;
-            std::string lastCmd;
-            ArdbConncetion() :
-                    conn(NULL), birth(0), lastTs(0), currentDB(0)
-            {
-            }
+        Channel* conn;
+        std::string name;
+        std::string addr;
+        uint32 birth;
+        uint32 lastTs;
+        DBID currentDB;
+        std::string lastCmd;
+        ArdbConncetion() :
+            conn(NULL), birth(0), lastTs(0), currentDB(0)
+        {
+        }
     };
 
     class ClientConnHolder
@@ -144,9 +158,9 @@ namespace ardb
             ThreadMutex m_mutex;
         public:
             ClientConnHolder() :
-                    m_client_stat_enable(false)
-            {
-            }
+                m_client_stat_enable(false)
+        {
+        }
             void TouchConn(Channel* conn, const std::string& currentCmd);
             void ChangeCurrentDB(Channel* conn, const DBID& dbid);
             Channel* GetConn(const std::string& addr);
@@ -173,18 +187,18 @@ namespace ardb
             const ArdbServerConfig& m_cfg;
             struct SlowLog
             {
-                    uint64 id;
-                    uint64 ts;
-                    uint64 costs;
-                    RedisCommandFrame cmd;
+                uint64 id;
+                uint64 ts;
+                uint64 costs;
+                RedisCommandFrame cmd;
             };
             std::deque<SlowLog> m_cmds;
             ThreadMutex m_mutex;
         public:
             SlowLogHandler(const ArdbServerConfig& cfg) :
-                    m_cfg(cfg)
-            {
-            }
+                m_cfg(cfg)
+        {
+        }
             void PushSlowCommand(const RedisCommandFrame& cmd, uint64 micros);
             void GetSlowlog(uint32 len, RedisReply& reply);
             void Clear()
@@ -199,28 +213,28 @@ namespace ardb
 
     struct WatchKey
     {
-            DBID db;
-            std::string key;
-            WatchKey() :
-                    db(0)
+        DBID db;
+        std::string key;
+        WatchKey() :
+            db(0)
+        {
+        }
+        WatchKey(const DBID& id, const std::string& k) :
+            db(id), key(k)
+        {
+        }
+        inline bool operator<(const WatchKey& other) const
+        {
+            if (db > other.db)
             {
+                return false;
             }
-            WatchKey(const DBID& id, const std::string& k) :
-                    db(id), key(k)
+            if (db == other.db)
             {
+                return key < other.key;
             }
-            inline bool operator<(const WatchKey& other) const
-            {
-                if (db > other.db)
-                {
-                    return false;
-                }
-                if (db == other.db)
-                {
-                    return key < other.key;
-                }
-                return true;
-            }
+            return true;
+        }
     };
 
     typedef std::deque<RedisCommandFrame> TransactionCommandQueue;
@@ -229,155 +243,155 @@ namespace ardb
 
     struct LUAConnContext
     {
-            uint64 lua_time_start;
-            bool lua_timeout;
-            bool lua_kill;
-            const char* lua_executing_func;
+        uint64 lua_time_start;
+        bool lua_timeout;
+        bool lua_kill;
+        const char* lua_executing_func;
 
-            LUAConnContext() :
-                    lua_time_start(0), lua_timeout(false), lua_kill(false), lua_executing_func(NULL)
-            {
-            }
+        LUAConnContext() :
+            lua_time_start(0), lua_timeout(false), lua_kill(false), lua_executing_func(NULL)
+        {
+        }
     };
 
     struct PubSubContext
     {
-            PubSubChannelSet pubsub_channle_set;
-            PubSubChannelSet pattern_pubsub_channle_set;
+        PubSubChannelSet pubsub_channle_set;
+        PubSubChannelSet pattern_pubsub_channle_set;
     };
 
     struct BlockListContext
     {
-            std::string dest_key;
-            int32 blocking_timer_task_id;
-            uint8 pop_type;
-            WatchKeySet keys;
-            BlockListContext() :
-                    blocking_timer_task_id(-1), pop_type(0)
-            {
-            }
+        std::string dest_key;
+        int32 blocking_timer_task_id;
+        uint8 pop_type;
+        WatchKeySet keys;
+        BlockListContext() :
+            blocking_timer_task_id(-1), pop_type(0)
+        {
+        }
     };
 
     struct TransactionContext
     {
-            bool in_transaction;
-            bool fail_transc;
-            TransactionCommandQueue transaction_cmds;
-            WatchKeySet watch_key_set;
-            TransactionContext() :
-                    in_transaction(false), fail_transc(false)
-            {
-            }
+        bool in_transaction;
+        bool fail_transc;
+        TransactionCommandQueue transaction_cmds;
+        WatchKeySet watch_key_set;
+        TransactionContext() :
+            in_transaction(false), fail_transc(false)
+        {
+        }
     };
 
     struct ArdbConnContext
     {
-            DBID currentDB;
-            Channel* conn;
-            RedisReply reply;
-            bool is_slave_conn;
-            TransactionContext* transc;
-            PubSubContext* pubsub;
-            LUAConnContext* lua;
-            BlockListContext* block;
+        DBID currentDB;
+        Channel* conn;
+        RedisReply reply;
+        bool is_slave_conn;
+        TransactionContext* transc;
+        PubSubContext* pubsub;
+        LUAConnContext* lua;
+        BlockListContext* block;
 
-            ArdbConnContext() :
-                    currentDB(0), conn(NULL), is_slave_conn(false), transc(NULL), pubsub(
+        ArdbConnContext() :
+            currentDB(0), conn(NULL), is_slave_conn(false), transc(NULL), pubsub(
                     NULL), lua(
-                    NULL), block(NULL)
+                        NULL), block(NULL)
+        {
+        }
+        LUAConnContext& GetLua()
+        {
+            if (NULL == lua)
             {
+                NEW(lua, LUAConnContext);
             }
-            LUAConnContext& GetLua()
+            return *lua;
+        }
+        TransactionContext& GetTransc()
+        {
+            if (NULL == transc)
             {
-                if (NULL == lua)
-                {
-                    NEW(lua, LUAConnContext);
-                }
-                return *lua;
+                NEW(transc, TransactionContext);
             }
-            TransactionContext& GetTransc()
+            return *transc;
+        }
+        PubSubContext& GetPubSub()
+        {
+            if (NULL == pubsub)
             {
-                if (NULL == transc)
-                {
-                    NEW(transc, TransactionContext);
-                }
-                return *transc;
+                NEW(pubsub, PubSubContext);
             }
-            PubSubContext& GetPubSub()
+            return *pubsub;
+        }
+        BlockListContext& GetBlockList()
+        {
+            if (NULL == block)
             {
-                if (NULL == pubsub)
-                {
-                    NEW(pubsub, PubSubContext);
-                }
-                return *pubsub;
+                NEW(block, BlockListContext);
             }
-            BlockListContext& GetBlockList()
-            {
-                if (NULL == block)
-                {
-                    NEW(block, BlockListContext);
-                }
-                return *block;
-            }
+            return *block;
+        }
 
-            void ClearBlockList()
-            {
-                DELETE(block);
-            }
-            void ClearPubSub()
-            {
-                DELETE(pubsub);
-            }
+        void ClearBlockList()
+        {
+            DELETE(block);
+        }
+        void ClearPubSub()
+        {
+            DELETE(pubsub);
+        }
 
-            uint64 SubChannelSize()
+        uint64 SubChannelSize()
+        {
+            uint32 size = 0;
+            if (NULL != pubsub)
             {
-                uint32 size = 0;
-                if (NULL != pubsub)
-                {
-                    size = pubsub->pattern_pubsub_channle_set.size();
-                    size += pubsub->pubsub_channle_set.size();
-                }
-                return size;
+                size = pubsub->pattern_pubsub_channle_set.size();
+                size += pubsub->pubsub_channle_set.size();
             }
-            bool IsSubscribedConn()
-            {
-                return NULL != pubsub;
-            }
-            bool IsInTransaction()
-            {
-                return NULL != transc && transc->in_transaction;
-            }
-            bool IsInScripting()
-            {
-                return lua != NULL && lua->lua_executing_func != NULL;
-            }
-            void ClearTransaction()
-            {
-                DELETE(transc);
-            }
-            ~ArdbConnContext()
-            {
-                DELETE(transc);
-                DELETE(pubsub);
-                DELETE(block);
-                DELETE(lua);
-            }
+            return size;
+        }
+        bool IsSubscribedConn()
+        {
+            return NULL != pubsub;
+        }
+        bool IsInTransaction()
+        {
+            return NULL != transc && transc->in_transaction;
+        }
+        bool IsInScripting()
+        {
+            return lua != NULL && lua->lua_executing_func != NULL;
+        }
+        void ClearTransaction()
+        {
+            DELETE(transc);
+        }
+        ~ArdbConnContext()
+        {
+            DELETE(transc);
+            DELETE(pubsub);
+            DELETE(block);
+            DELETE(lua);
+        }
     };
 
     class ArdbServer;
     struct RedisRequestHandler: public ChannelUpstreamHandler<RedisCommandFrame>
     {
-            ArdbServer* server;
-            ArdbConnContext ardbctx;
-            bool processing;
-            bool delete_after_processing;
-            void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e);
-            void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e);
-            void ChannelConnected(ChannelHandlerContext& ctx, ChannelStateEvent& e);
-            RedisRequestHandler(ArdbServer* s) :
-                    server(s), processing(false), delete_after_processing(false)
-            {
-            }
+        ArdbServer* server;
+        ArdbConnContext ardbctx;
+        bool processing;
+        bool delete_after_processing;
+        void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e);
+        void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e);
+        void ChannelConnected(ChannelHandlerContext& ctx, ChannelStateEvent& e);
+        RedisRequestHandler(ArdbServer* s) :
+            server(s), processing(false), delete_after_processing(false)
+        {
+        }
     };
 
     class ArdbServer
