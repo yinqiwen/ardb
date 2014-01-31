@@ -42,11 +42,11 @@
 #define BLOCK_LIST_LPOP 1
 #define BLOCK_LIST_RPOPLPUSH 2
 
-namespace ardb
+namespace
 {
-    static ServerStat kServerStat;
+    ServerStat kServerStat;
 
-    static inline void fill_error_reply(RedisReply& reply, const char* fmt, ...)
+    inline void fill_error_reply(RedisReply& reply, const char* fmt, ...)
     {
         va_list ap;
         va_start(ap, fmt);
@@ -57,30 +57,30 @@ namespace ardb
         reply.str = buf;
     }
 
-    static inline void fill_status_reply(RedisReply& reply, const char* s)
+    inline void fill_status_reply(RedisReply& reply, const char* s)
     {
         reply.type = REDIS_REPLY_STATUS;
         reply.str = s;
     }
 
-    static inline void fill_int_reply(RedisReply& reply, int64 v)
+    inline void fill_int_reply(RedisReply& reply, int64 v)
     {
         reply.type = REDIS_REPLY_INTEGER;
         reply.integer = v;
     }
-    static inline void fill_double_reply(RedisReply& reply, double v)
+    inline void fill_double_reply(RedisReply& reply, double v)
     {
         reply.type = REDIS_REPLY_DOUBLE;
         reply.double_value = v;
     }
 
-    static inline void fill_str_reply(RedisReply& reply, const std::string& v)
+    inline void fill_str_reply(RedisReply& reply, const std::string& v)
     {
         reply.type = REDIS_REPLY_STRING;
         reply.str = v;
     }
 
-    static inline void fill_value_reply(RedisReply& reply, const ValueData& v)
+    inline void fill_value_reply(RedisReply& reply, const ValueData& v)
     {
         reply.type = REDIS_REPLY_STRING;
         std::string str;
@@ -88,9 +88,9 @@ namespace ardb
         reply.str = str;
     }
 
-    static bool check_uint32_arg(RedisReply& reply, const std::string& arg, uint32& v)
+    bool check_uint32_arg(RedisReply& reply, const std::string& arg, uint32& v)
     {
-        if (!string_touint32(arg, v))
+        if (! string_touint32(arg, v))
         {
             fill_error_reply(reply, "ERR value is not an integer or out of range.");
             return false;
@@ -98,9 +98,9 @@ namespace ardb
         return true;
     }
 
-    static bool check_uint64_arg(RedisReply& reply, const std::string& arg, uint64& v)
+    bool check_uint64_arg(RedisReply& reply, const std::string& arg, uint64& v)
     {
-        if (!string_touint64(arg, v))
+        if (! string_touint64(arg, v))
         {
             fill_error_reply(reply, "ERR value is not an integer or out of range.");
             return false;
@@ -109,7 +109,7 @@ namespace ardb
     }
 
     template<typename T>
-    static inline void fill_array_reply(RedisReply& reply, T& v)
+    void fill_array_reply(RedisReply& reply, T& v)
     {
         reply.type = REDIS_REPLY_ARRAY;
         typename T::iterator it = v.begin();
@@ -133,7 +133,7 @@ namespace ardb
     }
 
     template<typename T>
-    static inline void fill_str_array_reply(RedisReply& reply, T& v)
+    void fill_str_array_reply(RedisReply& reply, T& v)
     {
         reply.type = REDIS_REPLY_ARRAY;
         typename T::iterator it = v.begin();
@@ -147,7 +147,7 @@ namespace ardb
     }
 
     template<typename T>
-    static inline void fill_int_array_reply(RedisReply& reply, T& v)
+    void fill_int_array_reply(RedisReply& reply, T& v)
     {
         reply.type = REDIS_REPLY_ARRAY;
         typename T::iterator it = v.begin();
@@ -159,6 +159,10 @@ namespace ardb
             it++;
         }
     }
+} // end anon ns
+
+namespace ardb
+{
 
     int ArdbServer::ParseConfig(const Properties& props, ArdbServerConfig& cfg)
     {
