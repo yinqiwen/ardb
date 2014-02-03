@@ -50,7 +50,7 @@ bool RedisReplyEncoder::Encode(Buffer& buf, RedisReply& reply)
         {
             buf.Printf("$%d\r\n", reply.str.size());
             buf.Write(reply.str.c_str(), reply.str.size());
-            buf.Write("\r\n");
+            buf.Printf("\r\n");
             break;
         }
         case REDIS_REPLY_ERROR:
