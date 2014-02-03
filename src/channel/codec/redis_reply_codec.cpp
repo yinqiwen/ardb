@@ -49,13 +49,8 @@ bool RedisReplyEncoder::Encode(Buffer& buf, RedisReply& reply)
         case REDIS_REPLY_STRING:
         {
             buf.Printf("$%d\r\n", reply.str.size());
-            if (reply.str.size() > 0)
-            {
-                buf.Printf("%s\r\n", reply.str.c_str());
-            } else
-            {
-                buf.Printf("\r\n");
-            }
+            buf.Write(reply.str.c_str(), reply.str.size());
+            buf.Write("\r\n");
             break;
         }
         case REDIS_REPLY_ERROR:

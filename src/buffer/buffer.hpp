@@ -252,6 +252,19 @@ namespace ardb
                 return datlen;
             }
 
+
+            inline int Write(const char* data_in)
+            {
+                size_t data_len = strlen(data_in) + 1;
+                if (!EnsureWritableBytes(data_len))
+                {
+                    return -1;
+                }
+                memcpy(m_buffer + m_write_idx, data_in, data_len);
+                m_write_idx += data_len;
+                return data_len;
+            }
+
             inline int Write(Buffer* unit, size_t datlen)
             {
                 if (NULL == unit)
