@@ -51,7 +51,9 @@ bool RedisReplyEncoder::Encode(Buffer& buf, RedisReply& reply)
             buf.Printf("$%d\r\n", reply.str.size());
             if (reply.str.size() > 0)
             {
-                buf.Printf("%s\r\n", reply.str.c_str());
+                //buf.Printf("%s\r\n", reply.str.c_str());
+                buf.Write(reply.str.data(), reply.str.size());
+                buf.Printf("\r\n");
             } else
             {
                 buf.Printf("\r\n");
