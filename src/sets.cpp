@@ -295,18 +295,17 @@ namespace ardb
         if (meta->ziped)
         {
             SliceArray::const_iterator it = values.begin();
-            uint32 size = meta->zipvs.size();
+            size_t erased = 0;
             while (it != values.end())
             {
                 ValueData element(*it);
-                meta->zipvs.erase(element);
+                erased += meta->zipvs.erase(element);
                 it++;
             }
-            size = meta->zipvs.size() - size;
             meta->size = meta->zipvs.size();
             SetMeta(db, key, *meta);
             DELETE(meta);
-            return size;
+            return erased;
         }
         BatchWriteGuard guard(GetEngine());
         SliceArray::const_iterator it = values.begin();
