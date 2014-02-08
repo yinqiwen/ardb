@@ -59,6 +59,7 @@ namespace ardb
             bool Valid();
             void SeekToFirst();
             void SeekToLast();
+            void Seek(const Slice& target);
         public:
             KCDBIterator(kyotocabinet::DB::Cursor* cursor, bool valid = true) :
                     m_cursor(cursor), m_valid(valid)

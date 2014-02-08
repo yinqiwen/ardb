@@ -108,6 +108,10 @@ namespace ardb
     {
         m_iter->SeekToLast();
     }
+    void LevelDBIterator::Seek(const Slice& target)
+    {
+        m_iter->Seek(LEVELDB_SLICE(target));
+    }
     void LevelDBIterator::Next()
     {
         m_iter->Next();
@@ -251,6 +255,7 @@ namespace ardb
     {
         leveldb::Status s = leveldb::Status::OK();
         ContextHolder& holder = m_context.GetValue();
+        int ret = 0;
         if (!holder.EmptyRef())
         {
             holder.Put(key, value);
@@ -262,8 +267,13 @@ namespace ardb
         else
         {
             s = m_db->Put(leveldb::WriteOptions(), LEVELDB_SLICE(key), LEVELDB_SLICE(value));
+            if (!s.ok())
+            {
+                WARN_LOG("Failed to write data for reason:%s", s.ToString().c_str());
+                ret = -1;
+            }
         }
-        return s.ok() ? 0 : -1;
+        return ret;
     }
     int LevelDBEngine::Get(const Slice& key, std::string* value)
     {

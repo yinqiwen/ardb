@@ -134,12 +134,12 @@ CHANNEL_CPPFILES := $(foreach dir, $(CHANNEL_CPP_VPATH), $(wildcard $(dir)/*.cpp
 CHANNEL_CFILES := $(foreach dir, $(CHANNEL_C_VPATH), $(wildcard $(dir)/*.c))
 CHANNEL_OBJECTS := $(patsubst %.cpp, %.o, $(CHANNEL_CPPFILES)) $(patsubst %.c, %.o, $(CHANNEL_CFILES))
 
-UTIL_VPATH=./util ./util/exception  ./util/thread ./redis ./helper ./buffer
+UTIL_VPATH=./util ./util/exception  ./util/thread ./util/geohash ./redis ./helper ./buffer
 UTIL_CPPFILES := $(foreach dir, $(UTIL_VPATH), $(wildcard $(dir)/*.cpp))
 UTIL_CFILES := $(foreach dir, $(UTIL_VPATH), $(wildcard $(dir)/*.c))
 UTIL_OBJECTS := $(patsubst %.cpp, %.o, $(UTIL_CPPFILES)) $(patsubst %.c, %.o, $(UTIL_CFILES))
 CORE_OBJECTS := ardb.o data_format.o hash.o kv.o lists.o logger.o sets.o \
-                zsets.o strings.o bits.o sort.o \
+                zsets.o strings.o bits.o sort.o geo.o\
                 $(UTIL_OBJECTS)
 
 LEVELDB_ENGINE :=  engine/leveldb_engine.o    

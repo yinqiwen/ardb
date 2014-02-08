@@ -61,7 +61,9 @@ typedef struct {
 
 bool GEOHASH_verify_hash(const char *hash);
 char* GEOHASH_encode(double latitude, double longitude, unsigned int hash_length);
+char* GEOHASH_encode_mercator(double latitude, double longitude, unsigned int hash_length);
 GEOHASH_area* GEOHASH_decode(const char* hash);
+GEOHASH_area* GEOHASH_decode_mercator(const char* hash);
 GEOHASH_neighbors* GEOHASH_get_neighbors(const char *hash);
 void GEOHASH_free_neighbors(GEOHASH_neighbors *neighbors);
 char* GEOHASH_get_adjacent(const char* hash, GEOHASH_direction dir);

@@ -220,7 +220,6 @@ namespace ardb
         conf_get_int64(props, "list-max-ziplist-value", cfg.db_cfg.list_max_ziplist_value);
         conf_get_int64(props, "zset-max-ziplist-entries", cfg.db_cfg.zset_max_ziplist_entries);
         conf_get_int64(props, "zset_max_ziplist_value", cfg.db_cfg.zset_max_ziplist_value);
-        conf_get_int64(props, "zset-max-score-cache-size", cfg.db_cfg.zset_max_score_cache_size);
 
         std::string slaveof;
         if (conf_get_string(props, "slaveof", slaveof))
@@ -1428,7 +1427,25 @@ namespace ardb
         }
         else
         {
-            ctx.reply.type = REDIS_REPLY_NIL;
+            switch(ret)
+            {
+                case ERR_INVALID_TYPE:
+                {
+                    fill_error_reply(ctx.reply, "ERR invalid type");
+                    break;
+                }
+                case ERR_KEY_EXIST:
+                case ERR_NOT_EXIST:
+                {
+                    ctx.reply.type = REDIS_REPLY_NIL;
+                    break;
+                }
+                default:
+                {
+                    fill_error_reply(ctx.reply, "ERR set failed");
+                    break;
+                }
+            }
         }
         return 0;
     }
@@ -3382,7 +3399,7 @@ namespace ardb
                     ctx->reply.type = REDIS_REPLY_ARRAY;
                     ctx->reply.elements.push_back(RedisReply(key.key));
                     ctx->reply.elements.push_back(RedisReply(v));
-                    ctx->conn->AsyncWrite(AsyncWriteBlockListReply, ctx);
+                    ctx->conn->GetService().AsyncIO(ctx->conn->GetID(), AsyncWriteBlockListReply, ctx);
                 }
             }
         }

@@ -74,6 +74,7 @@ namespace ardb
             virtual bool Valid() = 0;
             virtual void SeekToFirst() = 0;
             virtual void SeekToLast() = 0;
+            virtual void Seek(const Slice& target) = 0;
             virtual ~Iterator()
             {
             }
@@ -188,13 +189,12 @@ namespace ardb
             int64 zset_max_ziplist_value;
             int64 set_max_ziplist_entries;
             int64 set_max_ziplist_value;
-            int64 zset_max_score_cache_size;
 
             bool check_type_before_set_string;
             ArdbConfig() :
                     hash_max_ziplist_entries(128), hash_max_ziplist_value(64), list_max_ziplist_entries(128), list_max_ziplist_value(
                             64), zset_max_ziplist_entries(128), zset_max_ziplist_value(64), set_max_ziplist_entries(
-                            128), set_max_ziplist_value(64), zset_max_score_cache_size(100 * 1024 * 1024), check_type_before_set_string(
+                            128), set_max_ziplist_value(64),  check_type_before_set_string(
                             false)
             {
             }
@@ -256,6 +256,8 @@ namespace ardb
             int ZGetByRank(const DBID& db, const Slice& key,ZSetMetaValue& meta, uint32 rank, ZSetElement& e);
             int ZInsertRangeScore(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score);
             int ZDeleteRangeScore(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score);
+            int ZRangeByScoreRange(const DBID& db, const Slice& key, const ZRangeSpec& range, Iterator*& iter,
+                                ValueDataArray& values, ZSetQueryOptions& options);
 
             int GetType(const DBID& db, const Slice& key, KeyType& type);
             int SetMeta(KeyObject& key, CommonMetaValue& meta);
@@ -269,6 +271,7 @@ namespace ardb
             int SetRawValue(KeyObject& key, Buffer& v);
             int DelValue(KeyObject& key);
             Iterator* FindValue(KeyObject& key, bool cache = false);
+            void FindValue(Iterator*, KeyObject& key);
 
             int ListPush(const DBID& db, const Slice& key, const Slice& value, bool athead, bool onlyexist);
             int ListPop(const DBID& db, const Slice& key, bool athead, std::string& value);
@@ -548,6 +551,9 @@ namespace ardb
             int SUnion(const DBID& db, SliceArray& keys, ValueDataArray& values);
             int SUnionStore(const DBID& db, const Slice& dst, SliceArray& keys);
             int SClear(const DBID& db, const Slice& key);
+
+            int GeoAdd(const DBID& db, const Slice& key, const Slice& value, double x, double y);
+            int GeoSearch(const DBID& db, const Slice& key, double x, double y, const GeoSearchOptions& options, GeoPointArray& results);
 
             int Type(const DBID& db, const Slice& key);
             int Sort(const DBID& db, const Slice& key, const StringArray& args, ValueDataArray& values);

@@ -38,7 +38,7 @@ using namespace ardb;
 ChannelService::ChannelService(uint32 setsize) :
         m_setsize(setsize), m_eventLoop(NULL), m_timer(NULL), m_signal_channel(
         NULL), m_self_soft_signal_channel(NULL), m_running(false), m_thread_pool_size(1), m_tid(0), m_user_cb(NULL), m_user_cb_data(
-        NULL)
+        NULL), m_user_routine(NULL), m_user_routine_data(NULL),m_pool_index(0)
 {
     m_eventLoop = aeCreateEventLoop(m_setsize);
     m_self_soft_signal_channel = NewSoftSignalChannel();
@@ -48,7 +48,7 @@ ChannelService::ChannelService(uint32 setsize) :
         m_self_soft_signal_channel->Register(USER_DEFINED, this);
 
         m_self_soft_signal_channel->Register(WAKEUP, this);
-        m_self_soft_signal_channel->Register(CHANNEL_ASNC_WRITE, this);
+        m_self_soft_signal_channel->Register(CHANNEL_ASNC_IO, this);
     }
 }
 
@@ -57,6 +57,12 @@ void ChannelService::RegisterUserEventCallback(UserEventCallback* cb, void* data
     m_user_cb = cb;
     m_user_cb_data = data;
 }
+void ChannelService::RegisterUserRoutineCallback(UserRoutineCallback* cb, void* data)
+{
+    m_user_routine = cb;
+    m_user_routine_data = data;
+}
+
 void ChannelService::FireUserEvent(uint32 ev)
 {
     if (NULL != m_self_soft_signal_channel)
@@ -107,9 +113,9 @@ ChannelService& ChannelService::GetIdlestChannelService()
     }
     uint32 size = 0;
     uint32 idx = 0;
-    for(uint32 i = 0; i < m_sub_pool.size(); i++)
+    for (uint32 i = 0; i < m_sub_pool.size(); i++)
     {
-        if(size == 0 || m_sub_pool[i]->m_channel_table.size() < size)
+        if (size == 0 || m_sub_pool[i]->m_channel_table.size() < size)
         {
             size = m_sub_pool[i]->m_channel_table.size();
             idx = i;
@@ -148,14 +154,15 @@ void ChannelService::OnSoftSignal(uint32 soft_signo, uint32 appendinfo)
             }
             break;
         }
-        case CHANNEL_ASNC_WRITE:
+        case CHANNEL_ASNC_IO:
         {
-            ChannelAsyncWriteContext ctx;
-            while (m_async_write_queue.Pop(ctx))
+            ChannelAsyncIOContext ctx;
+            while (m_async_io_queue.Pop(ctx))
             {
                 if (NULL != ctx.cb)
                 {
-                    ctx.cb(ctx.channel, ctx.data);
+                    Channel* ch = GetChannel(ctx.channel_id);
+                    ctx.cb(ch, ctx.data);
                 }
             }
             break;
@@ -303,6 +310,8 @@ void ChannelService::StartSubPool()
         for (uint32 i = 0; i < m_thread_pool_size; i++)
         {
             ChannelService* s = new ChannelService(m_setsize);
+            s->m_pool_index = i + 1;
+            s->RegisterUserRoutineCallback(m_user_routine, m_user_routine_data);
             s->RegisterUserEventCallback(m_user_cb, m_user_cb_data);
             m_sub_pool.push_back(s);
             LaunchThread* launch = new LaunchThread(s);
@@ -317,7 +326,7 @@ void ChannelService::Start()
     if (!m_running)
     {
         StartSubPool();
-        GetTimer().Schedule(this, 1000, 500);
+        GetTimer().Schedule(this, 1000, 1000);
         m_running = true;
         m_tid = Thread::CurrentThreadID();
         aeMain(m_eventLoop);
@@ -512,14 +521,15 @@ void ChannelService::DeleteChannel(Channel* ch)
 void ChannelService::Run()
 {
     VerifyRemoveQueue();
+    Routine();
 }
 
-void ChannelService::AsyncWrite(const ChannelAsyncWriteContext& ctx)
+void ChannelService::AsyncIO(const ChannelAsyncIOContext& ctx)
 {
-    m_async_write_queue.Push(ctx);
+    m_async_io_queue.Push(ctx);
     if (NULL != m_self_soft_signal_channel)
     {
-        m_self_soft_signal_channel->FireSoftSignal(CHANNEL_ASNC_WRITE, 1);
+        m_self_soft_signal_channel->FireSoftSignal(CHANNEL_ASNC_IO, 1);
     }
 }
 
@@ -559,7 +569,10 @@ void ChannelService::AttachAcceptedChannel(SocketChannel *ch)
 
 void ChannelService::Routine()
 {
-    Run();
+    if (NULL != m_user_routine)
+    {
+        m_user_routine(this, m_pool_index, m_user_routine_data);
+    }
 }
 
 void ChannelService::Wakeup()
@@ -605,6 +618,15 @@ void ChannelService::CloseAllChannels(bool fireCloseEvent)
         it++;
     }
     m_channel_table.clear();
+}
+
+void ChannelService::AsyncIO(uint32 id, ChannelAsyncIOCallback* cb, void* data)
+{
+    ChannelAsyncIOContext ctx;
+    ctx.channel_id = id;
+    ctx.cb = cb;
+    ctx.data = data;
+    AsyncIO(ctx);
 }
 
 ChannelService::~ChannelService()

@@ -187,7 +187,8 @@ namespace ardb
             r->elements.push_back(RedisReply("message"));
             r->elements.push_back(RedisReply(channel));
             r->elements.push_back(RedisReply(message));
-            (*it)->conn->AsyncWrite(async_write_message, r);
+            Channel* ch = (*it)->conn;
+            ch->GetService().AsyncIO(ch->GetID(), async_write_message, r);
             it++;
         }
     }
@@ -204,7 +205,8 @@ namespace ardb
             r->elements.push_back(RedisReply(pattern));
             r->elements.push_back(RedisReply(channel));
             r->elements.push_back(RedisReply(message));
-            (*it)->conn->AsyncWrite(async_write_message, r);
+            Channel* ch = (*it)->conn;
+            ch->GetService().AsyncIO(ch->GetID(), async_write_message, r);
             it++;
         }
     }

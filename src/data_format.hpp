@@ -135,15 +135,15 @@ namespace ardb
             }
             bool operator<(const DBItemStackKey& other) const
             {
-                if (db > other.db)
+                if (db < other.db)
                 {
-                    return false;
+                    return true;
                 }
                 if (db == other.db)
                 {
                     return key.compare(other.key) < 0;
                 }
-                return true;
+                return false;
             }
     };
 
@@ -369,10 +369,9 @@ namespace ardb
     struct ZScoreRangeCounter
     {
             double min, max;
-            uint32 count;
-            CODEC_DEFINE(min, max, count)
+            uint32 count;CODEC_DEFINE(min, max, count)
             ZScoreRangeCounter() :
-                    min(0), max(0),count(0)
+                    min(0), max(0), count(0)
             {
             }
             inline bool operator<(const ZScoreRangeCounter& x)
@@ -442,8 +441,7 @@ namespace ardb
             uint8 sort_func;
             uint32 size;
             ZSetElementDeque zipvs;
-            ZScoreRangeCounterArray ranges;
-            CODEC_DEFINE(encoding, sort_func, size,zipvs, ranges)
+            ZScoreRangeCounterArray ranges;CODEC_DEFINE(encoding, sort_func, size,zipvs, ranges)
             ;
             ZSetMetaValue() :
                     encoding(true), sort_func(0), size(0)
@@ -619,6 +617,39 @@ namespace ardb
             {
             }
     };
+
+    struct GeoSearchOptions
+    {
+            bool nosort;
+            bool asc;   //sort by asc
+            int64 radius;  //range meters
+            uint32 offset;
+            uint32 limit;
+            GeoSearchOptions() :
+                    nosort(false), asc(false), radius(-1), offset(0), limit(10000)
+            {
+            }
+    };
+
+    struct GeoPoint
+    {
+            std::string value;
+            double x;
+            double y;
+            double mercator_x;
+            double mercator_y;
+
+            /*
+             * distance is a value stored while there is a
+             */
+            double distance;
+            GeoPoint() :
+                    x(0), y(0),mercator_x(0),mercator_y(0),distance(0)
+            {
+            }
+            CODEC_DEFINE(value,x,y,mercator_x, mercator_y)
+    };
+    typedef std::deque<GeoPoint> GeoPointArray;
 
     /*
      * typedefs

@@ -107,6 +107,10 @@ namespace ardb
     {
         m_iter->SeekToLast();
     }
+    void RocksDBIterator::Seek(const Slice& target)
+    {
+        m_iter->Seek(ROCKSDB_SLICE(target));
+    }
     void RocksDBIterator::Next()
     {
         m_iter->Next();

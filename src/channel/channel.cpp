@@ -227,7 +227,8 @@ void Channel::Run()
 
 bool Channel::IsEnableWriting()
 {
-    return (aeGetFileEvents(GetService().GetRawEventLoop(), GetWriteFD()) & AE_WRITABLE);
+    int fd =  GetWriteFD();
+    return fd > 0 && (aeGetFileEvents(GetService().GetRawEventLoop(), fd) & AE_WRITABLE);
 }
 
 void Channel::EnableWriting()
@@ -660,15 +661,15 @@ bool Channel::Close()
     return DoClose(false);
 }
 
-bool Channel::AsyncWrite(ChannelAsyncWriteCallback* cb, void* data)
-{
-    ChannelAsyncWriteContext ctx;
-    ctx.channel = this;
-    ctx.cb = cb;
-    ctx.data = data;
-    m_service->AsyncWrite(ctx);
-    return true;
-}
+//bool Channel::AsyncWrite(ChannelAsyncWriteCallback* cb, void* data)
+//{
+//    ChannelAsyncWriteContext ctx;
+//    ctx.channel_id = GetID();
+//    ctx.cb = cb;
+//    ctx.data = data;
+//    m_service->AsyncWrite(ctx);
+//    return true;
+//}
 
 Channel::~Channel()
 {

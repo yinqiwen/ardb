@@ -55,6 +55,7 @@ namespace ardb
             bool Valid();
             void SeekToFirst();
             void SeekToLast();
+            void Seek(const Slice& target);
         public:
             RocksDBIterator(RocksDBEngine* engine, rocksdb::Iterator* iter) :
                     m_engine(engine), m_iter(iter)

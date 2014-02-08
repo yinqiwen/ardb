@@ -352,10 +352,6 @@ namespace ardb
             }
             default:
             {
-//                if (bytes_value.size() != other.bytes_value.size())
-//                {
-//                    return COMPARE_NUMBER(bytes_value.size(), other.bytes_value.size());
-//                }
                 return bytes_value.compare(other.bytes_value);
             }
         }
@@ -415,19 +411,10 @@ namespace ardb
         uint8 at = aheader & 0xFF;
         uint8 bt = bheader & 0xFF;
         RETURN_NONEQ_RESULT(at, bt);
-        uint32 akeysize, bkeysize;
-        found_a = BufferHelper::ReadVarUInt32(ak_buf, akeysize);
-        found_b = BufferHelper::ReadVarUInt32(bk_buf, bkeysize);
+        Slice akey, bkey;
+        found_a = BufferHelper::ReadVarSlice(ak_buf, akey);
+        found_b = BufferHelper::ReadVarSlice(bk_buf, bkey);
         COMPARE_EXIST(found_a, found_b);
-        RETURN_NONEQ_RESULT(akeysize, bkeysize);
-
-        Slice akey(ak_buf.GetRawReadBuffer(), akeysize);
-        Slice bkey(bk_buf.GetRawReadBuffer(), bkeysize);
-        found_a = ak_buf.ReadableBytes() >= akeysize;
-        found_b = bk_buf.ReadableBytes() >= bkeysize;
-        COMPARE_EXIST(found_a, found_b);
-        ak_buf.SkipBytes(akeysize);
-        bk_buf.SkipBytes(bkeysize);
         int ret = 0;
         if (at != KEY_EXPIRATION_ELEMENT)
         {

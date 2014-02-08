@@ -1251,7 +1251,7 @@ namespace ardb
         return 0;
     }
 
-    int Ardb::ZRangeByScore(const DBID& db, const Slice& key, const std::string& min, const std::string& max,
+    int Ardb::ZRangeByScoreRange(const DBID& db, const Slice& key, const ZRangeSpec& range, Iterator*& iter,
             ValueDataArray& values, ZSetQueryOptions& options)
     {
         int err = 0;
@@ -1261,12 +1261,6 @@ namespace ardb
         {
             DELETE(meta);
             return err;
-        }
-        ZRangeSpec range;
-        if (parse_zrange(min, max, range) < 0)
-        {
-            DELETE(meta);
-            return ERR_INVALID_ARGS;
         }
         if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
@@ -1303,33 +1297,41 @@ namespace ardb
         }
         Slice empty;
         ZSetKeyObject tmp(key, empty, range.min, db);
-        struct ZRangeByScoreWalk: public WalkHandler
+        if (NULL == iter)
         {
-                ValueDataArray& z_values;
-                ZSetQueryOptions& z_options;
-                ZRangeSpec& z_range;
-                int z_count;
-                int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+            iter = FindValue(tmp, false);
+        }
+        else
+        {
+            FindValue(iter, tmp);
+        }
+        int z_count = 0;
+        while (true)
+        {
+            if (iter->Valid())
+            {
+                Slice tmpkey = iter->Key();
+                ZSetKeyObject* zsk = (ZSetKeyObject*) decode_key(tmpkey, &tmp);
+                if (NULL != zsk)
                 {
-                    ZSetKeyObject* zsk = (ZSetKeyObject*) k;
                     bool inrange = false;
                     inrange =
-                            z_range.contain_min ?
-                                    zsk->e.score.NumberValue() >= z_range.min.NumberValue() :
-                                    zsk->e.score.NumberValue() > z_range.min.NumberValue();
+                            range.contain_min ?
+                                    zsk->e.score.NumberValue() >= range.min.NumberValue() :
+                                    zsk->e.score.NumberValue() > range.min.NumberValue();
                     if (inrange)
                     {
                         inrange =
-                                z_range.contain_max ?
-                                        zsk->e.score.NumberValue() <= z_range.max.NumberValue() :
-                                        zsk->e.score.NumberValue() < z_range.max.NumberValue();
+                                range.contain_max ?
+                                        zsk->e.score.NumberValue() <= range.max.NumberValue() :
+                                        zsk->e.score.NumberValue() < range.max.NumberValue();
                     }
                     if (inrange)
                     {
-                        if (z_options.withlimit)
+                        if (options.withlimit)
                         {
-                            if (z_count >= z_options.limit_offset
-                                    && z_count <= (z_options.limit_count + z_options.limit_offset))
+                            if (z_count >= options.limit_offset
+                                    && z_count <= (options.limit_count + options.limit_offset))
                             {
                                 inrange = true;
                             }
@@ -1341,28 +1343,53 @@ namespace ardb
                         z_count++;
                         if (inrange)
                         {
-                            z_values.push_back(zsk->e.value);
-                            if (z_options.withscores)
+                            values.push_back(zsk->e.value);
+                            if (options.withscores)
                             {
-                                z_values.push_back(zsk->e.score);
+                                values.push_back(zsk->e.score);
                             }
                         }
                     }
-                    if (zsk->e.score.NumberValue() == z_range.max.NumberValue()
-                            || (z_options.withlimit && z_count > (z_options.limit_count + z_options.limit_offset)))
+                    else
                     {
-                        return -1;
+                        DELETE(zsk);
+                        break;
                     }
-                    return 0;
+                    if (zsk->e.score.NumberValue() == range.max.NumberValue()
+                            || (options.withlimit && z_count > (options.limit_count + options.limit_offset)))
+                    {
+                        DELETE(zsk);
+                        break;
+                    }
+                    DELETE(zsk);
+                    iter->Next();
                 }
-                ZRangeByScoreWalk(ValueDataArray& v, ZSetQueryOptions& options, ZRangeSpec& range) :
-                        z_values(v), z_options(options), z_range(range), z_count(0)
+                else
                 {
+                    break;
                 }
-        } walk(values, options, range);
-        Walk(tmp, false, false, &walk);
+            }
+            else
+            {
+                break;
+            }
+        }
         DELETE(meta);
-        return walk.z_count;
+        return options.withscores ? values.size() / 2 : values.size();
+    }
+
+    int Ardb::ZRangeByScore(const DBID& db, const Slice& key, const std::string& min, const std::string& max,
+            ValueDataArray& values, ZSetQueryOptions& options)
+    {
+        ZRangeSpec range;
+        if (parse_zrange(min, max, range) < 0)
+        {
+            return ERR_INVALID_ARGS;
+        }
+        Iterator* iter = NULL;
+        int ret = ZRangeByScoreRange(db, key, range, iter, values, options);
+        DELETE(iter);
+        return ret;
     }
 
     int Ardb::ZRevRange(const DBID& db, const Slice& key, int start, int stop, ValueDataArray& values,

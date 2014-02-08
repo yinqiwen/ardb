@@ -464,6 +464,14 @@ namespace ardb
         return iter;
     }
 
+    void Ardb::FindValue(Iterator* iter, KeyObject& key)
+    {
+        Buffer keybuf(key.key.size() + 16);
+        encode_key(keybuf, key);
+        Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
+        iter->Seek(k);
+    }
+
     int Ardb::GetRawValue(const KeyObject& key, std::string& value)
     {
         Buffer keybuf(key.key.size() + 16);

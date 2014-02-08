@@ -55,11 +55,15 @@ namespace ardb
 {
     enum ChannelSoftSignal
     {
-        CHANNEL_REMOVE = 1, WAKEUP = 2, USER_DEFINED = 3, CHANNEL_ASNC_WRITE = 4
+        CHANNEL_REMOVE = 1,
+        WAKEUP = 2,
+        USER_DEFINED = 3,
+        CHANNEL_ASNC_IO = 4,
     };
 
     class ChannelService;
     typedef void UserEventCallback(ChannelService* serv, uint32 ev, void* data);
+    typedef void UserRoutineCallback(ChannelService* serv, uint32 idx, void* data);
     /**
      * event loop service
      */
@@ -73,7 +77,7 @@ namespace ardb
             typedef std::vector<ChannelService*> ChannelServicePool;
             typedef std::vector<Thread*> ThreadVector;
 
-            typedef MPSCQueue<ChannelAsyncWriteContext> AsyncWriteQueue;
+            typedef MPSCQueue<ChannelAsyncIOContext> AsyncIOQueue;
             ChannelTable m_channel_table;
             uint32 m_setsize;
             aeEventLoop* m_eventLoop;
@@ -81,7 +85,7 @@ namespace ardb
             SignalChannel* m_signal_channel;
             SoftSignalChannel* m_self_soft_signal_channel;
             RemoveChannelQueue m_remove_queue;
-            AsyncWriteQueue  m_async_write_queue;
+            AsyncIOQueue m_async_io_queue;
 
             bool m_running;
 
@@ -95,6 +99,15 @@ namespace ardb
 
             UserEventCallback* m_user_cb;
             void* m_user_cb_data;
+
+            UserRoutineCallback* m_user_routine;
+            void* m_user_routine_data;
+
+            /*
+             * parent's index is 0
+             * children's index is [1-n]
+             */
+            uint32 m_pool_index;
 
             bool EventSunk(ChannelPipeline* pipeline, ChannelEvent& e)
             {
@@ -127,15 +140,20 @@ namespace ardb
             void VerifyRemoveQueue();
             void StartSubPool();
             void AttachAcceptedChannel(SocketChannel *ch);
-            void AsyncWrite(const ChannelAsyncWriteContext& ctx);
+            void AsyncIO(const ChannelAsyncIOContext& ctx);
+            void Routine();
+
         public:
             ChannelService(uint32 setsize = 10240);
             void SetThreadPoolSize(uint32 size);
             uint32 GetThreadPoolSize();
             ChannelService& GetNextChannelService();
             ChannelService& GetIdlestChannelService();
+            uint32 GetPoolIndex()
+            {
+                return m_pool_index;
+            }
 
-            void Routine();
             void Wakeup();
             bool IsInLoopThread() const;
             Channel* GetChannel(uint32 channelID);
@@ -166,8 +184,9 @@ namespace ardb
             void CloseAllChannelFD(std::set<Channel*>& exceptions);
 
             void RegisterUserEventCallback(UserEventCallback* cb, void* data);
+            void RegisterUserRoutineCallback(UserRoutineCallback* cb, void* data);
             void FireUserEvent(uint32 ev);
-
+            void AsyncIO(uint32 id, ChannelAsyncIOCallback* cb, void* data);
             ~ChannelService();
     };
 }

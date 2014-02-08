@@ -54,6 +54,7 @@ namespace ardb
 			bool Valid();
 			void SeekToFirst();
 			void SeekToLast();
+			void Seek(const Slice& target);
 			friend class LMDBEngine;
 		public:
 			LMDBIterator(LMDBEngine * e, MDB_cursor* iter, bool valid = true) :

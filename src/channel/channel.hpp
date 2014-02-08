@@ -112,14 +112,14 @@ namespace ardb
     typedef int ChannelOperationBarrierHook(Channel*, void*);
     typedef void ChannelIOEventCallback(struct aeEventLoop *eventLoop, int fd, void *clientData, int mask);
 
-    typedef void ChannelAsyncWriteCallback(Channel*, void*);
-    struct ChannelAsyncWriteContext
+    typedef void ChannelAsyncIOCallback(Channel*, void*);
+    struct ChannelAsyncIOContext
     {
-            Channel* channel;
-            ChannelAsyncWriteCallback* cb;
+            uint32 channel_id;
+            ChannelAsyncIOCallback* cb;
             void* data;
-            ChannelAsyncWriteContext() :
-                    channel(NULL), cb(NULL), data(NULL)
+            ChannelAsyncIOContext() :
+                    channel_id(0), cb(NULL), data(NULL)
             {
             }
     };
@@ -312,8 +312,6 @@ namespace ardb
             {
                 return write_channel<T>(this, &msg, NULL);
             }
-
-            bool AsyncWrite(ChannelAsyncWriteCallback* cb, void* data);
 
             int SendFile(const SendFileSetting& setting);
 
