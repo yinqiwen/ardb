@@ -39,6 +39,7 @@
 #include "ha/agent.hpp"
 #include "lua_scripting.hpp"
 
+
 /* Command flags. Please check the command table defined in the redis.c file
  * for more information about the meaning of every flag. */
 #define ARDB_CMD_WRITE 1                   /* "w" flag */
@@ -637,6 +638,11 @@ namespace ardb
             int Eval(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int EvalSHA(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int Script(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+
+            int GeoAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            int GeoSearch(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            int Cache(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            int Evict(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
             Timer& GetTimer();
 

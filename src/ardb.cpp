@@ -32,6 +32,7 @@
 #include <sstream>
 #include "util/thread/thread.hpp"
 #include "helper/db_helpers.hpp"
+#include "cache/cache_service.hpp"
 
 namespace ardb
 {
@@ -56,7 +57,7 @@ namespace ardb
     //static const char* REPO_NAME = "data";
     Ardb::Ardb(KeyValueEngineFactory* engine, bool multi_thread) :
             m_engine_factory(engine), m_engine(NULL), m_db_helper(
-            NULL)
+            NULL),m_level1_cahce(NULL)
     {
         m_key_locker.enable = multi_thread;
     }
@@ -78,6 +79,10 @@ namespace ardb
                  * Init db helper
                  */
                 NEW(m_db_helper, DBHelper(this));
+                if(m_config.L1_cache_item_limit > 0 && m_config.L1_cache_memory_limit > 0)
+                {
+                    NEW(m_level1_cahce, CacheService(this));
+                }
                 m_db_helper->Start();
                 INFO_LOG("Init storage engine success.");
             }
@@ -93,6 +98,7 @@ namespace ardb
             m_db_helper->Join();
             DELETE(m_db_helper);
         }
+        DELETE(m_level1_cahce);
         if (NULL != m_engine)
         {
             m_engine_factory->CloseDB(m_engine);

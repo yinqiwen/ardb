@@ -443,7 +443,11 @@ namespace ardb
                 { "evalsha", REDIS_CMD_EVALSHA, &ArdbServer::EvalSHA, 2, -1, "s", 0 },
                 { "script", REDIS_CMD_SCRIPT, &ArdbServer::Script, 1, -1, "s", 0 },
                 { "randomkey", REDIS_CMD_RANDOMKEY, &ArdbServer::Randomkey, 0, 0, "r", 0 },
-                { "scan", REDIS_CMD_SCAN, &ArdbServer::Scan, 1, 5, "r", 0 }, };
+                { "scan", REDIS_CMD_SCAN, &ArdbServer::Scan, 1, 5, "r", 0 },
+                { "geoadd", REDIS_CMD_GEO_ADD, &ArdbServer::GeoAdd, 4, 4, "w", 0 },
+                { "geosearch", REDIS_CMD_GEO_SEARCH, &ArdbServer::GeoSearch, 1, 5, "w", 0 },
+                { "cache", REDIS_CMD_CACHE, &ArdbServer::Cache, 1, 1, "r", 0 },
+                { "evict", REDIS_CMD_EVICT, &ArdbServer::Evict, 1, 1, "r", 0 },};
 
         uint32 arraylen = arraysize(settingTable);
         for (uint32 i = 0; i < arraylen; i++)
@@ -3348,7 +3352,24 @@ namespace ardb
         return 0;
     }
 
-//=========================Tables cmds================================
+    //=======================================
+    int ArdbServer::GeoAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        return 0;
+    }
+    int ArdbServer::GeoSearch(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        return 0;
+    }
+    int ArdbServer::Cache(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        return 0;
+    }
+    int ArdbServer::Evict(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        return 0;
+    }
+
     void ArdbServer::AsyncWriteBlockListReply(Channel* ch, void * data)
     {
         ArdbConnContext* ctx = (ArdbConnContext*) data;

@@ -97,7 +97,7 @@ namespace ardb
             ZSetQueryOptions z_options;
             z_options.withscores = false;
             ValueDataArray values;
-            ZRangeByScoreRange(db, key, *hit, iter, values, z_options);
+            ZRangeByScoreRange(db, key, *hit, iter, values, z_options, true);
             ValueDataArray::iterator vit = values.begin();
             while (vit != values.end())
             {
