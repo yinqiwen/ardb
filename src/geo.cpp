@@ -28,7 +28,7 @@
  */
 
 #include "ardb.hpp"
-#include "util/geohash/geohash_helper.hpp"
+#include "geo/geohash_helper.hpp"
 #include <algorithm>
 
 namespace ardb
@@ -50,10 +50,16 @@ namespace ardb
         return ZAdd(db, key, score_value, content_value);
     }
 
+    static bool less_by_bits(const GeoHashBits& v1, const GeoHashBits& v2)
+    {
+        return v1.bits < v2.bits;
+    }
+
     static bool less_by_distance(const GeoPoint& v1, const GeoPoint& v2)
     {
         return v1.distance < v2.distance;
     }
+
     static bool great_by_distance(const GeoPoint& v1, const GeoPoint& v2)
     {
         return v1.distance > v2.distance;
@@ -65,27 +71,24 @@ namespace ardb
         GeoHashBitsArray ress;
         double mercator_x = GeoHashHelper::GetMercatorX(x);
         double mercator_y = GeoHashHelper::GetMercatorY(y);
-        int hash_bits = GeoHashHelper::GetAreasByRadius(mercator_y, mercator_x, options.radius, ress);
-        std::sort(ress.begin(), ress.end());
+        GeoHashHelper::GetAreasByRadius(mercator_y, mercator_x, options.radius, ress);
+        std::sort(ress.begin(), ress.end(), less_by_bits);
         std::vector<ZRangeSpec> range_array;
         for (uint32 i = 0; i < ress.size(); i++)
         {
-            GeoHashFix50Bits hash = ress[i];
-            uint64 next = hash >> (50 - hash_bits);
-            next++;
-            next <<= (50 - hash_bits);
-            while (i < (ress.size() - 1) && next == ress[i + 1])
+            GeoHashBits& hash = ress[i];
+            GeoHashBits next = hash;
+            next.bits++;
+            while (i < (ress.size() - 1) && next.bits == ress[i + 1].bits)
             {
-                next = next >> (50 - hash_bits);
-                next++;
-                next <<= (50 - hash_bits);
+                next.bits++;
                 i++;
             }
             ZRangeSpec range;
             range.contain_min = true;
             range.contain_max = false;
-            range.min.SetIntValue(hash);
-            range.max.SetIntValue(next);
+            range.min.SetIntValue(GeoHashHelper::Allign50Bits(hash));
+            range.max.SetIntValue(GeoHashHelper::Allign50Bits(next));
             range_array.push_back(range);
         }
 

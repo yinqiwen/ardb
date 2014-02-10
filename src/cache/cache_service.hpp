@@ -34,7 +34,9 @@
 #include "data_format.hpp"
 #include "util/atomic.hpp"
 #include "util/lru.hpp"
-#include "ardb.hpp"
+#include "util/thread/thread_mutex.hpp"
+#include "util/thread/thread_mutex_lock.hpp"
+#include "util/thread/thread_local.hpp"
 
 namespace ardb
 {
@@ -45,12 +47,12 @@ namespace ardb
         private:
             uint32 m_ref;
             uint8 m_type;
-            virtual ~CacheItem()
-            {
-            }
         public:
             CacheItem(uint8 type) :
                     m_estimate_mem_size(0), m_ref(1), m_type(type)
+            {
+            }
+            virtual ~CacheItem()
             {
             }
             uint8 GetType()
@@ -106,14 +108,14 @@ namespace ardb
             void DirectAdd(ValueData& score, ValueData& v);
         public:
             ZSetCache();
-            void GetRange(const ZRangeSpec& range, bool with_scores,
-                    ValueDataArray& res);
+            void GetRange(const ZRangeSpec& range, bool with_scores, ValueDataArray& res);
 
     };
 
     /*
      * Only zset cache supported now
      */
+    class Ardb;
     class CacheService
     {
         private:

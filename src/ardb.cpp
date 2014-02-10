@@ -32,7 +32,7 @@
 #include <sstream>
 #include "util/thread/thread.hpp"
 #include "helper/db_helpers.hpp"
-#include "cache/cache_service.hpp"
+
 
 namespace ardb
 {

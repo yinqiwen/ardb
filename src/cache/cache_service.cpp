@@ -27,6 +27,7 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include "cache_service.hpp"
+#include "ardb.hpp"
 #include <algorithm>
 
 namespace ardb
@@ -52,11 +53,11 @@ namespace ardb
     void ZSetCache::GetRange(const ZRangeSpec& range, bool with_scores,
             ValueDataArray& res)
     {
-        ZSetCaheElement min_ele(range.min, "");
-        ZSetCaheElement max_ele(range.max, "");
+        ZSetCaheElement min_ele(range.min.NumberValue(), "");
+        ZSetCaheElement max_ele(range.max.NumberValue(), "");
         ZSetCaheElementDeque::iterator min_it = std::lower_bound(
                 m_cache.begin(), m_cache.end(), min_ele);
-        ZSetElementDeque::iterator max_it = std::lower_bound(
+        ZSetCaheElementDeque::iterator max_it = std::lower_bound(
                 m_cache.begin(), m_cache.end(), max_ele);
         if (min_it != m_cache.end())
         {

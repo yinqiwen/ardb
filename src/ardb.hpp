@@ -46,6 +46,7 @@
 #include "util/thread/thread_local.hpp"
 #include "util/thread/lock_guard.hpp"
 #include "channel/all_includes.hpp"
+#include "cache/cache_service.hpp"
 
 #define ARDB_OK 0
 #define ERR_INVALID_ARGS -3

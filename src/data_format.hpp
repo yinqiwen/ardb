@@ -626,7 +626,7 @@ namespace ardb
             uint32 offset;
             uint32 limit;
             GeoSearchOptions() :
-                    nosort(false), asc(false), radius(-1), offset(0), limit(10000)
+                    nosort(false), asc(false), radius(-1), offset(0), limit(0)
             {
             }
     };
