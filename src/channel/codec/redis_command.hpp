@@ -209,6 +209,9 @@ namespace ardb
 			REDIS_CMD_SSCAN = 163,
 			REDIS_CMD_HSCAN = 164,
 			REDIS_CMD_ZSCAN = 165,
+			REDIS_CMD_GEO_ADD = 166,
+			REDIS_CMD_GEO_SEARCH = 167,
+			REDIS_CMD_CACHE = 168,
 		};
 
 		class RedisCommandDecoder;

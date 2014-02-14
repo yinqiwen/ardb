@@ -31,7 +31,6 @@
 #define ARDB_HPP_
 #include <stdint.h>
 #include <float.h>
-#include <map>
 #include <vector>
 #include <list>
 #include <string>
@@ -47,6 +46,7 @@
 #include "util/thread/thread_local.hpp"
 #include "util/thread/lock_guard.hpp"
 #include "channel/all_includes.hpp"
+#include "cache/cache_service.hpp"
 
 #define ARDB_OK 0
 #define ERR_INVALID_ARGS -3
@@ -190,17 +190,21 @@ namespace ardb
             int64 set_max_ziplist_entries;
             int64 set_max_ziplist_value;
 
+            int64 L1_cache_memory_limit;
+            int64 L1_cache_item_limit;
+
             bool check_type_before_set_string;
             ArdbConfig() :
                     hash_max_ziplist_entries(128), hash_max_ziplist_value(64), list_max_ziplist_entries(128), list_max_ziplist_value(
                             64), zset_max_ziplist_entries(128), zset_max_ziplist_value(64), set_max_ziplist_entries(
-                            128), set_max_ziplist_value(64),  check_type_before_set_string(
+                            128), set_max_ziplist_value(64), L1_cache_memory_limit(0), L1_cache_item_limit(0), check_type_before_set_string(
                             false)
             {
             }
     };
 
     class DBHelper;
+    class L1Cache;
     class Ardb
     {
         private:
@@ -250,14 +254,16 @@ namespace ardb
             int HGetValue(HashKeyObject& key, HashMetaValue* meta, CommonValueObject& value);
             int HSetValue(HashKeyObject& key, HashMetaValue* meta, CommonValueObject& value);
 
-            int TryZAdd(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score, const Slice& value,
-                    bool check_value);
-            uint32 ZRankByScore(const DBID& db, const Slice& key,ZSetMetaValue& meta, const ValueData& score, bool contains_score);
-            int ZGetByRank(const DBID& db, const Slice& key,ZSetMetaValue& meta, uint32 rank, ZSetElement& e);
+            int TryZAdd(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score,
+                    const Slice& value,const Slice& attr, bool check_value);
+            uint32 ZRankByScore(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score,
+                    bool contains_score);
+            int ZGetByRank(const DBID& db, const Slice& key, ZSetMetaValue& meta, uint32 rank, ZSetElement& e);
             int ZInsertRangeScore(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score);
             int ZDeleteRangeScore(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score);
             int ZRangeByScoreRange(const DBID& db, const Slice& key, const ZRangeSpec& range, Iterator*& iter,
-                                ValueDataArray& values, ZSetQueryOptions& options);
+                    ValueDataArray& values, ZSetQueryOptions& options, bool check_cache);
+            int ZGetNodeValue(const DBID& db, const Slice& key, const Slice& value, ValueData& score, ValueData& attr);
 
             int GetType(const DBID& db, const Slice& key, KeyType& type);
             int SetMeta(KeyObject& key, CommonMetaValue& meta);
@@ -290,6 +296,8 @@ namespace ardb
 
             int SLastMember(const DBID& db, const Slice& key, ValueData& member);
             int SFirstMember(const DBID& db, const Slice& key, ValueData& member);
+
+            int GetGeoPoint(const DBID& db, const Slice& key, const Slice& value, GeoPoint& point);
 
             /*
              * Set operation
@@ -384,8 +392,10 @@ namespace ardb
             };
             KeyLocker m_key_locker;
             DBHelper* m_db_helper;
+            L1Cache* m_level1_cahce;
             ArdbConfig m_config;
 
+            friend class L1Cache;
         public:
             Ardb(KeyValueEngineFactory* factory, bool multi_thread = true);
             ~Ardb();
@@ -394,6 +404,10 @@ namespace ardb
             const ArdbConfig& GetConfig() const
             {
                 return m_config;
+            }
+            L1Cache* GetL1Cache()
+            {
+                return m_level1_cahce;
             }
 
             int RawSet(const Slice& key, const Slice& value);
@@ -492,16 +506,17 @@ namespace ardb
             /*
              * Sorted Set operations
              */
-            int ZAdd(const DBID& db, const Slice& key, const ValueData& score, const Slice& value);
-            int ZAdd(const DBID& db, const Slice& key, ValueDataArray& scores, const SliceArray& svs);
-            int ZAddLimit(const DBID& db, const Slice& key, ValueDataArray& scores, const SliceArray& svs, int setlimit,
+            int ZAdd(const DBID& db, const Slice& key, const ValueData& score, const Slice& value, const Slice& attr = "");
+            int ZAdd(const DBID& db, const Slice& key, ValueDataArray& scores, const SliceArray& svs, const SliceArray& attrs);
+            int ZAddLimit(const DBID& db, const Slice& key, ValueDataArray& scores, const SliceArray& svs, const SliceArray& attrs, int setlimit,
                     ValueDataArray& pops);
             int ZCard(const DBID& db, const Slice& key);
             int ZScore(const DBID& db, const Slice& key, const Slice& value, ValueData& score);
             int ZRem(const DBID& db, const Slice& key, const Slice& value);
             int ZPop(const DBID& db, const Slice& key, bool reverse, uint32 num, ValueDataArray& pops);
             int ZCount(const DBID& db, const Slice& key, const std::string& min, const std::string& max);
-            int ZIncrby(const DBID& db, const Slice& key, const ValueData& increment, const Slice& value, ValueData& score);
+            int ZIncrby(const DBID& db, const Slice& key, const ValueData& increment, const Slice& value,
+                    ValueData& score);
             int ZRank(const DBID& db, const Slice& key, const Slice& member);
             int ZRevRank(const DBID& db, const Slice& key, const Slice& member);
             int ZRemRangeByRank(const DBID& db, const Slice& key, int start, int stop);
@@ -553,7 +568,10 @@ namespace ardb
             int SClear(const DBID& db, const Slice& key);
 
             int GeoAdd(const DBID& db, const Slice& key, const Slice& value, double x, double y);
-            int GeoSearch(const DBID& db, const Slice& key, double x, double y, const GeoSearchOptions& options, GeoPointArray& results);
+            int GeoSearch(const DBID& db, const Slice& key, const GeoSearchOptions& options, ValueDataDeque& results);
+
+            int Cache(const DBID& db, const Slice& key);
+            int Evict(const DBID& db, const Slice& key);
 
             int Type(const DBID& db, const Slice& key);
             int Sort(const DBID& db, const Slice& key, const StringArray& args, ValueDataArray& values);

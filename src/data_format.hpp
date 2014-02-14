@@ -304,6 +304,7 @@ namespace ardb
     {
             ValueData score;
             ValueData value;
+            ValueData attr;
             ZSetElement() :
                     score((int64) 0)
             {
@@ -341,20 +342,10 @@ namespace ardb
             {
                 score.Clear();
                 value.Clear();
+                attr.Clear();
             }
-        CODEC_DEFINE(score, value)
+        CODEC_DEFINE(score, value, attr)
     };
-
-//    struct ZSetLevelElement
-//    {
-//            ZSetElement forward;
-//            uint32 span;
-//            ZSetLevelElement() :
-//                    span(0)
-//            {
-//            }
-//    };
-//    typedef std::vector<ZSetLevelElement> ZSetLevelArray;
 
     struct ZRangeSpec
     {
@@ -383,13 +374,22 @@ namespace ardb
                 return false;
             }
     };
+
+    struct ZSetNodeValueObject: public ValueObject
+    {
+            ValueData score;
+            ValueData attr;CODEC_DEFINE(score, attr)
+            ;
+    };
+
     typedef std::deque<ZScoreRangeCounter> ZScoreRangeCounterArray;
     typedef std::deque<ZSetElement> ZSetElementDeque;
     typedef std::vector<ZSetElementDeque> ZSetElementDequeArray;
 
     struct ZSetKeyObject: public KeyObject
     {
-            ZSetElement e;
+            ValueData score;
+            ValueData value;
             ZSetKeyObject(const Slice& k, const ZSetElement& ee, DBID id);
             ZSetKeyObject(const Slice& k, const Slice& v, const ValueData& s, DBID id);
             ZSetKeyObject(const Slice& k, const ValueData& v, const ValueData& s, DBID id);
@@ -590,10 +590,11 @@ namespace ardb
     {
             bool withscores;
             bool withlimit;
+            bool withattr;
             int limit_offset;
             int limit_count;
             ZSetQueryOptions() :
-                    withscores(false), withlimit(false), limit_offset(0), limit_count(0)
+                    withscores(false), withlimit(false), withattr(false), limit_offset(0), limit_count(0)
             {
             }
     };
@@ -622,13 +623,24 @@ namespace ardb
     {
             bool nosort;
             bool asc;   //sort by asc
-            int64 radius;  //range meters
-            uint32 offset;
-            uint32 limit;
+            uint32 radius;  //range meters
+            int32 offset;
+            int32 limit;
+            bool by_member;
+            bool by_coodinates;
+            bool with_coodinates;
+            bool with_distance;
+
+            double x, y;
+            std::string member;
             GeoSearchOptions() :
-                    nosort(false), asc(false), radius(-1), offset(0), limit(10000)
+                    nosort(false), asc(false), radius(0), offset(0), limit(0), by_member(false), by_coodinates(false), with_coodinates(
+                            false), with_distance(false), x(0), y(0)
             {
             }
+
+            int Parse(const StringArray& args, std::string& err, uint32 off = 0);
+
     };
 
     struct GeoPoint
@@ -644,10 +656,10 @@ namespace ardb
              */
             double distance;
             GeoPoint() :
-                    x(0), y(0),mercator_x(0),mercator_y(0),distance(0)
+                    x(0), y(0), mercator_x(0), mercator_y(0), distance(0)
             {
             }
-            CODEC_DEFINE(value,x,y,mercator_x, mercator_y)
+        CODEC_DEFINE(x,y,mercator_x, mercator_y)
     };
     typedef std::deque<GeoPoint> GeoPointArray;
 

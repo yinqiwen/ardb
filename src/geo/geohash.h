@@ -27,40 +27,70 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef GEOHASH_HELPER_HPP_
-#define GEOHASH_HELPER_HPP_
+#ifndef GEOHASH_H_
+#define GEOHASH_H_
 
-#include "common.hpp"
-#include "geohash.h"
-#include <string>
-#include <vector>
+#include <stdint.h>
 
-namespace ardb
+#if defined(__cplusplus)
+extern "C"
 {
-    struct Position
-    {
-            double lat, lon;
-    };
+#endif
 
-    typedef uint64 GeoHashFix50Bits;
-    typedef uint64 GeoHashVarBits;
-    typedef std::vector<GeoHashFix50Bits> GeoHashBitsArray;
-    class GeoHashHelper
+    typedef enum
     {
-        private:
+        GEOHASH_NORTH = 0,
+        GEOHASH_EAST,
+        GEOHASH_WEST,
+        GEOHASH_SOUTH,
+        GEOHASH_SOUTH_WEST,
+        GEOHASH_SOUTH_EAST,
+        GEOHASH_NORT_WEST,
+        GEOHASH_NORT_EAST
+    } GeoDirection;
 
-        public:
-            /*
-             * return hash bits count
-             */
-            static int GetAreasByRadius(double latitude, double longitude, double radius_meters, GeoHashBitsArray& results);
-            static GeoHashFix50Bits GetFix50MercatorGeoHashBits(double latitude, double longitude);
-            static GeoHashFix50Bits GetFix50GeoHashBitsByHashString(const char* hash);
-            static GeoHashVarBits GetVarGeoHashBitsByHashString(const char* hash);
-            static double GetMercatorX(double longtitude);
-            static double GetMercatorY(double latitude);
-            static bool GetDistanceIfInRadius(double x1, double y1, double x2, double y2, double radius, double& distance);
-    };
+    typedef struct
+    {
+            uint64_t bits;
+            uint8_t step;
+    } GeoHashBits;
+
+    typedef struct
+    {
+            double max;
+            double min;
+    } GeoHashRange;
+
+    typedef struct
+    {
+            GeoHashBits hash;
+            GeoHashRange latitude;
+            GeoHashRange longitude;
+    } GeoHashArea;
+
+    typedef struct
+    {
+            GeoHashBits north;
+            GeoHashBits east;
+            GeoHashBits west;
+            GeoHashBits south;
+            GeoHashBits north_east;
+            GeoHashBits south_east;
+            GeoHashBits north_west;
+            GeoHashBits south_west;
+    } GeoHashNeighbors;
+
+    /*
+     * 0:success
+     * -1:failed
+     */
+    int geohash_encode(double latitude, double longitude, uint8_t step, GeoHashBits* hash);
+    int geohash_decode(const GeoHashBits* hash, GeoHashArea* area);
+    int geohash_mercator_encode(double latitude, double longitude, uint8_t step, GeoHashBits* hash);
+    int geohash_mercator_decode(const GeoHashBits* hash, GeoHashArea* area);
+    int geohash_get_neighbors(const GeoHashBits* hash, GeoHashNeighbors* neighbors);
+
+#if defined(__cplusplus)
 }
-
-#endif /* GEOHASH_HELPER_HPP_ */
+#endif
+#endif /* GEOHASH_H_ */

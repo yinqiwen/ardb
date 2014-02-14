@@ -74,7 +74,8 @@ LevelDB Options: block_cache_size=512m, write_buffer_size=512m, thread_pool_size
   - RESTORE
   - AUTH
   - CONFIG RESETSTAT
-  - DEBUG/MONITOR
+  - DEBUG
+  - MONITOR
  * Additional Commands:
   - HClear/SClear/ZClear/LClear
   - SUnionCount/SInterCount/SDiffCount

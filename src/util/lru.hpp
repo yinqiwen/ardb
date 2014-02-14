@@ -85,6 +85,11 @@ namespace ardb
 			{
 			    return m_cache_list;
 			}
+			bool Contains(const key_type& key)
+			{
+			    typename CacheEntryMap::iterator found = m_entry_map.find(key);
+			    return found != m_entry_map.end();
+			}
 			bool PopFront()
 			{
 			    CacheEntry value;
