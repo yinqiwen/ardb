@@ -29,6 +29,7 @@
 #include "geohash_helper.hpp"
 #include <math.h>
 #include <assert.h>
+#include <set>
 
 namespace ardb
 {
@@ -50,44 +51,9 @@ namespace ardb
         return longtitude * EARTH_RADIUS_IN_METERS * M_PI / 180;
     }
 
-//    static const char BASE32_DECODE_TABLE[44] =
-//        {
-//        /* 0 */0, /* 1 */1, /* 2 */2, /* 3 */3, /* 4 */4,
-//        /* 5 */5, /* 6 */6, /* 7 */7, /* 8 */8, /* 9 */9,
-//        /* : */-1, /* ; */-1, /* < */-1, /* = */-1, /* > */-1,
-//        /* ? */-1, /* @ */-1, /* A */-1, /* B */10, /* C */11,
-//        /* D */12, /* E */13, /* F */14, /* G */15, /* H */16,
-//        /* I */-1, /* J */17, /* K */18, /* L */-1, /* M */19,
-//        /* N */20, /* O */-1, /* P */21, /* Q */22, /* R */23,
-//        /* S */24, /* T */25, /* U */26, /* V */27, /* W */28,
-//        /* X */29, /* Y */30, /* Z */31 };
-//
-//    static inline double ArcInRadians(const Position& from, const Position& to)
-//    {
-//        double latitudeArc = (from.lat - to.lat) * DEG_TO_RAD;
-//        double longitudeArc = (from.lon - to.lon) * DEG_TO_RAD;
-//        double latitudeH = sin(latitudeArc * 0.5);
-//        latitudeH *= latitudeH;
-//        double lontitudeH = sin(longitudeArc * 0.5);
-//        lontitudeH *= lontitudeH;
-//        double tmp = cos(from.lat * DEG_TO_RAD) * cos(to.lat * DEG_TO_RAD);
-//        return 2.0 * asin(sqrt(latitudeH + tmp * lontitudeH));
-//    }
-//
-//    /** @brief Computes the distance, in meters, between two WGS-84 positions.
-//     *
-//     * The result is equal to <code>EARTH_RADIUS_IN_METERS*ArcInRadians(from,to)</code>
-//     *
-//     * @sa ArcInRadians
-//     */
-//    static inline double DistanceInMeters(const Position& from, const Position& to)
-//    {
-//        return EARTH_RADIUS_IN_METERS * ArcInRadians(from, to);
-//    }
-
-    static uint8 estimate_geohash_steps_by_radius(double range_meters)
+    static uint8_t estimate_geohash_steps_by_radius(double range_meters)
     {
-        uint8 step = 1;
+        uint8_t step = 1;
         double v = range_meters;
         while(v < MERCATOR_MAX)
         {
@@ -140,7 +106,7 @@ namespace ardb
         geohash_decode(&hash, &area);
         results.push_back(hash);
 
-        typedef TreeSet<uint64>::Type Neighbors;
+        typedef std::set<uint64_t> Neighbors;
         Neighbors neighbor_hashes;
         neighbor_hashes.insert(neighbors.east.bits);
         neighbor_hashes.insert(neighbors.west.bits);
@@ -200,7 +166,7 @@ namespace ardb
 
     GeoHashFix50Bits GeoHashHelper::Allign50Bits(const GeoHashBits& hash)
     {
-        uint64 bits = hash.bits;
+        uint64_t bits = hash.bits;
         bits <<= (50 - hash.step * 2);
         return bits;
     }
@@ -218,6 +184,5 @@ namespace ardb
         distance = sqrt(dd);
         return true;
     }
-
 }
 

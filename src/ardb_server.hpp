@@ -320,7 +320,6 @@ namespace ardb
                 }
                 return *block;
             }
-
             void ClearBlockList()
             {
                 DELETE(block);
@@ -329,7 +328,6 @@ namespace ardb
             {
                 DELETE(pubsub);
             }
-
             uint64 SubChannelSize()
             {
                 uint32 size = 0;
@@ -642,7 +640,6 @@ namespace ardb
             int GeoAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int GeoSearch(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int Cache(ArdbConnContext& ctx, RedisCommandFrame& cmd);
-            int Evict(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
             Timer& GetTimer();
 

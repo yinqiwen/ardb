@@ -80,6 +80,7 @@ namespace ardb
     {
             double score;
             std::string value;
+            std::string attr;
             ZSetCaheElement(double s = 0, const std::string v = "") :
                     score(s), value(v)
             {
@@ -98,17 +99,17 @@ namespace ardb
             }
     };
     typedef std::deque<ZSetCaheElement> ZSetCaheElementDeque;
-    class CacheService;
+    class L1Cache;
     class ZSetCache: public CacheItem
     {
         private:
             ZSetCaheElementDeque m_cache;
             //ThreadMutex m_cache_mutex;
-            friend class CacheService;
-            void DirectAdd(ValueData& score, ValueData& v);
+            friend class L1Cache;
+            void DirectAdd(ValueData& score, ValueData& v, ValueData& attr);
         public:
             ZSetCache();
-            void GetRange(const ZRangeSpec& range, bool with_scores, ValueDataArray& res);
+            void GetRange(const ZRangeSpec& range, bool with_scores, bool  with_attrs, ValueDataArray& res);
 
     };
 
@@ -116,7 +117,7 @@ namespace ardb
      * Only zset cache supported now
      */
     class Ardb;
-    class CacheService
+    class L1Cache
     {
         private:
             Ardb* m_db;
@@ -126,7 +127,7 @@ namespace ardb
 
             void LoadZSetCache(const DBItemKey& key, ZSetCache* item);
         public:
-            CacheService(Ardb* db);
+            L1Cache(Ardb* db);
             int Evict(const DBID& dbid, const Slice& key);
             int Load(const DBID& dbid, const Slice& key);
             bool IsCached(const DBID& dbid, const Slice& key);
@@ -136,7 +137,11 @@ namespace ardb
             {
                 return m_estimate_mem_size;
             }
-            ~CacheService();
+            uint32 GetEntrySize()
+            {
+                return m_cache.Size();
+            }
+            ~L1Cache();
     };
 }
 

@@ -51,7 +51,7 @@
 
 namespace ardb
 {
-    std::string ValueData::AsString()const
+    std::string ValueData::AsString() const
     {
         std::string str;
         ToString(str);
@@ -368,21 +368,22 @@ namespace ardb
     ZSetKeyObject::ZSetKeyObject(const Slice& k, const ValueData& v, const ValueData& s, DBID id) :
             KeyObject(k, ZSET_ELEMENT, id)
     {
-        e.score = s;
-        e.value = v;
+        score = s;
+        value = v;
     }
 
     ZSetKeyObject::ZSetKeyObject(const Slice& k, const ZSetElement& ee, DBID id) :
-            KeyObject(k, ZSET_ELEMENT, id), e(ee)
+            KeyObject(k, ZSET_ELEMENT, id)
     {
-
+        score = ee.score;
+        value = ee.value;
     }
 
     ZSetKeyObject::ZSetKeyObject(const Slice& k, const Slice& v, const ValueData& s, DBID id) :
             KeyObject(k, ZSET_ELEMENT, id)
     {
-        e.score = s;
-        e.value.SetValue(v, true);
+        score = s;
+        value.SetValue(v, true);
     }
 
     ZSetNodeKeyObject::ZSetNodeKeyObject(const Slice& k, const ValueData& v, DBID id) :
@@ -534,8 +535,8 @@ namespace ardb
             case ZSET_ELEMENT:
             {
                 const ZSetKeyObject& sk = (const ZSetKeyObject&) key;
-                encode_value(buf, sk.e.score);
-                encode_value(buf, sk.e.value);
+                encode_value(buf, sk.score);
+                encode_value(buf, sk.value);
                 break;
             }
             case ZSET_ELEMENT_NODE:
@@ -646,8 +647,8 @@ namespace ardb
             }
             case ZSET_ELEMENT:
             {
-                ZSetKeyObject* zsk = new ZSetKeyObject(keystr, Slice(), ValueData((int64)0), db);
-                if (!decode_value(buf, zsk->e.score) || !decode_value(buf, zsk->e.value))
+                ZSetKeyObject* zsk = new ZSetKeyObject(keystr, Slice(), ValueData((int64) 0), db);
+                if (!decode_value(buf, zsk->score) || !decode_value(buf, zsk->value))
                 {
                     DELETE(zsk);
                     return NULL;
@@ -864,10 +865,16 @@ namespace ardb
             {
                 return decode_meta(data, size, false);
             }
-
+            case ZSET_ELEMENT_NODE:
+            {
+                ZSetNodeValueObject* obj = new ZSetNodeValueObject;
+                obj->Decode(buffer);
+                return obj;
+                break;
+            }
             case HASH_FIELD:
             case LIST_ELEMENT:
-            case ZSET_ELEMENT_NODE:
+            case ZSET_ELEMENT:
             case SCRIPT:
             {
                 CommonValueObject* obj = new CommonValueObject;
@@ -880,7 +887,6 @@ namespace ardb
                 obj->Decode(buffer);
                 return obj;
             }
-            case ZSET_ELEMENT:
             case KEY_EXPIRATION_ELEMENT:
             case SET_ELEMENT:
             default:
@@ -925,5 +931,74 @@ namespace ardb
         value.SetValue(v, true);
     }
 
+    int GeoSearchOptions::Parse(const StringArray& args, std::string& err, uint32 off)
+    {
+        for (uint32 i = off; i < args.size(); i++)
+        {
+            if (!strcasecmp(args[i].c_str(), "asc"))
+            {
+                nosort = false;
+                asc = true;
+            }
+            else if (!strcasecmp(args[i].c_str(), "desc"))
+            {
+                asc = false;
+                nosort = false;
+            }
+            else if (!strcasecmp(args[i].c_str(), "nosort"))
+            {
+                nosort = true;
+            }
+            else if (!strcasecmp(args[i].c_str(), "limit") && i < args.size() - 2)
+            {
+                if (!string_toint32(args[i + 1], offset) || !string_toint32(args[i + 2], limit))
+                {
+                    err = "Invalid limit/offset value.";
+                    return -1;
+                }
+                i += 2;
+            }
+            else if (!strcasecmp(args[i].c_str(), "WITHCOODINATES"))
+            {
+                with_coodinates = true;
+            }
+            else if (!strcasecmp(args[i].c_str(), "WITHDISTANCES"))
+            {
+                with_distance = true;
+            }
+            else if (!strcasecmp(args[i].c_str(), "RADIUS") && i < args.size() - 1)
+            {
+                if (!string_touint32(args[i + 1], radius))
+                {
+                    err = "Invalid radius value.";
+                    return -1;
+                }
+                i++;
+            }
+            else if (!strcasecmp(args[i].c_str(), "LOCATION") && i < args.size() - 2)
+            {
+                if (!string_todouble(args[i + 1], x) || !string_todouble(args[i + 2], y))
+                {
+                    err = "Invalid location value.";
+                    return -1;
+                }
+                by_coodinates = true;
+                i += 2;
+            }
+            else if (!strcasecmp(args[i].c_str(), "MEMBER") && i < args.size() - 1)
+            {
+                member = args[i + 1];
+                by_member = true;
+                i++;
+            }
+            else
+            {
+                DEBUG_LOG("Invalid geosearch option:%s", args[i].c_str());
+                err = "Invalid geosearch options.";
+                return -1;
+            }
+        }
+        return 0;
+    }
 }
 

@@ -1298,8 +1298,8 @@ namespace ardb
 								                db->ZCard(key->db, key->key)));
 							}
 							ZSetKeyObject* zk = (ZSetKeyObject*) key;
-							DUMP_CHECK_WRITE(r.WriteStringObject(zk->e.value));
-							DUMP_CHECK_WRITE(r.WriteDouble(zk->e.score.NumberValue()));
+							DUMP_CHECK_WRITE(r.WriteStringObject(zk->value));
+							DUMP_CHECK_WRITE(r.WriteDouble(zk->score.NumberValue()));
 							break;
 						}
 						case HASH_FIELD:

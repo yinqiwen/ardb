@@ -666,7 +666,7 @@ namespace ardb
         {
             return m_level1_cahce->Load(db, key);
         }
-        return 0;
+        return -1;
     }
     int Ardb::Evict(const DBID& db, const Slice& key)
     {
@@ -674,7 +674,7 @@ namespace ardb
         {
             return m_level1_cahce->Evict(db, key);
         }
-        return 0;
+        return -1;
     }
 }
 

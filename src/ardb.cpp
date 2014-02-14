@@ -81,7 +81,7 @@ namespace ardb
                 NEW(m_db_helper, DBHelper(this));
                 if(m_config.L1_cache_item_limit > 0 && m_config.L1_cache_memory_limit > 0)
                 {
-                    NEW(m_level1_cahce, CacheService(this));
+                    NEW(m_level1_cahce, L1Cache(this));
                 }
                 m_db_helper->Start();
                 INFO_LOG("Init storage engine success.");

@@ -38,36 +38,34 @@ namespace ardb
         m_estimate_mem_size = sizeof(ZSetCache);
     }
 
-    void ZSetCache::DirectAdd(ValueData& score, ValueData& v)
+    void ZSetCache::DirectAdd(ValueData& score, ValueData& v, ValueData& attr)
     {
-        Buffer buf;
-        v.Encode(buf);
+        Buffer buf1, buf2;
+        v.Encode(buf1);
+        attr.Encode(buf2);
         ZSetCaheElement e;
-        e.value.assign(buf.GetRawReadBuffer(), buf.ReadableBytes());
+        e.value.assign(buf1.GetRawReadBuffer(), buf1.ReadableBytes());
         e.score = score.NumberValue();
+        e.attr.assign(buf2.GetRawReadBuffer(), buf2.ReadableBytes());
         m_cache.push_back(e);
         m_estimate_mem_size += sizeof(ZSetCaheElement);
         m_estimate_mem_size += e.value.size();
+        m_estimate_mem_size += e.attr.size();
     }
 
-    void ZSetCache::GetRange(const ZRangeSpec& range, bool with_scores,
-            ValueDataArray& res)
+    void ZSetCache::GetRange(const ZRangeSpec& range, bool with_scores, bool with_attrs, ValueDataArray& res)
     {
         ZSetCaheElement min_ele(range.min.NumberValue(), "");
         ZSetCaheElement max_ele(range.max.NumberValue(), "");
-        ZSetCaheElementDeque::iterator min_it = std::lower_bound(
-                m_cache.begin(), m_cache.end(), min_ele);
-        ZSetCaheElementDeque::iterator max_it = std::lower_bound(
-                m_cache.begin(), m_cache.end(), max_ele);
+        ZSetCaheElementDeque::iterator min_it = std::lower_bound(m_cache.begin(), m_cache.end(), min_ele);
+        ZSetCaheElementDeque::iterator max_it = std::lower_bound(m_cache.begin(), m_cache.end(), max_ele);
         if (min_it != m_cache.end())
         {
-            while (!range.contain_min && min_it != m_cache.end()
-                    && min_it->score == range.min.NumberValue())
+            while (!range.contain_min && min_it != m_cache.end() && min_it->score == range.min.NumberValue())
             {
                 min_it++;
             }
-            while (!range.contain_max && max_it != m_cache.end()
-                    && max_it->score == range.max.NumberValue())
+            while (!range.contain_max && max_it != m_cache.end() && max_it->score == range.max.NumberValue())
             {
                 max_it--;
             }
@@ -83,6 +81,13 @@ namespace ardb
                     score.SetDoubleValue(min_it->score);
                     res.push_back(score);
                 }
+                if (with_attrs)
+                {
+                    ValueData attr_value;
+                    Buffer attr_buf(const_cast<char*>(min_it->attr.data()), 0, min_it->attr.size());
+                    attr_value.Decode(attr_buf);
+                    res.push_back(attr_value);
+                }
                 min_it++;
             }
         }
@@ -93,16 +98,16 @@ namespace ardb
         return sizeof(key) + key.key.size();
     }
 
-    CacheService::CacheService(Ardb* db) :
+    L1Cache::L1Cache(Ardb* db) :
             m_db(db), m_estimate_mem_size(0)
     {
     }
 
-    CacheService::~CacheService()
+    L1Cache::~L1Cache()
     {
     }
 
-    int CacheService::Evict(const DBID& dbid, const Slice& key)
+    int L1Cache::Evict(const DBID& dbid, const Slice& key)
     {
         DBItemKey cache_key(dbid, key);
         LockGuard<ThreadMutex> guard(m_cache_mutex);
@@ -117,11 +122,12 @@ namespace ardb
         return 0;
     }
 
-    void CacheService::LoadZSetCache(const DBItemKey& key, ZSetCache* item)
+    void L1Cache::LoadZSetCache(const DBItemKey& key, ZSetCache* item)
     {
         //m_db->ZRangeByScoreRange();
         ZSetQueryOptions z_options;
         z_options.withscores = true;
+        z_options.withattr = true;
         ValueDataArray values;
         Iterator* iter = NULL;
         ZRangeSpec range;
@@ -129,8 +135,7 @@ namespace ardb
         range.contain_max = false;
         range.min.SetDoubleValue(-DBL_MAX);
         range.max.SetDoubleValue(DBL_MAX);
-        m_db->ZRangeByScoreRange(key.db, key.key, range, iter, values,
-                z_options, false);
+        m_db->ZRangeByScoreRange(key.db, key.key, range, iter, values, z_options, false);
         DELETE(iter);
         ValueDataArray::iterator vit = values.begin();
         while (vit != values.end())
@@ -139,14 +144,15 @@ namespace ardb
             vit++;
             ValueData& score = *vit;
             vit++;
-            item->DirectAdd(score, v);
+            ValueData& attr = *vit;
+            vit++;
+            item->DirectAdd(score, v, attr);
         }
     }
 
-    int CacheService::Load(const DBID& dbid, const Slice& key)
+    int L1Cache::Load(const DBID& dbid, const Slice& key)
     {
-        if (m_db->m_config.L1_cache_item_limit <= 0
-                || m_db->m_config.L1_cache_memory_limit <= 0)
+        if (m_db->m_config.L1_cache_item_limit <= 0 || m_db->m_config.L1_cache_memory_limit <= 0)
         {
             return ERR_INVALID_OPERATION;
         }
@@ -186,14 +192,13 @@ namespace ardb
         }
         return 0;
     }
-    bool CacheService::IsCached(const DBID& dbid, const Slice& key)
+    bool L1Cache::IsCached(const DBID& dbid, const Slice& key)
     {
         DBItemKey cache_key(dbid, key);
         LockGuard<ThreadMutex> guard(m_cache_mutex);
         return m_cache.Contains(cache_key);
     }
-    CacheItem* CacheService::Get(const DBID& dbid, const Slice& key,
-            KeyType type)
+    CacheItem* L1Cache::Get(const DBID& dbid, const Slice& key, KeyType type)
     {
         DBItemKey cache_key(dbid, key);
         LockGuard<ThreadMutex> guard(m_cache_mutex);
@@ -205,7 +210,7 @@ namespace ardb
         }
         return item;
     }
-    void CacheService::Recycle(CacheItem* item)
+    void L1Cache::Recycle(CacheItem* item)
     {
         if (NULL != item)
         {

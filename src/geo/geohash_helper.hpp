@@ -30,7 +30,6 @@
 #ifndef GEOHASH_HELPER_HPP_
 #define GEOHASH_HELPER_HPP_
 
-#include "common.hpp"
 #include "geohash.h"
 #include <string>
 #include <vector>
@@ -42,8 +41,8 @@ namespace ardb
             double lat, lon;
     };
 
-    typedef uint64 GeoHashFix50Bits;
-    typedef uint64 GeoHashVarBits;
+    typedef uint64_t GeoHashFix50Bits;
+    typedef uint64_t GeoHashVarBits;
     typedef std::vector<GeoHashBits> GeoHashBitsArray;
     class GeoHashHelper
     {

@@ -39,7 +39,6 @@ namespace ardb
         ValueData score_value;
         score_value.SetIntValue((int64) score);
         GeoPoint point;
-        point.value.assign(value.data(), value.size());
         point.x = x;
         point.y = y;
         point.mercator_x = GeoHashHelper::GetMercatorX(x);
@@ -47,7 +46,7 @@ namespace ardb
         Buffer content;
         point.Encode(content);
         Slice content_value(content.GetRawReadBuffer(), content.ReadableBytes());
-        return ZAdd(db, key, score_value, content_value);
+        return ZAdd(db, key, score_value, value, content_value);
     }
 
     static bool less_by_bits(const GeoHashBits& v1, const GeoHashBits& v2)
@@ -65,13 +64,39 @@ namespace ardb
         return v1.distance > v2.distance;
     }
 
-    int Ardb::GeoSearch(const DBID& db, const Slice& key, double x, double y, const GeoSearchOptions& options,
-            GeoPointArray& results)
+    int Ardb::GetGeoPoint(const DBID& db, const Slice& key, const Slice& value, GeoPoint& point)
+    {
+        return 0;
+    }
+
+    int Ardb::GeoSearch(const DBID& db, const Slice& key, const GeoSearchOptions& options, ValueDataDeque& results)
     {
         GeoHashBitsArray ress;
-        double mercator_x = GeoHashHelper::GetMercatorX(x);
-        double mercator_y = GeoHashHelper::GetMercatorY(y);
+        double mercator_x, mercator_y;
+        if (options.by_coodinates)
+        {
+            mercator_x = GeoHashHelper::GetMercatorX(options.x);
+            mercator_y = GeoHashHelper::GetMercatorY(options.y);
+        }
+        else
+        {
+            ValueData score, attr;
+            int err = ZGetNodeValue(db, key, options.member, score, attr);
+            if(0 != err)
+            {
+                return err;
+            }
+            Buffer attr_content(const_cast<char*>(attr.bytes_value.data()), 0, attr.bytes_value.size());
+            GeoPoint point;
+            point.Decode(attr_content);
+            mercator_x = point.mercator_x;
+            mercator_y = point.mercator_y;
+        }
         GeoHashHelper::GetAreasByRadius(mercator_y, mercator_x, options.radius, ress);
+
+        /*
+         * Merge areas if possible to avoid disk search
+         */
         std::sort(ress.begin(), ress.end(), less_by_bits);
         std::vector<ZRangeSpec> range_array;
         for (uint32 i = 0; i < ress.size(); i++)
@@ -92,26 +117,29 @@ namespace ardb
             range_array.push_back(range);
         }
 
+        GeoPointArray points;
         std::vector<ZRangeSpec>::iterator hit = range_array.begin();
         Iterator* iter = NULL;
         while (hit != range_array.end())
         {
-            //INFO_LOG("Search hash:%lld->%lld", hit->min.integer_value, hit->max.integer_value);
             ZSetQueryOptions z_options;
             z_options.withscores = false;
+            z_options.withattr = true;
             ValueDataArray values;
             ZRangeByScoreRange(db, key, *hit, iter, values, z_options, true);
             ValueDataArray::iterator vit = values.begin();
             while (vit != values.end())
             {
-                Buffer content(const_cast<char*>(vit->bytes_value.data()), 0, vit->bytes_value.size());
                 GeoPoint point;
+                vit->ToString(point.value);
+                vit++;
+                Buffer content(const_cast<char*>(vit->bytes_value.data()), 0, vit->bytes_value.size());
                 if (point.Decode(content))
                 {
                     if (GeoHashHelper::GetDistanceIfInRadius(mercator_x, mercator_y, point.mercator_x, point.mercator_y,
                             options.radius, point.distance))
                     {
-                        results.push_back(point);
+                        points.push_back(point);
                     }
                     else
                     {
@@ -129,27 +157,49 @@ namespace ardb
         DELETE(iter);
         if (!options.nosort)
         {
-            std::sort(results.begin(), results.end(), options.asc ? less_by_distance : great_by_distance);
+            std::sort(points.begin(), points.end(), options.asc ? less_by_distance : great_by_distance);
         }
         if (options.offset > 0)
         {
-            if (options.offset > results.size())
+            if (options.offset > points.size())
             {
-                results.clear();
+                points.clear();
             }
             else
             {
-                GeoPointArray::iterator start = results.begin() + options.offset;
-                results.erase(results.begin(), start);
+                GeoPointArray::iterator start = points.begin() + options.offset;
+                points.erase(points.begin(), start);
             }
         }
         if (options.limit > 0)
         {
-            if (options.limit < results.size())
+            if (options.limit < points.size())
             {
-                GeoPointArray::iterator end = results.begin() + options.limit;
-                results.erase(end, results.end());
+                GeoPointArray::iterator end = points.begin() + options.limit;
+                points.erase(end, points.end());
             }
+        }
+        GeoPointArray::iterator pit = points.begin();
+        while(pit != points.end())
+        {
+            ValueData v;
+            v.SetValue(pit->value, false);
+            results.push_back(v);
+            if(options.with_coodinates)
+            {
+                ValueData x, y;
+                x.SetDoubleValue(pit->x);
+                y.SetDoubleValue(pit->y);
+                results.push_back(x);
+                results.push_back(y);
+            }
+            if(options.with_distance)
+            {
+                ValueData dis;
+                dis.SetDoubleValue(pit->distance);
+                results.push_back(dis);
+            }
+            pit++;
         }
         return 0;
     }
