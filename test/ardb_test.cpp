@@ -63,6 +63,8 @@ int main(int argc, char** argv)
 	config.zset_max_ziplist_entries = 16;
 	config.set_max_ziplist_entries = 16;
 	config.list_max_ziplist_entries = 16;
+	config.L1_cache_item_limit = 10000;
+	config.L1_cache_memory_limit = 1024*1024*1024;
 	db.Init(config);
 	test_all(db);
 	return 0;
