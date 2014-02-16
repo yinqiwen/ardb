@@ -419,7 +419,7 @@ namespace ardb
         int ret = 0;
         if (at != KEY_EXPIRATION_ELEMENT)
         {
-            ret = COMPARE_SLICE(akey, bkey);
+            ret = akey.compare(bkey);
         }
         if (ret != 0)
         {
@@ -481,7 +481,7 @@ namespace ardb
                 ret = COMPARE_NUMBER(aexpire, bexpire);
                 if (ret == 0)
                 {
-                    ret = COMPARE_SLICE(akey, bkey);
+                    ret = akey.compare(bkey);
                 }
                 break;
             }

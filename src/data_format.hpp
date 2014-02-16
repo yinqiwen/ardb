@@ -54,7 +54,7 @@
 
 #define COMPARE_NUMBER(a, b)  (a == b?0:(a>b?1:-1))
 
-#define COMPARE_SLICE(a, b)  (a.size() == b.size()?(a.compare(b)):(a.size()>b.size()?1:-1))
+//#define COMPARE_SLICE(a, b)  (a.size() == b.size()?(a.compare(b)):(a.size()>b.size()?1:-1))
 
 #define ZSET_ENCODING_ZIPLIST  1
 #define ZSET_ENCODING_HASH     2
