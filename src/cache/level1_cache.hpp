@@ -151,7 +151,7 @@ namespace ardb
             void OnSoftSignal(uint32 soft_signo, uint32 appendinfo);
             int DoEvict(const DBID& dbid, const Slice& key);
             int DoLoad(const DBID& dbid, const Slice& key);
-            int PeekCacheStatus(const DBID& dbid, const Slice& key, uint8 status);
+            int PeekCacheStatus(const DBID& dbid, const Slice& key, uint8& status);
             void PushInst(const CacheInstruction& inst);
             bool IsInCache(const DBID& dbid, const Slice& key);
         public:

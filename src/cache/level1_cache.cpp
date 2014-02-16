@@ -226,7 +226,7 @@ namespace ardb
         return 0;
     }
 
-    int L1Cache::PeekCacheStatus(const DBID& dbid, const Slice& key, uint8 status)
+    int L1Cache::PeekCacheStatus(const DBID& dbid, const Slice& key, uint8& status)
     {
         DBItemKey cache_key(dbid, key);
         LockGuard<ThreadMutex> guard(m_cache_mutex);
@@ -236,7 +236,8 @@ namespace ardb
         {
             return -1;
         }
-        return item->GetStatus();
+        status = item->GetStatus();
+        return 0;
     }
 
     bool L1Cache::IsCached(const DBID& dbid, const Slice& key)
