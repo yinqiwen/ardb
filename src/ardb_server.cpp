@@ -3316,11 +3316,11 @@ namespace ardb
         int ret = 0;
         if (!strcasecmp(cmd.GetArguments()[0].c_str(), "load"))
         {
-            ret = m_db->Cache(ctx.currentDB, cmd.GetArguments()[1]);
+            ret = m_db->CacheLoad(ctx.currentDB, cmd.GetArguments()[1]);
         }
         else if (!strcasecmp(cmd.GetArguments()[0].c_str(), "evict"))
         {
-            ret = m_db->Evict(ctx.currentDB, cmd.GetArguments()[0]);
+            ret = m_db->CacheEvict(ctx.currentDB, cmd.GetArguments()[0]);
         }
         else
         {

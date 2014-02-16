@@ -1,8 +1,30 @@
 /*
- * db_helpers.hpp
+ *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
+ *All rights reserved.
  *
- *  Created on: 2013-12-10
- *      Author: wqy
+ *Redistribution and use in source and binary forms, with or without
+ *modification, are permitted provided that the following conditions are met:
+ *
+ *  * Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ *  * Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *  * Neither the name of Redis nor the names of its contributors may be used
+ *    to endorse or promote products derived from this software without
+ *    specific prior written permission.
+ *
+ *THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ *AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ *IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ *ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+ *BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ *CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ *SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ *INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ *CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+ *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #ifndef DB_HELPERS_HPP_
@@ -33,47 +55,19 @@ namespace ardb
             ExpireCheck(Ardb* db);
     };
 
-//    class ZSetScoresCacheManager: public Runnable
-//    {
-//        private:
-//            Ardb* m_db;
-//            LRUCache<DBItemKey, DoubleDeque*> m_cache;
-//            typedef LRUCache<DBItemKey, DoubleDeque*>::CacheEntry ScoreCacheEntry;
-//            uint32 m_estimate_memory;
-//            ThreadMutex m_cache_mutex;
-//            DoubleDeque* GetEntry(const DBItemKey& key, ZSetMetaValue& meta, bool create_if_noexist);
-//            void EraseOldestScores();
-//            void Run();
-//        public:
-//            ZSetScoresCacheManager(Ardb* db);
-//            int Replace(const DBID& db, const Slice& key, ZSetMetaValue& meta, double old_score, double new_score);
-//            int Insert(const DBID& db, const Slice& key, ZSetMetaValue& meta, double score);
-//            int Remove(const DBID& db, const Slice& key, ZSetMetaValue& meta, double score);
-//            int RemoveScores(const DBID& db, const Slice& key, ZSetMetaValue& meta, DoubleDeque& score);
-//            int RemoveAll(const DBID& db, const Slice& key);
-//            int Rank(const DBID& db, const Slice& key, ZSetMetaValue& meta, double score);
-//            int RevRank(const DBID& db, const Slice& key, ZSetMetaValue& meta, double score);
-//            int Range(const DBID& db, const Slice& key, ZSetMetaValue& meta, double min, double max,
-//                    DoubleDeque& result);
-//            int RangeByRank(const DBID& db, const Slice& key, ZSetMetaValue& meta, uint32 start, uint32 stop,
-//                    DoubleDeque& result);
-//            int GetScoresByRanks(const DBID& db, const Slice& key, ZSetMetaValue& meta, const UInt32Array& ranks,
-//                    DoubleDeque& result);
-//            int GetScoresByRevRanks(const DBID& db, const Slice& key, ZSetMetaValue& meta, const UInt32Array& ranks,
-//                    DoubleDeque& result);
-//            ~ZSetScoresCacheManager();
-//    };
-
     class DBHelper: public Thread
     {
         private:
             ChannelService m_serv;
             Ardb* m_db;
             ExpireCheck m_expire_check;
-//            ZSetScoresCacheManager m_zset_scores_cache;
             void Run();
         public:
             DBHelper(Ardb* db);
+            ChannelService& GetChannelService()
+            {
+                return m_serv;
+            }
             void StopSelf();
     };
 }

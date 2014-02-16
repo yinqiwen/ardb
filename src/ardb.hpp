@@ -46,7 +46,7 @@
 #include "util/thread/thread_local.hpp"
 #include "util/thread/lock_guard.hpp"
 #include "channel/all_includes.hpp"
-#include "cache/cache_service.hpp"
+#include "cache/level1_cache.hpp"
 
 #define ARDB_OK 0
 #define ERR_INVALID_ARGS -3
@@ -570,8 +570,8 @@ namespace ardb
             int GeoAdd(const DBID& db, const Slice& key, const Slice& value, double x, double y);
             int GeoSearch(const DBID& db, const Slice& key, const GeoSearchOptions& options, ValueDataDeque& results);
 
-            int Cache(const DBID& db, const Slice& key);
-            int Evict(const DBID& db, const Slice& key);
+            int CacheLoad(const DBID& db, const Slice& key);
+            int CacheEvict(const DBID& db, const Slice& key);
 
             int Type(const DBID& db, const Slice& key);
             int Sort(const DBID& db, const Slice& key, const StringArray& args, ValueDataArray& values);

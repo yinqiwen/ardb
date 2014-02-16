@@ -161,7 +161,7 @@ namespace ardb
         }
         if (options.offset > 0)
         {
-            if (options.offset > points.size())
+            if ((uint32)options.offset > points.size())
             {
                 points.clear();
             }
@@ -173,7 +173,7 @@ namespace ardb
         }
         if (options.limit > 0)
         {
-            if (options.limit < points.size())
+            if ((uint32)options.limit < points.size())
             {
                 GeoPointArray::iterator end = points.begin() + options.limit;
                 points.erase(end, points.end());

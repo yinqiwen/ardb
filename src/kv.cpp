@@ -660,7 +660,7 @@ namespace ardb
         return -1;
     }
 
-    int Ardb::Cache(const DBID& db, const Slice& key)
+    int Ardb::CacheLoad(const DBID& db, const Slice& key)
     {
         if (NULL != m_level1_cahce)
         {
@@ -668,7 +668,7 @@ namespace ardb
         }
         return -1;
     }
-    int Ardb::Evict(const DBID& db, const Slice& key)
+    int Ardb::CacheEvict(const DBID& db, const Slice& key)
     {
         if (NULL != m_level1_cahce)
         {

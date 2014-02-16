@@ -37,9 +37,18 @@
 #include "util/thread/thread_mutex.hpp"
 #include "util/thread/thread_mutex_lock.hpp"
 #include "util/thread/thread_local.hpp"
+#include "util/concurrent_queue.hpp"
+#include "channel/all_includes.hpp"
 
 namespace ardb
 {
+    struct CacheInstruction
+    {
+            DBID db;
+            std::string key;
+            uint8 type;
+    };
+
     class CacheItem
     {
         protected:
@@ -47,9 +56,10 @@ namespace ardb
         private:
             uint32 m_ref;
             uint8 m_type;
+            uint8 m_status;
         public:
             CacheItem(uint8 type) :
-                    m_estimate_mem_size(0), m_ref(1), m_type(type)
+                    m_estimate_mem_size(0), m_ref(1), m_type(type), m_status(0)
             {
             }
             virtual ~CacheItem()
@@ -58,6 +68,14 @@ namespace ardb
             uint8 GetType()
             {
                 return m_type;
+            }
+            uint8 GetStatus()
+            {
+                return m_status;
+            }
+            void SetStatus(uint8 status)
+            {
+                m_status = status;
             }
             uint32 GetEstimateMemorySize()
             {
@@ -104,12 +122,11 @@ namespace ardb
     {
         private:
             ZSetCaheElementDeque m_cache;
-            //ThreadMutex m_cache_mutex;
             friend class L1Cache;
             void DirectAdd(ValueData& score, ValueData& v, ValueData& attr);
         public:
             ZSetCache();
-            void GetRange(const ZRangeSpec& range, bool with_scores, bool  with_attrs, ValueDataArray& res);
+            void GetRange(const ZRangeSpec& range, bool with_scores, bool with_attrs, ValueDataArray& res);
 
     };
 
@@ -117,19 +134,34 @@ namespace ardb
      * Only zset cache supported now
      */
     class Ardb;
-    class L1Cache
+    class L1Cache: public Runnable, public SoftSignalHandler
     {
         private:
+            ChannelService& m_serv;
             Ardb* m_db;
             uint32_t m_estimate_mem_size;
+            SoftSignalChannel* m_signal_notifier;
+            MPSCQueue<CacheInstruction> m_inst_queue;
+
             LRUCache<DBItemKey, CacheItem*> m_cache;
             ThreadMutex m_cache_mutex;
-
             void LoadZSetCache(const DBItemKey& key, ZSetCache* item);
+            void Run();
+            void CheckInstQueue();
+            void OnSoftSignal(uint32 soft_signo, uint32 appendinfo);
+            int DoEvict(const DBID& dbid, const Slice& key);
+            int DoLoad(const DBID& dbid, const Slice& key);
+            int PeekCacheStatus(const DBID& dbid, const Slice& key, uint8 status);
+            void PushInst(const CacheInstruction& inst);
+            bool IsInCache(const DBID& dbid, const Slice& key);
         public:
             L1Cache(Ardb* db);
             int Evict(const DBID& dbid, const Slice& key);
             int Load(const DBID& dbid, const Slice& key);
+            /*
+             * just for testing, do not invoke in ardb-server
+             */
+            int SyncLoad(const DBID& dbid, const Slice& key);
             bool IsCached(const DBID& dbid, const Slice& key);
             CacheItem* Get(const DBID& dbid, const Slice& key, KeyType type);
             void Recycle(CacheItem* item);
