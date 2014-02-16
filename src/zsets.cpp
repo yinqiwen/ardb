@@ -1418,8 +1418,7 @@ namespace ardb
                             if (options.withattr)
                             {
                                 Slice tmpvalue = iter->Value();
-                                ValueObject* v = decode_value_obj(zsk->type, iter->Value().data(),
-                                        iter->Value().size());
+                                ValueObject* v = decode_value_obj(zsk->type, tmpvalue.data(), tmpvalue.size());
                                 CommonValueObject* cv = (CommonValueObject*) v;
                                 values.push_back(cv->data);
                                 DELETE(cv);
