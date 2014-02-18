@@ -64,11 +64,6 @@ namespace ardb
         return v1.distance > v2.distance;
     }
 
-    int Ardb::GetGeoPoint(const DBID& db, const Slice& key, const Slice& value, GeoPoint& point)
-    {
-        return 0;
-    }
-
     int Ardb::GeoSearch(const DBID& db, const Slice& key, const GeoSearchOptions& options, ValueDataDeque& results)
     {
         GeoHashBitsArray ress;

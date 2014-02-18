@@ -297,8 +297,6 @@ namespace ardb
             int SLastMember(const DBID& db, const Slice& key, ValueData& member);
             int SFirstMember(const DBID& db, const Slice& key, ValueData& member);
 
-            int GetGeoPoint(const DBID& db, const Slice& key, const Slice& value, GeoPoint& point);
-
             /*
              * Set operation
              */
@@ -572,6 +570,7 @@ namespace ardb
 
             int CacheLoad(const DBID& db, const Slice& key);
             int CacheEvict(const DBID& db, const Slice& key);
+            int CacheStatus(const DBID& db, const Slice& key, std::string& status);
 
             int Type(const DBID& db, const Slice& key);
             int Sort(const DBID& db, const Slice& key, const StringArray& args, ValueDataArray& values);

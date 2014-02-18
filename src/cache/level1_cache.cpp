@@ -38,8 +38,6 @@ namespace ardb
 
     static const uint32 kCacheSignal = 1;
 
-    static const uint8 kCacheLoading = 1;
-    static const uint8 kCacheLoaded = 2;
 
     static inline uint32 SizeOfDBItemKey(const DBItemKey& key)
     {
@@ -134,7 +132,7 @@ namespace ardb
         ZSetCache* item = NULL;
         DBItemKey cache_key(dbid, key);
         NEW(item, ZSetCache);
-        item->SetStatus(kCacheLoading);
+        item->SetStatus(L1_CACHE_LOADING);
         LRUCache<DBItemKey, CacheItem*>::CacheEntry entry;
         {
             LockGuard<ThreadMutex> guard(m_cache_mutex);
@@ -146,7 +144,7 @@ namespace ardb
             }
         }
         LoadZSetCache(cache_key, item);
-        item->SetStatus(kCacheLoaded);
+        item->SetStatus(L1_CACHE_LOADED);
         m_estimate_mem_size += item->GetEstimateMemorySize();
         m_estimate_mem_size += SizeOfDBItemKey(cache_key);
         if (m_estimate_mem_size > m_db->m_config.L1_cache_memory_limit)
@@ -243,7 +241,7 @@ namespace ardb
     bool L1Cache::IsCached(const DBID& dbid, const Slice& key)
     {
         uint8 status = 0;
-        return 0 == PeekCacheStatus(dbid, key, status) && status == kCacheLoaded;
+        return 0 == PeekCacheStatus(dbid, key, status) && status == L1_CACHE_LOADED;
     }
     CacheItem* L1Cache::Get(const DBID& dbid, const Slice& key, KeyType type)
     {
@@ -251,7 +249,7 @@ namespace ardb
         LockGuard<ThreadMutex> guard(m_cache_mutex);
         CacheItem* item = NULL;
         m_cache.Get(cache_key, item);
-        if (NULL != item && item->GetType() == type && item->GetStatus() == kCacheLoaded)
+        if (NULL != item && item->GetType() == type && item->GetStatus() == L1_CACHE_LOADED)
         {
             item->IncRef();
             return item;

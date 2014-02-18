@@ -679,5 +679,38 @@ namespace ardb
         }
         return -1;
     }
+
+    int Ardb::CacheStatus(const DBID& db, const Slice& key, std::string& status)
+    {
+        if (NULL != m_level1_cahce)
+        {
+            uint8 st = 0;
+            int ret = m_level1_cahce->PeekCacheStatus(db, key, st);
+            if(ret != 0)
+            {
+                return ret;
+            }
+            switch(st)
+            {
+                case L1_CACHE_LOADING:
+                {
+                    status = "loading";
+                    break;
+                }
+                case L1_CACHE_LOADED:
+                {
+                    status = "loaded";
+                    break;
+                }
+                default:
+                {
+                    status = "unknown";
+                    break;
+                }
+            }
+            return 0;
+        }
+        return -1;
+    }
 }
 

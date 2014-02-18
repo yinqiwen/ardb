@@ -3278,7 +3278,7 @@ namespace ardb
             return 0;
         }
         int ret = m_db->GeoAdd(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[3], x, y);
-        if (ret == 0)
+        if (ret >= 0)
         {
             fill_status_reply(ctx.reply, "OK");
         }
@@ -3321,6 +3321,16 @@ namespace ardb
         else if (!strcasecmp(cmd.GetArguments()[0].c_str(), "evict"))
         {
             ret = m_db->CacheEvict(ctx.currentDB, cmd.GetArguments()[0]);
+        }
+        else if (!strcasecmp(cmd.GetArguments()[0].c_str(), "status"))
+        {
+            std::string status;
+            ret = m_db->CacheStatus(ctx.currentDB, cmd.GetArguments()[0], status);
+            if (ret == 0)
+            {
+                fill_str_reply(ctx.reply, status);
+                return 0;
+            }
         }
         else
         {

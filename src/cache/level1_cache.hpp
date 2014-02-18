@@ -40,6 +40,10 @@
 #include "util/concurrent_queue.hpp"
 #include "channel/all_includes.hpp"
 
+#define L1_CACHE_NOT_EXIST  0
+#define L1_CACHE_LOADING    1
+#define L1_CACHE_LOADED     2
+
 namespace ardb
 {
     struct CacheInstruction
@@ -151,13 +155,14 @@ namespace ardb
             void OnSoftSignal(uint32 soft_signo, uint32 appendinfo);
             int DoEvict(const DBID& dbid, const Slice& key);
             int DoLoad(const DBID& dbid, const Slice& key);
-            int PeekCacheStatus(const DBID& dbid, const Slice& key, uint8& status);
+
             void PushInst(const CacheInstruction& inst);
             bool IsInCache(const DBID& dbid, const Slice& key);
         public:
             L1Cache(Ardb* db);
             int Evict(const DBID& dbid, const Slice& key);
             int Load(const DBID& dbid, const Slice& key);
+            int PeekCacheStatus(const DBID& dbid, const Slice& key, uint8& status);
             /*
              * just for testing, do not invoke in ardb-server
              */
