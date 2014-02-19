@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -31,22 +31,30 @@
 #define AUTO_LOCK_HPP_
 namespace ardb
 {
-	template<typename T>
-	class LockGuard
-	{
-		private:
-			T& m_lock_impl;
-		public:
-			inline LockGuard(T& lock) :
-					m_lock_impl(lock)
-			{
-				m_lock_impl.Lock();
-			}
-			~LockGuard()
-			{
-				m_lock_impl.Unlock();
-			}
-	};
+    template<typename T>
+    class LockGuard
+    {
+        private:
+            T& m_lock_impl;
+            bool m_check;
+        public:
+            inline LockGuard(T& lock, bool check = true) :
+                    m_lock_impl(lock), m_check(check)
+            {
+                if (m_check)
+                {
+                    m_lock_impl.Lock();
+                }
+
+            }
+            ~LockGuard()
+            {
+                if (m_check)
+                {
+                    m_lock_impl.Unlock();
+                }
+            }
+    };
 }
 
 #endif /* AUTO_LOCK_HPP_ */

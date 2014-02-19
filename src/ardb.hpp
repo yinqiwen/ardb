@@ -262,8 +262,9 @@ namespace ardb
             int ZInsertRangeScore(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score);
             int ZDeleteRangeScore(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score);
             int ZRangeByScoreRange(const DBID& db, const Slice& key, const ZRangeSpec& range, Iterator*& iter,
-                    ValueDataArray& values, ZSetQueryOptions& options, bool check_cache);
+                    ZSetQueryOptions& options, bool check_cache, ValueStoreCallback* cb, void* cbdata);
             int ZGetNodeValue(const DBID& db, const Slice& key, const Slice& value, ValueData& score, ValueData& attr);
+            ZSetCache* GetLoadedZSetCache(const DBID& db, const Slice& key, bool evict_non_loaded);
 
             int GetType(const DBID& db, const Slice& key, KeyType& type);
             int SetMeta(KeyObject& key, CommonMetaValue& meta);

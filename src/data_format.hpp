@@ -673,6 +673,11 @@ namespace ardb
     typedef std::deque<ValueDataArray> ValueArrayArray;
     typedef TreeMap<uint64, BitSetElementValue>::Type BitSetElementValueMap;
 
+    /*
+     * return 0:continue -1:break
+     */
+    typedef int ValueStoreCallback(ValueData& value, int cursor, void* cb);
+
     template<typename T>
     void delete_pointer_container(T& t)
     {

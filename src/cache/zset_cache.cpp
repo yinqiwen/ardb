@@ -38,58 +38,138 @@ namespace ardb
         m_estimate_mem_size = sizeof(ZSetCache);
     }
 
-    void ZSetCache::DirectAdd(ValueData& score, ValueData& v, ValueData& attr)
+    void ZSetCache::EraseElement(const ZSetCaheElement& e)
     {
-        Buffer buf1, buf2;
-        v.Encode(buf1);
-        attr.Encode(buf2);
-        ZSetCaheElement e;
-        e.value.assign(buf1.GetRawReadBuffer(), buf1.ReadableBytes());
-        e.score = score.NumberValue();
-        e.attr.assign(buf2.GetRawReadBuffer(), buf2.ReadableBytes());
-        m_cache.push_back(e);
-        m_estimate_mem_size += sizeof(ZSetCaheElement);
-        m_estimate_mem_size += e.value.size();
-        m_estimate_mem_size += e.attr.size();
+        ZSetCacheElementSet::iterator found = m_cache.find(e);
+        if (found != m_cache.end())
+        {
+            uint32 delta = sizeof(ZSetCaheElement);
+            delta += found->value.size();
+            delta += found->attr.size();
+            SubEstimateMemSize(delta);
+            m_cache.erase(found);
+        }
     }
 
-    void ZSetCache::GetRange(const ZRangeSpec& range, bool with_scores, bool with_attrs, ValueDataArray& res)
+    int ZSetCache::Rem(ValueData& v)
     {
+        LockGuard<ThreadMutex> guard(m_mutex);
+        Buffer buf1, buf2;
+        v.Encode(buf1);
+        ZSetCaheElement e;
+        e.value.assign(buf1.GetRawReadBuffer(), buf1.ReadableBytes());
+        ZSetCacheScoreMap::iterator sit = m_cache_score_dict.find(e.value);
+        if (sit != m_cache_score_dict.end())
+        {
+            e.score = sit->second;
+            EraseElement(e);
+            uint32 delta = 0;
+            delta += e.value.size();
+            delta += sizeof(double);
+            SubEstimateMemSize(delta);
+            m_cache_score_dict.erase(sit);
+            return 0;
+        }
+        return -1;
+    }
+
+    int ZSetCache::Add(const ValueData& score, const ValueData& value, const ValueData& attr, bool thread_safe)
+    {
+        Buffer buf1, buf2;
+        value.Encode(buf1);
+        attr.Encode(buf2);
+        std::string v, a;
+        ZSetCaheElement e;
+        e.score = score.NumberValue();
+        e.value.assign(buf1.GetRawReadBuffer(), buf1.ReadableBytes());
+        e.attr.assign(buf2.GetRawReadBuffer(), buf2.ReadableBytes());
+        int ret = 0;
+        uint32 delta = 0;
+        LockGuard<ThreadMutex> guard(m_mutex, thread_safe);
+        ZSetCacheScoreMap::iterator sit = m_cache_score_dict.find(e.value);
+        if (sit != m_cache_score_dict.end())
+        {
+            e.score = sit->second;
+            if (sit->second == score.NumberValue())
+            {
+                return ZSET_CACHE_NONEW_ELEMENT;
+            }
+            EraseElement(e);
+            sit->second = score.NumberValue();
+            e.score = score.NumberValue();
+            ret = ZSET_CACHE_SCORE_CHANGED;
+        }
+        else
+        {
+            m_cache_score_dict[e.value] = score.NumberValue();
+            delta += e.value.size();
+            delta += sizeof(double);
+            ret = ZSET_CACHE_NEW_ELEMENT;
+        }
+        m_cache.insert(e);
+        delta += sizeof(ZSetCaheElement);
+        delta += e.value.size();
+        delta += e.attr.size();
+        AddEstimateMemSize(delta);
+        return ret;
+    }
+
+    int ZSetCache::Add(const ValueData& score, const Slice& value, const Slice& attr, bool thread_safe)
+    {
+        ValueData v;
+        ValueData a;
+        v.SetValue(value, true);
+        v.SetValue(attr, true);
+        return Add(score, v, a, thread_safe);
+    }
+
+    void ZSetCache::GetRange(const ZRangeSpec& range, bool with_scores, bool with_attrs, ValueStoreCallback* cb,
+            void* cbdata)
+    {
+        uint64 start = get_current_epoch_millis();
+        LockGuard<ThreadMutex> guard(m_mutex);
         ZSetCaheElement min_ele(range.min.NumberValue(), "");
         ZSetCaheElement max_ele(range.max.NumberValue(), "");
-        ZSetCaheElementDeque::iterator min_it = std::lower_bound(m_cache.begin(), m_cache.end(), min_ele);
-        ZSetCaheElementDeque::iterator max_it = std::lower_bound(m_cache.begin(), m_cache.end(), max_ele);
+        ZSetCacheElementSet::iterator min_it = m_cache.lower_bound(min_ele);
+        ZSetCacheElementSet::iterator max_it = m_cache.lower_bound(max_ele);
+        int cursor = 0;
         if (min_it != m_cache.end())
         {
             while (!range.contain_min && min_it != m_cache.end() && min_it->score == range.min.NumberValue())
             {
                 min_it++;
             }
-            while (!range.contain_max && max_it != m_cache.end() && max_it->score == range.max.NumberValue())
+            while (range.contain_max && max_it != m_cache.end() && max_it->score == range.max.NumberValue())
             {
-                max_it--;
+                max_it++;
             }
-            while (min_it <= max_it && min_it != m_cache.end())
+            while (min_it != max_it && min_it != m_cache.end())
             {
                 ValueData v;
                 Buffer buf(const_cast<char*>(min_it->value.data()), 0, min_it->value.size());
                 v.Decode(buf);
-                res.push_back(v);
+                cb(v, cursor++, cbdata);
                 if (with_scores)
                 {
                     ValueData score;
                     score.SetDoubleValue(min_it->score);
-                    res.push_back(score);
+                    cb(score, cursor++, cbdata);
                 }
                 if (with_attrs)
                 {
                     ValueData attr_value;
                     Buffer attr_buf(const_cast<char*>(min_it->attr.data()), 0, min_it->attr.size());
                     attr_value.Decode(attr_buf);
-                    res.push_back(attr_value);
+                    cb(attr_value, cursor++, cbdata);
                 }
                 min_it++;
             }
+        }
+        uint64 end = get_current_epoch_millis();
+        if (end - start > 10)
+        {
+            WARN_LOG("Cost %llums to get %d elements in between range [%.2f, %.2f]", end - start, cursor,
+                    range.min.NumberValue(), range.max.NumberValue());
         }
     }
 }

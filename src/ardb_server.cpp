@@ -952,13 +952,18 @@ namespace ardb
 
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "memory"))
         {
+            info.append("# Memory\r\n");
             if (NULL != m_db->GetL1Cache())
             {
-                info.append("# Memory\r\n");
+                info.append("L1_cache_enable:1\r\n");
+                info.append("L1_cache_max_memory:").append(stringfromll(m_db->GetConfig().L1_cache_memory_limit)).append("\r\n");
                 info.append("L1_cache_entries:").append(stringfromll(m_db->GetL1Cache()->GetEntrySize())).append(
                         "\r\n");
                 info.append("L1_cache_estimate_memory:").append(
                         stringfromll(m_db->GetL1Cache()->GetEstimateMemorySize())).append("\r\n");
+            }else
+            {
+                info.append("L1_cache_enable:0\r\n");
             }
         }
 
@@ -3290,7 +3295,7 @@ namespace ardb
     }
 
     /*
-     *  GEOSEARCH key LOCATION x y|MEMBER m  RADIUS r  [LIMIT offset count] [ASC|DESC|NOSORT] [WITHCOODINATES][WITHDISTANCES]
+     *  GEOSEARCH key LOCATION x y|MEMBER m  RADIUS r  [LIMIT offset count] [ASC|DESC|NOSORT] [WITHCOODINATES] [WITHDISTANCES]
      */
 
     int ArdbServer::GeoSearch(ArdbConnContext& ctx, RedisCommandFrame& cmd)
@@ -3309,7 +3314,7 @@ namespace ardb
     }
 
     /*
-     * CACHE LOAD|EVICT key
+     * CACHE LOAD|EVICT|STATUS key
      */
     int ArdbServer::Cache(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
@@ -3320,12 +3325,12 @@ namespace ardb
         }
         else if (!strcasecmp(cmd.GetArguments()[0].c_str(), "evict"))
         {
-            ret = m_db->CacheEvict(ctx.currentDB, cmd.GetArguments()[0]);
+            ret = m_db->CacheEvict(ctx.currentDB, cmd.GetArguments()[1]);
         }
         else if (!strcasecmp(cmd.GetArguments()[0].c_str(), "status"))
         {
             std::string status;
-            ret = m_db->CacheStatus(ctx.currentDB, cmd.GetArguments()[0], status);
+            ret = m_db->CacheStatus(ctx.currentDB, cmd.GetArguments()[1], status);
             if (ret == 0)
             {
                 fill_str_reply(ctx.reply, status);
@@ -3334,7 +3339,7 @@ namespace ardb
         }
         else
         {
-            fill_error_reply(ctx.reply, "ERR Syntax error, try CACHE (LOAD | EVICT) key");
+            fill_error_reply(ctx.reply, "ERR Syntax error, try CACHE (LOAD | EVICT | STATUS) key");
             return 0;
         }
         if (ret == 0)
@@ -3343,7 +3348,7 @@ namespace ardb
         }
         else
         {
-            fill_error_reply(ctx.reply, "ERR Failed to cache load/evict key:%s", cmd.GetArguments()[1].c_str());
+            fill_error_reply(ctx.reply, "ERR Failed to cache load/evict/status key:%s", cmd.GetArguments()[1].c_str());
         }
         return 0;
     }
