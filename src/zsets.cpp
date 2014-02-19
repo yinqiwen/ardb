@@ -1514,6 +1514,12 @@ namespace ardb
                 break;
             }
         }
+        if((uint32)z_count > meta->size)
+        {
+            WARN_LOG("Change zset size from %u to %u", meta->size, z_count);
+            meta->size = z_count;
+            SetMeta(db, key, *meta);
+        }
         DELETE(meta);
         return options.withscores ? cursor / 2 : cursor;
     }

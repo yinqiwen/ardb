@@ -62,18 +62,18 @@ namespace ardb
     class CacheItem
     {
         protected:
-            uint32 m_estimate_mem_size;
-            uint32* m_total_mem_size_ref;
+            uint64 m_estimate_mem_size;
+            uint64* m_total_mem_size_ref;
             friend class L1Cache;
             void AddEstimateMemSize(uint32 delta)
             {
                 m_estimate_mem_size += delta;
-                atomic_add_uint32(m_total_mem_size_ref, m_estimate_mem_size);
+                atomic_add_uint64(m_total_mem_size_ref, delta);
             }
             void SubEstimateMemSize(uint32 delta)
             {
                 m_estimate_mem_size -= delta;
-                atomic_sub_uint32(m_total_mem_size_ref, m_estimate_mem_size);
+                atomic_sub_uint64(m_total_mem_size_ref, delta);
             }
         private:
             uint32 m_ref;
@@ -86,7 +86,7 @@ namespace ardb
             }
             virtual ~CacheItem()
             {
-                atomic_sub_uint32(m_total_mem_size_ref, m_estimate_mem_size);
+                atomic_sub_uint64(m_total_mem_size_ref, m_estimate_mem_size);
             }
             uint8 GetType()
             {
@@ -180,7 +180,7 @@ namespace ardb
         private:
             ChannelService& m_serv;
             Ardb* m_db;
-            uint32_t m_estimate_mem_size;
+            uint64_t m_estimate_mem_size;
 
             SoftSignalChannel* m_signal_notifier;
             MPSCQueue<CacheInstruction> m_inst_queue;
@@ -209,7 +209,7 @@ namespace ardb
             bool IsCached(const DBID& dbid, const Slice& key);
             CacheItem* Get(const DBID& dbid, const Slice& key, KeyType type);
             void Recycle(CacheItem* item);
-            uint32 GetEstimateMemorySize()
+            uint64 GetEstimateMemorySize()
             {
                 return m_estimate_mem_size;
             }

@@ -46,6 +46,7 @@ namespace ardb
             uint32 delta = sizeof(ZSetCaheElement);
             delta += found->value.size();
             delta += found->attr.size();
+            delta += (uint32)(ZSetCacheElementSet::average_bytes_per_value() + 0.5);
             SubEstimateMemSize(delta);
             m_cache.erase(found);
         }
@@ -66,6 +67,8 @@ namespace ardb
             uint32 delta = 0;
             delta += e.value.size();
             delta += sizeof(double);
+            delta += (uint32)(ZSetCacheElementSet::average_bytes_per_value() + 0.5);
+            delta += (uint32)(ZSetCacheScoreMap::average_bytes_per_value() + 0.5);
             SubEstimateMemSize(delta);
             m_cache_score_dict.erase(sit);
             return 0;
@@ -104,12 +107,14 @@ namespace ardb
             m_cache_score_dict[e.value] = score.NumberValue();
             delta += e.value.size();
             delta += sizeof(double);
+            delta += (uint32)(ZSetCacheScoreMap::average_bytes_per_value() + 0.5);
             ret = ZSET_CACHE_NEW_ELEMENT;
         }
         m_cache.insert(e);
         delta += sizeof(ZSetCaheElement);
         delta += e.value.size();
         delta += e.attr.size();
+        delta += (uint32)(ZSetCacheElementSet::average_bytes_per_value() + 0.5);
         AddEstimateMemSize(delta);
         return ret;
     }

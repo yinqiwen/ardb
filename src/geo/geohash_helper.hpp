@@ -31,6 +31,7 @@
 #define GEOHASH_HELPER_HPP_
 
 #include "geohash.h"
+#include "common.hpp"
 #include <string>
 #include <vector>
 
@@ -43,7 +44,26 @@ namespace ardb
 
     typedef uint64_t GeoHashFix50Bits;
     typedef uint64_t GeoHashVarBits;
-    typedef std::vector<GeoHashBits> GeoHashBitsArray;
+
+    struct GeoHashBitsComparator
+    {
+            bool operator() (const GeoHashBits& a, const GeoHashBits& b) const
+            {
+                if(a.step < b.step)
+                {
+                    return true;
+                }
+                if(a.step > b.step)
+                {
+                    return false;
+                }
+                return a.bits < b.bits;
+            }
+    };
+
+    typedef TreeSet<GeoHashBits, GeoHashBitsComparator>::Type GeoHashBitsSet;
+
+
     class GeoHashHelper
     {
         private:
@@ -52,7 +72,7 @@ namespace ardb
             /*
              * return hash bits count
              */
-            static int GetAreasByRadius(double latitude, double longitude, double radius_meters, GeoHashBitsArray& results);
+            static int GetAreasByRadius(double latitude, double longitude, double radius_meters, GeoHashBitsSet& results);
             static GeoHashFix50Bits GetFix50MercatorGeoHashBits(double latitude, double longitude);
             static GeoHashFix50Bits Allign50Bits(const GeoHashBits& hash);
             static double GetMercatorX(double longtitude);

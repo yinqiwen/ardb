@@ -88,7 +88,7 @@ namespace ardb
         {
             LRUCache<DBItemKey, CacheItem*>::CacheEntry entry;
             LockGuard<ThreadMutex> guard(m_cache_mutex);
-            if (m_cache.PeekFront(entry) && entry.second != exclude_item)
+            if (m_cache.Size() > 1 && m_cache.PeekFront(entry) && entry.second != exclude_item)
             {
                 m_estimate_mem_size -= SizeOfDBItemKey(entry.first);
                 m_estimate_mem_size -= entry.second->GetEstimateMemorySize();
@@ -145,6 +145,7 @@ namespace ardb
         range.max.SetDoubleValue(DBL_MAX);
         m_db->ZRangeByScoreRange(key.db, key.key, range, iter, z_options, false, ZSetStoreCallback, item);
         DELETE(iter);
+        WARN_LOG("zset bytes used:%u %u", item->m_cache.bytes_used(), item->m_cache_score_dict.bytes_used());
     }
 
     CacheItem* L1Cache::CreateCacheEntry(const DBID& dbid, const Slice& key, KeyType type)

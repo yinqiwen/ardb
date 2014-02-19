@@ -82,7 +82,7 @@ namespace ardb
     }
 
     int GeoHashHelper::GetAreasByRadius(double latitude, double longitude, double radius_meters,
-            GeoHashBitsArray& results)
+            GeoHashBitsSet& results)
     {
         if ((latitude <= 90 && latitude >= -90) && (longitude <= 180 && longitude >= -180))
         {
@@ -104,50 +104,38 @@ namespace ardb
         geohash_get_neighbors(&hash, &neighbors);
         GeoHashArea area;
         geohash_decode(&hash, &area);
-        results.push_back(hash);
-
-        typedef std::set<uint64_t> Neighbors;
-        Neighbors neighbor_hashes;
-        neighbor_hashes.insert(neighbors.east.bits);
-        neighbor_hashes.insert(neighbors.west.bits);
-        neighbor_hashes.insert(neighbors.north.bits);
-        neighbor_hashes.insert(neighbors.south.bits);
-        neighbor_hashes.insert(neighbors.south_east.bits);
-        neighbor_hashes.insert(neighbors.south_west.bits);
-        neighbor_hashes.insert(neighbors.north_east.bits);
-        neighbor_hashes.insert(neighbors.north_west.bits);
+        results.insert(hash);
+        results.insert(neighbors.east);
+        results.insert(neighbors.west);
+        results.insert(neighbors.north);
+        results.insert(neighbors.south);
+        results.insert(neighbors.south_east);
+        results.insert(neighbors.south_west);
+        results.insert(neighbors.north_east);
+        results.insert(neighbors.north_west);
         if (area.latitude.min < min_lat)
         {
-            neighbor_hashes.erase(neighbors.south.bits);
-            neighbor_hashes.erase(neighbors.south_west.bits);
-            neighbor_hashes.erase(neighbors.south_east.bits);
+            results.erase(neighbors.south);
+            results.erase(neighbors.south_west);
+            results.erase(neighbors.south_east);
         }
         if (area.latitude.max > max_lat)
         {
-            neighbor_hashes.erase(neighbors.north.bits);
-            neighbor_hashes.erase(neighbors.north_east.bits);
-            neighbor_hashes.erase(neighbors.north_west.bits);
+            results.erase(neighbors.north);
+            results.erase(neighbors.north_east);
+            results.erase(neighbors.north_west);
         }
         if (area.longitude.min < min_lon)
         {
-            neighbor_hashes.erase(neighbors.west.bits);
-            neighbor_hashes.erase(neighbors.south_west.bits);
-            neighbor_hashes.erase(neighbors.north_west.bits);
+            results.erase(neighbors.west);
+            results.erase(neighbors.south_west);
+            results.erase(neighbors.north_west);
         }
         if (area.longitude.max > max_lon)
         {
-            neighbor_hashes.erase(neighbors.east.bits);
-            neighbor_hashes.erase(neighbors.south_east.bits);
-            neighbor_hashes.erase(neighbors.north_east.bits);
-        }
-        Neighbors::iterator it = neighbor_hashes.begin();
-        while (it != neighbor_hashes.end())
-        {
-            GeoHashBits h;
-            h.bits = *it;
-            h.step = hash.step;
-            results.push_back(h);
-            it++;
+            results.erase(neighbors.east);
+            results.erase(neighbors.south_east);
+            results.erase(neighbors.north_east);
         }
         return 0;
     }

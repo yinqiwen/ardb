@@ -74,7 +74,7 @@ namespace ardb
     int Ardb::GeoSearch(const DBID& db, const Slice& key, const GeoSearchOptions& options, ValueDataDeque& results)
     {
         uint64 start_time = get_current_epoch_micros();
-        GeoHashBitsArray ress;
+        GeoHashBitsSet ress;
         double mercator_x, mercator_y;
         if (options.by_coodinates)
         {
@@ -100,17 +100,20 @@ namespace ardb
         /*
          * Merge areas if possible to avoid disk search
          */
-        std::sort(ress.begin(), ress.end(), less_by_bits);
         std::vector<ZRangeSpec> range_array;
-        for (uint32 i = 0; i < ress.size(); i++)
+        GeoHashBitsSet::iterator rit = ress.begin();
+        GeoHashBitsSet::iterator next_it = ress.begin();
+        next_it++;
+        while (rit != ress.end())
         {
-            GeoHashBits& hash = ress[i];
+            GeoHashBits& hash = *rit;
             GeoHashBits next = hash;
             next.bits++;
-            while (i < (ress.size() - 1) && next.bits == ress[i + 1].bits)
+            while (next_it != ress.end() && next.bits == next_it->bits)
             {
                 next.bits++;
-                i++;
+                next_it++;
+                rit++;
             }
             ZRangeSpec range;
             range.contain_min = true;
@@ -118,6 +121,8 @@ namespace ardb
             range.min.SetIntValue(GeoHashHelper::Allign50Bits(hash));
             range.max.SetIntValue(GeoHashHelper::Allign50Bits(next));
             range_array.push_back(range);
+            rit++;
+            next_it++;
         }
         DEBUG_LOG("After areas merging, reduce searching area size from %u to %u", ress.size(), range_array.size());
 
