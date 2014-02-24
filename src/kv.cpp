@@ -557,10 +557,13 @@ namespace ardb
 
     int Ardb::KeysCount(const DBID& db, const std::string& pattern, int64& count)
     {
-        KeyObject start(Slice(), KEY_META, db);
-        if (pattern.size() > 1 && pattern.at(pattern.size() - 1) == '*')
+        std::string from;
+        KeyObject start(from, KEY_META, db);
+        std::string::size_type found = pattern.find('*');
+        if (found != std::string::npos)
         {
-            start.key = pattern.substr(pattern.size() - 1);
+            from = pattern.substr(0, found + 1);
+            start.key = from;
         }
         Iterator* iter = FindValue(start);
         while (NULL != iter && iter->Valid())
@@ -611,10 +614,17 @@ namespace ardb
 
     int Ardb::Keys(const DBID& db, const std::string& pattern, const std::string& from, uint32 limit, StringArray& ret)
     {
-        KeyObject start(from, KEY_META, db);
-        if (from.empty() && pattern.size() > 1 && pattern.at(pattern.size() - 1) == '*')
+        std::string fromstr = from;
+        KeyObject start(fromstr, KEY_META, db);
+
+        if (from.empty() && pattern.size() > 1)
         {
-            start.key = pattern.substr(pattern.size() - 1);
+            std::string::size_type found = pattern.find('*');
+            if (found != std::string::npos)
+            {
+                fromstr = pattern.substr(0, found + 1);
+                start.key = fromstr;
+            }
         }
 
         Iterator* iter = FindValue(start);
@@ -686,11 +696,11 @@ namespace ardb
         {
             uint8 st = 0;
             int ret = m_level1_cahce->PeekCacheStatus(db, key, st);
-            if(ret != 0)
+            if (ret != 0)
             {
                 return ret;
             }
-            switch(st)
+            switch (st)
             {
                 case L1_CACHE_LOADING:
                 {
