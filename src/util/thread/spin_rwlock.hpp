@@ -40,17 +40,15 @@ namespace ardb
 {
     class SpinRWLock
     {
-        private:
+        public:
             volatile uint32_t m_lock;
-            LockMode m_mode;
         public:
             SpinRWLock() :
-                    m_lock(0), m_mode(INVALID_LOCK)
+                    m_lock(0)
             {
             }
-            bool Lock(LockMode mode = WRITE_LOCK)
+            bool Lock(LockMode mode)
             {
-                m_mode = mode;
                 switch (mode)
                 {
                     case READ_LOCK:
@@ -61,10 +59,10 @@ namespace ardb
                             while (m_lock & 0xfff00000)
                                 sched_yield();
 
-                            if ((atomic_add_uint32((uint32*) &m_lock, 1) & 0xfff00000) == 0)
+                            if ((0xfff00000 & atomic_add_uint32(&m_lock, 1)) == 0)
                                 return true;
 
-                            atomic_sub_uint32((uint32*) &m_lock, 1);
+                            atomic_sub_uint32(&m_lock, 1);
                         }
                         return true;
                     }
@@ -74,7 +72,8 @@ namespace ardb
                         while (m_lock & 0xfff00000)
                             sched_yield();
 
-                        if ((atomic_add_uint32((uint32*) &m_lock, 0x100000) & 0xfff00000) == 0x100000)
+                        uint32 z = atomic_add_uint32(&m_lock, 0x100000);
+                        if ((0xfff00000 & z) == 0x100000)
                         {
                             // Wait until there's no more readers
                             while (m_lock & 0x000fffff)
@@ -82,7 +81,7 @@ namespace ardb
 
                             return true;
                         }
-                        atomic_sub_uint32((uint32*) &m_lock, 0x100000);
+                        atomic_sub_uint32(&m_lock, 0x100000);
                         return true;
                     }
                     default:
@@ -91,18 +90,18 @@ namespace ardb
                     }
                 }
             }
-            bool Unlock()
+            bool Unlock(LockMode mode)
             {
-                switch (m_mode)
+                switch (mode)
                 {
                     case READ_LOCK:
                     {
-                        atomic_sub_uint32((uint32*) &m_lock, 1);
+                        atomic_sub_uint32(&m_lock, 1);
                         return true;
                     }
                     case WRITE_LOCK:
                     {
-                        atomic_sub_uint32((uint32*) &m_lock, 0x100000);
+                        atomic_sub_uint32(&m_lock, 0x100000);
                         return true;
                     }
                     default:

@@ -77,7 +77,7 @@ namespace ardb
             {
                 if(m_check)
                 {
-                    m_lock_impl.Unlock();
+                    m_lock_impl.Unlock(READ_LOCK);
                 }
             }
     };
@@ -102,7 +102,7 @@ namespace ardb
             {
                 if(m_check)
                 {
-                    m_lock_impl.Unlock();
+                    m_lock_impl.Unlock(WRITE_LOCK);
                 }
             }
     };
