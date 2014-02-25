@@ -265,9 +265,10 @@ namespace ardb
         }
         return s.ok() ? 0 : -1;
     }
-    int RocksDBEngine::Get(const Slice& key, std::string* value)
+    int RocksDBEngine::Get(const Slice& key, std::string* value, bool fill_cache)
     {
         rocksdb::ReadOptions options;
+        options.fill_cache = fill_cache;
         ContextHolder& holder = m_context.GetValue();
         options.snapshot = holder.snapshot;
         rocksdb::Status s = m_db->Get(options, ROCKSDB_SLICE(key), value);

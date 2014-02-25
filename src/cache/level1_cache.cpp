@@ -49,6 +49,7 @@ namespace ardb
         m_signal_notifier = m_serv.NewSoftSignalChannel();
         m_signal_notifier->Register(kCacheSignal, this);
         m_serv.GetTimer().Schedule(this, 100, 100, MILLIS);
+        m_cache.SetMaxCacheSize(UINT_MAX);
     }
 
     L1Cache::~L1Cache()
@@ -75,6 +76,10 @@ namespace ardb
             {
                 DoLoad(instruction.db, instruction.key, instruction.key_type);
             }
+            else if (instruction.type == kCacheEvictType)
+            {
+                DoEvict(instruction.db, instruction.key);
+            }
             else
             {
                 WARN_LOG("Invalid instruction type:%u", instruction.type);
@@ -84,44 +89,45 @@ namespace ardb
 
     void L1Cache::CheckMemory(CacheItem* exclude_item)
     {
-        if (m_estimate_mem_size > m_db->m_config.L1_cache_memory_limit)
+        while (m_estimate_mem_size > m_db->m_config.L1_cache_memory_limit && m_cache.Size() > 1)
         {
             LRUCache<DBItemKey, CacheItem*>::CacheEntry entry;
             LockGuard<ThreadMutex> guard(m_cache_mutex);
-            if (m_cache.Size() > 1 && m_cache.PeekFront(entry) && entry.second != exclude_item)
+            if (m_cache.PeekFront(entry) && entry.second != exclude_item)
             {
                 m_estimate_mem_size -= SizeOfDBItemKey(entry.first);
                 m_estimate_mem_size -= entry.second->GetEstimateMemorySize();
+                m_estimate_mem_size -= L1CacheTable::AverageBytesPerValue();
                 entry.second->DecRef();
                 m_cache.PopFront();
             }
         }
     }
 
-    static int ZSetStoreCallback(ValueData& value, int cursor, void* cb)
+    static int ZSetStoreCallback(const ValueData& value, int cursor, void* cb)
     {
-        static ValueData v, score, attr;
-        ZSetCache* c = (ZSetCache*)cb;
+        ZSetCacheLoadContext* ctx = (ZSetCacheLoadContext*) cb;
+        ZSetCache* c = ctx->cache;
         int left = cursor % 3;
-        switch(left)
+        switch (left)
         {
             case 0:
             {
-                v = value;
+                ctx->value = value;
                 break;
             }
             case 1:
             {
-                score = value;
+                ctx->score = value;
                 break;
             }
             case 2:
             {
-                attr = value;
-                c->Add(score, v, attr, false);
-                v.Clear();
-                attr.Clear();
-                score.Clear();
+                ctx->attr = value;
+                c->Add(ctx->score, ctx->value, ctx->attr, false);
+                ctx->value.Clear();
+                ctx->attr.Clear();
+                ctx->score.Clear();
                 break;
             }
             default:
@@ -143,15 +149,16 @@ namespace ardb
         range.contain_max = false;
         range.min.SetDoubleValue(-DBL_MAX);
         range.max.SetDoubleValue(DBL_MAX);
-        m_db->ZRangeByScoreRange(key.db, key.key, range, iter, z_options, false, ZSetStoreCallback, item);
+        ZSetCacheLoadContext ctx;
+        ctx.cache = item;
+        m_db->ZRangeByScoreRange(key.db, key.key, range, iter, z_options, false, ZSetStoreCallback, &ctx);
         DELETE(iter);
-        WARN_LOG("zset bytes used:%u %u", item->m_cache.bytes_used(), item->m_cache_score_dict.bytes_used());
+        //WARN_LOG("zset bytes used:%u %u", item->m_cache.bytes_used(), item->m_cache_score_dict.bytes_used());
     }
 
-    CacheItem* L1Cache::CreateCacheEntry(const DBID& dbid, const Slice& key, KeyType type)
+    CacheItem* L1Cache::DoCreateCacheEntry(const DBID& dbid, const Slice& key, KeyType type)
     {
         DBItemKey cache_key(dbid, key);
-        LockGuard<ThreadMutex> guard(m_cache_mutex);
         if (m_cache.Contains(cache_key))
         {
             return NULL;
@@ -173,15 +180,18 @@ namespace ardb
         item->IncRef();
         item->m_total_mem_size_ref = &m_estimate_mem_size;
         LRUCache<DBItemKey, CacheItem*>::CacheEntry entry;
-        if (m_cache.Insert(cache_key, item, entry))
-        {
-            m_estimate_mem_size -= entry.second->GetEstimateMemorySize();
-            m_estimate_mem_size -= SizeOfDBItemKey(entry.first);
-            entry.second->DecRef();
-        }
+        //insert never pop items
+        m_cache.Insert(cache_key, item, entry);
         m_estimate_mem_size += item->GetEstimateMemorySize();
         m_estimate_mem_size += SizeOfDBItemKey(cache_key);
+        m_estimate_mem_size += L1CacheTable::AverageBytesPerValue();
         return item;
+    }
+
+    CacheItem* L1Cache::CreateCacheEntry(const DBID& dbid, const Slice& key, KeyType type)
+    {
+        LockGuard<ThreadMutex> guard(m_cache_mutex);
+        return DoCreateCacheEntry(dbid, key, type);
 
     }
     void L1Cache::PushInst(const CacheInstruction& inst)
@@ -189,6 +199,23 @@ namespace ardb
         m_inst_queue.Push(inst);
         m_signal_notifier->FireSoftSignal(kCacheSignal, 0);
     }
+    int L1Cache::DoEvict(const DBID& dbid, const Slice& key)
+    {
+        DBItemKey cache_key(dbid, key);
+        LockGuard<ThreadMutex> guard(m_cache_mutex);
+        CacheItem* item = NULL;
+        m_cache.Erase(cache_key, item);
+        if (NULL != item)
+        {
+            m_estimate_mem_size -= SizeOfDBItemKey(cache_key);
+            m_estimate_mem_size -= L1CacheTable::AverageBytesPerValue();
+            item->SetStatus(L1_CACHE_INVALID);
+            item->DecRef();
+            return 0;
+        }
+        return -1;
+    }
+
     int L1Cache::DoLoad(const DBID& dbid, const Slice& key, KeyType key_type)
     {
         if (key_type != ZSET_META)
@@ -208,7 +235,19 @@ namespace ardb
         }
         uint64 start = get_current_epoch_millis();
         LRUCache<DBItemKey, CacheItem*>::CacheEntry entry;
-        LoadZSetCache(cache_key, (ZSetCache*) item);
+        switch (key_type)
+        {
+            case ZSET_META:
+            {
+                LoadZSetCache(cache_key, (ZSetCache*) item);
+                break;
+            }
+            default:
+            {
+                return -1;
+            }
+        }
+
         uint64 end = get_current_epoch_millis();
         INFO_LOG("Cost %llums to load cache %u:%s", (end - start), cache_key.db, cache_key.key.c_str());
         if (item->GetStatus() == L1_CACHE_LOADING)
@@ -233,21 +272,16 @@ namespace ardb
         {
             return 0;
         }
-        DBItemKey cache_key(dbid, key);
-        LockGuard<ThreadMutex> guard(m_cache_mutex);
-        CacheItem* item = NULL;
-        m_cache.Erase(cache_key, item);
-        if (NULL != item)
-        {
-            m_estimate_mem_size -= SizeOfDBItemKey(cache_key);
-            item->SetStatus(L1_CACHE_INVALID);
-            item->DecRef();
-        }
+        CacheInstruction inst;
+        inst.db = dbid;
+        inst.key.assign(key.data(), key.size());
+        inst.type = kCacheEvictType;
+        PushInst(inst);
         return 0;
     }
     int L1Cache::Load(const DBID& dbid, const Slice& key)
     {
-        if (m_db->m_config.L1_cache_item_limit <= 0 || m_db->m_config.L1_cache_memory_limit <= 0)
+        if (m_db->m_config.L1_cache_memory_limit <= 0)
         {
             return ERR_INVALID_OPERATION;
         }
@@ -271,6 +305,9 @@ namespace ardb
         {
             return ERR_INVALID_TYPE;
         }
+        /*
+         * Just create an inst
+         */
         CacheInstruction inst;
         inst.db = dbid;
         inst.key.assign(key.data(), key.size());
@@ -313,12 +350,17 @@ namespace ardb
         uint8 status = 0;
         return 0 == PeekCacheStatus(dbid, key, status) && status == L1_CACHE_LOADED;
     }
-    CacheItem* L1Cache::Get(const DBID& dbid, const Slice& key, KeyType type)
+    CacheItem* L1Cache::Get(const DBID& dbid, const Slice& key, KeyType type, bool createIfNoExist)
     {
         DBItemKey cache_key(dbid, key);
         LockGuard<ThreadMutex> guard(m_cache_mutex);
         CacheItem* item = NULL;
         m_cache.Get(cache_key, item);
+        if (NULL == item && createIfNoExist)
+        {
+            item = DoCreateCacheEntry(dbid, key, type);
+            item->DecRef();
+        }
         if (NULL != item && item->GetType() == type)
         {
             item->IncRef();

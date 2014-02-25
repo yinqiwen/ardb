@@ -184,7 +184,7 @@ namespace ardb
 
         return success ? 0 : -1;
     }
-    int KCDBEngine::Get(const Slice& key, std::string* value)
+    int KCDBEngine::Get(const Slice& key, std::string* value, bool fill_cache)
     {
         size_t len;
         bool success = false;

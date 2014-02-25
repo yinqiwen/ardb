@@ -68,6 +68,11 @@ namespace ardb
                     m_max_size(max_size)
             {
             }
+
+            static uint32 AverageBytesPerValue()
+            {
+                return sizeof(CacheEntry) + 2 * sizeof(int*) + (uint32) (CacheEntryMap::average_bytes_per_value() + 0.5);
+            }
             void SetMaxCacheSize(uint32 size)
             {
                 m_max_size = size;
@@ -150,7 +155,7 @@ namespace ardb
                 }
                 m_cache_list.push_front(std::make_pair(key, value));
                 m_entry_map[key] = m_cache_list.begin();
-                if (m_entry_map.size() > m_max_size)
+                if (m_max_size < UINT_MAX && m_entry_map.size() > m_max_size)
                 {
                     erased = m_cache_list.back();
                     m_entry_map.erase(m_cache_list.back().first);

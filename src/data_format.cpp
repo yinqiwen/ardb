@@ -33,6 +33,7 @@
  *      Author: wqy
  */
 #include "data_format.hpp"
+#include "geo/geohash_helper.hpp"
 
 #define  GET_KEY_TYPE(KEY, TYPE)   do{ \
 		Iterator* iter = FindValue(KEY, true);  \
@@ -906,6 +907,12 @@ namespace ardb
         return value.Decode(buf);
     }
 
+    bool decode_value_by_string(const std::string& str, ValueData& value)
+    {
+        Buffer buf(const_cast<char*>(str.data()), 0, str.size());
+        return decode_value(buf, value);
+    }
+
     void next_key(const Slice& key, std::string& next)
     {
         next.assign(key.data(), key.size());
@@ -931,6 +938,51 @@ namespace ardb
         value.SetValue(v, true);
     }
 
+    int GeoAddOptions::Parse(const StringArray& args, std::string& err, uint32 off)
+    {
+        if (!strcasecmp(args[off].c_str(), "mercator"))
+        {
+            mercator = true;
+        }
+        else if (!strcasecmp(args[off].c_str(), "WGS84"))
+        {
+            geographic = true;
+        }
+        else
+        {
+            err = "Invalid coodinate type:" + args[off];
+            return -1;
+        }
+        off++;
+        if (!string_todouble(args[off], x) || !string_todouble(args[off + 1], y))
+        {
+            err = "Invalid coodinates " + args[off] + "/" + args[off + 1];
+            return -1;
+        }
+        if (geographic && !GeoHashHelper::ValidateGeographicCoodinates(x, y))
+        {
+            err = "Invalid coodinates " + args[off] + "/" + args[off + 1];
+            return -1;
+        }
+        if (mercator && !GeoHashHelper::ValidateMercatorCoodinates(x, y))
+        {
+            err = "Invalid coodinates " + args[off] + "/" + args[off + 1];
+            return -1;
+        }
+        off += 2;
+        value = args[off++];
+        for(; off < args.size(); off += 2)
+        {
+            if(off + 1 >= args.size())
+            {
+                err = "Invalid attribute " + args[off] + " with no value followed.";
+                return -1;
+            }
+            attrs[args[off]] = args[off+1];
+        }
+        return 0;
+    }
+
     int GeoSearchOptions::Parse(const StringArray& args, std::string& err, uint32 off)
     {
         for (uint32 i = off; i < args.size(); i++)
@@ -945,10 +997,6 @@ namespace ardb
                 asc = false;
                 nosort = false;
             }
-            else if (!strcasecmp(args[i].c_str(), "nosort"))
-            {
-                nosort = true;
-            }
             else if (!strcasecmp(args[i].c_str(), "limit") && i < args.size() - 2)
             {
                 if (!string_toint32(args[i + 1], offset) || !string_toint32(args[i + 2], limit))
@@ -957,14 +1005,6 @@ namespace ardb
                     return -1;
                 }
                 i += 2;
-            }
-            else if (!strcasecmp(args[i].c_str(), "WITHCOODINATES"))
-            {
-                with_coodinates = true;
-            }
-            else if (!strcasecmp(args[i].c_str(), "WITHDISTANCES"))
-            {
-                with_distance = true;
             }
             else if (!strcasecmp(args[i].c_str(), "RADIUS") && i < args.size() - 1)
             {
@@ -975,14 +1015,26 @@ namespace ardb
                 }
                 i++;
             }
-            else if (!strcasecmp(args[i].c_str(), "LOCATION") && i < args.size() - 2)
+            else if ((!strcasecmp(args[i].c_str(), "MERCATOR") || !strcasecmp(args[i].c_str(), "WGS84"))
+                    && i < args.size() - 2)
             {
                 if (!string_todouble(args[i + 1], x) || !string_todouble(args[i + 2], y))
                 {
                     err = "Invalid location value.";
                     return -1;
                 }
-                by_coodinates = true;
+                by_mercator = !strcasecmp(args[i].c_str(), "MERCATOR");
+                by_geographic = !strcasecmp(args[i].c_str(), "WGS84");
+                if (by_mercator && !GeoHashHelper::ValidateMercatorCoodinates(x, y))
+                {
+                    err = "Invalid coodinates " + args[off] + "/" + args[off + 1];
+                    return -1;
+                }
+                if (by_geographic && !GeoHashHelper::ValidateGeographicCoodinates(x, y))
+                {
+                    err = "Invalid coodinates " + args[off] + "/" + args[off + 1];
+                    return -1;
+                }
                 i += 2;
             }
             else if (!strcasecmp(args[i].c_str(), "MEMBER") && i < args.size() - 1)
@@ -990,6 +1042,30 @@ namespace ardb
                 member = args[i + 1];
                 by_member = true;
                 i++;
+            }
+            else if ((!strcasecmp(args[i].c_str(), "GET")) && i < args.size() - 1)
+            {
+                GeoSearchGetOption get;
+                get.get_pattern = args[i + 1];
+                if(get.get_pattern.size() > 2 && !strncasecmp(get.get_pattern.data(), "#.", 2))
+                {
+                    get.get_pattern.clear();
+                    get.get_attr = args[i + 1].substr(2);
+                }
+                get_patterns.push_back(get);
+                i++;
+            }
+            else if ((!strcasecmp(args[i].c_str(), GEO_SEARCH_WITH_COORDINATES)))
+            {
+                GeoSearchGetOption get;
+                get.get_coodinates = true;
+                get_patterns.push_back(get);
+            }
+            else if ((!strcasecmp(args[i].c_str(), GEO_SEARCH_WITH_DISTANCES)))
+            {
+                GeoSearchGetOption get;
+                get.get_distances = true;
+                get_patterns.push_back(get);
             }
             else
             {

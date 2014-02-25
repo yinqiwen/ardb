@@ -275,9 +275,10 @@ namespace ardb
         }
         return ret;
     }
-    int LevelDBEngine::Get(const Slice& key, std::string* value)
+    int LevelDBEngine::Get(const Slice& key, std::string* value, bool fill_cache)
     {
         leveldb::ReadOptions options;
+        options.fill_cache = fill_cache;
         ContextHolder& holder = m_context.GetValue();
         options.snapshot = holder.snapshot;
         leveldb::Status s = m_db->Get(options, LEVELDB_SLICE(key), value);

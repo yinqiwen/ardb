@@ -54,7 +54,7 @@ namespace ardb
 
     int ZSetCache::Rem(ValueData& v)
     {
-        LockGuard<ThreadMutex> guard(m_mutex);
+        CacheWriteLockGuard guard(m_lock);
         Buffer buf1, buf2;
         v.Encode(buf1);
         ZSetCaheElement e;
@@ -88,14 +88,24 @@ namespace ardb
         e.attr.assign(buf2.GetRawReadBuffer(), buf2.ReadableBytes());
         int ret = 0;
         uint32 delta = 0;
-        LockGuard<ThreadMutex> guard(m_mutex, thread_safe);
+        CacheWriteLockGuard guard(m_lock, thread_safe);
         ZSetCacheScoreMap::iterator sit = m_cache_score_dict.find(e.value);
         if (sit != m_cache_score_dict.end())
         {
             e.score = sit->second;
             if (sit->second == score.NumberValue())
             {
-                return ZSET_CACHE_NONEW_ELEMENT;
+                ZSetCacheElementSet::iterator cit = m_cache.find(e);
+                if(cit->attr == e.attr)
+                {
+                    return ZSET_CACHE_NONEW_ELEMENT;
+                }else
+                {
+                    SubEstimateMemSize(cit->attr.size());
+                    AddEstimateMemSize(e.attr.size());
+                    cit->attr = e.attr;
+                    return ZSET_CACHE_ATTR_CHANGED;
+                }
             }
             EraseElement(e);
             sit->second = score.NumberValue();
@@ -132,7 +142,7 @@ namespace ardb
             void* cbdata)
     {
         uint64 start = get_current_epoch_millis();
-        LockGuard<ThreadMutex> guard(m_mutex);
+        CacheReadLockGuard guard(m_lock);
         ZSetCaheElement min_ele(range.min.NumberValue(), "");
         ZSetCaheElement max_ele(range.max.NumberValue(), "");
         ZSetCacheElementSet::iterator min_it = m_cache.lower_bound(min_ele);

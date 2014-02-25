@@ -57,20 +57,14 @@
 
 #define DELETE(Ptr)     do\
     {                   \
-        if(NULL != Ptr) \
-        {               \
             delete Ptr; \
             Ptr = NULL; \
-        }               \
     }while(0)
 
 #define DELETE_A(Ptr) do\
     {                   \
-        if(NULL != Ptr) \
-        {               \
             delete[] Ptr; \
             Ptr = NULL; \
-        }               \
     }while(0)
 
 #define DELETE_R(Ref)     do\

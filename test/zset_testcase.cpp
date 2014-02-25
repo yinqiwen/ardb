@@ -275,20 +275,27 @@ void test_geo(Ardb& db)
             p.mercator_y = p.y = yy;
             cmp.push_back(p);
         }
-        db.GeoAdd(dbid, "mygeo", name, x + i * 0.1, y + i * 0.1);
+        GeoAddOptions add;
+        add.x = x + i * 0.1;
+        add.y = y + i * 0.1;
+        add.mercator = true;
+        add.value = name;
+        db.GeoAdd(dbid, "mygeo", add);
     }
-    db.Cache(dbid, "mygeo");
-
+    if(db.GetL1Cache() != NULL)
+    {
+        db.GetL1Cache()->SyncLoad(dbid, "mygeo");
+    }
     GeoSearchOptions options;
     StringArray args;
     std::string err;
     //GEOSEARCH key LOCATION x y|MEMBER m  RADIUS r  [LIMIT offset count] [ASC|DESC|NOSORT] [WITHCOODINATES][WITHDISTANCES]
-    string_to_string_array("LOCATION 1000.0 1000.0 RADIUS 1000 ASC WITHCOODINATES WITHDISTANCES", args);
+    string_to_string_array("MERCATOR 1000.0 1000.0 RADIUS 1000 ASC GET #.x GET #.y GET #.distance", args);
     options.Parse(args, err);
     ValueDataDeque result;
     db.GeoSearch(dbid, "mygeo", options, result);
-    CHECK_FATAL(cmp.size() == result.size() / 4, "Search failed with %u elements while expected %u", result.size() / 4,
-            cmp.size() * 4);
+    CHECK_FATAL(cmp.size() != result.size() / 4, "Search failed with %u elements while expected %u", result.size() / 4,
+            cmp.size());
     uint64 start = get_current_epoch_millis();
     for (uint32 i = 0; i < 10000; i++)
     {

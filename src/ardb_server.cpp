@@ -231,8 +231,9 @@ namespace ardb
         conf_get_int64(props, "zset-max-ziplist-entries", cfg.db_cfg.zset_max_ziplist_entries);
         conf_get_int64(props, "zset_max_ziplist_value", cfg.db_cfg.zset_max_ziplist_value);
 
-        conf_get_int64(props, "L1-cache-max-entries", cfg.db_cfg.L1_cache_item_limit);
         conf_get_int64(props, "L1-cache-max-memory", cfg.db_cfg.L1_cache_memory_limit);
+        conf_get_bool(props, "zset-write-fill-cache", cfg.db_cfg.zset_write_fill_cache);
+        conf_get_bool(props, "read-fill-cache", cfg.db_cfg.read_fill_cache);
 
         std::string slaveof;
         if (conf_get_string(props, "slaveof", slaveof))
@@ -457,7 +458,7 @@ namespace ardb
                 { "script", REDIS_CMD_SCRIPT, &ArdbServer::Script, 1, -1, "s", 0 },
                 { "randomkey", REDIS_CMD_RANDOMKEY, &ArdbServer::Randomkey, 0, 0, "r", 0 },
                 { "scan", REDIS_CMD_SCAN, &ArdbServer::Scan, 1, 5, "r", 0 },
-                { "geoadd", REDIS_CMD_GEO_ADD, &ArdbServer::GeoAdd, 4, 4, "w", 0 },
+                { "geoadd", REDIS_CMD_GEO_ADD, &ArdbServer::GeoAdd, 5, -1, "w", 0 },
                 { "geosearch", REDIS_CMD_GEO_SEARCH, &ArdbServer::GeoSearch, 5, -1, "r", 0 },
                 { "cache", REDIS_CMD_CACHE, &ArdbServer::Cache, 2, 2, "r", 0 }, };
 
@@ -956,12 +957,14 @@ namespace ardb
             if (NULL != m_db->GetL1Cache())
             {
                 info.append("L1_cache_enable:1\r\n");
-                info.append("L1_cache_max_memory:").append(stringfromll(m_db->GetConfig().L1_cache_memory_limit)).append("\r\n");
+                info.append("L1_cache_max_memory:").append(stringfromll(m_db->GetConfig().L1_cache_memory_limit)).append(
+                        "\r\n");
                 info.append("L1_cache_entries:").append(stringfromll(m_db->GetL1Cache()->GetEntrySize())).append(
                         "\r\n");
                 info.append("L1_cache_estimate_memory:").append(
                         stringfromll(m_db->GetL1Cache()->GetEstimateMemorySize())).append("\r\n");
-            }else
+            }
+            else
             {
                 info.append("L1_cache_enable:0\r\n");
             }
@@ -2051,14 +2054,14 @@ namespace ardb
 
     int ArdbServer::HMGet(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        ValueDataArray vals;
+        StringArray vals;
         SliceArray fs;
         for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
         {
             fs.push_back(cmd.GetArguments()[i]);
         }
         m_db->HMGet(ctx.currentDB, cmd.GetArguments()[0], fs, vals);
-        fill_array_reply(ctx.reply, vals);
+        fill_str_array_reply(ctx.reply, vals);
         return 0;
     }
 
@@ -2132,7 +2135,7 @@ namespace ardb
     int ArdbServer::HGetAll(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         StringArray fields;
-        ValueDataArray results;
+        StringArray results;
         m_db->HGetAll(ctx.currentDB, cmd.GetArguments()[0], fields, results);
         ctx.reply.type = REDIS_REPLY_ARRAY;
         for (uint32 i = 0; i < fields.size(); i++)
@@ -2140,7 +2143,7 @@ namespace ardb
             RedisReply reply1, reply2;
             fill_str_reply(reply1, fields[i]);
             std::string str;
-            fill_str_reply(reply2, results[i].ToString(str));
+            fill_str_reply(reply2, results[i]);
             ctx.reply.elements.push_back(reply1);
             ctx.reply.elements.push_back(reply2);
         }
@@ -3272,17 +3275,18 @@ namespace ardb
     }
 
     /*
-     *  GEOADD  key x y value
+     *  GEOADD key MERCATOR|WGS84 x y value  [attr_name attr_value ...]
      */
     int ArdbServer::GeoAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        double x, y;
-        if (!check_double_arg(ctx.reply, cmd.GetArguments()[1], x)
-                || !check_double_arg(ctx.reply, cmd.GetArguments()[2], y))
+        GeoAddOptions options;
+        std::string err;
+        if (0 != options.Parse(cmd.GetArguments(), err, 1))
         {
+            fill_error_reply(ctx.reply, "ERR %s", err.c_str());
             return 0;
         }
-        int ret = m_db->GeoAdd(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[3], x, y);
+        int ret = m_db->GeoAdd(ctx.currentDB, cmd.GetArguments()[0], options);
         if (ret >= 0)
         {
             fill_status_reply(ctx.reply, "OK");
@@ -3295,7 +3299,13 @@ namespace ardb
     }
 
     /*
-     *  GEOSEARCH key LOCATION x y|MEMBER m  RADIUS r  [LIMIT offset count] [ASC|DESC|NOSORT] [WITHCOODINATES] [WITHDISTANCES]
+     *  GEOSEARCH key MERCATOR|WGS84 x y  RADIUS r [ASC|DESC] [WITHCOORDINATES] [WITHDISTANCES] [GET pattern [GET pattern ...]] [LIMIT offset count]
+     *  GEOSEARCH key MEMBER m            RADIUS r [ASC|DESC] [WITHCOORDINATES] [WITHDISTANCES] [GET pattern [GET pattern ...]] [LIMIT offset count]
+     *
+     *  For 'GET pattern' in GEOSEARCH:
+     *  If 'pattern' is '#.<attr>',  return actual point's attribute stored by 'GeoAdd'
+     *  Other pattern would processed the same as 'sort' command (Use same C++ function),
+     *  The patterns like '#', "*->field" are valid.
      */
 
     int ArdbServer::GeoSearch(ArdbConnContext& ctx, RedisCommandFrame& cmd)

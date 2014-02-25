@@ -36,7 +36,8 @@
 #include "util/lru.hpp"
 #include "util/thread/thread_mutex.hpp"
 #include "util/thread/thread_mutex_lock.hpp"
-#include "util/thread/thread_local.hpp"
+#include "util/thread/spin_rwlock.hpp"
+#include "util/thread/lock_guard.hpp"
 #include "util/concurrent_queue.hpp"
 #include "channel/all_includes.hpp"
 
@@ -47,7 +48,8 @@
 
 #define ZSET_CACHE_NONEW_ELEMENT 0
 #define ZSET_CACHE_SCORE_CHANGED 1
-#define ZSET_CACHE_NEW_ELEMENT 2
+#define ZSET_CACHE_ATTR_CHANGED 2
+#define ZSET_CACHE_NEW_ELEMENT 3
 
 namespace ardb
 {
@@ -62,8 +64,14 @@ namespace ardb
     class CacheItem
     {
         protected:
-            uint64 m_estimate_mem_size;
-            uint64* m_total_mem_size_ref;
+            volatile uint64 m_estimate_mem_size;
+            volatile uint64* m_total_mem_size_ref;
+            SpinRWLock m_lock;
+            typedef ReadLockGuard<SpinRWLock> CacheReadLockGuard;
+            typedef WriteLockGuard<SpinRWLock> CacheWriteLockGuard;
+//            ThreadMutex m_lock;
+//            typedef LockGuard<ThreadMutex> ZCacheReadLockGuard;
+//            typedef LockGuard<ThreadMutex> ZCacheWriteLockGuard;
             friend class L1Cache;
             void AddEstimateMemSize(uint32 delta)
             {
@@ -76,7 +84,7 @@ namespace ardb
                 atomic_sub_uint64(m_total_mem_size_ref, delta);
             }
         private:
-            uint32 m_ref;
+            volatile uint32 m_ref;
             uint8 m_type;
             uint8 m_status;
         public:
@@ -155,7 +163,7 @@ namespace ardb
         private:
             ZSetCacheElementSet m_cache;
             ZSetCacheScoreMap m_cache_score_dict;
-            ThreadMutex m_mutex;
+
             friend class L1Cache;
             void EraseElement(const ZSetCaheElement& e);
         public:
@@ -171,6 +179,18 @@ namespace ardb
 
     };
 
+    struct ZSetCacheLoadContext
+    {
+            ZSetCache* cache;
+            ValueData value;
+            ValueData score;
+            ValueData attr;
+            ZSetCacheLoadContext() :
+                    cache(NULL)
+            {
+            }
+    };
+
     /*
      * Only zset cache supported now
      */
@@ -180,11 +200,12 @@ namespace ardb
         private:
             ChannelService& m_serv;
             Ardb* m_db;
-            uint64_t m_estimate_mem_size;
+            volatile uint64_t m_estimate_mem_size;
 
             SoftSignalChannel* m_signal_notifier;
             MPSCQueue<CacheInstruction> m_inst_queue;
-            LRUCache<DBItemKey, CacheItem*> m_cache;
+            typedef LRUCache<DBItemKey, CacheItem*> L1CacheTable;
+            L1CacheTable m_cache;
             ThreadMutex m_cache_mutex;
             void LoadZSetCache(const DBItemKey& key, ZSetCache* item);
             void Run();
@@ -192,8 +213,10 @@ namespace ardb
             void OnSoftSignal(uint32 soft_signo, uint32 appendinfo);
             void PushInst(const CacheInstruction& inst);
             int DoLoad(const DBID& dbid, const Slice& key, KeyType key_type);
+            int DoEvict(const DBID& dbid, const Slice& key);
             void CheckMemory(CacheItem* exclude_item = NULL);
             bool IsInCache(const DBID& dbid, const Slice& key);
+            CacheItem* DoCreateCacheEntry(const DBID& dbid, const Slice& key, KeyType type);
         public:
             L1Cache(Ardb* db);
             int Evict(const DBID& dbid, const Slice& key);
@@ -207,7 +230,7 @@ namespace ardb
             int SyncLoad(const DBID& dbid, const Slice& key);
 
             bool IsCached(const DBID& dbid, const Slice& key);
-            CacheItem* Get(const DBID& dbid, const Slice& key, KeyType type);
+            CacheItem* Get(const DBID& dbid, const Slice& key, KeyType type, bool createIfNoExist);
             void Recycle(CacheItem* item);
             uint64 GetEstimateMemorySize()
             {

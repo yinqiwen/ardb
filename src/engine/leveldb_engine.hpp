@@ -169,7 +169,7 @@ namespace ardb
             ~LevelDBEngine();
             int Init(const LevelDBConfig& cfg);
             int Put(const Slice& key, const Slice& value);
-            int Get(const Slice& key, std::string* value);
+            int Get(const Slice& key, std::string* value, bool fill_cache);
             int Del(const Slice& key);
             int BeginBatchWrite();
             int CommitBatchWrite();

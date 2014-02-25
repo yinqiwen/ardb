@@ -31,6 +31,14 @@
 #include <assert.h>
 #include <set>
 
+#define D_R (M_PI / 180.0)
+#define R_D (180.0 / M_PI)
+#define R_MAJOR 6378137.0
+#define R_MINOR 6356752.3142
+#define RATIO (R_MINOR/R_MAJOR)
+#define ECCENT (sqrt(1.0 - (RATIO * RATIO)))
+#define COM (0.5 * ECCENT)
+
 namespace ardb
 {
     /// @brief The usual PI/180 constant
@@ -41,27 +49,63 @@ namespace ardb
     static const double MERCATOR_MAX = 20037508.3427892;
     static const double MERCATOR_MIN = -20037508.3427892;
 
-    static inline double mercator_y(double latitude)
+    static inline double deg_rad(double ang)
     {
-        return log(tan(M_PI / 4.0 + (latitude * M_PI / 360))) * EARTH_RADIUS_IN_METERS;
+        return ang * D_R;
     }
 
-    static inline double mercator_x(double longtitude)
+    static inline double mercator_y(double lat)
     {
-        return longtitude * EARTH_RADIUS_IN_METERS * M_PI / 180;
+        lat = fmin(89.5, fmax(lat, -89.5));
+        double phi = deg_rad(lat);
+        double sinphi = sin(phi);
+        double con = ECCENT * sinphi;
+        con = pow((1.0 - con) / (1.0 + con), COM);
+        double ts = tan(0.5 * (M_PI * 0.5 - phi)) / con;
+        return 0 - R_MAJOR * log(ts);
+    }
+
+    static inline double mercator_x(double lon)
+    {
+        return R_MAJOR * deg_rad(lon);
     }
 
     static uint8_t estimate_geohash_steps_by_radius(double range_meters)
     {
         uint8_t step = 1;
         double v = range_meters;
-        while(v < MERCATOR_MAX)
+        while (v < MERCATOR_MAX)
         {
             v *= 2;
             step++;
         }
         step--;
         return step;
+    }
+
+    bool GeoHashHelper::ValidateMercatorCoodinates(double x, double y)
+    {
+        if (x > MERCATOR_MAX || x < MERCATOR_MIN)
+        {
+            return false;
+        }
+        if (y > MERCATOR_MAX || y < MERCATOR_MIN)
+        {
+            return false;
+        }
+        return true;
+    }
+    bool GeoHashHelper::ValidateGeographicCoodinates(double x, double y)
+    {
+        if (x > 180 || x < -180)
+        {
+            return false;
+        }
+        if (y > 90 || y < -90)
+        {
+            return false;
+        }
+        return true;
     }
 
     double GeoHashHelper::GetMercatorX(double longtitude)
@@ -159,7 +203,7 @@ namespace ardb
         return bits;
     }
 
-    bool GeoHashHelper::GetDistanceIfInRadius(double x1, double y1, double x2, double y2, double radius,
+    bool GeoHashHelper::GetDistanceSquareIfInRadius(double x1, double y1, double x2, double y2, double radius,
             double& distance)
     {
         double xx = (x1 - x2) * (x1 - x2);
@@ -169,7 +213,7 @@ namespace ardb
         {
             return false;
         }
-        distance = sqrt(dd);
+        //distance = sqrt(dd);
         return true;
     }
 }

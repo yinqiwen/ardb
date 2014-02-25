@@ -34,7 +34,7 @@
 CXX=g++
 CC=gcc
 
-ARDB_VERSION=0.6.1
+ARDB_VERSION=0.7.0
 
 uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 

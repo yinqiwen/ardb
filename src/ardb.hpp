@@ -82,7 +82,7 @@ namespace ardb
 
     struct KeyValueEngine
     {
-            virtual int Get(const Slice& key, std::string* value) = 0;
+            virtual int Get(const Slice& key, std::string* value, bool fill_cache) = 0;
             virtual int Put(const Slice& key, const Slice& value) = 0;
             virtual int Del(const Slice& key) = 0;
             virtual int BeginBatchWrite() = 0;
@@ -191,14 +191,21 @@ namespace ardb
             int64 set_max_ziplist_value;
 
             int64 L1_cache_memory_limit;
-            int64 L1_cache_item_limit;
 
             bool check_type_before_set_string;
+
+            bool read_fill_cache;
+            bool zset_write_fill_cache;
+//            bool string_write_fill_cache;
+//            bool hash_write_fill_cache;
+//            bool set_write_fill_cache;
+//            bool list_write_fill_cache;
+
             ArdbConfig() :
                     hash_max_ziplist_entries(128), hash_max_ziplist_value(64), list_max_ziplist_entries(128), list_max_ziplist_value(
                             64), zset_max_ziplist_entries(128), zset_max_ziplist_value(64), set_max_ziplist_entries(
-                            128), set_max_ziplist_value(64), L1_cache_memory_limit(0), L1_cache_item_limit(0), check_type_before_set_string(
-                            false)
+                            128), set_max_ziplist_value(64), L1_cache_memory_limit(0), check_type_before_set_string(
+                            false), read_fill_cache(true), zset_write_fill_cache(false)
             {
             }
     };
@@ -253,9 +260,10 @@ namespace ardb
             int GetHashZipEntry(HashMetaValue* meta, const ValueData& field, ValueData*& value);
             int HGetValue(HashKeyObject& key, HashMetaValue* meta, CommonValueObject& value);
             int HSetValue(HashKeyObject& key, HashMetaValue* meta, CommonValueObject& value);
+            int HIterate(const DBID& db, const Slice& key, ValueStoreCallback* cb, void* cbdata);
 
             int TryZAdd(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score,
-                    const Slice& value,const Slice& attr, bool check_value);
+                    const Slice& value, const Slice& attr, bool check_value);
             uint32 ZRankByScore(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score,
                     bool contains_score);
             int ZGetByRank(const DBID& db, const Slice& key, ZSetMetaValue& meta, uint32 rank, ZSetElement& e);
@@ -264,7 +272,7 @@ namespace ardb
             int ZRangeByScoreRange(const DBID& db, const Slice& key, const ZRangeSpec& range, Iterator*& iter,
                     ZSetQueryOptions& options, bool check_cache, ValueStoreCallback* cb, void* cbdata);
             int ZGetNodeValue(const DBID& db, const Slice& key, const Slice& value, ValueData& score, ValueData& attr);
-            ZSetCache* GetLoadedZSetCache(const DBID& db, const Slice& key, bool evict_non_loaded);
+            CacheItem* GetLoadedCache(const DBID& db, const Slice& key, KeyType type, bool evict_non_loaded, bool create_if_not_exist);
 
             int GetType(const DBID& db, const Slice& key, KeyType& type);
             int SetMeta(KeyObject& key, CommonMetaValue& meta);
@@ -291,9 +299,6 @@ namespace ardb
             int BitsNot(const DBID& db, const Slice& key, BitSetElementValueMap*& result);
             int BitOP(const DBID& db, const Slice& op, SliceArray& keys, BitSetElementValueMap*& result,
                     BitSetElementValueMap*& tmp);
-
-            int HLastField(const DBID& db, const Slice& key, std::string& field);
-            int HFirstField(const DBID& db, const Slice& key, std::string& field);
 
             int SLastMember(const DBID& db, const Slice& key, ValueData& member);
             int SFirstMember(const DBID& db, const Slice& key, ValueData& member);
@@ -474,9 +479,9 @@ namespace ardb
             int HMIncrby(const DBID& db, const Slice& key, const SliceArray& fields, const Int64Array& increments,
                     Int64Array& vs);
             int HIncrbyFloat(const DBID& db, const Slice& key, const Slice& field, double increment, double& value);
-            int HMGet(const DBID& db, const Slice& key, const SliceArray& fields, ValueDataArray& values);
+            int HMGet(const DBID& db, const Slice& key, const SliceArray& fields, StringArray& values);
             int HMSet(const DBID& db, const Slice& key, const SliceArray& fields, const SliceArray& values);
-            int HGetAll(const DBID& db, const Slice& key, StringArray& fields, ValueDataArray& values);
+            int HGetAll(const DBID& db, const Slice& key, StringArray& fields, StringArray& values);
             int HKeys(const DBID& db, const Slice& key, StringArray& fields);
             int HVals(const DBID& db, const Slice& key, StringArray& values);
             int HLen(const DBID& db, const Slice& key);
@@ -505,10 +510,12 @@ namespace ardb
             /*
              * Sorted Set operations
              */
-            int ZAdd(const DBID& db, const Slice& key, const ValueData& score, const Slice& value, const Slice& attr = "");
-            int ZAdd(const DBID& db, const Slice& key, ValueDataArray& scores, const SliceArray& svs, const SliceArray& attrs);
-            int ZAddLimit(const DBID& db, const Slice& key, ValueDataArray& scores, const SliceArray& svs, const SliceArray& attrs, int setlimit,
-                    ValueDataArray& pops);
+            int ZAdd(const DBID& db, const Slice& key, const ValueData& score, const Slice& value, const Slice& attr =
+                    "");
+            int ZAdd(const DBID& db, const Slice& key, ValueDataArray& scores, const SliceArray& svs,
+                    const SliceArray& attrs);
+            int ZAddLimit(const DBID& db, const Slice& key, ValueDataArray& scores, const SliceArray& svs,
+                    const SliceArray& attrs, int setlimit, ValueDataArray& pops);
             int ZCard(const DBID& db, const Slice& key);
             int ZScore(const DBID& db, const Slice& key, const Slice& value, ValueData& score);
             int ZRem(const DBID& db, const Slice& key, const Slice& value);
@@ -566,7 +573,7 @@ namespace ardb
             int SUnionStore(const DBID& db, const Slice& dst, SliceArray& keys);
             int SClear(const DBID& db, const Slice& key);
 
-            int GeoAdd(const DBID& db, const Slice& key, const Slice& value, double x, double y);
+            int GeoAdd(const DBID& db, const Slice& key, const GeoAddOptions& options);
             int GeoSearch(const DBID& db, const Slice& key, const GeoSearchOptions& options, ValueDataDeque& results);
 
             int CacheLoad(const DBID& db, const Slice& key);

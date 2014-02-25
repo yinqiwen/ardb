@@ -66,18 +66,16 @@ namespace ardb
 
     class GeoHashHelper
     {
-        private:
-
         public:
-            /*
-             * return hash bits count
-             */
             static int GetAreasByRadius(double latitude, double longitude, double radius_meters, GeoHashBitsSet& results);
             static GeoHashFix50Bits GetFix50MercatorGeoHashBits(double latitude, double longitude);
             static GeoHashFix50Bits Allign50Bits(const GeoHashBits& hash);
             static double GetMercatorX(double longtitude);
             static double GetMercatorY(double latitude);
-            static bool GetDistanceIfInRadius(double x1, double y1, double x2, double y2, double radius, double& distance);
+            static bool GetDistanceSquareIfInRadius(double x1, double y1, double x2, double y2, double radius, double& distance);
+
+            static bool ValidateMercatorCoodinates(double x, double y);
+            static bool ValidateGeographicCoodinates(double x, double y);
     };
 }
 

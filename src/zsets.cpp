@@ -338,7 +338,7 @@ namespace ardb
             const Slice& attr, bool check_value)
     {
         int cache_add_ret = -1;
-        ZSetCache* cache = GetLoadedZSetCache(db, key, true);
+        ZSetCache* cache = (ZSetCache*) GetLoadedCache(db, key, ZSET_META, true, false);
         if (NULL != cache)
         {
             cache_add_ret = cache->Add(score, value, attr);
@@ -353,7 +353,7 @@ namespace ardb
             /*
              * only create cache if it's the first inserted element
              */
-            if (meta.size == 0 && NULL != m_level1_cahce)
+            if (meta.size == 0 && NULL != m_level1_cahce && m_config.zset_write_fill_cache)
             {
                 cache = (ZSetCache*) m_level1_cahce->CreateCacheEntry(db, key, ZSET_META);
                 if (NULL != cache)
@@ -365,13 +365,13 @@ namespace ardb
         }
         bool zip_save = meta.encoding == ZSET_ENCODING_ZIPLIST;
         ZSetElement element(value, score);
-        element.attr.SetValue(attr, true);
+        element.attr.SetValue(attr, false);
         if (zip_save)
         {
             ZSetElement entry;
             if (check_value && 0 == GetZSetZipEntry(&meta, element.value, entry, true))
             {
-                if (entry.score.NumberValue() == score.NumberValue())
+                if (entry.score.NumberValue() == score.NumberValue() && entry.attr == element.attr)
                 {
                     return 0;
                 }
@@ -392,14 +392,15 @@ namespace ardb
                 {
                     zip_save = false;
                 }
+                if (zip_save)
+                {
+                    meta.size++;
+                    InsertZSetZipEntry(&meta, element, SORT_BY_VALUE);
+                    return 1;
+                }
             }
         }
-        if (zip_save)
-        {
-            meta.size++;
-            InsertZSetZipEntry(&meta, element, SORT_BY_VALUE);
-            return 1;
-        }
+
         if (ZSET_ENCODING_ZIPLIST == meta.encoding)
         {
             BatchWriteGuard guard(GetEngine());
@@ -438,7 +439,8 @@ namespace ardb
         BatchWriteGuard guard(GetEngine());
         ZSetNodeKeyObject zk(key, value, db);
         ZSetNodeValueObject zv;
-        if (!check_value || cache_add_ret == ZSET_CACHE_NEW_ELEMENT || 0 != GetKeyValueObject(zk, zv))
+        if (!check_value || cache_add_ret == ZSET_CACHE_NEW_ELEMENT || cache_add_ret == ZSET_CACHE_ATTR_CHANGED
+                || 0 != GetKeyValueObject(zk, zv))
         {
             zv.score = score;
             zv.attr = element.attr;
@@ -447,9 +449,13 @@ namespace ardb
             CommonValueObject zsv;
             zsv.data = element.attr;
             SetKeyValueObject(zsk, zsv);
-            meta.size++;
-            ZInsertRangeScore(db, key, meta, score);
-            return 1;
+            if (cache_add_ret != ZSET_CACHE_ATTR_CHANGED)
+            {
+                meta.size++;
+                ZInsertRangeScore(db, key, meta, score);
+                return 1;
+            }
+            return 0;
         }
         else
         {
@@ -524,35 +530,6 @@ namespace ardb
         int size = meta->size;
         DELETE(meta);
         return size;
-    }
-
-    ZSetCache* Ardb::GetLoadedZSetCache(const DBID& db, const Slice& key, bool evict_non_loaded)
-    {
-        if (NULL != m_level1_cahce)
-        {
-            ZSetCache* cache = (ZSetCache*) m_level1_cahce->Get(db, key, ZSET_META);
-            bool valid_cache = true;
-            if (NULL != cache)
-            {
-                if (cache->IsLoaded())
-                {
-                    return cache;
-                }
-                else
-                {
-                    if(evict_non_loaded)
-                    {
-                        valid_cache = false;
-                    }
-                }
-            }
-            m_level1_cahce->Recycle(cache);
-            if (!valid_cache)
-            {
-                m_level1_cahce->Evict(db, key);
-            }
-        }
-        return NULL;
     }
 
     int Ardb::ZGetNodeValue(const DBID& db, const Slice& key, const Slice& value, ValueData& score, ValueData& attr)
@@ -682,7 +659,7 @@ namespace ardb
             }
         }
         DELETE(meta);
-        ZSetCache* cache = GetLoadedZSetCache(db, key, true);
+        ZSetCache* cache = (ZSetCache*) GetLoadedCache(db, key, ZSET_META, true, false);
         if (NULL != cache)
         {
             cache->Add(score, value, Slice());
@@ -752,7 +729,7 @@ namespace ardb
             }
         }
         DELETE(meta);
-        ZSetCache* cache = GetLoadedZSetCache(db, key, true);
+        ZSetCache* cache = (ZSetCache*) GetLoadedCache(db, key, ZSET_META, true, false);
         if (NULL != cache)
         {
             ValueDataArray::iterator pit = pops.begin();
@@ -820,7 +797,7 @@ namespace ardb
             return err;
         }
         ZSetNodeKeyObject zk(key, value, db);
-        ZSetCache* cache = GetLoadedZSetCache(db, key, true);
+        ZSetCache* cache = (ZSetCache*) GetLoadedCache(db, key, ZSET_META, true, false);
         if (NULL != cache)
         {
             cache->Rem(zk.value);
@@ -1372,7 +1349,7 @@ namespace ardb
     {
         if (check_cache)
         {
-            ZSetCache* cache = GetLoadedZSetCache(db, key, false);
+            ZSetCache* cache = (ZSetCache*) GetLoadedCache(db, key, ZSET_META, false, false);
             if (NULL != cache)
             {
                 cache->GetRange(range, options.withscores, options.withattr, cb, cbdata);
@@ -1380,7 +1357,6 @@ namespace ardb
                 return 0;
             }
         }
-
         int err = 0;
         bool createZset = false;
         ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_SCORE, err, createZset);
@@ -1514,17 +1490,11 @@ namespace ardb
                 break;
             }
         }
-        if((uint32)z_count > meta->size)
-        {
-            WARN_LOG("Change zset size from %u to %u", meta->size, z_count);
-            meta->size = z_count;
-            SetMeta(db, key, *meta);
-        }
         DELETE(meta);
         return options.withscores ? cursor / 2 : cursor;
     }
 
-    static int ZRangeValueStoreCallback(ValueData& value, int cursor, void* cb)
+    static int ZRangeValueStoreCallback(const ValueData& value, int cursor, void* cb)
     {
         ValueDataArray* s = (ValueDataArray*) cb;
         s->push_back(value);
@@ -1900,7 +1870,6 @@ namespace ardb
                     }
                     it++;
                 }
-
             }
             bool all_empty = true;
             bool all_cursor_end = true;
