@@ -377,14 +377,15 @@ namespace ardb
                                  * Merge find/insert operations into one 'insert' invocation
                                  */
                                 std::pair<ThreadMutexLockTable::iterator, bool> insert = m_barrier_table.insert(
-                                        std::make_pair(DBItemStackKey(db, key), NULL));
+                                        std::make_pair(DBItemStackKey(db, key), (ThreadMutexLock*)NULL));
                                 if (!insert.second)
                                 {
-                                    barrier = insert.first;
+                                    barrier = insert.first->second;
                                 }
                                 else
                                 {
-                                    barrier = m_barrier_pool.pop_front();
+                                    barrier = m_barrier_pool.front();
+                                    m_barrier_pool.pop_front();
                                     insert.first->second = barrier;
                                     inserted = true;
                                 }

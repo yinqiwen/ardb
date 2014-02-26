@@ -271,14 +271,13 @@ void test_geo(Ardb& db)
         if (((xx - p_x) * (xx - p_x) + (yy - p_y) * (yy - p_y)) < raius * raius)
         {
             GeoPoint p;
-            p.mercator_x = p.x = xx;
-            p.mercator_y = p.y = yy;
+            p.x = xx;
+            p.y = yy;
             cmp.push_back(p);
         }
         GeoAddOptions add;
         add.x = x + i * 0.1;
         add.y = y + i * 0.1;
-        add.mercator = true;
         add.value = name;
         db.GeoAdd(dbid, "mygeo", add);
     }
@@ -289,8 +288,7 @@ void test_geo(Ardb& db)
     GeoSearchOptions options;
     StringArray args;
     std::string err;
-    //GEOSEARCH key LOCATION x y|MEMBER m  RADIUS r  [LIMIT offset count] [ASC|DESC|NOSORT] [WITHCOODINATES][WITHDISTANCES]
-    string_to_string_array("MERCATOR 1000.0 1000.0 RADIUS 1000 ASC GET #.x GET #.y GET #.distance", args);
+    string_to_string_array("LOCATION 1000.0 1000.0 RADIUS 1000 ASC WITHCOORDINATES WITHDISTANCES", args);
     options.Parse(args, err);
     ValueDataDeque result;
     db.GeoSearch(dbid, "mygeo", options, result);
@@ -302,6 +300,7 @@ void test_geo(Ardb& db)
         result.clear();
         options.x = p_x + i * 0.1;
         options.y = p_y + i * 0.1;
+        options.radius = 100;
         db.GeoSearch(dbid, "mygeo", options, result);
     }
     uint64 end = get_current_epoch_millis();

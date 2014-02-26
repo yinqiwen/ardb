@@ -217,11 +217,11 @@ int geohash_get_neighbors(const GeoHashBits* hash, GeoHashNeighbors* neighbors)
 
     return 0;
 }
-
+/*
 int main()
 {
     GeoHashBits hash;
-    hash.bits = 0b0011;
+    hash.bits = 3;
     hash.step = 2;
     GeoHashNeighbors neighbors;
     geohash_get_neighbors(&hash, &neighbors);
@@ -247,10 +247,6 @@ int main()
     printf("%.2f %.2f\n", area.latitude.min, area.latitude.max);
     printf("%.2f %.2f\n", area.longitude.min, area.longitude.max);
 
-    uint8_t step = estimate_geohash_steps_by_radius(1000);
-    printf("%d\n", step);
-    step = estimate_geohash_steps_by_radius(1);
-    printf("%d\n", step);
     return 0;
 }
-
+*/

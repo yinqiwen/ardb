@@ -55,6 +55,7 @@ int main(int argc, char** argv)
 	Properties cfg;
 	cfg["data-dir"] = "/tmp/ardb/";
 	cfg["data-dir"].append(_DB_PATH);
+	cfg["loglevel"] = "INFO";
 	SelectedDBEngineFactory engine(cfg);
 	std::cout << "ARDB Test(" << engine.GetName() << ")" << std::endl;
 	Ardb db(&engine);
@@ -64,6 +65,7 @@ int main(int argc, char** argv)
 	config.set_max_ziplist_entries = 16;
 	config.list_max_ziplist_entries = 16;
 	config.L1_cache_memory_limit = 1024*1024*1024;
+	config.geo_coord_type = 2; //mercator
 	db.Init(config);
 	test_all(db);
 	return 0;

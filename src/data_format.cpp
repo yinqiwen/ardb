@@ -984,7 +984,7 @@ namespace ardb
             }
             else if (!strcasecmp(args[i].c_str(), "RADIUS") && i < args.size() - 1)
             {
-                if (!string_touint32(args[i + 1], radius) || radius == 0 || radius >= 20000000)
+                if (!string_touint32(args[i + 1], radius) || radius < 1 || radius >= 20000000)
                 {
                     err = "Invalid radius value.";
                     return -1;

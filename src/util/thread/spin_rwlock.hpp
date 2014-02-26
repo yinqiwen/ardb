@@ -29,6 +29,7 @@
 
 /*
  * Refer this link http://jfdube.wordpress.com/2014/01/12/optimizing-the-recursive-read-write-spinlock/
+ * Much faster than pthread read-write lock.
  */
 
 #ifndef THREAD_RWLOCK_HPP_
