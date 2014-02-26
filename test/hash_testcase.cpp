@@ -59,13 +59,13 @@ void test_hash_zip_hgetall(Ardb& db)
     db.HSet(dbid, "myhash", "field1", "value1");
     db.HSet(dbid, "myhash", "field2", "value2");
     db.HSet(dbid, "myhash", "field3", "value3");
-    ValueDataArray values;
+    StringArray values;
     StringArray fields;
     db.HGetAll(dbid, "myhash", fields, values);
     CHECK_FATAL(fields.size() != 3, "hgetall myhash failed:%zu", fields.size());
     CHECK_FATAL(fields[1].compare("field2") != 0, "hgetall myhash failed:%zu", fields.size());
     std::string str;
-    int ret = values[2].ToString(str).compare("value3");
+    int ret = values[2].compare("value3");
     CHECK_FATAL(ret != 0, "hgetall myhash failed:%zu", values.size());
 }
 
@@ -81,14 +81,14 @@ void test_hash_nonzip_hgetall(Ardb& db)
         db.HSet(dbid, "myhash", field, value);
     }
 
-    ValueDataArray values;
+    StringArray values;
     StringArray fields;
     db.HGetAll(dbid, "myhash", fields, values);
     CHECK_FATAL(fields.size() != (uint32 )(db.GetConfig().hash_max_ziplist_entries + 10), "hgetall myhash failed:%zu",
             fields.size());
     CHECK_FATAL(fields[1].compare("field1") != 0, "hgetall myhash failed:%s", fields[1].c_str());
     std::string str;
-    int ret = values[2].ToString(str).compare("value10");
+    int ret = values[2].compare("value10");
     CHECK_FATAL(ret != 0, "hgetall myhash failed:%s", str.c_str());
 }
 

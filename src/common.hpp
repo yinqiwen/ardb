@@ -57,20 +57,14 @@
 
 #define DELETE(Ptr)     do\
     {                   \
-        if(NULL != Ptr) \
-        {               \
             delete Ptr; \
             Ptr = NULL; \
-        }               \
     }while(0)
 
 #define DELETE_A(Ptr) do\
     {                   \
-        if(NULL != Ptr) \
-        {               \
             delete[] Ptr; \
             Ptr = NULL; \
-        }               \
     }while(0)
 
 #define DELETE_R(Ref)     do\
@@ -188,14 +182,20 @@ namespace ardb
     template<typename Key, typename Compare = std::less<Key> >
     struct TreeSet
     {
+//#if defined(__APPLE__)
+//            typedef std::set<Key, Compare> Type;
+//#else
             typedef btree::btree_set<Key, Compare> Type;
-            // typedef std::set<Key, Compare> Type;
+//#endif
     };
     template<typename Key, typename Value, typename Compare = std::less<Key> >
     struct TreeMap
     {
+//#if defined(__APPLE__)
+//            typedef std::map<Key, Value, Compare> Type;
+//#else
             typedef btree::btree_map<Key, Value, Compare> Type;
-            // typedef std::map<Key, Value, Compare> Type;
+//#endif
     };
 }
 

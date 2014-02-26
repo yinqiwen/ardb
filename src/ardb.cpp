@@ -33,7 +33,6 @@
 #include "util/thread/thread.hpp"
 #include "helper/db_helpers.hpp"
 
-
 namespace ardb
 {
 
@@ -54,12 +53,10 @@ namespace ardb
         return pos;
     }
 
-    //static const char* REPO_NAME = "data";
-    Ardb::Ardb(KeyValueEngineFactory* engine, bool multi_thread) :
-            m_engine_factory(engine), m_engine(NULL), m_db_helper(
-            NULL),m_level1_cahce(NULL)
+    Ardb::Ardb(KeyValueEngineFactory* engine, uint32 multi_thread_num) :
+            m_engine_factory(engine), m_engine(NULL), m_key_locker(multi_thread_num), m_db_helper(
+            NULL), m_level1_cahce(NULL)
     {
-        m_key_locker.enable = multi_thread;
     }
 
     bool Ardb::Init(const ArdbConfig& cfg)
@@ -79,7 +76,7 @@ namespace ardb
                  * Init db helper
                  */
                 NEW(m_db_helper, DBHelper(this));
-                if(m_config.L1_cache_item_limit > 0 && m_config.L1_cache_memory_limit > 0)
+                if (m_config.L1_cache_memory_limit > 0)
                 {
                     NEW(m_level1_cahce, L1Cache(this));
                 }
@@ -176,7 +173,7 @@ namespace ardb
 
     int Ardb::RawGet(const Slice& key, std::string* value)
     {
-        return GetEngine()->Get(key, value);
+        return GetEngine()->Get(key, value, false);
     }
 
     int Ardb::Type(const DBID& db, const Slice& key)
@@ -483,7 +480,8 @@ namespace ardb
         Buffer keybuf(key.key.size() + 16);
         encode_key(keybuf, key);
         Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
-        int ret = GetEngine()->Get(k, &value);
+        bool fill_cache = true;
+        int ret = GetEngine()->Get(k, &value, fill_cache);
         if (ret == 0)
         {
             return ARDB_OK;
@@ -676,6 +674,35 @@ namespace ardb
         }
         DELETE(iter);
         return err;
+    }
+
+    CacheItem* Ardb::GetLoadedCache(const DBID& db, const Slice& key, KeyType type, bool evict_non_loaded, bool create_if_not_exist)
+    {
+        if (NULL != m_level1_cahce)
+        {
+            CacheItem* cache = m_level1_cahce->Get(db, key, type, create_if_not_exist);
+            bool valid_cache = true;
+            if (NULL != cache)
+            {
+                if (cache->IsLoaded())
+                {
+                    return cache;
+                }
+                else
+                {
+                    if (evict_non_loaded)
+                    {
+                        valid_cache = false;
+                    }
+                }
+            }
+            m_level1_cahce->Recycle(cache);
+            if (!valid_cache)
+            {
+                m_level1_cahce->Evict(db, key);
+            }
+        }
+        return NULL;
     }
 
 }

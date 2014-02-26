@@ -54,7 +54,7 @@
 
 #define COMPARE_NUMBER(a, b)  (a == b?0:(a>b?1:-1))
 
-#define COMPARE_SLICE(a, b)  (a.size() == b.size()?(a.compare(b)):(a.size()>b.size()?1:-1))
+//#define COMPARE_SLICE(a, b)  (a.size() == b.size()?(a.compare(b)):(a.size()>b.size()?1:-1))
 
 #define ZSET_ENCODING_ZIPLIST  1
 #define ZSET_ENCODING_HASH     2
@@ -67,6 +67,7 @@
 #define RETURN_NONEQ_RESULT(a, b)  do{ \
 	if(a != b) return COMPARE_NUMBER(a,b); \
 }while(0)
+
 
 namespace ardb
 {
@@ -576,6 +577,18 @@ namespace ardb
             }
     };
 
+    struct HashIterContext
+    {
+            //ValueData field;
+            //ValueData value;
+            StringArray* fields;
+            StringArray* values;
+            HashIterContext() :
+                    fields(NULL), values(NULL)
+            {
+            }
+    };
+
     enum AggregateType
     {
         AGGREGATE_EMPTY = 0,
@@ -619,6 +632,37 @@ namespace ardb
             }
     };
 
+    struct GeoAddOptions
+    {
+            double x, y;
+            Slice value;
+
+            StringStringMap attrs;
+            GeoAddOptions() :
+                    x(0), y(0)
+            {
+            }
+
+            int Parse(const StringArray& args, std::string& err, uint32 off = 0);
+
+    };
+
+#define GEO_SEARCH_WITH_DISTANCES "WITHDISTANCES"
+#define GEO_SEARCH_WITH_COORDINATES "WITHCOORDINATES"
+
+    struct GeoSearchGetOption
+    {
+            bool get_coodinates;
+            bool get_distances;
+            std::string get_attr;
+            std::string get_pattern;
+            GeoSearchGetOption() :
+                    get_coodinates(false), get_distances(false)
+            {
+            }
+    };
+    typedef std::deque<GeoSearchGetOption> GeoGetOptionDeque;
+
     struct GeoSearchOptions
     {
             bool nosort;
@@ -627,15 +671,15 @@ namespace ardb
             int32 offset;
             int32 limit;
             bool by_member;
-            bool by_coodinates;
-            bool with_coodinates;
-            bool with_distance;
+            bool by_location;
 
             double x, y;
             std::string member;
+
+            GeoGetOptionDeque get_patterns;
             GeoSearchOptions() :
-                    nosort(false), asc(false), radius(0), offset(0), limit(0), by_member(false), by_coodinates(false), with_coodinates(
-                            false), with_distance(false), x(0), y(0)
+                    nosort(true), asc(false), radius(0), offset(0), limit(0), by_member(false), by_location(false), x(
+                            0), y(0)
             {
             }
 
@@ -648,18 +692,18 @@ namespace ardb
             std::string value;
             double x;
             double y;
-            double mercator_x;
-            double mercator_y;
+
+            StringStringMap attrs;
 
             /*
              * distance is a value stored while there is a
              */
             double distance;
             GeoPoint() :
-                    x(0), y(0), mercator_x(0), mercator_y(0), distance(0)
+                    x(0), y(0), distance(0)
             {
             }
-        CODEC_DEFINE(x,y,mercator_x, mercator_y)
+        CODEC_DEFINE(x,y, attrs)
     };
     typedef std::deque<GeoPoint> GeoPointArray;
 
@@ -672,6 +716,11 @@ namespace ardb
 
     typedef std::deque<ValueDataArray> ValueArrayArray;
     typedef TreeMap<uint64, BitSetElementValue>::Type BitSetElementValueMap;
+
+    /*
+     * return 0:continue -1:break
+     */
+    typedef int ValueStoreCallback(const ValueData& value, int cursor, void* cb);
 
     template<typename T>
     void delete_pointer_container(T& t)
@@ -689,6 +738,7 @@ namespace ardb
     void encode_meta(Buffer& buf, CommonMetaValue& meta);
     ValueObject* decode_value_obj(KeyType type, const char* data, size_t size);
     bool decode_value(Buffer& buf, ValueData& value);
+    bool decode_value_by_string(const std::string& str, ValueData& value);
     void encode_value(Buffer& buf, const ValueData& value);
     bool peek_dbkey_header(const Slice& key, DBID& db, KeyType& type);
     void next_key(const Slice& key, std::string& next);

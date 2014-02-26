@@ -62,7 +62,7 @@ namespace ardb
                 m_lock.Unlock();
                 return new_value;
 #else
-                return (int64_t) atomic_add_uint64((uint64_t*) &value, increment_);
+                return (int64_t) atomic_add_uint64((volatile uint64_t *)&value, increment_);
 #endif
             }
 
@@ -76,7 +76,7 @@ namespace ardb
                 m_lock.Unlock();
                 return new_value;
 #else
-                return (int64_t) atomic_sub_uint64((uint64_t*) &value, decrement);
+                return (int64_t) atomic_sub_uint64((volatile uint64_t *)&value, decrement);
 #endif
             }
 

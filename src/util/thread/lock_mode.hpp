@@ -1,5 +1,5 @@
 /*
- *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
+ *Copyright (c) 2013-2014, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  *
  *Redistribution and use in source and binary forms, with or without
@@ -26,39 +26,16 @@
  *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include "db_helpers.hpp"
+
+#ifndef LOCK_MODE_HPP_
+#define LOCK_MODE_HPP_
 
 namespace ardb
 {
-    ExpireCheck::ExpireCheck(Ardb* db) :
-            m_checking_db(0), m_db(db)
+    enum LockMode
     {
-    }
-
-    void ExpireCheck::Run()
-    {
-        uint64 start = get_current_epoch_millis();
-        while (m_checking_db < ARDB_GLOBAL_DB)
-        {
-            uint64 now = get_current_epoch_millis();
-            if (now - start >= 500)
-            {
-                return;
-            }
-            DBID nexdb = 0;
-            if (!m_db->DBExist(m_checking_db, nexdb))
-            {
-                if (nexdb == m_checking_db || nexdb == ARDB_GLOBAL_DB)
-                {
-                    m_checking_db = 0;
-                    return;
-                }
-                m_checking_db = nexdb;
-            }
-            m_db->CheckExpireKey(m_checking_db);
-            m_checking_db++;
-        }
-        m_checking_db = 0;
-    }
+        INVALID_LOCK, READ_LOCK, WRITE_LOCK
+    };
 }
 
+#endif /* LOCK_MODE_HPP_ */

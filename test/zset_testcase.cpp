@@ -251,6 +251,69 @@ void test_zset_expire(Ardb& db)
     CHECK_FATAL(db.Exists(dbid, "myzset") == true, "Expire myzset failed");
 }
 
+void test_geo(Ardb& db)
+{
+    DBID dbid = 0;
+    db.ZClear(dbid, "mygeo");
+    double x = 300.3;
+    double y = 300.3;
+
+    double p_x = 1000.0;
+    double p_y = 1000.0;
+    double raius = 1000;
+    GeoPointArray cmp;
+    for (uint32 i = 0; i < 100000; i++)
+    {
+        char name[100];
+        sprintf(name, "p%u", i);
+        double xx = x + i * 0.1;
+        double yy = y + i * 0.1;
+        if (((xx - p_x) * (xx - p_x) + (yy - p_y) * (yy - p_y)) < raius * raius)
+        {
+            GeoPoint p;
+            p.x = xx;
+            p.y = yy;
+            cmp.push_back(p);
+        }
+        GeoAddOptions add;
+        add.x = x + i * 0.1;
+        add.y = y + i * 0.1;
+        add.value = name;
+        db.GeoAdd(dbid, "mygeo", add);
+    }
+    if(db.GetL1Cache() != NULL)
+    {
+        db.GetL1Cache()->SyncLoad(dbid, "mygeo");
+    }
+    GeoSearchOptions options;
+    StringArray args;
+    std::string err;
+    string_to_string_array("LOCATION 1000.0 1000.0 RADIUS 1000 ASC WITHCOORDINATES WITHDISTANCES", args);
+    options.Parse(args, err);
+    ValueDataDeque result;
+    db.GeoSearch(dbid, "mygeo", options, result);
+    CHECK_FATAL(cmp.size() != result.size() / 4, "Search failed with %u elements while expected %u", result.size() / 4,
+            cmp.size());
+    uint64 start = get_current_epoch_millis();
+    for (uint32 i = 0; i < 10000; i++)
+    {
+        result.clear();
+        options.x = p_x + i * 0.1;
+        options.y = p_y + i * 0.1;
+        options.radius = 100;
+        db.GeoSearch(dbid, "mygeo", options, result);
+    }
+    uint64 end = get_current_epoch_millis();
+    for (uint32 i = 0; i < result.size(); i += 4)
+    {
+        INFO_LOG("GeoPoint:%s x:%.2f, y:%.2f, distance:%.2f", result[i].bytes_value.c_str(),
+                result[i + 1].NumberValue(), result[i + 2].NumberValue(), result[i + 3].NumberValue());
+    }
+
+    INFO_LOG("Found %d points for search while expected %d points", result.size() / 4, cmp.size());
+    INFO_LOG("Cost %lldms to geo search 100000 zset elements 10000 times", (end - start));
+}
+
 void test_zsets(Ardb& db)
 {
     test_zsets_addrem(db);
@@ -263,4 +326,5 @@ void test_zsets(Ardb& db)
     test_zsets_inter(db);
     test_zsets_union(db);
     test_zset_expire(db);
+    test_geo(db);
 }

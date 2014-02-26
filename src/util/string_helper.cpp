@@ -535,93 +535,44 @@ namespace ardb
             return min;
         }
         std::string random_key;
-        if (min.size() == max.size())
+        for(uint32 i = 0; i < min.size() && i < max.size(); i++)
         {
-            random_key.resize(max.size());
-            bool fill_by_random = false;
-            bool fill_by_random_gt_min = false;
-            for (uint32 i = 0; i < min.size(); i++)
+            if(min[i] < max[i])
             {
-                if (fill_by_random_gt_min)
+                if(min[i] == max[i] - 1)
                 {
-                    random_key[i] = (char) random_between_int32(min[i], 127);
-                    if (random_key[i] > min[i])
+                    random_key.push_back(min[i]);
+                    for(uint32 j = i+1; j < min.size(); j++)
                     {
-                        fill_by_random = true;
-                    }
-                    else
-                    {
-                        fill_by_random_gt_min = true;
-                    }
-                    continue;
-                }
-                if (fill_by_random)
-                {
-                    random_key[i] = (char) random_between_int32(0, 127);
-                }
-                else
-                {
-                    if (min[i] < max[i])
-                    {
-                        random_key[i] = (char) random_between_int32(min[i], max[i]);
-                        if (random_key[i] > min[i])
+                        if(min[j] == 127)
                         {
-                            fill_by_random = true;
-                        }
-                        else
+                            random_key.push_back(min[j]);
+                        }else
                         {
-                            fill_by_random_gt_min = true;
-                        }
-                    }
-                    else
-                    {
-                        random_key[i] = min[i];
-                    }
-                }
-
-            }
-        }
-        else
-        {
-            uint32 randomsize = (uint32)random_between_int32(min.size(), max.size());
-            bool gt_than_min = (randomsize == min.size());
-            bool less_than_max = (randomsize == max.size());
-            if (!gt_than_min && !less_than_max)
-            {
-                random_key = random_string(randomsize);
-            }
-            else
-            {
-                random_key.resize(randomsize);
-                bool fill_by_random = false;
-                for (uint32 i = 0; i < randomsize; i++)
-                {
-                    if (fill_by_random)
-                    {
-                        random_key[i] = (char) random_between_int32(0, 127);
-                    }
-                    else
-                    {
-                        if (gt_than_min)
-                        {
-                            random_key[i] = (char) random_between_int32(min[i], 127);
-                            if (random_key[i] > min[i])
+                            char c  =  (char) random_between_int32(min[j], 127);
+                            random_key.push_back(c);
+                            if(c > min[j])
                             {
-                                fill_by_random = true;
-                            }
-                        }
-                        else
-                        {
-                            random_key[i] = (char) random_between_int32(-128, max[i]);
-                            if (random_key[i] < max[i])
-                            {
-                                fill_by_random = true;
+                                break;
                             }
                         }
                     }
+                }else
+                {
+                    char c  =  (char) random_between_int32(min[i], max[i]);
+                    while(c == min[i] || c == max[i])
+                    {
+                        c  =  (char) random_between_int32(min[i], max[i]);
+                    }
+                    random_key.push_back(c);
                 }
+                break;
+            }else
+            {
+                random_key.push_back(min[i]);
             }
         }
+        random_key.append(random_string(5));
         return random_key;
     }
 

@@ -29,6 +29,8 @@
 
 #include "logger.hpp"
 #include "util/helpers.hpp"
+#include "util/thread/thread_mutex.hpp"
+#include "util/thread/lock_guard.hpp"
 #include <stdarg.h>
 #include <stdio.h>
 #include <sstream>
@@ -46,6 +48,8 @@ namespace ardb
     static std::string kLogFilePath;
     static const uint32 k_max_file_size = 100 * 1024 * 1024;
     static const uint32 k_max_rolling_index = 2;
+
+    static ThreadMutex kLogMutex;
 
     static void reopen_default_logfile()
     {
@@ -139,6 +143,7 @@ namespace ardb
         char timetag[256];
         struct tm& tm = get_current_tm();
         sprintf(timetag, "%02u-%02u %02u:%02u:%02u", tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+        LockGuard<ThreadMutex> guard(kLogMutex);
         fprintf(kLogFile, "[%u] %s,%03u %s %s\n", getpid(), timetag, mills, levelstr, record.c_str());
         fflush(kLogFile);
         if (!kLogFilePath.empty() && kLogFile != stdout)

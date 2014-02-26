@@ -85,7 +85,8 @@ namespace ardb
                 StringMetaValue meta;
                 meta.value.SetValue(*vit, false);
                 SetMeta(keyobject, meta);
-            } else
+            }
+            else
             {
                 guard.MarkFailed();
                 return -1;
@@ -96,8 +97,7 @@ namespace ardb
         return keys.size();
     }
 
-    int Ardb::Set(const DBID& db, const Slice& key, const Slice& value, int ex,
-            int px, int nxx)
+    int Ardb::Set(const DBID& db, const Slice& key, const Slice& value, int ex, int px, int nxx)
     {
         if (-1 == nxx || 1 == nxx || m_config.check_type_before_set_string)
         {
@@ -148,13 +148,11 @@ namespace ardb
         return Set(db, key, value, 0, 0, -1);
     }
 
-    int Ardb::SetEx(const DBID& db, const Slice& key, const Slice& value,
-            uint32_t secs)
+    int Ardb::SetEx(const DBID& db, const Slice& key, const Slice& value, uint32_t secs)
     {
         return Set(db, key, value, secs, 0, 0);
     }
-    int Ardb::PSetEx(const DBID& db, const Slice& key, const Slice& value,
-            uint32_t ms)
+    int Ardb::PSetEx(const DBID& db, const Slice& key, const Slice& value, uint32_t ms)
     {
         return Set(db, key, value, 0, ms, 0);
     }
@@ -288,8 +286,7 @@ namespace ardb
         return -1;
     }
 
-    int Ardb::SetExpiration(const DBID& db, const Slice& key, uint64 expire,
-            bool check_exists)
+    int Ardb::SetExpiration(const DBID& db, const Slice& key, uint64 expire, bool check_exists)
     {
         if (check_exists && expire > 0 && !Exists(db, key))
         {
@@ -315,8 +312,7 @@ namespace ardb
         return 0;
     }
 
-    void Ardb::CheckExpireKey(const DBID& db, uint64 maxexec,
-            uint32 maxcheckitems)
+    void Ardb::CheckExpireKey(const DBID& db, uint64 maxexec, uint32 maxcheckitems)
     {
         uint32 checked = 0;
         uint64 start = get_current_epoch_micros();
@@ -342,7 +338,8 @@ namespace ardb
             {
                 DELETE(kk);
                 break;
-            } else
+            }
+            else
             {
                 ExpireKeyObject* ek = (ExpireKeyObject*) kk;
                 if (ek->expireat <= now)
@@ -350,7 +347,8 @@ namespace ardb
                     DelValue(*ek);
                     Del(db, ek->key);
                     DELETE(kk);
-                } else
+                }
+                else
                 {
                     DELETE(kk);
                     break;
@@ -557,10 +555,16 @@ namespace ardb
         return err;
     }
 
-    int Ardb::KeysCount(const DBID& db, const std::string& pattern,
-            int64& count)
+    int Ardb::KeysCount(const DBID& db, const std::string& pattern, int64& count)
     {
-        KeyObject start(Slice(), KEY_META, db);
+        std::string from;
+        KeyObject start(from, KEY_META, db);
+        std::string::size_type found = pattern.find('*');
+        if (found != std::string::npos)
+        {
+            from = pattern.substr(0, found + 1);
+            start.key = from;
+        }
         Iterator* iter = FindValue(start);
         while (NULL != iter && iter->Valid())
         {
@@ -584,9 +588,8 @@ namespace ardb
         return 0;
     }
 
-    int Ardb::Scan(const DBID& db, const std::string& cursor,
-            const std::string& pattern, uint32 limit, StringArray& ret,
-            std::string& newcursor)
+    int Ardb::Scan(const DBID& db, const std::string& cursor, const std::string& pattern, uint32 limit,
+            StringArray& ret, std::string& newcursor)
     {
         std::string from;
         if (!cursor.empty())
@@ -601,17 +604,29 @@ namespace ardb
         if (ret.empty())
         {
             newcursor = "0";
-        } else
+        }
+        else
         {
             newcursor = (*ret.rbegin());
         }
         return 0;
     }
 
-    int Ardb::Keys(const DBID& db, const std::string& pattern,
-            const std::string& from, uint32 limit, StringArray& ret)
+    int Ardb::Keys(const DBID& db, const std::string& pattern, const std::string& from, uint32 limit, StringArray& ret)
     {
-        KeyObject start(from, KEY_META, db);
+        std::string fromstr = from;
+        KeyObject start(fromstr, KEY_META, db);
+
+        if (from.empty() && pattern.size() > 1)
+        {
+            std::string::size_type found = pattern.find('*');
+            if (found != std::string::npos)
+            {
+                fromstr = pattern.substr(0, found + 1);
+                start.key = fromstr;
+            }
+        }
+
         Iterator* iter = FindValue(start);
         while (NULL != iter && iter->Valid())
         {
@@ -624,9 +639,7 @@ namespace ardb
                 return 0;
             }
             std::string str(kk->key.data(), kk->key.size());
-            if ((pattern.empty()
-                    || fnmatch(pattern.c_str(), str.c_str(), 0) == 0)
-                    && str != from)
+            if ((pattern.empty() || fnmatch(pattern.c_str(), str.c_str(), 0) == 0) && str != from)
             {
                 ret.push_back(str);
                 if (ret.size() >= limit)
@@ -660,7 +673,7 @@ namespace ardb
         return -1;
     }
 
-    int Ardb::Cache(const DBID& db, const Slice& key)
+    int Ardb::CacheLoad(const DBID& db, const Slice& key)
     {
         if (NULL != m_level1_cahce)
         {
@@ -668,11 +681,44 @@ namespace ardb
         }
         return -1;
     }
-    int Ardb::Evict(const DBID& db, const Slice& key)
+    int Ardb::CacheEvict(const DBID& db, const Slice& key)
     {
         if (NULL != m_level1_cahce)
         {
             return m_level1_cahce->Evict(db, key);
+        }
+        return -1;
+    }
+
+    int Ardb::CacheStatus(const DBID& db, const Slice& key, std::string& status)
+    {
+        if (NULL != m_level1_cahce)
+        {
+            uint8 st = 0;
+            int ret = m_level1_cahce->PeekCacheStatus(db, key, st);
+            if (ret != 0)
+            {
+                return ret;
+            }
+            switch (st)
+            {
+                case L1_CACHE_LOADING:
+                {
+                    status = "loading";
+                    break;
+                }
+                case L1_CACHE_LOADED:
+                {
+                    status = "loaded";
+                    break;
+                }
+                default:
+                {
+                    status = "unknown";
+                    break;
+                }
+            }
+            return 0;
         }
         return -1;
     }

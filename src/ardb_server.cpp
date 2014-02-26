@@ -231,8 +231,23 @@ namespace ardb
         conf_get_int64(props, "zset-max-ziplist-entries", cfg.db_cfg.zset_max_ziplist_entries);
         conf_get_int64(props, "zset_max_ziplist_value", cfg.db_cfg.zset_max_ziplist_value);
 
-        conf_get_int64(props, "L1-cache-max-entries", cfg.db_cfg.L1_cache_item_limit);
         conf_get_int64(props, "L1-cache-max-memory", cfg.db_cfg.L1_cache_memory_limit);
+        conf_get_bool(props, "zset-write-fill-cache", cfg.db_cfg.zset_write_fill_cache);
+        conf_get_bool(props, "read-fill-cache", cfg.db_cfg.read_fill_cache);
+
+        std::string coord_type = "wgs84";
+        conf_get_string(props, "geo-coord-type", coord_type);
+        if(!strcasecmp(coord_type.c_str(), "wgs84"))
+        {
+            cfg.db_cfg.geo_coord_type = GEO_WGS84_TYPE;
+        }else if(!strcasecmp(coord_type.c_str(), "mercator"))
+        {
+            cfg.db_cfg.geo_coord_type = GEO_MERCATOR_TYPE;
+        }else
+        {
+            cfg.db_cfg.geo_coord_type = GEO_WGS84_TYPE;
+            WARN_LOG("Invalid geo-coord-type:%s.", coord_type.c_str());
+        }
 
         std::string slaveof;
         if (conf_get_string(props, "slaveof", slaveof))
@@ -457,7 +472,7 @@ namespace ardb
                 { "script", REDIS_CMD_SCRIPT, &ArdbServer::Script, 1, -1, "s", 0 },
                 { "randomkey", REDIS_CMD_RANDOMKEY, &ArdbServer::Randomkey, 0, 0, "r", 0 },
                 { "scan", REDIS_CMD_SCAN, &ArdbServer::Scan, 1, 5, "r", 0 },
-                { "geoadd", REDIS_CMD_GEO_ADD, &ArdbServer::GeoAdd, 4, 4, "w", 0 },
+                { "geoadd", REDIS_CMD_GEO_ADD, &ArdbServer::GeoAdd, 5, -1, "w", 0 },
                 { "geosearch", REDIS_CMD_GEO_SEARCH, &ArdbServer::GeoSearch, 5, -1, "r", 0 },
                 { "cache", REDIS_CMD_CACHE, &ArdbServer::Cache, 2, 2, "r", 0 }, };
 
@@ -952,13 +967,20 @@ namespace ardb
 
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "memory"))
         {
+            info.append("# Memory\r\n");
             if (NULL != m_db->GetL1Cache())
             {
-                info.append("# Memory\r\n");
+                info.append("L1_cache_enable:1\r\n");
+                info.append("L1_cache_max_memory:").append(stringfromll(m_db->GetConfig().L1_cache_memory_limit)).append(
+                        "\r\n");
                 info.append("L1_cache_entries:").append(stringfromll(m_db->GetL1Cache()->GetEntrySize())).append(
                         "\r\n");
                 info.append("L1_cache_estimate_memory:").append(
                         stringfromll(m_db->GetL1Cache()->GetEstimateMemorySize())).append("\r\n");
+            }
+            else
+            {
+                info.append("L1_cache_enable:0\r\n");
             }
         }
 
@@ -2046,14 +2068,14 @@ namespace ardb
 
     int ArdbServer::HMGet(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        ValueDataArray vals;
+        StringArray vals;
         SliceArray fs;
         for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
         {
             fs.push_back(cmd.GetArguments()[i]);
         }
         m_db->HMGet(ctx.currentDB, cmd.GetArguments()[0], fs, vals);
-        fill_array_reply(ctx.reply, vals);
+        fill_str_array_reply(ctx.reply, vals);
         return 0;
     }
 
@@ -2127,7 +2149,7 @@ namespace ardb
     int ArdbServer::HGetAll(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         StringArray fields;
-        ValueDataArray results;
+        StringArray results;
         m_db->HGetAll(ctx.currentDB, cmd.GetArguments()[0], fields, results);
         ctx.reply.type = REDIS_REPLY_ARRAY;
         for (uint32 i = 0; i < fields.size(); i++)
@@ -2135,7 +2157,7 @@ namespace ardb
             RedisReply reply1, reply2;
             fill_str_reply(reply1, fields[i]);
             std::string str;
-            fill_str_reply(reply2, results[i].ToString(str));
+            fill_str_reply(reply2, results[i]);
             ctx.reply.elements.push_back(reply1);
             ctx.reply.elements.push_back(reply2);
         }
@@ -3267,18 +3289,19 @@ namespace ardb
     }
 
     /*
-     *  GEOADD  key x y value
+     *  GEOADD key x y value  [attr_name attr_value ...]
      */
     int ArdbServer::GeoAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        double x, y;
-        if (!check_double_arg(ctx.reply, cmd.GetArguments()[1], x)
-                || !check_double_arg(ctx.reply, cmd.GetArguments()[2], y))
+        GeoAddOptions options;
+        std::string err;
+        if (0 != options.Parse(cmd.GetArguments(), err, 1))
         {
+            fill_error_reply(ctx.reply, "ERR %s", err.c_str());
             return 0;
         }
-        int ret = m_db->GeoAdd(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[3], x, y);
-        if (ret == 0)
+        int ret = m_db->GeoAdd(ctx.currentDB, cmd.GetArguments()[0], options);
+        if (ret >= 0)
         {
             fill_status_reply(ctx.reply, "OK");
         }
@@ -3290,7 +3313,13 @@ namespace ardb
     }
 
     /*
-     *  GEOSEARCH key LOCATION x y|MEMBER m  RADIUS r  [LIMIT offset count] [ASC|DESC|NOSORT] [WITHCOODINATES][WITHDISTANCES]
+     *  GEOSEARCH key LOCATION x y  RADIUS r [ASC|DESC] [WITHCOORDINATES] [WITHDISTANCES] [GET pattern [GET pattern ...]] [LIMIT offset count]
+     *  GEOSEARCH key MEMBER m      RADIUS r [ASC|DESC] [WITHCOORDINATES] [WITHDISTANCES] [GET pattern [GET pattern ...]] [LIMIT offset count]
+     *
+     *  For 'GET pattern' in GEOSEARCH:
+     *  If 'pattern' is '#.<attr>',  return actual point's attribute stored by 'GeoAdd'
+     *  Other pattern would processed the same as 'sort' command (Use same C++ function),
+     *  The patterns like '#', "*->field" are valid.
      */
 
     int ArdbServer::GeoSearch(ArdbConnContext& ctx, RedisCommandFrame& cmd)
@@ -3309,22 +3338,32 @@ namespace ardb
     }
 
     /*
-     * CACHE LOAD|EVICT key
+     * CACHE LOAD|EVICT|STATUS key
      */
     int ArdbServer::Cache(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         int ret = 0;
         if (!strcasecmp(cmd.GetArguments()[0].c_str(), "load"))
         {
-            ret = m_db->Cache(ctx.currentDB, cmd.GetArguments()[1]);
+            ret = m_db->CacheLoad(ctx.currentDB, cmd.GetArguments()[1]);
         }
         else if (!strcasecmp(cmd.GetArguments()[0].c_str(), "evict"))
         {
-            ret = m_db->Evict(ctx.currentDB, cmd.GetArguments()[0]);
+            ret = m_db->CacheEvict(ctx.currentDB, cmd.GetArguments()[1]);
+        }
+        else if (!strcasecmp(cmd.GetArguments()[0].c_str(), "status"))
+        {
+            std::string status;
+            ret = m_db->CacheStatus(ctx.currentDB, cmd.GetArguments()[1], status);
+            if (ret == 0)
+            {
+                fill_str_reply(ctx.reply, status);
+                return 0;
+            }
         }
         else
         {
-            fill_error_reply(ctx.reply, "ERR Syntax error, try CACHE (LOAD | EVICT) key");
+            fill_error_reply(ctx.reply, "ERR Syntax error, try CACHE (LOAD | EVICT | STATUS) key");
             return 0;
         }
         if (ret == 0)
@@ -3333,7 +3372,7 @@ namespace ardb
         }
         else
         {
-            fill_error_reply(ctx.reply, "ERR Failed to cache load/evict key:%s", cmd.GetArguments()[1].c_str());
+            fill_error_reply(ctx.reply, "ERR Failed to cache load/evict/status key:%s", cmd.GetArguments()[1].c_str());
         }
         return 0;
     }
@@ -3721,8 +3760,7 @@ namespace ardb
             ERROR_LOG("Faild to change dir to home:%s", m_cfg.home.c_str());
             return -1;
         }
-        //m_engine = new SelectedDBEngineFactory(props);
-        m_db = new Ardb(&m_engine, m_cfg.worker_count > 1);
+        m_db = new Ardb(&m_engine, (uint32)m_cfg.worker_count);
         if (!m_db->Init(m_cfg.db_cfg))
         {
             ERROR_LOG("Failed to init DB.");

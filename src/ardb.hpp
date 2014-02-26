@@ -46,7 +46,8 @@
 #include "util/thread/thread_local.hpp"
 #include "util/thread/lock_guard.hpp"
 #include "channel/all_includes.hpp"
-#include "cache/cache_service.hpp"
+#include "cache/level1_cache.hpp"
+#include "geo/geohash_helper.hpp"
 
 #define ARDB_OK 0
 #define ERR_INVALID_ARGS -3
@@ -82,7 +83,7 @@ namespace ardb
 
     struct KeyValueEngine
     {
-            virtual int Get(const Slice& key, std::string* value) = 0;
+            virtual int Get(const Slice& key, std::string* value, bool fill_cache) = 0;
             virtual int Put(const Slice& key, const Slice& value) = 0;
             virtual int Del(const Slice& key) = 0;
             virtual int BeginBatchWrite() = 0;
@@ -191,14 +192,23 @@ namespace ardb
             int64 set_max_ziplist_value;
 
             int64 L1_cache_memory_limit;
-            int64 L1_cache_item_limit;
 
             bool check_type_before_set_string;
+
+            uint8 geo_coord_type;
+
+            bool read_fill_cache;
+            bool zset_write_fill_cache;
+//            bool string_write_fill_cache;
+//            bool hash_write_fill_cache;
+//            bool set_write_fill_cache;
+//            bool list_write_fill_cache;
+
             ArdbConfig() :
                     hash_max_ziplist_entries(128), hash_max_ziplist_value(64), list_max_ziplist_entries(128), list_max_ziplist_value(
                             64), zset_max_ziplist_entries(128), zset_max_ziplist_value(64), set_max_ziplist_entries(
-                            128), set_max_ziplist_value(64), L1_cache_memory_limit(0), L1_cache_item_limit(0), check_type_before_set_string(
-                            false)
+                            128), set_max_ziplist_value(64), L1_cache_memory_limit(0), check_type_before_set_string(
+                            false), geo_coord_type(GEO_WGS84_TYPE), read_fill_cache(true), zset_write_fill_cache(false)
             {
             }
     };
@@ -253,17 +263,20 @@ namespace ardb
             int GetHashZipEntry(HashMetaValue* meta, const ValueData& field, ValueData*& value);
             int HGetValue(HashKeyObject& key, HashMetaValue* meta, CommonValueObject& value);
             int HSetValue(HashKeyObject& key, HashMetaValue* meta, CommonValueObject& value);
+            int HIterate(const DBID& db, const Slice& key, ValueStoreCallback* cb, void* cbdata);
 
             int TryZAdd(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score,
-                    const Slice& value,const Slice& attr, bool check_value);
+                    const Slice& value, const Slice& attr, bool check_value);
             uint32 ZRankByScore(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score,
                     bool contains_score);
             int ZGetByRank(const DBID& db, const Slice& key, ZSetMetaValue& meta, uint32 rank, ZSetElement& e);
             int ZInsertRangeScore(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score);
             int ZDeleteRangeScore(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score);
             int ZRangeByScoreRange(const DBID& db, const Slice& key, const ZRangeSpec& range, Iterator*& iter,
-                    ValueDataArray& values, ZSetQueryOptions& options, bool check_cache);
+                    ZSetQueryOptions& options, bool check_cache, ValueStoreCallback* cb, void* cbdata);
             int ZGetNodeValue(const DBID& db, const Slice& key, const Slice& value, ValueData& score, ValueData& attr);
+            CacheItem* GetLoadedCache(const DBID& db, const Slice& key, KeyType type, bool evict_non_loaded,
+                    bool create_if_not_exist);
 
             int GetType(const DBID& db, const Slice& key, KeyType& type);
             int SetMeta(KeyObject& key, CommonMetaValue& meta);
@@ -291,13 +304,8 @@ namespace ardb
             int BitOP(const DBID& db, const Slice& op, SliceArray& keys, BitSetElementValueMap*& result,
                     BitSetElementValueMap*& tmp);
 
-            int HLastField(const DBID& db, const Slice& key, std::string& field);
-            int HFirstField(const DBID& db, const Slice& key, std::string& field);
-
             int SLastMember(const DBID& db, const Slice& key, ValueData& member);
             int SFirstMember(const DBID& db, const Slice& key, ValueData& member);
-
-            int GetGeoPoint(const DBID& db, const Slice& key, const Slice& value, GeoPoint& point);
 
             /*
              * Set operation
@@ -328,50 +336,93 @@ namespace ardb
             struct KeyLocker
             {
                     typedef TreeSet<DBItemStackKey>::Type DBItemKeySet;
-                    DBItemKeySet m_locked_keys;
-                    ThreadMutex m_keys_mutex;
-                    ThreadMutexLock m_barrier;
-                    bool enable;
-                    KeyLocker() :
-                            enable(true)
+                    typedef TreeMap<DBItemStackKey, ThreadMutexLock*>::Type ThreadMutexLockTable;
+                    typedef std::list<ThreadMutexLock*> ThreadMutexLockList;
+                    //DBItemKeySet m_locked_keys;
+                    ThreadMutex m_barrier_mutex;
+                    ThreadMutexLockList m_barrier_pool;
+                    ThreadMutexLockTable m_barrier_table;
+                    bool m_enable;
+                    KeyLocker(uint32 thread_num) :
+                            m_enable(thread_num > 1)
                     {
+                        for (uint32 i = 0; m_enable && i < thread_num; i++)
+                        {
+                            ThreadMutexLock* lock = new ThreadMutexLock;
+                            m_barrier_pool.push_back(lock);
+                        }
+                    }
+                    ~KeyLocker()
+                    {
+                        ThreadMutexLockList::iterator it = m_barrier_pool.begin();
+                        while(it != m_barrier_pool.end())
+                        {
+                            delete *it;
+                            it++;
+                        }
                     }
                     void AddLockKey(const DBID& db, const Slice& key)
                     {
-                        if (!enable)
+                        if (!m_enable)
                         {
                             return;
                         }
                         while (true)
                         {
-                            bool insert = false;
+                            ThreadMutexLock* barrier = NULL;
+                            bool inserted = false;
                             {
-                                LockGuard<ThreadMutex> guard(m_keys_mutex);
-                                insert = m_locked_keys.insert(DBItemStackKey(db, key)).second;
+                                LockGuard<ThreadMutex> guard(m_barrier_mutex);
+                                /*
+                                 * Merge find/insert operations into one 'insert' invocation
+                                 */
+                                std::pair<ThreadMutexLockTable::iterator, bool> insert = m_barrier_table.insert(
+                                        std::make_pair(DBItemStackKey(db, key), (ThreadMutexLock*)NULL));
+                                if (!insert.second)
+                                {
+                                    barrier = insert.first->second;
+                                }
+                                else
+                                {
+                                    barrier = m_barrier_pool.front();
+                                    m_barrier_pool.pop_front();
+                                    insert.first->second = barrier;
+                                    inserted = true;
+                                }
                             }
-                            if (insert)
+                            if (inserted)
                             {
                                 return;
                             }
                             else
                             {
-                                LockGuard<ThreadMutexLock> guard(m_barrier);
-                                m_barrier.Wait();
+                                LockGuard<ThreadMutexLock> guard(*barrier);
+                                barrier->Wait();
                             }
                         }
                     }
                     void ClearLockKey(const DBID& db, const Slice& key)
                     {
-                        if (!enable)
+                        if (!m_enable)
                         {
                             return;
                         }
+                        ThreadMutexLock* barrier = NULL;
                         {
-                            LockGuard<ThreadMutex> guard(m_keys_mutex);
-                            m_locked_keys.erase(DBItemStackKey(db, key));
+                            LockGuard<ThreadMutex> guard(m_barrier_mutex);
+                            ThreadMutexLockTable::iterator found = m_barrier_table.find(DBItemStackKey(db, key));
+                            if (found != m_barrier_table.end())
+                            {
+                                barrier = found->second;
+                                m_barrier_table.erase(found);
+                                m_barrier_pool.push_back(barrier);
+                            }
                         }
-                        LockGuard<ThreadMutexLock> guard(m_barrier);
-                        m_barrier.NotifyAll();
+                        if (NULL != barrier)
+                        {
+                            LockGuard<ThreadMutexLock> guard(*barrier);
+                            barrier->NotifyAll();
+                        }
                     }
             };
 
@@ -397,7 +448,7 @@ namespace ardb
 
             friend class L1Cache;
         public:
-            Ardb(KeyValueEngineFactory* factory, bool multi_thread = true);
+            Ardb(KeyValueEngineFactory* factory, uint32 multi_thread_num = 1);
             ~Ardb();
 
             bool Init(const ArdbConfig& cfg);
@@ -475,9 +526,9 @@ namespace ardb
             int HMIncrby(const DBID& db, const Slice& key, const SliceArray& fields, const Int64Array& increments,
                     Int64Array& vs);
             int HIncrbyFloat(const DBID& db, const Slice& key, const Slice& field, double increment, double& value);
-            int HMGet(const DBID& db, const Slice& key, const SliceArray& fields, ValueDataArray& values);
+            int HMGet(const DBID& db, const Slice& key, const SliceArray& fields, StringArray& values);
             int HMSet(const DBID& db, const Slice& key, const SliceArray& fields, const SliceArray& values);
-            int HGetAll(const DBID& db, const Slice& key, StringArray& fields, ValueDataArray& values);
+            int HGetAll(const DBID& db, const Slice& key, StringArray& fields, StringArray& values);
             int HKeys(const DBID& db, const Slice& key, StringArray& fields);
             int HVals(const DBID& db, const Slice& key, StringArray& values);
             int HLen(const DBID& db, const Slice& key);
@@ -506,10 +557,12 @@ namespace ardb
             /*
              * Sorted Set operations
              */
-            int ZAdd(const DBID& db, const Slice& key, const ValueData& score, const Slice& value, const Slice& attr = "");
-            int ZAdd(const DBID& db, const Slice& key, ValueDataArray& scores, const SliceArray& svs, const SliceArray& attrs);
-            int ZAddLimit(const DBID& db, const Slice& key, ValueDataArray& scores, const SliceArray& svs, const SliceArray& attrs, int setlimit,
-                    ValueDataArray& pops);
+            int ZAdd(const DBID& db, const Slice& key, const ValueData& score, const Slice& value, const Slice& attr =
+                    "");
+            int ZAdd(const DBID& db, const Slice& key, ValueDataArray& scores, const SliceArray& svs,
+                    const SliceArray& attrs);
+            int ZAddLimit(const DBID& db, const Slice& key, ValueDataArray& scores, const SliceArray& svs,
+                    const SliceArray& attrs, int setlimit, ValueDataArray& pops);
             int ZCard(const DBID& db, const Slice& key);
             int ZScore(const DBID& db, const Slice& key, const Slice& value, ValueData& score);
             int ZRem(const DBID& db, const Slice& key, const Slice& value);
@@ -567,11 +620,12 @@ namespace ardb
             int SUnionStore(const DBID& db, const Slice& dst, SliceArray& keys);
             int SClear(const DBID& db, const Slice& key);
 
-            int GeoAdd(const DBID& db, const Slice& key, const Slice& value, double x, double y);
+            int GeoAdd(const DBID& db, const Slice& key, const GeoAddOptions& options);
             int GeoSearch(const DBID& db, const Slice& key, const GeoSearchOptions& options, ValueDataDeque& results);
 
-            int Cache(const DBID& db, const Slice& key);
-            int Evict(const DBID& db, const Slice& key);
+            int CacheLoad(const DBID& db, const Slice& key);
+            int CacheEvict(const DBID& db, const Slice& key);
+            int CacheStatus(const DBID& db, const Slice& key, std::string& status);
 
             int Type(const DBID& db, const Slice& key);
             int Sort(const DBID& db, const Slice& key, const StringArray& args, ValueDataArray& values);

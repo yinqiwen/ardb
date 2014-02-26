@@ -34,7 +34,7 @@
 CXX=g++
 CC=gcc
 
-ARDB_VERSION=0.6.0
+ARDB_VERSION=0.7.0
 
 uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 
@@ -44,7 +44,7 @@ LMDB_PATH=${LIB_PATH}/mdb-mdb/libraries/liblmdb
 LMDB_FILE=${LIB_PATH}/LMDB_0_9_6.gz
 LMDB_LIBA=${LMDB_PATH}/liblmdb.a
 
-JEMALLOC_VER=jemalloc-3.4.1
+JEMALLOC_VER=jemalloc-3.5.0
 JEMALLOC_PATH=${LIB_PATH}/${JEMALLOC_VER}
 JEMALLOC_FILE=${JEMALLOC_PATH}.tar.bz2
 JEMALLOC_LIBA=${JEMALLOC_PATH}/lib/libjemalloc.a
@@ -83,8 +83,8 @@ LUA_LIBA=${LUA_PATH}/src/liblua.a
 OPTIMIZATION?=-O2
 OPT=$(OPTIMIZATION)
 
-CXXFLAGS=-Wall -g  ${OPT}  -fPIC -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"' 
-CCFLAGS=-Wall -std=gnu99 ${OPT} -pedantic -g -fPIC -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"'
+CXXFLAGS=-Wall -g  ${OPT} -fPIC -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"' 
+CCFLAGS=-Wall -std=gnu99 ${OPT} -fPIC -pedantic -g -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"'
 LDFLAGS=-g 
 
 LUA_CFLAGS+= -O2 -Wall -DLUA_ANSI $(CCFLAGS)

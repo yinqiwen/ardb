@@ -1,5 +1,5 @@
 /*
- *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
+ *Copyright (c) 2013-2014, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  *
  *Redistribution and use in source and binary forms, with or without
@@ -26,39 +26,38 @@
  *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include "db_helpers.hpp"
 
+#ifndef THREAD_MUTEX_LOCK_HPP_
+#define THREAD_MUTEX_LOCK_HPP_
+#include "util/atomic.hpp"
+#include <sched.h>
 namespace ardb
 {
-    ExpireCheck::ExpireCheck(Ardb* db) :
-            m_checking_db(0), m_db(db)
+    class SpinMutexLock
     {
-    }
-
-    void ExpireCheck::Run()
-    {
-        uint64 start = get_current_epoch_millis();
-        while (m_checking_db < ARDB_GLOBAL_DB)
-        {
-            uint64 now = get_current_epoch_millis();
-            if (now - start >= 500)
+        public:
+            volatile uint32_t m_lock;
+        public:
+            SpinMutexLock() :
+                    m_lock(0)
             {
-                return;
             }
-            DBID nexdb = 0;
-            if (!m_db->DBExist(m_checking_db, nexdb))
+            bool Lock()
             {
-                if (nexdb == m_checking_db || nexdb == ARDB_GLOBAL_DB)
-                {
-                    m_checking_db = 0;
-                    return;
-                }
-                m_checking_db = nexdb;
+                while (!atomic_cmp_set_uint32(&m_lock, 0, 1))
+                    sched_yield();
+                return true;
             }
-            m_db->CheckExpireKey(m_checking_db);
-            m_checking_db++;
-        }
-        m_checking_db = 0;
+            bool Unlock()
+            {
+                m_lock = 0;
+                return true;
+            }
+            ~SpinMutexLock()
+            {
+            }
     }
+    ;
 }
 
+#endif /* THREAD_RWLOCK_HPP_ */

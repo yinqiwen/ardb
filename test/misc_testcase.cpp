@@ -5,22 +5,80 @@
  *      Author: yinqiwen
  */
 #include "test_common.hpp"
+#include "util/thread/spin_rwlock.hpp"
+#include "util/thread/lock_guard.hpp"
+#include "util/thread/thread.hpp"
 
-//#include "lua_scripting.hpp"
-//
-//void test_lua(){
-//	LUAInterpreter iter(NULL);
-//	SliceArray keys, args;
-//	RedisReply r;
-//	iter.Eval("ardb.log(redis.LOG_WARNING, \"adasds\")", keys, args, false, r);
-//}
+struct WriteTask: public Runnable
+{
+        std::map<int, int>* mm;
+        SpinRWLock* lock;
+
+        void Run()
+        {
+            uint64 start = get_current_epoch_millis();
+            for (int i = 0; i < 1000000; i++)
+            {
+                WriteLockGuard<SpinRWLock> guard(*lock);
+                (*mm)[i] = 1;
+            }
+            uint64 end = get_current_epoch_millis();
+            INFO_LOG("Cost %llums to write", (end - start));
+        }
+};
+
+struct ReadTask: public Runnable
+{
+        std::map<int, int>* mm;
+        SpinRWLock* lock;
+        void Run()
+        {
+            uint64 start = get_current_epoch_millis();
+            for (int i = 0; i < 1000000; i++)
+            {
+                ReadLockGuard<SpinRWLock> guard(*lock);
+                mm->find(i);
+            }
+            uint64 end = get_current_epoch_millis();
+            INFO_LOG("Cost %llums to read", (end - start));
+        }
+};
+
+void test_rwlock(Ardb& db)
+{
+    WriteTask wtask;
+    ReadTask rtask;
+    std::map<int, int> mm;
+    SpinRWLock lock;
+    wtask.lock = &lock;
+    wtask.mm = &mm;
+    rtask.lock = &lock;
+    rtask.mm = &mm;
+    Thread* w = new Thread(&wtask);
+    std::vector<Thread*> ts;
+    for(uint32 i = 0; i < 10; i++)
+    {
+        Thread* r = new Thread(&rtask);
+        r->Start();
+        ts.push_back(r);
+    }
+    w->Start();
+    w->Join();
+    std::vector<Thread*>::iterator tit = ts.begin();
+    while(tit != ts.end())
+    {
+        (*tit)->Join();
+        tit++;
+    }
+    INFO_LOG("mm size=%u", mm.size());
+}
 
 void test_type(Ardb& db)
 {
     DBID dbid = 0;
     db.SAdd(dbid, "myset", "123");
     db.LPush(dbid, "mylist", "value0");
-    db.ZAdd(dbid, "myzset1", ValueData((int64)1), "one");
+    db.ZAdd(dbid, "myzset1", ValueData((int64) 1), "one");
     db.HSet(dbid, "myhash", "field1", "value1");
     db.Set(dbid, "skey", "abc");
     db.SetBit(dbid, "mybits", 1, 1);
@@ -159,10 +217,10 @@ void test_sort_zset(Ardb& db)
 {
     DBID dbid = 0;
     db.ZClear(dbid, "myzset");
-    db.ZAdd(dbid, "myzset", ValueData((int64)0), "v0");
-    db.ZAdd(dbid, "myzset", ValueData((int64)10), "v10");
-    db.ZAdd(dbid, "myzset", ValueData((int64)3), "v3");
-    db.ZAdd(dbid, "myzset", ValueData((int64)5), "v5");
+    db.ZAdd(dbid, "myzset", ValueData((int64) 0), "v0");
+    db.ZAdd(dbid, "myzset", ValueData((int64) 10), "v10");
+    db.ZAdd(dbid, "myzset", ValueData((int64) 3), "v3");
+    db.ZAdd(dbid, "myzset", ValueData((int64) 5), "v5");
 
     StringArray args;
     ValueDataArray vs;
@@ -232,7 +290,7 @@ void test_keys(Ardb& db)
     db.HSet(dbid, "myhash_v0", "field", "100");
     db.SAdd(dbid, "myset_v0", "field");
     db.LPush(dbid, "mylist", "122");
-    db.ZAdd(dbid, "myzset", ValueData((int64)3), "v0");
+    db.ZAdd(dbid, "myzset", ValueData((int64) 3), "v0");
     db.Set(dbid, "mykey", "12312");
 
     StringArray ret;
@@ -259,7 +317,7 @@ void test_pthread_create_performance()
         pthread_mutex_destroy(&mutex);
     }
     uint64 end = get_current_epoch_millis();
-    INFO_LOG("Cost %llums to create/destory %u mutexes.", (end- start), loop);
+    INFO_LOG("Cost %llums to create/destory %u mutexes.", (end - start), loop);
 }
 
 void test_misc(Ardb& db)

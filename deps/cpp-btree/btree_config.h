@@ -28,7 +28,7 @@
 // For pre-c++11 compilers, tr1::type_traits is usually available.
 # ifdef _MSC_VER
   #define CPP_BTREE_TYPE_TRAITS_HEADER <type_traits>
-# elif defined(HAVE_STD_TR1)
+# elif defined(HAVE_STD_TR1) && !defined(__APPLE__)
   #define CPP_BTREE_TYPE_TRAITS_HEADER <tr1/type_traits>
 #  else
 #  define CPP_BTREE_TYPE_TRAITS_HEADER <boost/tr1/type_traits.hpp>

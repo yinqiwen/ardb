@@ -84,10 +84,8 @@ extern "C"
      * 0:success
      * -1:failed
      */
-    int geohash_encode(double latitude, double longitude, uint8_t step, GeoHashBits* hash);
-    int geohash_decode(const GeoHashBits* hash, GeoHashArea* area);
-    int geohash_mercator_encode(double latitude, double longitude, uint8_t step, GeoHashBits* hash);
-    int geohash_mercator_decode(const GeoHashBits* hash, GeoHashArea* area);
+    int geohash_encode(const GeoHashRange* lat_range, const GeoHashRange* lon_range, double latitude, double longitude, uint8_t step, GeoHashBits* hash);
+    int geohash_decode(const GeoHashRange* lat_range, const GeoHashRange* lon_range, const GeoHashBits* hash, GeoHashArea* area);
     int geohash_get_neighbors(const GeoHashBits* hash, GeoHashNeighbors* neighbors);
 
 #if defined(__cplusplus)

@@ -33,25 +33,31 @@
 
 namespace ardb
 {
-    int Ardb::GeoAdd(const DBID& db, const Slice& key, const Slice& value, double x, double y)
+
+    int Ardb::GeoAdd(const DBID& db, const Slice& key, const GeoAddOptions& options)
     {
-        GeoHashFix50Bits score = GeoHashHelper::GetFix50MercatorGeoHashBits(y, x);
+        GeoHashRange lat_range, lon_range;
+        GeoHashHelper::GetCoordRange(m_config.geo_coord_type, lat_range, lon_range);
+        if (options.x < lon_range.min || options.x > lon_range.max || options.y < lat_range.min
+                || options.y > lat_range.max)
+        {
+            return ERR_INVALID_ARGS;
+        }
+        GeoPoint point;
+        point.x = options.x;
+        point.y = options.y;
+        point.attrs = options.attrs;
+
+        GeoHashBits hash;
+        geohash_encode(&lat_range, &lon_range, point.y, point.x, 25, &hash);
+        GeoHashFix50Bits score = hash.bits;
         ValueData score_value;
         score_value.SetIntValue((int64) score);
-        GeoPoint point;
-        point.x = x;
-        point.y = y;
-        point.mercator_x = GeoHashHelper::GetMercatorX(x);
-        point.mercator_y = GeoHashHelper::GetMercatorY(y);
+
         Buffer content;
         point.Encode(content);
         Slice content_value(content.GetRawReadBuffer(), content.ReadableBytes());
-        return ZAdd(db, key, score_value, value, content_value);
-    }
-
-    static bool less_by_bits(const GeoHashBits& v1, const GeoHashBits& v2)
-    {
-        return v1.bits < v2.bits;
+        return ZAdd(db, key, score_value, options.value, content_value);
     }
 
     static bool less_by_distance(const GeoPoint& v1, const GeoPoint& v2)
@@ -64,50 +70,51 @@ namespace ardb
         return v1.distance > v2.distance;
     }
 
-    int Ardb::GetGeoPoint(const DBID& db, const Slice& key, const Slice& value, GeoPoint& point)
+    static int ZSetValueStoreCallback(const ValueData& value, int cursor, void* cb)
     {
+        ValueDataArray* s = (ValueDataArray*) cb;
+        s->push_back(value);
         return 0;
     }
 
     int Ardb::GeoSearch(const DBID& db, const Slice& key, const GeoSearchOptions& options, ValueDataDeque& results)
     {
-        GeoHashBitsArray ress;
-        double mercator_x, mercator_y;
-        if (options.by_coodinates)
-        {
-            mercator_x = GeoHashHelper::GetMercatorX(options.x);
-            mercator_y = GeoHashHelper::GetMercatorY(options.y);
-        }
-        else
+        uint64 start_time = get_current_epoch_micros();
+        GeoHashBitsSet ress;
+        double x = options.x, y = options.y;
+        if (options.by_member)
         {
             ValueData score, attr;
             int err = ZGetNodeValue(db, key, options.member, score, attr);
-            if(0 != err)
+            if (0 != err)
             {
                 return err;
             }
             Buffer attr_content(const_cast<char*>(attr.bytes_value.data()), 0, attr.bytes_value.size());
             GeoPoint point;
             point.Decode(attr_content);
-            mercator_x = point.mercator_x;
-            mercator_y = point.mercator_y;
+            x = point.x;
+            y = point.y;
         }
-        GeoHashHelper::GetAreasByRadius(mercator_y, mercator_x, options.radius, ress);
+        GeoHashHelper::GetAreasByRadius(m_config.geo_coord_type, y, x, options.radius, ress);
 
         /*
          * Merge areas if possible to avoid disk search
          */
-        std::sort(ress.begin(), ress.end(), less_by_bits);
         std::vector<ZRangeSpec> range_array;
-        for (uint32 i = 0; i < ress.size(); i++)
+        GeoHashBitsSet::iterator rit = ress.begin();
+        GeoHashBitsSet::iterator next_it = ress.begin();
+        next_it++;
+        while (rit != ress.end())
         {
-            GeoHashBits& hash = ress[i];
+            GeoHashBits& hash = *rit;
             GeoHashBits next = hash;
             next.bits++;
-            while (i < (ress.size() - 1) && next.bits == ress[i + 1].bits)
+            while (next_it != ress.end() && next.bits == next_it->bits)
             {
                 next.bits++;
-                i++;
+                next_it++;
+                rit++;
             }
             ZRangeSpec range;
             range.contain_min = true;
@@ -115,7 +122,10 @@ namespace ardb
             range.min.SetIntValue(GeoHashHelper::Allign50Bits(hash));
             range.max.SetIntValue(GeoHashHelper::Allign50Bits(next));
             range_array.push_back(range);
+            rit++;
+            next_it++;
         }
+        DEBUG_LOG("After areas merging, reduce searching area size from %u to %u", ress.size(), range_array.size());
 
         GeoPointArray points;
         std::vector<ZRangeSpec>::iterator hit = range_array.begin();
@@ -126,7 +136,7 @@ namespace ardb
             z_options.withscores = false;
             z_options.withattr = true;
             ValueDataArray values;
-            ZRangeByScoreRange(db, key, *hit, iter, values, z_options, true);
+            ZRangeByScoreRange(db, key, *hit, iter, z_options, true, ZSetValueStoreCallback, &values);
             ValueDataArray::iterator vit = values.begin();
             while (vit != values.end())
             {
@@ -136,8 +146,8 @@ namespace ardb
                 Buffer content(const_cast<char*>(vit->bytes_value.data()), 0, vit->bytes_value.size());
                 if (point.Decode(content))
                 {
-                    if (GeoHashHelper::GetDistanceIfInRadius(mercator_x, mercator_y, point.mercator_x, point.mercator_y,
-                            options.radius, point.distance))
+                    if (GeoHashHelper::GetDistanceSquareIfInRadius(m_config.geo_coord_type, x, y, point.x, point.y, options.radius,
+                            point.distance))
                     {
                         points.push_back(point);
                     }
@@ -161,7 +171,7 @@ namespace ardb
         }
         if (options.offset > 0)
         {
-            if (options.offset > points.size())
+            if ((uint32) options.offset > points.size())
             {
                 points.clear();
             }
@@ -173,34 +183,54 @@ namespace ardb
         }
         if (options.limit > 0)
         {
-            if (options.limit < points.size())
+            if ((uint32) options.limit < points.size())
             {
                 GeoPointArray::iterator end = points.begin() + options.limit;
                 points.erase(end, points.end());
             }
         }
         GeoPointArray::iterator pit = points.begin();
-        while(pit != points.end())
+        while (pit != points.end())
         {
             ValueData v;
             v.SetValue(pit->value, false);
             results.push_back(v);
-            if(options.with_coodinates)
+            GeoGetOptionDeque::const_iterator ait = options.get_patterns.begin();
+            while (ait != options.get_patterns.end())
             {
-                ValueData x, y;
-                x.SetDoubleValue(pit->x);
-                y.SetDoubleValue(pit->y);
-                results.push_back(x);
-                results.push_back(y);
-            }
-            if(options.with_distance)
-            {
-                ValueData dis;
-                dis.SetDoubleValue(pit->distance);
-                results.push_back(dis);
+                ValueData attr;
+                if (ait->get_distances)
+                {
+                    attr.SetDoubleValue(sqrt(pit->distance));
+                    results.push_back(attr);
+                }
+                else if (ait->get_coodinates)
+                {
+                    attr.SetDoubleValue(pit->x);
+                    results.push_back(attr);
+                    attr.SetDoubleValue(pit->y);
+                    results.push_back(attr);
+                }
+                else if (!ait->get_attr.empty())
+                {
+                    StringStringMap::iterator found = pit->attrs.find(ait->get_attr);
+                    if (found != pit->attrs.end())
+                    {
+                        attr.SetValue(found->second, false);
+                    }
+                    results.push_back(attr);
+                }
+                else
+                {
+                    GetValueByPattern(db, ait->get_pattern, v, attr);
+                    results.push_back(attr);
+                }
+                ait++;
             }
             pit++;
         }
+        uint64 end_time = get_current_epoch_micros();
+        DEBUG_LOG("Cost %llu microseconds to search.", end_time - start_time);
         return 0;
     }
 }

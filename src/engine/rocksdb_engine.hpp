@@ -170,7 +170,7 @@ namespace ardb
             ~RocksDBEngine();
             int Init(const RocksDBConfig& cfg);
             int Put(const Slice& key, const Slice& value);
-            int Get(const Slice& key, std::string* value);
+            int Get(const Slice& key, std::string* value, bool fill_cache);
             int Del(const Slice& key);
             int BeginBatchWrite();
             int CommitBatchWrite();

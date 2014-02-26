@@ -239,7 +239,7 @@ namespace ardb
 		}
 		return 0;
 	}
-	int LMDBEngine::Get(const Slice& key, std::string* value)
+	int LMDBEngine::Get(const Slice& key, std::string* value, bool fill_cache)
 	{
 		MDB_val k, v;
 		k.mv_data = const_cast<char*>(key.data());

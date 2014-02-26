@@ -42,6 +42,7 @@ namespace ardb
 			const char* sep = "=");
 	bool conf_get_int64(const Properties& conf, const std::string& name, int64& value, bool ignore_nonexist = false);
 	bool conf_get_string(const Properties& conf, const std::string& name, std::string& value, bool ignore_nonexist = false);
+	bool conf_get_bool(const Properties& conf, const std::string& name, bool& value, bool ignore_nonexist = false);
 	bool conf_get_double(const Properties& conf, const std::string& name, double& value, bool ignore_nonexist = false);
 
 	void replace_env_var(Properties& props);
