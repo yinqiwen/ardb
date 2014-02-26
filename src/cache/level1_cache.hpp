@@ -37,6 +37,7 @@
 #include "util/thread/thread_mutex.hpp"
 #include "util/thread/thread_mutex_lock.hpp"
 #include "util/thread/spin_rwlock.hpp"
+#include "util/thread/spin_mutex_lock.hpp"
 #include "util/thread/lock_guard.hpp"
 #include "util/concurrent_queue.hpp"
 #include "channel/all_includes.hpp"
@@ -206,7 +207,8 @@ namespace ardb
             MPSCQueue<CacheInstruction> m_inst_queue;
             typedef LRUCache<DBItemKey, CacheItem*> L1CacheTable;
             L1CacheTable m_cache;
-            ThreadMutex m_cache_mutex;
+            SpinMutexLock m_cache_mutex;
+            typedef LockGuard<SpinMutexLock> CacheLockGuard;
             void LoadZSetCache(const DBItemKey& key, ZSetCache* item);
             void Run();
             void CheckInstQueue();

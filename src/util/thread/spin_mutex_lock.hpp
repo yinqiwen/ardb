@@ -27,68 +27,37 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef GEOHASH_H_
-#define GEOHASH_H_
-
-#include <stdint.h>
-
-#if defined(__cplusplus)
-extern "C"
+#ifndef THREAD_MUTEX_LOCK_HPP_
+#define THREAD_MUTEX_LOCK_HPP_
+#include "util/atomic.hpp"
+#include <sched.h>
+namespace ardb
 {
-#endif
-
-    typedef enum
+    class SpinMutexLock
     {
-        GEOHASH_NORTH = 0,
-        GEOHASH_EAST,
-        GEOHASH_WEST,
-        GEOHASH_SOUTH,
-        GEOHASH_SOUTH_WEST,
-        GEOHASH_SOUTH_EAST,
-        GEOHASH_NORT_WEST,
-        GEOHASH_NORT_EAST
-    } GeoDirection;
-
-    typedef struct
-    {
-            uint64_t bits;
-            uint8_t step;
-    } GeoHashBits;
-
-    typedef struct
-    {
-            double max;
-            double min;
-    } GeoHashRange;
-
-    typedef struct
-    {
-            GeoHashBits hash;
-            GeoHashRange latitude;
-            GeoHashRange longitude;
-    } GeoHashArea;
-
-    typedef struct
-    {
-            GeoHashBits north;
-            GeoHashBits east;
-            GeoHashBits west;
-            GeoHashBits south;
-            GeoHashBits north_east;
-            GeoHashBits south_east;
-            GeoHashBits north_west;
-            GeoHashBits south_west;
-    } GeoHashNeighbors;
-
-    /*
-     * 0:success
-     * -1:failed
-     */
-    int geohash_encode(const GeoHashRange* lat_range, const GeoHashRange* lon_range, double latitude, double longitude, uint8_t step, GeoHashBits* hash);
-    int geohash_decode(const GeoHashRange* lat_range, const GeoHashRange* lon_range, const GeoHashBits* hash, GeoHashArea* area);
-    int geohash_get_neighbors(const GeoHashBits* hash, GeoHashNeighbors* neighbors);
-
-#if defined(__cplusplus)
+        public:
+            volatile uint32_t m_lock;
+        public:
+            SpinMutexLock() :
+                    m_lock(0)
+            {
+            }
+            bool Lock()
+            {
+                while (!atomic_cmp_set_uint32(&m_lock, 0, 1))
+                    sched_yield();
+                return true;
+            }
+            bool Unlock()
+            {
+                m_lock = 0;
+                return true;
+            }
+            ~SpinMutexLock()
+            {
+            }
+    }
+    ;
 }
-#endif
-#endif /* GEOHASH_H_ */
+
+#endif /* THREAD_RWLOCK_HPP_ */

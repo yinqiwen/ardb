@@ -33,17 +33,27 @@
 
 namespace ardb
 {
+
     int Ardb::GeoAdd(const DBID& db, const Slice& key, const GeoAddOptions& options)
     {
-        GeoHashFix50Bits score = GeoHashHelper::GetFix50MercatorGeoHashBits(options.y, options.x);
-        ValueData score_value;
-        score_value.SetIntValue((int64) score);
+        GeoHashRange lat_range, lon_range;
+        GeoHashHelper::GetCoordRange(m_config.geo_coord_type, lat_range, lon_range);
+        if (options.x < lon_range.min || options.x > lon_range.max || options.y < lat_range.min
+                || options.y > lat_range.max)
+        {
+            return ERR_INVALID_ARGS;
+        }
         GeoPoint point;
         point.x = options.x;
         point.y = options.y;
         point.attrs = options.attrs;
-        point.mercator_x = GeoHashHelper::GetMercatorX(options.x);
-        point.mercator_y = GeoHashHelper::GetMercatorY(options.y);
+
+        GeoHashBits hash;
+        geohash_encode(&lat_range, &lon_range, point.y, point.x, 25, &hash);
+        GeoHashFix50Bits score = hash.bits;
+        ValueData score_value;
+        score_value.SetIntValue((int64) score);
+
         Buffer content;
         point.Encode(content);
         Slice content_value(content.GetRawReadBuffer(), content.ReadableBytes());
@@ -71,13 +81,8 @@ namespace ardb
     {
         uint64 start_time = get_current_epoch_micros();
         GeoHashBitsSet ress;
-        double mercator_x = options.x, mercator_y = options.y;
-        if (options.by_geographic)
-        {
-            mercator_x = GeoHashHelper::GetMercatorX(options.x);
-            mercator_y = GeoHashHelper::GetMercatorY(options.y);
-        }
-        else if (options.by_member)
+        double x = options.x, y = options.y;
+        if (options.by_member)
         {
             ValueData score, attr;
             int err = ZGetNodeValue(db, key, options.member, score, attr);
@@ -88,10 +93,10 @@ namespace ardb
             Buffer attr_content(const_cast<char*>(attr.bytes_value.data()), 0, attr.bytes_value.size());
             GeoPoint point;
             point.Decode(attr_content);
-            mercator_x = point.mercator_x;
-            mercator_y = point.mercator_y;
+            x = point.x;
+            y = point.y;
         }
-        GeoHashHelper::GetAreasByRadius(mercator_y, mercator_x, options.radius, ress);
+        GeoHashHelper::GetAreasByRadius(m_config.geo_coord_type, y, x, options.radius, ress);
 
         /*
          * Merge areas if possible to avoid disk search
@@ -141,8 +146,8 @@ namespace ardb
                 Buffer content(const_cast<char*>(vit->bytes_value.data()), 0, vit->bytes_value.size());
                 if (point.Decode(content))
                 {
-                    if (GeoHashHelper::GetDistanceSquareIfInRadius(mercator_x, mercator_y, point.mercator_x,
-                            point.mercator_y, options.radius, point.distance))
+                    if (GeoHashHelper::GetDistanceSquareIfInRadius(m_config.geo_coord_type, x, y, point.x, point.y, options.radius,
+                            point.distance))
                     {
                         points.push_back(point);
                     }

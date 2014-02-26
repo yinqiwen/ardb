@@ -940,45 +940,21 @@ namespace ardb
 
     int GeoAddOptions::Parse(const StringArray& args, std::string& err, uint32 off)
     {
-        if (!strcasecmp(args[off].c_str(), "mercator"))
-        {
-            mercator = true;
-        }
-        else if (!strcasecmp(args[off].c_str(), "WGS84"))
-        {
-            geographic = true;
-        }
-        else
-        {
-            err = "Invalid coodinate type:" + args[off];
-            return -1;
-        }
-        off++;
         if (!string_todouble(args[off], x) || !string_todouble(args[off + 1], y))
-        {
-            err = "Invalid coodinates " + args[off] + "/" + args[off + 1];
-            return -1;
-        }
-        if (geographic && !GeoHashHelper::ValidateGeographicCoodinates(x, y))
-        {
-            err = "Invalid coodinates " + args[off] + "/" + args[off + 1];
-            return -1;
-        }
-        if (mercator && !GeoHashHelper::ValidateMercatorCoodinates(x, y))
         {
             err = "Invalid coodinates " + args[off] + "/" + args[off + 1];
             return -1;
         }
         off += 2;
         value = args[off++];
-        for(; off < args.size(); off += 2)
+        for (; off < args.size(); off += 2)
         {
-            if(off + 1 >= args.size())
+            if (off + 1 >= args.size())
             {
                 err = "Invalid attribute " + args[off] + " with no value followed.";
                 return -1;
             }
-            attrs[args[off]] = args[off+1];
+            attrs[args[off]] = args[off + 1];
         }
         return 0;
     }
@@ -1008,31 +984,18 @@ namespace ardb
             }
             else if (!strcasecmp(args[i].c_str(), "RADIUS") && i < args.size() - 1)
             {
-                if (!string_touint32(args[i + 1], radius))
+                if (!string_touint32(args[i + 1], radius) || radius == 0 || radius >= 20000000)
                 {
                     err = "Invalid radius value.";
                     return -1;
                 }
                 i++;
             }
-            else if ((!strcasecmp(args[i].c_str(), "MERCATOR") || !strcasecmp(args[i].c_str(), "WGS84"))
-                    && i < args.size() - 2)
+            else if ((!strcasecmp(args[i].c_str(), "LOCATION")) && i < args.size() - 2)
             {
                 if (!string_todouble(args[i + 1], x) || !string_todouble(args[i + 2], y))
                 {
                     err = "Invalid location value.";
-                    return -1;
-                }
-                by_mercator = !strcasecmp(args[i].c_str(), "MERCATOR");
-                by_geographic = !strcasecmp(args[i].c_str(), "WGS84");
-                if (by_mercator && !GeoHashHelper::ValidateMercatorCoodinates(x, y))
-                {
-                    err = "Invalid coodinates " + args[off] + "/" + args[off + 1];
-                    return -1;
-                }
-                if (by_geographic && !GeoHashHelper::ValidateGeographicCoodinates(x, y))
-                {
-                    err = "Invalid coodinates " + args[off] + "/" + args[off + 1];
                     return -1;
                 }
                 i += 2;
@@ -1047,7 +1010,7 @@ namespace ardb
             {
                 GeoSearchGetOption get;
                 get.get_pattern = args[i + 1];
-                if(get.get_pattern.size() > 2 && !strncasecmp(get.get_pattern.data(), "#.", 2))
+                if (get.get_pattern.size() > 2 && !strncasecmp(get.get_pattern.data(), "#.", 2))
                 {
                     get.get_pattern.clear();
                     get.get_attr = args[i + 1].substr(2);

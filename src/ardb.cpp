@@ -53,11 +53,10 @@ namespace ardb
         return pos;
     }
 
-    Ardb::Ardb(KeyValueEngineFactory* engine, bool multi_thread) :
-            m_engine_factory(engine), m_engine(NULL), m_db_helper(
+    Ardb::Ardb(KeyValueEngineFactory* engine, uint32 multi_thread_num) :
+            m_engine_factory(engine), m_engine(NULL), m_key_locker(multi_thread_num), m_db_helper(
             NULL), m_level1_cahce(NULL)
     {
-        m_key_locker.enable = multi_thread;
     }
 
     bool Ardb::Init(const ArdbConfig& cfg)

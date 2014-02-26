@@ -68,6 +68,7 @@
 	if(a != b) return COMPARE_NUMBER(a,b); \
 }while(0)
 
+
 namespace ardb
 {
     /*
@@ -633,15 +634,12 @@ namespace ardb
 
     struct GeoAddOptions
     {
-            bool mercator;
-            bool geographic;
-
             double x, y;
             Slice value;
 
             StringStringMap attrs;
             GeoAddOptions() :
-                    mercator(false), geographic(false), x(0), y(0)
+                    x(0), y(0)
             {
             }
 
@@ -673,16 +671,15 @@ namespace ardb
             int32 offset;
             int32 limit;
             bool by_member;
-            bool by_mercator;
-            bool by_geographic;
+            bool by_location;
 
             double x, y;
             std::string member;
 
             GeoGetOptionDeque get_patterns;
             GeoSearchOptions() :
-                    nosort(true), asc(false), radius(0), offset(0), limit(0), by_member(false), by_mercator(false), by_geographic(
-                            false), x(0), y(0)
+                    nosort(true), asc(false), radius(0), offset(0), limit(0), by_member(false), by_location(false), x(
+                            0), y(0)
             {
             }
 
@@ -695,8 +692,6 @@ namespace ardb
             std::string value;
             double x;
             double y;
-            double mercator_x;
-            double mercator_y;
 
             StringStringMap attrs;
 
@@ -705,10 +700,10 @@ namespace ardb
              */
             double distance;
             GeoPoint() :
-                    x(0), y(0), mercator_x(0), mercator_y(0), distance(0)
+                    x(0), y(0), distance(0)
             {
             }
-        CODEC_DEFINE(x,y,mercator_x, mercator_y, attrs)
+        CODEC_DEFINE(x,y, attrs)
     };
     typedef std::deque<GeoPoint> GeoPointArray;
 

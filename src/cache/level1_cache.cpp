@@ -92,7 +92,7 @@ namespace ardb
         while (m_estimate_mem_size > m_db->m_config.L1_cache_memory_limit && m_cache.Size() > 1)
         {
             LRUCache<DBItemKey, CacheItem*>::CacheEntry entry;
-            LockGuard<ThreadMutex> guard(m_cache_mutex);
+            CacheLockGuard guard(m_cache_mutex);
             if (m_cache.PeekFront(entry) && entry.second != exclude_item)
             {
                 m_estimate_mem_size -= SizeOfDBItemKey(entry.first);
@@ -190,7 +190,7 @@ namespace ardb
 
     CacheItem* L1Cache::CreateCacheEntry(const DBID& dbid, const Slice& key, KeyType type)
     {
-        LockGuard<ThreadMutex> guard(m_cache_mutex);
+        CacheLockGuard guard(m_cache_mutex);
         return DoCreateCacheEntry(dbid, key, type);
 
     }
@@ -202,7 +202,7 @@ namespace ardb
     int L1Cache::DoEvict(const DBID& dbid, const Slice& key)
     {
         DBItemKey cache_key(dbid, key);
-        LockGuard<ThreadMutex> guard(m_cache_mutex);
+        CacheLockGuard guard(m_cache_mutex);
         CacheItem* item = NULL;
         m_cache.Erase(cache_key, item);
         if (NULL != item)
@@ -225,7 +225,7 @@ namespace ardb
         CacheItem* item = NULL;
         DBItemKey cache_key(dbid, key);
         {
-            LockGuard<ThreadMutex> guard(m_cache_mutex);
+            CacheLockGuard guard(m_cache_mutex);
             m_cache.Peek(cache_key, item);
             if (NULL == item || L1_CACHE_LOADING != item->GetStatus())
             {
@@ -262,7 +262,7 @@ namespace ardb
     bool L1Cache::IsInCache(const DBID& dbid, const Slice& key)
     {
         DBItemKey cache_key(dbid, key);
-        LockGuard<ThreadMutex> guard(m_cache_mutex);
+        CacheLockGuard guard(m_cache_mutex);
         return m_cache.Contains(cache_key);
     }
 
@@ -334,7 +334,7 @@ namespace ardb
     int L1Cache::PeekCacheStatus(const DBID& dbid, const Slice& key, uint8& status)
     {
         DBItemKey cache_key(dbid, key);
-        LockGuard<ThreadMutex> guard(m_cache_mutex);
+        CacheLockGuard guard(m_cache_mutex);
         CacheItem* item = NULL;
         m_cache.Peek(cache_key, item);
         if (NULL == item)
@@ -353,7 +353,7 @@ namespace ardb
     CacheItem* L1Cache::Get(const DBID& dbid, const Slice& key, KeyType type, bool createIfNoExist)
     {
         DBItemKey cache_key(dbid, key);
-        LockGuard<ThreadMutex> guard(m_cache_mutex);
+        CacheLockGuard guard(m_cache_mutex);
         CacheItem* item = NULL;
         m_cache.Get(cache_key, item);
         if (NULL == item && createIfNoExist)

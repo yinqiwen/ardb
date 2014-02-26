@@ -15,11 +15,11 @@ namespace ardb
 {
     uint64_t atomic_add_uint64(volatile uint64_t *p, uint64_t v);
     uint64_t atomic_sub_uint64(volatile uint64_t *p, uint64_t v);
-    int atomic_cmp_set_uint64(uint64_t *p, uint64_t o, uint64_t n);
+    int atomic_cmp_set_uint64(volatile uint64_t *p, uint64_t o, uint64_t n);
 
     uint32_t atomic_add_uint32(volatile uint32_t *p, uint32_t v);
     uint32_t atomic_sub_uint32(volatile uint32_t *p, uint32_t v);
-    int atomic_cmp_set_uint32(uint32_t *p, uint32_t o, uint32_t n);
+    int atomic_cmp_set_uint32(volatile uint32_t *p, uint32_t o, uint32_t n);
 
 #ifdef HAVE_SYNC_OP
     inline uint64_t atomic_add_uint64(volatile uint64_t *p, uint64_t v)
@@ -31,7 +31,7 @@ namespace ardb
     {
         return __sync_sub_and_fetch(p, v);
     }
-    inline int atomic_cmp_set_uint64(uint64_t *p, uint64_t o, uint64_t n)
+    inline int atomic_cmp_set_uint64(volatile uint64_t *p, uint64_t o, uint64_t n)
     {
         return __sync_bool_compare_and_swap(p, o, n);
     }
@@ -56,7 +56,7 @@ namespace ardb
         return (xadd_8(p, -x) - x);
     }
 
-    inline int atomic_cmp_set_uint64(uint64_t *p, uint64_t o, uint64_t n)
+    inline int atomic_cmp_set_uint64(volatile uint64_t *p, uint64_t o, uint64_t n)
     {
         char result;
         asm volatile (
@@ -78,12 +78,12 @@ namespace ardb
     {
         return __sync_sub_and_fetch(p, v);
     }
-    inline int atomic_cmp_set_uint32(uint32_t *p, uint32_t o, uint32_t n)
+    inline int atomic_cmp_set_uint32(volatile uint32_t *p, uint32_t o, uint32_t n)
     {
         return __sync_bool_compare_and_swap(p, o, n);
     }
 #elif (defined(__i386__) || defined(__amd64_) || defined(__x86_64__))
-inline uint32 xadd_4(volatile void* pVal, uint32 inc)
+inline uint32_t xadd_4(volatile uint32_t* pVal, uint32_t inc)
 {
     unsigned int result;
     unsigned int* pValInt = (unsigned int*)pVal;
@@ -104,7 +104,7 @@ inline uint32_t atomic_sub_uint32(volatile uint32_t *p, uint32_t x)
 {
     return (xadd_4(p, -x) - x);
 }
-inline int atomic_cmp_set_uint32(uint32_t *p, uint32_t o, uint32_t n)
+inline int atomic_cmp_set_uint32(volatile uint32_t *p, uint32_t o, uint32_t n)
 {
     char result;
     asm volatile (

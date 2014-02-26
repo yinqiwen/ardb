@@ -46,8 +46,8 @@ namespace ardb
     /// @brief Earth's quatratic mean radius for WGS-84
     static const double EARTH_RADIUS_IN_METERS = 6372797.560856;
 
-    static const double MERCATOR_MAX = 20037508.3427892;
-    static const double MERCATOR_MIN = -20037508.3427892;
+    static const double MERCATOR_MAX = 20037726.37;
+    static const double MERCATOR_MIN = -20037726.37;
 
     static inline double deg_rad(double ang)
     {
@@ -83,31 +83,6 @@ namespace ardb
         return step;
     }
 
-    bool GeoHashHelper::ValidateMercatorCoodinates(double x, double y)
-    {
-        if (x > MERCATOR_MAX || x < MERCATOR_MIN)
-        {
-            return false;
-        }
-        if (y > MERCATOR_MAX || y < MERCATOR_MIN)
-        {
-            return false;
-        }
-        return true;
-    }
-    bool GeoHashHelper::ValidateGeographicCoodinates(double x, double y)
-    {
-        if (x > 180 || x < -180)
-        {
-            return false;
-        }
-        if (y > 90 || y < -90)
-        {
-            return false;
-        }
-        return true;
-    }
-
     double GeoHashHelper::GetMercatorX(double longtitude)
     {
         if (longtitude > 180 || longtitude < -180)
@@ -125,16 +100,46 @@ namespace ardb
         return mercator_y(latitude);
     }
 
-    int GeoHashHelper::GetAreasByRadius(double latitude, double longitude, double radius_meters,
+    int GeoHashHelper::GetCoordRange(uint8 coord_type, GeoHashRange& lat_range, GeoHashRange& lon_range)
+    {
+        switch (coord_type)
+        {
+            case GEO_WGS84_TYPE:
+            {
+                lat_range.max = 90.0;
+                lat_range.min = -90.0;
+                lon_range.max = 180.0;
+                lon_range.min = -180.0;
+                break;
+            }
+            case GEO_MERCATOR_TYPE:
+            {
+                lat_range.max = 20037726.37;
+                lat_range.min = -20037726.37;
+                lon_range.max = 20037726.37;
+                lon_range.min = -20037726.37;
+                break;
+            }
+            default:
+            {
+                return -1;
+            }
+        }
+        return 0;
+    }
+
+    int GeoHashHelper::GetAreasByRadius(uint8 coord_type, double latitude, double longitude, double radius_meters,
             GeoHashBitsSet& results)
     {
-        if ((latitude <= 90 && latitude >= -90) && (longitude <= 180 && longitude >= -180))
-        {
-            latitude = mercator_y(latitude);
-            longitude = mercator_x(longitude);
-        }
+        GeoHashRange lat_range, lon_range;
+        GeoHashHelper::GetCoordRange(coord_type, lat_range, lon_range);
         double delta_longitude = radius_meters;
         double delta_latitude = radius_meters;
+        if (coord_type == GEO_WGS84_TYPE)
+        {
+            delta_latitude = radius_meters / (111320.0 * cos(latitude));
+            delta_longitude = radius_meters / 110540.0;
+        }
 
         double min_lat = latitude - delta_latitude;
         double max_lat = latitude + delta_latitude;
@@ -143,11 +148,11 @@ namespace ardb
 
         int steps = estimate_geohash_steps_by_radius(radius_meters);
         GeoHashBits hash;
-        geohash_mercator_encode(latitude, longitude, steps, &hash);
+        geohash_encode(&lat_range, &lat_range, latitude, longitude, steps, &hash);
         GeoHashNeighbors neighbors;
         geohash_get_neighbors(&hash, &neighbors);
         GeoHashArea area;
-        geohash_decode(&hash, &area);
+        geohash_decode(&lat_range, &lat_range, &hash, &area);
         results.insert(hash);
         results.insert(neighbors.east);
         results.insert(neighbors.west);
@@ -184,18 +189,6 @@ namespace ardb
         return 0;
     }
 
-    GeoHashFix50Bits GeoHashHelper::GetFix50MercatorGeoHashBits(double latitude, double longitude)
-    {
-        if ((latitude <= 90 && latitude >= -90) && (longitude <= 180 && longitude >= -180))
-        {
-            latitude = mercator_y(latitude);
-            longitude = mercator_x(longitude);
-        }
-        GeoHashBits hash;
-        geohash_mercator_encode(latitude, longitude, 25, &hash);
-        return hash.bits;
-    }
-
     GeoHashFix50Bits GeoHashHelper::Allign50Bits(const GeoHashBits& hash)
     {
         uint64_t bits = hash.bits;
@@ -203,17 +196,42 @@ namespace ardb
         return bits;
     }
 
-    bool GeoHashHelper::GetDistanceSquareIfInRadius(double x1, double y1, double x2, double y2, double radius,
-            double& distance)
+    static double distanceEarth(double lat1d, double lon1d, double lat2d, double lon2d)
     {
-        double xx = (x1 - x2) * (x1 - x2);
-        double yy = (y1 - y2) * (y1 - y2);
-        double dd = xx + yy;
-        if (dd > radius * radius)
+        double lat1r, lon1r, lat2r, lon2r, u, v;
+        lat1r = deg_rad(lat1d);
+        lon1r = deg_rad(lon1d);
+        lat2r = deg_rad(lat2d);
+        lon2r = deg_rad(lon2d);
+        u = sin(lat2r - lat1r);
+        v = sin(lon2r - lon1r);
+        return 2.0 * EARTH_RADIUS_IN_METERS * asin(sqrt(u * u + cos(lat1r) * cos(lat2r) * v * v));
+    }
+
+    bool GeoHashHelper::GetDistanceSquareIfInRadius(uint8 coord_type, double x1, double y1, double x2, double y2,
+            double radius, double& distance)
+    {
+        if (coord_type == GEO_WGS84_TYPE)
         {
-            return false;
+            distance = distanceEarth(y1, x1, y2, x2);
+            if (distance > radius)
+            {
+                return false;
+            }
+            distance = distance * distance;
         }
-        //distance = sqrt(dd);
+        else
+        {
+            double xx = (x1 - x2) * (x1 - x2);
+            double yy = (y1 - y2) * (y1 - y2);
+            double dd = xx + yy;
+            if (dd > radius * radius)
+            {
+                return false;
+            }
+            distance = dd;
+        }
+
         return true;
     }
 }

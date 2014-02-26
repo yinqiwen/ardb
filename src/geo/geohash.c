@@ -30,11 +30,6 @@
 #include <stdio.h>
 #include "geohash.h"
 
-static const double EARTH_RADIUS_IN_METERS = 6372797.560856;
-
-static const double MERCATOR_MAX = 20037508.3427892;
-static const double MERCATOR_MIN = -20037508.3427892;
-
 /**
  * Hashing works like this:
  * Divide the world into 4 buckets.  Label each one as such:
@@ -49,20 +44,19 @@ static const double MERCATOR_MIN = -20037508.3427892;
  *  -----------------
  */
 
-static inline int _geo_encode(double latitude, double longitude, uint8_t step, GeoHashBits* hash, uint8_t is_mercator)
+int geohash_encode(const GeoHashRange* lat_r, const GeoHashRange* lon_r, double latitude, double longitude,
+        uint8_t step, GeoHashBits* hash)
 {
-    if (NULL == hash || step > 32 || step == 0)
+    if (NULL == hash || step > 32 || step == 0 || NULL == lat_r || NULL == lon_r)
     {
         return -1;
     }
+    GeoHashRange lat_range, lon_range;
+    lat_range = *lat_r;
+    lon_range = *lon_r;
     hash->bits = 0;
     hash->step = step;
     uint8_t i = 0;
-    GeoHashRange lat_range, lon_range;
-    lat_range.min = is_mercator ? MERCATOR_MIN : -90;
-    lat_range.max = is_mercator ? MERCATOR_MAX : 90;
-    lon_range.min = is_mercator ? MERCATOR_MIN : -180;
-    lon_range.max = is_mercator ? MERCATOR_MAX : 180;
     if (latitude < lat_range.min || latitude > lat_range.max || longitude < lon_range.min || longitude > lon_range.max)
     {
         return -1;
@@ -104,18 +98,19 @@ static inline uint8_t get_bit(uint64_t bits, uint8_t pos)
     return (bits >> pos) & 0x01;
 }
 
-static inline int _geohash_decode(const GeoHashBits* hash, GeoHashArea* area, uint8_t is_mercator)
+int geohash_decode(const GeoHashRange* lat_range, const GeoHashRange* lon_range, const GeoHashBits* hash,
+        GeoHashArea* area)
 {
-    if (NULL == hash || NULL == area)
+    if (NULL == hash || NULL == area || NULL == lat_range || NULL == lon_range)
     {
         return -1;
     }
     area->hash = *hash;
     uint8_t i = 0;
-    area->latitude.min = is_mercator ? MERCATOR_MIN : -90;
-    area->latitude.max = is_mercator ? MERCATOR_MAX : 90;
-    area->longitude.min = is_mercator ? MERCATOR_MIN : -180;
-    area->longitude.max = is_mercator ? MERCATOR_MAX : 180;
+    area->latitude.min = lat_range->min;
+    area->latitude.max = lat_range->max;
+    area->longitude.min = lon_range->min;
+    area->longitude.max = lon_range->max;
     for (; i < hash->step; i++)
     {
         uint8_t lat_bit, lon_bit;
@@ -139,24 +134,6 @@ static inline int _geohash_decode(const GeoHashBits* hash, GeoHashArea* area, ui
         }
     }
     return 0;
-}
-
-int geohash_encode(double latitude, double longitude, uint8_t step, GeoHashBits* hash)
-{
-    return _geo_encode(latitude, longitude, step, hash, 0);
-}
-int geohash_decode(const GeoHashBits* hash, GeoHashArea* area)
-{
-    return _geohash_decode(hash, area, 0);
-}
-
-int geohash_mercator_encode(double latitude, double longitude, uint8_t step, GeoHashBits* hash)
-{
-    return _geo_encode(latitude, longitude, step, hash, 1);
-}
-int geohash_mercator_decode(const GeoHashBits* hash, GeoHashArea* area)
-{
-    return _geohash_decode(hash, area, 1);
 }
 
 static int geohash_move_x(GeoHashBits* hash, int8_t d)
@@ -241,36 +218,39 @@ int geohash_get_neighbors(const GeoHashBits* hash, GeoHashNeighbors* neighbors)
     return 0;
 }
 
-/*
- int main()
- {
- GeoHashBits hash;
- hash.bits = 0b0011;
- hash.step = 2;
- GeoHashNeighbors neighbors;
- geohash_get_neighbors(&hash, &neighbors);
- printf("%x\n", hash.bits);
- printf("%x\n", neighbors.east.bits);
- printf("%x\n", neighbors.west.bits);
- printf("%x\n", neighbors.south.bits);
- printf("%x\n", neighbors.north.bits);
- printf("%x\n", neighbors.north_west.bits);
- printf("%x\n", neighbors.north_east.bits);
- printf("%x\n", neighbors.south_east.bits);
- printf("%x\n", neighbors.south_west.bits);
+int main()
+{
+    GeoHashBits hash;
+    hash.bits = 0b0011;
+    hash.step = 2;
+    GeoHashNeighbors neighbors;
+    geohash_get_neighbors(&hash, &neighbors);
+    printf("%x\n", hash.bits);
+    printf("%x\n", neighbors.east.bits);
+    printf("%x\n", neighbors.west.bits);
+    printf("%x\n", neighbors.south.bits);
+    printf("%x\n", neighbors.north.bits);
+    printf("%x\n", neighbors.north_west.bits);
+    printf("%x\n", neighbors.north_east.bits);
+    printf("%x\n", neighbors.south_east.bits);
+    printf("%x\n", neighbors.south_west.bits);
 
+    GeoHashRange lat_range, lon_range;
+    lat_range.max = 90.0;
+    lat_range.min = -90.0;
+    lon_range.max = 180.0;
+    lon_range.min = -180.0;
+    geohash_encode(&lat_range, &lon_range, -32.1, 120.3, 4, &hash);
+    printf("%x\n", hash.bits);
+    GeoHashArea area;
+    geohash_decode(&lat_range, &lon_range, &hash, &area);
+    printf("%.2f %.2f\n", area.latitude.min, area.latitude.max);
+    printf("%.2f %.2f\n", area.longitude.min, area.longitude.max);
 
- geohash_encode(-32.1, 120.3, 4, &hash);
- printf("%x\n", hash.bits);
- GeoHashArea area;
- geohash_decode(&hash, &area);
- printf("%.2f %.2f\n", area.latitude.min, area.latitude.max);
- printf("%.2f %.2f\n", area.longitude.min, area.longitude.max);
+    uint8_t step = estimate_geohash_steps_by_radius(1000);
+    printf("%d\n", step);
+    step = estimate_geohash_steps_by_radius(1);
+    printf("%d\n", step);
+    return 0;
+}
 
- uint8_t step = estimate_geohash_steps_by_radius(1000);
- printf("%d\n", step);
- step = estimate_geohash_steps_by_radius(1);
- printf("%d\n", step);
- return 0;
- }
- */

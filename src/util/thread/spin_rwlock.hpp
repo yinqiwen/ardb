@@ -72,8 +72,7 @@ namespace ardb
                         while (m_lock & 0xfff00000)
                             sched_yield();
 
-                        uint32 z = atomic_add_uint32(&m_lock, 0x100000);
-                        if ((0xfff00000 & z) == 0x100000)
+                        if ((0xfff00000 & atomic_add_uint32(&m_lock, 0x100000)) == 0x100000)
                         {
                             // Wait until there's no more readers
                             while (m_lock & 0x000fffff)
@@ -112,7 +111,6 @@ namespace ardb
             }
             ~SpinRWLock()
             {
-
             }
     };
 }

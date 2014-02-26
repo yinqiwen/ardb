@@ -235,6 +235,20 @@ namespace ardb
         conf_get_bool(props, "zset-write-fill-cache", cfg.db_cfg.zset_write_fill_cache);
         conf_get_bool(props, "read-fill-cache", cfg.db_cfg.read_fill_cache);
 
+        std::string coord_type = "wgs84";
+        conf_get_string(props, "geo-coord-type", coord_type);
+        if(!strcasecmp(coord_type.c_str(), "wgs84"))
+        {
+            cfg.db_cfg.geo_coord_type = GEO_WGS84_TYPE;
+        }else if(!strcasecmp(coord_type.c_str(), "mercator"))
+        {
+            cfg.db_cfg.geo_coord_type = GEO_MERCATOR_TYPE;
+        }else
+        {
+            cfg.db_cfg.geo_coord_type = GEO_WGS84_TYPE;
+            WARN_LOG("Invalid geo-coord-type:%s.", coord_type.c_str());
+        }
+
         std::string slaveof;
         if (conf_get_string(props, "slaveof", slaveof))
         {
@@ -3275,7 +3289,7 @@ namespace ardb
     }
 
     /*
-     *  GEOADD key MERCATOR|WGS84 x y value  [attr_name attr_value ...]
+     *  GEOADD key x y value  [attr_name attr_value ...]
      */
     int ArdbServer::GeoAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
@@ -3299,8 +3313,8 @@ namespace ardb
     }
 
     /*
-     *  GEOSEARCH key MERCATOR|WGS84 x y  RADIUS r [ASC|DESC] [WITHCOORDINATES] [WITHDISTANCES] [GET pattern [GET pattern ...]] [LIMIT offset count]
-     *  GEOSEARCH key MEMBER m            RADIUS r [ASC|DESC] [WITHCOORDINATES] [WITHDISTANCES] [GET pattern [GET pattern ...]] [LIMIT offset count]
+     *  GEOSEARCH key LOCATION x y  RADIUS r [ASC|DESC] [WITHCOORDINATES] [WITHDISTANCES] [GET pattern [GET pattern ...]] [LIMIT offset count]
+     *  GEOSEARCH key MEMBER m      RADIUS r [ASC|DESC] [WITHCOORDINATES] [WITHDISTANCES] [GET pattern [GET pattern ...]] [LIMIT offset count]
      *
      *  For 'GET pattern' in GEOSEARCH:
      *  If 'pattern' is '#.<attr>',  return actual point's attribute stored by 'GeoAdd'
@@ -3746,8 +3760,7 @@ namespace ardb
             ERROR_LOG("Faild to change dir to home:%s", m_cfg.home.c_str());
             return -1;
         }
-        //m_engine = new SelectedDBEngineFactory(props);
-        m_db = new Ardb(&m_engine, m_cfg.worker_count > 1);
+        m_db = new Ardb(&m_engine, (uint32)m_cfg.worker_count);
         if (!m_db->Init(m_cfg.db_cfg))
         {
             ERROR_LOG("Failed to init DB.");

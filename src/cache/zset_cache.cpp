@@ -183,7 +183,7 @@ namespace ardb
         uint64 end = get_current_epoch_millis();
         if (end - start > 10)
         {
-            WARN_LOG("Cost %llums to get %d elements in between range [%.2f, %.2f]", end - start, cursor,
+            DEBUG_LOG("Cost %llums to get %d elements in between range [%.2f, %.2f]", end - start, cursor,
                     range.min.NumberValue(), range.max.NumberValue());
         }
     }

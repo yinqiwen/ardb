@@ -47,6 +47,7 @@
 #include "util/thread/lock_guard.hpp"
 #include "channel/all_includes.hpp"
 #include "cache/level1_cache.hpp"
+#include "geo/geohash_helper.hpp"
 
 #define ARDB_OK 0
 #define ERR_INVALID_ARGS -3
@@ -194,6 +195,8 @@ namespace ardb
 
             bool check_type_before_set_string;
 
+            uint8 geo_coord_type;
+
             bool read_fill_cache;
             bool zset_write_fill_cache;
 //            bool string_write_fill_cache;
@@ -205,7 +208,7 @@ namespace ardb
                     hash_max_ziplist_entries(128), hash_max_ziplist_value(64), list_max_ziplist_entries(128), list_max_ziplist_value(
                             64), zset_max_ziplist_entries(128), zset_max_ziplist_value(64), set_max_ziplist_entries(
                             128), set_max_ziplist_value(64), L1_cache_memory_limit(0), check_type_before_set_string(
-                            false), read_fill_cache(true), zset_write_fill_cache(false)
+                            false), geo_coord_type(GEO_WGS84_TYPE), read_fill_cache(true), zset_write_fill_cache(false)
             {
             }
     };
@@ -272,7 +275,8 @@ namespace ardb
             int ZRangeByScoreRange(const DBID& db, const Slice& key, const ZRangeSpec& range, Iterator*& iter,
                     ZSetQueryOptions& options, bool check_cache, ValueStoreCallback* cb, void* cbdata);
             int ZGetNodeValue(const DBID& db, const Slice& key, const Slice& value, ValueData& score, ValueData& attr);
-            CacheItem* GetLoadedCache(const DBID& db, const Slice& key, KeyType type, bool evict_non_loaded, bool create_if_not_exist);
+            CacheItem* GetLoadedCache(const DBID& db, const Slice& key, KeyType type, bool evict_non_loaded,
+                    bool create_if_not_exist);
 
             int GetType(const DBID& db, const Slice& key, KeyType& type);
             int SetMeta(KeyObject& key, CommonMetaValue& meta);
@@ -332,50 +336,92 @@ namespace ardb
             struct KeyLocker
             {
                     typedef TreeSet<DBItemStackKey>::Type DBItemKeySet;
-                    DBItemKeySet m_locked_keys;
-                    ThreadMutex m_keys_mutex;
-                    ThreadMutexLock m_barrier;
-                    bool enable;
-                    KeyLocker() :
-                            enable(true)
+                    typedef TreeMap<DBItemStackKey, ThreadMutexLock*>::Type ThreadMutexLockTable;
+                    typedef std::list<ThreadMutexLock*> ThreadMutexLockList;
+                    //DBItemKeySet m_locked_keys;
+                    ThreadMutex m_barrier_mutex;
+                    ThreadMutexLockList m_barrier_pool;
+                    ThreadMutexLockTable m_barrier_table;
+                    bool m_enable;
+                    KeyLocker(uint32 thread_num) :
+                            m_enable(thread_num > 1)
                     {
+                        for (uint32 i = 0; m_enable && i < thread_num; i++)
+                        {
+                            ThreadMutexLock* lock = new ThreadMutexLock;
+                            m_barrier_pool.push_back(lock);
+                        }
+                    }
+                    ~KeyLocker()
+                    {
+                        ThreadMutexLockList::iterator it = m_barrier_pool.begin();
+                        while(it != m_barrier_pool.end())
+                        {
+                            delete *it;
+                            it++;
+                        }
                     }
                     void AddLockKey(const DBID& db, const Slice& key)
                     {
-                        if (!enable)
+                        if (!m_enable)
                         {
                             return;
                         }
                         while (true)
                         {
-                            bool insert = false;
+                            ThreadMutexLock* barrier = NULL;
+                            bool inserted = false;
                             {
-                                LockGuard<ThreadMutex> guard(m_keys_mutex);
-                                insert = m_locked_keys.insert(DBItemStackKey(db, key)).second;
+                                LockGuard<ThreadMutex> guard(m_barrier_mutex);
+                                /*
+                                 * Merge find/insert operations into one 'insert' invocation
+                                 */
+                                std::pair<ThreadMutexLockTable::iterator, bool> insert = m_barrier_table.insert(
+                                        std::make_pair(DBItemStackKey(db, key), NULL));
+                                if (!insert.second)
+                                {
+                                    barrier = insert.first;
+                                }
+                                else
+                                {
+                                    barrier = m_barrier_pool.pop_front();
+                                    insert.first->second = barrier;
+                                    inserted = true;
+                                }
                             }
-                            if (insert)
+                            if (inserted)
                             {
                                 return;
                             }
                             else
                             {
-                                LockGuard<ThreadMutexLock> guard(m_barrier);
-                                m_barrier.Wait();
+                                LockGuard<ThreadMutexLock> guard(*barrier);
+                                barrier->Wait();
                             }
                         }
                     }
                     void ClearLockKey(const DBID& db, const Slice& key)
                     {
-                        if (!enable)
+                        if (!m_enable)
                         {
                             return;
                         }
+                        ThreadMutexLock* barrier = NULL;
                         {
-                            LockGuard<ThreadMutex> guard(m_keys_mutex);
-                            m_locked_keys.erase(DBItemStackKey(db, key));
+                            LockGuard<ThreadMutex> guard(m_barrier_mutex);
+                            ThreadMutexLockTable::iterator found = m_barrier_table.find(DBItemStackKey(db, key));
+                            if (found != m_barrier_table.end())
+                            {
+                                barrier = found->second;
+                                m_barrier_table.erase(found);
+                                m_barrier_pool.push_back(barrier);
+                            }
                         }
-                        LockGuard<ThreadMutexLock> guard(m_barrier);
-                        m_barrier.NotifyAll();
+                        if (NULL != barrier)
+                        {
+                            LockGuard<ThreadMutexLock> guard(*barrier);
+                            barrier->NotifyAll();
+                        }
                     }
             };
 
@@ -401,7 +447,7 @@ namespace ardb
 
             friend class L1Cache;
         public:
-            Ardb(KeyValueEngineFactory* factory, bool multi_thread = true);
+            Ardb(KeyValueEngineFactory* factory, uint32 multi_thread_num = 1);
             ~Ardb();
 
             bool Init(const ArdbConfig& cfg);
