@@ -1,25 +1,25 @@
 # 2D Spatial Index #
-Ardb add 2d spatial data index support in v0.7.0. This document explain the storage/search details.   
-Generally, this solution can be simplely described as 'GeoHash + Sorted Set'. It's easy to port this solution to redis. 
+Ardb add 2d spatial data index support in v0.7.0. This document explain the design details.   
+Generally, this design can be simplely described as 'GeoHash + Sorted Set'. It's easy to port this solution to redis. 
  
 ## Internals ##
 ### Spatial Data ###
 2d spatial point can be described as a tuple like (latitude, longtitude, value). The point would be stored as an element in a sorted set.
 ### GeoHash Integer ###
-[Geohash](http://en.wikipedia.org/wiki/Geohash) is a latitude/longitude geocode system which could encode latitude/longtitude with a precision into bits value. More precision would make geohash result more bits.  
+[Geohash](http://en.wikipedia.org/wiki/Geohash) is a latitude/longitude geocode system which could encode latitude/longtitude with a precision into several bits. More precision would make geohash result more bits.  
 Since sorted set only accept number as the score value. We need a way to convert the geohash result to a number value.  
-I wrote another C99 library [geohash-int](https://github.com/yinqiwen/geohash-int) to encode latitude/longitude to a 64bit integer.  (Almost all geohash libray listed in [Geohash wiki](http://en.wikipedia.org/wiki/Geohash) only give a string result. That's why i write that library).  
+I wrote another C99 library [geohash-int](https://github.com/yinqiwen/geohash-int) to encode latitude/longitude to a 64bit integer.  (Almost all geohash libray listed in [Geohash wiki](http://en.wikipedia.org/wiki/Geohash) only give a base32 string result. That's why i write that library).  
 
 ### Store Spatial Data ###
 Only two steps:  
-1. Use [geohash-int](https://github.com/yinqiwen/geohash-int) to encode latitude/longitude with 25 steps which would generate a 52bit integer value. This result would have a distance precision about 0.6 meters.  
+1. Use [geohash-int](https://github.com/yinqiwen/geohash-int) to encode latitude/longitude with 26 steps which would generate a 52bit integer value. This result would have a distance precision about 0.6 meters.  
 2. Use the 52bit geohash integer as the score value, and use 'ZADD' command to store the spatial data.
    
     ZADD key <GeoHash50Bits>  <value>
 ### Search  ###
 The search condition is a given coordinate and radius. For example, seach all points within a 1000m radius of longitude/latitude coordinate (120.0, 25.0).  
 
-First of all, We should estimate the geohash encoding bits by raius value first. Since geohash value represent a box, considering the esge case refered in [Geohash Wiki](http://en.wikipedia.org/wiki/Geohash), to serach in a fastest way, we need find the smallest geohash box with surrounding 8 geohash box that could cover all points in radius in the worst case. This is a simple table about the estimate geohash encoding bits with radius.
+First of all, We should estimate the geohash encoding bits by raius value first. Since geohash value represent a box, considering the edge case refered in [Geohash Wiki](http://en.wikipedia.org/wiki/Geohash), to serach fast, we need find the smallest geohash box with surrounding 8 geohash box that could cover all points in radius in the worst case. This is a simple table about the estimate geohash encoding bits with radius.
     
     HashBits, Radius Meters
     52, 0.5971
@@ -70,6 +70,6 @@ Syntax: **GEOSEARCH key LOCATION lat lon RADIUS r [ASC|DESC] [WITHCOORDINATES] [
 27,000,000 spatial points with mercator coordinates saved in a sorted set.  
 Four-core Intel(R) Xeon(R) CPU E5520 @2.27GHz, with 16 GB RAM.  
 Ardb: 4 threads    
-All data cached in memory, about 11000 qps to search with radius 1000m  
-All data in leveldb without cache, about 900 qps to search with radius 1000m.
+All data cached in memory, about 11000 qps to search with radius 1000m, 150 points matching, 100 points matched.  
+All data in leveldb without cache, about 900 qps to search with radius 1000m, 150 points matching, 100 points matched. 
 
