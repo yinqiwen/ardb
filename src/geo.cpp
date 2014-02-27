@@ -49,8 +49,8 @@ namespace ardb
         point.attrs = options.attrs;
 
         GeoHashBits hash;
-        geohash_encode(&lat_range, &lon_range, point.y, point.x, 25, &hash);
-        GeoHashFix50Bits score = hash.bits;
+        geohash_encode(&lat_range, &lon_range, point.y, point.x, 26, &hash);
+        GeoHashFix52Bits score = hash.bits;
         ValueData score_value;
         score_value.SetIntValue((int64) score);
 
@@ -119,8 +119,8 @@ namespace ardb
             ZRangeSpec range;
             range.contain_min = true;
             range.contain_max = false;
-            range.min.SetIntValue(GeoHashHelper::Allign50Bits(hash));
-            range.max.SetIntValue(GeoHashHelper::Allign50Bits(next));
+            range.min.SetIntValue(GeoHashHelper::Allign52Bits(hash));
+            range.max.SetIntValue(GeoHashHelper::Allign52Bits(next));
             range_array.push_back(range);
             rit++;
             next_it++;

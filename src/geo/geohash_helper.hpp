@@ -39,7 +39,7 @@
 #define GEO_MERCATOR_TYPE  2
 namespace ardb
 {
-    typedef uint64_t GeoHashFix50Bits;
+    typedef uint64_t GeoHashFix52Bits;
     typedef uint64_t GeoHashVarBits;
 
     struct GeoHashBitsComparator
@@ -66,7 +66,7 @@ namespace ardb
         public:
             static int GetCoordRange(uint8 coord_type, GeoHashRange& lat_range, GeoHashRange& lon_range);
             static int GetAreasByRadius(uint8 coord_type,double latitude, double longitude, double radius_meters, GeoHashBitsSet& results);
-            static GeoHashFix50Bits Allign50Bits(const GeoHashBits& hash);
+            static GeoHashFix52Bits Allign52Bits(const GeoHashBits& hash);
             static double GetMercatorX(double longtitude);
             static double GetMercatorY(double latitude);
             static bool GetDistanceSquareIfInRadius(uint8 coord_type, double x1, double y1, double x2, double y2, double radius, double& distance);

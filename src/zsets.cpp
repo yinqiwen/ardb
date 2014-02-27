@@ -535,6 +535,13 @@ namespace ardb
     int Ardb::ZGetNodeValue(const DBID& db, const Slice& key, const Slice& value, ValueData& score, ValueData& attr)
     {
         int err = 0;
+        ZSetCache* cache = (ZSetCache*) GetLoadedCache(db, key, ZSET_META, false, false);
+        if (NULL != cache)
+        {
+            err = cache->GetByValue(value, score, attr);
+            m_level1_cahce->Recycle(cache);
+            return err != 0 ? ERR_NOT_EXIST : 0;
+        }
         bool createZset = false;
         ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_NOSORT, err, createZset);
         if (NULL == meta || createZset)
