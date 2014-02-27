@@ -162,7 +162,7 @@ namespace ardb
         return Add(score, v, a, thread_safe);
     }
 
-    void ZSetCache::GetRange(const ZRangeSpec& range, bool with_scores, bool with_attrs, ValueStoreCallback* cb,
+    void ZSetCache::GetRange(const ZRangeSpec& range, bool with_scores, bool with_attrs, ValueVisitCallback* cb,
             void* cbdata)
     {
         uint64 start = get_current_epoch_millis();

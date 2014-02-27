@@ -720,7 +720,7 @@ namespace ardb
     /*
      * return 0:continue -1:break
      */
-    typedef int ValueStoreCallback(const ValueData& value, int cursor, void* cb);
+    typedef int ValueVisitCallback(const ValueData& value, int cursor, void* cb);
 
     template<typename T>
     void delete_pointer_container(T& t)

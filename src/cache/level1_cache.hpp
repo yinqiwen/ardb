@@ -169,7 +169,7 @@ namespace ardb
             void EraseElement(const ZSetCaheElement& e);
         public:
             ZSetCache();
-            void GetRange(const ZRangeSpec& range, bool with_scores, bool with_attrs, ValueStoreCallback* cb,
+            void GetRange(const ZRangeSpec& range, bool with_scores, bool with_attrs, ValueVisitCallback* cb,
                     void* cbdata);
             /*
              * return 0:no data inserted  1:score changed, no new element  2:new element

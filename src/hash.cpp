@@ -223,7 +223,7 @@ namespace ardb
         return err;
     }
 
-    int Ardb::HIterate(const DBID& db, const Slice& key, ValueStoreCallback* cb, void* cbdata)
+    int Ardb::HIterate(const DBID& db, const Slice& key, ValueVisitCallback* cb, void* cbdata)
     {
         int err = 0;
         bool createHash = false;
@@ -252,7 +252,7 @@ namespace ardb
             HashKeyObject k(key, empty, db);
             struct HashWalk: public WalkHandler
             {
-                    ValueStoreCallback* vcb;
+                    ValueVisitCallback* vcb;
                     void* vcb_data;
                     uint32 size;
                     uint32 cur;
@@ -265,7 +265,7 @@ namespace ardb
                         size++;
                         return 0;
                     }
-                    HashWalk(ValueStoreCallback* cb, void* cbdata) :
+                    HashWalk(ValueVisitCallback* cb, void* cbdata) :
                             vcb(cb), vcb_data(cbdata), size(0), cur(0)
                     {
                     }

@@ -1352,7 +1352,7 @@ namespace ardb
     }
 
     int Ardb::ZRangeByScoreRange(const DBID& db, const Slice& key, const ZRangeSpec& range, Iterator*& iter,
-            ZSetQueryOptions& options, bool check_cache, ValueStoreCallback* cb, void* cbdata)
+            ZSetQueryOptions& options, bool check_cache, ValueVisitCallback* cb, void* cbdata)
     {
         if (check_cache)
         {

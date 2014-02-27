@@ -263,7 +263,7 @@ namespace ardb
             int GetHashZipEntry(HashMetaValue* meta, const ValueData& field, ValueData*& value);
             int HGetValue(HashKeyObject& key, HashMetaValue* meta, CommonValueObject& value);
             int HSetValue(HashKeyObject& key, HashMetaValue* meta, CommonValueObject& value);
-            int HIterate(const DBID& db, const Slice& key, ValueStoreCallback* cb, void* cbdata);
+            int HIterate(const DBID& db, const Slice& key, ValueVisitCallback* cb, void* cbdata);
 
             int TryZAdd(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score,
                     const Slice& value, const Slice& attr, bool check_value);
@@ -273,7 +273,7 @@ namespace ardb
             int ZInsertRangeScore(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score);
             int ZDeleteRangeScore(const DBID& db, const Slice& key, ZSetMetaValue& meta, const ValueData& score);
             int ZRangeByScoreRange(const DBID& db, const Slice& key, const ZRangeSpec& range, Iterator*& iter,
-                    ZSetQueryOptions& options, bool check_cache, ValueStoreCallback* cb, void* cbdata);
+                    ZSetQueryOptions& options, bool check_cache, ValueVisitCallback* cb, void* cbdata);
             int ZGetNodeValue(const DBID& db, const Slice& key, const Slice& value, ValueData& score, ValueData& attr);
             CacheItem* GetLoadedCache(const DBID& db, const Slice& key, KeyType type, bool evict_non_loaded,
                     bool create_if_not_exist);
@@ -306,6 +306,8 @@ namespace ardb
 
             int SLastMember(const DBID& db, const Slice& key, ValueData& member);
             int SFirstMember(const DBID& db, const Slice& key, ValueData& member);
+
+            int KeysVisit(const DBID& db, const std::string& pattern, const std::string& from, ValueVisitCallback* cb, void* data);
 
             /*
              * Set operation

@@ -555,16 +555,24 @@ namespace ardb
         return err;
     }
 
-    int Ardb::KeysCount(const DBID& db, const std::string& pattern, int64& count)
+    int Ardb::KeysVisit(const DBID& db, const std::string& pattern, const std::string& from, ValueVisitCallback* cb,
+            void* data)
     {
-        std::string from;
-        KeyObject start(from, KEY_META, db);
-        std::string::size_type found = pattern.find('*');
-        if (found != std::string::npos)
+        int cursor = 0;
+        std::string fromstr = from;
+        KeyObject start(fromstr, KEY_META, db);
+        bool check_startwith_startkey = false;
+        if (from.empty() && pattern.size() > 1)
         {
-            from = pattern.substr(0, found + 1);
-            start.key = from;
+            std::string::size_type found = pattern.find('*');
+            if (found != std::string::npos)
+            {
+                fromstr = pattern.substr(0, found + 1);
+                start.key = fromstr;
+                check_startwith_startkey = true;
+            }
         }
+
         Iterator* iter = FindValue(start);
         while (NULL != iter && iter->Valid())
         {
@@ -577,14 +585,43 @@ namespace ardb
                 return 0;
             }
             std::string str(kk->key.data(), kk->key.size());
-            if (fnmatch(pattern.c_str(), str.c_str(), 0) == 0)
+            if ((pattern.empty() || fnmatch(pattern.c_str(), str.c_str(), 0) == 0) && str != from)
             {
-                count++;
+                ValueData v;
+                v.SetValue(str, false);
+                int ret = cb(v, cursor++, data);
+                if (ret < 0)
+                {
+                    DELETE(kk);
+                    DELETE(iter);
+                    return 0;
+                }
+            }
+            else
+            {
+                if (check_startwith_startkey && str.find(fromstr) != 0)
+                {
+                    break;
+                }
             }
             DELETE(kk);
             iter->Next();
         }
         DELETE(iter);
+        return 0;
+    }
+
+    static int KeysCountCallback(const ValueData& value, int cursor, void* cb)
+    {
+        int64* c = (int64*) cb;
+        (*c)++;
+        return 0;
+    }
+
+    int Ardb::KeysCount(const DBID& db, const std::string& pattern, int64& count)
+    {
+        std::string from;
+        KeysVisit(db, pattern, from, KeysCountCallback, &count);
         return 0;
     }
 
@@ -612,47 +649,21 @@ namespace ardb
         return 0;
     }
 
+    static int KeysCallback(const ValueData& value, int cursor, void* cb)
+    {
+        std::pair<uint32, StringArray*>* p = (std::pair<uint32, StringArray*>*) cb;
+        p->second->push_back(value.AsString());
+        if (p->second->size() >= p->first)
+        {
+            return -1;
+        }
+        return 0;
+    }
+
     int Ardb::Keys(const DBID& db, const std::string& pattern, const std::string& from, uint32 limit, StringArray& ret)
     {
-        std::string fromstr = from;
-        KeyObject start(fromstr, KEY_META, db);
-
-        if (from.empty() && pattern.size() > 1)
-        {
-            std::string::size_type found = pattern.find('*');
-            if (found != std::string::npos)
-            {
-                fromstr = pattern.substr(0, found + 1);
-                start.key = fromstr;
-            }
-        }
-
-        Iterator* iter = FindValue(start);
-        while (NULL != iter && iter->Valid())
-        {
-            Slice tmpkey = iter->Key();
-            KeyObject* kk = decode_key(tmpkey, NULL);
-            if (kk->type != KEY_META)
-            {
-                DELETE(kk);
-                DELETE(iter);
-                return 0;
-            }
-            std::string str(kk->key.data(), kk->key.size());
-            if ((pattern.empty() || fnmatch(pattern.c_str(), str.c_str(), 0) == 0) && str != from)
-            {
-                ret.push_back(str);
-                if (ret.size() >= limit)
-                {
-                    DELETE(kk);
-                    DELETE(iter);
-                    return 0;
-                }
-            }
-            DELETE(kk);
-            iter->Next();
-        }
-        DELETE(iter);
+        std::pair<uint32, StringArray*> p = std::make_pair(limit, &ret);
+        KeysVisit(db, pattern, from, KeysCallback, &p);
         return 0;
     }
 
