@@ -177,6 +177,7 @@ namespace ardb
             int Add(const ValueData& score, const ValueData& value, const ValueData& attr, bool thread_safe);
             int Add(const ValueData& score, const Slice& value, const Slice& attr, bool thread_safe = true);
             int Rem(ValueData& v);
+            int GetByValue(const ValueData& value, ValueData& score, ValueData& attr);
 
     };
 

@@ -46,7 +46,7 @@ namespace ardb
             uint32 delta = sizeof(ZSetCaheElement);
             delta += found->value.size();
             delta += found->attr.size();
-            delta += (uint32)(ZSetCacheElementSet::average_bytes_per_value() + 0.5);
+            delta += (uint32) (ZSetCacheElementSet::average_bytes_per_value() + 0.5);
             SubEstimateMemSize(delta);
             m_cache.erase(found);
         }
@@ -67,11 +67,34 @@ namespace ardb
             uint32 delta = 0;
             delta += e.value.size();
             delta += sizeof(double);
-            delta += (uint32)(ZSetCacheElementSet::average_bytes_per_value() + 0.5);
-            delta += (uint32)(ZSetCacheScoreMap::average_bytes_per_value() + 0.5);
+            delta += (uint32) (ZSetCacheElementSet::average_bytes_per_value() + 0.5);
+            delta += (uint32) (ZSetCacheScoreMap::average_bytes_per_value() + 0.5);
             SubEstimateMemSize(delta);
             m_cache_score_dict.erase(sit);
             return 0;
+        }
+        return -1;
+    }
+
+    int ZSetCache::GetByValue(const ValueData& value, ValueData& score, ValueData& attr)
+    {
+        Buffer buf1;
+        value.Encode(buf1);
+        ZSetCaheElement e;
+        e.value.assign(buf1.GetRawReadBuffer(), buf1.ReadableBytes());
+        CacheReadLockGuard guard(m_lock);
+        ZSetCacheScoreMap::iterator sit = m_cache_score_dict.find(e.value);
+        if (sit != m_cache_score_dict.end())
+        {
+            e.score = sit->second;
+            ZSetCacheElementSet::iterator found = m_cache.find(e);
+            if (found != m_cache.end())
+            {
+                score.SetDoubleValue(e.score);
+                Buffer attr_buf(const_cast<char*>(found->attr.data()), 0, found->attr.size());
+                attr.Decode(attr_buf);
+                return 0;
+            }
         }
         return -1;
     }
@@ -96,10 +119,11 @@ namespace ardb
             if (sit->second == score.NumberValue())
             {
                 ZSetCacheElementSet::iterator cit = m_cache.find(e);
-                if(cit->attr == e.attr)
+                if (cit->attr == e.attr)
                 {
                     return ZSET_CACHE_NONEW_ELEMENT;
-                }else
+                }
+                else
                 {
                     SubEstimateMemSize(cit->attr.size());
                     AddEstimateMemSize(e.attr.size());
@@ -117,14 +141,14 @@ namespace ardb
             m_cache_score_dict[e.value] = score.NumberValue();
             delta += e.value.size();
             delta += sizeof(double);
-            delta += (uint32)(ZSetCacheScoreMap::average_bytes_per_value() + 0.5);
+            delta += (uint32) (ZSetCacheScoreMap::average_bytes_per_value() + 0.5);
             ret = ZSET_CACHE_NEW_ELEMENT;
         }
         m_cache.insert(e);
         delta += sizeof(ZSetCaheElement);
         delta += e.value.size();
         delta += e.attr.size();
-        delta += (uint32)(ZSetCacheElementSet::average_bytes_per_value() + 0.5);
+        delta += (uint32) (ZSetCacheElementSet::average_bytes_per_value() + 0.5);
         AddEstimateMemSize(delta);
         return ret;
     }

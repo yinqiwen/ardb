@@ -189,10 +189,10 @@ namespace ardb
         return 0;
     }
 
-    GeoHashFix50Bits GeoHashHelper::Allign50Bits(const GeoHashBits& hash)
+    GeoHashFix52Bits GeoHashHelper::Allign52Bits(const GeoHashBits& hash)
     {
         uint64_t bits = hash.bits;
-        bits <<= (50 - hash.step * 2);
+        bits <<= (52 - hash.step * 2);
         return bits;
     }
 
