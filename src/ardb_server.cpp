@@ -472,7 +472,7 @@ namespace ardb
                 { "script", REDIS_CMD_SCRIPT, &ArdbServer::Script, 1, -1, "s", 0 },
                 { "randomkey", REDIS_CMD_RANDOMKEY, &ArdbServer::Randomkey, 0, 0, "r", 0 },
                 { "scan", REDIS_CMD_SCAN, &ArdbServer::Scan, 1, 5, "r", 0 },
-                { "geoadd", REDIS_CMD_GEO_ADD, &ArdbServer::GeoAdd, 5, -1, "w", 0 },
+                { "geoadd", REDIS_CMD_GEO_ADD, &ArdbServer::GeoAdd, 4, -1, "w", 0 },
                 { "geosearch", REDIS_CMD_GEO_SEARCH, &ArdbServer::GeoSearch, 5, -1, "r", 0 },
                 { "cache", REDIS_CMD_CACHE, &ArdbServer::Cache, 2, 2, "r", 0 }, };
 
