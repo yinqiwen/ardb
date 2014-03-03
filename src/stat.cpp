@@ -26,35 +26,46 @@
  *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
-
-#ifndef STAT_HPP_
-#define STAT_HPP_
-
-#include <assert.h>
-#include <stddef.h>
-#include <string.h>
-#include <vector>
-#include "common.hpp"
-#include "util/atomic.hpp"
+#include "stat.hpp"
 
 namespace ardb
 {
-    struct ServerStat:public Runnable
+    static const uint32 kMaxPeriodSlot = 100;
+
+    ServerStat::ServerStat() :
+            stat_numcommands(0), connected_clients(0), stat_numconnections(0)
     {
-        public:
-            typedef std::vector<uint64> PeriodCommandCounters;
-            volatile uint64 stat_numcommands;
-            PeriodCommandCounters stat_period_numcommands;
-            volatile uint64 connected_clients;
-            volatile uint64 stat_numconnections;
-            time_t now;
-            ServerStat();
-            void Run();
-            void IncRecvCommands();
-            void IncAcceptedClient();
-            void DecAcceptedClient();
-            double CurrentQPS();
-    };
+        now = time(NULL);
+        stat_period_numcommands.resize(kMaxPeriodSlot);
+    }
+    void ServerStat::Run()
+    {
+        now = time(NULL);
+        uint32 idx = now % kMaxPeriodSlot;
+        stat_period_numcommands[idx] = 0;
+    }
+    void ServerStat::IncRecvCommands()
+    {
+        atomic_add_uint64(&stat_numcommands, 1);
+        atomic_add_uint64(&(stat_period_numcommands[now % kMaxPeriodSlot]), 1);
+    }
+    void ServerStat::IncAcceptedClient()
+    {
+        atomic_add_uint64(&connected_clients, 1);
+        atomic_add_uint64(&stat_numconnections, 1);
+    }
+    void ServerStat::DecAcceptedClient()
+    {
+        atomic_sub_uint64(&connected_clients, 1);
+    }
+    double ServerStat::CurrentQPS()
+    {
+        uint64 total = 0;
+        for (uint32 i = 0; i < kMaxPeriodSlot; i++)
+        {
+            total += stat_period_numcommands[i];
+        }
+        return total * 1.0 / kMaxPeriodSlot;
+    }
 }
 
-#endif /* STAT_HPP_ */

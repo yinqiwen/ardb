@@ -237,13 +237,15 @@ namespace ardb
 
         std::string coord_type = "wgs84";
         conf_get_string(props, "geo-coord-type", coord_type);
-        if(!strcasecmp(coord_type.c_str(), "wgs84"))
+        if (!strcasecmp(coord_type.c_str(), "wgs84"))
         {
             cfg.db_cfg.geo_coord_type = GEO_WGS84_TYPE;
-        }else if(!strcasecmp(coord_type.c_str(), "mercator"))
+        }
+        else if (!strcasecmp(coord_type.c_str(), "mercator"))
         {
             cfg.db_cfg.geo_coord_type = GEO_MERCATOR_TYPE;
-        }else
+        }
+        else
         {
             cfg.db_cfg.geo_coord_type = GEO_WGS84_TYPE;
             WARN_LOG("Invalid geo-coord-type:%s.", coord_type.c_str());
@@ -899,7 +901,7 @@ namespace ardb
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "clients"))
         {
             info.append("# Clients\r\n");
-            info.append("connected_clients:").append(stringfromll(kServerStat.connected_clients.Get())).append("\r\n");
+            info.append("connected_clients:").append(stringfromll(kServerStat.connected_clients)).append("\r\n");
         }
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "databases"))
         {
@@ -957,12 +959,13 @@ namespace ardb
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "stats"))
         {
             info.append("# Stats\r\n");
-            info.append("total_commands_processed:").append(stringfromll(kServerStat.stat_numcommands.Get())).append(
+            info.append("total_commands_processed:").append(stringfromll(kServerStat.stat_numcommands)).append(
                     "\r\n");
-            info.append("total_connections_received:").append(stringfromll(kServerStat.stat_numconnections.Get())).append(
+            info.append("total_connections_received:").append(stringfromll(kServerStat.stat_numconnections)).append(
                     "\r\n");
-            info.append("period_commands_processed(1min):").append(
-                    stringfromll(kServerStat.stat_period_numcommands.Get())).append("\r\n");
+            char qps[100];
+            sprintf(qps, "%.2f", kServerStat.CurrentQPS());
+            info.append("current_commands_qps:").append(qps).append("\r\n");
         }
 
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "memory"))
@@ -3760,7 +3763,7 @@ namespace ardb
             ERROR_LOG("Faild to change dir to home:%s", m_cfg.home.c_str());
             return -1;
         }
-        m_db = new Ardb(&m_engine, (uint32)m_cfg.worker_count);
+        m_db = new Ardb(&m_engine, (uint32) m_cfg.worker_count);
         if (!m_db->Init(m_cfg.db_cfg))
         {
             ERROR_LOG("Failed to init DB.");
@@ -3831,7 +3834,7 @@ namespace ardb
         {
             goto sexit;
         }
-        m_service->GetTimer().Schedule(&kServerStat, 1, 1, MINUTES);
+        m_service->GetTimer().Schedule(&kServerStat, 1, 1, SECONDS);
         m_service->SetThreadPoolSize(m_cfg.worker_count);
         m_service->RegisterUserEventCallback(ArdbServer::ServerEventCallback, this);
         INFO_LOG("Server started, Ardb version %s", ARDB_VERSION);

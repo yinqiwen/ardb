@@ -158,7 +158,7 @@ namespace ardb
         ValueData v;
         ValueData a;
         v.SetValue(value, true);
-        v.SetValue(attr, true);
+        a.SetValue(attr, true);
         return Add(score, v, a, thread_safe);
     }
 

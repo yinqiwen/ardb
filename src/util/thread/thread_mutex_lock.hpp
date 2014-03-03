@@ -32,6 +32,7 @@
 #include "thread_mutex.hpp"
 #include "thread_condition.hpp"
 #include "util/time_unit.hpp"
+#include "util/time_helper.hpp"
 #include <time.h>
 namespace ardb
 {
