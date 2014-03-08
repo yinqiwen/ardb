@@ -94,13 +94,19 @@ int RedisCommandDecoder::ProcessMultibulkBuffer(ChannelHandlerContext& ctx, Buff
     }
     char *eptr = NULL;
     const char* raw = buffer.GetRawReadBuffer();
-    uint32 multibulklen = strtol(raw, &eptr, 10);
+    int32 multibulklen = strtol(raw, &eptr, 10);
+    int index = eptr - raw;
+    if(index >= buffer.ReadableBytes())
+    {
+        return -1;
+    }
+
     if (multibulklen <= 0)
     {
         buffer.SetReadIndex(index + 2);
         return 1;
     }
-    else if (multibulklen > 1024 * 1024)
+    else if (multibulklen > 512 * 1024 * 1024)
     {
         APIException ex("Protocol error: invalid multibulk length");
         fire_exception_caught(ctx.GetChannel(), ex);
@@ -167,7 +173,6 @@ int RedisCommandDecoder::ProcessMultibulkBuffer(ChannelHandlerContext& ctx, Buff
 
 bool RedisCommandDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, RedisCommandFrame& msg)
 {
-
     while (buffer.GetRawReadBuffer()[0] == '\r' || buffer.GetRawReadBuffer()[0] == '\n')
     {
         buffer.AdvanceReadIndex(1);

@@ -31,7 +31,7 @@
  * backlog.hpp
  *
  *  Created on: 2013-08-29
- *  Author: wqy
+ *  Author: yinqiwen
  */
 
 #ifndef BACKLOG_HPP_
@@ -44,6 +44,8 @@
 #include "util/mmap.hpp"
 #include "repl.hpp"
 #include "data_format.hpp"
+
+#define SERVER_KEY_SIZE 40
 
 using namespace ardb::codec;
 

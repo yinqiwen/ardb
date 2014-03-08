@@ -30,6 +30,7 @@
 #include "buffer.hpp"
 #include <sys/uio.h>
 #include <errno.h>
+#include <string.h>
 using namespace ardb;
 
 int Buffer::VPrintf(const char *fmt, va_list ap)
