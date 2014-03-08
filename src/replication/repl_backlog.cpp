@@ -15,7 +15,7 @@
 #define ARDB_SHM_PATH "/ardb/repl"
 #define ARDB_MAX_MMAP_UNIT_SIZE  100*1024*1024
 #define ARDB_REPLICATION_STATE_MMAP_FILE_SIZE 1024
-#define SERVER_KEY_SIZE 40
+
 
 namespace ardb
 {
