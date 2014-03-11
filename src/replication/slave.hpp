@@ -64,7 +64,9 @@ namespace ardb
             /*
              * empty means all db
              */
-            DBIDSet m_sync_dbs;
+            DBIDSet m_include_dbs;
+
+            DBIDSet m_exclude_dbs;
 
             ArdbConnContext *m_actx;
 
@@ -96,14 +98,13 @@ namespace ardb
             {
                 return m_master_addr;
             }
-            void SetSyncDBs(DBIDSet& dbs)
-            {
-                m_sync_dbs = dbs;
-            }
+            void SetIncludeDBs(const DBIDArray& dbs);
+            void SetExcludeDBs(const DBIDArray& dbs);
             int ConnectMaster(const std::string& host, uint32 port);
             void Close();
             void Stop();
-            bool IsMasterConnected();
+            bool IsConnected();
+            bool IsSynced();
     };
 }
 

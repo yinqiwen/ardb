@@ -26,7 +26,7 @@ namespace ardb
         if (-1 == ftruncate(fd, size))
         {
             const char* err = strerror(errno);
-            ERROR_LOG("Failed to truncate replication log:%s for reason:%s", path.c_str(), err);
+            ERROR_LOG("Failed to truncate mmap file:%s for reason:%s", path.c_str(), err);
             close(fd);
             return false;
         }
@@ -36,7 +36,7 @@ namespace ardb
         if (mbuf == MAP_FAILED)
         {
             const char* err = strerror(errno);
-            ERROR_LOG("Failed to mmap replication log:%s for reason:%s", path.c_str(), err);
+            ERROR_LOG("Failed to mmap file:%s for reason:%s", path.c_str(), err);
             return -1;
         }
         else

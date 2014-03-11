@@ -39,7 +39,6 @@
 #include "ha/agent.hpp"
 #include "lua_scripting.hpp"
 
-
 /* Command flags. Please check the command table defined in the redis.c file
  * for more information about the meaning of every flag. */
 #define ARDB_CMD_WRITE 1                   /* "w" flag */
@@ -90,13 +89,16 @@ namespace ardb
             int64 repl_backlog_size;
             int64 repl_state_persist_period;
             bool slave_cleardb_before_fullresync;
+            bool slave_readonly;
+            bool slave_serve_stale_data;
 
             int64 lua_time_limit;
 
             std::string master_host;
             uint32 master_port;
 
-            DBIDSet syncdbs;
+            DBIDArray repl_includes;
+            DBIDArray repl_excludes;
 
             int64 worker_count;
             std::string loglevel;
@@ -113,8 +115,9 @@ namespace ardb
                     daemonize(false), listen_port(0), unixsocketperm(755), max_clients(10000), tcp_keepalive(0), timeout(
                             0), slowlog_log_slower_than(10000), slowlog_max_len(128), repl_data_dir("./repl"), backup_dir(
                             "./backup"), repl_ping_slave_period(10), repl_timeout(60), repl_backlog_size(
-                            100 * 1024 * 1024), repl_state_persist_period(1), slave_cleardb_before_fullresync(true), lua_time_limit(
-                            0), master_port(0), worker_count(1), loglevel("INFO")
+                            100 * 1024 * 1024), repl_state_persist_period(1), slave_cleardb_before_fullresync(true), slave_readonly(
+                            true), slave_serve_stale_data(true), lua_time_limit(0), master_port(0), worker_count(1), loglevel(
+                            "INFO")
             {
             }
     };
@@ -439,7 +442,7 @@ namespace ardb
             ThreadLocal<ArdbConnContext*> m_ctx_local;
             ThreadLocal<LUAInterpreter> m_ctx_lua;
 
-            RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(std::string& cmd);
+            RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(const std::string& cmd);
             int DoRedisCommand(ArdbConnContext& ctx, RedisCommandHandlerSetting* setting, RedisCommandFrame& cmd);
             int ProcessRedisCommand(ArdbConnContext& ctx, RedisCommandFrame& cmd, int flags);
 

@@ -43,7 +43,7 @@ static const uint32 REDIS_REQ_INLINE = 1;
 static const uint32 REDIS_REQ_MULTIBULK = 2;
 static const char* kCRLF = "\r\n";
 
-int RedisCommandDecoder::ProcessInlineBuffer(ChannelHandlerContext& ctx, Buffer& buffer, RedisCommandFrame& frame)
+int RedisCommandDecoder::ProcessInlineBuffer(Buffer& buffer, RedisCommandFrame& frame)
 {
     int index = buffer.IndexOf(kCRLF, 2);
     if (-1 == index)
@@ -85,7 +85,7 @@ int RedisCommandDecoder::ProcessInlineBuffer(ChannelHandlerContext& ctx, Buffer&
     return 1;
 }
 
-int RedisCommandDecoder::ProcessMultibulkBuffer(ChannelHandlerContext& ctx, Buffer& buffer, RedisCommandFrame& frame)
+int RedisCommandDecoder::ProcessMultibulkBuffer(Channel* channel, Buffer& buffer, RedisCommandFrame& frame)
 {
     int index = buffer.IndexOf(kCRLF, 2);
     if (-1 == index)
@@ -95,12 +95,6 @@ int RedisCommandDecoder::ProcessMultibulkBuffer(ChannelHandlerContext& ctx, Buff
     char *eptr = NULL;
     const char* raw = buffer.GetRawReadBuffer();
     int32 multibulklen = strtol(raw, &eptr, 10);
-    int index = eptr - raw;
-    if(index >= buffer.ReadableBytes())
-    {
-        return -1;
-    }
-
     if (multibulklen <= 0)
     {
         buffer.SetReadIndex(index + 2);
@@ -108,8 +102,11 @@ int RedisCommandDecoder::ProcessMultibulkBuffer(ChannelHandlerContext& ctx, Buff
     }
     else if (multibulklen > 512 * 1024 * 1024)
     {
-        APIException ex("Protocol error: invalid multibulk length");
-        fire_exception_caught(ctx.GetChannel(), ex);
+        if(NULL != channel)
+        {
+            APIException ex("Protocol error: invalid multibulk length");
+            fire_exception_caught(channel, ex);
+        }
         return -1;
     }
     buffer.SetReadIndex(index + 2);
@@ -127,10 +124,13 @@ int RedisCommandDecoder::ProcessMultibulkBuffer(ChannelHandlerContext& ctx, Buff
         }
         if (ch != '$')
         {
-            char temp[100];
-            sprintf(temp, "Protocol error: expected '$', , got '%c'", ch);
-            APIException ex(temp);
-            fire_exception_caught(ctx.GetChannel(), ex);
+            if(NULL != channel)
+            {
+                char temp[100];
+                sprintf(temp, "Protocol error: expected '$', , got '%c'", ch);
+                APIException ex(temp);
+                fire_exception_caught(channel, ex);
+            }
             return -1;
         }
         if (!buffer.Readable())
@@ -141,8 +141,11 @@ int RedisCommandDecoder::ProcessMultibulkBuffer(ChannelHandlerContext& ctx, Buff
         int32 arglen = (uint32) strtol(raw, &eptr, 10);
         if (eptr[0] != '\r' || arglen < 0 || arglen > 512 * 1024 * 1024)
         {
-            APIException ex("Protocol error: invalid bulk length");
-            fire_exception_caught(ctx.GetChannel(), ex);
+            if(NULL != channel)
+            {
+                APIException ex("Protocol error: invalid bulk length");
+                fire_exception_caught(channel, ex);
+            }
             return -1;
         }
         buffer.SetReadIndex(newline_index + 2);
@@ -161,8 +164,11 @@ int RedisCommandDecoder::ProcessMultibulkBuffer(ChannelHandlerContext& ctx, Buff
         buffer.Read(tempchs, 2);
         if (tempchs[0] != '\r' || tempchs[1] != '\n')
         {
-            APIException ex("CRLF expected after argument.");
-            fire_exception_caught(ctx.GetChannel(), ex);
+            if(NULL != channel)
+            {
+                APIException ex("CRLF expected after argument.");
+                fire_exception_caught(channel, ex);
+            }
             return -1;
         }
         //buffer.AdvanceReadIndex(arglen + 2);
@@ -171,7 +177,7 @@ int RedisCommandDecoder::ProcessMultibulkBuffer(ChannelHandlerContext& ctx, Buff
     return 1;
 }
 
-bool RedisCommandDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, RedisCommandFrame& msg)
+bool RedisCommandDecoder::Decode(Channel* channel,Buffer& buffer, RedisCommandFrame& msg)
 {
     while (buffer.GetRawReadBuffer()[0] == '\r' || buffer.GetRawReadBuffer()[0] == '\n')
     {
@@ -186,14 +192,14 @@ bool RedisCommandDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel, B
         {
             //reqtype = REDIS_REQ_MULTIBULK;
             msg.m_is_inline = false;
-            ret = ProcessMultibulkBuffer(ctx, buffer, msg);
+            ret = ProcessMultibulkBuffer(channel, buffer, msg);
         }
         else
         {
             //reqtype = REDIS_REQ_INLINE;
             msg.m_is_inline = true;
             buffer.AdvanceReadIndex(-1);
-            ret = ProcessInlineBuffer(ctx, buffer, msg);
+            ret = ProcessInlineBuffer(buffer, msg);
         }
         if (ret > 0)
         {
@@ -214,8 +220,13 @@ bool RedisCommandDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel, B
     return false;
 }
 
+bool RedisCommandDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, RedisCommandFrame& msg)
+{
+    return Decode(channel, buffer, msg);
+}
+
 //===================================encoder==============================
-bool RedisCommandEncoder::Encode(Buffer& buf, RedisCommandFrame& cmd)
+bool RedisCommandEncoder::Encode(Buffer& buf, const RedisCommandFrame& cmd)
 {
     buf.Printf("*%d\r\n", cmd.GetArguments().size() + 1);
     buf.Printf("$%d\r\n", cmd.GetCommand().size());
@@ -223,7 +234,7 @@ bool RedisCommandEncoder::Encode(Buffer& buf, RedisCommandFrame& cmd)
     buf.Write("\r\n", 2);
     for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
     {
-        std::string* arg = cmd.GetArgument(i);
+        const std::string* arg = cmd.GetArgument(i);
         buf.Printf("$%d\r\n", arg->size());
         buf.Write(arg->data(), arg->size());
         buf.Write("\r\n", 2);

@@ -5,6 +5,7 @@
  */
 #include "repl_backlog.hpp"
 #include "ardb_server.hpp"
+#include "redis/crc64.h"
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/types.h>
@@ -13,86 +14,89 @@
 #include <errno.h>
 
 #define ARDB_SHM_PATH "/ardb/repl"
-#define ARDB_MAX_MMAP_UNIT_SIZE  100*1024*1024
-#define ARDB_REPLICATION_STATE_MMAP_FILE_SIZE 1024
-
+#define MAX_MMAP_UNIT_SIZE  100*1024*1024
+#define REPL_STATE_MAX_SIZE 256
 
 namespace ardb
 {
 
     ReplBacklog::ReplBacklog() :
-            m_backlog_size(0), m_backlog_idx(0), m_end_offset(0), m_histlen(0), m_begin_offset(0), m_last_sync_offset(
-                    0), m_sync_state_change(false), m_current_dbid(ARDB_GLOBAL_DB), m_inited(false)
+            m_state(NULL), m_repl_backlog(NULL), m_last_sync_offset(0), m_sync_state_change(false), m_inited(false)
     {
-
     }
 
     void ReplBacklog::Run()
     {
-        PersistSyncState();
+        Persist();
     }
 
-    bool ReplBacklog::LoadSyncState(const std::string& path)
+    bool ReplBacklog::Load(const std::string& path, uint32 backlog_size)
     {
-        if (0 != m_sync_state_buf.Init(path,
-        ARDB_REPLICATION_STATE_MMAP_FILE_SIZE))
+        if (0 != m_backlog.Init(path,
+        REPL_STATE_MAX_SIZE + backlog_size))
         {
             return false;
         }
-        if (*(m_sync_state_buf.m_buf))
+        m_state = (ReplPersistState*) (m_backlog.m_buf);
+        m_state->repl_backlog_size = backlog_size;
+        m_repl_backlog = (m_backlog.m_buf + REPL_STATE_MAX_SIZE);
+        if (m_state->serverkey[0])
         {
-            char serverkeybuf[SERVER_KEY_SIZE + 1];
-            sscanf(m_sync_state_buf.m_buf,
-                    "%s %"PRIu64" %"PRIu64" %"PRIu64" %"PRIu64 "%u",
-                    serverkeybuf, &m_end_offset, &m_begin_offset,
-                    &m_backlog_idx, &m_histlen, &m_current_dbid);
-            m_server_key = serverkeybuf;
+            /*
+             * Loaded previous state, do nothing
+             */
         }
         else
         {
-            m_server_key = random_hex_string(SERVER_KEY_SIZE);
+            std::string randomkey = random_hex_string(SERVER_KEY_SIZE);
+            memcpy(m_state->serverkey, randomkey.data(), SERVER_KEY_SIZE);
+            m_state->serverkey[SERVER_KEY_SIZE] = 0;
+            m_state->repl_backlog_histlen = 0;
+            m_state->repl_backlog_idx = 0;
             /* When a new backlog buffer is created, we increment the replication
              * offset by one to make sure we'll not be able to PSYNC with any
              * previous slave. This is needed because we avoid incrementing the
              * master_repl_offset if no backlog exists nor slaves are attached. */
-            m_end_offset++;
+            m_state->master_repl_offset++;
 
             /* We don't have any data inside our buffer, but virtually the first
              * byte we have is the next byte that will be generated for the
              * replication stream. */
-            m_begin_offset = m_end_offset + 1;
-            PersistSyncState();
+            m_state->repl_backlog_off = m_state->master_repl_offset + 1;
+
+            m_state->cksm = 0;
+            m_state->current_db = ARDB_GLOBAL_DB;
+            m_sync_state_change = true;
+            Persist();
         }
-        m_last_sync_offset = m_end_offset;
-        INFO_LOG(
-                "[REPL]Server key:%s, begin_offset:%"PRIu64", end_offset:%"PRIu64", idx:%"PRIu64", histlen=%"PRIu64" ,DBID=%u",
-                m_server_key.c_str(), m_begin_offset, m_end_offset, m_backlog_idx, m_histlen, m_current_dbid);
+        m_last_sync_offset = m_state->repl_backlog_off;
         return true;
     }
 
-    void ReplBacklog::PersistSyncState()
+    void ReplBacklog::Persist()
     {
         if (!m_sync_state_change)
         {
             return;
         }
-        msync(m_sync_state_buf.m_buf, strlen(m_sync_state_buf.m_buf), MS_ASYNC);
-        if (m_end_offset > m_last_sync_offset)
+        msync(m_state, sizeof(ReplPersistState), MS_ASYNC);
+        if (m_state->repl_backlog_off > m_last_sync_offset)
         {
-            uint64 len = m_end_offset - m_last_sync_offset;
-            if (m_backlog_idx > len)
+            uint64 len = m_state->repl_backlog_off - m_last_sync_offset;
+            if ((uint64) (m_state->repl_backlog_idx) > len)
             {
-                msync(m_sync_state_buf.m_buf + m_backlog_idx - len, len,
+                msync(m_repl_backlog + m_state->repl_backlog_idx - len, len,
                 MS_ASYNC);
             }
             else
             {
-                msync(m_sync_state_buf.m_buf + m_backlog_size - len + m_backlog_idx, len - m_backlog_idx, MS_ASYNC);
-                msync(m_sync_state_buf.m_buf, m_backlog_idx, MS_ASYNC);
+                msync(m_repl_backlog + m_state->repl_backlog_size - len + m_state->repl_backlog_idx,
+                        len - m_state->repl_backlog_idx, MS_ASYNC);
+                msync(m_repl_backlog, m_state->repl_backlog_idx, MS_ASYNC);
             }
+            m_last_sync_offset = m_state->repl_backlog_off;
         }
         m_sync_state_change = false;
-
     }
 
     int ReplBacklog::Init(ArdbServer* server)
@@ -100,7 +104,7 @@ namespace ardb
         m_inited = false;
         ArdbServerConfig& cfg = server->m_cfg;
         uint64 backlog_size = cfg.repl_backlog_size;
-        if(cfg.repl_backlog_size == 0)
+        if (cfg.repl_backlog_size == 0)
         {
             WARN_LOG("Replication backlog buffer is disabled, and current server can NOT accept slave connections.");
             return -1;
@@ -110,26 +114,20 @@ namespace ardb
             WARN_LOG("Replication backlog buffer size should greater than 1mb.");
             return -1;
         }
-        std::string state_file = cfg.repl_data_dir + "/repl_state.log";
-        if (!LoadSyncState(state_file))
+        std::string state_file = cfg.repl_data_dir + "/repl.log";
+        if (!Load(state_file, backlog_size))
         {
             ERROR_LOG("Failed to load replication state file.");
             return -1;
         }
-        std::string log_file = cfg.repl_data_dir + "/repl_op.log";
-        if (0 != m_backlog.Init(log_file, backlog_size))
-        {
-            ERROR_LOG("Failed to init replication backlog.");
-            return -1;
-        }
-        m_backlog_size = backlog_size;
 
         /*
          * If user disable replication log, then do NOT start persist task
          */
         if (cfg.repl_backlog_size > 0)
         {
-            server->m_service->GetTimer().Schedule(this, cfg.repl_state_persist_period, cfg.repl_state_persist_period);
+            server->m_service->GetTimer().Schedule(this, cfg.repl_state_persist_period, cfg.repl_state_persist_period,
+                    SECONDS);
         }
         m_inited = true;
         return 0;
@@ -137,48 +135,47 @@ namespace ardb
 
     void ReplBacklog::Feed(Buffer& buffer)
     {
-        const char* buf = buffer.GetRawReadBuffer();
+        const char* p = buffer.GetRawReadBuffer();
         size_t len = buffer.ReadableBytes();
-        m_end_offset += len;
+
+        m_state->master_repl_offset += len;
+
         /* This is a circular buffer, so write as much data we can at every
          * iteration and rewind the "idx" index if we reach the limit. */
         while (len)
         {
-            size_t thislen = m_backlog_size - m_backlog_idx;
+            size_t thislen = m_state->repl_backlog_size - m_state->repl_backlog_idx;
             if (thislen > len)
                 thislen = len;
-            memcpy(m_backlog.m_buf + m_backlog_idx, buf, thislen);
-            m_backlog_idx += thislen;
-            if (m_backlog_idx == m_backlog_size)
-                m_backlog_idx = 0;
+            memcpy(m_repl_backlog + m_state->repl_backlog_idx, p, thislen);
+            m_state->repl_backlog_idx += thislen;
+            if (m_state->repl_backlog_idx == m_state->repl_backlog_size)
+                m_state->repl_backlog_idx = 0;
             len -= thislen;
-            buf += thislen;
-            m_histlen += thislen;
+            p += thislen;
+            m_state->repl_backlog_histlen += thislen;
         }
-        if (m_histlen > m_backlog_size)
-            m_histlen = m_backlog_size;
+        if (m_state->repl_backlog_histlen > m_state->repl_backlog_size)
+            m_state->repl_backlog_histlen = m_state->repl_backlog_size;
         /* Set the offset of the first byte we have in the backlog. */
-        m_begin_offset = m_end_offset - m_histlen + 1;
-        snprintf(m_sync_state_buf.m_buf, m_sync_state_buf.m_size,
-                "%s %"PRIu64" %"PRIu64" %"PRIu64" %"PRIu64" %u",
-                m_server_key.c_str(), m_end_offset, m_begin_offset,
-                m_backlog_idx, m_histlen, m_current_dbid);
+        m_state->repl_backlog_off = m_state->master_repl_offset - m_state->repl_backlog_histlen + 1;
+
+        m_state->cksm = crc64(m_state->cksm, (const unsigned char *) p, len);
         m_sync_state_change = true;
-        DEBUG_LOG("Write state:%s", m_sync_state_buf.m_buf);
     }
 
-    const std::string& ReplBacklog::GetServerKey()
+    const char* ReplBacklog::GetServerKey()
     {
-        return m_server_key;
+        return m_state->serverkey;
     }
     uint64 ReplBacklog::GetReplEndOffset()
     {
-        return m_end_offset;
+        return m_state->master_repl_offset;
     }
 
     uint64 ReplBacklog::GetReplStartOffset()
     {
-        return m_begin_offset;
+        return m_state->repl_backlog_off;
     }
 
     size_t ReplBacklog::WriteChannel(Channel* channle, int64 offset, size_t len)
@@ -187,38 +184,29 @@ namespace ardb
         {
             return 0;
         }
-        int64 skip = offset - m_begin_offset;
-        uint64 j = (m_backlog_idx + (m_backlog_size - m_histlen)) % m_backlog_size;
-        j = (j + skip) % m_backlog_size;
-        uint64 total = len;
-        if (total > m_histlen - skip)
+        uint32 total = m_state->master_repl_offset - offset;
+        if (m_state->repl_backlog_idx >= total)
         {
-            total = m_histlen - skip;
-        }
-        len = total;
-
-        while (total)
-        {
-            uint64 thislen = ((m_backlog_size - j) < len) ? (m_backlog_size - j) : len;
-            Buffer buf(m_backlog.m_buf + j, 0, thislen);
+            Buffer buf(m_repl_backlog + m_state->repl_backlog_idx - total, 0, total);
             channle->Write(buf);
-            total -= thislen;
-            j = 0;
         }
-        return len;
+        else
+        {
+            Buffer buf1(m_repl_backlog + m_state->repl_backlog_size - total + m_state->repl_backlog_idx, 0, total - m_state->repl_backlog_idx);
+            channle->Write(buf1);
+            Buffer buf2(m_repl_backlog, 0, m_state->repl_backlog_idx);
+            channle->Write(buf2);
+        }
+        return total;
     }
 
     bool ReplBacklog::IsValidOffset(int64 offset)
     {
-        if ((uint64) offset == m_begin_offset)
+        if (offset < 0 || (uint64) offset < m_state->repl_backlog_off
+                || (uint64) offset > (m_state->repl_backlog_off + m_state->repl_backlog_histlen))
         {
-            return true;
-        }
-        if (offset < 0 || (uint64) offset > m_end_offset + 1 || (uint64) offset < m_begin_offset)
-        {
-            INFO_LOG(
-                    "Unable to partial resync with the slave for lack of backlog (Slave request was: %"PRId64"). %"PRId64"-%"PRId64,
-                    offset, m_begin_offset, m_end_offset);
+            INFO_LOG("Unable to partial resync with the slave for lack of backlog (Slave request was: %"PRId64").",
+                    offset);
             return false;
         }
         return true;
@@ -226,10 +214,10 @@ namespace ardb
 
     bool ReplBacklog::IsValidOffset(const std::string& server_key, int64 offset)
     {
-        if (m_server_key != server_key)
+        if (strcmp(server_key.c_str(), m_state->serverkey))
         {
             INFO_LOG("Partial resynchronization not accepted: "
-                    "Serverkey mismatch (Client asked for '%s', I'm '%s')", server_key.c_str(), m_server_key.c_str());
+                    "Serverkey mismatch (Client asked for '%s', I'm '%s')", server_key.c_str(), m_state->serverkey);
             return false;
         }
         return IsValidOffset(offset);
@@ -238,17 +226,14 @@ namespace ardb
     /*
      * Slave instance may update current state from received 'FULLRESYNC' response
      */
-    void ReplBacklog::UpdateState(const std::string& serverkey, int64 offset)
+    void ReplBacklog::UpdateState(const std::string& serverkey, uint64 cksm, int64 offset)
     {
-        m_server_key = serverkey;
-        m_backlog_idx = 0;
-        m_end_offset = offset;
-        m_histlen = 0;
-        m_begin_offset = m_end_offset - m_histlen + 1;
-        snprintf(m_sync_state_buf.m_buf, m_sync_state_buf.m_size,
-                "%s %"PRIu64" %"PRIu64" %"PRIu64" %"PRIu64 "%u",
-                m_server_key.c_str(), m_end_offset, m_begin_offset,
-                m_backlog_idx, m_histlen, m_current_dbid);
+        memcpy(m_state->serverkey, serverkey.data(), SERVER_KEY_SIZE);
+        m_state->cksm = cksm;
+        m_state->repl_backlog_idx = 0;
+        m_state->repl_backlog_histlen = 0;
+        m_state->master_repl_offset = offset;
+        m_state->repl_backlog_off = offset + 1;
         m_sync_state_change = true;
     }
 }

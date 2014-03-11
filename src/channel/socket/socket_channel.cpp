@@ -371,6 +371,7 @@ void SocketChannel::OnAccepted()
 		return;
 	}
 	m_detached = false;
+	m_state = SOCK_CONNECTED;
 	fire_channel_open(this);
 	fire_channel_connected(this);
 

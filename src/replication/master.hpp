@@ -61,7 +61,12 @@ namespace ardb
             }
     };
 
-    typedef std::pair<DBID, RedisCommandFrame> RedisCommandWithDBID;
+    struct RedisReplCommand
+    {
+            RedisCommandFrame cmd;
+            DBID dbid;
+            Channel* src;
+    };
 
     struct SlaveConnection
     {
@@ -76,7 +81,8 @@ namespace ardb
 
             DBID syncing_from;
 
-            DBIDSet syncdbs;
+            DBIDSet include_dbs;
+            DBIDSet exclude_dbs;
             SlaveConnection() :
                     conn(NULL), sync_offset(0), acktime(0), port(0), repldbfd(-1), isRedisSlave(false), state(0), syncing_from(
                             ARDB_GLOBAL_DB)
@@ -119,14 +125,14 @@ namespace ardb
             void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e);
             void OnSoftSignal(uint32 soft_signo, uint32 appendinfo);
             void OfferReplInstruction(ReplicationInstruction& inst);
-            void WriteCmdToSlaves(RedisCommandFrame& cmd);
-            void WriteSlaves(const DBID& dbid, RedisCommandFrame& cmd);
+            void WriteCmdToSlaves(const RedisCommandFrame& cmd);
+            void WriteSlaves(const RedisReplCommand* cmd);
         public:
             Master(ArdbServer* server);
             int Init();
             void AddSlave(Channel* slave, RedisCommandFrame& cmd);
             void AddSlavePort(Channel* slave, uint32 port);
-            void FeedSlaves(const DBID& dbid, RedisCommandFrame& cmd);
+            void FeedSlaves(Channel* src, const DBID& dbid, RedisCommandFrame& cmd);
             void SendDumpToSlave(SlaveConnection& slave);
             void SendCacheToSlave(SlaveConnection& slave);
             size_t ConnectedSlaves();

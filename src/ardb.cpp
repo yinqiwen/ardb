@@ -334,6 +334,29 @@ namespace ardb
         return 0;
     }
 
+    void Ardb::GetAllDBIDSet(DBIDSet& dbs)
+    {
+        DBID current = 0;
+        DBID next = 0;
+        while(true)
+        {
+            next = 0;
+            if(DBExist(current, next))
+            {
+                dbs.insert(current);
+                current++;
+            }else
+            {
+                if(next == ARDB_GLOBAL_DB)
+                {
+                    break;
+                }
+                dbs.insert(next);
+                current = next + 1;
+            }
+        }
+    }
+
     bool Ardb::DBExist(const DBID& db, DBID& nextdb)
     {
         KeyObject start(Slice(), KEY_META, db);
