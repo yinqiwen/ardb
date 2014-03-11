@@ -224,6 +224,7 @@ namespace ardb
          */
 
         DBID currentDB = m_backlog.GetCurrentDBID();
+        uint64 cksm = m_backlog.GetChecksum();
         slave.sync_offset = m_backlog.GetReplEndOffset();
         struct DBVisitor: public RawValueVisitor
         {
@@ -285,7 +286,7 @@ namespace ardb
             slave.conn->Write(select);
         }
         Buffer msg;
-        msg.Printf("FULLSYNCED\r\n");
+        msg.Printf("FULLSYNCED %llu %llu\r\n", slave.sync_offset, cksm);
         slave.conn->Write(msg);
         SendCacheToSlave(slave);
     }
@@ -422,7 +423,7 @@ namespace ardb
                     RedisCommandEncoder::Encode(buf, select);
                     offset -= buf.ReadableBytes();
                 }
-                msg.Printf("+FULLRESYNC %s %llu %lld\r\n", m_backlog.GetServerKey(), m_backlog.GetChecksum(), offset);
+                msg.Printf("+FULLRESYNC %s %lld\r\n", m_backlog.GetServerKey(), offset);
                 slave.state = SLAVE_STATE_WAITING_DUMP_DATA;
             }
             slave.conn->Write(msg);

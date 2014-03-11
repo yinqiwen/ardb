@@ -160,7 +160,8 @@ namespace ardb
         /* Set the offset of the first byte we have in the backlog. */
         m_state->repl_backlog_off = m_state->master_repl_offset - m_state->repl_backlog_histlen + 1;
 
-        m_state->cksm = crc64(m_state->cksm, (const unsigned char *) p, len);
+
+        m_state->cksm = crc64(m_state->cksm, (const unsigned char *) p, buffer.ReadableBytes());
         m_sync_state_change = true;
     }
 
@@ -192,7 +193,8 @@ namespace ardb
         }
         else
         {
-            Buffer buf1(m_repl_backlog + m_state->repl_backlog_size - total + m_state->repl_backlog_idx, 0, total - m_state->repl_backlog_idx);
+            Buffer buf1(m_repl_backlog + m_state->repl_backlog_size - total + m_state->repl_backlog_idx, 0,
+                    total - m_state->repl_backlog_idx);
             channle->Write(buf1);
             Buffer buf2(m_repl_backlog, 0, m_state->repl_backlog_idx);
             channle->Write(buf2);
@@ -223,17 +225,23 @@ namespace ardb
         return IsValidOffset(offset);
     }
 
-    /*
-     * Slave instance may update current state from received 'FULLRESYNC' response
-     */
-    void ReplBacklog::UpdateState(const std::string& serverkey, uint64 cksm, int64 offset)
+    void ReplBacklog::SetServerkey(const std::string& serverkey)
     {
         memcpy(m_state->serverkey, serverkey.data(), SERVER_KEY_SIZE);
-        m_state->cksm = cksm;
+        m_state->serverkey[SERVER_KEY_SIZE] = 0;
+        m_sync_state_change = true;
+    }
+    void ReplBacklog::SetReplOffset(int64 offset)
+    {
         m_state->repl_backlog_idx = 0;
         m_state->repl_backlog_histlen = 0;
         m_state->master_repl_offset = offset;
         m_state->repl_backlog_off = offset + 1;
+        m_sync_state_change = true;
+    }
+    void ReplBacklog::SetChecksum(uint64 cksm)
+    {
+        m_state->cksm = cksm;
         m_sync_state_change = true;
     }
 }

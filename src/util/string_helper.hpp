@@ -134,6 +134,7 @@ namespace ardb
     int ll2string(char *s, size_t len, long long value);
 
     std::string stringfromll(int64 v);
+    std::string base16_stringfromllu(uint64 v);
 
     template<typename T>
     std::string string_join_container(const T& container, const std::string& sep)
