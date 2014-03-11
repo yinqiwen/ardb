@@ -108,15 +108,15 @@ namespace ardb
         return true;
     }
 
-    static bool check_double_arg(RedisReply& reply, const std::string& arg, double& v)
-    {
-        if (!string_todouble(arg, v))
-        {
-            fill_error_reply(reply, "ERR value is not an double or out of range.");
-            return false;
-        }
-        return true;
-    }
+//    static bool check_double_arg(RedisReply& reply, const std::string& arg, double& v)
+//    {
+//        if (!string_todouble(arg, v))
+//        {
+//            fill_error_reply(reply, "ERR value is not an double or out of range.");
+//            return false;
+//        }
+//        return true;
+//    }
 
     template<typename T>
     static inline void fill_array_reply(RedisReply& reply, T& v)
@@ -177,6 +177,7 @@ namespace ardb
             ERROR_LOG("[Config]Invalid value for 'slaveof' since 'repl-backlog-size' is not set correctly.");
             return false;
         }
+        return true;
     }
 
     int ArdbServer::ParseConfig(const Properties& props, ArdbServerConfig& cfg)
@@ -960,6 +961,7 @@ namespace ardb
             info.append("repl_backlog_first_byte_offset: ").append(stringfromll(m_repl_backlog.GetReplStartOffset())).append(
                     "\r\n");
             info.append("repl_backlog_histlen: ").append(stringfromll(m_repl_backlog.GetHistLen())).append("\r\n");
+            info.append("repl_backlog_cksm: ").append(base16_stringfromllu(m_repl_backlog.GetChecksum())).append("\r\n");
         }
 
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "stats"))

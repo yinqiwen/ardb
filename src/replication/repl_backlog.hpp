@@ -117,7 +117,9 @@ namespace ardb
                 m_state->current_db = ARDB_GLOBAL_DB;
             }
             size_t WriteChannel(Channel* channle, int64 offset, size_t len);
-            void UpdateState(const std::string& serverkey, uint64 cksm ,int64 offset);
+            void SetServerkey(const std::string& serverkey);
+            void SetReplOffset(int64 offset);
+            void SetChecksum(uint64 cksm);
 
     };
 }

@@ -578,7 +578,7 @@ namespace ardb
         {
             Slice tmpkey = iter->Key();
             KeyObject* kk = decode_key(tmpkey, NULL);
-            if (kk->type != KEY_META)
+            if (kk->type != KEY_META || kk->db != db)
             {
                 DELETE(kk);
                 DELETE(iter);

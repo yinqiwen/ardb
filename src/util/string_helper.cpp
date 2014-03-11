@@ -126,7 +126,7 @@ namespace ardb
 
     int split_uint32_array(const std::string& str, const std::string& sep, std::vector<uint32>& array)
     {
-        if(str.empty())
+        if (str.empty())
         {
             return 0;
         }
@@ -136,7 +136,7 @@ namespace ardb
             uint32 id;
             if (!string_touint32(ss[i], id))
             {
-               return -1;
+                return -1;
             }
             else
             {
@@ -814,6 +814,23 @@ namespace ardb
         memcpy(s, p, l);
         s[l] = '\0';
         return l;
+    }
+
+    std::string base16_stringfromllu(uint64 v)
+    {
+        static char const zEncode[] = "0123456789abcdef";
+
+        std::string ret;
+        ret.resize(16);
+        const char* s = (const char*)&v;
+        int j = 0;
+        for (int i = 0; i < 8; i++)
+        {
+            int a = s[i];
+            ret[j++] = zEncode[(a >> 4) & 0xf];
+            ret[j++] = zEncode[a & 0xf];
+        }
+        return ret;
     }
 
     std::string stringfromll(int64 value)

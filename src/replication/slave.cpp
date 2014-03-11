@@ -106,12 +106,12 @@ namespace ardb
         {
             if (!strcasecmp(cmd.GetCommand().c_str(), "FULLSYNCED"))
             {
-                if (cmd.GetArguments().size() != 0)
-                {
-                    ERROR_LOG("Invalid command:%s", cmd.ToString().c_str());
-                    ch->Close();
-                    return;
-                }
+                uint64 offset, cksm;
+                string_touint64(cmd.GetArguments()[0], offset);
+                string_touint64(cmd.GetArguments()[1], cksm);
+                m_backlog.SetChecksum(cksm);
+                ASSERT(offset == m_backlog.GetReplEndOffset());
+                //m_backlog.SetReplOffset(offset);
                 m_slave_state = SLAVE_STATE_SYNCED;
                 //Disconnect all slaves when all data resynced
                 m_serv->m_master_serv.DisconnectAllSlaves();
@@ -171,7 +171,6 @@ namespace ardb
                 m_client->Write(ack);
             }
         }
-
         m_routine_ts = now;
     }
 
@@ -282,11 +281,10 @@ namespace ardb
                 std::vector<std::string> ss = split_string(reply.str, " ");
                 if (!strcasecmp(ss[0].c_str(), "FULLRESYNC"))
                 {
-                    uint64 cksm;
                     int64 offset;
-                    if (!string_toint64(ss[3], offset) || !string_touint64(ss[2], cksm))
+                    if (!string_toint64(ss[2], offset))
                     {
-                        ERROR_LOG("Invalid psync cksm offset:%s", ss[2].c_str(), ss[3].c_str());
+                        ERROR_LOG("Invalid psync offset:%s", ss[2].c_str());
                         ch->Close();
                         return;
                     }
@@ -297,7 +295,8 @@ namespace ardb
                     {
                         m_serv->m_db->FlushAll();
                     }
-                    m_backlog.UpdateState(ss[1], cksm, offset);
+                    m_backlog.SetServerkey(ss[1]);
+                    m_backlog.SetReplOffset(offset);
                     if (m_server_type == ARDB_DB_SERVER_TYPE)
                     {
                         //Do NOT change state, since master would send  "FULLSYNCED" after all data synced
