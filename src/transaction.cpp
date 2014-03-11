@@ -151,7 +151,7 @@ namespace ardb
         ctx.reply.str = "OK";
         m_db->GetDBWatcher().on_key_update = ArdbServer::OnKeyUpdated;
         m_db->GetDBWatcher().on_key_update_data = this;
-        ArgumentArray::iterator it = cmd.GetArguments().begin();
+        ArgumentArray::const_iterator it = cmd.GetArguments().begin();
         while (it != cmd.GetArguments().end())
         {
             WatchKey k(ctx.currentDB, *it);

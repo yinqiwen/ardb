@@ -372,7 +372,7 @@ namespace ardb
         /* Setup our fake client for command execution */
 
         RedisCommandFrame cmd(cmdargs);
-        lower_string(cmd.GetCommand());
+        lower_string(cmd.GetMutableCommand());
         ArdbServer::RedisCommandHandlerSetting* setting = m_server->FindRedisCommandHandlerSetting(cmd.GetCommand());
         /* Command lookup */
         if (NULL == setting)

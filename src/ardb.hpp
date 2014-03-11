@@ -655,6 +655,7 @@ namespace ardb
             }
 
             bool DBExist(const DBID& db, DBID& nextdb);
+            void GetAllDBIDSet(DBIDSet& dbs);
             /*
              * Default max execution time 50ms, max check item number 10000
              */

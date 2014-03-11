@@ -35,7 +35,7 @@ namespace ardb
     int ArdbServer::Subscribe(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         LockGuard<ThreadMutex> guard(m_pubsub_mutex);
-        ArgumentArray::iterator it = cmd.GetArguments().begin();
+        ArgumentArray::const_iterator it = cmd.GetArguments().begin();
         while (it != cmd.GetArguments().end())
         {
             RedisReply r;
@@ -79,7 +79,7 @@ namespace ardb
     }
 
     template<typename T>
-    static void unsubscribe(ArdbConnContext& ctx, ArgumentArray& cmd, bool is_pattern, T& submap)
+    static void unsubscribe(ArdbConnContext& ctx, const ArgumentArray& cmd, bool is_pattern, T& submap)
     {
         PubSubChannelSet& uset = is_pattern ? ctx.GetPubSub().pattern_pubsub_channle_set : ctx.GetPubSub().pubsub_channle_set;
         if (cmd.empty())
@@ -118,7 +118,7 @@ namespace ardb
         }
         else
         {
-            ArgumentArray::iterator it = cmd.begin();
+            ArgumentArray::const_iterator it = cmd.begin();
             while (it != cmd.end())
             {
                 uset.erase(*it);
@@ -148,7 +148,7 @@ namespace ardb
     {
         LockGuard<ThreadMutex> guard(m_pubsub_mutex);
 
-        ArgumentArray::iterator it = cmd.GetArguments().begin();
+        ArgumentArray::const_iterator it = cmd.GetArguments().begin();
         while (it != cmd.GetArguments().end())
         {
             RedisReply r;

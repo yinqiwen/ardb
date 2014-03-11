@@ -89,7 +89,7 @@ namespace ardb
 
     void L1Cache::CheckMemory(CacheItem* exclude_item)
     {
-        while (m_estimate_mem_size > m_db->m_config.L1_cache_memory_limit && m_cache.Size() > 1)
+        while (m_estimate_mem_size > (uint64)m_db->m_config.L1_cache_memory_limit && m_cache.Size() > 1)
         {
             LRUCache<DBItemKey, CacheItem*>::CacheEntry entry;
             CacheLockGuard guard(m_cache_mutex);

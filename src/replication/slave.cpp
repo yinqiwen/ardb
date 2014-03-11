@@ -27,11 +27,6 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/*
- * slave_client.cpp
- *
- *  Created on: 2013-08-22      Author: wqy
- */
 #include "slave.hpp"
 #include "ardb_server.hpp"
 #include <sstream>
@@ -78,15 +73,13 @@ namespace ardb
         std::string dump_file_path = m_serv->m_cfg.home + "/repl";
         char tmp[dump_file_path.size() + 100];
         uint32 now = time(NULL);
-        sprintf(tmp, "%s/temp-%u-%u.rdb", dump_file_path.c_str(), getpid(),
-                now);
+        sprintf(tmp, "%s/temp-%u-%u.rdb", dump_file_path.c_str(), getpid(), now);
         NEW(m_rdb, RedisDumpFile(m_serv->m_db, tmp));
         INFO_LOG("[Slave]Create redis dump file:%s", tmp);
         return m_rdb;
     }
 
-    void Slave::ChannelConnected(ChannelHandlerContext& ctx,
-            ChannelStateEvent& e)
+    void Slave::ChannelConnected(ChannelHandlerContext& ctx, ChannelStateEvent& e)
     {
         DEBUG_LOG("Master conn connected.");
         Buffer info;
@@ -99,19 +92,17 @@ namespace ardb
     void Slave::HandleRedisCommand(Channel* ch, RedisCommandFrame& cmd)
     {
         int flag = ARDB_PROCESS_REPL_WRITE;
-        if (m_slave_state == SLAVE_STATE_SYNCED
-                || m_slave_state == SLAVE_STATE_LOADING_DUMP_DATA)
+        if (m_slave_state == SLAVE_STATE_SYNCED || m_slave_state == SLAVE_STATE_LOADING_DUMP_DATA)
         {
             flag |= ARDB_PROCESS_FORCE_REPLICATION;
-        } else
+        }
+        else
         {
             flag |= ARDB_PROCESS_WITHOUT_REPLICATION;
         }
-        DEBUG_LOG("Recv master cmd %s at %lld at flag:%d at state:%d",
-                cmd.ToString().c_str(), m_backlog.GetReplEndOffset(), flag,
-                m_slave_state);
-        if (m_slave_state == SLAVE_STATE_WAITING_PSYNC_REPLY
-                && m_server_type == ARDB_DB_SERVER_TYPE)
+        DEBUG_LOG("Recv master cmd %s at %lld at flag:%d at state:%d", cmd.ToString().c_str(),
+                m_backlog.GetReplEndOffset(), flag, m_slave_state);
+        if (m_slave_state == SLAVE_STATE_WAITING_PSYNC_REPLY && m_server_type == ARDB_DB_SERVER_TYPE)
         {
             if (!strcasecmp(cmd.GetCommand().c_str(), "FULLSYNCED"))
             {
@@ -132,14 +123,24 @@ namespace ardb
         {
             m_ping_recved_time = time(NULL);
         }
+        else if (!strcasecmp(cmd.GetCommand().c_str(), "SELECT"))
+        {
+            DBID id = 0;
+            string_touint32(cmd.GetArguments()[0], id);
+            m_backlog.SetCurrentDBID(id);
+        }
         GetArdbConnContext();
         m_actx->is_slave_conn = true;
         m_actx->conn = ch;
-        if (strcasecmp(cmd.GetCommand().c_str(), "SELECT")
-                && strcasecmp(cmd.GetCommand().c_str(), "__SET__")
+
+        if (strcasecmp(cmd.GetCommand().c_str(), "SELECT") && strcasecmp(cmd.GetCommand().c_str(), "__SET__")
                 && strcasecmp(cmd.GetCommand().c_str(), "__DEL__"))
         {
-            if (!m_sync_dbs.empty() && m_sync_dbs.count(m_actx->currentDB) == 0)
+            if (!m_include_dbs.empty() && m_include_dbs.count(m_actx->currentDB) == 0)
+            {
+                flag |= ARDB_PROCESS_FEED_REPLICATION_ONLY;
+            }
+            if (!m_exclude_dbs.empty() && m_exclude_dbs.count(m_actx->currentDB) > 0)
             {
                 flag |= ARDB_PROCESS_FEED_REPLICATION_ONLY;
             }
@@ -151,26 +152,22 @@ namespace ardb
         uint32 now = time(NULL);
         if (m_slave_state == SLAVE_STATE_SYNCED)
         {
-            if (m_ping_recved_time > 0
-                    && now - m_ping_recved_time >= m_serv->m_cfg.repl_timeout)
+            if (m_ping_recved_time > 0 && now - m_ping_recved_time >= m_serv->m_cfg.repl_timeout)
             {
                 if (m_slave_state == SLAVE_STATE_SYNCED)
                 {
-                    INFO_LOG("now = %u, ping_recved_time=%u", now,
-                            m_ping_recved_time);
+                    INFO_LOG("now = %u, ping_recved_time=%u", now, m_ping_recved_time);
                     Timeout();
                     return;
                 }
             }
         }
-        if (m_slave_state == SLAVE_STATE_SYNCED
-                || m_slave_state == SLAVE_STATE_LOADING_DUMP_DATA)
+        if (m_slave_state == SLAVE_STATE_SYNCED || m_slave_state == SLAVE_STATE_LOADING_DUMP_DATA)
         {
             if (m_server_support_psync)
             {
                 Buffer ack;
-                ack.Printf("REPLCONF ACK %lld\r\n",
-                        m_backlog.GetReplEndOffset());
+                ack.Printf("REPLCONF ACK %lld\r\n", m_backlog.GetReplEndOffset());
                 m_client->Write(ack);
             }
         }
@@ -208,25 +205,22 @@ namespace ardb
                     m_server_type = REDIS_DB_SERVER_TYPE;
                     size_t start = reply.str.find(redis_ver_key);
                     size_t end = reply.str.find("\n", start);
-                    std::string v = reply.str.substr(
-                            start + strlen(redis_ver_key),
+                    std::string v = reply.str.substr(start + strlen(redis_ver_key),
                             end - start - strlen(redis_ver_key));
                     v = trim_string(v);
-                    m_server_support_psync = (compare_version<3>(v, "2.7.0")
-                            >= 0);
-                    INFO_LOG(
-                            "[Slave]Remote master is a Redis %s instance, support partial sync:%u",
-                            v.c_str(), m_server_support_psync);
+                    m_server_support_psync = (compare_version<3>(v, "2.7.0") >= 0);
+                    INFO_LOG("[Slave]Remote master is a Redis %s instance, support partial sync:%u", v.c_str(),
+                            m_server_support_psync);
 
-                } else
+                }
+                else
                 {
                     INFO_LOG("[Slave]Remote master is an Ardb instance.");
                     m_server_type = ARDB_DB_SERVER_TYPE;
                     m_server_support_psync = true;
                 }
                 Buffer replconf;
-                replconf.Printf("replconf listening-port %u\r\n",
-                        m_serv->GetServerConfig().listen_port);
+                replconf.Printf("replconf listening-port %u\r\n", m_serv->GetServerConfig().listen_port);
                 ch->Write(replconf);
                 m_slave_state = SLAVE_STATE_WAITING_REPLCONF_REPLY;
                 break;
@@ -235,44 +229,38 @@ namespace ardb
             {
                 if (reply.type == REDIS_REPLY_ERROR)
                 {
-                    ERROR_LOG("Recv replconf reply error:%s",
-                            reply.str.c_str());
+                    ERROR_LOG("Recv replconf reply error:%s", reply.str.c_str());
                     ch->Close();
                     return;
                 }
                 if (m_server_support_psync)
                 {
-                    Buffer psync;
+                    Buffer sync;
                     if (m_server_type == ARDB_DB_SERVER_TYPE)
                     {
-                        std::string syncdbs;
-                        DBIDSet::iterator it = m_sync_dbs.begin();
-                        while (it != m_sync_dbs.end())
+                        std::string includes = "*";
+                        std::string excludes = "-";
+                        if (!m_include_dbs.empty())
                         {
-                            char tmp[16];
-                            sprintf(tmp, "%u", *it);
-                            syncdbs.append(tmp);
-                            if (*it != *(m_sync_dbs.rbegin()))
-                            {
-                                syncdbs.append("|");
-                            }
-                            it++;
+                            includes = string_join_container(m_include_dbs, "|");
                         }
-                        psync.Printf("psync2 %s %lld %s\r\n",
-                                m_backlog.GetServerKey().c_str(),
-                                m_backlog.GetReplEndOffset(), syncdbs.c_str());
-                    } else
-                    {
-                        psync.Printf("psync %s %lld\r\n",
-                                m_backlog.GetServerKey().c_str(),
-                                m_backlog.GetReplEndOffset());
-                        INFO_LOG("Send PSYNC %s %lld",
-                                m_backlog.GetServerKey().c_str(),
-                                m_backlog.GetReplEndOffset());
+                        if (!m_exclude_dbs.empty())
+                        {
+                            excludes = string_join_container(m_exclude_dbs, "|");
+                        }
+                        sync.Printf("apsync %s %lld cksm %llu include %s exclude %s\r\n", m_backlog.GetServerKey(),
+                                m_backlog.GetReplEndOffset(), m_backlog.GetChecksum(), includes.c_str(),
+                                excludes.c_str());
                     }
-                    ch->Write(psync);
+                    else
+                    {
+                        sync.Printf("psync %s %lld\r\n", m_backlog.GetServerKey(), m_backlog.GetReplEndOffset());
+                        INFO_LOG("Send PSYNC %s %lld", m_backlog.GetServerKey(), m_backlog.GetReplEndOffset());
+                    }
+                    ch->Write(sync);
                     m_slave_state = SLAVE_STATE_WAITING_PSYNC_REPLY;
-                } else
+                }
+                else
                 {
                     Buffer sync;
                     sync.Printf("sync\r\n");
@@ -294,10 +282,11 @@ namespace ardb
                 std::vector<std::string> ss = split_string(reply.str, " ");
                 if (!strcasecmp(ss[0].c_str(), "FULLRESYNC"))
                 {
+                    uint64 cksm;
                     int64 offset;
-                    if (!string_toint64(ss[2], offset))
+                    if (!string_toint64(ss[3], offset) || !string_touint64(ss[2], cksm))
                     {
-                        ERROR_LOG("Invalid psync offset:%s", ss[2].c_str());
+                        ERROR_LOG("Invalid psync cksm offset:%s", ss[2].c_str(), ss[3].c_str());
                         ch->Close();
                         return;
                     }
@@ -308,19 +297,21 @@ namespace ardb
                     {
                         m_serv->m_db->FlushAll();
                     }
-                    m_backlog.UpdateState(ss[1], offset);
+                    m_backlog.UpdateState(ss[1], cksm, offset);
                     if (m_server_type == ARDB_DB_SERVER_TYPE)
                     {
                         //Do NOT change state, since master would send  "FULLSYNCED" after all data synced
                         m_decoder.SwitchToCommandDecoder();
                         return;
                     }
-                } else if (!strcasecmp(ss[0].c_str(), "CONTINUE"))
+                }
+                else if (!strcasecmp(ss[0].c_str(), "CONTINUE"))
                 {
                     m_decoder.SwitchToCommandDecoder();
                     m_slave_state = SLAVE_STATE_SYNCED;
                     break;
-                } else
+                }
+                else
                 {
                     ERROR_LOG("Invalid psync status:%s", reply.str.c_str());
                     ch->Close();
@@ -343,8 +334,7 @@ namespace ardb
     {
         if (m_slave_state != SLAVE_STATE_SYNING_DUMP_DATA)
         {
-            ERROR_LOG("Invalid state:%u to handler redis dump file chunk.",
-                    m_slave_state);
+            ERROR_LOG("Invalid state:%u to handler redis dump file chunk.", m_slave_state);
             ch->Close();
             return;
         }
@@ -361,8 +351,7 @@ namespace ardb
             m_rdb->Flush();
             m_decoder.SwitchToCommandDecoder();
             m_slave_state = SLAVE_STATE_LOADING_DUMP_DATA;
-            if (m_serv->m_cfg.slave_cleardb_before_fullresync
-                    && !m_server_support_psync)
+            if (m_serv->m_cfg.slave_cleardb_before_fullresync && !m_server_support_psync)
             {
                 m_serv->m_db->FlushAll();
             }
@@ -385,16 +374,17 @@ namespace ardb
         }
     }
 
-    void Slave::MessageReceived(ChannelHandlerContext& ctx,
-            MessageEvent<RedisMessage>& e)
+    void Slave::MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisMessage>& e)
     {
         if (e.GetMessage()->IsReply())
         {
             HandleRedisReply(ctx.GetChannel(), e.GetMessage()->reply);
-        } else if (e.GetMessage()->IsCommand())
+        }
+        else if (e.GetMessage()->IsCommand())
         {
             HandleRedisCommand(ctx.GetChannel(), e.GetMessage()->command);
-        } else
+        }
+        else
         {
             HandleRedisDumpChunk(ctx.GetChannel(), e.GetMessage()->chunk);
         }
@@ -416,16 +406,13 @@ namespace ardb
                 }
                 void Run()
                 {
-                    if (NULL == sc.m_client
-                            && !sc.m_master_addr.GetHost().empty())
+                    if (NULL == sc.m_client && !sc.m_master_addr.GetHost().empty())
                     {
-                        sc.ConnectMaster(sc.m_master_addr.GetHost(),
-                                sc.m_master_addr.GetPort());
+                        sc.ConnectMaster(sc.m_master_addr.GetHost(), sc.m_master_addr.GetPort());
                     }
                 }
         };
-        m_serv->GetTimer().ScheduleHeapTask(new ReconnectTask(*this), 1000, -1,
-                MILLIS);
+        m_serv->GetTimer().ScheduleHeapTask(new ReconnectTask(*this), 1000, -1, MILLIS);
     }
 
     void Slave::Timeout()
@@ -451,8 +438,7 @@ namespace ardb
                         c->Routine();
                     }
             };
-            m_serv->GetTimer().ScheduleHeapTask(new RoutineTask(this), 1, 1,
-                    SECONDS);
+            m_serv->GetTimer().ScheduleHeapTask(new RoutineTask(this), 1, 1, SECONDS);
         }
     }
 
@@ -474,7 +460,7 @@ namespace ardb
         m_decoder.SwitchToReplyDecoder();
         m_slave_state = SLAVE_STATE_CONNECTING;
         m_client->Connect(&m_master_addr);
-        DEBUG_LOG("Connecting master %s:%u %d", host.c_str(), port);
+        DEBUG_LOG("[Slave]Connecting master %s:%u", host.c_str(), port);
         return 0;
     }
 
@@ -494,10 +480,22 @@ namespace ardb
         }
     }
 
-    bool Slave::IsMasterConnected()
+    bool Slave::IsConnected()
     {
-        return m_slave_state != SLAVE_STATE_CLOSED
-                && m_slave_state != SLAVE_STATE_CONNECTING;
+        return m_slave_state != SLAVE_STATE_CLOSED && m_slave_state != SLAVE_STATE_CONNECTING;
+    }
+    bool Slave::IsSynced()
+    {
+        return m_slave_state != SLAVE_STATE_SYNCED;
+    }
+
+    void Slave::SetIncludeDBs(const DBIDArray& dbs)
+    {
+        convert_vector_to_set(dbs, m_include_dbs);
+    }
+    void Slave::SetExcludeDBs(const DBIDArray& dbs)
+    {
+        convert_vector_to_set(dbs, m_exclude_dbs);
     }
 }
 

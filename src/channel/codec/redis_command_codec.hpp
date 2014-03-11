@@ -41,14 +41,15 @@ namespace ardb
         class RedisCommandDecoder: public StackFrameDecoder<RedisCommandFrame>
         {
             protected:
-                int ProcessInlineBuffer(ChannelHandlerContext& ctx, Buffer& buffer, RedisCommandFrame& frame);
-                int ProcessMultibulkBuffer(ChannelHandlerContext& ctx, Buffer& buffer, RedisCommandFrame& frame);
+                static int ProcessInlineBuffer(Buffer& buffer, RedisCommandFrame& frame);
+                static int ProcessMultibulkBuffer(Channel* ch, Buffer& buffer, RedisCommandFrame& frame);
                 bool Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, RedisCommandFrame& msg);
                 friend class RedisMessageDecoder;
             public:
                 RedisCommandDecoder()
                 {
                 }
+                static bool Decode(Channel* ch, Buffer& buffer, RedisCommandFrame& msg);
         };
 
         class RedisCommandEncoder: public ChannelDownstreamHandler<RedisCommandFrame>
@@ -56,7 +57,7 @@ namespace ardb
             private:
                 bool WriteRequested(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e);
             public:
-                static bool Encode(Buffer& buf, RedisCommandFrame& cmd);
+                static bool Encode(Buffer& buf, const RedisCommandFrame& cmd);
         };
     }
 }

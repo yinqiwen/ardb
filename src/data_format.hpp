@@ -77,6 +77,7 @@ namespace ardb
     typedef uint32 DBID;
 
     typedef TreeSet<DBID>::Type DBIDSet;
+    typedef std::vector<DBID> DBIDArray;
 
     enum KeyType
     {
@@ -732,6 +733,20 @@ namespace ardb
             it++;
         }
     }
+
+    template<typename T, typename R>
+    static void convert_vector_to_set(const T& array, R& set)
+    {
+        typename T::const_iterator it = array.begin();
+        while(it != array.end())
+        {
+            set.insert(*it);
+            it++;
+        }
+    }
+
+
+
     void encode_key(Buffer& buf, const KeyObject& key);
     KeyObject* decode_key(const Slice& key, KeyObject* expected);
     CommonMetaValue* decode_meta(const char* data, size_t size, bool only_head);

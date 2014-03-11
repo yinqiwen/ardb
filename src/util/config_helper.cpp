@@ -125,10 +125,12 @@ namespace ardb
         {
             return ignore_nonexist;
         }
-        if(!strcasecmp(found->second.c_str(), "true") || !strcasecmp(found->second.c_str(), "1"))
+        if (!strcasecmp(found->second.c_str(), "true") || !strcasecmp(found->second.c_str(), "1")
+                || !strcasecmp(found->second.c_str(), "yes"))
         {
             value = true;
-        }else
+        }
+        else
         {
             value = false;
         }

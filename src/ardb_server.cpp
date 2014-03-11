@@ -170,6 +170,15 @@ namespace ardb
         }
     }
 
+    static bool verify_config(const ArdbServerConfig& cfg)
+    {
+        if(!cfg.master_host.empty() && cfg.repl_backlog_size <= 0)
+        {
+            ERROR_LOG("[Config]Invalid value for 'slaveof' since 'repl-backlog-size' is not set correctly.");
+            return false;
+        }
+    }
+
     int ArdbServer::ParseConfig(const Properties& props, ArdbServerConfig& cfg)
     {
         conf_get_string(props, "home", cfg.home);
@@ -206,9 +215,7 @@ namespace ardb
 
         conf_get_string(props, "loglevel", cfg.loglevel);
         conf_get_string(props, "logfile", cfg.logfile);
-        std::string daemonize;
-
-        conf_get_string(props, "daemonize", daemonize);
+        conf_get_bool(props, "daemonize", cfg.daemonize);
 
         conf_get_int64(props, "thread-pool-size", cfg.worker_count);
         if (cfg.worker_count <= 0)
@@ -251,6 +258,9 @@ namespace ardb
             WARN_LOG("Invalid geo-coord-type:%s.", coord_type.c_str());
         }
 
+        conf_get_bool(props, "slave-read-only", cfg.slave_readonly);
+        conf_get_bool(props, "slave-serve-stale-data", cfg.slave_serve_stale_data);
+
         std::string slaveof;
         if (conf_get_string(props, "slaveof", slaveof))
         {
@@ -275,30 +285,22 @@ namespace ardb
             }
         }
 
-        std::string syncdbs;
-        if (conf_get_string(props, "syncdb", syncdbs))
+        std::string include_dbs, exclude_dbs;
+        cfg.repl_includes.clear();
+        cfg.repl_excludes.clear();
+        conf_get_string(props, "replicate-include-db", include_dbs);
+        conf_get_string(props, "replicate-exclude-db", exclude_dbs);
+        if (0 != split_uint32_array(include_dbs, "|", cfg.repl_includes))
         {
-            cfg.syncdbs.clear();
-            std::vector<std::string> ss = split_string(syncdbs, "|");
-            for (uint32 i = 0; i < ss.size(); i++)
-            {
-                DBID id;
-                if (!string_touint32(ss[i], id))
-                {
-                    ERROR_LOG("Invalid 'syncdb' config.");
-                }
-                else
-                {
-                    cfg.syncdbs.insert(id);
-                }
-            }
+            ERROR_LOG("Invalid 'replicate-include-db' config.");
+            cfg.repl_includes.clear();
+        }
+        if (0 != split_uint32_array(exclude_dbs, "|", cfg.repl_excludes))
+        {
+            ERROR_LOG("Invalid 'replicate-exclude-db' config.");
+            cfg.repl_excludes.clear();
         }
 
-        daemonize = string_tolower(daemonize);
-        if (daemonize == "yes")
-        {
-            cfg.daemonize = true;
-        }
         if (cfg.data_base_path.empty())
         {
             cfg.data_base_path = ".";
@@ -307,6 +309,12 @@ namespace ardb
         cfg.data_base_path = real_path(cfg.data_base_path);
 
         conf_get_string(props, "additional-misc-info", cfg.additional_misc_info);
+
+        if(!verify_config(cfg))
+        {
+            return -1;
+        }
+
         ArdbLogger::SetLogLevel(cfg.loglevel);
         return 0;
     }
@@ -350,7 +358,7 @@ namespace ardb
                 { "replconf", REDIS_CMD_REPLCONF, &ArdbServer::ReplConf, 0, -1, "ars", 0 },
                 { "sync", EWDIS_CMD_SYNC, &ArdbServer::Sync, 0, 2, "ars", 0 },
                 { "psync", REDIS_CMD_PSYNC, &ArdbServer::PSync, 2, 2, "ars", 0 },
-                { "psync2", REDIS_CMD_PSYNC, &ArdbServer::PSync, 2, 3, "ars", 0 },
+                { "apsync", REDIS_CMD_PSYNC, &ArdbServer::PSync, 2, -1, "ars", 0 },
                 { "select", REDIS_CMD_SELECT, &ArdbServer::Select, 1, 1, "r", 0 },
                 { "append", REDIS_CMD_APPEND, &ArdbServer::Append, 2, 2, "w", 0 },
                 { "get", REDIS_CMD_GET, &ArdbServer::Get, 1, 1, "r", 0 },
@@ -419,7 +427,6 @@ namespace ardb
                 { "sunioncount", REDIS_CMD_SUNIONCOUNT, &ArdbServer::SUnionCount, 2, -1, "r", 0 },
                 { "sscan", REDIS_CMD_SSCAN, &ArdbServer::SScan, 2, 6, "r", 0 },
                 { "zadd", REDIS_CMD_ZADD, &ArdbServer::ZAdd, 3, -1, "w", 0 },
-                { "rtazadd", REDIS_CMD_ZADD, &ArdbServer::ZAdd, 3, -1, "w", 0 }, /*Compatible with a modified Redis version*/
                 { "zcard", REDIS_CMD_ZCARD, &ArdbServer::ZCard, 1, 1, "r", 0 },
                 { "zcount", REDIS_CMD_ZCOUNT, &ArdbServer::ZCount, 3, 3, "r", 0 },
                 { "zincrby", REDIS_CMD_ZINCRBY, &ArdbServer::ZIncrby, 3, 3, "w", 0 },
@@ -581,7 +588,7 @@ namespace ardb
 
     int ArdbServer::Script(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        std::string& subcommand = cmd.GetArguments()[0];
+        const std::string& subcommand = cmd.GetArguments()[0];
         if (!strcasecmp(subcommand.c_str(), "EXISTS"))
         {
             std::vector<int64> intarray;
@@ -941,8 +948,7 @@ namespace ardb
             {
                 info.append("master_host:").append(m_cfg.master_host).append("\r\n");
                 info.append("master_port:").append(stringfromll(m_cfg.master_port)).append("\r\n");
-                info.append("master_link_status:").append(m_slave_client.IsMasterConnected() ? "up" : "down").append(
-                        "\r\n");
+                info.append("master_link_status:").append(m_slave_client.IsConnected() ? "up" : "down").append("\r\n");
                 info.append("slave_repl_offset:").append(stringfromll(m_repl_backlog.GetReplEndOffset())).append(
                         "\r\n");
             }
@@ -959,8 +965,7 @@ namespace ardb
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "stats"))
         {
             info.append("# Stats\r\n");
-            info.append("total_commands_processed:").append(stringfromll(kServerStat.stat_numcommands)).append(
-                    "\r\n");
+            info.append("total_commands_processed:").append(stringfromll(kServerStat.stat_numcommands)).append("\r\n");
             info.append("total_connections_received:").append(stringfromll(kServerStat.stat_numconnections)).append(
                     "\r\n");
             char qps[100];
@@ -1230,7 +1235,7 @@ namespace ardb
     {
         ValueDataArray vs;
         std::string key = cmd.GetArguments()[0];
-        cmd.GetArguments().pop_front();
+        cmd.GetMutableArguments().pop_front();
         int ret = m_db->Sort(ctx.currentDB, key, cmd.GetArguments(), vs);
         if (ret < 0)
         {
@@ -1240,7 +1245,7 @@ namespace ardb
         {
             fill_array_reply(ctx.reply, vs);
         }
-        cmd.GetArguments().push_front(key);
+        cmd.GetMutableArguments().push_front(key);
         return 0;
     }
 
@@ -1384,7 +1389,7 @@ namespace ardb
     int ArdbServer::Del(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         SliceArray array;
-        ArgumentArray::iterator it = cmd.GetArguments().begin();
+        ArgumentArray::const_iterator it = cmd.GetArguments().begin();
         while (it != cmd.GetArguments().end())
         {
             array.push_back(*it);
@@ -1894,8 +1899,17 @@ namespace ardb
         return 0;
     }
 
+    /*
+     *  SlaveOf host port [include 1|2|3] [exclude 0|1|2]
+     *  Slaveof no one
+     */
     int ArdbServer::Slaveof(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
+        if (cmd.GetArguments().size() % 2 != 0)
+        {
+            fill_error_reply(ctx.reply, "ERR not enough arguments for slaveof.");
+            return 0;
+        }
         const std::string& host = cmd.GetArguments()[0];
         uint32 port = 0;
         if (!string_touint32(cmd.GetArguments()[1], port))
@@ -1911,20 +1925,23 @@ namespace ardb
             fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
             return 0;
         }
-        DBIDSet idset;
-        if (cmd.GetArguments().size() > 2)
+        for (uint32 i = 2; i < cmd.GetArguments().size(); i += 2)
         {
-            DBID syncdb;
-            if (!string_touint32(cmd.GetArguments()[2], syncdb) || syncdb > 0xFFFFFF)
+            if (cmd.GetArguments()[i] == "include")
             {
-                fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
-                return 0;
+                DBIDArray ids;
+                split_uint32_array(cmd.GetArguments()[i + 1], "|", ids);
+                m_slave_client.SetIncludeDBs(ids);
             }
-            idset.insert(syncdb);
+            else if (cmd.GetArguments()[i] == "exclude")
+            {
+                DBIDArray ids;
+                split_uint32_array(cmd.GetArguments()[i + 1], "|", ids);
+                m_slave_client.SetExcludeDBs(ids);
+            }
         }
         m_cfg.master_host = host;
         m_cfg.master_port = port;
-        m_slave_client.SetSyncDBs(idset);
         m_slave_client.ConnectMaster(host, port);
         fill_status_reply(ctx.reply, "OK");
         return 0;
@@ -1940,7 +1957,7 @@ namespace ardb
         }
         for (uint32 i = 0; i < cmd.GetArguments().size(); i += 2)
         {
-            if (cmd.GetArguments()[i] == "listening-port")
+            if (!strcasecmp(cmd.GetArguments()[i].c_str(), "listening-port"))
             {
                 uint32 port = 0;
                 string_touint32(cmd.GetArguments()[i + 1], port);
@@ -1958,6 +1975,9 @@ namespace ardb
                     }
                 }
                 m_master_serv.AddSlavePort(ctx.conn, port);
+            }else if(!strcasecmp(cmd.GetArguments()[i].c_str(), "ack"))
+            {
+
             }
         }
         fill_status_reply(ctx.reply, "OK");
@@ -1975,6 +1995,9 @@ namespace ardb
         return 0;
     }
 
+    /*
+     *
+     */
     int ArdbServer::PSync(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         if (!m_repl_backlog.IsInited())
@@ -2543,11 +2566,7 @@ namespace ardb
         uint32 limit = 0;
         for (uint32 i = 1; i < cmd.GetArguments().size(); i += 2)
         {
-            /*
-             * "rta_with_max is for passing compliance on a modified redis version"
-             */
-            if (!strcasecmp(cmd.GetArguments()[i].c_str(), "limit")
-                    || !strcasecmp(cmd.GetArguments()[i].c_str(), "rta_with_max"))
+            if (!strcasecmp(cmd.GetArguments()[i].c_str(), "limit"))
             {
                 if (!string_touint32(cmd.GetArguments()[i + 1], limit))
                 {
@@ -2639,7 +2658,7 @@ namespace ardb
         return 0;
     }
 
-    static bool process_query_options(ArgumentArray& cmd, uint32 idx, ZSetQueryOptions& options)
+    static bool process_query_options(const ArgumentArray& cmd, uint32 idx, ZSetQueryOptions& options)
     {
         if (cmd.size() > idx)
         {
@@ -2818,7 +2837,7 @@ namespace ardb
         return 0;
     }
 
-    static bool process_zstore_args(ArgumentArray& cmd, SliceArray& keys, WeightArray& ws, AggregateType& type)
+    static bool process_zstore_args(const ArgumentArray& cmd, SliceArray& keys, WeightArray& ws, AggregateType& type)
     {
         int numkeys;
         if (!string_toint32(cmd[1], numkeys) || numkeys <= 0)
@@ -3488,7 +3507,7 @@ namespace ardb
     }
 
     ArdbServer::RedisCommandHandlerSetting *
-    ArdbServer::FindRedisCommandHandlerSetting(std::string & cmd)
+    ArdbServer::FindRedisCommandHandlerSetting(const std::string & cmd)
     {
         RedisCommandHandlerSettingTable::iterator found = m_handler_table.find(cmd);
         if (found != m_handler_table.end())
@@ -3505,24 +3524,46 @@ namespace ardb
         {
             TouchIdleConn(ctx.conn);
         }
-        std::string& cmd = args.GetCommand();
+        std::string& cmd = args.GetMutableCommand();
         lower_string(cmd);
         RedisCommandHandlerSetting* setting = FindRedisCommandHandlerSetting(cmd);
-        DEBUG_LOG("Process recved cmd:%s", args.ToString().c_str());
+        DEBUG_LOG("Process recved cmd:%s with flags:%d", args.ToString().c_str(), flags);
         kServerStat.IncRecvCommands();
 
         int ret = 0;
         if (NULL != setting)
         {
             args.SetType(setting->type);
+            if (!m_cfg.slave_serve_stale_data && !m_cfg.master_host.empty() && !m_slave_client.IsSynced())
+            {
+                if (setting->type == REDIS_CMD_INFO || setting->type == REDIS_CMD_SLAVEOF)
+                {
+                    //continue
+                }
+                else
+                {
+                    fill_error_reply(ctx.reply, "ERR SYNC with master in progress");
+                    return ret;
+                }
+            }
+
             /**
-             * Return error if ardb is slave for write command
-             * Slave is always read only
+             * Return error if ardb is readonly slave for write command
              */
             if (!m_cfg.master_host.empty() && (setting->flags & ARDB_CMD_WRITE) && !(flags & ARDB_PROCESS_REPL_WRITE))
             {
-                fill_error_reply(ctx.reply, "ERR server is read only slave.");
-                return ret;
+                if (m_cfg.slave_readonly)
+                {
+                    fill_error_reply(ctx.reply, "ERR server is read only slave");
+                    return ret;
+                }
+                else
+                {
+                    /*
+                     * Do NOT feed replication log while current instance is not a readonly slave
+                     */
+                    flags |= ARDB_PROCESS_WITHOUT_REPLICATION;
+                }
             }
             bool valid_cmd = true;
             if (setting->min_arity > 0)
@@ -3571,14 +3612,14 @@ namespace ardb
          * Feed commands which modified data
          */
         DBWatcher& watcher = m_db->GetDBWatcher();
-        if (m_repl_backlog.IsInited())
+        if (m_repl_backlog.IsInited() && (flags & ARDB_PROCESS_WITHOUT_REPLICATION) == 0)
         {
             if ((flags & ARDB_PROCESS_FEED_REPLICATION_ONLY) || (flags & ARDB_PROCESS_FORCE_REPLICATION))
             {
                 //feed to replication
-                m_master_serv.FeedSlaves(ctx.currentDB, args);
+                m_master_serv.FeedSlaves(ctx.conn, ctx.currentDB, args);
             }
-            else if ((watcher.data_changed && (flags & ARDB_PROCESS_WITHOUT_REPLICATION) == 0))
+            else if (watcher.data_changed)
             {
                 if (args.GetType() == REDIS_CMD_EXEC)
                 {
@@ -3586,19 +3627,19 @@ namespace ardb
                     if (!ctx.GetTransc().transaction_cmds.empty())
                     {
                         RedisCommandFrame multi("MULTI");
-                        m_master_serv.FeedSlaves(ctx.currentDB, multi);
+                        m_master_serv.FeedSlaves(ctx.conn, ctx.currentDB, multi);
                         for (uint32 i = 0; i < ctx.GetTransc().transaction_cmds.size(); i++)
                         {
                             RedisCommandFrame& transc_cmd = ctx.GetTransc().transaction_cmds.at(i);
-                            m_master_serv.FeedSlaves(ctx.currentDB, transc_cmd);
+                            m_master_serv.FeedSlaves(ctx.conn, ctx.currentDB, transc_cmd);
                         }
                         RedisCommandFrame exec("EXEC");
-                        m_master_serv.FeedSlaves(ctx.currentDB, exec);
+                        m_master_serv.FeedSlaves(ctx.conn, ctx.currentDB, exec);
                     }
                 }
                 else
                 {
-                    m_master_serv.FeedSlaves(ctx.currentDB, args);
+                    m_master_serv.FeedSlaves(ctx.conn, ctx.currentDB, args);
                 }
             }
         }
@@ -3612,7 +3653,7 @@ namespace ardb
 
     int ArdbServer::DoRedisCommand(ArdbConnContext& ctx, RedisCommandHandlerSetting* setting, RedisCommandFrame& args)
     {
-        std::string& cmd = args.GetCommand();
+        const std::string& cmd = args.GetCommand();
         if (m_clients_holder.IsStatEnable())
         {
             m_clients_holder.TouchConn(ctx.conn, cmd);
@@ -3815,18 +3856,21 @@ namespace ardb
         ArdbLogger::InitDefaultLogger(m_cfg.loglevel, m_cfg.logfile);
 
         m_rdb.Init(m_db);
-        m_repl_backlog.Init(this);
-        if (0 != m_master_serv.Init())
+        if(0 ==  m_repl_backlog.Init(this))
         {
-            goto sexit;
+            if (0 != m_master_serv.Init())
+            {
+                goto sexit;
+            }
+            if (0 != m_slave_client.Init())
+            {
+                goto sexit;
+            }
         }
-        if (0 != m_slave_client.Init())
-        {
-            goto sexit;
-        }
+
         if (!m_cfg.master_host.empty())
         {
-            m_slave_client.SetSyncDBs(m_cfg.syncdbs);
+            m_slave_client.SetIncludeDBs(m_cfg.repl_includes);
             m_slave_client.ConnectMaster(m_cfg.master_host, m_cfg.master_port);
         }
 
