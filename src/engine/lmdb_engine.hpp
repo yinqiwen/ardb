@@ -31,7 +31,7 @@
 #define LMDB_ENGINE_HPP_
 
 #include "lmdb.h"
-#include "ardb.hpp"
+#include "db.hpp"
 #include "util/config_helper.hpp"
 #include "util/thread/thread_local.hpp"
 #include <stack>

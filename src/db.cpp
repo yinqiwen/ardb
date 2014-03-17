@@ -27,7 +27,7 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "ardb.hpp"
+#include "db.hpp"
 #include <string.h>
 #include <sstream>
 #include "util/thread/thread.hpp"
@@ -35,7 +35,6 @@
 
 namespace ardb
 {
-
     size_t Ardb::RealPosition(std::string& buf, int pos)
     {
         if (pos < 0)

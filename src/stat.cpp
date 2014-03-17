@@ -31,6 +31,12 @@
 namespace ardb
 {
     static const uint32 kMaxPeriodSlot = 100;
+    static ServerStat kSignleton;
+
+    ServerStat& ServerStat::GetSingleton()
+    {
+        return kSignleton;
+    }
 
     ServerStat::ServerStat() :
             stat_numcommands(0), connected_clients(0), stat_numconnections(0)

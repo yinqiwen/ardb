@@ -27,7 +27,8 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "ardb.hpp"
+#include "db.hpp"
+#include "ardb_server.hpp"
 #include "helper/db_helpers.hpp"
 #include <fnmatch.h>
 #include <algorithm>
@@ -43,6 +44,460 @@
 
 namespace ardb
 {
+    int ArdbServer::ZAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        if ((cmd.GetArguments().size() - 1) % 2 != 0)
+        {
+            fill_error_reply(ctx.reply, "ERR wrong number of arguments for ZAdd");
+            return 0;
+        }
+        ValueDataArray scores;
+        SliceArray svs;
+        bool with_limit = false;
+        uint32 limit = 0;
+        for (uint32 i = 1; i < cmd.GetArguments().size(); i += 2)
+        {
+            if (!strcasecmp(cmd.GetArguments()[i].c_str(), "limit"))
+            {
+                if (!string_touint32(cmd.GetArguments()[i + 1], limit))
+                {
+                    fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+                    return 0;
+                }
+                with_limit = true;
+                break;
+            }
+            ValueData score(cmd.GetArguments()[i]);
+            if (score.type != INTEGER_VALUE && score.type != DOUBLE_VALUE)
+            {
+                fill_error_reply(ctx.reply, "ERR value is not a float or out of range");
+                return 0;
+            }
+            scores.push_back(score);
+            svs.push_back(cmd.GetArguments()[i + 1]);
+        }
+        SliceArray attrs;
+        if (with_limit)
+        {
+            ValueDataArray vs;
+            m_db->ZAddLimit(ctx.currentDB, cmd.GetArguments()[0], scores, svs, attrs, limit, vs);
+            fill_array_reply(ctx.reply, vs);
+        }
+        else
+        {
+            int count = m_db->ZAdd(ctx.currentDB, cmd.GetArguments()[0], scores, svs, attrs);
+            fill_int_reply(ctx.reply, count);
+        }
+        return 0;
+    }
+
+    int ArdbServer::ZCard(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int ret = m_db->ZCard(ctx.currentDB, cmd.GetArguments()[0]);
+        if (ret < 0)
+        {
+            ret = 0;
+        }
+        fill_int_reply(ctx.reply, ret);
+        return 0;
+    }
+
+    int ArdbServer::ZCount(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int ret = m_db->ZCount(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], cmd.GetArguments()[2]);
+        fill_int_reply(ctx.reply, ret);
+        return 0;
+    }
+
+    int ArdbServer::ZIncrby(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        ValueData increment(cmd.GetArguments()[1]);
+        if (increment.type != INTEGER_VALUE && increment.type != DOUBLE_VALUE)
+        {
+            fill_error_reply(ctx.reply, "ERR value is not a float or out of range");
+            return 0;
+        }
+        ValueData value;
+        m_db->ZIncrby(ctx.currentDB, cmd.GetArguments()[0], increment, cmd.GetArguments()[2], value);
+        fill_value_reply(ctx.reply, value);
+        return 0;
+    }
+
+    int ArdbServer::ZRange(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        bool withscores = false;
+        if (cmd.GetArguments().size() == 4)
+        {
+            if (strcasecmp(cmd.GetArguments()[3].c_str(), "withscores") != 0)
+            {
+                fill_error_reply(ctx.reply, "ERR syntax error");
+                return 0;
+            }
+            withscores = true;
+        }
+        int start, stop;
+        if (!string_toint32(cmd.GetArguments()[1], start) || !string_toint32(cmd.GetArguments()[2], stop))
+        {
+            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            return 0;
+        }
+        ZSetQueryOptions options;
+        options.withscores = withscores;
+        ValueDataArray vs;
+        m_db->ZRange(ctx.currentDB, cmd.GetArguments()[0], start, stop, vs, options);
+        fill_array_reply(ctx.reply, vs);
+        return 0;
+    }
+
+    static bool process_query_options(const ArgumentArray& cmd, uint32 idx, ZSetQueryOptions& options)
+    {
+        if (cmd.size() > idx)
+        {
+            std::string optionstr = string_tolower(cmd[3]);
+            if (optionstr != "withscores" && optionstr != "limit")
+            {
+                return false;
+            }
+            if (optionstr == "withscores")
+            {
+                options.withscores = true;
+                return process_query_options(cmd, idx + 1, options);
+            }
+            else
+            {
+                if (cmd.size() != idx + 3)
+                {
+                    return false;
+                }
+                if (!string_toint32(cmd[idx + 1], options.limit_offset)
+                        || !string_toint32(cmd[idx + 2], options.limit_count))
+                {
+                    return false;
+                }
+                options.withlimit = true;
+                return true;
+            }
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    int ArdbServer::ZRangeByScore(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        ZSetQueryOptions options;
+        if (cmd.GetArguments().size() >= 4)
+        {
+            bool ret = process_query_options(cmd.GetArguments(), 3, options);
+            if (!ret)
+            {
+                fill_error_reply(ctx.reply, "ERR syntax error");
+                return 0;
+            }
+        }
+
+        ValueDataArray vs;
+        m_db->ZRangeByScore(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], cmd.GetArguments()[2], vs,
+                options);
+        fill_array_reply(ctx.reply, vs);
+        return 0;
+    }
+
+    int ArdbServer::ZRank(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int ret = m_db->ZRank(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1]);
+        if (ret < 0)
+        {
+            ctx.reply.type = REDIS_REPLY_NIL;
+        }
+        else
+        {
+            fill_int_reply(ctx.reply, ret);
+        }
+        return 0;
+    }
+
+    int ArdbServer::ZPop(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        uint32 num = 1;
+        if (cmd.GetArguments().size() == 2)
+        {
+            if (!string_touint32(cmd.GetArguments()[1], num))
+            {
+                fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+                return 0;
+            }
+        }
+        ValueDataArray vs;
+        bool reverse = (strcasecmp(cmd.GetCommand().c_str(), "zrpop") == 0);
+        m_db->ZPop(ctx.currentDB, cmd.GetArguments()[0], reverse, num, vs);
+        fill_array_reply(ctx.reply, vs);
+        return 0;
+    }
+
+    int ArdbServer::ZRem(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int count = 0;
+        for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+        {
+            count += m_db->ZRem(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[i]);
+        }
+        fill_int_reply(ctx.reply, count);
+        return 0;
+    }
+
+    int ArdbServer::ZRemRangeByRank(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int start, stop;
+        if (!string_toint32(cmd.GetArguments()[1], start) || !string_toint32(cmd.GetArguments()[2], stop))
+        {
+            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            return 0;
+        }
+        int count = m_db->ZRemRangeByRank(ctx.currentDB, cmd.GetArguments()[0], start, stop);
+        fill_int_reply(ctx.reply, count);
+        return 0;
+    }
+
+    int ArdbServer::ZRemRangeByScore(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int count = m_db->ZRemRangeByScore(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1],
+                cmd.GetArguments()[2]);
+        fill_int_reply(ctx.reply, count);
+        return 0;
+    }
+
+    int ArdbServer::ZRevRange(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        bool withscores = false;
+        if (cmd.GetArguments().size() == 4)
+        {
+            if (string_tolower(cmd.GetArguments()[3]) != "withscores")
+            {
+                fill_error_reply(ctx.reply, "ERR syntax error");
+                return 0;
+            }
+            withscores = true;
+        }
+        int start, stop;
+        if (!string_toint32(cmd.GetArguments()[1], start) || !string_toint32(cmd.GetArguments()[2], stop))
+        {
+            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            return 0;
+        }
+        ZSetQueryOptions options;
+        options.withscores = withscores;
+        ValueDataArray vs;
+        m_db->ZRevRange(ctx.currentDB, cmd.GetArguments()[0], start, stop, vs, options);
+        fill_array_reply(ctx.reply, vs);
+        return 0;
+    }
+
+    int ArdbServer::ZRevRangeByScore(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        ZSetQueryOptions options;
+        if (cmd.GetArguments().size() >= 4)
+        {
+            bool ret = process_query_options(cmd.GetArguments(), 3, options);
+            if (!ret)
+            {
+                fill_error_reply(ctx.reply, "ERR syntax error");
+                return 0;
+            }
+        }
+
+        ValueDataArray vs;
+        m_db->ZRevRangeByScore(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], cmd.GetArguments()[2], vs,
+                options);
+        fill_array_reply(ctx.reply, vs);
+        return 0;
+    }
+
+    int ArdbServer::ZRevRank(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int ret = m_db->ZRevRank(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1]);
+        if (ret < 0)
+        {
+            ctx.reply.type = REDIS_REPLY_NIL;
+        }
+        else
+        {
+            fill_int_reply(ctx.reply, ret);
+        }
+        return 0;
+    }
+
+    static bool process_zstore_args(const ArgumentArray& cmd, SliceArray& keys, WeightArray& ws, AggregateType& type)
+    {
+        int numkeys;
+        if (!string_toint32(cmd[1], numkeys) || numkeys <= 0)
+        {
+            return false;
+        }
+        if (cmd.size() < (uint32) numkeys + 2)
+        {
+            return false;
+        }
+        for (int i = 2; i < numkeys + 2; i++)
+        {
+            keys.push_back(cmd[i]);
+        }
+        if (cmd.size() > (uint32) numkeys + 2)
+        {
+            uint32 idx = numkeys + 2;
+            std::string opstr = string_tolower(cmd[numkeys + 2]);
+            if (opstr == "weights")
+            {
+                if (cmd.size() < ((uint32) numkeys * 2) + 3)
+                {
+                    return false;
+                }
+                uint32 weight;
+                for (int i = idx + 1; i < (numkeys * 2) + 3; i++)
+                {
+                    if (!string_touint32(cmd[i], weight))
+                    {
+                        return false;
+                    }
+                    ws.push_back(weight);
+                }
+                idx = numkeys * 2 + 3;
+                if (cmd.size() <= idx)
+                {
+                    return true;
+                }
+                opstr = string_tolower(cmd[idx]);
+            }
+            if (cmd.size() > (idx + 1) && opstr == "aggregate")
+            {
+                std::string typestr = string_tolower(cmd[idx + 1]);
+                if (typestr == "sum")
+                {
+                    type = AGGREGATE_SUM;
+                }
+                else if (typestr == "max")
+                {
+                    type = AGGREGATE_MAX;
+                }
+                else if (typestr == "min")
+                {
+                    type = AGGREGATE_MIN;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    int ArdbServer::ZInterStore(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        SliceArray keys;
+        WeightArray ws;
+        AggregateType type = AGGREGATE_SUM;
+        if (!process_zstore_args(cmd.GetArguments(), keys, ws, type))
+        {
+            fill_error_reply(ctx.reply, "ERR syntax error");
+            return 0;
+        }
+        int count = m_db->ZInterStore(ctx.currentDB, cmd.GetArguments()[0], keys, ws, type);
+        if (count < 0)
+        {
+            count = 0;
+        }
+        fill_int_reply(ctx.reply, count);
+        return 0;
+    }
+
+    int ArdbServer::ZUnionStore(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        SliceArray keys;
+        WeightArray ws;
+        AggregateType type = AGGREGATE_SUM;
+        if (!process_zstore_args(cmd.GetArguments(), keys, ws, type))
+        {
+            fill_error_reply(ctx.reply, "ERR syntax error");
+            return 0;
+        }
+        int count = m_db->ZUnionStore(ctx.currentDB, cmd.GetArguments()[0], keys, ws, type);
+        fill_int_reply(ctx.reply, count);
+        return 0;
+    }
+
+    int ArdbServer::ZScan(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        std::string pattern;
+        uint32 limit = 10000; //return max 10000 keys one time
+        if (cmd.GetArguments().size() > 2)
+        {
+            for (uint32 i = 2; i < cmd.GetArguments().size(); i++)
+            {
+                if (!strcasecmp(cmd.GetArguments()[i].c_str(), "count"))
+                {
+                    if (i + 1 >= cmd.GetArguments().size() || !string_touint32(cmd.GetArguments()[i + 1], limit))
+                    {
+                        fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+                        return 0;
+                    }
+                    i++;
+                }
+                else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "match"))
+                {
+                    if (i + 1 >= cmd.GetArguments().size())
+                    {
+                        fill_error_reply(ctx.reply, "ERR 'MATCH' need one args followed");
+                        return 0;
+                    }
+                    pattern = cmd.GetArguments()[i + 1];
+                    i++;
+                }
+                else
+                {
+                    fill_error_reply(ctx.reply, " Syntax error, try scan 0 ");
+                    return 0;
+                }
+            }
+        }
+        std::string newcursor = "0";
+        ValueDataArray vs;
+        m_db->ZScan(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], pattern, limit, vs, newcursor);
+        ctx.reply.type = REDIS_REPLY_ARRAY;
+        ctx.reply.elements.push_back(RedisReply(newcursor));
+        RedisReply rs;
+        fill_array_reply(rs, vs);
+        ctx.reply.elements.push_back(rs);
+        return 0;
+    }
+
+    int ArdbServer::ZScore(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        ValueData score;
+        int ret = m_db->ZScore(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], score);
+        if (ret < 0)
+        {
+            ctx.reply.type = REDIS_REPLY_NIL;
+        }
+        else
+        {
+            fill_value_reply(ctx.reply, score);
+        }
+        return 0;
+    }
+
+    int ArdbServer::ZClear(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        m_db->ZClear(ctx.currentDB, cmd.GetArguments()[0]);
+        fill_status_reply(ctx.reply, "OK");
+        return 0;
+    }
+
     static int parse_score(const std::string& score_str, double& score, bool& contain)
     {
         contain = true;

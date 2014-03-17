@@ -42,7 +42,7 @@
 #include "util/thread/thread_mutex.hpp"
 #include "util/thread/lock_guard.hpp"
 #include "util/concurrent_queue.hpp"
-#include "ardb.hpp"
+#include "db.hpp"
 #include "repl.hpp"
 #include "repl_backlog.hpp"
 #include <map>

@@ -27,10 +27,435 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "ardb.hpp"
+#include "db.hpp"
+#include "ardb_server.hpp"
+
+#define BLOCK_LIST_RPOP 0
+#define BLOCK_LIST_LPOP 1
+#define BLOCK_LIST_RPOPLPUSH 2
 
 namespace ardb
 {
+    void ArdbServer::AsyncWriteBlockListReply(Channel* ch, void * data)
+    {
+        ArdbConnContext* ctx = (ArdbConnContext*) data;
+        if (NULL != ctx)
+        {
+            ch->Write(ctx->reply);
+            ctx->reply.Clear();
+        }
+        if (ctx->GetBlockList().blocking_timer_task_id > 0)
+        {
+            ctx->conn->GetService().GetTimer().Cancel(ctx->GetBlockList().blocking_timer_task_id);
+            ctx->GetBlockList().blocking_timer_task_id = -1;
+        }
+        ctx->conn->AttachFD();
+        ctx->ClearBlockList();
+    }
+
+    void ArdbServer::BlockTimeoutTask::Run()
+    {
+        ctx->reply.type = REDIS_REPLY_NIL;
+        ctx->conn->Write(ctx->reply);
+        server->UnblockConn(*ctx);
+        ctx->reply.Clear();
+    }
+    void ArdbServer::BlockConn(ArdbConnContext& ctx, uint32 timeout)
+    {
+        if (timeout > 0)
+        {
+            NEW2(task, BlockTimeoutTask, BlockTimeoutTask(this, &ctx));
+            ctx.GetBlockList().blocking_timer_task_id = ctx.conn->GetService().GetTimer().ScheduleHeapTask(task,
+                    timeout, -1, SECONDS);
+        }
+        ctx.conn->DetachFD();
+    }
+    void ArdbServer::UnblockConn(ArdbConnContext& ctx)
+    {
+        if (ctx.GetBlockList().blocking_timer_task_id > 0)
+        {
+            ctx.conn->GetService().GetTimer().Cancel(ctx.GetBlockList().blocking_timer_task_id);
+            ctx.GetBlockList().blocking_timer_task_id = -1;
+        }
+        ctx.conn->AttachFD();
+    }
+    void ArdbServer::ClearClosedConnContext(ArdbConnContext& ctx)
+    {
+        ClearWatchKeys(ctx);
+        ClearSubscribes(ctx);
+        {
+            if (ctx.GetBlockList().blocking_timer_task_id > 0)
+            {
+                ctx.conn->GetService().GetTimer().Cancel(ctx.GetBlockList().blocking_timer_task_id);
+                ctx.GetBlockList().blocking_timer_task_id = -1;
+            }
+            LockGuard<ThreadMutex> guard(m_block_mutex);
+            WatchKeySet::iterator it = ctx.GetBlockList().keys.begin();
+            while (it != ctx.GetBlockList().keys.end())
+            {
+                BlockContextTable::iterator fit = m_blocking_conns.find(*it);
+                if (fit != m_blocking_conns.end())
+                {
+                    m_blocking_conns.erase(fit);
+                }
+                it++;
+            }
+            ctx.ClearBlockList();
+        }
+    }
+    void ArdbServer::CheckBlockingConnectionsByListKey(const WatchKey& key)
+    {
+        if (m_db->LLen(key.db, key.key) > 0)
+        {
+            LockGuard<ThreadMutex> guard(m_block_mutex);
+            BlockContextTable::iterator found = m_blocking_conns.find(key);
+            if (found != m_blocking_conns.end())
+            {
+                ArdbConnContext* ctx = found->second;
+                std::string v;
+                if (ctx->GetBlockList().pop_type == BLOCK_LIST_LPOP)
+                {
+                    m_db->LPop(key.db, key.key, v);
+                }
+                else if (ctx->GetBlockList().pop_type == BLOCK_LIST_RPOP)
+                {
+                    m_db->RPop(key.db, key.key, v);
+                }
+                else if (ctx->GetBlockList().pop_type == BLOCK_LIST_RPOPLPUSH)
+                {
+                    m_db->RPopLPush(key.db, key.key, ctx->GetBlockList().dest_key, v);
+                }
+                if (!v.empty())
+                {
+                    WatchKeySet::iterator cit = ctx->GetBlockList().keys.begin();
+                    while (cit != ctx->GetBlockList().keys.end())
+                    {
+                        m_blocking_conns.erase(*cit);
+                        cit++;
+                    }
+                    ctx->reply.type = REDIS_REPLY_ARRAY;
+                    ctx->reply.elements.push_back(RedisReply(key.key));
+                    ctx->reply.elements.push_back(RedisReply(v));
+                    ctx->conn->GetService().AsyncIO(ctx->conn->GetID(), AsyncWriteBlockListReply, ctx);
+                }
+            }
+        }
+    }
+    int ArdbServer::LIndex(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int index;
+        if (!string_toint32(cmd.GetArguments()[1], index))
+        {
+            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            return 0;
+        }
+        std::string v;
+        int ret = m_db->LIndex(ctx.currentDB, cmd.GetArguments()[0], index, v);
+        if (ret < 0)
+        {
+            ctx.reply.type = REDIS_REPLY_NIL;
+        }
+        else
+        {
+            fill_str_reply(ctx.reply, v);
+        }
+        return 0;
+    }
+
+    int ArdbServer::LInsert(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int ret = m_db->LInsert(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], cmd.GetArguments()[2],
+                cmd.GetArguments()[3]);
+        fill_int_reply(ctx.reply, ret);
+        if (ret > 0)
+        {
+            WatchKey key(ctx.currentDB, cmd.GetArguments()[0]);
+            CheckBlockingConnectionsByListKey(key);
+        }
+        return 0;
+    }
+
+    int ArdbServer::LLen(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int ret = m_db->LLen(ctx.currentDB, cmd.GetArguments()[0]);
+        fill_int_reply(ctx.reply, ret);
+        return 0;
+    }
+
+    int ArdbServer::LPop(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        std::string v;
+        int ret = m_db->LPop(ctx.currentDB, cmd.GetArguments()[0], v);
+        if (ret < 0)
+        {
+            ctx.reply.type = REDIS_REPLY_NIL;
+        }
+        else
+        {
+            fill_str_reply(ctx.reply, v);
+        }
+        return 0;
+    }
+    int ArdbServer::LPush(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int count = 0;
+        for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+        {
+            count = m_db->LPush(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[i]);
+        }
+        if (count < 0)
+        {
+            count = 0;
+        }
+        fill_int_reply(ctx.reply, count);
+        if (count > 0)
+        {
+            WatchKey key(ctx.currentDB, cmd.GetArguments()[0]);
+            CheckBlockingConnectionsByListKey(key);
+        }
+        return 0;
+    }
+    int ArdbServer::LPushx(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int ret = m_db->LPushx(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1]);
+        fill_int_reply(ctx.reply, ret);
+        if (ret > 0)
+        {
+            WatchKey key(ctx.currentDB, cmd.GetArguments()[0]);
+            CheckBlockingConnectionsByListKey(key);
+        }
+        return 0;
+    }
+
+    int ArdbServer::LRange(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int start, stop;
+        if (!string_toint32(cmd.GetArguments()[1], start) || !string_toint32(cmd.GetArguments()[2], stop))
+        {
+            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            return 0;
+        }
+        ValueDataArray vs;
+        m_db->LRange(ctx.currentDB, cmd.GetArguments()[0], start, stop, vs);
+        fill_array_reply(ctx.reply, vs);
+        return 0;
+    }
+    int ArdbServer::LRem(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int count;
+        if (!string_toint32(cmd.GetArguments()[1], count))
+        {
+            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            return 0;
+        }
+        int ret = m_db->LRem(ctx.currentDB, cmd.GetArguments()[0], count, cmd.GetArguments()[2]);
+        fill_int_reply(ctx.reply, ret);
+        return 0;
+    }
+    int ArdbServer::LSet(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int index;
+        if (!string_toint32(cmd.GetArguments()[1], index))
+        {
+            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            return 0;
+        }
+        int ret = m_db->LSet(ctx.currentDB, cmd.GetArguments()[0], index, cmd.GetArguments()[2]);
+        if (ret < 0)
+        {
+            fill_error_reply(ctx.reply, "ERR index out of range");
+        }
+        else
+        {
+            fill_status_reply(ctx.reply, "OK");
+        }
+        return 0;
+    }
+
+    int ArdbServer::LTrim(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int start, stop;
+        if (!string_toint32(cmd.GetArguments()[1], start) || !string_toint32(cmd.GetArguments()[2], stop))
+        {
+            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            return 0;
+        }
+        m_db->LTrim(ctx.currentDB, cmd.GetArguments()[0], start, stop);
+        fill_status_reply(ctx.reply, "OK");
+        return 0;
+    }
+
+    int ArdbServer::RPop(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        std::string v;
+        int ret = m_db->RPop(ctx.currentDB, cmd.GetArguments()[0], v);
+        if (ret < 0)
+        {
+            ctx.reply.type = REDIS_REPLY_NIL;
+        }
+        else
+        {
+            fill_str_reply(ctx.reply, v);
+        }
+        return 0;
+    }
+    int ArdbServer::RPush(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int count = 0;
+        for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+        {
+            count = m_db->RPush(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[i]);
+        }
+        if (count < 0)
+        {
+            count = 0;
+        }
+        fill_int_reply(ctx.reply, count);
+        if (count > 0)
+        {
+            WatchKey key(ctx.currentDB, cmd.GetArguments()[0]);
+            CheckBlockingConnectionsByListKey(key);
+        }
+        return 0;
+    }
+    int ArdbServer::RPushx(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int ret = m_db->RPushx(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1]);
+        fill_int_reply(ctx.reply, ret);
+        if (ret > 0)
+        {
+            WatchKey key(ctx.currentDB, cmd.GetArguments()[0]);
+            CheckBlockingConnectionsByListKey(key);
+        }
+        return 0;
+    }
+
+    int ArdbServer::RPopLPush(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        std::string v;
+        if (0 == m_db->RPopLPush(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], v))
+        {
+            fill_str_reply(ctx.reply, v);
+            WatchKey key(ctx.currentDB, cmd.GetArguments()[1]);
+            CheckBlockingConnectionsByListKey(key);
+        }
+        else
+        {
+            ctx.reply.type = REDIS_REPLY_NIL;
+        }
+        return 0;
+    }
+
+    int ArdbServer::BLPop(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        uint32 timeout;
+        if (!string_touint32(cmd.GetArguments()[cmd.GetArguments().size() - 1], timeout))
+        {
+            fill_error_reply(ctx.reply, "ERR timeout is not an integer or out of range");
+            return 0;
+        }
+        std::string v;
+        for (uint32 i = 0; i < cmd.GetArguments().size() - 1; i++)
+        {
+            v.clear();
+            if (m_db->LPop(ctx.currentDB, cmd.GetArguments()[i], v) >= 0 && !v.empty())
+            {
+                ctx.reply.type = REDIS_REPLY_ARRAY;
+                ctx.reply.elements.push_back(RedisReply(cmd.GetArguments()[i]));
+                ctx.reply.elements.push_back(RedisReply(v));
+                return 0;
+            }
+        }
+        LockGuard<ThreadMutex> guard(m_block_mutex);
+        for (uint32 i = 0; i < cmd.GetArguments().size() - 1; i++)
+        {
+            WatchKey key(ctx.currentDB, cmd.GetArguments()[i]);
+            if (NULL != m_blocking_conns[key] && m_blocking_conns[key] != &ctx)
+            {
+                fill_error_reply(ctx.reply, "ERR duplicate blocking connection on same key.");
+                return 0;
+            }
+            m_blocking_conns[key] = &ctx;
+            ctx.GetBlockList().keys.insert(key);
+        }
+        ctx.GetBlockList().pop_type = BLOCK_LIST_LPOP;
+        BlockConn(ctx, timeout);
+        return 0;
+    }
+    int ArdbServer::BRPop(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        uint32 timeout;
+        if (!string_touint32(cmd.GetArguments()[cmd.GetArguments().size() - 1], timeout))
+        {
+            fill_error_reply(ctx.reply, "ERR timeout is not an integer or out of range");
+            return 0;
+        }
+        std::string v;
+        for (uint32 i = 0; i < cmd.GetArguments().size() - 1; i++)
+        {
+            v.clear();
+            if (m_db->RPop(ctx.currentDB, cmd.GetArguments()[i], v) >= 0 && !v.empty())
+            {
+                ctx.reply.type = REDIS_REPLY_ARRAY;
+                ctx.reply.elements.push_back(RedisReply(cmd.GetArguments()[i]));
+                ctx.reply.elements.push_back(RedisReply(v));
+                return 0;
+            }
+        }
+        LockGuard<ThreadMutex> guard(m_block_mutex);
+        for (uint32 i = 0; i < cmd.GetArguments().size() - 1; i++)
+        {
+            WatchKey key(ctx.currentDB, cmd.GetArguments()[i]);
+            if (NULL != m_blocking_conns[key] && m_blocking_conns[key] != &ctx)
+            {
+                fill_error_reply(ctx.reply, "ERR duplicate blocking connection on same key.");
+                return 0;
+            }
+            m_blocking_conns[key] = &ctx;
+            ctx.GetBlockList().keys.insert(key);
+        }
+        ctx.GetBlockList().pop_type = BLOCK_LIST_RPOP;
+        BlockConn(ctx, timeout);
+        return 0;
+    }
+    int ArdbServer::BRPopLPush(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        uint32 timeout;
+        if (!string_touint32(cmd.GetArguments()[cmd.GetArguments().size() - 1], timeout))
+        {
+            fill_error_reply(ctx.reply, "ERR timeout is not an integer or out of range");
+            return 0;
+        }
+        std::string v;
+        if (0 == m_db->RPopLPush(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], v) && !v.empty())
+        {
+            ctx.reply.type = REDIS_REPLY_ARRAY;
+            ctx.reply.elements.push_back(RedisReply(cmd.GetArguments()[1]));
+            ctx.reply.elements.push_back(RedisReply(v));
+        }
+        else
+        {
+            ctx.GetBlockList().pop_type = BLOCK_LIST_RPOP;
+            WatchKey key(ctx.currentDB, cmd.GetArguments()[0]);
+            if (NULL != m_blocking_conns[key] && m_blocking_conns[key] != &ctx)
+            {
+                fill_error_reply(ctx.reply, "ERR duplicate blocking connection on same key.");
+                return 0;
+            }
+            m_blocking_conns[key] = &ctx;
+            ctx.GetBlockList().keys.insert(key);
+            ctx.GetBlockList().dest_key = cmd.GetArguments()[1];
+            BlockConn(ctx, timeout);
+        }
+        return 0;
+    }
+
+    int ArdbServer::LClear(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        m_db->LClear(ctx.currentDB, cmd.GetArguments()[0]);
+        fill_status_reply(ctx.reply, "OK");
+        return 0;
+    }
 
     ListMetaValue* Ardb::GetListMeta(const DBID& db, const Slice& key, int& err, bool& created)
     {

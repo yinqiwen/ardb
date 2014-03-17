@@ -30,6 +30,7 @@
 #ifndef REDIS_REPLY_HPP_
 #define REDIS_REPLY_HPP_
 
+#include "common.hpp"
 #include <deque>
 #include <string>
 

@@ -1,5 +1,5 @@
 /*
- *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
+ *Copyright (c) 2013-2014, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
  *Redistribution and use in source and binary forms, with or without
@@ -27,7 +27,8 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "ardb.hpp"
+#include "db.hpp"
+#include "ardb_server.hpp"
 #include <algorithm>
 #include <fnmatch.h>
 
@@ -39,6 +40,339 @@
 
 namespace ardb
 {
+    int ArdbServer::SAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        SliceArray values;
+        for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+        {
+            values.push_back(cmd.GetArguments()[i]);
+        }
+        int count = m_db->SAdd(ctx.currentDB, cmd.GetArguments()[0], values);
+        fill_int_reply(ctx.reply, count);
+        return 0;
+    }
+
+    int ArdbServer::SCard(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int ret = m_db->SCard(ctx.currentDB, cmd.GetArguments()[0]);
+        fill_int_reply(ctx.reply, ret > 0 ? ret : 0);
+        return 0;
+    }
+
+    int ArdbServer::SDiff(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        SliceArray keys;
+        std::set<std::string> keystrs;
+        for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
+        {
+            keys.push_back(cmd.GetArguments()[i]);
+            keystrs.insert(cmd.GetArguments()[i]);
+        }
+
+        if (keystrs.size() != keys.size())
+        {
+            fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
+            return 0;
+        }
+        ValueDataArray vs;
+        m_db->SDiff(ctx.currentDB, keys, vs);
+        fill_array_reply(ctx.reply, vs);
+        return 0;
+    }
+
+    int ArdbServer::SDiffStore(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        SliceArray keys;
+        std::set<std::string> keystrs;
+        for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+        {
+            keys.push_back(cmd.GetArguments()[i]);
+            keystrs.insert(cmd.GetArguments()[i]);
+        }
+
+        if (keystrs.size() != keys.size() || keystrs.count(cmd.GetArguments()[0]) > 0)
+        {
+            fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
+            return 0;
+        }
+        int ret = m_db->SDiffStore(ctx.currentDB, cmd.GetArguments()[0], keys);
+        fill_int_reply(ctx.reply, ret);
+        return 0;
+    }
+
+    int ArdbServer::SInter(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        SliceArray keys;
+        std::set<std::string> keystrs;
+        for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
+        {
+            keys.push_back(cmd.GetArguments()[i]);
+            keystrs.insert(cmd.GetArguments()[i]);
+        }
+
+        if (keystrs.size() != keys.size())
+        {
+            fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
+            return 0;
+        }
+        ValueDataArray vs;
+        m_db->SInter(ctx.currentDB, keys, vs);
+        fill_array_reply(ctx.reply, vs);
+        return 0;
+    }
+
+    int ArdbServer::SInterStore(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        SliceArray keys;
+        std::set<std::string> keystrs;
+        for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+        {
+            keys.push_back(cmd.GetArguments()[i]);
+            keystrs.insert(cmd.GetArguments()[i]);
+        }
+
+        if (keystrs.size() != keys.size() || keystrs.count(cmd.GetArguments()[0]) > 0)
+        {
+            fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
+            return 0;
+        }
+        int ret = m_db->SInterStore(ctx.currentDB, cmd.GetArguments()[0], keys);
+        fill_int_reply(ctx.reply, ret);
+        return 0;
+    }
+
+    int ArdbServer::SIsMember(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int ret = m_db->SIsMember(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1]);
+        fill_int_reply(ctx.reply, ret);
+        return 0;
+    }
+
+    int ArdbServer::SMembers(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        ValueDataArray vs;
+        int ret = m_db->SMembers(ctx.currentDB, cmd.GetArguments()[0], vs);
+        if (ret == ERR_TOO_LARGE_RESPONSE)
+        {
+            fill_error_reply(ctx.reply, "ERR too many elements in set, use SRANGE/SREVRANGE to fetch.");
+        }
+        else
+        {
+            fill_array_reply(ctx.reply, vs);
+        }
+        return 0;
+    }
+
+    int ArdbServer::SMove(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int ret = m_db->SMove(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], cmd.GetArguments()[2]);
+        fill_int_reply(ctx.reply, ret);
+        return 0;
+    }
+
+    int ArdbServer::SPop(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        std::string res;
+        m_db->SPop(ctx.currentDB, cmd.GetArguments()[0], res);
+        fill_str_reply(ctx.reply, res);
+        return 0;
+    }
+
+    int ArdbServer::SRandMember(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        ValueDataArray vs;
+        int32 count = 1;
+        if (cmd.GetArguments().size() > 1)
+        {
+            if (!string_toint32(cmd.GetArguments()[1], count))
+            {
+                fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+                return 0;
+            }
+        }
+        m_db->SRandMember(ctx.currentDB, cmd.GetArguments()[0], vs, count);
+        fill_array_reply(ctx.reply, vs);
+        return 0;
+    }
+
+    int ArdbServer::SRem(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        SliceArray keys;
+        std::set<std::string> keystrs;
+        for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+        {
+            keys.push_back(cmd.GetArguments()[i]);
+            keystrs.insert(cmd.GetArguments()[i]);
+        }
+
+        if (keystrs.size() != keys.size())
+        {
+            fill_error_reply(ctx.reply, "ERR duplication values in arguments");
+            return 0;
+        }
+        ValueSet vs;
+        int ret = m_db->SRem(ctx.currentDB, cmd.GetArguments()[0], keys);
+        if (ret < 0)
+        {
+            ret = 0;
+        }
+        fill_int_reply(ctx.reply, ret);
+        return 0;
+    }
+
+    int ArdbServer::SUnion(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        SliceArray keys;
+        std::set<std::string> keystrs;
+        for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
+        {
+            keys.push_back(cmd.GetArguments()[i]);
+            keystrs.insert(cmd.GetArguments()[i]);
+        }
+
+        if (keystrs.size() != keys.size())
+        {
+            fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
+            return 0;
+        }
+        ValueDataArray vs;
+        m_db->SUnion(ctx.currentDB, keys, vs);
+        fill_array_reply(ctx.reply, vs);
+        return 0;
+    }
+
+    int ArdbServer::SUnionStore(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        SliceArray keys;
+        std::set<std::string> keystrs;
+        for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+        {
+            keys.push_back(cmd.GetArguments()[i]);
+            keystrs.insert(cmd.GetArguments()[i]);
+        }
+
+        if (keystrs.size() != keys.size() || keystrs.count(cmd.GetArguments()[0]) > 0)
+        {
+            fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
+            return 0;
+        }
+        int ret = m_db->SUnionStore(ctx.currentDB, cmd.GetArguments()[0], keys);
+        fill_int_reply(ctx.reply, ret);
+        return 0;
+    }
+
+    int ArdbServer::SUnionCount(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        SliceArray keys;
+        std::set<std::string> keystrs;
+        for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
+        {
+            keys.push_back(cmd.GetArguments()[i]);
+            keystrs.insert(cmd.GetArguments()[i]);
+        }
+
+        if (keystrs.size() != keys.size())
+        {
+            fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
+            return 0;
+        }
+        uint32 count = 0;
+        m_db->SUnionCount(ctx.currentDB, keys, count);
+        fill_int_reply(ctx.reply, count);
+        return 0;
+    }
+    int ArdbServer::SInterCount(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        SliceArray keys;
+        std::set<std::string> keystrs;
+        for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
+        {
+            keys.push_back(cmd.GetArguments()[i]);
+            keystrs.insert(cmd.GetArguments()[i]);
+        }
+
+        if (keystrs.size() != keys.size())
+        {
+            fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
+            return 0;
+        }
+        uint32 count = 0;
+        m_db->SInterCount(ctx.currentDB, keys, count);
+        fill_int_reply(ctx.reply, count);
+        return 0;
+    }
+    int ArdbServer::SDiffCount(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        SliceArray keys;
+        std::set<std::string> keystrs;
+        for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
+        {
+            keys.push_back(cmd.GetArguments()[i]);
+            keystrs.insert(cmd.GetArguments()[i]);
+        }
+
+        if (keystrs.size() != keys.size())
+        {
+            fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
+            return 0;
+        }
+        uint32 count = 0;
+        m_db->SDiffCount(ctx.currentDB, keys, count);
+        fill_int_reply(ctx.reply, count);
+        return 0;
+    }
+
+    int ArdbServer::SScan(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        std::string pattern;
+        uint32 limit = 10000; //return max 10000 keys one time
+        if (cmd.GetArguments().size() > 2)
+        {
+            for (uint32 i = 2; i < cmd.GetArguments().size(); i++)
+            {
+                if (!strcasecmp(cmd.GetArguments()[i].c_str(), "count"))
+                {
+                    if (i + 1 >= cmd.GetArguments().size() || !string_touint32(cmd.GetArguments()[i + 1], limit))
+                    {
+                        fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+                        return 0;
+                    }
+                    i++;
+                }
+                else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "match"))
+                {
+                    if (i + 1 >= cmd.GetArguments().size())
+                    {
+                        fill_error_reply(ctx.reply, "ERR 'MATCH' need one args followed");
+                        return 0;
+                    }
+                    pattern = cmd.GetArguments()[i + 1];
+                    i++;
+                }
+                else
+                {
+                    fill_error_reply(ctx.reply, " Syntax error, try scan 0 ");
+                    return 0;
+                }
+            }
+        }
+        std::string newcursor = "0";
+        ValueDataArray vs;
+        m_db->SScan(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], pattern, limit, vs, newcursor);
+        ctx.reply.type = REDIS_REPLY_ARRAY;
+        ctx.reply.elements.push_back(RedisReply(newcursor));
+        RedisReply rs;
+        fill_array_reply(rs, vs);
+        ctx.reply.elements.push_back(rs);
+        return 0;
+    }
+
+    int ArdbServer::SClear(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        m_db->SClear(ctx.currentDB, cmd.GetArguments()[0]);
+        fill_status_reply(ctx.reply, "OK");
+        return 0;
+    }
 
     SetMetaValue* Ardb::GetSetMeta(const DBID& db, const Slice& key, int& err, bool& create)
     {

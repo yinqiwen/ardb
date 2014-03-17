@@ -27,12 +27,62 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "ardb.hpp"
+#include "db.hpp"
+#include "ardb_server.hpp"
 #include "geo/geohash_helper.hpp"
 #include <algorithm>
 
 namespace ardb
 {
+    /*
+     *  GEOADD key x y value  [attr_name attr_value ...]
+     */
+    int ArdbServer::GeoAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        GeoAddOptions options;
+        std::string err;
+        if (0 != options.Parse(cmd.GetArguments(), err, 1))
+        {
+            fill_error_reply(ctx.reply, "ERR %s", err.c_str());
+            return 0;
+        }
+        int ret = m_db->GeoAdd(ctx.currentDB, cmd.GetArguments()[0], options);
+        if (ret >= 0)
+        {
+            fill_status_reply(ctx.reply, "OK");
+        }
+        else
+        {
+            fill_error_reply(ctx.reply, "ERR Failed to %s", cmd.ToString().c_str());
+        }
+        return 0;
+    }
+
+    /*
+     *  GEOSEARCH key LOCATION x y  RADIUS r [ASC|DESC] [WITHCOORDINATES] [WITHDISTANCES] [GET pattern [GET pattern ...]] [LIMIT offset count]
+     *  GEOSEARCH key MEMBER m      RADIUS r [ASC|DESC] [WITHCOORDINATES] [WITHDISTANCES] [GET pattern [GET pattern ...]] [LIMIT offset count]
+     *
+     *  For 'GET pattern' in GEOSEARCH:
+     *  If 'pattern' is '#.<attr>',  return actual point's attribute stored by 'GeoAdd'
+     *  Other pattern would processed the same as 'sort' command (Use same C++ function),
+     *  The patterns like '#', "*->field" are valid.
+     */
+
+    int ArdbServer::GeoSearch(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        GeoSearchOptions options;
+        std::string err;
+        if (0 != options.Parse(cmd.GetArguments(), err, 1))
+        {
+            fill_error_reply(ctx.reply, "ERR %s", err.c_str());
+            return 0;
+        }
+        ValueDataDeque res;
+        m_db->GeoSearch(ctx.currentDB, cmd.GetArguments()[0], options, res);
+        fill_array_reply(ctx.reply, res);
+        return 0;
+    }
+
 
     int Ardb::GeoAdd(const DBID& db, const Slice& key, const GeoAddOptions& options)
     {

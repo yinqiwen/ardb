@@ -37,7 +37,7 @@
 #define SLAVE_CLIENT_HPP_
 #include "channel/all_includes.hpp"
 #include "util/mmap.hpp"
-#include "ardb.hpp"
+#include "db.hpp"
 #include "rdb.hpp"
 #include "repl_backlog.hpp"
 

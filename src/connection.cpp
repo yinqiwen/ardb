@@ -27,35 +27,35 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef STAT_HPP_
-#define STAT_HPP_
-
-#include <assert.h>
-#include <stddef.h>
-#include <string.h>
-#include <vector>
-#include "common.hpp"
-#include "util/atomic.hpp"
+#include "ardb_server.hpp"
 
 namespace ardb
 {
-    struct ServerStat:public Runnable
+    int ArdbServer::Quit(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        public:
-            typedef std::vector<uint64> PeriodCommandCounters;
-            volatile uint64 stat_numcommands;
-            PeriodCommandCounters stat_period_numcommands;
-            volatile uint64 connected_clients;
-            volatile uint64 stat_numconnections;
-            time_t now;
-            ServerStat();
-            void Run();
-            void IncRecvCommands();
-            void IncAcceptedClient();
-            void DecAcceptedClient();
-            double CurrentQPS();
-            static ServerStat& GetSingleton();
-    };
+        fill_status_reply(ctx.reply, "OK");
+        return -1;
+    }
+    int ArdbServer::Ping(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        fill_status_reply(ctx.reply, "PONG");
+        return 0;
+    }
+    int ArdbServer::Echo(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        fill_str_reply(ctx.reply, cmd.GetArguments()[0]);
+        return 0;
+    }
+    int ArdbServer::Select(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        if (!string_touint32(cmd.GetArguments()[0], ctx.currentDB) || ctx.currentDB > 0xFFFFFF)
+        {
+            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            return 0;
+        }
+        m_clients_holder.ChangeCurrentDB(ctx.conn, ctx.currentDB);
+        fill_status_reply(ctx.reply, "OK");
+        return 0;
+    }
 }
 
-#endif /* STAT_HPP_ */

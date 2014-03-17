@@ -39,7 +39,7 @@
 #include <string>
 #include "common.hpp"
 #include "buffer/buffer_helper.hpp"
-#include "ardb.hpp"
+#include "db.hpp"
 
 namespace ardb
 {

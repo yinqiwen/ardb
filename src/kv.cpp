@@ -27,12 +27,337 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "ardb.hpp"
+#include "db.hpp"
+#include "ardb_server.hpp"
 #include <bitset>
 #include <fnmatch.h>
 
 namespace ardb
 {
+    //=======================================ArdbServer=====================================================
+    int ArdbServer::RawSet(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        m_db->RawSet(cmd.GetArguments()[0], cmd.GetArguments()[1]);
+        return 0;
+    }
+    int ArdbServer::RawDel(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        m_db->RawDel(cmd.GetArguments()[0]);
+        return 0;
+    }
+    int ArdbServer::KeysCount(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int64 count = 0;
+        m_db->KeysCount(ctx.currentDB, cmd.GetArguments()[0], count);
+        fill_int_reply(ctx.reply, count);
+        return 0;
+    }
+    int ArdbServer::Randomkey(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        std::string key;
+        if (0 == m_db->Randomkey(ctx.currentDB, key))
+        {
+            fill_str_reply(ctx.reply, key);
+        }
+        else
+        {
+            ctx.reply.type = REDIS_REPLY_NIL;
+        }
+        return 0;
+    }
+    int ArdbServer::Scan(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        StringArray keys;
+        std::string pattern;
+        uint32 limit = 10000; //return max 10000 keys one time
+        if (cmd.GetArguments().size() > 2)
+        {
+            for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+            {
+                if (!strcasecmp(cmd.GetArguments()[i].c_str(), "count"))
+                {
+                    if (i + 1 >= cmd.GetArguments().size() || !string_touint32(cmd.GetArguments()[i + 1], limit))
+                    {
+                        fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+                        return 0;
+                    }
+                    i++;
+                }
+                else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "match"))
+                {
+                    if (i + 1 >= cmd.GetArguments().size())
+                    {
+                        fill_error_reply(ctx.reply, "ERR 'MATCH' need one args followed");
+                        return 0;
+                    }
+                    pattern = cmd.GetArguments()[i + 1];
+                    i++;
+                }
+                else
+                {
+                    fill_error_reply(ctx.reply, " Syntax error, try scan 0 ");
+                    return 0;
+                }
+            }
+        }
+        std::string newcursor = "0";
+        StringArray results;
+        m_db->Scan(ctx.currentDB, cmd.GetArguments()[0], pattern, limit, results, newcursor);
+        ctx.reply.type = REDIS_REPLY_ARRAY;
+        ctx.reply.elements.push_back(RedisReply(newcursor));
+        RedisReply rs;
+        fill_str_array_reply(rs, results);
+        ctx.reply.elements.push_back(rs);
+        return 0;
+    }
+
+    int ArdbServer::Keys(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        StringArray keys;
+        std::string from;
+        uint32 limit = 100000; //return max 100000 keys one time
+        if (cmd.GetArguments().size() > 1)
+        {
+            for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+            {
+                if (!strcasecmp(cmd.GetArguments()[i].c_str(), "limit"))
+                {
+                    if (i + 1 >= cmd.GetArguments().size() || !string_touint32(cmd.GetArguments()[i + 1], limit))
+                    {
+                        fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+                        return 0;
+                    }
+                    i++;
+                }
+                else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "from"))
+                {
+                    if (i + 1 >= cmd.GetArguments().size())
+                    {
+                        fill_error_reply(ctx.reply, "ERR 'from' need one args followed");
+                        return 0;
+                    }
+                    from = cmd.GetArguments()[i + 1];
+                    i++;
+                }
+                else
+                {
+                    fill_error_reply(ctx.reply, " Syntax error, try KEYS ");
+                    return 0;
+                }
+            }
+        }
+        m_db->Keys(ctx.currentDB, cmd.GetArguments()[0], from, limit, keys);
+        fill_str_array_reply(ctx.reply, keys);
+        return 0;
+    }
+
+    int ArdbServer::Rename(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int ret = m_db->Rename(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1]);
+        if (ret < 0)
+        {
+            fill_error_reply(ctx.reply, "ERR no such key");
+        }
+        else
+        {
+            fill_status_reply(ctx.reply, "OK");
+        }
+        return 0;
+    }
+
+    int ArdbServer::RenameNX(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int ret = m_db->RenameNX(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1]);
+        fill_int_reply(ctx.reply, ret < 0 ? 0 : 1);
+        return 0;
+    }
+
+    int ArdbServer::Move(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        DBID dst = 0;
+        if (!string_touint32(cmd.GetArguments()[1], dst))
+        {
+            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            return 0;
+        }
+        int ret = m_db->Move(ctx.currentDB, cmd.GetArguments()[0], dst);
+        fill_int_reply(ctx.reply, ret < 0 ? 0 : 1);
+        return 0;
+    }
+
+    int ArdbServer::Type(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int ret = m_db->Type(ctx.currentDB, cmd.GetArguments()[0]);
+        switch (ret)
+        {
+            case SET_META:
+            {
+                fill_status_reply(ctx.reply, "set");
+                break;
+            }
+            case LIST_META:
+            {
+                fill_status_reply(ctx.reply, "list");
+                break;
+            }
+            case ZSET_META:
+            {
+                fill_status_reply(ctx.reply, "zset");
+                break;
+            }
+            case HASH_META:
+            {
+                fill_status_reply(ctx.reply, "hash");
+                break;
+            }
+            case STRING_META:
+            {
+                fill_status_reply(ctx.reply, "string");
+                break;
+            }
+            case BITSET_META:
+            {
+                fill_status_reply(ctx.reply, "bitset");
+                break;
+            }
+            default:
+            {
+                fill_status_reply(ctx.reply, "none");
+                break;
+            }
+        }
+        return 0;
+    }
+
+    int ArdbServer::Persist(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int ret = m_db->Persist(ctx.currentDB, cmd.GetArguments()[0]);
+        fill_int_reply(ctx.reply, ret == 0 ? 1 : 0);
+        return 0;
+    }
+
+    int ArdbServer::PExpire(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        uint32 v = 0;
+        if (!check_uint32_arg(ctx.reply, cmd.GetArguments()[1], v))
+        {
+            return 0;
+        }
+        int ret = m_db->Pexpire(ctx.currentDB, cmd.GetArguments()[0], v);
+        fill_int_reply(ctx.reply, ret >= 0 ? 1 : 0);
+        return 0;
+    }
+    int ArdbServer::PExpireat(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        uint64 v = 0;
+        if (!check_uint64_arg(ctx.reply, cmd.GetArguments()[1], v))
+        {
+            return 0;
+        }
+        int ret = m_db->Pexpireat(ctx.currentDB, cmd.GetArguments()[0], v);
+        fill_int_reply(ctx.reply, ret >= 0 ? 1 : 0);
+        return 0;
+    }
+    int ArdbServer::PTTL(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int64 ret = m_db->PTTL(ctx.currentDB, cmd.GetArguments()[0]);
+        fill_int_reply(ctx.reply, ret >= 0 ? ret : -1);
+        return 0;
+    }
+    int ArdbServer::TTL(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int64 ret = m_db->TTL(ctx.currentDB, cmd.GetArguments()[0]);
+        fill_int_reply(ctx.reply, ret >= 0 ? ret : -1);
+        return 0;
+    }
+
+    int ArdbServer::Expire(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        uint32 v = 0;
+        if (!check_uint32_arg(ctx.reply, cmd.GetArguments()[1], v))
+        {
+            return 0;
+        }
+        int ret = m_db->Expire(ctx.currentDB, cmd.GetArguments()[0], v);
+        fill_int_reply(ctx.reply, ret >= 0 ? 1 : 0);
+        return 0;
+    }
+
+    int ArdbServer::Expireat(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        uint32 v = 0;
+        if (!check_uint32_arg(ctx.reply, cmd.GetArguments()[1], v))
+        {
+            return 0;
+        }
+        int ret = m_db->Expireat(ctx.currentDB, cmd.GetArguments()[0], v);
+        fill_int_reply(ctx.reply, ret >= 0 ? 1 : 0);
+        return 0;
+    }
+
+    int ArdbServer::Exists(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        bool ret = m_db->Exists(ctx.currentDB, cmd.GetArguments()[0]);
+        fill_int_reply(ctx.reply, ret ? 1 : 0);
+        return 0;
+    }
+
+    int ArdbServer::Del(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        SliceArray array;
+        ArgumentArray::const_iterator it = cmd.GetArguments().begin();
+        while (it != cmd.GetArguments().end())
+        {
+            array.push_back(*it);
+            it++;
+        }
+        int ret = m_db->Del(ctx.currentDB, array);
+        fill_int_reply(ctx.reply, ret);
+        return 0;
+    }
+
+    /*
+     * CACHE LOAD|EVICT|STATUS key
+     */
+    int ArdbServer::Cache(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int ret = 0;
+        if (!strcasecmp(cmd.GetArguments()[0].c_str(), "load"))
+        {
+            ret = m_db->CacheLoad(ctx.currentDB, cmd.GetArguments()[1]);
+        }
+        else if (!strcasecmp(cmd.GetArguments()[0].c_str(), "evict"))
+        {
+            ret = m_db->CacheEvict(ctx.currentDB, cmd.GetArguments()[1]);
+        }
+        else if (!strcasecmp(cmd.GetArguments()[0].c_str(), "status"))
+        {
+            std::string status;
+            ret = m_db->CacheStatus(ctx.currentDB, cmd.GetArguments()[1], status);
+            if (ret == 0)
+            {
+                fill_str_reply(ctx.reply, status);
+                return 0;
+            }
+        }
+        else
+        {
+            fill_error_reply(ctx.reply, "ERR Syntax error, try CACHE (LOAD | EVICT | STATUS) key");
+            return 0;
+        }
+        if (ret == 0)
+        {
+            fill_status_reply(ctx.reply, "OK");
+        }
+        else
+        {
+            fill_error_reply(ctx.reply, "ERR Failed to cache load/evict/status key:%s", cmd.GetArguments()[1].c_str());
+        }
+        return 0;
+    }
+
+    //=======================================Ardb=====================================================
+
     int Ardb::DelValue(KeyObject& key)
     {
         DBWatcher& watcher = m_watcher.GetValue();

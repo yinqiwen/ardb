@@ -127,19 +127,19 @@ UTIL_VPATH=./util ./util/exception  ./util/thread  ./redis ./helper ./buffer ./c
 UTIL_CPPFILES := $(foreach dir, $(UTIL_VPATH), $(wildcard $(dir)/*.cpp))
 UTIL_CFILES := $(foreach dir, $(UTIL_VPATH), $(wildcard $(dir)/*.c))
 UTIL_OBJECTS := $(patsubst %.cpp, %.o, $(UTIL_CPPFILES)) $(patsubst %.c, %.o, $(UTIL_CFILES))
-CORE_OBJECTS := ardb.o data_format.o hash.o kv.o lists.o logger.o sets.o \
-                zsets.o strings.o bits.o sort.o geo.o\
-                $(UTIL_OBJECTS)
+CORE_OBJECTS := db.o data_format.o hash.o kv.o lists.o logger.o sets.o \
+                zsets.o strings.o bits.o sort.o geo.o server.o connection.o\
+                ardb_server.o lua_scripting.o transaction.o slowlog.o  \
+                replication/rdb.o replication/slave.o replication/repl_backlog.o \
+                replication/master.o ha/agent.o pubsub.o stat.o \
+                $(UTIL_OBJECTS) $(CHANNEL_OBJECTS) 
 
 LEVELDB_ENGINE :=  engine/leveldb_engine.o    
 ROCKSDB_ENGINE :=  engine/rocksdb_engine.o     
 KCDB_ENGINE :=  engine/kyotocabinet_engine.o     
 LMDB_ENGINE :=  engine/lmdb_engine.o     
 TESTOBJ := ../test/ardb_test.o
-
-SERVER_OBJECTS := ardb_server.o lua_scripting.o transaction.o slowlog.o clients.o \
-                  replication/rdb.o replication/slave.o replication/repl_backlog.o \
-                  replication/master.o ha/agent.o pubsub.o stat.o main.o
+SERVEROBJ := main.o
 
 #DIST_LIB = libardb.so
 DIST_LIBA = libardb.a
@@ -181,7 +181,7 @@ endif
 endif
 
 
-all: lib test server 
+all: test server 
 
 $(DIST_LIB):$(CORE_OBJECTS)
 	${CXX} -shared -o $@ $^
@@ -191,11 +191,11 @@ $(DIST_LIBA):$(CORE_OBJECTS)
 
 lib:$(DEP_LIBS) $(DIST_LIBA) lua zookeeper
 
-server:${STORAGE_ENGINE} lib clean_launch_obj $(SERVER_OBJECTS) $(CHANNEL_OBJECTS) 
-	${CXX} -o ardb-server $(SERVER_OBJECTS)  $(CORE_OBJECTS) $(CHANNEL_OBJECTS) ${STORAGE_ENGINE_OBJ} $(LIBS)
+server:${STORAGE_ENGINE} lib clean_launch_obj $(CORE_OBJECTS) ${SERVEROBJ}
+	${CXX} -o ardb-server $(SERVEROBJ)  $(CORE_OBJECTS) ${STORAGE_ENGINE_OBJ} $(LIBS)
 
-test:clean_test ${STORAGE_ENGINE} lib $(CORE_OBJECTS) ${TESTOBJ} $(CHANNEL_OBJECTS)
-	${CXX} -o ardb-test ${STORAGE_ENGINE_OBJ} ${TESTOBJ} $(CORE_OBJECTS) $(CHANNEL_OBJECTS) $(LIBS) 
+test:clean_test ${STORAGE_ENGINE} lib ${TESTOBJ} $(CORE_OBJECTS)
+	${CXX} -o ardb-test ${STORAGE_ENGINE_OBJ} ${TESTOBJ} $(CORE_OBJECTS) $(LIBS) 
     
 jemalloc:
 	@if test -f ${JEMALLOC_LIBA}; then\
@@ -279,6 +279,6 @@ dist:clean all
 
 clean:
 	rm -f $(LEVELDB_TEST) $(KCDB_TEST) ${CORE_OBJECTS} ${LEVELDB_OBJECTS} \
-	      $(SERVER_OBJECTS) $(CHANNEL_OBJECTS) $(DIST_LIBA) $(DIST_LIB)   \
+	      $(SERVEROBJ) $(DIST_LIBA) $(DIST_LIB)   \
 	      $(LEVELDB_ENGINE) $(KCDB_ENGINE) $(LMDB_ENGINE) $(TESTOBJ)\
 	      ardb-test  ardb-server

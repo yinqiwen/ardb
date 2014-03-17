@@ -27,11 +27,233 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "ardb.hpp"
+#include "db.hpp"
+#include "ardb_server.hpp"
 #include <fnmatch.h>
 
 namespace ardb
 {
+    int ArdbServer::HMSet(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        if ((cmd.GetArguments().size() - 1) % 2 != 0)
+        {
+            fill_error_reply(ctx.reply, "ERR wrong number of arguments for HMSet");
+            return 0;
+        }
+        SliceArray fs;
+        SliceArray vals;
+        for (uint32 i = 1; i < cmd.GetArguments().size(); i += 2)
+        {
+            fs.push_back(cmd.GetArguments()[i]);
+            vals.push_back(cmd.GetArguments()[i + 1]);
+        }
+        m_db->HMSet(ctx.currentDB, cmd.GetArguments()[0], fs, vals);
+        fill_status_reply(ctx.reply, "OK");
+        return 0;
+    }
+    int ArdbServer::HSet(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        m_db->HSet(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], cmd.GetArguments()[2]);
+        fill_int_reply(ctx.reply, 1);
+        return 0;
+    }
+    int ArdbServer::HSetNX(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int ret = m_db->HSetNX(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], cmd.GetArguments()[2]);
+        fill_int_reply(ctx.reply, ret);
+        return 0;
+    }
+    int ArdbServer::HVals(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        StringArray keys;
+        m_db->HVals(ctx.currentDB, cmd.GetArguments()[0], keys);
+        fill_str_array_reply(ctx.reply, keys);
+        return 0;
+    }
+    int ArdbServer::HScan(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        std::string pattern;
+        uint32 limit = 10000; //return max 10000 keys one time
+        if (cmd.GetArguments().size() > 2)
+        {
+            for (uint32 i = 2; i < cmd.GetArguments().size(); i++)
+            {
+                if (!strcasecmp(cmd.GetArguments()[i].c_str(), "count"))
+                {
+                    if (i + 1 >= cmd.GetArguments().size() || !string_touint32(cmd.GetArguments()[i + 1], limit))
+                    {
+                        fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+                        return 0;
+                    }
+                    i++;
+                }
+                else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "match"))
+                {
+                    if (i + 1 >= cmd.GetArguments().size())
+                    {
+                        fill_error_reply(ctx.reply, "ERR 'MATCH' need one args followed");
+                        return 0;
+                    }
+                    pattern = cmd.GetArguments()[i + 1];
+                    i++;
+                }
+                else
+                {
+                    fill_error_reply(ctx.reply, " Syntax error, try scan 0 ");
+                    return 0;
+                }
+            }
+        }
+        std::string newcursor = "0";
+        ValueDataArray vs;
+        m_db->HScan(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], pattern, limit, vs, newcursor);
+        ctx.reply.type = REDIS_REPLY_ARRAY;
+        ctx.reply.elements.push_back(RedisReply(newcursor));
+        RedisReply rs;
+        fill_array_reply(rs, vs);
+        ctx.reply.elements.push_back(rs);
+        return 0;
+    }
+
+    int ArdbServer::HMGet(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        StringArray vals;
+        SliceArray fs;
+        for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+        {
+            fs.push_back(cmd.GetArguments()[i]);
+        }
+        m_db->HMGet(ctx.currentDB, cmd.GetArguments()[0], fs, vals);
+        fill_str_array_reply(ctx.reply, vals);
+        return 0;
+    }
+
+    int ArdbServer::HLen(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int len = m_db->HLen(ctx.currentDB, cmd.GetArguments()[0]);
+        fill_int_reply(ctx.reply, len);
+        return 0;
+    }
+
+    int ArdbServer::HKeys(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        StringArray keys;
+        m_db->HKeys(ctx.currentDB, cmd.GetArguments()[0], keys);
+        fill_str_array_reply(ctx.reply, keys);
+        return 0;
+    }
+
+    int ArdbServer::HIncrbyFloat(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        double increment, val = 0;
+        if (!string_todouble(cmd.GetArguments()[2], increment))
+        {
+            fill_error_reply(ctx.reply, "ERR value is not a float or out of range");
+            return 0;
+        }
+        m_db->HIncrbyFloat(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], increment, val);
+        fill_double_reply(ctx.reply, val);
+        return 0;
+    }
+
+    int ArdbServer::HMIncrby(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        if ((cmd.GetArguments().size() - 1) % 2 != 0)
+        {
+            fill_error_reply(ctx.reply, "ERR wrong number of arguments for HMIncrby");
+            return 0;
+        }
+        SliceArray fs;
+        Int64Array incs;
+        for (uint32 i = 1; i < cmd.GetArguments().size(); i += 2)
+        {
+            fs.push_back(cmd.GetArguments()[i]);
+            int64 v = 0;
+            if (!string_toint64(cmd.GetArguments()[i + 1], v))
+            {
+                fill_error_reply(ctx.reply, "ERR value is not a integer or out of range");
+                return 0;
+            }
+            incs.push_back(v);
+        }
+        Int64Array vs;
+        m_db->HMIncrby(ctx.currentDB, cmd.GetArguments()[0], fs, incs, vs);
+        fill_int_array_reply(ctx.reply, vs);
+        return 0;
+    }
+
+    int ArdbServer::HIncrby(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int64 increment, val = 0;
+        if (!string_toint64(cmd.GetArguments()[2], increment))
+        {
+            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            return 0;
+        }
+        m_db->HIncrby(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], increment, val);
+        fill_int_reply(ctx.reply, val);
+        return 0;
+    }
+
+    int ArdbServer::HGetAll(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        StringArray fields;
+        StringArray results;
+        m_db->HGetAll(ctx.currentDB, cmd.GetArguments()[0], fields, results);
+        ctx.reply.type = REDIS_REPLY_ARRAY;
+        for (uint32 i = 0; i < fields.size(); i++)
+        {
+            RedisReply reply1, reply2;
+            fill_str_reply(reply1, fields[i]);
+            std::string str;
+            fill_str_reply(reply2, results[i]);
+            ctx.reply.elements.push_back(reply1);
+            ctx.reply.elements.push_back(reply2);
+        }
+        return 0;
+    }
+
+    int ArdbServer::HGet(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        std::string v;
+        int ret = m_db->HGet(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], &v);
+        if (ret < 0)
+        {
+            ctx.reply.type = REDIS_REPLY_NIL;
+        }
+        else
+        {
+            fill_str_reply(ctx.reply, v);
+        }
+        return 0;
+    }
+
+    int ArdbServer::HExists(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int ret = m_db->HExists(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1]);
+        fill_int_reply(ctx.reply, ret);
+        return 0;
+    }
+
+    int ArdbServer::HDel(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        SliceArray fields;
+        for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+        {
+            fields.push_back(cmd.GetArguments()[i]);
+        }
+        int ret = m_db->HDel(ctx.currentDB, cmd.GetArguments()[0], fields);
+        fill_int_reply(ctx.reply, ret);
+        return 0;
+    }
+
+    int ArdbServer::HClear(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        m_db->HClear(ctx.currentDB, cmd.GetArguments()[0]);
+        fill_status_reply(ctx.reply, "OK");
+        return 0;
+    }
+
     HashMetaValue* Ardb::GetHashMeta(const DBID& db, const Slice& key, int& err, bool& create)
     {
         CommonMetaValue* meta = GetMeta(db, key, false);
