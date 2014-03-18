@@ -35,7 +35,7 @@
 namespace ardb
 {
     /*
-     *  GEOADD key x y value  [attr_name attr_value ...]
+     *  GEOADD key MERCATOR|WGS84 x y value  [attr_name attr_value ...]
      */
     int ArdbServer::GeoAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
@@ -59,8 +59,10 @@ namespace ardb
     }
 
     /*
-     *  GEOSEARCH key LOCATION x y  RADIUS r [ASC|DESC] [WITHCOORDINATES] [WITHDISTANCES] [GET pattern [GET pattern ...]] [LIMIT offset count]
-     *  GEOSEARCH key MEMBER m      RADIUS r [ASC|DESC] [WITHCOORDINATES] [WITHDISTANCES] [GET pattern [GET pattern ...]] [LIMIT offset count]
+     *  GEOSEARCH key MERCATOR|WGS84 x y  <GeoOptions>
+     *  GEOSEARCH key MEMBER m
+     *
+     *  <GeoOptions> = RADIUS r [ASC|DESC] [WITHCOORDINATES] [WITHDISTANCES] [GET pattern [GET pattern ...]] [LIMIT offset count]
      *
      *  For 'GET pattern' in GEOSEARCH:
      *  If 'pattern' is '#.<attr>',  return actual point's attribute stored by 'GeoAdd'
@@ -83,11 +85,10 @@ namespace ardb
         return 0;
     }
 
-
     int Ardb::GeoAdd(const DBID& db, const Slice& key, const GeoAddOptions& options)
     {
         GeoHashRange lat_range, lon_range;
-        GeoHashHelper::GetCoordRange(m_config.geo_coord_type, lat_range, lon_range);
+        GeoHashHelper::GetCoordRange(options.coord_type, lat_range, lon_range);
         if (options.x < lon_range.min || options.x > lon_range.max || options.y < lat_range.min
                 || options.y > lat_range.max)
         {
@@ -96,6 +97,13 @@ namespace ardb
         GeoPoint point;
         point.x = options.x;
         point.y = options.y;
+
+        if (options.coord_type == GEO_WGS84_TYPE)
+        {
+            point.x = GeoHashHelper::GetMercatorX(options.x);
+            point.y = GeoHashHelper::GetMercatorY(options.y);
+            GeoHashHelper::GetCoordRange(GEO_MERCATOR_TYPE, lat_range, lon_range);
+        }
         point.attrs = options.attrs;
 
         GeoHashBits hash;
@@ -132,6 +140,12 @@ namespace ardb
         uint64 start_time = get_current_epoch_micros();
         GeoHashBitsSet ress;
         double x = options.x, y = options.y;
+        if (options.coord_type == GEO_WGS84_TYPE)
+        {
+            x = GeoHashHelper::GetMercatorX(options.x);
+            y = GeoHashHelper::GetMercatorY(options.y);
+            //GeoHashHelper::GetCoordRange(GEO_MERCATOR_TYPE, lat_range, lon_range);
+        }
         if (options.by_member)
         {
             ValueData score, attr;
@@ -146,7 +160,7 @@ namespace ardb
             x = point.x;
             y = point.y;
         }
-        GeoHashHelper::GetAreasByRadius(m_config.geo_coord_type, y, x, options.radius, ress);
+        GeoHashHelper::GetAreasByRadius(GEO_MERCATOR_TYPE, y, x, options.radius, ress);
 
         /*
          * Merge areas if possible to avoid disk search
@@ -196,8 +210,8 @@ namespace ardb
                 Buffer content(const_cast<char*>(vit->bytes_value.data()), 0, vit->bytes_value.size());
                 if (point.Decode(content))
                 {
-                    if (GeoHashHelper::GetDistanceSquareIfInRadius(m_config.geo_coord_type, x, y, point.x, point.y, options.radius,
-                            point.distance))
+                    if (GeoHashHelper::GetDistanceSquareIfInRadius(GEO_MERCATOR_TYPE, x, y, point.x, point.y,
+                            options.radius, point.distance))
                     {
                         points.push_back(point);
                     }
@@ -256,14 +270,19 @@ namespace ardb
                 }
                 else if (ait->get_coodinates)
                 {
+                    if(options.coord_type == GEO_WGS84_TYPE)
+                    {
+                        pit->x = GeoHashHelper::GetWGS84X(pit->x);
+                        pit->y = GeoHashHelper::GetWGS84Y(pit->y);
+                    }
                     attr.SetDoubleValue(pit->x);
                     results.push_back(attr);
                     attr.SetDoubleValue(pit->y);
                     results.push_back(attr);
                 }
-                else if (!ait->get_attr.empty())
+                else if (ait->get_attr)
                 {
-                    StringStringMap::iterator found = pit->attrs.find(ait->get_attr);
+                    StringStringMap::iterator found = pit->attrs.find(ait->get_pattern);
                     if (found != pit->attrs.end())
                     {
                         attr.SetValue(found->second, false);

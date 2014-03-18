@@ -183,13 +183,13 @@ endif
 
 all: test server 
 
-$(DIST_LIB):$(CORE_OBJECTS)
+$(DIST_LIB): $(CORE_OBJECTS)
 	${CXX} -shared -o $@ $^
 
 $(DIST_LIBA):$(CORE_OBJECTS)
 	ar rcs $@ $^
 
-lib:$(DEP_LIBS) $(DIST_LIBA) lua zookeeper
+lib:$(DEP_LIBS) lua zookeeper $(DIST_LIBA)
 
 server:${STORAGE_ENGINE} lib clean_launch_obj $(CORE_OBJECTS) ${SERVEROBJ}
 	${CXX} -o ardb-server $(SERVEROBJ)  $(CORE_OBJECTS) ${STORAGE_ENGINE_OBJ} $(LIBS)

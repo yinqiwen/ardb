@@ -69,6 +69,9 @@ namespace ardb
             static GeoHashFix52Bits Allign52Bits(const GeoHashBits& hash);
             static double GetMercatorX(double longtitude);
             static double GetMercatorY(double latitude);
+            static double GetWGS84X(double x);
+            static double GetWGS84Y(double y);
+            static bool VerifyCoordinates(uint8 coord_type, double x, double y);
             static bool GetDistanceSquareIfInRadius(uint8 coord_type, double x1, double y1, double x2, double y2, double radius, double& distance);
     };
 }

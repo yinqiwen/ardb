@@ -113,22 +113,6 @@ namespace ardb
         conf_get_bool(props, "zset-write-fill-cache", cfg.db_cfg.zset_write_fill_cache);
         conf_get_bool(props, "read-fill-cache", cfg.db_cfg.read_fill_cache);
 
-        std::string coord_type = "wgs84";
-        conf_get_string(props, "geo-coord-type", coord_type);
-        if (!strcasecmp(coord_type.c_str(), "wgs84"))
-        {
-            cfg.db_cfg.geo_coord_type = GEO_WGS84_TYPE;
-        }
-        else if (!strcasecmp(coord_type.c_str(), "mercator"))
-        {
-            cfg.db_cfg.geo_coord_type = GEO_MERCATOR_TYPE;
-        }
-        else
-        {
-            cfg.db_cfg.geo_coord_type = GEO_WGS84_TYPE;
-            WARN_LOG("Invalid geo-coord-type:%s.", coord_type.c_str());
-        }
-
         conf_get_bool(props, "slave-read-only", cfg.slave_readonly);
         conf_get_bool(props, "slave-serve-stale-data", cfg.slave_serve_stale_data);
 
@@ -352,7 +336,7 @@ namespace ardb
                 { "script", REDIS_CMD_SCRIPT, &ArdbServer::Script, 1, -1, "s", 0 },
                 { "randomkey", REDIS_CMD_RANDOMKEY, &ArdbServer::Randomkey, 0, 0, "r", 0 },
                 { "scan", REDIS_CMD_SCAN, &ArdbServer::Scan, 1, 5, "r", 0 },
-                { "geoadd", REDIS_CMD_GEO_ADD, &ArdbServer::GeoAdd, 4, -1, "w", 0 },
+                { "geoadd", REDIS_CMD_GEO_ADD, &ArdbServer::GeoAdd, 5, -1, "w", 0 },
                 { "geosearch", REDIS_CMD_GEO_SEARCH, &ArdbServer::GeoSearch, 5, -1, "r", 0 },
                 { "cache", REDIS_CMD_CACHE, &ArdbServer::Cache, 2, 2, "r", 0 }, };
 

@@ -68,7 +68,6 @@
 	if(a != b) return COMPARE_NUMBER(a,b); \
 }while(0)
 
-
 namespace ardb
 {
     /*
@@ -635,12 +634,13 @@ namespace ardb
 
     struct GeoAddOptions
     {
+            uint8 coord_type;
             double x, y;
             Slice value;
 
             StringStringMap attrs;
             GeoAddOptions() :
-                    x(0), y(0)
+                    coord_type(0), x(0), y(0)
             {
             }
 
@@ -655,10 +655,10 @@ namespace ardb
     {
             bool get_coodinates;
             bool get_distances;
-            std::string get_attr;
+            bool get_attr;
             std::string get_pattern;
             GeoSearchGetOption() :
-                    get_coodinates(false), get_distances(false)
+                    get_coodinates(false), get_distances(false),get_attr(false)
             {
             }
     };
@@ -666,6 +666,7 @@ namespace ardb
 
     struct GeoSearchOptions
     {
+            uint8 coord_type;
             bool nosort;
             bool asc;   //sort by asc
             uint32 radius;  //range meters
@@ -678,7 +679,7 @@ namespace ardb
             std::string member;
 
             GeoGetOptionDeque get_patterns;
-            GeoSearchOptions() :
+            GeoSearchOptions() :coord_type(0),
                     nosort(true), asc(false), radius(0), offset(0), limit(0), by_member(false), by_location(false), x(
                             0), y(0)
             {
@@ -738,14 +739,12 @@ namespace ardb
     static void convert_vector_to_set(const T& array, R& set)
     {
         typename T::const_iterator it = array.begin();
-        while(it != array.end())
+        while (it != array.end())
         {
             set.insert(*it);
             it++;
         }
     }
-
-
 
     void encode_key(Buffer& buf, const KeyObject& key);
     KeyObject* decode_key(const Slice& key, KeyObject* expected);

@@ -887,7 +887,7 @@ namespace ardb
         std::string fromstr = from;
         KeyObject start(fromstr, KEY_META, db);
         bool check_startwith_startkey = false;
-        if (from.empty() && pattern.size() > 1)
+        if (from.empty() && pattern.size() > 1 && pattern[0] != '*')
         {
             std::string::size_type found = pattern.find('*');
             if (found != std::string::npos)
