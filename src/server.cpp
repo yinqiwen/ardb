@@ -99,12 +99,21 @@ namespace ardb
         {
             file = cmd.GetArguments()[0];
         }
-        if (m_rdb.OpenReadFile(file) == -1)
+        int ret = 0;
+        if (RedisDumpFile::IsRedisDumpFile(file) == 1)
         {
-            fill_error_reply(ctx.reply, "ERR Import error");
-            return 0;
+            RedisDumpFile rdb(m_db, file);
+            ret = rdb.Load(RDBSaveLoadRoutine, ctx.conn);
         }
-        int ret = m_rdb.Load(RDBSaveLoadRoutine, ctx.conn);
+        else
+        {
+            if (m_rdb.OpenReadFile(file) == -1)
+            {
+                fill_error_reply(ctx.reply, "ERR Import error");
+                return 0;
+            }
+            ret = m_rdb.Load(RDBSaveLoadRoutine, ctx.conn);
+        }
         if (ret == 0)
         {
             fill_status_reply(ctx.reply, "OK");
