@@ -53,6 +53,7 @@ namespace ardb
         }
         ValueDataArray scores;
         SliceArray svs;
+        SliceArray attrs;
         bool with_limit = false;
         uint32 limit = 0;
         for (uint32 i = 1; i < cmd.GetArguments().size(); i += 2)
@@ -70,13 +71,18 @@ namespace ardb
             ValueData score(cmd.GetArguments()[i]);
             if (score.type != INTEGER_VALUE && score.type != DOUBLE_VALUE)
             {
-                fill_error_reply(ctx.reply, "ERR value is not a float or out of range");
-                return 0;
+            	if(!string_todouble(score.bytes_value, score.double_value))
+            	{
+                    fill_error_reply(ctx.reply, "ERR value is not a float or out of range");
+                    return 0;
+            	}
+            	score.SetDoubleValue(score.double_value);
             }
             scores.push_back(score);
             svs.push_back(cmd.GetArguments()[i + 1]);
+            attrs.push_back(Slice());
         }
-        SliceArray attrs;
+
         if (with_limit)
         {
             ValueDataArray vs;
@@ -677,6 +683,10 @@ namespace ardb
         }
         fit->count--;
         ZScoreRangeCounterArray::iterator before = fit - 1;
+        if(fit == meta.ranges.begin())
+        {
+        	before = meta.ranges.end();
+        }
         ZScoreRangeCounterArray::iterator after = fit + 1;
         if (fit->count == 0)
         {
@@ -733,7 +743,11 @@ namespace ardb
         }
         else
         {
-            fit->count++;
+        	fit->count++;
+        	if(fit->min > v)
+        	{
+        		fit->min = v;
+        	}
         }
         if (meta.ranges.size() < MAX_ZSET_RANGE_COUNT_TABLE_SIZE && fit->count > MAX_ZSET_RANGE_SIZE
                 && (fit->count) * meta.ranges.size() > meta.size && fit->min < fit->max)
@@ -1771,6 +1785,7 @@ namespace ardb
         ZSetElement ele;
         ZGetByRank(db, key, *meta, start, ele);
         ZSetKeyObject tmp(key, ele, db);
+
         struct ZRangeWalk: public WalkHandler
         {
                 ValueDataArray& z_values;
