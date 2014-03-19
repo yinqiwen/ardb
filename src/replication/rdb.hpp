@@ -44,6 +44,7 @@
 namespace ardb
 {
     typedef void DumpRoutine(void* cb);
+
     class RedisDumpFile
     {
         private:
@@ -86,6 +87,10 @@ namespace ardb
             int WriteStringObject(ValueData& o);
         public:
             RedisDumpFile(Ardb* db, const std::string& file);
+            /*
+             * return: -1:error 0:not redis dump 1:redis dump file
+             */
+            static int IsRedisDumpFile(const std::string& file);
             int Load(DumpRoutine* cb, void *data);
             void Flush();
             int Write(const void* buf, size_t buflen);
@@ -133,6 +138,7 @@ namespace ardb
             }
             ~ArdbDumpFile();
     };
+
 }
 
 #endif /* RDB_HPP_ */
