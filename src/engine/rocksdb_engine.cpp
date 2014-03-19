@@ -28,7 +28,6 @@
  */
 
 #include "rocksdb_engine.hpp"
-#include "ardb.hpp"
 #include "data_format.hpp"
 #include "util/helpers.hpp"
 #include <string.h>

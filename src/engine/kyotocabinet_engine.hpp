@@ -39,7 +39,7 @@
 
 #include <kcpolydb.h>
 #include <stack>
-#include "ardb.hpp"
+#include "db.hpp"
 #include "util/config_helper.hpp"
 #include "util/thread/thread_local.hpp"
 

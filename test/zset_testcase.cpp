@@ -4,7 +4,7 @@
  *  Created on: 2013-4-9
  *      Author: yinqiwen
  */
-#include "ardb.hpp"
+#include "db.hpp"
 #include <string>
 
 using namespace ardb;
@@ -276,6 +276,7 @@ void test_geo(Ardb& db)
             cmp.push_back(p);
         }
         GeoAddOptions add;
+        add.coord_type = 2;
         add.x = x + i * 0.1;
         add.y = y + i * 0.1;
         add.value = name;
@@ -288,7 +289,7 @@ void test_geo(Ardb& db)
     GeoSearchOptions options;
     StringArray args;
     std::string err;
-    string_to_string_array("LOCATION 1000.0 1000.0 RADIUS 1000 ASC WITHCOORDINATES WITHDISTANCES", args);
+    string_to_string_array("MERCATOR 1000.0 1000.0 RADIUS 1000 ASC WITHCOORDINATES WITHDISTANCES", args);
     options.Parse(args, err);
     ValueDataDeque result;
     db.GeoSearch(dbid, "mygeo", options, result);

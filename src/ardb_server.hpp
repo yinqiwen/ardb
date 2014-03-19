@@ -33,11 +33,13 @@
 #include "channel/all_includes.hpp"
 #include "util/config_helper.hpp"
 #include "util/thread/thread_local.hpp"
-#include "ardb.hpp"
+#include "util/redis_helper.hpp"
+#include "db.hpp"
 #include "replication/slave.hpp"
 #include "replication/master.hpp"
 #include "ha/agent.hpp"
 #include "lua_scripting.hpp"
+#include "stat.hpp"
 
 /* Command flags. Please check the command table defined in the redis.c file
  * for more information about the meaning of every flag. */

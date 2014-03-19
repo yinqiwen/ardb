@@ -195,7 +195,6 @@ namespace ardb
 
             bool check_type_before_set_string;
 
-            uint8 geo_coord_type;
 
             bool read_fill_cache;
             bool zset_write_fill_cache;
@@ -208,7 +207,7 @@ namespace ardb
                     hash_max_ziplist_entries(128), hash_max_ziplist_value(64), list_max_ziplist_entries(128), list_max_ziplist_value(
                             64), zset_max_ziplist_entries(128), zset_max_ziplist_value(64), set_max_ziplist_entries(
                             128), set_max_ziplist_value(64), L1_cache_memory_limit(0), check_type_before_set_string(
-                            false), geo_coord_type(GEO_WGS84_TYPE), read_fill_cache(true), zset_write_fill_cache(false)
+                            false), read_fill_cache(true), zset_write_fill_cache(false)
             {
             }
     };

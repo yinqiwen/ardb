@@ -27,17 +27,68 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "ardb.hpp"
+#include "db.hpp"
+#include "ardb_server.hpp"
 #include "geo/geohash_helper.hpp"
 #include <algorithm>
 
 namespace ardb
 {
+    /*
+     *  GEOADD key MERCATOR|WGS84 x y value  [attr_name attr_value ...]
+     */
+    int ArdbServer::GeoAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        GeoAddOptions options;
+        std::string err;
+        if (0 != options.Parse(cmd.GetArguments(), err, 1))
+        {
+            fill_error_reply(ctx.reply, "ERR %s", err.c_str());
+            return 0;
+        }
+        int ret = m_db->GeoAdd(ctx.currentDB, cmd.GetArguments()[0], options);
+        if (ret >= 0)
+        {
+            fill_status_reply(ctx.reply, "OK");
+        }
+        else
+        {
+            fill_error_reply(ctx.reply, "ERR Failed to %s", cmd.ToString().c_str());
+        }
+        return 0;
+    }
+
+    /*
+     *  GEOSEARCH key MERCATOR|WGS84 x y  <GeoOptions>
+     *  GEOSEARCH key MEMBER m
+     *
+     *  <GeoOptions> = RADIUS r [ASC|DESC] [WITHCOORDINATES] [WITHDISTANCES] [GET pattern [GET pattern ...]] [LIMIT offset count]
+     *
+     *  For 'GET pattern' in GEOSEARCH:
+     *  If 'pattern' is '#.<attr>',  return actual point's attribute stored by 'GeoAdd'
+     *  Other pattern would processed the same as 'sort' command (Use same C++ function),
+     *  The patterns like '#', "*->field" are valid.
+     */
+
+    int ArdbServer::GeoSearch(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        GeoSearchOptions options;
+        std::string err;
+        if (0 != options.Parse(cmd.GetArguments(), err, 1))
+        {
+            fill_error_reply(ctx.reply, "ERR %s", err.c_str());
+            return 0;
+        }
+        ValueDataDeque res;
+        m_db->GeoSearch(ctx.currentDB, cmd.GetArguments()[0], options, res);
+        fill_array_reply(ctx.reply, res);
+        return 0;
+    }
 
     int Ardb::GeoAdd(const DBID& db, const Slice& key, const GeoAddOptions& options)
     {
         GeoHashRange lat_range, lon_range;
-        GeoHashHelper::GetCoordRange(m_config.geo_coord_type, lat_range, lon_range);
+        GeoHashHelper::GetCoordRange(options.coord_type, lat_range, lon_range);
         if (options.x < lon_range.min || options.x > lon_range.max || options.y < lat_range.min
                 || options.y > lat_range.max)
         {
@@ -46,6 +97,13 @@ namespace ardb
         GeoPoint point;
         point.x = options.x;
         point.y = options.y;
+
+        if (options.coord_type == GEO_WGS84_TYPE)
+        {
+            point.x = GeoHashHelper::GetMercatorX(options.x);
+            point.y = GeoHashHelper::GetMercatorY(options.y);
+            GeoHashHelper::GetCoordRange(GEO_MERCATOR_TYPE, lat_range, lon_range);
+        }
         point.attrs = options.attrs;
 
         GeoHashBits hash;
@@ -82,6 +140,12 @@ namespace ardb
         uint64 start_time = get_current_epoch_micros();
         GeoHashBitsSet ress;
         double x = options.x, y = options.y;
+        if (options.coord_type == GEO_WGS84_TYPE)
+        {
+            x = GeoHashHelper::GetMercatorX(options.x);
+            y = GeoHashHelper::GetMercatorY(options.y);
+            //GeoHashHelper::GetCoordRange(GEO_MERCATOR_TYPE, lat_range, lon_range);
+        }
         if (options.by_member)
         {
             ValueData score, attr;
@@ -96,7 +160,7 @@ namespace ardb
             x = point.x;
             y = point.y;
         }
-        GeoHashHelper::GetAreasByRadius(m_config.geo_coord_type, y, x, options.radius, ress);
+        GeoHashHelper::GetAreasByRadius(GEO_MERCATOR_TYPE, y, x, options.radius, ress);
 
         /*
          * Merge areas if possible to avoid disk search
@@ -146,8 +210,8 @@ namespace ardb
                 Buffer content(const_cast<char*>(vit->bytes_value.data()), 0, vit->bytes_value.size());
                 if (point.Decode(content))
                 {
-                    if (GeoHashHelper::GetDistanceSquareIfInRadius(m_config.geo_coord_type, x, y, point.x, point.y, options.radius,
-                            point.distance))
+                    if (GeoHashHelper::GetDistanceSquareIfInRadius(GEO_MERCATOR_TYPE, x, y, point.x, point.y,
+                            options.radius, point.distance))
                     {
                         points.push_back(point);
                     }
@@ -206,14 +270,19 @@ namespace ardb
                 }
                 else if (ait->get_coodinates)
                 {
+                    if(options.coord_type == GEO_WGS84_TYPE)
+                    {
+                        pit->x = GeoHashHelper::GetWGS84X(pit->x);
+                        pit->y = GeoHashHelper::GetWGS84Y(pit->y);
+                    }
                     attr.SetDoubleValue(pit->x);
                     results.push_back(attr);
                     attr.SetDoubleValue(pit->y);
                     results.push_back(attr);
                 }
-                else if (!ait->get_attr.empty())
+                else if (ait->get_attr)
                 {
-                    StringStringMap::iterator found = pit->attrs.find(ait->get_attr);
+                    StringStringMap::iterator found = pit->attrs.find(ait->get_pattern);
                     if (found != pit->attrs.end())
                     {
                         attr.SetValue(found->second, false);

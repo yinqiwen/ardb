@@ -34,7 +34,7 @@
 #include "leveldb/comparator.h"
 #include "leveldb/cache.h"
 #include "leveldb/filter_policy.h"
-#include "ardb.hpp"
+#include "db.hpp"
 #include "util/config_helper.hpp"
 #include "util/thread/thread_local.hpp"
 #include <stack>

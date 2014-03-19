@@ -33,6 +33,7 @@
 #include <list>
 #include <utility>
 #include <map>
+#include <limits.h>
 namespace ardb
 {
     template<typename K, typename V>

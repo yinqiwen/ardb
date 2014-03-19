@@ -271,6 +271,137 @@ namespace ardb
         lua_pop(lua, 1);
         return 0;
     }
+
+    int ArdbServer::Eval(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        uint32 numkey = 0;
+        if (!string_touint32(cmd.GetArguments()[1], numkey))
+        {
+            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            return 0;
+        }
+        if (cmd.GetArguments().size() < numkey + 2)
+        {
+            fill_error_reply(ctx.reply, "ERR Wrong number of arguments for Eval");
+            return 0;
+        }
+        SliceArray keys, args;
+        for (uint32 i = 2; i < numkey + 2; i++)
+        {
+            keys.push_back(cmd.GetArguments()[i]);
+        }
+        for (uint32 i = numkey + 2; i < cmd.GetArguments().size(); i++)
+        {
+            args.push_back(cmd.GetArguments()[i]);
+        }
+        LUAInterpreter& lua = m_ctx_lua.GetValue(LUAInterpreterCreator, this);
+        lua.Eval(cmd.GetArguments()[0], keys, args, false, ctx.reply);
+        return 0;
+    }
+
+    int ArdbServer::EvalSHA(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        uint32 numkey = 0;
+        if (!string_touint32(cmd.GetArguments()[1], numkey))
+        {
+            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            return 0;
+        }
+        if (cmd.GetArguments().size() < numkey + 2)
+        {
+            fill_error_reply(ctx.reply, "ERR Wrong number of arguments for Eval");
+            return 0;
+        }
+        SliceArray keys, args;
+        for (uint32 i = 2; i < numkey + 2; i++)
+        {
+            keys.push_back(cmd.GetArguments()[i]);
+        }
+        for (uint32 i = numkey + 2; i < cmd.GetArguments().size(); i++)
+        {
+            args.push_back(cmd.GetArguments()[i]);
+        }
+        LUAInterpreter& lua = m_ctx_lua.GetValue(LUAInterpreterCreator, this);
+        lua.Eval(cmd.GetArguments()[0], keys, args, true, ctx.reply);
+        return 0;
+    }
+
+    int ArdbServer::Script(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        const std::string& subcommand = cmd.GetArguments()[0];
+        if (!strcasecmp(subcommand.c_str(), "EXISTS"))
+        {
+            std::vector<int64> intarray;
+            for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+            {
+                bool exists = m_ctx_lua.GetValue(LUAInterpreterCreator, this).Exists(cmd.GetArguments()[i]);
+                intarray.push_back(exists ? 1 : 0);
+            }
+            fill_int_array_reply(ctx.reply, intarray);
+            return 0;
+        }
+        else if (!strcasecmp(subcommand.c_str(), "FLUSH"))
+        {
+            if (cmd.GetArguments().size() != 1)
+            {
+                fill_error_reply(ctx.reply, "ERR wrong number of arguments for SCRIPT FLUSH");
+            }
+            else
+            {
+                m_ctx_lua.GetValue(LUAInterpreterCreator, this).Flush();
+                fill_status_reply(ctx.reply, "OK");
+            }
+        }
+        /*
+         * NOTE: 'SCRIPT KILL' may need func's sha1 as argument because ardb may run in multithreading mode,
+         *       while more than ONE scripts may be running at the same time.
+         *       Redis do NOT need the argument.
+         */
+        else if (!strcasecmp(subcommand.c_str(), "KILL"))
+        {
+            if (cmd.GetArguments().size() > 2)
+            {
+                fill_error_reply(ctx.reply, "ERR wrong number of arguments for SCRIPT KILL");
+            }
+            else
+            {
+                if (cmd.GetArguments().size() == 2)
+                {
+                    m_ctx_lua.GetValue(LUAInterpreterCreator, this).Kill(cmd.GetArguments()[1]);
+                }
+                else
+                {
+                    m_ctx_lua.GetValue(LUAInterpreterCreator, this).Kill("all");
+                }
+                fill_status_reply(ctx.reply, "OK");
+            }
+        }
+        else if (!strcasecmp(subcommand.c_str(), "LOAD"))
+        {
+            if (cmd.GetArguments().size() != 2)
+            {
+                fill_error_reply(ctx.reply, "ERR wrong number of arguments for SCRIPT LOAD");
+            }
+            else
+            {
+                std::string result;
+                if (m_ctx_lua.GetValue(LUAInterpreterCreator, this).Load(cmd.GetArguments()[1], result))
+                {
+                    fill_str_reply(ctx.reply, result);
+                }
+                else
+                {
+                    fill_error_reply(ctx.reply, result.c_str());
+                }
+            }
+        }
+        else
+        {
+            fill_error_reply(ctx.reply, " Syntax error, try SCRIPT (EXISTS | FLUSH | KILL | LOAD)");
+        }
+        return 0;
+    }
+
     ArdbServer* LUAInterpreter::m_server = NULL;
     std::string LUAInterpreter::m_killing_func;
     LUAInterpreter::LUAInterpreter(ArdbServer* server) :

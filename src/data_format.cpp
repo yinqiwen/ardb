@@ -940,7 +940,26 @@ namespace ardb
 
     int GeoAddOptions::Parse(const StringArray& args, std::string& err, uint32 off)
     {
+        if (!strcasecmp(args[off].c_str(), "wgs84"))
+        {
+            coord_type = GEO_WGS84_TYPE;
+        }
+        else if (!strcasecmp(args[off].c_str(), "mercator"))
+        {
+            coord_type = GEO_MERCATOR_TYPE;
+        }
+        else
+        {
+            WARN_LOG("Invalid coord-type:%s.", args[off].c_str());
+            return -1;
+        }
+        off++;
         if (!string_todouble(args[off], x) || !string_todouble(args[off + 1], y))
+        {
+            err = "Invalid coodinates " + args[off] + "/" + args[off + 1];
+            return -1;
+        }
+        if (!GeoHashHelper::VerifyCoordinates(coord_type, x, y))
         {
             err = "Invalid coodinates " + args[off] + "/" + args[off + 1];
             return -1;
@@ -991,16 +1010,30 @@ namespace ardb
                 }
                 i++;
             }
-            else if ((!strcasecmp(args[i].c_str(), "LOCATION")) && i < args.size() - 2)
+            else if ((!strcasecmp(args[i].c_str(), "mercator") || !strcasecmp(args[i].c_str(), "wgs84"))
+                    && i < args.size() - 2)
             {
                 if (!string_todouble(args[i + 1], x) || !string_todouble(args[i + 2], y))
                 {
                     err = "Invalid location value.";
                     return -1;
                 }
+                if (!strcasecmp(args[i].c_str(), "wgs84"))
+                {
+                    coord_type = GEO_WGS84_TYPE;
+                }
+                else if (!strcasecmp(args[i].c_str(), "mercator"))
+                {
+                    coord_type = GEO_MERCATOR_TYPE;
+                }
+                if (!GeoHashHelper::VerifyCoordinates(coord_type, x, y))
+                {
+                    err = "Invalid location value.";
+                    return -1;
+                }
                 i += 2;
             }
-            else if (!strcasecmp(args[i].c_str(), "MEMBER") && i < args.size() - 1)
+            else if (!strcasecmp(args[i].c_str(), "member") && i < args.size() - 1)
             {
                 member = args[i + 1];
                 by_member = true;
@@ -1012,8 +1045,8 @@ namespace ardb
                 get.get_pattern = args[i + 1];
                 if (get.get_pattern.size() > 2 && !strncasecmp(get.get_pattern.data(), "#.", 2))
                 {
-                    get.get_pattern.clear();
-                    get.get_attr = args[i + 1].substr(2);
+                    get.get_attr = true;
+                    get.get_pattern = args[i + 1].substr(2);
                 }
                 get_patterns.push_back(get);
                 i++;

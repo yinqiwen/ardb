@@ -70,6 +70,31 @@ namespace ardb
         return R_MAJOR * deg_rad(lon);
     }
 
+    static inline double rad_deg(double ang)
+    {
+        return ang * R_D;
+    }
+
+    static inline double merc_lon(double x)
+    {
+        return rad_deg(x) / R_MAJOR;
+    }
+
+    static inline double merc_lat(double y)
+    {
+        double ts = exp(-y / R_MAJOR);
+        double phi = M_PI_2 - 2 * atan(ts);
+        double dphi = 1.0;
+        int i;
+        for (i = 0; fabs(dphi) > 0.000000001 && i < 15; i++)
+        {
+            double con = ECCENT * sin(phi);
+            dphi = M_PI_2 - 2 * atan(ts * pow((1.0 - con) / (1.0 + con), COM)) - phi;
+            phi += dphi;
+        }
+        return rad_deg(phi);
+    }
+
     static uint8_t estimate_geohash_steps_by_radius(double range_meters)
     {
         uint8_t step = 1;
@@ -81,6 +106,15 @@ namespace ardb
         }
         step--;
         return step;
+    }
+
+    double GeoHashHelper::GetWGS84X(double x)
+    {
+        return merc_lon(x);
+    }
+    double GeoHashHelper::GetWGS84Y(double y)
+    {
+        return merc_lat(y);
     }
 
     double GeoHashHelper::GetMercatorX(double longtitude)
@@ -106,8 +140,8 @@ namespace ardb
         {
             case GEO_WGS84_TYPE:
             {
-                lat_range.max = 90.0;
-                lat_range.min = -90.0;
+                lat_range.max = 85.05113;   //
+                lat_range.min = -85.05113;  //
                 lon_range.max = 180.0;
                 lon_range.min = -180.0;
                 break;
@@ -232,6 +266,17 @@ namespace ardb
             distance = dd;
         }
 
+        return true;
+    }
+
+    bool GeoHashHelper::VerifyCoordinates(uint8 coord_type, double x, double y)
+    {
+        GeoHashRange lat_range, lon_range;
+        GeoHashHelper::GetCoordRange(coord_type, lat_range, lon_range);
+        if (x < lon_range.min || x > lon_range.max || y < lat_range.min || y > lat_range.max)
+        {
+            return false;
+        }
         return true;
     }
 }
