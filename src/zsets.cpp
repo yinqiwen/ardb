@@ -151,37 +151,32 @@ namespace ardb
 
     static bool process_query_options(const ArgumentArray& cmd, uint32 idx, ZSetQueryOptions& options)
     {
-        if (cmd.size() > idx)
+        for (uint32 i = idx; i < cmd.size(); i++)
         {
-            std::string optionstr = string_tolower(cmd[3]);
-            if (optionstr != "withscores" && optionstr != "limit")
-            {
-                return false;
-            }
-            if (optionstr == "withscores")
+            if (!strcasecmp(cmd[i].c_str(), "withscores"))
             {
                 options.withscores = true;
-                return process_query_options(cmd, idx + 1, options);
             }
-            else
+            else if (!strcasecmp(cmd[i].c_str(), "limit"))
             {
-                if (cmd.size() != idx + 3)
+                if (i + 2 >= cmd.size())
                 {
                     return false;
                 }
-                if (!string_toint32(cmd[idx + 1], options.limit_offset)
-                        || !string_toint32(cmd[idx + 2], options.limit_count))
+                if (!string_toint32(cmd[i + 1], options.limit_offset)
+                        || !string_toint32(cmd[i + 2], options.limit_count))
                 {
                     return false;
                 }
                 options.withlimit = true;
-                return true;
+                i += 2;
+            }
+            else
+            {
+                return false;
             }
         }
-        else
-        {
-            return false;
-        }
+        return true;
     }
 
     int ArdbServer::ZRangeByScore(ArdbConnContext& ctx, RedisCommandFrame& cmd)
@@ -1761,12 +1756,12 @@ namespace ardb
             {
                 eeit = meta->zipvs.begin() + stop;
             }
-            while (esit <= eeit)
+            while (esit <= eeit && esit != meta->zipvs.end())
             {
                 values.push_back(esit->value);
                 if (options.withscores)
                 {
-                    values.push_back(eeit->score);
+                    values.push_back(esit->score);
                 }
                 esit++;
             }
@@ -2009,12 +2004,12 @@ namespace ardb
             {
                 eeit = meta->zipvs.rbegin() + stop;
             }
-            while (esit <= eeit)
+            while (esit <= eeit && esit != meta->zipvs.rend())
             {
                 values.push_back(esit->value);
                 if (options.withscores)
                 {
-                    values.push_back(eeit->score);
+                    values.push_back(esit->score);
                 }
                 esit++;
             }
