@@ -133,8 +133,10 @@ namespace ardb
 #endif
                     );
             info.append("gcc_version:").append(tmp).append("\r\n");
-            info.append("server_key:").append(m_master_serv.GetReplBacklog().GetServerKey()).append("\r\n");
-
+            if (NULL != m_master_serv.GetReplBacklog().GetServerKey())
+            {
+                info.append("server_key:").append(m_master_serv.GetReplBacklog().GetServerKey()).append("\r\n");
+            }
             sprintf(tmp, "%"PRId64, m_cfg.listen_port);
             info.append("tcp_port:").append(tmp).append("\r\n");
         }
@@ -178,24 +180,34 @@ namespace ardb
                 info.append("role: singleton\r\n");
             }
 
-            if (!m_cfg.master_host.empty())
+            if (m_repl_backlog.IsInited())
             {
-                info.append("master_host:").append(m_cfg.master_host).append("\r\n");
-                info.append("master_port:").append(stringfromll(m_cfg.master_port)).append("\r\n");
-                info.append("master_link_status:").append(m_slave_client.IsConnected() ? "up" : "down").append("\r\n");
-                info.append("slave_repl_offset:").append(stringfromll(m_repl_backlog.GetReplEndOffset())).append(
+                if (!m_cfg.master_host.empty())
+                {
+                    info.append("master_host:").append(m_cfg.master_host).append("\r\n");
+                    info.append("master_port:").append(stringfromll(m_cfg.master_port)).append("\r\n");
+                    info.append("master_link_status:").append(m_slave_client.IsConnected() ? "up" : "down").append(
+                            "\r\n");
+                    info.append("slave_repl_offset:").append(stringfromll(m_repl_backlog.GetReplEndOffset())).append(
+                            "\r\n");
+                }
+
+                info.append("connected_slaves: ").append(stringfromll(m_master_serv.ConnectedSlaves())).append("\r\n");
+                m_master_serv.PrintSlaves(info);
+                info.append("master_repl_offset: ").append(stringfromll(m_repl_backlog.GetReplEndOffset())).append(
+                        "\r\n");
+                info.append("repl_backlog_size: ").append(stringfromll(m_repl_backlog.GetBacklogSize())).append("\r\n");
+                info.append("repl_backlog_first_byte_offset: ").append(
+                        stringfromll(m_repl_backlog.GetReplStartOffset())).append("\r\n");
+                info.append("repl_backlog_histlen: ").append(stringfromll(m_repl_backlog.GetHistLen())).append("\r\n");
+                info.append("repl_backlog_cksm: ").append(base16_stringfromllu(m_repl_backlog.GetChecksum())).append(
                         "\r\n");
             }
+            else
+            {
+                info.append("repl_backlog_size: 0").append("\r\n");
+            }
 
-            info.append("connected_slaves: ").append(stringfromll(m_master_serv.ConnectedSlaves())).append("\r\n");
-            m_master_serv.PrintSlaves(info);
-            info.append("master_repl_offset: ").append(stringfromll(m_repl_backlog.GetReplEndOffset())).append("\r\n");
-            info.append("repl_backlog_size: ").append(stringfromll(m_repl_backlog.GetBacklogSize())).append("\r\n");
-            info.append("repl_backlog_first_byte_offset: ").append(stringfromll(m_repl_backlog.GetReplStartOffset())).append(
-                    "\r\n");
-            info.append("repl_backlog_histlen: ").append(stringfromll(m_repl_backlog.GetHistLen())).append("\r\n");
-            info.append("repl_backlog_cksm: ").append(base16_stringfromllu(m_repl_backlog.GetChecksum())).append(
-                    "\r\n");
         }
 
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "stats"))
