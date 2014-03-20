@@ -42,7 +42,7 @@ namespace ardb
 {
     Slave::Slave(ArdbServer* serv) :
             m_serv(serv), m_client(NULL), m_slave_state(
-            SLAVE_STATE_CLOSED), m_cron_inited(false), m_ping_recved_time(0), m_server_type(
+            SLAVE_STATE_CLOSED), m_cron_inited(false), m_ping_recved_time(0), m_master_link_down_time(0), m_server_type(
             ARDB_DB_SERVER_TYPE), m_server_support_psync(false), m_actx(
             NULL), m_rdb(NULL), m_backlog(serv->m_repl_backlog), m_routine_ts(0)
     {
@@ -87,6 +87,7 @@ namespace ardb
         ctx.GetChannel()->Write(info);
         m_slave_state = SLAVE_STATE_WAITING_INFO_REPLY;
         m_ping_recved_time = time(NULL);
+        m_master_link_down_time = 0;
     }
 
     void Slave::HandleRedisCommand(Channel* ch, RedisCommandFrame& cmd)
@@ -391,6 +392,7 @@ namespace ardb
 
     void Slave::ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e)
     {
+        m_master_link_down_time = time(NULL);
         m_client = NULL;
         m_slave_state = 0;
         DELETE(m_actx);
@@ -495,6 +497,10 @@ namespace ardb
     void Slave::SetExcludeDBs(const DBIDArray& dbs)
     {
         convert_vector_to_set(dbs, m_exclude_dbs);
+    }
+    uint32 Slave::GetMasterLinkDownTime()
+    {
+        return m_master_link_down_time;
     }
 }
 
