@@ -90,7 +90,7 @@ namespace ardb
             ZSetCacheElementSet::iterator found = m_cache.find(e);
             if (found != m_cache.end())
             {
-                score.SetDoubleValue(e.score);
+                score.SetDoubleValue(found->score);
                 Buffer attr_buf(const_cast<char*>(found->attr.data()), 0, found->attr.size());
                 attr.Decode(attr_buf);
                 return 0;

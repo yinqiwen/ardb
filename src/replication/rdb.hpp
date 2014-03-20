@@ -66,7 +66,7 @@ namespace ardb
             bool ReadInteger(int enctype, int64& v);
             bool ReadLzfStringObject(std::string& str);
             bool ReadString(std::string& str);
-            bool ReadDoubleValue(double&val);
+            int ReadDoubleValue(double&val);
             bool LoadObject(int type, const std::string& key);
 
             void LoadListZipList(unsigned char* data, const std::string& key);

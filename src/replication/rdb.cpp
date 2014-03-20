@@ -264,7 +264,7 @@ namespace ardb
     }
 
     /* For information about double serialization check rdbSaveDoubleValue() */
-    bool RedisDumpFile::ReadDoubleValue(double&val)
+    int RedisDumpFile::ReadDoubleValue(double&val)
     {
         static double R_Zero = 0.0;
         static double R_PosInf = 1.0 / R_Zero;
@@ -534,7 +534,7 @@ namespace ardb
                 {
                     std::string str;
                     double score;
-                    if (ReadString(str) && ReadDoubleValue(score))
+                    if (ReadString(str) && 0 == ReadDoubleValue(score))
                     {
                         //save value score
                         m_db->ZAdd(m_current_db, key, score, str);
