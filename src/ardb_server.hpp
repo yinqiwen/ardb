@@ -62,6 +62,8 @@
 #define ARDB_PROCESS_FORCE_REPLICATION 4
 #define ARDB_PROCESS_FEED_REPLICATION_ONLY 8
 
+#define ARDB_AUTHPASS_MAX_LEN 512
+
 #define SCRIPT_KILL_EVENT 1
 #define SCRIPT_FLUSH_EVENT 2
 
@@ -112,6 +114,10 @@ namespace ardb
             std::string zookeeper_servers;
 
             std::string additional_misc_info;
+
+            std::string requirepass;
+
+            StringStringMap rename_commands;
 
             ArdbConfig db_cfg;
             ArdbServerConfig() :
@@ -288,10 +294,12 @@ namespace ardb
             LUAConnContext* lua;
             BlockListContext* block;
 
+            bool authenticated;
+
             ArdbConnContext() :
                     currentDB(0), conn(NULL), is_slave_conn(false), transc(NULL), pubsub(
                     NULL), lua(
-                    NULL), block(NULL)
+                    NULL), block(NULL), authenticated(true)
             {
             }
             LUAConnContext& GetLua()
@@ -646,10 +654,12 @@ namespace ardb
             int GeoAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int GeoSearch(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int Cache(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            int Auth(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
             Timer& GetTimer();
 
             static void ServerEventCallback(ChannelService* serv, uint32 ev, void* data);
+            void RenameCommand();
         public:
             static int ParseConfig(const Properties& props, ArdbServerConfig& cfg);
             ArdbServer(KeyValueEngineFactory& engine);

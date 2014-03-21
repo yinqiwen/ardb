@@ -40,6 +40,7 @@ using ardb::codec::RedisReply;
 namespace ardb
 {
     void fill_error_reply(RedisReply& reply, const char* fmt, ...);
+    void fill_fix_error_reply(RedisReply& reply, const std::string& err);
 
     void fill_status_reply(RedisReply& reply, const char* s);
 

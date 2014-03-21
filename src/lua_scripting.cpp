@@ -277,12 +277,12 @@ namespace ardb
         uint32 numkey = 0;
         if (!string_touint32(cmd.GetArguments()[1], numkey))
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
         if (cmd.GetArguments().size() < numkey + 2)
         {
-            fill_error_reply(ctx.reply, "ERR Wrong number of arguments for Eval");
+            fill_error_reply(ctx.reply, "Wrong number of arguments for Eval");
             return 0;
         }
         SliceArray keys, args;
@@ -304,12 +304,12 @@ namespace ardb
         uint32 numkey = 0;
         if (!string_touint32(cmd.GetArguments()[1], numkey))
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
         if (cmd.GetArguments().size() < numkey + 2)
         {
-            fill_error_reply(ctx.reply, "ERR Wrong number of arguments for Eval");
+            fill_error_reply(ctx.reply, "Wrong number of arguments for Eval");
             return 0;
         }
         SliceArray keys, args;
@@ -344,7 +344,7 @@ namespace ardb
         {
             if (cmd.GetArguments().size() != 1)
             {
-                fill_error_reply(ctx.reply, "ERR wrong number of arguments for SCRIPT FLUSH");
+                fill_error_reply(ctx.reply, "wrong number of arguments for SCRIPT FLUSH");
             }
             else
             {
@@ -361,7 +361,7 @@ namespace ardb
         {
             if (cmd.GetArguments().size() > 2)
             {
-                fill_error_reply(ctx.reply, "ERR wrong number of arguments for SCRIPT KILL");
+                fill_error_reply(ctx.reply, "wrong number of arguments for SCRIPT KILL");
             }
             else
             {
@@ -380,7 +380,7 @@ namespace ardb
         {
             if (cmd.GetArguments().size() != 2)
             {
-                fill_error_reply(ctx.reply, "ERR wrong number of arguments for SCRIPT LOAD");
+                fill_error_reply(ctx.reply, "wrong number of arguments for SCRIPT LOAD");
             }
             else
             {
@@ -397,7 +397,7 @@ namespace ardb
         }
         else
         {
-            fill_error_reply(ctx.reply, " Syntax error, try SCRIPT (EXISTS | FLUSH | KILL | LOAD)");
+            fill_error_reply(ctx.reply, "Syntax error, try SCRIPT (EXISTS | FLUSH | KILL | LOAD)");
         }
         return 0;
     }

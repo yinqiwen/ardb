@@ -70,7 +70,6 @@ LevelDB Options: block_cache_size=512m, write_buffer_size=512m, thread_pool_size
   - MIGRATE
   - OBJECT
   - RESTORE
-  - AUTH
   - CONFIG RESETSTAT
   - DEBUG
   - MONITOR

@@ -37,6 +37,18 @@
 namespace ardb
 {
     static const uint32 kConfigLineMax = 1024;
+    void conf_set(Properties& conf, const std::string& name, const std::string& value, bool replace)
+    {
+        ConfItemsArray& arrays = conf[name];
+        if(replace)
+        {
+            arrays.clear();
+        }
+        ConfItems ar;
+        ar.push_back(value);
+        arrays.push_back(ar);
+    }
+
     bool parse_conf_file(const std::string& path, Properties& result, const char* sep)
     {
         char buf[kConfigLineMax + 1];
@@ -55,21 +67,20 @@ namespace ardb
                 continue;
             }
             std::vector<char*> sp_ret = split_str(line, sep);
-            if (sp_ret.size() != 2)
+            if (sp_ret.size() < 2)
             {
                 ERROR_LOG("Invalid config line at line:%u", lineno);
                 fclose(fp);
                 return false;
             }
             char* key = trim_str(sp_ret[0], "\r\n\t ");
-            char* value = trim_str(sp_ret[1], "\r\n\t ");
-            if (result.find(key) != result.end())
+            ConfItems values;
+            for (uint32_t i = 1; i < sp_ret.size(); i++)
             {
-                ERROR_LOG("Duplicate key:%s in config.", key);
-                fclose(fp);
-                return false;
+                char* value = trim_str(sp_ret[i], "\r\n\t ");
+                values.push_back(value);
             }
-            result[key] = value;
+            result[key].push_back(values);
             lineno++;
         }
         fclose(fp);
@@ -79,15 +90,15 @@ namespace ardb
     bool conf_get_int64(const Properties& conf, const std::string& name, int64& value, bool ignore_nonexist)
     {
         Properties::const_iterator found = conf.find(name);
-        if (found == conf.end())
+        if (found == conf.end() || found->second.size() == 0)
         {
             return ignore_nonexist;
         }
-        if (string_toint64(found->second, value))
+        if (string_toint64(found->second[0][0], value))
         {
             return true;
         }
-        std::string size_str = string_toupper(found->second);
+        std::string size_str = string_toupper(found->second[0][0]);
         value = atoll(size_str.c_str());
         if (size_str.find("M") == (size_str.size() - 1) || size_str.find("MB") == (size_str.size() - 2))
         {
@@ -110,23 +121,23 @@ namespace ardb
     bool conf_get_string(const Properties& conf, const std::string& name, std::string& value, bool ignore_nonexist)
     {
         Properties::const_iterator found = conf.find(name);
-        if (found == conf.end())
+        if (found == conf.end() || found->second.size() == 0)
         {
             return ignore_nonexist;
         }
-        value = found->second;
+        value = found->second[0][0];
         return true;
     }
 
     bool conf_get_bool(const Properties& conf, const std::string& name, bool& value, bool ignore_nonexist)
     {
         Properties::const_iterator found = conf.find(name);
-        if (found == conf.end())
+        if (found == conf.end() || found->second.size() == 0)
         {
             return ignore_nonexist;
         }
-        if (!strcasecmp(found->second.c_str(), "true") || !strcasecmp(found->second.c_str(), "1")
-                || !strcasecmp(found->second.c_str(), "yes"))
+        if (!strcasecmp(found->second[0][0].c_str(), "true") || !strcasecmp(found->second[0][0].c_str(), "1")
+                || !strcasecmp(found->second[0][0].c_str(), "yes"))
         {
             value = true;
         }
@@ -139,11 +150,11 @@ namespace ardb
     bool conf_get_double(const Properties& conf, const std::string& name, double& value, bool ignore_nonexist)
     {
         Properties::const_iterator found = conf.find(name);
-        if (found == conf.end())
+        if (found == conf.end() || found->second.size() == 0)
         {
             return ignore_nonexist;
         }
-        return string_todouble(found->second, value);
+        return string_todouble(found->second[0][0], value);
     }
 
     bool parse_ini_conf_file(const std::string& path, INIProperties& result, const char* sep)
@@ -171,22 +182,21 @@ namespace ardb
                 continue;
             }
             std::vector<char*> sp_ret = split_str(line, sep);
-            if (sp_ret.size() != 2)
+            Properties& current_prop = result[current_tag];
+            if (sp_ret.size() < 2)
             {
                 ERROR_LOG("Invalid config line at line:%u", lineno);
                 fclose(fp);
                 return false;
             }
             char* key = trim_str(sp_ret[0], "\r\n\t ");
-            char* value = trim_str(sp_ret[1], "\r\n\t ");
-            Properties& current_prop = result[current_tag];
-            if (current_prop.find(key) != current_prop.end())
+            ConfItems values;
+            for (uint32_t i = 1; i < sp_ret.size(); i++)
             {
-                ERROR_LOG("Duplicate key:%s in config.", key);
-                fclose(fp);
-                return false;
+                char* value = trim_str(sp_ret[i], "\r\n\t ");
+                values.push_back(value);
             }
-            current_prop[key] = value;
+            current_prop[key].push_back(values);
             lineno++;
         }
         fclose(fp);
@@ -198,26 +208,37 @@ namespace ardb
         Properties::iterator it = props.begin();
         while (it != props.end())
         {
-            std::string& prop_value = it->second;
-            while (true)
+            ConfItemsArray& prop_values = it->second;
+            ConfItemsArray::iterator sit = prop_values.begin();
+            while (sit != prop_values.end())
             {
-                size_t pos = prop_value.find("${");
-                if (pos != std::string::npos)
+                ConfItems::iterator ssit = sit->begin();
+                while (ssit != sit->end())
                 {
-                    size_t next_pos = prop_value.find('}', pos + 1);
-                    if (next_pos != std::string::npos)
+                    std::string& prop_value = *ssit;
+                    while (true)
                     {
-                        std::string env_key = prop_value.substr(pos + 2, next_pos - pos - 2);
-                        char* env_value = getenv(env_key.c_str());
-                        if (NULL != env_value)
+                        size_t pos = prop_value.find("${");
+                        if (pos != std::string::npos)
                         {
-                            prop_value.replace(pos, next_pos - pos + 1, env_value);
-                            // this prop value may contain multiple env var
-                            continue;
+                            size_t next_pos = prop_value.find('}', pos + 1);
+                            if (next_pos != std::string::npos)
+                            {
+                                std::string env_key = prop_value.substr(pos + 2, next_pos - pos - 2);
+                                char* env_value = getenv(env_key.c_str());
+                                if (NULL != env_value)
+                                {
+                                    prop_value.replace(pos, next_pos - pos + 1, env_value);
+                                    // this prop value may contain multiple env var
+                                    continue;
+                                }
+                            }
                         }
+                        break;
                     }
+                    ssit++;
                 }
-                break;
+                sit++;
             }
             it++;
         }

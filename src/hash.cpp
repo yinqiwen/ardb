@@ -37,7 +37,7 @@ namespace ardb
     {
         if ((cmd.GetArguments().size() - 1) % 2 != 0)
         {
-            fill_error_reply(ctx.reply, "ERR wrong number of arguments for HMSet");
+            fill_error_reply(ctx.reply, "wrong number of arguments for HMSet");
             return 0;
         }
         SliceArray fs;
@@ -82,7 +82,7 @@ namespace ardb
                 {
                     if (i + 1 >= cmd.GetArguments().size() || !string_touint32(cmd.GetArguments()[i + 1], limit))
                     {
-                        fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+                        fill_error_reply(ctx.reply, "value is not an integer or out of range");
                         return 0;
                     }
                     i++;
@@ -91,7 +91,7 @@ namespace ardb
                 {
                     if (i + 1 >= cmd.GetArguments().size())
                     {
-                        fill_error_reply(ctx.reply, "ERR 'MATCH' need one args followed");
+                        fill_error_reply(ctx.reply, "'MATCH' need one args followed");
                         return 0;
                     }
                     pattern = cmd.GetArguments()[i + 1];
@@ -99,7 +99,7 @@ namespace ardb
                 }
                 else
                 {
-                    fill_error_reply(ctx.reply, " Syntax error, try scan 0 ");
+                    fill_error_reply(ctx.reply, "Syntax error, try scan 0 ");
                     return 0;
                 }
             }
@@ -148,7 +148,7 @@ namespace ardb
         double increment, val = 0;
         if (!string_todouble(cmd.GetArguments()[2], increment))
         {
-            fill_error_reply(ctx.reply, "ERR value is not a float or out of range");
+            fill_error_reply(ctx.reply, "value is not a float or out of range");
             return 0;
         }
         m_db->HIncrbyFloat(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], increment, val);
@@ -160,7 +160,7 @@ namespace ardb
     {
         if ((cmd.GetArguments().size() - 1) % 2 != 0)
         {
-            fill_error_reply(ctx.reply, "ERR wrong number of arguments for HMIncrby");
+            fill_error_reply(ctx.reply, "wrong number of arguments for HMIncrby");
             return 0;
         }
         SliceArray fs;
@@ -171,7 +171,7 @@ namespace ardb
             int64 v = 0;
             if (!string_toint64(cmd.GetArguments()[i + 1], v))
             {
-                fill_error_reply(ctx.reply, "ERR value is not a integer or out of range");
+                fill_error_reply(ctx.reply, "value is not a integer or out of range");
                 return 0;
             }
             incs.push_back(v);
@@ -187,7 +187,7 @@ namespace ardb
         int64 increment, val = 0;
         if (!string_toint64(cmd.GetArguments()[2], increment))
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
         m_db->HIncrby(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], increment, val);

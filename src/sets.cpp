@@ -71,7 +71,7 @@ namespace ardb
 
         if (keystrs.size() != keys.size())
         {
-            fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
+            fill_error_reply(ctx.reply, "duplication keys in arguments");
             return 0;
         }
         ValueDataArray vs;
@@ -92,7 +92,7 @@ namespace ardb
 
         if (keystrs.size() != keys.size() || keystrs.count(cmd.GetArguments()[0]) > 0)
         {
-            fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
+            fill_error_reply(ctx.reply, "duplication keys in arguments");
             return 0;
         }
         int ret = m_db->SDiffStore(ctx.currentDB, cmd.GetArguments()[0], keys);
@@ -112,7 +112,7 @@ namespace ardb
 
         if (keystrs.size() != keys.size())
         {
-            fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
+            fill_error_reply(ctx.reply, "duplication keys in arguments");
             return 0;
         }
         ValueDataArray vs;
@@ -133,7 +133,7 @@ namespace ardb
 
         if (keystrs.size() != keys.size() || keystrs.count(cmd.GetArguments()[0]) > 0)
         {
-            fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
+            fill_error_reply(ctx.reply, "duplication keys in arguments");
             return 0;
         }
         int ret = m_db->SInterStore(ctx.currentDB, cmd.GetArguments()[0], keys);
@@ -154,7 +154,7 @@ namespace ardb
         int ret = m_db->SMembers(ctx.currentDB, cmd.GetArguments()[0], vs);
         if (ret == ERR_TOO_LARGE_RESPONSE)
         {
-            fill_error_reply(ctx.reply, "ERR too many elements in set, use SRANGE/SREVRANGE to fetch.");
+            fill_error_reply(ctx.reply, "too many elements in set, use SRANGE/SREVRANGE to fetch.");
         }
         else
         {
@@ -186,7 +186,7 @@ namespace ardb
         {
             if (!string_toint32(cmd.GetArguments()[1], count))
             {
-                fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+                fill_error_reply(ctx.reply, "value is not an integer or out of range");
                 return 0;
             }
         }
@@ -207,7 +207,7 @@ namespace ardb
 
         if (keystrs.size() != keys.size())
         {
-            fill_error_reply(ctx.reply, "ERR duplication values in arguments");
+            fill_error_reply(ctx.reply, "duplication values in arguments");
             return 0;
         }
         ValueSet vs;
@@ -232,7 +232,7 @@ namespace ardb
 
         if (keystrs.size() != keys.size())
         {
-            fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
+            fill_error_reply(ctx.reply, "duplication keys in arguments");
             return 0;
         }
         ValueDataArray vs;
@@ -253,7 +253,7 @@ namespace ardb
 
         if (keystrs.size() != keys.size() || keystrs.count(cmd.GetArguments()[0]) > 0)
         {
-            fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
+            fill_error_reply(ctx.reply, "duplication keys in arguments");
             return 0;
         }
         int ret = m_db->SUnionStore(ctx.currentDB, cmd.GetArguments()[0], keys);
@@ -273,7 +273,7 @@ namespace ardb
 
         if (keystrs.size() != keys.size())
         {
-            fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
+            fill_error_reply(ctx.reply, "duplication keys in arguments");
             return 0;
         }
         uint32 count = 0;
@@ -293,7 +293,7 @@ namespace ardb
 
         if (keystrs.size() != keys.size())
         {
-            fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
+            fill_error_reply(ctx.reply, "duplication keys in arguments");
             return 0;
         }
         uint32 count = 0;
@@ -313,7 +313,7 @@ namespace ardb
 
         if (keystrs.size() != keys.size())
         {
-            fill_error_reply(ctx.reply, "ERR duplication keys in arguments");
+            fill_error_reply(ctx.reply, "duplication keys in arguments");
             return 0;
         }
         uint32 count = 0;
@@ -334,7 +334,7 @@ namespace ardb
                 {
                     if (i + 1 >= cmd.GetArguments().size() || !string_touint32(cmd.GetArguments()[i + 1], limit))
                     {
-                        fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+                        fill_error_reply(ctx.reply, "value is not an integer or out of range");
                         return 0;
                     }
                     i++;
@@ -343,7 +343,7 @@ namespace ardb
                 {
                     if (i + 1 >= cmd.GetArguments().size())
                     {
-                        fill_error_reply(ctx.reply, "ERR 'MATCH' need one args followed");
+                        fill_error_reply(ctx.reply, "'MATCH' need one args followed");
                         return 0;
                     }
                     pattern = cmd.GetArguments()[i + 1];
@@ -351,7 +351,7 @@ namespace ardb
                 }
                 else
                 {
-                    fill_error_reply(ctx.reply, " Syntax error, try scan 0 ");
+                    fill_error_reply(ctx.reply, "Syntax error, try scan 0 ");
                     return 0;
                 }
             }

@@ -32,11 +32,13 @@
 #include "common.hpp"
 #include <string>
 #include <map>
+#include <vector>
 
 namespace ardb
 {
-
-	typedef std::map<std::string, std::string> Properties;
+    typedef std::vector<std::string>  ConfItems;
+    typedef std::vector<ConfItems> ConfItemsArray;
+	typedef std::map<std::string, ConfItemsArray> Properties;
 	typedef std::map<std::string, Properties> INIProperties;
 	bool parse_conf_file(const std::string& path, Properties& result,
 			const char* sep = "=");
@@ -44,6 +46,8 @@ namespace ardb
 	bool conf_get_string(const Properties& conf, const std::string& name, std::string& value, bool ignore_nonexist = false);
 	bool conf_get_bool(const Properties& conf, const std::string& name, bool& value, bool ignore_nonexist = false);
 	bool conf_get_double(const Properties& conf, const std::string& name, double& value, bool ignore_nonexist = false);
+
+	void conf_set(Properties& conf, const std::string& name, const std::string& value, bool replace = true);
 
 	void replace_env_var(Properties& props);
 	void replace_env_var(INIProperties& props);
