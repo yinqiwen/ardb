@@ -56,6 +56,7 @@ namespace ardb
             uint32 m_slave_state;
             bool m_cron_inited;
             uint32 m_ping_recved_time;
+            uint32 m_master_link_down_time;
             RedisMessageDecoder m_decoder;
             NullRedisReplyEncoder m_encoder;
 
@@ -105,6 +106,7 @@ namespace ardb
             void Stop();
             bool IsConnected();
             bool IsSynced();
+            uint32 GetMasterLinkDownTime();
     };
 }
 

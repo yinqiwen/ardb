@@ -115,6 +115,7 @@ namespace ardb
 
         conf_get_bool(props, "slave-read-only", cfg.slave_readonly);
         conf_get_bool(props, "slave-serve-stale-data", cfg.slave_serve_stale_data);
+        conf_get_int64(props, "slave-priority", cfg.slave_priority);
 
         std::string slaveof;
         if (conf_get_string(props, "slaveof", slaveof))

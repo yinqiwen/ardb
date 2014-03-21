@@ -93,6 +93,7 @@ namespace ardb
             bool slave_cleardb_before_fullresync;
             bool slave_readonly;
             bool slave_serve_stale_data;
+            int64 slave_priority;
 
             int64 lua_time_limit;
 
@@ -118,8 +119,8 @@ namespace ardb
                             0), slowlog_log_slower_than(10000), slowlog_max_len(128), repl_data_dir("./repl"), backup_dir(
                             "./backup"), repl_ping_slave_period(10), repl_timeout(60), repl_backlog_size(
                             100 * 1024 * 1024), repl_state_persist_period(1), slave_cleardb_before_fullresync(true), slave_readonly(
-                            true), slave_serve_stale_data(true), lua_time_limit(0), master_port(0), worker_count(1), loglevel(
-                            "INFO")
+                            true), slave_serve_stale_data(true), slave_priority(100), lua_time_limit(0), master_port(0), worker_count(
+                            1), loglevel("INFO")
             {
             }
     };
