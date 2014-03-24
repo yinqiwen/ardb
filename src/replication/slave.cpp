@@ -74,7 +74,9 @@ namespace ardb
         char tmp[dump_file_path.size() + 100];
         uint32 now = time(NULL);
         sprintf(tmp, "%s/temp-%u-%u.rdb", dump_file_path.c_str(), getpid(), now);
-        NEW(m_rdb, RedisDumpFile(m_serv->m_db, tmp));
+        NEW(m_rdb, RedisDumpFile);
+        m_rdb->Init(m_serv->m_db);
+        m_rdb->OpenWriteFile(tmp);
         INFO_LOG("[Slave]Create redis dump file:%s", tmp);
         return m_rdb;
     }
@@ -360,7 +362,7 @@ namespace ardb
             {
                 m_client->DetachFD();
             }
-            m_rdb->Load(Slave::LoadRDBRoutine, this);
+            m_rdb->Load(m_rdb->GetPath(), Slave::LoadRDBRoutine, this);
             if (NULL != m_client)
             {
                 m_client->AttachFD();

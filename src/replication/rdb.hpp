@@ -27,13 +27,6 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/*
- * rdb.hpp
- *
- *  Created on: 2013-08-29
- *  Author: yinqiwen
- */
-
 #ifndef RDB_HPP_
 #define RDB_HPP_
 #include <string>
@@ -45,9 +38,9 @@ namespace ardb
 {
     typedef void DumpRoutine(void* cb);
 
-    class RedisDumpFile
+    class DataDumpFile
     {
-        private:
+        protected:
             FILE* m_read_fp;
             FILE* m_write_fp;
             std::string m_file_path;
@@ -56,8 +49,40 @@ namespace ardb
             uint64 m_cksm;
             DumpRoutine* m_routine_cb;
             void *m_routine_cbdata;
+            uint64 m_processed_bytes;
+            uint64 m_file_size;
+            bool m_is_saving;
+            uint32 m_last_save;
+            uint64 m_routinetime;
+            virtual int DoLoad() = 0;
+            virtual int DoSave() = 0;
             bool Read(void* buf, size_t buflen, bool cksm = true);
+            void Close();
+        public:
+            DataDumpFile();
+            int Init(Ardb* db);
+            const std::string& GetPath()
+            {
+                return m_file_path;
+            }
+            int Write(const void* buf, size_t buflen);
+            int OpenWriteFile(const std::string& file);
+            int OpenReadFile(const std::string& file);
+            int Load(const std::string& file, DumpRoutine* cb, void *data);
+            int Save(const std::string& file, DumpRoutine* cb, void *data);
+            int BGSave(const std::string& file);
+            uint32 LastSave()
+            {
+                return m_last_save;
+            }
+            void Flush();
+            void Remove();
+            virtual ~DataDumpFile();
+    };
 
+    class RedisDumpFile: public DataDumpFile
+    {
+        private:
             void Close();
             int ReadType();
             time_t ReadTime();
@@ -85,57 +110,33 @@ namespace ardb
             int WriteLzfStringObject(const char *s, size_t len);
             int WriteTime(time_t t);
             int WriteStringObject(ValueData& o);
+            int DoLoad();
+            int DoSave();
         public:
-            RedisDumpFile(Ardb* db, const std::string& file);
+            RedisDumpFile();
             /*
              * return: -1:error 0:not redis dump 1:redis dump file
              */
             static int IsRedisDumpFile(const std::string& file);
-            int Load(DumpRoutine* cb, void *data);
-            void Flush();
-            int Write(const void* buf, size_t buflen);
-            int Dump(DumpRoutine* cb, void *data);
-            void Remove();
             ~RedisDumpFile();
     };
 
-    class ArdbDumpFile
+    class ArdbDumpFile: public DataDumpFile
     {
         private:
-            FILE* m_read_fp;
-            FILE* m_write_fp;
-            std::string m_file_path;
-            Ardb* m_db;
-            uint64 m_cksm;
-            DumpRoutine* m_routine_cb;
-            void *m_routine_cbdata;
-
             Buffer m_write_buffer;
-            bool m_is_saving;
-            uint32 m_last_save;
-            void Close();
-            int Write(const void* buf, size_t buflen);
             int WriteLen(uint32 len);
             int ReadLen(uint32& len);
             int WriteMagicHeader();
             int WriteType(uint8 type);
             int SaveRawKeyValue(const Slice& key, const Slice& value);
-            bool Read(void* buf, size_t buflen, bool cksm = true);
             int ReadType();
             int LoadBuffer(Buffer& buffer);
+            int FlushWriteBuffer();
+            int DoLoad();
+            int DoSave();
         public:
             ArdbDumpFile();
-            int Init(Ardb* db);
-            int Load(DumpRoutine* cb, void *data);
-            int Flush();
-            int OpenWriteFile(const std::string& file);
-            int OpenReadFile(const std::string& file);
-            int Save(DumpRoutine* cb, void *data);
-            int BGSave();
-            uint32 LastSave()
-            {
-                return m_last_save;
-            }
             ~ArdbDumpFile();
     };
 

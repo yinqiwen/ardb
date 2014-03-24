@@ -46,12 +46,7 @@ namespace ardb
         char tmp[1024];
         uint32 now = time(NULL);
         sprintf(tmp, "%s/dump-%u.ardb", m_cfg.backup_dir.c_str(), now);
-        if (m_rdb.OpenWriteFile(tmp) == -1)
-        {
-            fill_error_reply(ctx.reply, "Save error");
-            return 0;
-        }
-        int ret = m_rdb.Save(RDBSaveLoadRoutine, ctx.conn);
+        int ret = m_rdb.Save(tmp, RDBSaveLoadRoutine, ctx.conn);
         if (ret == 0)
         {
             fill_status_reply(ctx.reply, "OK");
@@ -75,12 +70,7 @@ namespace ardb
         char tmp[1024];
         uint32 now = time(NULL);
         sprintf(tmp, "%s/dump-%u.ardb", m_cfg.backup_dir.c_str(), now);
-        if (m_rdb.OpenWriteFile(tmp) == -1)
-        {
-            fill_error_reply(ctx.reply, "save error");
-            return 0;
-        }
-        int ret = m_rdb.BGSave();
+        int ret = m_rdb.BGSave(tmp);
         if (ret == 0)
         {
             fill_status_reply(ctx.reply, "OK");
@@ -102,17 +92,13 @@ namespace ardb
         int ret = 0;
         if (RedisDumpFile::IsRedisDumpFile(file) == 1)
         {
-            RedisDumpFile rdb(m_db, file);
-            ret = rdb.Load(RDBSaveLoadRoutine, ctx.conn);
+            RedisDumpFile rdb;
+            rdb.Init(m_db);
+            ret = rdb.Load(file, RDBSaveLoadRoutine, ctx.conn);
         }
         else
         {
-            if (m_rdb.OpenReadFile(file) == -1)
-            {
-                fill_error_reply(ctx.reply, "Import error");
-                return 0;
-            }
-            ret = m_rdb.Load(RDBSaveLoadRoutine, ctx.conn);
+            ret = m_rdb.Load(file, RDBSaveLoadRoutine, ctx.conn);
         }
         if (ret == 0)
         {
@@ -244,7 +230,7 @@ namespace ardb
             info.append("# Memory\r\n");
             if (NULL != m_db->GetL1Cache())
             {
-                info.append("L1_cache_enable:1\r\n");
+                info.append("L1_cache_enable:yes\r\n");
                 info.append("L1_cache_max_memory:").append(stringfromll(m_db->GetConfig().L1_cache_memory_limit)).append(
                         "\r\n");
                 info.append("L1_cache_entries:").append(stringfromll(m_db->GetL1Cache()->GetEntrySize())).append(
@@ -254,7 +240,7 @@ namespace ardb
             }
             else
             {
-                info.append("L1_cache_enable:0\r\n");
+                info.append("L1_cache_enable:no\r\n");
             }
         }
 
