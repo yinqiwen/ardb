@@ -50,11 +50,30 @@ namespace ardb
     {
         if (!string_touint32(cmd.GetArguments()[0], ctx.currentDB) || ctx.currentDB > 0xFFFFFF)
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
         m_clients_holder.ChangeCurrentDB(ctx.conn, ctx.currentDB);
         fill_status_reply(ctx.reply, "OK");
+        return 0;
+    }
+
+    int ArdbServer::Auth(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        if (m_cfg.requirepass.empty())
+        {
+            fill_error_reply(ctx.reply, "Client sent AUTH, but no password is set");
+        }
+        else if (m_cfg.requirepass != cmd.GetArguments()[0])
+        {
+            ctx.authenticated = false;
+            fill_error_reply(ctx.reply, "invalid password");
+        }
+        else
+        {
+            ctx.authenticated = true;
+            fill_status_reply(ctx.reply, "OK");
+        }
         return 0;
     }
 }

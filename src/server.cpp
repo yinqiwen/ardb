@@ -35,10 +35,11 @@
 
 namespace ardb
 {
+
     static void RDBSaveLoadRoutine(void* cb)
     {
-        Channel* client = (Channel*) cb;
-        client->GetService().Continue();
+        ChannelService* serv = (ChannelService*) cb;
+        serv->Continue();
     }
 
     int ArdbServer::Save(ArdbConnContext& ctx, RedisCommandFrame& cmd)
@@ -46,21 +47,22 @@ namespace ardb
         char tmp[1024];
         uint32 now = time(NULL);
         sprintf(tmp, "%s/dump-%u.ardb", m_cfg.backup_dir.c_str(), now);
-        if (m_rdb.OpenWriteFile(tmp) == -1)
+        ChannelService& serv = ctx.conn->GetService();
+        uint32 conn_id = ctx.conn_id;
+        int ret = m_rdb.Save(tmp, RDBSaveLoadRoutine, &serv);
+        if (serv.GetChannel(conn_id) != NULL)
         {
-            fill_error_reply(ctx.reply, "ERR Save error");
+            if (ret == 0)
+            {
+                fill_status_reply(ctx.reply, "OK");
+            }
+            else
+            {
+                fill_error_reply(ctx.reply, "Save error");
+            }
             return 0;
         }
-        int ret = m_rdb.Save(RDBSaveLoadRoutine, ctx.conn);
-        if (ret == 0)
-        {
-            fill_status_reply(ctx.reply, "OK");
-        }
-        else
-        {
-            fill_error_reply(ctx.reply, "ERR Save error");
-        }
-        return 0;
+        return -1;
     }
 
     int ArdbServer::LastSave(ArdbConnContext& ctx, RedisCommandFrame& cmd)
@@ -75,19 +77,14 @@ namespace ardb
         char tmp[1024];
         uint32 now = time(NULL);
         sprintf(tmp, "%s/dump-%u.ardb", m_cfg.backup_dir.c_str(), now);
-        if (m_rdb.OpenWriteFile(tmp) == -1)
-        {
-            fill_error_reply(ctx.reply, "ERR Save error");
-            return 0;
-        }
-        int ret = m_rdb.BGSave();
+        int ret = m_rdb.BGSave(tmp);
         if (ret == 0)
         {
             fill_status_reply(ctx.reply, "OK");
         }
         else
         {
-            fill_error_reply(ctx.reply, "ERR Save error");
+            fill_error_reply(ctx.reply, "save error");
         }
         return 0;
     }
@@ -100,29 +97,31 @@ namespace ardb
             file = cmd.GetArguments()[0];
         }
         int ret = 0;
+        ChannelService& serv = ctx.conn->GetService();
+        uint32 conn_id = ctx.conn_id;
         if (RedisDumpFile::IsRedisDumpFile(file) == 1)
         {
-            RedisDumpFile rdb(m_db, file);
-            ret = rdb.Load(RDBSaveLoadRoutine, ctx.conn);
+            RedisDumpFile rdb;
+            rdb.Init(m_db);
+            ret = rdb.Load(file, RDBSaveLoadRoutine, &(ctx.conn->GetService()));
         }
         else
         {
-            if (m_rdb.OpenReadFile(file) == -1)
+            ret = m_rdb.Load(file, RDBSaveLoadRoutine, &(ctx.conn->GetService()));
+        }
+        if (serv.GetChannel(conn_id) != NULL)
+        {
+            if (ret == 0)
             {
-                fill_error_reply(ctx.reply, "ERR Import error");
-                return 0;
+                fill_status_reply(ctx.reply, "OK");
             }
-            ret = m_rdb.Load(RDBSaveLoadRoutine, ctx.conn);
+            else
+            {
+                fill_error_reply(ctx.reply, "Import error");
+            }
+            return 0;
         }
-        if (ret == 0)
-        {
-            fill_status_reply(ctx.reply, "OK");
-        }
-        else
-        {
-            fill_error_reply(ctx.reply, "ERR Import error");
-        }
-        return 0;
+        return -1;
     }
 
     void ArdbServer::FillInfoResponse(const std::string& section, std::string& info)
@@ -244,7 +243,7 @@ namespace ardb
             info.append("# Memory\r\n");
             if (NULL != m_db->GetL1Cache())
             {
-                info.append("L1_cache_enable:1\r\n");
+                info.append("L1_cache_enable:yes\r\n");
                 info.append("L1_cache_max_memory:").append(stringfromll(m_db->GetConfig().L1_cache_memory_limit)).append(
                         "\r\n");
                 info.append("L1_cache_entries:").append(stringfromll(m_db->GetL1Cache()->GetEntrySize())).append(
@@ -254,7 +253,7 @@ namespace ardb
             }
             else
             {
-                info.append("L1_cache_enable:0\r\n");
+                info.append("L1_cache_enable:no\r\n");
             }
         }
 
@@ -296,13 +295,13 @@ namespace ardb
             if (cmd.GetArguments().size() != 2)
             {
                 fill_error_reply(ctx.reply,
-                        "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | STAT on/off)");
+                        "Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | STAT on/off)");
                 return 0;
             }
             Channel* conn = m_clients_holder.GetConn(cmd.GetArguments()[1]);
             if (NULL == conn)
             {
-                fill_error_reply(ctx.reply, "ERR No such client");
+                fill_error_reply(ctx.reply, "No such client");
                 return 0;
             }
             fill_status_reply(ctx.reply, "OK");
@@ -320,7 +319,7 @@ namespace ardb
             if (cmd.GetArguments().size() != 2)
             {
                 fill_error_reply(ctx.reply,
-                        "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | STAT on/off)");
+                        "Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | STAT on/off)");
                 return 0;
             }
             m_clients_holder.SetName(ctx.conn, cmd.GetArguments()[1]);
@@ -332,7 +331,7 @@ namespace ardb
             if (cmd.GetArguments().size() != 1)
             {
                 fill_error_reply(ctx.reply,
-                        "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | STAT on/off)");
+                        "Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | STAT on/off)");
                 return 0;
             }
             fill_str_reply(ctx.reply, m_clients_holder.GetName(ctx.conn));
@@ -342,7 +341,7 @@ namespace ardb
             if (cmd.GetArguments().size() != 1)
             {
                 fill_error_reply(ctx.reply,
-                        "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | STAT on/off)");
+                        "Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | STAT on/off)");
                 return 0;
             }
             m_clients_holder.List(ctx.reply);
@@ -352,7 +351,7 @@ namespace ardb
             if (cmd.GetArguments().size() != 2)
             {
                 fill_error_reply(ctx.reply,
-                        "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | STAT on/off)");
+                        "Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | STAT on/off)");
                 return 0;
             }
             if (!strcasecmp(cmd.GetArguments()[1].c_str(), "on"))
@@ -366,14 +365,14 @@ namespace ardb
             else
             {
                 fill_error_reply(ctx.reply,
-                        "ERR Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | STAT on/off)");
+                        "Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | STAT on/off)");
                 return 0;
             }
             fill_status_reply(ctx.reply, "OK");
         }
         else
         {
-            fill_error_reply(ctx.reply, "ERR CLIENT subcommand must be one of LIST, GETNAME, SETNAME, KILL, STAT");
+            fill_error_reply(ctx.reply, "CLIENT subcommand must be one of LIST, GETNAME, SETNAME, KILL, STAT");
         }
         return 0;
     }
@@ -393,19 +392,19 @@ namespace ardb
         {
             if (cmd.GetArguments().size() != 2)
             {
-                fill_error_reply(ctx.reply, "ERR Wrong number of arguments for SLOWLOG GET");
+                fill_error_reply(ctx.reply, "wrong number of arguments for SLOWLOG GET");
             }
             uint32 len = 0;
             if (!string_touint32(cmd.GetArguments()[1], len))
             {
-                fill_error_reply(ctx.reply, "ERR value is not an integer or out of range.");
+                fill_error_reply(ctx.reply, "value is not an integer or out of range.");
                 return 0;
             }
             m_slowlog_handler.GetSlowlog(len, ctx.reply);
         }
         else
         {
-            fill_error_reply(ctx.reply, "ERR SLOWLOG subcommand must be one of GET, LEN, RESET");
+            fill_error_reply(ctx.reply, "SLOWLOG subcommand must be one of GET, LEN, RESET");
         }
         return 0;
     }
@@ -415,14 +414,14 @@ namespace ardb
         std::string arg0 = string_tolower(cmd.GetArguments()[0]);
         if (arg0 != "get" && arg0 != "set" && arg0 != "resetstat")
         {
-            fill_error_reply(ctx.reply, "ERR CONFIG subcommand must be one of GET, SET, RESETSTAT");
+            fill_error_reply(ctx.reply, "CONFIG subcommand must be one of GET, SET, RESETSTAT");
             return 0;
         }
         if (arg0 == "resetstat")
         {
             if (cmd.GetArguments().size() != 1)
             {
-                fill_error_reply(ctx.reply, "ERR Wrong number of arguments for CONFIG RESETSTAT");
+                fill_error_reply(ctx.reply, "Wrong number of arguments for CONFIG RESETSTAT");
                 return 0;
             }
         }
@@ -430,7 +429,7 @@ namespace ardb
         {
             if (cmd.GetArguments().size() != 2)
             {
-                fill_error_reply(ctx.reply, "ERR Wrong number of arguments for CONFIG GET");
+                fill_error_reply(ctx.reply, "Wrong number of arguments for CONFIG GET");
                 return 0;
             }
             ctx.reply.type = REDIS_REPLY_ARRAY;
@@ -440,7 +439,19 @@ namespace ardb
                 if (fnmatch(cmd.GetArguments()[1].c_str(), it->first.c_str(), 0) == 0)
                 {
                     ctx.reply.elements.push_back(RedisReply(it->first));
-                    ctx.reply.elements.push_back(RedisReply(it->second));
+                    std::string buf;
+                    ConfItemsArray::iterator cit = it->second.begin();
+                    while (cit != it->second.end())
+                    {
+                        ConfItems::iterator ccit = cit->begin();
+                        while (ccit != cit->end())
+                        {
+                            buf.append(*ccit).append(" ");
+                            ccit++;
+                        }
+                        cit++;
+                    }
+                    ctx.reply.elements.push_back(RedisReply(trim_string(buf, " ")));
                 }
                 it++;
             }
@@ -449,10 +460,10 @@ namespace ardb
         {
             if (cmd.GetArguments().size() != 3)
             {
-                fill_error_reply(ctx.reply, "RR Wrong number of arguments for CONFIG SET");
+                fill_error_reply(ctx.reply, "Wrong number of arguments for CONFIG SET");
                 return 0;
             }
-            m_cfg_props[cmd.GetArguments()[1]] = cmd.GetArguments()[2];
+            conf_set(m_cfg_props, cmd.GetArguments()[1], cmd.GetArguments()[2]);
             ParseConfig(m_cfg_props, m_cfg);
             fill_status_reply(ctx.reply, "OK");
         }
@@ -509,7 +520,7 @@ namespace ardb
     {
         if (cmd.GetArguments().size() % 2 != 0)
         {
-            fill_error_reply(ctx.reply, "ERR not enough arguments for slaveof.");
+            fill_error_reply(ctx.reply, "not enough arguments for slaveof.");
             return 0;
         }
         const std::string& host = cmd.GetArguments()[0];
@@ -524,7 +535,7 @@ namespace ardb
                 m_cfg.master_port = 0;
                 return 0;
             }
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
         for (uint32 i = 2; i < cmd.GetArguments().size(); i += 2)
@@ -572,7 +583,7 @@ namespace ardb
                     {
                         ERROR_LOG("Can NOT accept this slave connection from master[%s:%u]",
                                 master_addr.GetHost().c_str(), master_addr.GetPort());
-                        fill_error_reply(ctx.reply, "ERR Reject connection as slave from master instance.");
+                        fill_error_reply(ctx.reply, "Reject connection as slave from master instance.");
                         return -1;
                     }
                 }
@@ -591,7 +602,7 @@ namespace ardb
     {
         if (!m_repl_backlog.IsInited())
         {
-            fill_error_reply(ctx.reply, "ERR Ardb instance's replication log not enabled, can NOT serve as master.");
+            fill_error_reply(ctx.reply, "Ardb instance's replication log not enabled, can NOT serve as master.");
             return -1;
         }
         m_master_serv.AddSlave(ctx.conn, cmd);
@@ -605,8 +616,7 @@ namespace ardb
     {
         if (!m_repl_backlog.IsInited())
         {
-            fill_error_reply(ctx.reply,
-                    "ERR Ardb instance's replication backlog not enabled, can NOT serve as master.");
+            fill_error_reply(ctx.reply, "Ardb instance's replication backlog not enabled, can NOT serve as master.");
             return -1;
         }
         m_master_serv.AddSlave(ctx.conn, cmd);

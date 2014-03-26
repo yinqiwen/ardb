@@ -744,12 +744,12 @@ namespace ardb
         int32 offset;
         if (!string_toint32(cmd.GetArguments()[1], offset))
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
         if (cmd.GetArguments()[2] != "1" && cmd.GetArguments()[2] != "0")
         {
-            fill_error_reply(ctx.reply, "ERR bit is not an integer or out of range");
+            fill_error_reply(ctx.reply, "bit is not an integer or out of range");
             return 0;
         }
         uint8 bit = cmd.GetArguments()[2] != "0";
@@ -763,7 +763,7 @@ namespace ardb
         int32 offset;
         if (!string_toint32(cmd.GetArguments()[1], offset))
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
         int ret = m_db->GetBit(ctx.currentDB, cmd.GetArguments()[0], offset);
@@ -781,7 +781,7 @@ namespace ardb
         int64 ret = m_db->BitOPCount(ctx.currentDB, cmd.GetArguments()[0], keys);
         if (ret < 0)
         {
-            fill_error_reply(ctx.reply, "ERR syntax error");
+            fill_error_reply(ctx.reply, "syntax error");
         }
         else
         {
@@ -800,7 +800,7 @@ namespace ardb
         int ret = m_db->BitOP(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], keys);
         if (ret < 0)
         {
-            fill_error_reply(ctx.reply, "ERR syntax error");
+            fill_error_reply(ctx.reply, "syntax error");
         }
         else
         {
@@ -813,7 +813,7 @@ namespace ardb
     {
         if (cmd.GetArguments().size() == 2)
         {
-            fill_error_reply(ctx.reply, "ERR syntax error");
+            fill_error_reply(ctx.reply, "syntax error");
             return 0;
         }
         int count = 0;
@@ -826,7 +826,7 @@ namespace ardb
             int32 start, end;
             if (!string_toint32(cmd.GetArguments()[1], start) || !string_toint32(cmd.GetArguments()[2], end))
             {
-                fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+                fill_error_reply(ctx.reply, "value is not an integer or out of range");
                 return 0;
             }
             count = m_db->BitCount(ctx.currentDB, cmd.GetArguments()[0], start, end);

@@ -232,7 +232,7 @@ namespace ardb
         int start, stop;
         if (!string_toint32(cmd.GetArguments()[1], start) || !string_toint32(cmd.GetArguments()[2], stop))
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
         ValueDataArray vs;
@@ -245,7 +245,7 @@ namespace ardb
         int count;
         if (!string_toint32(cmd.GetArguments()[1], count))
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
         int ret = m_db->LRem(ctx.currentDB, cmd.GetArguments()[0], count, cmd.GetArguments()[2]);
@@ -257,13 +257,13 @@ namespace ardb
         int index;
         if (!string_toint32(cmd.GetArguments()[1], index))
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
         int ret = m_db->LSet(ctx.currentDB, cmd.GetArguments()[0], index, cmd.GetArguments()[2]);
         if (ret < 0)
         {
-            fill_error_reply(ctx.reply, "ERR index out of range");
+            fill_error_reply(ctx.reply, "index out of range");
         }
         else
         {
@@ -277,7 +277,7 @@ namespace ardb
         int start, stop;
         if (!string_toint32(cmd.GetArguments()[1], start) || !string_toint32(cmd.GetArguments()[2], stop))
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
         m_db->LTrim(ctx.currentDB, cmd.GetArguments()[0], start, stop);
@@ -351,7 +351,7 @@ namespace ardb
         uint32 timeout;
         if (!string_touint32(cmd.GetArguments()[cmd.GetArguments().size() - 1], timeout))
         {
-            fill_error_reply(ctx.reply, "ERR timeout is not an integer or out of range");
+            fill_error_reply(ctx.reply, "timeout is not an integer or out of range");
             return 0;
         }
         std::string v;
@@ -372,7 +372,7 @@ namespace ardb
             WatchKey key(ctx.currentDB, cmd.GetArguments()[i]);
             if (NULL != m_blocking_conns[key] && m_blocking_conns[key] != &ctx)
             {
-                fill_error_reply(ctx.reply, "ERR duplicate blocking connection on same key.");
+                fill_error_reply(ctx.reply, "duplicate blocking connection on same key.");
                 return 0;
             }
             m_blocking_conns[key] = &ctx;
@@ -387,7 +387,7 @@ namespace ardb
         uint32 timeout;
         if (!string_touint32(cmd.GetArguments()[cmd.GetArguments().size() - 1], timeout))
         {
-            fill_error_reply(ctx.reply, "ERR timeout is not an integer or out of range");
+            fill_error_reply(ctx.reply, "timeout is not an integer or out of range");
             return 0;
         }
         std::string v;
@@ -408,7 +408,7 @@ namespace ardb
             WatchKey key(ctx.currentDB, cmd.GetArguments()[i]);
             if (NULL != m_blocking_conns[key] && m_blocking_conns[key] != &ctx)
             {
-                fill_error_reply(ctx.reply, "ERR duplicate blocking connection on same key.");
+                fill_error_reply(ctx.reply, "duplicate blocking connection on same key.");
                 return 0;
             }
             m_blocking_conns[key] = &ctx;
@@ -423,7 +423,7 @@ namespace ardb
         uint32 timeout;
         if (!string_touint32(cmd.GetArguments()[cmd.GetArguments().size() - 1], timeout))
         {
-            fill_error_reply(ctx.reply, "ERR timeout is not an integer or out of range");
+            fill_error_reply(ctx.reply, "timeout is not an integer or out of range");
             return 0;
         }
         std::string v;
@@ -439,7 +439,7 @@ namespace ardb
             WatchKey key(ctx.currentDB, cmd.GetArguments()[0]);
             if (NULL != m_blocking_conns[key] && m_blocking_conns[key] != &ctx)
             {
-                fill_error_reply(ctx.reply, "ERR duplicate blocking connection on same key.");
+                fill_error_reply(ctx.reply, "duplicate blocking connection on same key.");
                 return 0;
             }
             m_blocking_conns[key] = &ctx;

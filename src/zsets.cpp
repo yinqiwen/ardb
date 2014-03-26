@@ -48,7 +48,7 @@ namespace ardb
     {
         if ((cmd.GetArguments().size() - 1) % 2 != 0)
         {
-            fill_error_reply(ctx.reply, "ERR wrong number of arguments for ZAdd");
+            fill_error_reply(ctx.reply, "wrong number of arguments for ZAdd");
             return 0;
         }
         ValueDataArray scores;
@@ -62,7 +62,7 @@ namespace ardb
             {
                 if (!string_touint32(cmd.GetArguments()[i + 1], limit))
                 {
-                    fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+                    fill_error_reply(ctx.reply, "value is not an integer or out of range");
                     return 0;
                 }
                 with_limit = true;
@@ -73,7 +73,7 @@ namespace ardb
             {
             	if(!string_todouble(score.bytes_value, score.double_value))
             	{
-                    fill_error_reply(ctx.reply, "ERR value is not a float or out of range");
+                    fill_error_reply(ctx.reply, "value is not a float or out of range");
                     return 0;
             	}
             	score.SetDoubleValue(score.double_value);
@@ -120,7 +120,7 @@ namespace ardb
         ValueData increment(cmd.GetArguments()[1]);
         if (increment.type != INTEGER_VALUE && increment.type != DOUBLE_VALUE)
         {
-            fill_error_reply(ctx.reply, "ERR value is not a float or out of range");
+            fill_error_reply(ctx.reply, "value is not a float or out of range");
             return 0;
         }
         ValueData value;
@@ -136,7 +136,7 @@ namespace ardb
         {
             if (strcasecmp(cmd.GetArguments()[3].c_str(), "withscores") != 0)
             {
-                fill_error_reply(ctx.reply, "ERR syntax error");
+                fill_error_reply(ctx.reply, "syntax error");
                 return 0;
             }
             withscores = true;
@@ -144,7 +144,7 @@ namespace ardb
         int start, stop;
         if (!string_toint32(cmd.GetArguments()[1], start) || !string_toint32(cmd.GetArguments()[2], stop))
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
         ZSetQueryOptions options;
@@ -193,7 +193,7 @@ namespace ardb
             bool ret = process_query_options(cmd.GetArguments(), 3, options);
             if (!ret)
             {
-                fill_error_reply(ctx.reply, "ERR syntax error");
+                fill_error_reply(ctx.reply, "syntax error");
                 return 0;
             }
         }
@@ -226,7 +226,7 @@ namespace ardb
         {
             if (!string_touint32(cmd.GetArguments()[1], num))
             {
-                fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+                fill_error_reply(ctx.reply, "value is not an integer or out of range");
                 return 0;
             }
         }
@@ -253,7 +253,7 @@ namespace ardb
         int start, stop;
         if (!string_toint32(cmd.GetArguments()[1], start) || !string_toint32(cmd.GetArguments()[2], stop))
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
         int count = m_db->ZRemRangeByRank(ctx.currentDB, cmd.GetArguments()[0], start, stop);
@@ -276,7 +276,7 @@ namespace ardb
         {
             if (string_tolower(cmd.GetArguments()[3]) != "withscores")
             {
-                fill_error_reply(ctx.reply, "ERR syntax error");
+                fill_error_reply(ctx.reply, "syntax error");
                 return 0;
             }
             withscores = true;
@@ -284,7 +284,7 @@ namespace ardb
         int start, stop;
         if (!string_toint32(cmd.GetArguments()[1], start) || !string_toint32(cmd.GetArguments()[2], stop))
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
         ZSetQueryOptions options;
@@ -303,7 +303,7 @@ namespace ardb
             bool ret = process_query_options(cmd.GetArguments(), 3, options);
             if (!ret)
             {
-                fill_error_reply(ctx.reply, "ERR syntax error");
+                fill_error_reply(ctx.reply, "syntax error");
                 return 0;
             }
         }
@@ -405,7 +405,7 @@ namespace ardb
         AggregateType type = AGGREGATE_SUM;
         if (!process_zstore_args(cmd.GetArguments(), keys, ws, type))
         {
-            fill_error_reply(ctx.reply, "ERR syntax error");
+            fill_error_reply(ctx.reply, "syntax error");
             return 0;
         }
         int count = m_db->ZInterStore(ctx.currentDB, cmd.GetArguments()[0], keys, ws, type);
@@ -424,7 +424,7 @@ namespace ardb
         AggregateType type = AGGREGATE_SUM;
         if (!process_zstore_args(cmd.GetArguments(), keys, ws, type))
         {
-            fill_error_reply(ctx.reply, "ERR syntax error");
+            fill_error_reply(ctx.reply, "syntax error");
             return 0;
         }
         int count = m_db->ZUnionStore(ctx.currentDB, cmd.GetArguments()[0], keys, ws, type);
@@ -444,7 +444,7 @@ namespace ardb
                 {
                     if (i + 1 >= cmd.GetArguments().size() || !string_touint32(cmd.GetArguments()[i + 1], limit))
                     {
-                        fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+                        fill_error_reply(ctx.reply, "value is not an integer or out of range");
                         return 0;
                     }
                     i++;
@@ -453,7 +453,7 @@ namespace ardb
                 {
                     if (i + 1 >= cmd.GetArguments().size())
                     {
-                        fill_error_reply(ctx.reply, "ERR 'MATCH' need one args followed");
+                        fill_error_reply(ctx.reply, "'MATCH' need one args followed");
                         return 0;
                     }
                     pattern = cmd.GetArguments()[i + 1];
@@ -461,7 +461,7 @@ namespace ardb
                 }
                 else
                 {
-                    fill_error_reply(ctx.reply, " Syntax error, try scan 0 ");
+                    fill_error_reply(ctx.reply, "Syntax error, try scan 0 ");
                     return 0;
                 }
             }

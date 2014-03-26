@@ -71,7 +71,7 @@ namespace ardb
         {
             total += stat_period_numcommands[i];
         }
-        return total * 1.0 / kMaxPeriodSlot;
+        return (total * 1.0 - 1) / kMaxPeriodSlot;
     }
 }
 

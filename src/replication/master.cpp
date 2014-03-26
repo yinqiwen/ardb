@@ -305,8 +305,9 @@ namespace ardb
         m_dumpdb_offset = m_backlog.GetReplEndOffset();
         slave.sync_offset = m_dumpdb_offset;
 
-        RedisDumpFile rdb(m_server->m_db, dump_file_path);
-        rdb.Dump(DumpRDBRoutine, &m_channel_service);
+        RedisDumpFile rdb;
+        rdb.Init(m_server->m_db);
+        rdb.Save(dump_file_path, DumpRDBRoutine, &m_channel_service);
         INFO_LOG("[REPL]Saved rdb dump file:%s", dump_file_path.c_str());
         OnDumpComplete();
     }

@@ -59,8 +59,8 @@ namespace ardb
             kLogFile = fopen(kLogFilePath.c_str(), "a+");
             if (NULL == kLogFile)
             {
-                WARN_LOG("Failed to open log file:%s, use stdout instead.");
                 kLogFile = stdout;
+                WARN_LOG("Failed to open log file:%s, use stdout instead.");
                 return;
             }
         }

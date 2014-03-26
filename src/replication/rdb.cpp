@@ -27,13 +27,7 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/*
- * rdb.cpp
- *
- *  Created on: 2013-08-29      Author: yinqiwen
- */
 #include "rdb.hpp"
-
 #include "util/helpers.hpp"
 
 extern "C"
@@ -48,6 +42,9 @@ extern "C"
 #include <float.h>
 #include <cmath>
 #include <snappy.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #define RETURN_NEGATIVE_EXPR(x)  do\
     {                    \
@@ -115,10 +112,213 @@ extern "C"
 
 namespace ardb
 {
-    RedisDumpFile::RedisDumpFile(Ardb* db, const std::string& file) :
-            m_read_fp(NULL), m_write_fp(NULL), m_file_path(file), m_current_db(0), m_db(db), m_cksm(0), m_routine_cb(
+
+    static const uint32 kloading_process_events_interval_bytes = 10 * 1024 * 1024;
+    static const uint32 kmax_read_buffer_size = 10 * 1024 * 1024;
+    DataDumpFile::DataDumpFile() :
+            m_read_fp(NULL), m_write_fp(NULL), m_current_db(0), m_db(NULL), m_cksm(0), m_routine_cb(
             NULL), m_routine_cbdata(
+            NULL), m_processed_bytes(0), m_file_size(0), m_is_saving(false), m_last_save(0), m_routinetime(0), m_read_buf(
             NULL)
+    {
+
+    }
+    int DataDumpFile::Init(Ardb* db)
+    {
+        this->m_db = db;
+        return 0;
+    }
+
+    void DataDumpFile::Flush()
+    {
+        if (NULL != m_write_fp)
+        {
+            fflush(m_write_fp);
+        }
+    }
+
+    void DataDumpFile::Remove()
+    {
+        Close();
+        unlink(m_file_path.c_str());
+    }
+
+    void DataDumpFile::Close()
+    {
+        if (NULL != m_read_fp)
+        {
+            fclose(m_read_fp);
+            m_read_fp = NULL;
+        }
+        if (NULL != m_write_fp)
+        {
+            fclose(m_write_fp);
+            m_write_fp = NULL;
+        }
+    }
+    int DataDumpFile::OpenWriteFile(const std::string& file)
+    {
+        this->m_file_path = file;
+        if ((m_write_fp = fopen(m_file_path.c_str(), "w")) == NULL)
+        {
+            ERROR_LOG("Failed to open ardb dump file:%s to write", m_file_path.c_str());
+            return -1;
+        }
+        return 0;
+    }
+
+    int DataDumpFile::OpenReadFile(const std::string& file)
+    {
+        this->m_file_path = file;
+        if ((m_read_fp = fopen(m_file_path.c_str(), "r")) == NULL)
+        {
+            ERROR_LOG("Failed to open ardb dump file:%s to write", m_file_path.c_str());
+            return -1;
+        }
+        struct stat st;
+        stat(m_file_path.c_str(), &st);
+        m_file_size = st.st_size;
+        if (NULL == m_read_buf)
+        {
+            NEW(m_read_buf, char[kmax_read_buffer_size]);
+            setvbuf(m_read_fp, m_read_buf, _IOFBF, kmax_read_buffer_size);
+        }
+        return 0;
+    }
+    int DataDumpFile::Load(const std::string& file, DumpRoutine* cb, void *data)
+    {
+        this->m_routine_cb = cb;
+        this->m_routine_cbdata = data;
+        int ret = OpenReadFile(file);
+        if (0 != ret)
+        {
+            return ret;
+        }
+        return DoLoad();
+    }
+
+    int DataDumpFile::Write(const void* buf, size_t buflen)
+    {
+        /*
+         * routine callback every 100ms
+         */
+        if (NULL != m_routine_cb && get_current_epoch_millis() - m_routinetime >= 100)
+        {
+            m_routine_cb(m_routine_cbdata);
+            m_routinetime = get_current_epoch_millis();
+        }
+
+        if (NULL == m_write_fp)
+        {
+            ERROR_LOG("Failed to open redis dump file:%s to write", m_file_path.c_str());
+            return -1;
+        }
+
+        size_t max_write_bytes = 1024 * 1024 * 2;
+        const char* data = (const char*) buf;
+        while (buflen)
+        {
+            size_t bytes_to_write = (max_write_bytes < buflen) ? max_write_bytes : buflen;
+            if (fwrite(data, bytes_to_write, 1, m_write_fp) == 0)
+                return -1;
+            //check sum here
+            m_cksm = crc64(m_cksm, (unsigned char *) data, bytes_to_write);
+            data += bytes_to_write;
+            buflen -= bytes_to_write;
+        }
+        return 0;
+    }
+
+    bool DataDumpFile::Read(void* buf, size_t buflen, bool cksm)
+    {
+        if ((m_processed_bytes + buflen) / kloading_process_events_interval_bytes
+                > m_processed_bytes / kloading_process_events_interval_bytes)
+        {
+            INFO_LOG("%llu bytes loaded from dump file.", m_processed_bytes);
+        }
+        m_processed_bytes += buflen;
+        /*
+         * routine callback every 100ms
+         */
+        if (NULL != m_routine_cb && get_current_epoch_millis() - m_routinetime >= 100)
+        {
+            m_routine_cb(m_routine_cbdata);
+            m_routinetime = get_current_epoch_millis();
+        }
+        size_t max_read_bytes = 1024 * 1024 * 2;
+        while (buflen)
+        {
+            size_t bytes_to_read = (max_read_bytes < buflen) ? max_read_bytes : buflen;
+            if (fread(buf, bytes_to_read, 1, m_read_fp) == 0)
+                return false;
+            if (cksm)
+            {
+                //check sum here
+                m_cksm = crc64(m_cksm, (unsigned char *) buf, bytes_to_read);
+            }
+            buf = (char*) buf + bytes_to_read;
+            buflen -= bytes_to_read;
+        }
+        return true;
+    }
+
+    int DataDumpFile::Save(const std::string& file, DumpRoutine* cb, void *data)
+    {
+        if (m_is_saving)
+        {
+            return -1;
+        }
+        int ret = OpenWriteFile(file);
+        if (0 != ret)
+        {
+            return ret;
+        }
+        m_is_saving = true;
+        this->m_routine_cb = cb;
+        this->m_routine_cbdata = data;
+        ret = DoSave();
+        Close();
+        m_last_save = time(NULL);
+        m_is_saving = false;
+        return 0;
+    }
+    int DataDumpFile::BGSave(const std::string& file)
+    {
+        if (m_is_saving)
+        {
+            ERROR_LOG("There is already a background task saving data.");
+            return -1;
+        }
+        m_routine_cb = NULL;
+        m_routine_cbdata = NULL;
+        struct BGTask: public Thread
+        {
+                DataDumpFile* serv;
+                BGTask(DataDumpFile* s) :
+                        serv(s)
+                {
+                }
+                void Run()
+                {
+                    serv->DoSave();
+                    serv->Close();
+                    serv->m_is_saving = false;
+                    serv->m_last_save = time(NULL);
+                    delete this;
+                }
+        };
+        BGTask* task = new BGTask(this);
+        task->Start();
+        return 0;
+    }
+
+    DataDumpFile::~DataDumpFile()
+    {
+        Close();
+        DELETE_A(m_read_buf);
+    }
+
+    RedisDumpFile::RedisDumpFile()
     {
     }
 
@@ -637,34 +837,6 @@ namespace ardb
         return true;
     }
 
-    bool RedisDumpFile::Read(void* buf, size_t buflen, bool cksm)
-    {
-        static uint64 routinetime = get_current_epoch_millis();
-        /*
-         * routine callback every 100ms
-         */
-        if (NULL != m_routine_cb && get_current_epoch_millis() - routinetime >= 100)
-        {
-            m_routine_cb(m_routine_cbdata);
-            routinetime = get_current_epoch_millis();
-        }
-        size_t max_read_bytes = 1024 * 1024 * 2;
-        while (buflen)
-        {
-            size_t bytes_to_read = (max_read_bytes < buflen) ? max_read_bytes : buflen;
-            if (fread(buf, bytes_to_read, 1, m_read_fp) == 0)
-                return false;
-            if (cksm)
-            {
-                //check sum here
-                m_cksm = crc64(m_cksm, (unsigned char *) buf, bytes_to_read);
-            }
-            buf = (char*) buf + bytes_to_read;
-            buflen -= bytes_to_read;
-        }
-        return true;
-    }
-
     int RedisDumpFile::IsRedisDumpFile(const std::string& file)
     {
         FILE* fp = NULL;
@@ -689,16 +861,8 @@ namespace ardb
         return 1;
     }
 
-    int RedisDumpFile::Load(DumpRoutine* cb, void *data)
+    int RedisDumpFile::DoLoad()
     {
-        m_routine_cb = cb;
-        m_routine_cbdata = data;
-        Close();
-        if ((m_read_fp = fopen(m_file_path.c_str(), "r")) == NULL)
-        {
-            ERROR_LOG("Failed to load redis dump file:%s", m_file_path.c_str());
-            return -1;
-        }
         char buf[1024];
         int rdbver, type;
         int64 expiretime = -1;
@@ -805,42 +969,6 @@ namespace ardb
         eoferr: Close();
         WARN_LOG("Short read or OOM loading DB. Unrecoverable error, aborting now.");
         return -1;
-    }
-
-    int RedisDumpFile::Write(const void* buf, size_t buflen)
-    {
-        static uint64 routinetime = get_current_epoch_millis();
-        /*
-         * routine callback every 100ms
-         */
-        if (NULL != m_routine_cb && get_current_epoch_millis() - routinetime >= 100)
-        {
-            m_routine_cb(m_routine_cbdata);
-            routinetime = get_current_epoch_millis();
-        }
-
-        if (NULL == m_write_fp)
-        {
-            if ((m_write_fp = fopen(m_file_path.c_str(), "w")) == NULL)
-            {
-                ERROR_LOG("Failed to open redis dump file:%s to write", m_file_path.c_str());
-                return -1;
-            }
-        }
-
-        size_t max_write_bytes = 1024 * 1024 * 2;
-        const char* data = (const char*) buf;
-        while (buflen)
-        {
-            size_t bytes_to_write = (max_write_bytes < buflen) ? max_write_bytes : buflen;
-            if (fwrite(data, bytes_to_write, 1, m_write_fp) == 0)
-                return -1;
-            //check sum here
-            m_cksm = crc64(m_cksm, (unsigned char *) data, bytes_to_write);
-            data += bytes_to_write;
-            buflen -= bytes_to_write;
-        }
-        return 0;
     }
 
     void RedisDumpFile::WriteMagicHeader()
@@ -1161,24 +1289,9 @@ namespace ardb
         return nwritten;
     }
 
-    void RedisDumpFile::Flush()
-    {
-        if (NULL != m_write_fp)
-        {
-            fflush(m_write_fp);
-        }
-    }
-
-    void RedisDumpFile::Remove()
-    {
-        Close();
-        unlink(m_file_path.c_str());
-    }
-
-    int RedisDumpFile::Dump(DumpRoutine* cb, void *data)
+    int RedisDumpFile::DoSave()
     {
         WriteMagicHeader();
-
         struct VisitorTask: public WalkHandler
         {
                 RedisDumpFile& r;
@@ -1432,54 +1545,13 @@ namespace ardb
 
     RedisDumpFile::~RedisDumpFile()
     {
-        Close();
     }
 
     /*
      * Ardb dump file, used for backup data & import data
      */
-    ArdbDumpFile::ArdbDumpFile() :
-            m_read_fp(NULL), m_write_fp(NULL), m_db(NULL), m_cksm(0), m_routine_cb(
-            NULL), m_routine_cbdata(
-            NULL), m_is_saving(false), m_last_save(0)
+    ArdbDumpFile::ArdbDumpFile()
     {
-    }
-
-    int ArdbDumpFile::Init(Ardb* db)
-    {
-        this->m_db = db;
-        return 0;
-    }
-
-    void ArdbDumpFile::Close()
-    {
-        if (NULL != m_read_fp)
-        {
-            fclose(m_read_fp);
-            m_read_fp = NULL;
-        }
-        if (NULL != m_write_fp)
-        {
-            fclose(m_write_fp);
-            m_write_fp = NULL;
-        }
-    }
-
-    int ArdbDumpFile::Write(const void* buf, size_t buflen)
-    {
-        size_t max_write_bytes = 1024 * 1024 * 2;
-        const char* data = (const char*) buf;
-        while (buflen)
-        {
-            size_t bytes_to_write = (max_write_bytes < buflen) ? max_write_bytes : buflen;
-            if (fwrite(data, bytes_to_write, 1, m_write_fp) == 0)
-                return -1;
-            //check sum here
-            m_cksm = crc64(m_cksm, (unsigned char *) data, bytes_to_write);
-            data += bytes_to_write;
-            buflen -= bytes_to_write;
-        }
-        return 0;
     }
 
     int ArdbDumpFile::WriteMagicHeader()
@@ -1496,20 +1568,19 @@ namespace ardb
 
     int ArdbDumpFile::SaveRawKeyValue(const Slice& key, const Slice& value)
     {
-        static uint64 routinetime = get_current_epoch_millis();
         /*
          * routine callback every 100ms
          */
-        if (NULL != m_routine_cb && get_current_epoch_millis() - routinetime >= 100)
+        if (NULL != m_routine_cb && get_current_epoch_millis() - m_routinetime >= 100)
         {
             m_routine_cb(m_routine_cbdata);
-            routinetime = get_current_epoch_millis();
+            m_routinetime = get_current_epoch_millis();
         }
         BufferHelper::WriteVarSlice(m_write_buffer, key);
         BufferHelper::WriteVarSlice(m_write_buffer, value);
         if (m_write_buffer.ReadableBytes() >= 1024 * 1024)
         {
-            return Flush();
+            return FlushWriteBuffer();
         }
         return 0;
     }
@@ -1524,7 +1595,7 @@ namespace ardb
     int ArdbDumpFile::ReadLen(uint32& len)
     {
         char buf[4];
-        if (!Read(buf, 4))
+        if (!Read(buf, 4, true))
         {
             return -1;
         }
@@ -1533,7 +1604,7 @@ namespace ardb
         return 0;
     }
 
-    int ArdbDumpFile::Flush()
+    int ArdbDumpFile::FlushWriteBuffer()
     {
         if (m_write_buffer.Readable())
         {
@@ -1556,42 +1627,12 @@ namespace ardb
             }
             m_write_buffer.Clear();
         }
-        if (NULL != m_write_fp)
-        {
-            return fflush(m_write_fp);
-        }
-        return -1;
-    }
-
-    int ArdbDumpFile::OpenWriteFile(const std::string& file)
-    {
-        this->m_file_path = file;
-        if ((m_write_fp = fopen(m_file_path.c_str(), "w")) == NULL)
-        {
-            ERROR_LOG("Failed to open ardb dump file:%s to write", m_file_path.c_str());
-            return -1;
-        }
+        Flush();
         return 0;
     }
 
-    int ArdbDumpFile::OpenReadFile(const std::string& file)
+    int ArdbDumpFile::DoSave()
     {
-        this->m_file_path = file;
-        if ((m_read_fp = fopen(m_file_path.c_str(), "r")) == NULL)
-        {
-            ERROR_LOG("Failed to open ardb dump file:%s to write", m_file_path.c_str());
-            return -1;
-        }
-        return 0;
-    }
-
-    int ArdbDumpFile::Save(DumpRoutine* cb, void *data)
-    {
-        if (m_is_saving || NULL == m_write_fp)
-        {
-            return -1;
-        }
-        m_is_saving = true;
         RETURN_NEGATIVE_EXPR(WriteMagicHeader());
         struct VisitorTask: public RawValueVisitor
         {
@@ -1607,76 +1648,21 @@ namespace ardb
                 }
         } visitor(*this);
         m_db->VisitAllDB(&visitor);
-        Flush();
+        FlushWriteBuffer();
         WriteType(REDIS_RDB_OPCODE_EOF);
         uint64 cksm = m_cksm;
         memrev64ifbe(&cksm);
         Write(&cksm, sizeof(cksm));
-        Flush();
-        Close();
-        m_last_save = time(NULL);
-        m_is_saving = false;
-        return 0;
-    }
-
-    int ArdbDumpFile::BGSave()
-    {
-        if (m_is_saving || NULL == m_write_fp)
-        {
-            return -1;
-        }
-        struct BGTask: public Thread
-        {
-                ArdbDumpFile* serv;
-                BGTask(ArdbDumpFile* s) :
-                        serv(s)
-                {
-                }
-                void Run()
-                {
-                    serv->Save(NULL, NULL);
-                    delete this;
-                }
-        };
-        BGTask* task = new BGTask(this);
-        task->Start();
+        FlushWriteBuffer();
         return 0;
     }
 
     int ArdbDumpFile::ReadType()
     {
         unsigned char type;
-        if (Read(&type, 1) == 0)
+        if (Read(&type, 1, true) == 0)
             return -1;
         return type;
-    }
-
-    bool ArdbDumpFile::Read(void* buf, size_t buflen, bool cksm)
-    {
-        static uint64 routinetime = get_current_epoch_millis();
-        /*
-         * routine callback every 100ms
-         */
-        if (NULL != m_routine_cb && get_current_epoch_millis() - routinetime >= 100)
-        {
-            m_routine_cb(m_routine_cbdata);
-            routinetime = get_current_epoch_millis();
-        }
-        size_t max_read_bytes = 1024 * 1024 * 2;
-        while (buflen)
-        {
-            size_t bytes_to_read = (max_read_bytes < buflen) ? max_read_bytes : buflen;
-            if (fread(buf, bytes_to_read, 1, m_read_fp) == 0)
-                return false;
-            if (cksm)
-            {
-                //check sum here
-                m_cksm = crc64(m_cksm, (unsigned char *) buf, bytes_to_read);
-            }
-            buf = (char*) buf + bytes_to_read;
-            buflen -= bytes_to_read;
-        }
-        return true;
     }
 
     int ArdbDumpFile::LoadBuffer(Buffer& buffer)
@@ -1691,14 +1677,8 @@ namespace ardb
         return 0;
     }
 
-    int ArdbDumpFile::Load(DumpRoutine* cb, void *data)
+    int ArdbDumpFile::DoLoad()
     {
-        if ( NULL == m_read_fp)
-        {
-            return -1;
-        }
-        m_routine_cb = cb;
-        m_routine_cbdata = data;
         char buf[1024];
         int rdbver, type;
         std::string key;
@@ -1737,7 +1717,7 @@ namespace ardb
                 RETURN_NEGATIVE_EXPR(ReadLen(len));
                 char* newbuf = NULL;
                 NEW(newbuf, char[len]);
-                if (!Read(newbuf, len))
+                if (!Read(newbuf, len, true))
                 {
                     DELETE_A(newbuf);
                     goto eoferr;
@@ -1751,7 +1731,7 @@ namespace ardb
                 RETURN_NEGATIVE_EXPR(ReadLen(compressedlen));
                 char* newbuf = NULL;
                 NEW(newbuf, char[compressedlen]);
-                if (!Read(newbuf, compressedlen))
+                if (!Read(newbuf, compressedlen, true))
                 {
                     DELETE_A(newbuf);
                     goto eoferr;
@@ -1779,7 +1759,7 @@ namespace ardb
         {
             /* Verify the checksum if RDB version is >= 5 */
             uint64_t cksum, expected = m_cksm;
-            if (!Read(&cksum, 8))
+            if (!Read(&cksum, 8, true))
             {
                 goto eoferr;
             }memrev64ifbe(&cksum);
@@ -1800,12 +1780,10 @@ namespace ardb
         eoferr: Close();
         WARN_LOG("Short read or OOM loading DB. Unrecoverable error, aborting now.");
         return -1;
-        return 0;
     }
 
     ArdbDumpFile::~ArdbDumpFile()
     {
-        Close();
     }
 }
 

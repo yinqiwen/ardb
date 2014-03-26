@@ -43,7 +43,7 @@ namespace ardb
         std::string err;
         if (0 != options.Parse(cmd.GetArguments(), err, 1))
         {
-            fill_error_reply(ctx.reply, "ERR %s", err.c_str());
+            fill_error_reply(ctx.reply, "%s", err.c_str());
             return 0;
         }
         int ret = m_db->GeoAdd(ctx.currentDB, cmd.GetArguments()[0], options);
@@ -53,7 +53,7 @@ namespace ardb
         }
         else
         {
-            fill_error_reply(ctx.reply, "ERR Failed to %s", cmd.ToString().c_str());
+            fill_error_reply(ctx.reply, "Failed to %s", cmd.ToString().c_str());
         }
         return 0;
     }
@@ -76,7 +76,7 @@ namespace ardb
         std::string err;
         if (0 != options.Parse(cmd.GetArguments(), err, 1))
         {
-            fill_error_reply(ctx.reply, "ERR %s", err.c_str());
+            fill_error_reply(ctx.reply, "%s", err.c_str());
             return 0;
         }
         ValueDataDeque res;

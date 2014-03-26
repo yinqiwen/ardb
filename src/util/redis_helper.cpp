@@ -32,76 +32,81 @@
 namespace ardb
 {
     void fill_error_reply(RedisReply& reply, const char* fmt, ...)
-       {
-           va_list ap;
-           va_start(ap, fmt);
-           char buf[1024];
-           vsnprintf(buf, sizeof(buf) - 1, fmt, ap);
-           va_end(ap);
-           reply.type = REDIS_REPLY_ERROR;
-           reply.str = buf;
-       }
+    {
+        va_list ap;
+        va_start(ap, fmt);
+        char buf[1024];
+        sprintf(buf, "%s", "ERR ");
+        vsnprintf(buf + 4, sizeof(buf) - 5, fmt, ap);
+        va_end(ap);
+        reply.type = REDIS_REPLY_ERROR;
+        reply.str = buf;
+    }
+    void fill_fix_error_reply(RedisReply& reply, const std::string& err)
+    {
+        reply.type = REDIS_REPLY_ERROR;
+        reply.str = err;
+    }
 
-       void fill_status_reply(RedisReply& reply, const char* s)
-       {
-           reply.type = REDIS_REPLY_STATUS;
-           reply.str = s;
-       }
+    void fill_status_reply(RedisReply& reply, const char* s)
+    {
+        reply.type = REDIS_REPLY_STATUS;
+        reply.str = s;
+    }
 
-       void fill_int_reply(RedisReply& reply, int64 v)
-       {
-           reply.type = REDIS_REPLY_INTEGER;
-           reply.integer = v;
-       }
-       void fill_double_reply(RedisReply& reply, double v)
-       {
-           reply.type = REDIS_REPLY_DOUBLE;
-           reply.double_value = v;
-       }
+    void fill_int_reply(RedisReply& reply, int64 v)
+    {
+        reply.type = REDIS_REPLY_INTEGER;
+        reply.integer = v;
+    }
+    void fill_double_reply(RedisReply& reply, double v)
+    {
+        reply.type = REDIS_REPLY_DOUBLE;
+        reply.double_value = v;
+    }
 
-       void fill_str_reply(RedisReply& reply, const std::string& v)
-       {
-           reply.type = REDIS_REPLY_STRING;
-           reply.str = v;
-       }
+    void fill_str_reply(RedisReply& reply, const std::string& v)
+    {
+        reply.type = REDIS_REPLY_STRING;
+        reply.str = v;
+    }
 
-       void fill_value_reply(RedisReply& reply, const ValueData& v)
-       {
-           reply.type = REDIS_REPLY_STRING;
-           std::string str;
-           v.ToString(str);
-           reply.str = str;
-       }
+    void fill_value_reply(RedisReply& reply, const ValueData& v)
+    {
+        reply.type = REDIS_REPLY_STRING;
+        std::string str;
+        v.ToString(str);
+        reply.str = str;
+    }
 
-       bool check_uint32_arg(RedisReply& reply, const std::string& arg, uint32& v)
-       {
-           if (!string_touint32(arg, v))
-           {
-               fill_error_reply(reply, "ERR value is not an integer or out of range.");
-               return false;
-           }
-           return true;
-       }
+    bool check_uint32_arg(RedisReply& reply, const std::string& arg, uint32& v)
+    {
+        if (!string_touint32(arg, v))
+        {
+            fill_error_reply(reply, "value is not an integer or out of range.");
+            return false;
+        }
+        return true;
+    }
 
-       bool check_uint64_arg(RedisReply& reply, const std::string& arg, uint64& v)
-       {
-           if (!string_touint64(arg, v))
-           {
-               fill_error_reply(reply, "ERR value is not an integer or out of range.");
-               return false;
-           }
-           return true;
-       }
+    bool check_uint64_arg(RedisReply& reply, const std::string& arg, uint64& v)
+    {
+        if (!string_touint64(arg, v))
+        {
+            fill_error_reply(reply, "value is not an integer or out of range.");
+            return false;
+        }
+        return true;
+    }
 
-       bool check_double_arg(RedisReply& reply, const std::string& arg, double& v)
-       {
-           if (!string_todouble(arg, v))
-           {
-               fill_error_reply(reply, "ERR value is not an double or out of range.");
-               return false;
-           }
-           return true;
-       }
+    bool check_double_arg(RedisReply& reply, const std::string& arg, double& v)
+    {
+        if (!string_todouble(arg, v))
+        {
+            fill_error_reply(reply, "value is not an double or out of range.");
+            return false;
+        }
+        return true;
+    }
 }
-
 

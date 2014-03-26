@@ -42,9 +42,14 @@ namespace ardb
 {
     static bool verify_config(const ArdbServerConfig& cfg)
     {
-        if(!cfg.master_host.empty() && cfg.repl_backlog_size <= 0)
+        if (!cfg.master_host.empty() && cfg.repl_backlog_size <= 0)
         {
             ERROR_LOG("[Config]Invalid value for 'slaveof' since 'repl-backlog-size' is not set correctly.");
+            return false;
+        }
+        if (cfg.requirepass.size() > ARDB_AUTHPASS_MAX_LEN)
+        {
+            ERROR_LOG("[Config]Password is longer than ARDB_AUTHPASS_MAX_LEN.");
             return false;
         }
         return true;
@@ -166,7 +171,30 @@ namespace ardb
 
         conf_get_string(props, "additional-misc-info", cfg.additional_misc_info);
 
-        if(!verify_config(cfg))
+        conf_get_string(props, "requirepass", cfg.requirepass);
+
+        Properties::const_iterator fit = props.find("rename-command");
+        if(fit != props.end())
+        {
+            cfg.rename_commands.clear();
+            StringSet newcmdset;
+            const ConfItemsArray& cs = fit->second;
+            ConfItemsArray::const_iterator  cit = cs.begin();
+            while(cit != cs.end())
+            {
+                if(cit->size() != 2 || newcmdset.count(cit->at(1)) > 0)
+                {
+                    ERROR_LOG("Invalid 'rename-command' config.");
+                }else
+                {
+                    cfg.rename_commands[cit->at(0)] = cit->at(1);
+                    newcmdset.insert(cit->at(1));
+                }
+                cit++;
+            }
+        }
+
+        if (!verify_config(cfg))
         {
             return -1;
         }
@@ -339,7 +367,8 @@ namespace ardb
                 { "scan", REDIS_CMD_SCAN, &ArdbServer::Scan, 1, 5, "r", 0 },
                 { "geoadd", REDIS_CMD_GEO_ADD, &ArdbServer::GeoAdd, 5, -1, "w", 0 },
                 { "geosearch", REDIS_CMD_GEO_SEARCH, &ArdbServer::GeoSearch, 5, -1, "r", 0 },
-                { "cache", REDIS_CMD_CACHE, &ArdbServer::Cache, 2, 2, "r", 0 }, };
+                { "cache", REDIS_CMD_CACHE, &ArdbServer::Cache, 2, 2, "r", 0 },
+                { "auth", REDIS_CMD_AUTH, &ArdbServer::Auth, 1, 1, "r", 0 }, };
 
         uint32 arraylen = arraysize(settingTable);
         for (uint32 i = 0; i < arraylen; i++)
@@ -416,6 +445,13 @@ namespace ardb
         if (NULL != setting)
         {
             args.SetType(setting->type);
+            //Check if the user is authenticated
+            if (!ctx.authenticated && setting->type != REDIS_CMD_AUTH && setting->type != REDIS_CMD_QUIT)
+            {
+                fill_fix_error_reply(ctx.reply, "NOAUTH Authentication required");
+                return ret;
+            }
+
             if (!m_cfg.slave_serve_stale_data && !m_cfg.master_host.empty() && !m_slave_client.IsSynced())
             {
                 if (setting->type == REDIS_CMD_INFO || setting->type == REDIS_CMD_SLAVEOF)
@@ -424,7 +460,7 @@ namespace ardb
                 }
                 else
                 {
-                    fill_error_reply(ctx.reply, "ERR SYNC with master in progress");
+                    fill_error_reply(ctx.reply, "SYNC with master in progress");
                     return ret;
                 }
             }
@@ -436,7 +472,7 @@ namespace ardb
             {
                 if (m_cfg.slave_readonly)
                 {
-                    fill_error_reply(ctx.reply, "ERR server is read only slave");
+                    fill_error_reply(ctx.reply, "server is read only slave");
                     return ret;
                 }
                 else
@@ -459,7 +495,7 @@ namespace ardb
 
             if (!valid_cmd)
             {
-                fill_error_reply(ctx.reply, "ERR wrong number of arguments for '%s' command", cmd.c_str());
+                fill_error_reply(ctx.reply, "wrong number of arguments for '%s' command", cmd.c_str());
             }
             else
             {
@@ -472,8 +508,7 @@ namespace ardb
                         && (cmd != "subscribe" && cmd != "psubscribe" && cmd != "unsubscribe" && cmd != "punsubscribe"
                                 && cmd != "quit"))
                 {
-                    fill_error_reply(ctx.reply,
-                            "ERR only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context");
+                    fill_error_reply(ctx.reply, "only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context");
                 }
                 else
                 {
@@ -487,7 +522,8 @@ namespace ardb
         else
         {
             ERROR_LOG("No handler found for:%s", cmd.c_str());
-            fill_error_reply(ctx.reply, "ERR unknown command '%s'", cmd.c_str());
+            fill_error_reply(ctx.reply, "unknown command '%s'", cmd.c_str());
+            return 0;
         }
 
         /*
@@ -519,7 +555,7 @@ namespace ardb
                         m_master_serv.FeedSlaves(ctx.conn, ctx.currentDB, exec);
                     }
                 }
-                else
+                else if((setting->flags & ARDB_CMD_WRITE))
                 {
                     m_master_serv.FeedSlaves(ctx.conn, ctx.currentDB, args);
                 }
@@ -583,18 +619,19 @@ namespace ardb
         ardbctx.conn = ctx.GetChannel();
         processing = true;
         RedisCommandFrame* cmd = e.GetMessage();
+        ChannelService& serv = ardbctx.conn->GetService();
+        uint32 channel_id = ardbctx.conn_id;
         int ret = server->ProcessRedisCommand(ardbctx, *cmd, 0);
-        if (ardbctx.reply.type != 0)
+        if (ret >= 0 && ardbctx.reply.type != 0)
         {
             ardbctx.conn->Write(ardbctx.reply);
             ardbctx.reply.Clear();
         }
-        if (ret < 0)
+        if (ret < 0 && serv.GetChannel(channel_id) != NULL)
         {
             ardbctx.conn->Close();
         }
         processing = false;
-
         if (delete_after_processing)
         {
             delete this;
@@ -614,6 +651,11 @@ namespace ardb
             server->TouchIdleConn(ctx.GetChannel());
         }
         ServerStat::GetSingleton().IncAcceptedClient();
+        if (!server->m_cfg.requirepass.empty())
+        {
+            ardbctx.authenticated = false;
+        }
+        ardbctx.conn_id = ctx.GetChannel()->GetID();
     }
 
     static void daemonize(void)
@@ -661,6 +703,23 @@ namespace ardb
         }
     }
 
+    void ArdbServer::RenameCommand()
+    {
+        StringStringMap::iterator it = m_cfg.rename_commands.begin();
+        while(it != m_cfg.rename_commands.end())
+        {
+            std::string cmd = string_tolower(it->first);
+            RedisCommandHandlerSettingTable::iterator found = m_handler_table.find(cmd);
+            if(found != m_handler_table.end())
+            {
+                RedisCommandHandlerSetting setting = found->second;
+                m_handler_table.erase(found);
+                m_handler_table[it->second] = setting;
+            }
+            it++;
+        }
+    }
+
     int ArdbServer::Start(const Properties& props)
     {
         m_cfg_props = props;
@@ -686,6 +745,9 @@ namespace ardb
             ERROR_LOG("Faild to change dir to home:%s", m_cfg.home.c_str());
             return -1;
         }
+
+        RenameCommand();
+
         m_db = new Ardb(&m_engine, (uint32) m_cfg.worker_count);
         if (!m_db->Init(m_cfg.db_cfg))
         {
@@ -738,7 +800,7 @@ namespace ardb
         ArdbLogger::InitDefaultLogger(m_cfg.loglevel, m_cfg.logfile);
 
         m_rdb.Init(m_db);
-        if(0 ==  m_repl_backlog.Init(this))
+        if (0 == m_repl_backlog.Init(this))
         {
             if (0 != m_master_serv.Init())
             {

@@ -78,7 +78,7 @@ namespace ardb
                 {
                     if (i + 1 >= cmd.GetArguments().size() || !string_touint32(cmd.GetArguments()[i + 1], limit))
                     {
-                        fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+                        fill_error_reply(ctx.reply, "value is not an integer or out of range");
                         return 0;
                     }
                     i++;
@@ -87,7 +87,7 @@ namespace ardb
                 {
                     if (i + 1 >= cmd.GetArguments().size())
                     {
-                        fill_error_reply(ctx.reply, "ERR 'MATCH' need one args followed");
+                        fill_error_reply(ctx.reply, "'MATCH' need one args followed");
                         return 0;
                     }
                     pattern = cmd.GetArguments()[i + 1];
@@ -95,7 +95,7 @@ namespace ardb
                 }
                 else
                 {
-                    fill_error_reply(ctx.reply, " Syntax error, try scan 0 ");
+                    fill_error_reply(ctx.reply, "Syntax error, try scan 0 ");
                     return 0;
                 }
             }
@@ -124,7 +124,7 @@ namespace ardb
                 {
                     if (i + 1 >= cmd.GetArguments().size() || !string_touint32(cmd.GetArguments()[i + 1], limit))
                     {
-                        fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+                        fill_error_reply(ctx.reply, "value is not an integer or out of range");
                         return 0;
                     }
                     i++;
@@ -133,7 +133,7 @@ namespace ardb
                 {
                     if (i + 1 >= cmd.GetArguments().size())
                     {
-                        fill_error_reply(ctx.reply, "ERR 'from' need one args followed");
+                        fill_error_reply(ctx.reply, "'from' need one args followed");
                         return 0;
                     }
                     from = cmd.GetArguments()[i + 1];
@@ -141,7 +141,7 @@ namespace ardb
                 }
                 else
                 {
-                    fill_error_reply(ctx.reply, " Syntax error, try KEYS ");
+                    fill_error_reply(ctx.reply, "Syntax error, try KEYS ");
                     return 0;
                 }
             }
@@ -156,7 +156,7 @@ namespace ardb
         int ret = m_db->Rename(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1]);
         if (ret < 0)
         {
-            fill_error_reply(ctx.reply, "ERR no such key");
+            fill_error_reply(ctx.reply, "no such key");
         }
         else
         {
@@ -177,7 +177,7 @@ namespace ardb
         DBID dst = 0;
         if (!string_touint32(cmd.GetArguments()[1], dst))
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
         int ret = m_db->Move(ctx.currentDB, cmd.GetArguments()[0], dst);
@@ -342,7 +342,7 @@ namespace ardb
         }
         else
         {
-            fill_error_reply(ctx.reply, "ERR Syntax error, try CACHE (LOAD | EVICT | STATUS) key");
+            fill_error_reply(ctx.reply, "Syntax error, try CACHE (LOAD | EVICT | STATUS) key");
             return 0;
         }
         if (ret == 0)
@@ -351,7 +351,7 @@ namespace ardb
         }
         else
         {
-            fill_error_reply(ctx.reply, "ERR Failed to cache load/evict/status key:%s", cmd.GetArguments()[1].c_str());
+            fill_error_reply(ctx.reply, "Failed to cache load/evict/status key:%s", cmd.GetArguments()[1].c_str());
         }
         return 0;
     }

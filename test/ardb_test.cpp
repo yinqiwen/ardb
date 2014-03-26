@@ -53,8 +53,8 @@ void strings_to_slices(StringArray& strs, SliceArray& array)
 int main(int argc, char** argv)
 {
 	Properties cfg;
-	cfg["data-dir"] = "/tmp/ardb/";
-	cfg["data-dir"].append(_DB_PATH);
+	std::string path = "/tmp/ardb/";
+	conf_set(cfg, "data-dir", "/tmp/ardb/");
 	ArdbLogger::SetLogLevel("INFO");
 	SelectedDBEngineFactory engine(cfg);
 	std::cout << "ARDB Test(" << engine.GetName() << ")" << std::endl;

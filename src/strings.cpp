@@ -43,7 +43,7 @@ namespace ardb
         }
         else
         {
-            fill_error_reply(ctx.reply, "ERR failed to append key:%s", key.c_str());
+            fill_error_reply(ctx.reply, "failed to append key:%s", key.c_str());
         }
         return 0;
     }
@@ -53,7 +53,7 @@ namespace ardb
         uint32 mills;
         if (!string_touint32(cmd.GetArguments()[1], mills))
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
         m_db->PSetEx(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[2], mills);
@@ -65,7 +65,7 @@ namespace ardb
     {
         if (cmd.GetArguments().size() % 2 != 0)
         {
-            fill_error_reply(ctx.reply, "ERR wrong number of arguments for MSETNX");
+            fill_error_reply(ctx.reply, "wrong number of arguments for MSETNX");
             return 0;
         }
         SliceArray keys;
@@ -84,7 +84,7 @@ namespace ardb
     {
         if (cmd.GetArguments().size() % 2 != 0)
         {
-            fill_error_reply(ctx.reply, "ERR wrong number of arguments for MSET");
+            fill_error_reply(ctx.reply, "wrong number of arguments for MSET");
             return 0;
         }
         SliceArray keys;
@@ -117,7 +117,7 @@ namespace ardb
         double increment, val;
         if (!string_todouble(cmd.GetArguments()[1], increment))
         {
-            fill_error_reply(ctx.reply, "ERR value is not a float or out of range");
+            fill_error_reply(ctx.reply, "value is not a float or out of range");
             return 0;
         }
         int ret = m_db->IncrbyFloat(ctx.currentDB, cmd.GetArguments()[0], increment, val);
@@ -127,7 +127,7 @@ namespace ardb
         }
         else
         {
-            fill_error_reply(ctx.reply, "ERR value is not a float or out of range");
+            fill_error_reply(ctx.reply, "value is not a float or out of range");
         }
         return 0;
     }
@@ -137,7 +137,7 @@ namespace ardb
         int64 increment, val;
         if (!string_toint64(cmd.GetArguments()[1], increment))
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
         int ret = m_db->Incrby(ctx.currentDB, cmd.GetArguments()[0], increment, val);
@@ -147,7 +147,7 @@ namespace ardb
         }
         else
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
         }
         return 0;
     }
@@ -162,7 +162,7 @@ namespace ardb
         }
         else
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
         }
         return 0;
     }
@@ -187,7 +187,7 @@ namespace ardb
         int32 start, end;
         if (!string_toint32(cmd.GetArguments()[1], start) || !string_toint32(cmd.GetArguments()[2], end))
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
         std::string v;
@@ -217,7 +217,7 @@ namespace ardb
                     int64 iv;
                     if (!raw_toint64(cmd.GetArguments()[i + 1].c_str(), cmd.GetArguments()[i + 1].size(), iv) || iv < 0)
                     {
-                        fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+                        fill_error_reply(ctx.reply, "value is not an integer or out of range");
                         return 0;
                     }
                     if (tmp == "px")
@@ -256,7 +256,7 @@ namespace ardb
             }
             if (syntaxerror)
             {
-                fill_error_reply(ctx.reply, "ERR syntax error");
+                fill_error_reply(ctx.reply, "syntax error");
                 return 0;
             }
             int nxx = 0;
@@ -280,7 +280,7 @@ namespace ardb
             {
                 case ERR_INVALID_TYPE:
                 {
-                    fill_error_reply(ctx.reply, "ERR invalid type");
+                    fill_error_reply(ctx.reply, "invalid type");
                     break;
                 }
                 case ERR_KEY_EXIST:
@@ -291,7 +291,7 @@ namespace ardb
                 }
                 default:
                 {
-                    fill_error_reply(ctx.reply, "ERR set failed");
+                    fill_error_reply(ctx.reply, "set failed");
                     break;
                 }
             }
@@ -320,7 +320,7 @@ namespace ardb
         int64 decrement, val;
         if (!string_toint64(cmd.GetArguments()[1], decrement))
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
         int ret = m_db->Decrby(ctx.currentDB, cmd.GetArguments()[0], decrement, val);
@@ -330,7 +330,7 @@ namespace ardb
         }
         else
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
         }
         return 0;
     }
@@ -345,7 +345,7 @@ namespace ardb
         }
         else
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
         }
         return 0;
     }
@@ -355,7 +355,7 @@ namespace ardb
         uint32 secs;
         if (!string_touint32(cmd.GetArguments()[1], secs))
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
         m_db->SetEx(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[2], secs);
@@ -373,7 +373,7 @@ namespace ardb
         int32 offset;
         if (!string_toint32(cmd.GetArguments()[1], offset))
         {
-            fill_error_reply(ctx.reply, "ERR value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
         int ret = m_db->SetRange(ctx.currentDB, cmd.GetArguments()[0], offset, cmd.GetArguments()[2]);
