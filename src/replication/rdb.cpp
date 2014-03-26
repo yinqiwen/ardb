@@ -114,10 +114,12 @@ namespace ardb
 {
 
     static const uint32 kloading_process_events_interval_bytes = 10 * 1024 * 1024;
+    static const uint32 kmax_read_buffer_size = 10 * 1024 * 1024;
     DataDumpFile::DataDumpFile() :
             m_read_fp(NULL), m_write_fp(NULL), m_current_db(0), m_db(NULL), m_cksm(0), m_routine_cb(
             NULL), m_routine_cbdata(
-            NULL), m_processed_bytes(0), m_file_size(0), m_is_saving(false), m_last_save(0), m_routinetime(0)
+            NULL), m_processed_bytes(0), m_file_size(0), m_is_saving(false), m_last_save(0), m_routinetime(0), m_read_buf(
+            NULL)
     {
 
     }
@@ -176,6 +178,11 @@ namespace ardb
         struct stat st;
         stat(m_file_path.c_str(), &st);
         m_file_size = st.st_size;
+        if (NULL == m_read_buf)
+        {
+            NEW(m_read_buf, char[kmax_read_buffer_size]);
+            setvbuf(m_read_fp, m_read_buf, _IOFBF, kmax_read_buffer_size);
+        }
         return 0;
     }
     int DataDumpFile::Load(const std::string& file, DumpRoutine* cb, void *data)
@@ -224,7 +231,8 @@ namespace ardb
 
     bool DataDumpFile::Read(void* buf, size_t buflen, bool cksm)
     {
-        if((m_processed_bytes + buflen) / kloading_process_events_interval_bytes > m_processed_bytes/kloading_process_events_interval_bytes)
+        if ((m_processed_bytes + buflen) / kloading_process_events_interval_bytes
+                > m_processed_bytes / kloading_process_events_interval_bytes)
         {
             INFO_LOG("%llu bytes loaded from dump file.", m_processed_bytes);
         }
@@ -307,6 +315,7 @@ namespace ardb
     DataDumpFile::~DataDumpFile()
     {
         Close();
+        DELETE_A(m_read_buf);
     }
 
     RedisDumpFile::RedisDumpFile()

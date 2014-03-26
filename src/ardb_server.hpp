@@ -295,11 +295,12 @@ namespace ardb
             BlockListContext* block;
 
             bool authenticated;
+            uint32 conn_id;
 
             ArdbConnContext() :
                     currentDB(0), conn(NULL), is_slave_conn(false), transc(NULL), pubsub(
                     NULL), lua(
-                    NULL), block(NULL), authenticated(true)
+                    NULL), block(NULL), authenticated(true),conn_id(0)
             {
             }
             LUAConnContext& GetLua()

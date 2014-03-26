@@ -523,6 +523,7 @@ namespace ardb
         {
             ERROR_LOG("No handler found for:%s", cmd.c_str());
             fill_error_reply(ctx.reply, "unknown command '%s'", cmd.c_str());
+            return 0;
         }
 
         /*
@@ -554,7 +555,7 @@ namespace ardb
                         m_master_serv.FeedSlaves(ctx.conn, ctx.currentDB, exec);
                     }
                 }
-                else
+                else if((setting->flags & ARDB_CMD_WRITE))
                 {
                     m_master_serv.FeedSlaves(ctx.conn, ctx.currentDB, args);
                 }
@@ -618,18 +619,19 @@ namespace ardb
         ardbctx.conn = ctx.GetChannel();
         processing = true;
         RedisCommandFrame* cmd = e.GetMessage();
+        ChannelService& serv = ardbctx.conn->GetService();
+        uint32 channel_id = ardbctx.conn_id;
         int ret = server->ProcessRedisCommand(ardbctx, *cmd, 0);
-        if (ardbctx.reply.type != 0)
+        if (ret >= 0 && ardbctx.reply.type != 0)
         {
             ardbctx.conn->Write(ardbctx.reply);
             ardbctx.reply.Clear();
         }
-        if (ret < 0)
+        if (ret < 0 && serv.GetChannel(channel_id) != NULL)
         {
             ardbctx.conn->Close();
         }
         processing = false;
-
         if (delete_after_processing)
         {
             delete this;
@@ -653,6 +655,7 @@ namespace ardb
         {
             ardbctx.authenticated = false;
         }
+        ardbctx.conn_id = ctx.GetChannel()->GetID();
     }
 
     static void daemonize(void)

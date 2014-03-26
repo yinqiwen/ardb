@@ -54,6 +54,7 @@ namespace ardb
             bool m_is_saving;
             uint32 m_last_save;
             uint64 m_routinetime;
+            char* m_read_buf;
             virtual int DoLoad() = 0;
             virtual int DoSave() = 0;
             bool Read(void* buf, size_t buflen, bool cksm = true);

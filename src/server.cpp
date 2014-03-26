@@ -35,10 +35,11 @@
 
 namespace ardb
 {
+
     static void RDBSaveLoadRoutine(void* cb)
     {
-        Channel* client = (Channel*) cb;
-        client->GetService().Continue();
+        ChannelService* serv = (ChannelService*) cb;
+        serv->Continue();
     }
 
     int ArdbServer::Save(ArdbConnContext& ctx, RedisCommandFrame& cmd)
@@ -46,16 +47,22 @@ namespace ardb
         char tmp[1024];
         uint32 now = time(NULL);
         sprintf(tmp, "%s/dump-%u.ardb", m_cfg.backup_dir.c_str(), now);
-        int ret = m_rdb.Save(tmp, RDBSaveLoadRoutine, ctx.conn);
-        if (ret == 0)
+        ChannelService& serv = ctx.conn->GetService();
+        uint32 conn_id = ctx.conn_id;
+        int ret = m_rdb.Save(tmp, RDBSaveLoadRoutine, &serv);
+        if (serv.GetChannel(conn_id) != NULL)
         {
-            fill_status_reply(ctx.reply, "OK");
+            if (ret == 0)
+            {
+                fill_status_reply(ctx.reply, "OK");
+            }
+            else
+            {
+                fill_error_reply(ctx.reply, "Save error");
+            }
+            return 0;
         }
-        else
-        {
-            fill_error_reply(ctx.reply, "Save error");
-        }
-        return 0;
+        return -1;
     }
 
     int ArdbServer::LastSave(ArdbConnContext& ctx, RedisCommandFrame& cmd)
@@ -90,25 +97,31 @@ namespace ardb
             file = cmd.GetArguments()[0];
         }
         int ret = 0;
+        ChannelService& serv = ctx.conn->GetService();
+        uint32 conn_id = ctx.conn_id;
         if (RedisDumpFile::IsRedisDumpFile(file) == 1)
         {
             RedisDumpFile rdb;
             rdb.Init(m_db);
-            ret = rdb.Load(file, RDBSaveLoadRoutine, ctx.conn);
+            ret = rdb.Load(file, RDBSaveLoadRoutine, &(ctx.conn->GetService()));
         }
         else
         {
-            ret = m_rdb.Load(file, RDBSaveLoadRoutine, ctx.conn);
+            ret = m_rdb.Load(file, RDBSaveLoadRoutine, &(ctx.conn->GetService()));
         }
-        if (ret == 0)
+        if (serv.GetChannel(conn_id) != NULL)
         {
-            fill_status_reply(ctx.reply, "OK");
+            if (ret == 0)
+            {
+                fill_status_reply(ctx.reply, "OK");
+            }
+            else
+            {
+                fill_error_reply(ctx.reply, "Import error");
+            }
+            return 0;
         }
-        else
-        {
-            fill_error_reply(ctx.reply, "Import error");
-        }
-        return 0;
+        return -1;
     }
 
     void ArdbServer::FillInfoResponse(const std::string& section, std::string& info)
@@ -428,10 +441,10 @@ namespace ardb
                     ctx.reply.elements.push_back(RedisReply(it->first));
                     std::string buf;
                     ConfItemsArray::iterator cit = it->second.begin();
-                    while(cit != it->second.end())
+                    while (cit != it->second.end())
                     {
                         ConfItems::iterator ccit = cit->begin();
-                        while(ccit != cit->end())
+                        while (ccit != cit->end())
                         {
                             buf.append(*ccit).append(" ");
                             ccit++;
@@ -603,8 +616,7 @@ namespace ardb
     {
         if (!m_repl_backlog.IsInited())
         {
-            fill_error_reply(ctx.reply,
-                    "Ardb instance's replication backlog not enabled, can NOT serve as master.");
+            fill_error_reply(ctx.reply, "Ardb instance's replication backlog not enabled, can NOT serve as master.");
             return -1;
         }
         m_master_serv.AddSlave(ctx.conn, cmd);
