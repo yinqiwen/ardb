@@ -62,7 +62,7 @@ namespace ardb
      *  GEOSEARCH key MERCATOR|WGS84 x y  <GeoOptions>
      *  GEOSEARCH key MEMBER m
      *
-     *  <GeoOptions> = RADIUS r [ASC|DESC] [WITHCOORDINATES] [WITHDISTANCES] [GET pattern [GET pattern ...]] [LIMIT offset count]
+     *  <GeoOptions> = IN N m0 m1 m2 RADIUS r [ASC|DESC] [WITHCOORDINATES] [WITHDISTANCES] [GET pattern [GET pattern ...]] [LIMIT offset count]
      *
      *  For 'GET pattern' in GEOSEARCH:
      *  If 'pattern' is '#.<attr>',  return actual point's attribute stored by 'GeoAdd'
@@ -160,6 +160,26 @@ namespace ardb
             x = point.x;
             y = point.y;
         }
+        ZSetCacheElementSet subset;
+        if (options.in_members)
+        {
+            StringSet::const_iterator sit = options.submembers.begin();
+            while (sit != options.submembers.end())
+            {
+                ZSetCaheElement ele;
+                ele.value = *sit;
+                ValueData score, attr;
+                if (0 == ZGetNodeValue(db, key, ele.value, score, attr))
+                {
+                    ele.score = score.NumberValue();
+                    Buffer buf2;
+                    attr.Encode(buf2);
+                    ele.attr.assign(buf2.GetRawReadBuffer(), buf2.ReadableBytes());
+                    subset.insert(ele);
+                }
+                sit++;
+            }
+        }
         GeoHashHelper::GetAreasByRadius(GEO_MERCATOR_TYPE, y, x, options.radius, ress);
 
         /*
@@ -200,12 +220,21 @@ namespace ardb
             z_options.withscores = false;
             z_options.withattr = true;
             ValueDataArray values;
-            ZRangeByScoreRange(db, key, *hit, iter, z_options, true, ZSetValueStoreCallback, &values);
+            if (options.in_members)
+            {
+                ZSetCache::GetRangeInZSetCache(subset, *hit, z_options.withscores, z_options.withattr,
+                        ZSetValueStoreCallback, &values);
+            }
+            else
+            {
+                ZRangeByScoreRange(db, key, *hit, iter, z_options, true, ZSetValueStoreCallback, &values);
+            }
             ValueDataArray::iterator vit = values.begin();
             while (vit != values.end())
             {
                 GeoPoint point;
                 vit->ToString(point.value);
+                //attributes
                 vit++;
                 Buffer content(const_cast<char*>(vit->bytes_value.data()), 0, vit->bytes_value.size());
                 if (point.Decode(content))
@@ -270,7 +299,7 @@ namespace ardb
                 }
                 else if (ait->get_coodinates)
                 {
-                    if(options.coord_type == GEO_WGS84_TYPE)
+                    if (options.coord_type == GEO_WGS84_TYPE)
                     {
                         pit->x = GeoHashHelper::GetWGS84X(pit->x);
                         pit->y = GeoHashHelper::GetWGS84Y(pit->y);

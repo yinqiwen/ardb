@@ -1031,6 +1031,7 @@ namespace ardb
                     err = "Invalid location value.";
                     return -1;
                 }
+                by_location = true;
                 i += 2;
             }
             else if (!strcasecmp(args[i].c_str(), "member") && i < args.size() - 1)
@@ -1038,6 +1039,21 @@ namespace ardb
                 member = args[i + 1];
                 by_member = true;
                 i++;
+            }
+            else if (!strcasecmp(args[i].c_str(), "in") && i < args.size() - 1)
+            {
+                uint32 len;
+                if (!string_touint32(args[i + 1], len) || (i + 1 + len) > args.size() - 1)
+                {
+                    err = "Invalid member value.";
+                    return -1;
+                }
+                for (uint32 j = 0; j < len; j++)
+                {
+                    submembers.insert(args[i + 2 + j]);
+                }
+                in_members = true;
+                i = i + len + 1;
             }
             else if ((!strcasecmp(args[i].c_str(), "GET")) && i < args.size() - 1)
             {
@@ -1069,6 +1085,17 @@ namespace ardb
                 err = "Invalid geosearch options.";
                 return -1;
             }
+        }
+
+        if (radius < 1)
+        {
+            err = "no radius specified";
+            return -1;
+        }
+        if (!by_location && !by_member)
+        {
+            err = "no location/member specified";
+            return -1;
         }
         return 0;
     }

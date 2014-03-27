@@ -162,27 +162,26 @@ namespace ardb
         return Add(score, v, a, thread_safe);
     }
 
-    void ZSetCache::GetRange(const ZRangeSpec& range, bool with_scores, bool with_attrs, ValueVisitCallback* cb,
-            void* cbdata)
+    void ZSetCache::GetRangeInZSetCache(const ZSetCacheElementSet& set, const ZRangeSpec& range, bool with_scores,
+            bool with_attrs, ValueVisitCallback* cb, void* cbdata)
     {
         uint64 start = get_current_epoch_millis();
-        CacheReadLockGuard guard(m_lock);
         ZSetCaheElement min_ele(range.min.NumberValue(), "");
         ZSetCaheElement max_ele(range.max.NumberValue(), "");
-        ZSetCacheElementSet::iterator min_it = m_cache.lower_bound(min_ele);
-        ZSetCacheElementSet::iterator max_it = m_cache.lower_bound(max_ele);
+        ZSetCacheElementSet::const_iterator min_it = set.lower_bound(min_ele);
+        ZSetCacheElementSet::const_iterator max_it = set.lower_bound(max_ele);
         int cursor = 0;
-        if (min_it != m_cache.end())
+        if (min_it != set.end())
         {
-            while (!range.contain_min && min_it != m_cache.end() && min_it->score == range.min.NumberValue())
+            while (!range.contain_min && min_it != set.end() && min_it->score == range.min.NumberValue())
             {
                 min_it++;
             }
-            while (range.contain_max && max_it != m_cache.end() && max_it->score == range.max.NumberValue())
+            while (range.contain_max && max_it != set.end() && max_it->score == range.max.NumberValue())
             {
                 max_it++;
             }
-            while (min_it != max_it && min_it != m_cache.end())
+            while (min_it != max_it && min_it != set.end())
             {
                 ValueData v;
                 Buffer buf(const_cast<char*>(min_it->value.data()), 0, min_it->value.size());
@@ -210,6 +209,15 @@ namespace ardb
             DEBUG_LOG("Cost %llums to get %d elements in between range [%.2f, %.2f]", end - start, cursor,
                     range.min.NumberValue(), range.max.NumberValue());
         }
+    }
+
+    void ZSetCache::GetRange(const ZRangeSpec& range, bool with_scores, bool with_attrs, ValueVisitCallback* cb,
+            void* cbdata)
+    {
+
+        CacheReadLockGuard guard(m_lock);
+        GetRangeInZSetCache(m_cache, range,with_scores, with_attrs,cb, cbdata);
+
     }
 }
 

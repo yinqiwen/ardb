@@ -171,6 +171,8 @@ namespace ardb
             ZSetCache();
             void GetRange(const ZRangeSpec& range, bool with_scores, bool with_attrs, ValueVisitCallback* cb,
                     void* cbdata);
+            static void GetRangeInZSetCache(const ZSetCacheElementSet& set, const ZRangeSpec& range, bool with_scores, bool with_attrs, ValueVisitCallback* cb,
+                    void* cbdata);
             /*
              * return 0:no data inserted  1:score changed, no new element  2:new element
              */

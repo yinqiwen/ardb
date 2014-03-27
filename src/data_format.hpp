@@ -674,13 +674,15 @@ namespace ardb
             int32 limit;
             bool by_member;
             bool by_location;
+            bool in_members;
 
             double x, y;
             std::string member;
+            StringSet submembers;
 
             GeoGetOptionDeque get_patterns;
             GeoSearchOptions() :coord_type(0),
-                    nosort(true), asc(false), radius(0), offset(0), limit(0), by_member(false), by_location(false), x(
+                    nosort(true), asc(false), radius(0), offset(0), limit(0), by_member(false), by_location(false), in_members(false),x(
                             0), y(0)
             {
             }
