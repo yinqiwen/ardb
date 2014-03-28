@@ -59,7 +59,31 @@ namespace ardb
         ctx->conn->Write(ctx->reply);
         server->UnblockConn(*ctx);
         ctx->reply.Clear();
+
     }
+
+    static void erase_context_in_table(BlockContextTable& table, const WatchKey& key, ArdbConnContext* ctx)
+    {
+        BlockContextTable::iterator fit = table.find(key);
+        if (fit != table.end())
+        {
+            ContextDeque::iterator cit = fit->second.begin();
+            while (cit != fit->second.end())
+            {
+                if (*cit == ctx)
+                {
+                    fit->second.erase(cit);
+                    if (fit->second.empty())
+                    {
+                        table.erase(fit);
+                    }
+                    break;
+                }
+                cit++;
+            }
+        }
+    }
+
     void ArdbServer::BlockConn(ArdbConnContext& ctx, uint32 timeout)
     {
         if (timeout > 0)
@@ -77,8 +101,17 @@ namespace ardb
             ctx.conn->GetService().GetTimer().Cancel(ctx.GetBlockList().blocking_timer_task_id);
             ctx.GetBlockList().blocking_timer_task_id = -1;
         }
+        LockGuard<ThreadMutex> guard(m_block_mutex);
+        WatchKeySet::iterator it = ctx.GetBlockList().keys.begin();
+        while (it != ctx.GetBlockList().keys.end())
+        {
+            erase_context_in_table(m_blocking_conns, *it, &ctx);
+            it++;
+        }
+        ctx.ClearBlockList();
         ctx.conn->AttachFD();
     }
+
     void ArdbServer::ClearClosedConnContext(ArdbConnContext& ctx)
     {
         ClearWatchKeys(ctx);
@@ -93,11 +126,7 @@ namespace ardb
             WatchKeySet::iterator it = ctx.GetBlockList().keys.begin();
             while (it != ctx.GetBlockList().keys.end())
             {
-                BlockContextTable::iterator fit = m_blocking_conns.find(*it);
-                if (fit != m_blocking_conns.end())
-                {
-                    m_blocking_conns.erase(fit);
-                }
+                erase_context_in_table(m_blocking_conns, *it, &ctx);
                 it++;
             }
             ctx.ClearBlockList();
@@ -109,9 +138,9 @@ namespace ardb
         {
             LockGuard<ThreadMutex> guard(m_block_mutex);
             BlockContextTable::iterator found = m_blocking_conns.find(key);
-            if (found != m_blocking_conns.end())
+            if (found != m_blocking_conns.end() && !found->second.empty())
             {
-                ArdbConnContext* ctx = found->second;
+                ArdbConnContext* ctx = found->second.front();
                 std::string v;
                 if (ctx->GetBlockList().pop_type == BLOCK_LIST_LPOP)
                 {
@@ -127,10 +156,11 @@ namespace ardb
                 }
                 if (!v.empty())
                 {
+                    found->second.pop_front();
                     WatchKeySet::iterator cit = ctx->GetBlockList().keys.begin();
                     while (cit != ctx->GetBlockList().keys.end())
                     {
-                        m_blocking_conns.erase(*cit);
+                        erase_context_in_table(m_blocking_conns, *cit, ctx);
                         cit++;
                     }
                     ctx->reply.type = REDIS_REPLY_ARRAY;
@@ -370,12 +400,7 @@ namespace ardb
         for (uint32 i = 0; i < cmd.GetArguments().size() - 1; i++)
         {
             WatchKey key(ctx.currentDB, cmd.GetArguments()[i]);
-            if (NULL != m_blocking_conns[key] && m_blocking_conns[key] != &ctx)
-            {
-                fill_error_reply(ctx.reply, "duplicate blocking connection on same key.");
-                return 0;
-            }
-            m_blocking_conns[key] = &ctx;
+            m_blocking_conns[key].push_back(&ctx);
             ctx.GetBlockList().keys.insert(key);
         }
         ctx.GetBlockList().pop_type = BLOCK_LIST_LPOP;
@@ -406,12 +431,7 @@ namespace ardb
         for (uint32 i = 0; i < cmd.GetArguments().size() - 1; i++)
         {
             WatchKey key(ctx.currentDB, cmd.GetArguments()[i]);
-            if (NULL != m_blocking_conns[key] && m_blocking_conns[key] != &ctx)
-            {
-                fill_error_reply(ctx.reply, "duplicate blocking connection on same key.");
-                return 0;
-            }
-            m_blocking_conns[key] = &ctx;
+            m_blocking_conns[key].push_back(&ctx);
             ctx.GetBlockList().keys.insert(key);
         }
         ctx.GetBlockList().pop_type = BLOCK_LIST_RPOP;
@@ -437,12 +457,7 @@ namespace ardb
         {
             ctx.GetBlockList().pop_type = BLOCK_LIST_RPOP;
             WatchKey key(ctx.currentDB, cmd.GetArguments()[0]);
-            if (NULL != m_blocking_conns[key] && m_blocking_conns[key] != &ctx)
-            {
-                fill_error_reply(ctx.reply, "duplicate blocking connection on same key.");
-                return 0;
-            }
-            m_blocking_conns[key] = &ctx;
+            m_blocking_conns[key].push_back(&ctx);
             ctx.GetBlockList().keys.insert(key);
             ctx.GetBlockList().dest_key = cmd.GetArguments()[1];
             BlockConn(ctx, timeout);

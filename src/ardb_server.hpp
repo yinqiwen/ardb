@@ -132,6 +132,7 @@ namespace ardb
     };
     struct ArdbConnContext;
     typedef TreeSet<ArdbConnContext*>::Type ContextSet;
+    typedef std::deque<ArdbConnContext*> ContextDeque;
 
     struct ArdbConncetion
     {
@@ -270,6 +271,7 @@ namespace ardb
             {
             }
     };
+    typedef TreeMap<WatchKey, ContextDeque>::Type BlockContextTable;
 
     struct TransactionContext
     {
@@ -300,7 +302,7 @@ namespace ardb
             ArdbConnContext() :
                     currentDB(0), conn(NULL), is_slave_conn(false), transc(NULL), pubsub(
                     NULL), lua(
-                    NULL), block(NULL), authenticated(true),conn_id(0)
+                    NULL), block(NULL), authenticated(true), conn_id(0)
             {
             }
             LUAConnContext& GetLua()
@@ -420,7 +422,6 @@ namespace ardb
             typedef TreeMap<std::string, RedisCommandHandlerSetting>::Type RedisCommandHandlerSettingTable;
             typedef TreeMap<WatchKey, ContextSet>::Type WatchKeyContextTable;
             typedef TreeMap<std::string, ContextSet>::Type PubSubContextTable;
-            typedef TreeMap<WatchKey, ArdbConnContext*>::Type BlockContextTable;
 
             struct BlockTimeoutTask: public Runnable
             {
