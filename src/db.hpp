@@ -285,6 +285,7 @@ namespace ardb
             int GetExpiration(const DBID& db, const Slice& key, uint64& expire);
 
             int GetValueByPattern(const DBID& db, const Slice& pattern, ValueData& subst, ValueData& value);
+            int MatchValueByPattern(const DBID& db, const Slice& key_pattern, const Slice& value_pattern, ValueData& subst, ValueData& value);
             int GetRawValue(const KeyObject& key, std::string& v);
             int SetRawValue(KeyObject& key, Buffer& v);
             int DelValue(KeyObject& key);

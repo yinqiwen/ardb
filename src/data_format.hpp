@@ -680,6 +680,9 @@ namespace ardb
             std::string member;
             StringSet submembers;
 
+            StringStringMap includes;
+            StringStringMap excludes;
+
             GeoGetOptionDeque get_patterns;
             GeoSearchOptions() :coord_type(0),
                     nosort(true), asc(false), radius(0), offset(0), limit(0), by_member(false), by_location(false), in_members(false),x(

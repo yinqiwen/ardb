@@ -31,6 +31,7 @@
 #include "ardb_server.hpp"
 #include <algorithm>
 #include <vector>
+#include <fnmatch.h>
 
 namespace ardb
 {
@@ -162,6 +163,19 @@ namespace ardb
             }
         }
         return 0;
+    }
+
+    int Ardb::MatchValueByPattern(const DBID& db, const Slice& key_pattern, const Slice& value_pattern,
+            ValueData& subst, ValueData& value)
+    {
+        if (0 != GetValueByPattern(db, key_pattern, subst, value))
+        {
+            return -1;
+        }
+        std::string str;
+        value.ToString(str);
+        std::string vpattern(value_pattern.data(), value_pattern.size());
+        return fnmatch(vpattern.c_str(), str.c_str(), 0) == 0 ? 0 : -1;
     }
 
     int Ardb::GetValueByPattern(const DBID& db, const Slice& pattern, ValueData& subst, ValueData& value)

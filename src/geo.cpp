@@ -62,7 +62,12 @@ namespace ardb
      *  GEOSEARCH key MERCATOR|WGS84 x y  <GeoOptions>
      *  GEOSEARCH key MEMBER m
      *
-     *  <GeoOptions> = IN N m0 m1 m2 RADIUS r [ASC|DESC] [WITHCOORDINATES] [WITHDISTANCES] [GET pattern [GET pattern ...]] [LIMIT offset count]
+     *  <GeoOptions> = IN N m0 m1 m2 RADIUS r
+     *                 [ASC|DESC] [WITHCOORDINATES] [WITHDISTANCES]
+     *                 [GET pattern [GET pattern ...]]
+     *                 [INCLUDE key_pattern value_pattern [INCLUDE key_pattern value_pattern ...]]
+     *                 [EXCLUDE key_pattern value_pattern [EXCLUDE key_pattern value_pattern ...]]
+     *                 [LIMIT offset count]
      *
      *  For 'GET pattern' in GEOSEARCH:
      *  If 'pattern' is '#.<attr>',  return actual point's attribute stored by 'GeoAdd'
@@ -144,7 +149,6 @@ namespace ardb
         {
             x = GeoHashHelper::GetMercatorX(options.x);
             y = GeoHashHelper::GetMercatorY(options.y);
-            //GeoHashHelper::GetCoordRange(GEO_MERCATOR_TYPE, lat_range, lon_range);
         }
         if (options.by_member)
         {
@@ -242,7 +246,60 @@ namespace ardb
                     if (GeoHashHelper::GetDistanceSquareIfInRadius(GEO_MERCATOR_TYPE, x, y, point.x, point.y,
                             options.radius, point.distance))
                     {
-                        points.push_back(point);
+                        /*
+                         * filter by exclude/include
+                         */
+                        if (!options.includes.empty() || !options.excludes.empty())
+                        {
+                            ValueData subst;
+                            subst.SetValue(point.value, false);
+                            bool matched = options.includes.empty() ? true : false;
+                            if (!options.includes.empty())
+                            {
+                                StringStringMap::const_iterator sit = options.includes.begin();
+                                while (sit != options.includes.end())
+                                {
+                                    ValueData mv;
+                                    if (0 != MatchValueByPattern(db, sit->first, sit->second, subst, mv))
+                                    {
+                                        matched = false;
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        matched = true;
+                                    }
+                                    sit++;
+                                }
+                            }
+                            if (matched && !options.excludes.empty())
+                            {
+                                StringStringMap::const_iterator sit = options.excludes.begin();
+                                while (sit != options.excludes.end())
+                                {
+                                    ValueData mv;
+                                    if (0 == MatchValueByPattern(db, sit->first, sit->second, subst, mv))
+                                    {
+                                        matched = false;
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        matched = true;
+                                    }
+                                    sit++;
+                                }
+                            }
+
+                            if (matched)
+                            {
+                                points.push_back(point);
+                            }
+                        }
+                        else
+                        {
+                            points.push_back(point);
+                        }
                     }
                     else
                     {
@@ -262,6 +319,7 @@ namespace ardb
         {
             std::sort(points.begin(), points.end(), options.asc ? less_by_distance : great_by_distance);
         }
+
         if (options.offset > 0)
         {
             if ((uint32) options.offset > points.size())

@@ -1067,6 +1067,24 @@ namespace ardb
                 get_patterns.push_back(get);
                 i++;
             }
+            else if ((!strcasecmp(args[i].c_str(), "include")) && i < args.size() - 2)
+            {
+                if (!includes.insert(StringStringMap::value_type(args[i + 1], args[i + 2])).second)
+                {
+                    err = "duplicate include key pattern:" + args[i + 1];
+                    return -1;
+                }
+                i += 2;
+            }
+            else if ((!strcasecmp(args[i].c_str(), "exclude")) && i < args.size() - 2)
+            {
+                if (!excludes.insert(StringStringMap::value_type(args[i + 1], args[i + 2])).second)
+                {
+                    err = "duplicate exclude key pattern:" + args[i + 1];
+                    return -1;
+                }
+                i += 2;
+            }
             else if ((!strcasecmp(args[i].c_str(), GEO_SEARCH_WITH_COORDINATES)))
             {
                 GeoSearchGetOption get;
