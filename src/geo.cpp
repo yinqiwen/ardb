@@ -171,13 +171,17 @@ namespace ardb
             while (sit != options.submembers.end())
             {
                 ZSetCaheElement ele;
-                ele.value = *sit;
+
                 ValueData score, attr;
-                if (0 == ZGetNodeValue(db, key, ele.value, score, attr))
+                if (0 == ZGetNodeValue(db, key, *sit, score, attr))
                 {
                     ele.score = score.NumberValue();
-                    Buffer buf2;
+                    Buffer buf1, buf2;
+                    ValueData vv;
+                    vv.SetValue(*sit, true);
+                    vv.Encode(buf1);
                     attr.Encode(buf2);
+                    ele.value.assign(buf1.GetRawReadBuffer(), buf1.ReadableBytes());
                     ele.attr.assign(buf2.GetRawReadBuffer(), buf2.ReadableBytes());
                     subset.insert(ele);
                 }
