@@ -161,7 +161,7 @@ namespace ardb
         m_state->repl_backlog_off = m_state->master_repl_offset - m_state->repl_backlog_histlen + 1;
 
 
-        m_state->cksm = crc64(m_state->cksm, (const unsigned char *) p, buffer.ReadableBytes());
+        m_state->cksm = crc64(m_state->cksm, (const unsigned char *)(buffer.GetRawReadBuffer()), buffer.ReadableBytes());
         m_sync_state_change = true;
     }
 

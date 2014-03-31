@@ -25,6 +25,7 @@ It should compile to several executables in 'src' directory, such as ardb-server
   * Ardb instance work as master of Redis 2.6/2.8+ instance
   * Ardb instance work as slave of Ardb instance
   * [Replication detail](https://github.com/yinqiwen/ardb/wiki/Replication)
+- Auto failover support by redis-sentinel
 - Backup data online
   * Use 'save/bgsave' to backup data
   * Use 'import' to import backup data
