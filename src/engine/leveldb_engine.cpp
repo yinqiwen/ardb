@@ -166,6 +166,7 @@ namespace ardb
             m_options.write_buffer_size = cfg.write_buffer_size;
         }
         m_options.max_open_files = cfg.max_open_files;
+        m_options.compression = kNoCompression;
         if (cfg.bloom_bits > 0)
         {
             m_options.filter_policy = leveldb::NewBloomFilterPolicy(cfg.bloom_bits);

@@ -1858,7 +1858,7 @@ namespace ardb
                 {
                     max_it--;
                 }
-                while (min_it <= max_it && min_it != meta->zipvs.end())
+                while (min_it != max_it && min_it != meta->zipvs.end())
                 {
                     cb(min_it->value, cursor++, cbdata);
                     if (options.withscores)
@@ -2104,7 +2104,7 @@ namespace ardb
                 {
                     max_it--;
                 }
-                while (min_it <= max_it && min_it != meta->zipvs.end())
+                while (min_it != max_it && min_it != meta->zipvs.end())
                 {
                     if (options.withscores)
                     {

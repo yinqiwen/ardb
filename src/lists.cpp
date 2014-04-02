@@ -39,11 +39,10 @@ namespace ardb
     void ArdbServer::AsyncWriteBlockListReply(Channel* ch, void * data)
     {
         ArdbConnContext* ctx = (ArdbConnContext*) data;
-        if (NULL != ctx)
-        {
-            ch->Write(ctx->reply);
-            ctx->reply.Clear();
-        }
+        RETURN_IF_NULL(ctx);
+        RETURN_IF_NULL(ch);
+        ch->Write(ctx->reply);
+        ctx->reply.Clear();
         if (ctx->GetBlockList().blocking_timer_task_id > 0)
         {
             ctx->conn->GetService().GetTimer().Cancel(ctx->GetBlockList().blocking_timer_task_id);
