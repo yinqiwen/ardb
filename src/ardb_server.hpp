@@ -169,6 +169,7 @@ namespace ardb
             void List(RedisReply& reply);
             void EraseConn(Channel* conn)
             {
+                LockGuard<ThreadMutex> guard(m_mutex);
                 m_conn_table.erase(conn->GetID());
             }
             bool IsStatEnable()

@@ -195,7 +195,6 @@ namespace ardb
 
             bool check_type_before_set_string;
 
-
             bool read_fill_cache;
             bool zset_write_fill_cache;
 //            bool string_write_fill_cache;
@@ -285,7 +284,8 @@ namespace ardb
             int GetExpiration(const DBID& db, const Slice& key, uint64& expire);
 
             int GetValueByPattern(const DBID& db, const Slice& pattern, ValueData& subst, ValueData& value);
-            int MatchValueByPattern(const DBID& db, const Slice& key_pattern, const Slice& value_pattern, ValueData& subst, ValueData& value);
+            int MatchValueByPattern(const DBID& db, const Slice& key_pattern, const Slice& value_pattern,
+                    ValueData& subst, ValueData& value);
             int GetRawValue(const KeyObject& key, std::string& v);
             int SetRawValue(KeyObject& key, Buffer& v);
             int DelValue(KeyObject& key);
@@ -307,7 +307,8 @@ namespace ardb
             int SLastMember(const DBID& db, const Slice& key, ValueData& member);
             int SFirstMember(const DBID& db, const Slice& key, ValueData& member);
 
-            int KeysVisit(const DBID& db, const std::string& pattern, const std::string& from, ValueVisitCallback* cb, void* data);
+            int KeysVisit(const DBID& db, const std::string& pattern, const std::string& from, ValueVisitCallback* cb,
+                    void* data);
 
             /*
              * Set operation
@@ -340,8 +341,9 @@ namespace ardb
                     typedef TreeSet<DBItemStackKey>::Type DBItemKeySet;
                     typedef TreeMap<DBItemStackKey, ThreadMutexLock*>::Type ThreadMutexLockTable;
                     typedef std::list<ThreadMutexLock*> ThreadMutexLockList;
-                    //DBItemKeySet m_locked_keys;
-                    ThreadMutex m_barrier_mutex;
+                    SpinRWLock m_barrier_lock;
+                    typedef ReadLockGuard<SpinRWLock> SpinReadLockGuard;
+                    typedef WriteLockGuard<SpinRWLock> SpinWriteLockGuard;
                     ThreadMutexLockList m_barrier_pool;
                     ThreadMutexLockTable m_barrier_table;
                     bool m_enable;
@@ -357,7 +359,7 @@ namespace ardb
                     ~KeyLocker()
                     {
                         ThreadMutexLockList::iterator it = m_barrier_pool.begin();
-                        while(it != m_barrier_pool.end())
+                        while (it != m_barrier_pool.end())
                         {
                             delete *it;
                             it++;
@@ -374,12 +376,12 @@ namespace ardb
                             ThreadMutexLock* barrier = NULL;
                             bool inserted = false;
                             {
-                                LockGuard<ThreadMutex> guard(m_barrier_mutex);
+                                SpinWriteLockGuard guard(m_barrier_lock);
                                 /*
                                  * Merge find/insert operations into one 'insert' invocation
                                  */
                                 std::pair<ThreadMutexLockTable::iterator, bool> insert = m_barrier_table.insert(
-                                        std::make_pair(DBItemStackKey(db, key), (ThreadMutexLock*)NULL));
+                                        std::make_pair(DBItemStackKey(db, key), (ThreadMutexLock*) NULL));
                                 if (!insert.second)
                                 {
                                     barrier = insert.first->second;
@@ -410,20 +412,26 @@ namespace ardb
                             return;
                         }
                         ThreadMutexLock* barrier = NULL;
+                        ThreadMutexLockTable::iterator found;
                         {
-                            LockGuard<ThreadMutex> guard(m_barrier_mutex);
-                            ThreadMutexLockTable::iterator found = m_barrier_table.find(DBItemStackKey(db, key));
+                            SpinReadLockGuard guard(m_barrier_lock);
+                            found = m_barrier_table.find(DBItemStackKey(db, key));
                             if (found != m_barrier_table.end())
                             {
                                 barrier = found->second;
-                                m_barrier_table.erase(found);
-                                m_barrier_pool.push_back(barrier);
                             }
                         }
                         if (NULL != barrier)
                         {
-                            LockGuard<ThreadMutexLock> guard(*barrier);
-                            barrier->NotifyAll();
+                            {
+                                LockGuard<ThreadMutexLock> guard(*barrier);
+                                barrier->NotifyAll();
+                            }
+                            {
+                                SpinWriteLockGuard guard(m_barrier_lock);
+                                m_barrier_table.erase(found);
+                                m_barrier_pool.push_back(barrier);
+                            }
                         }
                     }
             };

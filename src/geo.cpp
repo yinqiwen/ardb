@@ -62,7 +62,7 @@ namespace ardb
      *  GEOSEARCH key MERCATOR|WGS84 x y  <GeoOptions>
      *  GEOSEARCH key MEMBER m            <GeoOptions>
      *
-     *  <GeoOptions> = IN N m0 m1 m2 RADIUS r
+     *  <GeoOptions> = [IN N m0 m1 ..] RADIUS r
      *                 [ASC|DESC] [WITHCOORDINATES] [WITHDISTANCES]
      *                 [GET pattern [GET pattern ...]]
      *                 [INCLUDE key_pattern value_pattern [INCLUDE key_pattern value_pattern ...]]

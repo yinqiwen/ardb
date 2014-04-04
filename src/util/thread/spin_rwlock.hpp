@@ -69,19 +69,22 @@ namespace ardb
                     }
                     case WRITE_LOCK:
                     {
-                        // Wait for active writer to release the lock
-                        while (m_lock & 0xfff00000)
-                            sched_yield();
-
-                        if ((0xfff00000 & atomic_add_uint32(&m_lock, 0x100000)) == 0x100000)
+                        for (;;)
                         {
-                            // Wait until there's no more readers
-                            while (m_lock & 0x000fffff)
+                            // Wait for active writer to release the lock
+                            while (m_lock & 0xfff00000)
                                 sched_yield();
 
-                            return true;
+                            if ((0xfff00000 & atomic_add_uint32(&m_lock, 0x100000)) == 0x100000)
+                            {
+                                // Wait until there's no more readers
+                                while (m_lock & 0x000fffff)
+                                    sched_yield();
+
+                                return true;
+                            }
+                            atomic_sub_uint32(&m_lock, 0x100000);
                         }
-                        atomic_sub_uint32(&m_lock, 0x100000);
                         return true;
                     }
                     default:
