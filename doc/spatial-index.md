@@ -24,7 +24,7 @@ First of all, We should estimate the geohash encoding bits by raius value first.
     HashBits, Radius Meters
     52, 0.5971
     50, 1.1943
-    58, 2.3889
+    48, 2.3889
     46, 4.7774
     44, 9.5547
     42, 19.1095
