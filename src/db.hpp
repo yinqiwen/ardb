@@ -336,11 +336,21 @@ namespace ardb
                 m_err_cause = cause;
             }
 
+            struct Barrier: public ThreadMutexLock
+            {
+                    volatile bool in_lock;
+                    volatile uint32 wait_num;
+                    Barrier() :
+                        in_lock(false),wait_num(0)
+                    {
+                    }
+            };
+
             struct KeyLocker
             {
                     typedef TreeSet<DBItemStackKey>::Type DBItemKeySet;
-                    typedef TreeMap<DBItemStackKey, ThreadMutexLock*>::Type ThreadMutexLockTable;
-                    typedef std::list<ThreadMutexLock*> ThreadMutexLockList;
+                    typedef TreeMap<DBItemStackKey, Barrier*>::Type ThreadMutexLockTable;
+                    typedef std::list<Barrier*> ThreadMutexLockList;
                     SpinRWLock m_barrier_lock;
                     typedef ReadLockGuard<SpinRWLock> SpinReadLockGuard;
                     typedef WriteLockGuard<SpinRWLock> SpinWriteLockGuard;
@@ -352,7 +362,7 @@ namespace ardb
                     {
                         for (uint32 i = 0; m_enable && i < thread_num; i++)
                         {
-                            ThreadMutexLock* lock = new ThreadMutexLock;
+                            Barrier* lock = new Barrier;
                             m_barrier_pool.push_back(lock);
                         }
                     }
@@ -365,7 +375,7 @@ namespace ardb
                             it++;
                         }
                     }
-                    ThreadMutexLock* AddLockKey(const DBID& db, const Slice& key)
+                    Barrier* AddLockKey(const DBID& db, const Slice& key)
                     {
                         if (!m_enable)
                         {
@@ -373,22 +383,23 @@ namespace ardb
                         }
                         while (true)
                         {
-                            ThreadMutexLock* barrier = NULL;
+                            Barrier* barrier = NULL;
                             {
                                 SpinWriteLockGuard guard(m_barrier_lock);
                                 /*
                                  * Merge find/insert operations into one 'insert' invocation
                                  */
                                 std::pair<ThreadMutexLockTable::iterator, bool> insert = m_barrier_table.insert(
-                                        std::make_pair(DBItemStackKey(db, key), (ThreadMutexLock*) NULL));
+                                        std::make_pair(DBItemStackKey(db, key), (Barrier*) NULL));
                                 if (!insert.second && NULL != insert.first->second)
                                 {
                                     barrier = insert.first->second;
                                 }
-                                else if(!m_barrier_pool.empty())
+                                else if (!m_barrier_pool.empty())
                                 {
                                     barrier = m_barrier_pool.front();
                                     m_barrier_pool.pop_front();
+                                    barrier->in_lock = true;
                                     insert.first->second = barrier;
                                     return barrier;
                                 }
@@ -396,12 +407,17 @@ namespace ardb
                             if (NULL != barrier)
                             {
                                 LockGuard<ThreadMutexLock> guard(*barrier);
-                                barrier->Wait();
+                                if(barrier->in_lock)
+                                {
+                                    barrier->wait_num++;
+                                    barrier->Wait();
+                                    barrier->wait_num--;
+                                }
                             }
                         }
                         return NULL;
                     }
-                    void ClearLockKey(const DBID& db, const Slice& key, ThreadMutexLock* barrier)
+                    void ClearLockKey(const DBID& db, const Slice& key, Barrier* barrier)
                     {
                         if (!m_enable)
                         {
@@ -410,7 +426,11 @@ namespace ardb
                         if (NULL != barrier)
                         {
                             LockGuard<ThreadMutexLock> guard(*barrier);
-                            barrier->Notify();
+                            if(barrier->wait_num > 0)
+                            {
+                                barrier->NotifyAll();
+                            }
+                            barrier->in_lock = false;
                         }
                         if (NULL != barrier)
                         {
@@ -426,7 +446,7 @@ namespace ardb
                     KeyLocker& locker;
                     const DBID& db;
                     const Slice& key;
-                    ThreadMutexLock* barrier;
+                    Barrier* barrier;
                     KeyLockerGuard(KeyLocker& loc, const DBID& id, const Slice& k) :
                             locker(loc), db(id), key(k), barrier(NULL)
                     {

@@ -106,7 +106,6 @@ namespace ardb
 			{
 			}
 	};
-
 }
 
 #endif /* THREADMUTEXLOCK_HPP_ */
