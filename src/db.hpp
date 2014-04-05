@@ -365,16 +365,15 @@ namespace ardb
                             it++;
                         }
                     }
-                    void AddLockKey(const DBID& db, const Slice& key)
+                    ThreadMutexLock* AddLockKey(const DBID& db, const Slice& key)
                     {
                         if (!m_enable)
                         {
-                            return;
+                            return NULL;
                         }
                         while (true)
                         {
                             ThreadMutexLock* barrier = NULL;
-                            bool inserted = false;
                             {
                                 SpinWriteLockGuard guard(m_barrier_lock);
                                 /*
@@ -382,56 +381,42 @@ namespace ardb
                                  */
                                 std::pair<ThreadMutexLockTable::iterator, bool> insert = m_barrier_table.insert(
                                         std::make_pair(DBItemStackKey(db, key), (ThreadMutexLock*) NULL));
-                                if (!insert.second)
+                                if (!insert.second && NULL != insert.first->second)
                                 {
                                     barrier = insert.first->second;
                                 }
-                                else
+                                else if(!m_barrier_pool.empty())
                                 {
                                     barrier = m_barrier_pool.front();
                                     m_barrier_pool.pop_front();
                                     insert.first->second = barrier;
-                                    inserted = true;
+                                    return barrier;
                                 }
                             }
-                            if (inserted)
-                            {
-                                return;
-                            }
-                            else
+                            if (NULL != barrier)
                             {
                                 LockGuard<ThreadMutexLock> guard(*barrier);
                                 barrier->Wait();
                             }
                         }
+                        return NULL;
                     }
-                    void ClearLockKey(const DBID& db, const Slice& key)
+                    void ClearLockKey(const DBID& db, const Slice& key, ThreadMutexLock* barrier)
                     {
                         if (!m_enable)
                         {
                             return;
                         }
-                        ThreadMutexLock* barrier = NULL;
-                        ThreadMutexLockTable::iterator found;
+                        if (NULL != barrier)
                         {
-                            SpinReadLockGuard guard(m_barrier_lock);
-                            found = m_barrier_table.find(DBItemStackKey(db, key));
-                            if (found != m_barrier_table.end())
-                            {
-                                barrier = found->second;
-                            }
+                            LockGuard<ThreadMutexLock> guard(*barrier);
+                            barrier->Notify();
                         }
                         if (NULL != barrier)
                         {
-                            {
-                                LockGuard<ThreadMutexLock> guard(*barrier);
-                                barrier->NotifyAll();
-                            }
-                            {
-                                SpinWriteLockGuard guard(m_barrier_lock);
-                                m_barrier_table.erase(found);
-                                m_barrier_pool.push_back(barrier);
-                            }
+                            SpinWriteLockGuard guard(m_barrier_lock);
+                            m_barrier_table.erase(DBItemStackKey(db, key));
+                            m_barrier_pool.push_back(barrier);
                         }
                     }
             };
@@ -441,14 +426,15 @@ namespace ardb
                     KeyLocker& locker;
                     const DBID& db;
                     const Slice& key;
+                    ThreadMutexLock* barrier;
                     KeyLockerGuard(KeyLocker& loc, const DBID& id, const Slice& k) :
-                            locker(loc), db(id), key(k)
+                            locker(loc), db(id), key(k), barrier(NULL)
                     {
-                        locker.AddLockKey(db, key);
+                        barrier = locker.AddLockKey(db, key);
                     }
                     ~KeyLockerGuard()
                     {
-                        locker.ClearLockKey(db, key);
+                        locker.ClearLockKey(db, key, barrier);
                     }
             };
             KeyLocker m_key_locker;
