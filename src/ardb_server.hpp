@@ -587,6 +587,7 @@ namespace ardb
             int HSetNX(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int HVals(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int HScan(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            int MHGet(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
             int SAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int SCard(ArdbConnContext& ctx, RedisCommandFrame& cmd);

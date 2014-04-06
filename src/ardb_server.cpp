@@ -288,6 +288,7 @@ namespace ardb
                 { "hlen", REDIS_CMD_HLEN, &ArdbServer::HLen, 1, 1, "r", 0 },
                 { "hvals", REDIS_CMD_HVALS, &ArdbServer::HVals, 1, 1, "r", 0 },
                 { "hmget", REDIS_CMD_HMGET, &ArdbServer::HMGet, 2, -1, "r", 0 },
+                { "mhget", REDIS_CMD_MHGET, &ArdbServer::MHGet, 2, -1, "r", 0 },
                 { "hset", REDIS_CMD_HSET, &ArdbServer::HSet, 3, 3, "w", 0 },
                 { "hsetnx", REDIS_CMD_HSETNX, &ArdbServer::HSetNX, 3, 3, "w", 0 },
                 { "hmset", REDIS_CMD_HMSET, &ArdbServer::HMSet, 3, -1, "w", 0 },

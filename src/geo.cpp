@@ -171,7 +171,6 @@ namespace ardb
             while (sit != options.submembers.end())
             {
                 ZSetCaheElement ele;
-
                 ValueData score, attr;
                 if (0 == ZGetNodeValue(db, key, *sit, score, attr))
                 {
@@ -189,7 +188,6 @@ namespace ardb
             }
         }
         GeoHashHelper::GetAreasByRadius(GEO_MERCATOR_TYPE, y, x, options.radius, ress);
-
         /*
          * Merge areas if possible to avoid disk search
          */
@@ -294,7 +292,6 @@ namespace ardb
                                     sit++;
                                 }
                             }
-
                             if (matched)
                             {
                                 points.push_back(point);

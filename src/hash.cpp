@@ -115,6 +115,28 @@ namespace ardb
         return 0;
     }
 
+    int ArdbServer::MHGet(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        if (cmd.GetArguments().size() % 2 != 0)
+        {
+            fill_error_reply(ctx.reply, "wrong number of arguments for MHGet");
+            return 0;
+        }
+        ValueDataArray vals;
+        for (uint32 i = 0; i < cmd.GetArguments().size(); i += 2)
+        {
+            std::string v;
+            ValueData vv;
+            if(0 == m_db->HGet(ctx.currentDB, cmd.GetArguments()[i], cmd.GetArguments()[i+1], &v))
+            {
+                vv.SetValue(v, false);
+            }
+            vals.push_back(vv);
+        }
+        fill_array_reply(ctx.reply, vals);
+        return 0;
+    }
+
     int ArdbServer::HMGet(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         StringArray vals;
