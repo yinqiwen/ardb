@@ -428,9 +428,13 @@ namespace ardb
             {
                     ArdbServer* server;
                     ArdbConnContext* ctx;
+                    ChannelService* event_service;
+                    uint32 conn_id;
                     BlockTimeoutTask(ArdbServer* s, ArdbConnContext* c) :
-                            server(s), ctx(c)
+                            server(s), ctx(c),event_service(NULL), conn_id(0)
                     {
+                        event_service = &(c->conn->GetService());
+                        conn_id = ctx->conn_id;
                     }
                     void Run();
             };
@@ -587,7 +591,6 @@ namespace ardb
             int HSetNX(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int HVals(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int HScan(ArdbConnContext& ctx, RedisCommandFrame& cmd);
-            int MHGet(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
             int SAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int SCard(ArdbConnContext& ctx, RedisCommandFrame& cmd);

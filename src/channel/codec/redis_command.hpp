@@ -194,8 +194,9 @@ namespace ardb
             REDIS_CMD_EVALSHA = 157,
             REDIS_CMD_SCRIPT = 158,
             REDIS_CMD_KEYSCOUNT = 159,
-            REDIS_CMD_HRANGE = 160,
-            REDIS_CMD_HREVRANGE = 161,
+
+            REDIS_CMD_EMBED = 160,
+
             REDIS_CMD_SCAN = 162,
             REDIS_CMD_SSCAN = 163,
             REDIS_CMD_HSCAN = 164,
@@ -203,7 +204,7 @@ namespace ardb
             REDIS_CMD_GEO_ADD = 166,
             REDIS_CMD_GEO_SEARCH = 167,
             REDIS_CMD_CACHE = 168,
-            REDIS_CMD_MHGET = 169,
+
         };
 
         class RedisCommandDecoder;

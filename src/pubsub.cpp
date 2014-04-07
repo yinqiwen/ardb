@@ -147,7 +147,6 @@ namespace ardb
     int ArdbServer::PSubscribe(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         LockGuard<ThreadMutex> guard(m_pubsub_mutex);
-
         ArgumentArray::const_iterator it = cmd.GetArguments().begin();
         while (it != cmd.GetArguments().end())
         {

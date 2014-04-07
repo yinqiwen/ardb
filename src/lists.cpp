@@ -54,11 +54,14 @@ namespace ardb
 
     void ArdbServer::BlockTimeoutTask::Run()
     {
-        ctx->reply.type = REDIS_REPLY_NIL;
-        ctx->conn->Write(ctx->reply);
-        server->UnblockConn(*ctx);
-        ctx->reply.Clear();
-
+        if (event_service->GetChannel(conn_id) != NULL
+                && ctx->conn->GetID() == conn_id)
+        {
+            ctx->reply.type = REDIS_REPLY_NIL;
+            ctx->conn->Write(ctx->reply);
+            server->UnblockConn(*ctx);
+            ctx->reply.Clear();
+        }
     }
 
     static void erase_context_in_table(BlockContextTable& table, const WatchKey& key, ArdbConnContext* ctx)
@@ -118,7 +121,10 @@ namespace ardb
         {
             if (ctx.GetBlockList().blocking_timer_task_id > 0)
             {
-                ctx.conn->GetService().GetTimer().Cancel(ctx.GetBlockList().blocking_timer_task_id);
+                if (!ctx.conn->GetService().GetTimer().Cancel(ctx.GetBlockList().blocking_timer_task_id))
+                {
+                    WARN_LOG("Failed to cancel block timeout task by id:%d", ctx.GetBlockList().blocking_timer_task_id);
+                }
                 ctx.GetBlockList().blocking_timer_task_id = -1;
             }
             LockGuard<ThreadMutex> guard(m_block_mutex);
