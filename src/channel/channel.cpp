@@ -63,8 +63,9 @@ Channel::Channel(Channel* parent, ChannelService& service) :
         m_user_configed(false), m_has_removed(false), m_parent_id(0), m_service(&service), m_id(0), m_fd(-1), m_flush_timertask_id(
                 -1), m_pipeline_initializor(
         NULL), m_pipeline_initailizor_user_data(NULL), m_pipeline_finallizer(
-        NULL), m_pipeline_finallizer_user_data(NULL), m_detached(false), m_close_after_write(false), m_file_sending(
-                NULL)
+        NULL), m_pipeline_finallizer_user_data(NULL), m_detached(false), m_close_after_write(false), m_block_read(
+                false), m_file_sending(
+        NULL)
 {
 
     if (kChannelIDSeed == MAX_CHANNEL_ID)
@@ -197,7 +198,6 @@ int Channel::HandleIOError(int err)
 
 int32 Channel::ReadNow(Buffer* buffer)
 {
-
     int err;
     int ret = buffer->ReadFD(GetReadFD(), err);
     if (ret < 0)
@@ -227,7 +227,7 @@ void Channel::Run()
 
 bool Channel::IsEnableWriting()
 {
-    int fd =  GetWriteFD();
+    int fd = GetWriteFD();
     return fd > 0 && (aeGetFileEvents(GetService().GetRawEventLoop(), fd) & AE_WRITABLE);
 }
 
@@ -463,8 +463,36 @@ bool Channel::DoConnect(Address* remote)
 
 void Channel::OnRead()
 {
-    m_inputBuffer.DiscardReadedBytes();
-    int32 len = ReadNow(&m_inputBuffer);
+    int32 len = 0;
+    if (m_block_read)
+    {
+        //just test error
+        char buffer[32];
+        len = ::recv(GetReadFD(), buffer, sizeof(buffer), MSG_PEEK | MSG_DONTWAIT);
+        if (len < 0)
+        {
+            int err = errno;
+            if (IO_ERR_RW_RETRIABLE(err))
+            {
+                return;
+            }
+            else
+            {
+                HandleIOError(err);
+                return;
+            }
+        }
+        if(len == 0)
+        {
+            HandleExceptionEvent(CHANNEL_EVENT_EOF);
+            return;
+        }
+    }
+    else
+    {
+        m_inputBuffer.DiscardReadedBytes();
+        len = ReadNow(&m_inputBuffer);
+    }
     if (len > 0)
     {
         //TRACE_LOG(

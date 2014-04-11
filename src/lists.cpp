@@ -29,6 +29,7 @@
 
 #include "db.hpp"
 #include "ardb_server.hpp"
+#include <algorithm>
 
 #define BLOCK_LIST_RPOP 0
 #define BLOCK_LIST_LPOP 1
@@ -36,26 +37,10 @@
 
 namespace ardb
 {
-    void ArdbServer::AsyncWriteBlockListReply(Channel* ch, void * data)
-    {
-        ArdbConnContext* ctx = (ArdbConnContext*) data;
-        RETURN_IF_NULL(ctx);
-        RETURN_IF_NULL(ch);
-        ch->Write(ctx->reply);
-        ctx->reply.Clear();
-        if (ctx->GetBlockList().blocking_timer_task_id > 0)
-        {
-            ctx->conn->GetService().GetTimer().Cancel(ctx->GetBlockList().blocking_timer_task_id);
-            ctx->GetBlockList().blocking_timer_task_id = -1;
-        }
-        ctx->conn->AttachFD();
-        ctx->ClearBlockList();
-    }
 
     void ArdbServer::BlockTimeoutTask::Run()
     {
-        if (event_service->GetChannel(conn_id) != NULL
-                && ctx->conn->GetID() == conn_id)
+        if (event_service->GetChannel(conn_id) != NULL && ctx->conn->GetID() == conn_id)
         {
             ctx->reply.type = REDIS_REPLY_NIL;
             ctx->conn->Write(ctx->reply);
@@ -64,24 +49,26 @@ namespace ardb
         }
     }
 
+    struct IsCtxOp
+    {
+            ArdbConnContext* _ctx;
+            bool operator()(const BlockConnContext& ctx)
+            {
+                return ctx.ctx == _ctx;
+            }
+    };
+
     static void erase_context_in_table(BlockContextTable& table, const WatchKey& key, ArdbConnContext* ctx)
     {
         BlockContextTable::iterator fit = table.find(key);
         if (fit != table.end())
         {
-            ContextDeque::iterator cit = fit->second.begin();
-            while (cit != fit->second.end())
+            IsCtxOp pred;
+            pred._ctx = ctx;
+            fit->second.erase(std::remove_if(fit->second.begin(), fit->second.end(), pred), fit->second.end());
+            if (fit->second.empty())
             {
-                if (*cit == ctx)
-                {
-                    fit->second.erase(cit);
-                    if (fit->second.empty())
-                    {
-                        table.erase(fit);
-                    }
-                    break;
-                }
-                cit++;
+                table.erase(fit);
             }
         }
     }
@@ -94,7 +81,7 @@ namespace ardb
             ctx.GetBlockList().blocking_timer_task_id = ctx.conn->GetService().GetTimer().ScheduleHeapTask(task,
                     timeout, -1, SECONDS);
         }
-        ctx.conn->DetachFD();
+        ctx.conn->BlockRead();
     }
     void ArdbServer::UnblockConn(ArdbConnContext& ctx)
     {
@@ -111,7 +98,7 @@ namespace ardb
             it++;
         }
         ctx.ClearBlockList();
-        ctx.conn->AttachFD();
+        ctx.conn->UnblockRead();
     }
 
     void ArdbServer::ClearClosedConnContext(ArdbConnContext& ctx)
@@ -137,42 +124,76 @@ namespace ardb
             ctx.ClearBlockList();
         }
     }
+    void ArdbServer::WakeBlockedConnOnList(Channel* ch, void * data)
+    {
+        BlockConnWakeContext* bctx = (BlockConnWakeContext*) data;
+        RETURN_IF_NULL(bctx);
+        if (NULL == ch || ch->IsClosed())
+        {
+            DELETE(bctx);
+            return;
+        }
+        ArdbConnContext* ctx = bctx->ctx;
+        Ardb* db = bctx->server->m_db;
+        WatchKey& key = bctx->key;
+        std::string v;
+        if (ctx->GetBlockList().pop_type == BLOCK_LIST_LPOP)
+        {
+            db->LPop(key.db, key.key, v);
+        }
+        else if (ctx->GetBlockList().pop_type == BLOCK_LIST_RPOP)
+        {
+            db->RPop(key.db, key.key, v);
+        }
+        else if (ctx->GetBlockList().pop_type == BLOCK_LIST_RPOPLPUSH)
+        {
+            db->RPopLPush(key.db, key.key, ctx->GetBlockList().dest_key, v);
+        }
+        if (!v.empty())
+        {
+            LockGuard<ThreadMutex> guard(bctx->server->m_block_mutex);
+            WatchKeySet::iterator cit = ctx->GetBlockList().keys.begin();
+            while (cit != ctx->GetBlockList().keys.end())
+            {
+                erase_context_in_table(bctx->server->m_blocking_conns, *cit, ctx);
+                cit++;
+            }
+            ctx->reply.type = REDIS_REPLY_ARRAY;
+            ctx->reply.elements.push_back(RedisReply(key.key));
+            ctx->reply.elements.push_back(RedisReply(v));
+        }
+        else
+        {
+            ctx->reply.type = REDIS_REPLY_NIL;
+        }
+        ctx->conn->UnblockRead();
+        ctx->conn->Write(ctx->reply);
+        ctx->reply.Clear();
+        if (ctx->GetBlockList().blocking_timer_task_id > 0)
+        {
+            ctx->conn->GetService().GetTimer().Cancel(ctx->GetBlockList().blocking_timer_task_id);
+            ctx->GetBlockList().blocking_timer_task_id = -1;
+        }
+        ctx->ClearBlockList();
+        DELETE(bctx);
+    }
+
     void ArdbServer::CheckBlockingConnectionsByListKey(const WatchKey& key)
     {
-        if (m_db->LLen(key.db, key.key) > 0)
+        LockGuard<ThreadMutex> guard(m_block_mutex);
+        BlockContextTable::iterator found = m_blocking_conns.find(key);
+        if (found != m_blocking_conns.end() && !found->second.empty())
         {
-            LockGuard<ThreadMutex> guard(m_block_mutex);
-            BlockContextTable::iterator found = m_blocking_conns.find(key);
-            if (found != m_blocking_conns.end() && !found->second.empty())
+            if (m_db->LLen(key.db, key.key) > 0)
             {
-                ArdbConnContext* ctx = found->second.front();
-                std::string v;
-                if (ctx->GetBlockList().pop_type == BLOCK_LIST_LPOP)
-                {
-                    m_db->LPop(key.db, key.key, v);
-                }
-                else if (ctx->GetBlockList().pop_type == BLOCK_LIST_RPOP)
-                {
-                    m_db->RPop(key.db, key.key, v);
-                }
-                else if (ctx->GetBlockList().pop_type == BLOCK_LIST_RPOPLPUSH)
-                {
-                    m_db->RPopLPush(key.db, key.key, ctx->GetBlockList().dest_key, v);
-                }
-                if (!v.empty())
-                {
-                    found->second.pop_front();
-                    WatchKeySet::iterator cit = ctx->GetBlockList().keys.begin();
-                    while (cit != ctx->GetBlockList().keys.end())
-                    {
-                        erase_context_in_table(m_blocking_conns, *cit, ctx);
-                        cit++;
-                    }
-                    ctx->reply.type = REDIS_REPLY_ARRAY;
-                    ctx->reply.elements.push_back(RedisReply(key.key));
-                    ctx->reply.elements.push_back(RedisReply(v));
-                    ctx->conn->GetService().AsyncIO(ctx->conn->GetID(), AsyncWriteBlockListReply, ctx);
-                }
+                BlockConnContext& ctx = found->second.front();
+                BlockConnWakeContext* wakeCtx = NULL;
+                NEW(wakeCtx, BlockConnWakeContext);
+                wakeCtx->ctx = ctx.ctx;
+                wakeCtx->key = key;
+                wakeCtx->server = this;
+                ctx.eventService->AsyncIO(ctx.connId, WakeBlockedConnOnList, wakeCtx);
+                found->second.pop_front();
             }
         }
     }
@@ -404,8 +425,12 @@ namespace ardb
         LockGuard<ThreadMutex> guard(m_block_mutex);
         for (uint32 i = 0; i < cmd.GetArguments().size() - 1; i++)
         {
+            BlockConnContext blockCtx;
+            blockCtx.connId = ctx.conn_id;
+            blockCtx.ctx = &ctx;
+            blockCtx.eventService = &(ctx.conn->GetService());
             WatchKey key(ctx.currentDB, cmd.GetArguments()[i]);
-            m_blocking_conns[key].push_back(&ctx);
+            m_blocking_conns[key].push_back(blockCtx);
             ctx.GetBlockList().keys.insert(key);
         }
         ctx.GetBlockList().pop_type = BLOCK_LIST_LPOP;
@@ -435,8 +460,12 @@ namespace ardb
         LockGuard<ThreadMutex> guard(m_block_mutex);
         for (uint32 i = 0; i < cmd.GetArguments().size() - 1; i++)
         {
+            BlockConnContext blockCtx;
+            blockCtx.connId = ctx.conn_id;
+            blockCtx.ctx = &ctx;
+            blockCtx.eventService = &(ctx.conn->GetService());
             WatchKey key(ctx.currentDB, cmd.GetArguments()[i]);
-            m_blocking_conns[key].push_back(&ctx);
+            m_blocking_conns[key].push_back(blockCtx);
             ctx.GetBlockList().keys.insert(key);
         }
         ctx.GetBlockList().pop_type = BLOCK_LIST_RPOP;
@@ -460,9 +489,14 @@ namespace ardb
         }
         else
         {
+            LockGuard<ThreadMutex> guard(m_block_mutex);
             ctx.GetBlockList().pop_type = BLOCK_LIST_RPOP;
+            BlockConnContext blockCtx;
+            blockCtx.connId = ctx.conn_id;
+            blockCtx.ctx = &ctx;
+            blockCtx.eventService = &(ctx.conn->GetService());
             WatchKey key(ctx.currentDB, cmd.GetArguments()[0]);
-            m_blocking_conns[key].push_back(&ctx);
+            m_blocking_conns[key].push_back(blockCtx);
             ctx.GetBlockList().keys.insert(key);
             ctx.GetBlockList().dest_key = cmd.GetArguments()[1];
             BlockConn(ctx, timeout);

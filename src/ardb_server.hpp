@@ -272,7 +272,29 @@ namespace ardb
             {
             }
     };
-    typedef TreeMap<WatchKey, ContextDeque>::Type BlockContextTable;
+
+    struct BlockConnContext
+    {
+            ArdbConnContext* ctx;
+            ChannelService* eventService;
+            uint32 connId;
+            BlockConnContext() :
+                    ctx(NULL), eventService(NULL), connId(0)
+            {
+            }
+    };
+    struct BlockConnWakeContext
+    {
+            ArdbConnContext* ctx;
+            WatchKey key;
+            ArdbServer* server;
+            BlockConnWakeContext() :
+                    ctx(NULL),server(NULL)
+            {
+            }
+    };
+    typedef std::deque<BlockConnContext> BlockConnContextDeque;
+    typedef TreeMap<WatchKey, BlockConnContextDeque>::Type BlockContextTable;
 
     struct TransactionContext
     {
@@ -431,7 +453,7 @@ namespace ardb
                     ChannelService* event_service;
                     uint32 conn_id;
                     BlockTimeoutTask(ArdbServer* s, ArdbConnContext* c) :
-                            server(s), ctx(c),event_service(NULL), conn_id(0)
+                            server(s), ctx(c), event_service(NULL), conn_id(0)
                     {
                         event_service = &(c->conn->GetService());
                         conn_id = ctx->conn_id;
@@ -466,7 +488,8 @@ namespace ardb
 
             void HandleReply(ArdbConnContext* ctx);
 
-            static void AsyncWriteBlockListReply(Channel* ch, void * data);
+            //static void AsyncWriteBlockListReply(Channel* ch, void * data);
+            static void WakeBlockedConnOnList(Channel* ch, void * data);
 
             friend class RedisRequestHandler;
             friend class Slave;

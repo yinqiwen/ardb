@@ -174,6 +174,7 @@ namespace ardb
             void* m_pipeline_finallizer_user_data;
             bool m_detached;
             bool m_close_after_write;
+            bool m_block_read;
 
             SendFileSetting* m_file_sending;
 
@@ -272,6 +273,15 @@ namespace ardb
             bool IsEnableWriting();
             void EnableWriting();
             void DisableWriting();
+
+            inline void BlockRead()
+            {
+                m_block_read = true;
+            }
+            inline void UnblockRead()
+            {
+                m_block_read = false;
+            }
 
             inline void SetChannelPipelineInitializor(ChannelPipelineInitializer* initializor, void* data = NULL)
             {
