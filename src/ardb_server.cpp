@@ -174,18 +174,19 @@ namespace ardb
         conf_get_string(props, "requirepass", cfg.requirepass);
 
         Properties::const_iterator fit = props.find("rename-command");
-        if(fit != props.end())
+        if (fit != props.end())
         {
             cfg.rename_commands.clear();
             StringSet newcmdset;
             const ConfItemsArray& cs = fit->second;
-            ConfItemsArray::const_iterator  cit = cs.begin();
-            while(cit != cs.end())
+            ConfItemsArray::const_iterator cit = cs.begin();
+            while (cit != cs.end())
             {
-                if(cit->size() != 2 || newcmdset.count(cit->at(1)) > 0)
+                if (cit->size() != 2 || newcmdset.count(cit->at(1)) > 0)
                 {
                     ERROR_LOG("Invalid 'rename-command' config.");
-                }else
+                }
+                else
                 {
                     cfg.rename_commands[cit->at(0)] = cit->at(1);
                     newcmdset.insert(cit->at(1));
@@ -368,7 +369,11 @@ namespace ardb
                 { "geoadd", REDIS_CMD_GEO_ADD, &ArdbServer::GeoAdd, 5, -1, "w", 0 },
                 { "geosearch", REDIS_CMD_GEO_SEARCH, &ArdbServer::GeoSearch, 5, -1, "r", 0 },
                 { "cache", REDIS_CMD_CACHE, &ArdbServer::Cache, 2, 2, "r", 0 },
-                { "auth", REDIS_CMD_AUTH, &ArdbServer::Auth, 1, 1, "r", 0 }, };
+                { "auth", REDIS_CMD_AUTH, &ArdbServer::Auth, 1, 1, "r", 0 },
+                { "pfadd", REDIS_CMD_PFADD, &ArdbServer::PFAdd, 2, -1, "w", 0 },
+                { "pfcount", REDIS_CMD_PFCOUNT, &ArdbServer::PFCount, 1, 1, "w", 0 },
+                { "pfmerge", REDIS_CMD_PFMERGE, &ArdbServer::PFMerge, 2, -1, "w", 0 },
+                { "pfmergecount", REDIS_CMD_PFMERGECOUNT, &ArdbServer::PFMergeCount, 1, -1, "r", 0 }, };
 
         uint32 arraylen = arraysize(settingTable);
         for (uint32 i = 0; i < arraylen; i++)
@@ -556,7 +561,7 @@ namespace ardb
                         m_master_serv.FeedSlaves(ctx.conn, ctx.currentDB, exec);
                     }
                 }
-                else if((setting->flags & ARDB_CMD_WRITE))
+                else if ((setting->flags & ARDB_CMD_WRITE))
                 {
                     m_master_serv.FeedSlaves(ctx.conn, ctx.currentDB, args);
                 }
@@ -708,11 +713,11 @@ namespace ardb
     void ArdbServer::RenameCommand()
     {
         StringStringMap::iterator it = m_cfg.rename_commands.begin();
-        while(it != m_cfg.rename_commands.end())
+        while (it != m_cfg.rename_commands.end())
         {
             std::string cmd = string_tolower(it->first);
             RedisCommandHandlerSettingTable::iterator found = m_handler_table.find(cmd);
-            if(found != m_handler_table.end())
+            if (found != m_handler_table.end())
             {
                 RedisCommandHandlerSetting setting = found->second;
                 m_handler_table.erase(found);

@@ -685,6 +685,11 @@ namespace ardb
             int Cache(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int Auth(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
+            int PFAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            int PFCount(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            int PFMerge(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            int PFMergeCount(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+
             Timer& GetTimer();
 
             static void ServerEventCallback(ChannelService* serv, uint32 ev, void* data);

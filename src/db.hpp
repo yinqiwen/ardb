@@ -59,6 +59,7 @@
 #define ERR_OUTOFRANGE -9
 #define ERR_NOT_EXIST -10
 #define ERR_TOO_LARGE_RESPONSE -11
+#define ERR_INVALID_HLL_TYPE -12
 
 #define ARDB_GLOBAL_DB 0xFFFFFF
 
@@ -329,6 +330,8 @@ namespace ardb
             int SInter(const DBID& db, SliceArray& keys, SetOperationCallback* callback, uint32 max_subset_num);
             int SUnion(const DBID& db, SliceArray& keys, SetOperationCallback* callback, uint32 max_subset_num);
             int SDiff(const DBID& db, SliceArray& keys, SetOperationCallback* callback, uint32 max_subset_num);
+
+            int PFMerge(const DBID& db, const SliceArray& srckeys, std::string& hllvalue);
 
             std::string m_err_cause;
             void SetErrorCause(const std::string& cause)
@@ -653,6 +656,11 @@ namespace ardb
             int GetScript(const std::string& funacname, std::string& funcbody);
             int SaveScript(const std::string& funacname, const std::string& funcbody);
             int FlushScripts();
+
+            int PFAdd(const DBID& db, const Slice& key, const SliceArray& members);
+            int PFCount(const DBID& db, const Slice& key, uint64& v);
+            int PFMerge(const DBID& db, const Slice& destkey, const SliceArray& srckeys);
+            int PFMergeCount(const DBID& db, const SliceArray& srckeys, uint64& v);
 
             void PrintDB(const DBID& db);
             void VisitDB(const DBID& db, RawValueVisitor* visitor, Iterator* iter = NULL);

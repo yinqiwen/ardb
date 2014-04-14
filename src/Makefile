@@ -129,7 +129,7 @@ UTIL_CFILES := $(foreach dir, $(UTIL_VPATH), $(wildcard $(dir)/*.c))
 UTIL_OBJECTS := $(patsubst %.cpp, %.o, $(UTIL_CPPFILES)) $(patsubst %.c, %.o, $(UTIL_CFILES))
 CORE_OBJECTS := db.o data_format.o hash.o kv.o lists.o logger.o sets.o \
                 zsets.o strings.o bits.o sort.o geo.o server.o connection.o\
-                ardb_server.o lua_scripting.o transaction.o slowlog.o  \
+                ardb_server.o lua_scripting.o transaction.o slowlog.o hyperloglog.o \
                 replication/rdb.o replication/slave.o replication/repl_backlog.o \
                 replication/master.o ha/agent.o pubsub.o stat.o \
                 $(UTIL_OBJECTS) $(CHANNEL_OBJECTS) 
