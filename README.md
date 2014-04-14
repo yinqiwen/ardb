@@ -65,7 +65,7 @@ LevelDB Options: block_cache_size=512m, write_buffer_size=512m, thread_pool_size
 
          
 
-## Ardb vs Redis(2.8.7) 
+## Ardb vs Redis(2.8.9) 
  * Unsupported Redis Commands:
   - DUMP 
   - MIGRATE
@@ -87,6 +87,7 @@ LevelDB Options: block_cache_size=512m, write_buffer_size=512m, thread_pool_size
   - BitOPCount
   - Import
   - KeysCount
+  - PFMergeCount
   - GeoAdd
   - GeoSearch
   - Cache 
