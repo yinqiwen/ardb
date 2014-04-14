@@ -521,7 +521,8 @@ namespace ardb
         }
         else
         {
-            ERROR_LOG("No handler found for:%s", cmd.c_str());
+            ERROR_LOG("No handler found for:%s with size:%u", cmd.c_str(), cmd.size());
+            ERROR_LOG("Invalid command's ascii codes:%s", ascii_codes(cmd).c_str());
             fill_error_reply(ctx.reply, "unknown command '%s'", cmd.c_str());
             return 0;
         }

@@ -303,14 +303,23 @@ namespace ardb
     {
         const std::string& key = cmd.GetArguments()[0];
         std::string value;
-        if (0 == m_db->Get(ctx.currentDB, key, value))
+        int ret = m_db->Get(ctx.currentDB, key, value);
+        if (0 == ret)
         {
             fill_str_reply(ctx.reply, value);
             //ctx.reply.type = REDIS_REPLY_NIL;
         }
         else
         {
-            ctx.reply.type = REDIS_REPLY_NIL;
+            if(ERR_INVALID_TYPE == ret)
+            {
+                fill_error_reply(ctx.reply, "Operation against a key holding the wrong kind of value");
+            }
+            else
+            {
+                ctx.reply.type = REDIS_REPLY_NIL;
+            }
+
         }
         return 0;
     }

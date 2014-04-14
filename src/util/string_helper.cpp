@@ -668,6 +668,17 @@ namespace ardb
         return std::string(p, len);
     }
 
+    std::string ascii_codes(const std::string& str)
+    {
+        std::string ret;
+        for(uint32 i = 0 ; i < str.size(); i++)
+        {
+            unsigned char c = (unsigned char)str.at(i);
+            ret.append(stringfromll((int64)c)).append(" ");
+        }
+        return ret;
+    }
+
     std::string sha1_sum(const std::string& str)
     {
         SHA1_CTX ctx;

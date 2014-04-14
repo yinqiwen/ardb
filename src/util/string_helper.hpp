@@ -127,6 +127,8 @@ namespace ardb
     std::string random_between_string(const std::string& min, const std::string& max);
     std::string random_hex_string(uint32 len);
 
+    std::string ascii_codes(const std::string& str);
+
     std::string sha1_sum(const std::string& str);
     std::string sha1_sum_data(const void* data, size_t len);
 
