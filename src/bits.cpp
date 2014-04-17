@@ -754,6 +754,7 @@ namespace ardb
         }
         uint8 bit = cmd.GetArguments()[2] != "0";
         int ret = m_db->SetBit(ctx.currentDB, cmd.GetArguments()[0], offset, bit);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, ret);
         return 0;
     }
@@ -767,6 +768,7 @@ namespace ardb
             return 0;
         }
         int ret = m_db->GetBit(ctx.currentDB, cmd.GetArguments()[0], offset);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, ret);
         return 0;
     }
@@ -779,6 +781,7 @@ namespace ardb
             keys.push_back(cmd.GetArguments()[i]);
         }
         int64 ret = m_db->BitOPCount(ctx.currentDB, cmd.GetArguments()[0], keys);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         if (ret < 0)
         {
             fill_error_reply(ctx.reply, "syntax error");
@@ -798,6 +801,7 @@ namespace ardb
             keys.push_back(cmd.GetArguments()[i]);
         }
         int ret = m_db->BitOP(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], keys);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         if (ret < 0)
         {
             fill_error_reply(ctx.reply, "syntax error");
@@ -831,6 +835,7 @@ namespace ardb
             }
             count = m_db->BitCount(ctx.currentDB, cmd.GetArguments()[0], start, end);
         }
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, count);
         fill_int_reply(ctx.reply, count);
         return 0;
     }

@@ -86,12 +86,14 @@ namespace ardb
         if (with_limit)
         {
             ValueDataArray vs;
-            m_db->ZAddLimit(ctx.currentDB, cmd.GetArguments()[0], scores, svs, attrs, limit, vs);
+            int ret = m_db->ZAddLimit(ctx.currentDB, cmd.GetArguments()[0], scores, svs, attrs, limit, vs);
+            CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
             fill_array_reply(ctx.reply, vs);
         }
         else
         {
             int count = m_db->ZAdd(ctx.currentDB, cmd.GetArguments()[0], scores, svs, attrs);
+            CHECK_ARDB_RETURN_VALUE(ctx.reply, count);
             fill_int_reply(ctx.reply, count);
         }
         return 0;
@@ -100,6 +102,7 @@ namespace ardb
     int ArdbServer::ZCard(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         int ret = m_db->ZCard(ctx.currentDB, cmd.GetArguments()[0]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         if (ret < 0)
         {
             ret = 0;
@@ -111,6 +114,7 @@ namespace ardb
     int ArdbServer::ZCount(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         int ret = m_db->ZCount(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], cmd.GetArguments()[2]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, ret);
         return 0;
     }
@@ -124,7 +128,8 @@ namespace ardb
             return 0;
         }
         ValueData value;
-        m_db->ZIncrby(ctx.currentDB, cmd.GetArguments()[0], increment, cmd.GetArguments()[2], value);
+        int ret = m_db->ZIncrby(ctx.currentDB, cmd.GetArguments()[0], increment, cmd.GetArguments()[2], value);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_value_reply(ctx.reply, value);
         return 0;
     }
@@ -150,7 +155,8 @@ namespace ardb
         ZSetQueryOptions options;
         options.withscores = withscores;
         ValueDataArray vs;
-        m_db->ZRange(ctx.currentDB, cmd.GetArguments()[0], start, stop, vs, options);
+        int ret = m_db->ZRange(ctx.currentDB, cmd.GetArguments()[0], start, stop, vs, options);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_array_reply(ctx.reply, vs);
         return 0;
     }
@@ -199,8 +205,9 @@ namespace ardb
         }
 
         ValueDataArray vs;
-        m_db->ZRangeByScore(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], cmd.GetArguments()[2], vs,
+        int ret = m_db->ZRangeByScore(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], cmd.GetArguments()[2], vs,
                 options);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_array_reply(ctx.reply, vs);
         return 0;
     }
@@ -208,6 +215,7 @@ namespace ardb
     int ArdbServer::ZRank(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         int ret = m_db->ZRank(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         if (ret < 0)
         {
             ctx.reply.type = REDIS_REPLY_NIL;
@@ -232,7 +240,8 @@ namespace ardb
         }
         ValueDataArray vs;
         bool reverse = (strcasecmp(cmd.GetCommand().c_str(), "zrpop") == 0);
-        m_db->ZPop(ctx.currentDB, cmd.GetArguments()[0], reverse, num, vs);
+        int ret = m_db->ZPop(ctx.currentDB, cmd.GetArguments()[0], reverse, num, vs);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_array_reply(ctx.reply, vs);
         return 0;
     }
@@ -242,7 +251,9 @@ namespace ardb
         int count = 0;
         for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
         {
-            count += m_db->ZRem(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[i]);
+            int ret = m_db->ZRem(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[i]);
+            CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
+            count += ret;
         }
         fill_int_reply(ctx.reply, count);
         return 0;
@@ -257,6 +268,7 @@ namespace ardb
             return 0;
         }
         int count = m_db->ZRemRangeByRank(ctx.currentDB, cmd.GetArguments()[0], start, stop);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, count);
         fill_int_reply(ctx.reply, count);
         return 0;
     }
@@ -265,6 +277,7 @@ namespace ardb
     {
         int count = m_db->ZRemRangeByScore(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1],
                 cmd.GetArguments()[2]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, count);
         fill_int_reply(ctx.reply, count);
         return 0;
     }
@@ -290,7 +303,8 @@ namespace ardb
         ZSetQueryOptions options;
         options.withscores = withscores;
         ValueDataArray vs;
-        m_db->ZRevRange(ctx.currentDB, cmd.GetArguments()[0], start, stop, vs, options);
+        int ret = m_db->ZRevRange(ctx.currentDB, cmd.GetArguments()[0], start, stop, vs, options);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_array_reply(ctx.reply, vs);
         return 0;
     }
@@ -309,8 +323,9 @@ namespace ardb
         }
 
         ValueDataArray vs;
-        m_db->ZRevRangeByScore(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], cmd.GetArguments()[2], vs,
+        int ret = m_db->ZRevRangeByScore(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], cmd.GetArguments()[2], vs,
                 options);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_array_reply(ctx.reply, vs);
         return 0;
     }
@@ -318,6 +333,7 @@ namespace ardb
     int ArdbServer::ZRevRank(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         int ret = m_db->ZRevRank(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         if (ret < 0)
         {
             ctx.reply.type = REDIS_REPLY_NIL;
@@ -409,6 +425,7 @@ namespace ardb
             return 0;
         }
         int count = m_db->ZInterStore(ctx.currentDB, cmd.GetArguments()[0], keys, ws, type);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, count);
         if (count < 0)
         {
             count = 0;
@@ -428,6 +445,7 @@ namespace ardb
             return 0;
         }
         int count = m_db->ZUnionStore(ctx.currentDB, cmd.GetArguments()[0], keys, ws, type);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, count);
         fill_int_reply(ctx.reply, count);
         return 0;
     }
@@ -468,7 +486,8 @@ namespace ardb
         }
         std::string newcursor = "0";
         ValueDataArray vs;
-        m_db->ZScan(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], pattern, limit, vs, newcursor);
+        int ret = m_db->ZScan(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], pattern, limit, vs, newcursor);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         ctx.reply.type = REDIS_REPLY_ARRAY;
         ctx.reply.elements.push_back(RedisReply(newcursor));
         RedisReply rs;
@@ -481,6 +500,7 @@ namespace ardb
     {
         ValueData score;
         int ret = m_db->ZScore(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], score);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         if (ret < 0)
         {
             ctx.reply.type = REDIS_REPLY_NIL;
@@ -494,7 +514,8 @@ namespace ardb
 
     int ArdbServer::ZClear(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        m_db->ZClear(ctx.currentDB, cmd.GetArguments()[0]);
+        int ret = m_db->ZClear(ctx.currentDB, cmd.GetArguments()[0]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_status_reply(ctx.reply, "OK");
         return 0;
     }

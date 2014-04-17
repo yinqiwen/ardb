@@ -47,26 +47,30 @@ namespace ardb
             fs.push_back(cmd.GetArguments()[i]);
             vals.push_back(cmd.GetArguments()[i + 1]);
         }
-        m_db->HMSet(ctx.currentDB, cmd.GetArguments()[0], fs, vals);
+        int ret = m_db->HMSet(ctx.currentDB, cmd.GetArguments()[0], fs, vals);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_status_reply(ctx.reply, "OK");
         return 0;
     }
     int ArdbServer::HSet(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        m_db->HSet(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], cmd.GetArguments()[2]);
+        int ret = m_db->HSet(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], cmd.GetArguments()[2]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, 1);
         return 0;
     }
     int ArdbServer::HSetNX(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         int ret = m_db->HSetNX(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], cmd.GetArguments()[2]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, ret);
         return 0;
     }
     int ArdbServer::HVals(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         StringArray keys;
-        m_db->HVals(ctx.currentDB, cmd.GetArguments()[0], keys);
+        int ret = m_db->HVals(ctx.currentDB, cmd.GetArguments()[0], keys);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_str_array_reply(ctx.reply, keys);
         return 0;
     }
@@ -106,7 +110,8 @@ namespace ardb
         }
         std::string newcursor = "0";
         ValueDataArray vs;
-        m_db->HScan(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], pattern, limit, vs, newcursor);
+        int ret = m_db->HScan(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], pattern, limit, vs, newcursor);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         ctx.reply.type = REDIS_REPLY_ARRAY;
         ctx.reply.elements.push_back(RedisReply(newcursor));
         RedisReply rs;
@@ -123,7 +128,8 @@ namespace ardb
         {
             fs.push_back(cmd.GetArguments()[i]);
         }
-        m_db->HMGet(ctx.currentDB, cmd.GetArguments()[0], fs, vals);
+        int ret = m_db->HMGet(ctx.currentDB, cmd.GetArguments()[0], fs, vals);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_str_array_reply(ctx.reply, vals);
         return 0;
     }
@@ -131,6 +137,7 @@ namespace ardb
     int ArdbServer::HLen(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         int len = m_db->HLen(ctx.currentDB, cmd.GetArguments()[0]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, len);
         fill_int_reply(ctx.reply, len);
         return 0;
     }
@@ -138,7 +145,8 @@ namespace ardb
     int ArdbServer::HKeys(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         StringArray keys;
-        m_db->HKeys(ctx.currentDB, cmd.GetArguments()[0], keys);
+        int ret = m_db->HKeys(ctx.currentDB, cmd.GetArguments()[0], keys);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_str_array_reply(ctx.reply, keys);
         return 0;
     }
@@ -151,7 +159,8 @@ namespace ardb
             fill_error_reply(ctx.reply, "value is not a float or out of range");
             return 0;
         }
-        m_db->HIncrbyFloat(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], increment, val);
+        int ret = m_db->HIncrbyFloat(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], increment, val);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_double_reply(ctx.reply, val);
         return 0;
     }
@@ -177,7 +186,8 @@ namespace ardb
             incs.push_back(v);
         }
         Int64Array vs;
-        m_db->HMIncrby(ctx.currentDB, cmd.GetArguments()[0], fs, incs, vs);
+        int ret = m_db->HMIncrby(ctx.currentDB, cmd.GetArguments()[0], fs, incs, vs);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_array_reply(ctx.reply, vs);
         return 0;
     }
@@ -190,7 +200,8 @@ namespace ardb
             fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
-        m_db->HIncrby(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], increment, val);
+        int ret = m_db->HIncrby(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], increment, val);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, val);
         return 0;
     }
@@ -199,7 +210,8 @@ namespace ardb
     {
         StringArray fields;
         StringArray results;
-        m_db->HGetAll(ctx.currentDB, cmd.GetArguments()[0], fields, results);
+        int ret = m_db->HGetAll(ctx.currentDB, cmd.GetArguments()[0], fields, results);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         ctx.reply.type = REDIS_REPLY_ARRAY;
         for (uint32 i = 0; i < fields.size(); i++)
         {
@@ -217,6 +229,7 @@ namespace ardb
     {
         std::string v;
         int ret = m_db->HGet(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], &v);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         if (ret < 0)
         {
             ctx.reply.type = REDIS_REPLY_NIL;
@@ -231,6 +244,7 @@ namespace ardb
     int ArdbServer::HExists(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         int ret = m_db->HExists(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, ret);
         return 0;
     }
@@ -243,13 +257,15 @@ namespace ardb
             fields.push_back(cmd.GetArguments()[i]);
         }
         int ret = m_db->HDel(ctx.currentDB, cmd.GetArguments()[0], fields);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, ret);
         return 0;
     }
 
     int ArdbServer::HClear(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        m_db->HClear(ctx.currentDB, cmd.GetArguments()[0]);
+        int ret = m_db->HClear(ctx.currentDB, cmd.GetArguments()[0]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_status_reply(ctx.reply, "OK");
         return 0;
     }

@@ -47,6 +47,7 @@ namespace ardb
             return 0;
         }
         int ret = m_db->GeoAdd(ctx.currentDB, cmd.GetArguments()[0], options);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         if (ret >= 0)
         {
             fill_status_reply(ctx.reply, "OK");
@@ -85,7 +86,8 @@ namespace ardb
             return 0;
         }
         ValueDataDeque res;
-        m_db->GeoSearch(ctx.currentDB, cmd.GetArguments()[0], options, res);
+        int ret = m_db->GeoSearch(ctx.currentDB, cmd.GetArguments()[0], options, res);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_array_reply(ctx.reply, res);
         return 0;
     }

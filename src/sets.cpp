@@ -48,6 +48,7 @@ namespace ardb
             values.push_back(cmd.GetArguments()[i]);
         }
         int count = m_db->SAdd(ctx.currentDB, cmd.GetArguments()[0], values);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, count);
         fill_int_reply(ctx.reply, count);
         return 0;
     }
@@ -55,6 +56,7 @@ namespace ardb
     int ArdbServer::SCard(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         int ret = m_db->SCard(ctx.currentDB, cmd.GetArguments()[0]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, ret > 0 ? ret : 0);
         return 0;
     }
@@ -75,7 +77,8 @@ namespace ardb
             return 0;
         }
         ValueDataArray vs;
-        m_db->SDiff(ctx.currentDB, keys, vs);
+        int ret = m_db->SDiff(ctx.currentDB, keys, vs);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_array_reply(ctx.reply, vs);
         return 0;
     }
@@ -96,6 +99,7 @@ namespace ardb
             return 0;
         }
         int ret = m_db->SDiffStore(ctx.currentDB, cmd.GetArguments()[0], keys);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, ret);
         return 0;
     }
@@ -116,7 +120,8 @@ namespace ardb
             return 0;
         }
         ValueDataArray vs;
-        m_db->SInter(ctx.currentDB, keys, vs);
+        int ret = m_db->SInter(ctx.currentDB, keys, vs);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_array_reply(ctx.reply, vs);
         return 0;
     }
@@ -137,6 +142,7 @@ namespace ardb
             return 0;
         }
         int ret = m_db->SInterStore(ctx.currentDB, cmd.GetArguments()[0], keys);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, ret);
         return 0;
     }
@@ -144,6 +150,7 @@ namespace ardb
     int ArdbServer::SIsMember(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         int ret = m_db->SIsMember(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, ret);
         return 0;
     }
@@ -152,9 +159,10 @@ namespace ardb
     {
         ValueDataArray vs;
         int ret = m_db->SMembers(ctx.currentDB, cmd.GetArguments()[0], vs);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         if (ret == ERR_TOO_LARGE_RESPONSE)
         {
-            fill_error_reply(ctx.reply, "too many elements in set, use SRANGE/SREVRANGE to fetch.");
+            fill_error_reply(ctx.reply, "too many elements in set, use SSCAN to fetch.");
         }
         else
         {
@@ -166,6 +174,7 @@ namespace ardb
     int ArdbServer::SMove(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         int ret = m_db->SMove(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], cmd.GetArguments()[2]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, ret);
         return 0;
     }
@@ -173,7 +182,8 @@ namespace ardb
     int ArdbServer::SPop(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         std::string res;
-        m_db->SPop(ctx.currentDB, cmd.GetArguments()[0], res);
+        int ret = m_db->SPop(ctx.currentDB, cmd.GetArguments()[0], res);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_str_reply(ctx.reply, res);
         return 0;
     }
@@ -190,7 +200,8 @@ namespace ardb
                 return 0;
             }
         }
-        m_db->SRandMember(ctx.currentDB, cmd.GetArguments()[0], vs, count);
+        int ret = m_db->SRandMember(ctx.currentDB, cmd.GetArguments()[0], vs, count);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_array_reply(ctx.reply, vs);
         return 0;
     }
@@ -212,6 +223,7 @@ namespace ardb
         }
         ValueSet vs;
         int ret = m_db->SRem(ctx.currentDB, cmd.GetArguments()[0], keys);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         if (ret < 0)
         {
             ret = 0;
@@ -236,7 +248,8 @@ namespace ardb
             return 0;
         }
         ValueDataArray vs;
-        m_db->SUnion(ctx.currentDB, keys, vs);
+        int ret = m_db->SUnion(ctx.currentDB, keys, vs);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_array_reply(ctx.reply, vs);
         return 0;
     }
@@ -257,6 +270,7 @@ namespace ardb
             return 0;
         }
         int ret = m_db->SUnionStore(ctx.currentDB, cmd.GetArguments()[0], keys);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, ret);
         return 0;
     }
@@ -277,7 +291,8 @@ namespace ardb
             return 0;
         }
         uint32 count = 0;
-        m_db->SUnionCount(ctx.currentDB, keys, count);
+        int ret = m_db->SUnionCount(ctx.currentDB, keys, count);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, count);
         return 0;
     }
@@ -297,7 +312,8 @@ namespace ardb
             return 0;
         }
         uint32 count = 0;
-        m_db->SInterCount(ctx.currentDB, keys, count);
+        int ret = m_db->SInterCount(ctx.currentDB, keys, count);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, count);
         return 0;
     }
@@ -317,7 +333,8 @@ namespace ardb
             return 0;
         }
         uint32 count = 0;
-        m_db->SDiffCount(ctx.currentDB, keys, count);
+        int ret = m_db->SDiffCount(ctx.currentDB, keys, count);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, count);
         return 0;
     }
@@ -358,7 +375,8 @@ namespace ardb
         }
         std::string newcursor = "0";
         ValueDataArray vs;
-        m_db->SScan(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], pattern, limit, vs, newcursor);
+        int ret = m_db->SScan(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], pattern, limit, vs, newcursor);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         ctx.reply.type = REDIS_REPLY_ARRAY;
         ctx.reply.elements.push_back(RedisReply(newcursor));
         RedisReply rs;
@@ -369,7 +387,8 @@ namespace ardb
 
     int ArdbServer::SClear(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        m_db->SClear(ctx.currentDB, cmd.GetArguments()[0]);
+        int ret = m_db->SClear(ctx.currentDB, cmd.GetArguments()[0]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_status_reply(ctx.reply, "OK");
         return 0;
     }

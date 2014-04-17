@@ -37,6 +37,7 @@ namespace ardb
         const std::string& key = cmd.GetArguments()[0];
         const std::string& value = cmd.GetArguments()[1];
         int ret = m_db->Append(ctx.currentDB, key, value);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         if (ret > 0)
         {
             fill_int_reply(ctx.reply, ret);
@@ -56,7 +57,8 @@ namespace ardb
             fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
-        m_db->PSetEx(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[2], mills);
+        int ret = m_db->PSetEx(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[2], mills);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_status_reply(ctx.reply, "OK");
         return 0;
     }
@@ -76,6 +78,7 @@ namespace ardb
             vals.push_back(cmd.GetArguments()[i + 1]);
         }
         int count = m_db->MSetNX(ctx.currentDB, keys, vals);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, count);
         fill_int_reply(ctx.reply, count);
         return 0;
     }
@@ -94,7 +97,8 @@ namespace ardb
             keys.push_back(cmd.GetArguments()[i]);
             vals.push_back(cmd.GetArguments()[i + 1]);
         }
-        m_db->MSet(ctx.currentDB, keys, vals);
+        int ret = m_db->MSet(ctx.currentDB, keys, vals);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_status_reply(ctx.reply, "OK");
         return 0;
     }
@@ -107,7 +111,8 @@ namespace ardb
             keys.push_back(cmd.GetArguments()[i]);
         }
         StringArray res;
-        m_db->MGet(ctx.currentDB, keys, res);
+        int ret = m_db->MGet(ctx.currentDB, keys, res);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_str_array_reply(ctx.reply, res);
         return 0;
     }
@@ -121,6 +126,7 @@ namespace ardb
             return 0;
         }
         int ret = m_db->IncrbyFloat(ctx.currentDB, cmd.GetArguments()[0], increment, val);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         if (ret == 0)
         {
             fill_double_reply(ctx.reply, val);
@@ -141,6 +147,7 @@ namespace ardb
             return 0;
         }
         int ret = m_db->Incrby(ctx.currentDB, cmd.GetArguments()[0], increment, val);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         if (ret == 0)
         {
             fill_int_reply(ctx.reply, val);
@@ -156,6 +163,7 @@ namespace ardb
     {
         int64_t val;
         int ret = m_db->Incr(ctx.currentDB, cmd.GetArguments()[0], val);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         if (ret == 0)
         {
             fill_int_reply(ctx.reply, val);
@@ -171,6 +179,7 @@ namespace ardb
     {
         std::string v;
         int ret = m_db->GetSet(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], v);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         if (ret < 0)
         {
             ctx.reply.type = REDIS_REPLY_NIL;
@@ -191,7 +200,8 @@ namespace ardb
             return 0;
         }
         std::string v;
-        m_db->GetRange(ctx.currentDB, cmd.GetArguments()[0], start, end, v);
+        int ret = m_db->GetRange(ctx.currentDB, cmd.GetArguments()[0], start, end, v);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_str_reply(ctx.reply, v);
         return 0;
     }
@@ -270,6 +280,7 @@ namespace ardb
             }
             ret = m_db->Set(ctx.currentDB, key, value, ex, px, nxx);
         }
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         if (0 == ret)
         {
             fill_status_reply(ctx.reply, "OK");
@@ -304,10 +315,10 @@ namespace ardb
         const std::string& key = cmd.GetArguments()[0];
         std::string value;
         int ret = m_db->Get(ctx.currentDB, key, value);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         if (0 == ret)
         {
             fill_str_reply(ctx.reply, value);
-            //ctx.reply.type = REDIS_REPLY_NIL;
         }
         else
         {
@@ -333,6 +344,7 @@ namespace ardb
             return 0;
         }
         int ret = m_db->Decrby(ctx.currentDB, cmd.GetArguments()[0], decrement, val);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         if (ret == 0)
         {
             fill_int_reply(ctx.reply, val);
@@ -348,6 +360,7 @@ namespace ardb
     {
         int64_t val;
         int ret = m_db->Decr(ctx.currentDB, cmd.GetArguments()[0], val);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         if (ret == 0)
         {
             fill_int_reply(ctx.reply, val);
@@ -367,7 +380,8 @@ namespace ardb
             fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
-        m_db->SetEx(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[2], secs);
+        int ret = m_db->SetEx(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[2], secs);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_status_reply(ctx.reply, "OK");
         return 0;
     }
@@ -386,15 +400,19 @@ namespace ardb
             return 0;
         }
         int ret = m_db->SetRange(ctx.currentDB, cmd.GetArguments()[0], offset, cmd.GetArguments()[2]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, ret);
         return 0;
     }
     int ArdbServer::Strlen(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         int ret = m_db->Strlen(ctx.currentDB, cmd.GetArguments()[0]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, ret);
         return 0;
     }
+
+
 
     int Ardb::Append(const DBID& db, const Slice& key, const Slice& value)
     {

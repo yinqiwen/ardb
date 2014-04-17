@@ -37,6 +37,7 @@
 
 using ardb::codec::RedisReply;
 
+
 namespace ardb
 {
     void fill_error_reply(RedisReply& reply, const char* fmt, ...);

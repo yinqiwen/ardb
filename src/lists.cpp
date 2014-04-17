@@ -207,6 +207,7 @@ namespace ardb
         }
         std::string v;
         int ret = m_db->LIndex(ctx.currentDB, cmd.GetArguments()[0], index, v);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         if (ret < 0)
         {
             ctx.reply.type = REDIS_REPLY_NIL;
@@ -222,6 +223,7 @@ namespace ardb
     {
         int ret = m_db->LInsert(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], cmd.GetArguments()[2],
                 cmd.GetArguments()[3]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, ret);
         if (ret > 0)
         {
@@ -234,6 +236,7 @@ namespace ardb
     int ArdbServer::LLen(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         int ret = m_db->LLen(ctx.currentDB, cmd.GetArguments()[0]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, ret);
         return 0;
     }
@@ -242,6 +245,7 @@ namespace ardb
     {
         std::string v;
         int ret = m_db->LPop(ctx.currentDB, cmd.GetArguments()[0], v);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         if (ret < 0)
         {
             ctx.reply.type = REDIS_REPLY_NIL;
@@ -258,6 +262,7 @@ namespace ardb
         for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
         {
             count = m_db->LPush(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[i]);
+            CHECK_ARDB_RETURN_VALUE(ctx.reply, count);
         }
         if (count < 0)
         {
@@ -274,6 +279,7 @@ namespace ardb
     int ArdbServer::LPushx(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         int ret = m_db->LPushx(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, ret);
         if (ret > 0)
         {
@@ -292,7 +298,8 @@ namespace ardb
             return 0;
         }
         ValueDataArray vs;
-        m_db->LRange(ctx.currentDB, cmd.GetArguments()[0], start, stop, vs);
+        int ret = m_db->LRange(ctx.currentDB, cmd.GetArguments()[0], start, stop, vs);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_array_reply(ctx.reply, vs);
         return 0;
     }
@@ -305,6 +312,7 @@ namespace ardb
             return 0;
         }
         int ret = m_db->LRem(ctx.currentDB, cmd.GetArguments()[0], count, cmd.GetArguments()[2]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, ret);
         return 0;
     }
@@ -317,6 +325,7 @@ namespace ardb
             return 0;
         }
         int ret = m_db->LSet(ctx.currentDB, cmd.GetArguments()[0], index, cmd.GetArguments()[2]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         if (ret < 0)
         {
             fill_error_reply(ctx.reply, "index out of range");
@@ -336,7 +345,8 @@ namespace ardb
             fill_error_reply(ctx.reply, "value is not an integer or out of range");
             return 0;
         }
-        m_db->LTrim(ctx.currentDB, cmd.GetArguments()[0], start, stop);
+        int ret = m_db->LTrim(ctx.currentDB, cmd.GetArguments()[0], start, stop);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_status_reply(ctx.reply, "OK");
         return 0;
     }
@@ -345,6 +355,7 @@ namespace ardb
     {
         std::string v;
         int ret = m_db->RPop(ctx.currentDB, cmd.GetArguments()[0], v);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         if (ret < 0)
         {
             ctx.reply.type = REDIS_REPLY_NIL;
@@ -361,6 +372,7 @@ namespace ardb
         for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
         {
             count = m_db->RPush(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[i]);
+            CHECK_ARDB_RETURN_VALUE(ctx.reply, count);
         }
         if (count < 0)
         {
@@ -377,6 +389,7 @@ namespace ardb
     int ArdbServer::RPushx(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         int ret = m_db->RPushx(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_int_reply(ctx.reply, ret);
         if (ret > 0)
         {
@@ -389,7 +402,9 @@ namespace ardb
     int ArdbServer::RPopLPush(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         std::string v;
-        if (0 == m_db->RPopLPush(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], v))
+        int ret = m_db->RPopLPush(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], v);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
+        if (0 == ret)
         {
             fill_str_reply(ctx.reply, v);
             WatchKey key(ctx.currentDB, cmd.GetArguments()[1]);
@@ -506,7 +521,8 @@ namespace ardb
 
     int ArdbServer::LClear(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        m_db->LClear(ctx.currentDB, cmd.GetArguments()[0]);
+        int ret = m_db->LClear(ctx.currentDB, cmd.GetArguments()[0]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_status_reply(ctx.reply, "OK");
         return 0;
     }

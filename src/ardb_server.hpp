@@ -67,6 +67,15 @@
 #define SCRIPT_KILL_EVENT 1
 #define SCRIPT_FLUSH_EVENT 2
 
+#define CHECK_ARDB_RETURN_VALUE(reply, ret) do{\
+    switch(ret){\
+        case ERR_INVALID_ARGS: ardb::fill_error_reply(reply, "Invalid arguments."); return 0;\
+        case ERR_INVALID_TYPE: ardb::fill_error_reply(reply, "Operation against a key holding the wrong kind of value."); return 0;\
+        default:break; \
+    }\
+}while(0)
+
+
 using namespace ardb::codec;
 namespace ardb
 {
