@@ -55,8 +55,8 @@ namespace ardb
     LevelDBEngineFactory::LevelDBEngineFactory(const Properties& props)
     {
         ParseConfig(props, m_cfg);
-
     }
+
 
     void LevelDBEngineFactory::ParseConfig(const Properties& props, LevelDBConfig& cfg)
     {
@@ -170,7 +170,13 @@ namespace ardb
         {
             m_options.filter_policy = leveldb::NewBloomFilterPolicy(cfg.bloom_bits);
         }
-
+        if(!strcasecmp(cfg.compression.c_str(), "none"))
+        {
+            m_options.compression = leveldb::kNoCompression;
+        }else
+        {
+            m_options.compression = leveldb::kSnappyCompression;
+        }
         make_dir(cfg.path);
         m_db_path = cfg.path;
         leveldb::Status status = leveldb::DB::Open(m_options, cfg.path.c_str(), &m_db);
