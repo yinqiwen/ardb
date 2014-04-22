@@ -1117,5 +1117,100 @@ namespace ardb
         }
         return 0;
     }
+
+    bool ZSetQueryOptions::Parse(const StringArray& cmd, uint32 idx)
+    {
+        for (uint32 i = idx; i < cmd.size(); i++)
+        {
+            if (!strcasecmp(cmd[i].c_str(), "withscores"))
+            {
+                withscores = true;
+            }
+            else if (!strcasecmp(cmd[i].c_str(), "limit"))
+            {
+                if (i + 2 >= cmd.size())
+                {
+                    return false;
+                }
+                if (!string_toint32(cmd[i + 1], limit_offset) || !string_toint32(cmd[i + 2], limit_count))
+                {
+                    return false;
+                }
+                withlimit = true;
+                i += 2;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static bool verify_lexrange_para(const std::string& str)
+    {
+        if (str == "-" || str == "+")
+        {
+            return true;
+        }
+        if (str.empty())
+        {
+            return false;
+        }
+
+        if (str[0] != '(' && str[0] != '[')
+        {
+            return false;
+        }
+        return true;
+    }
+
+    bool LexRange::Parse(const std::string& minstr, const std::string& maxstr)
+    {
+        if (!verify_lexrange_para(minstr) || !verify_lexrange_para(maxstr))
+        {
+            return false;
+        }
+        if (minstr[0] == '(')
+        {
+            include_min = false;
+        }
+        if (minstr[0] == '[')
+        {
+            include_min = true;
+        }
+        if (maxstr[0] == '(')
+        {
+            include_max = false;
+        }
+        if (maxstr[0] == '[')
+        {
+            include_max = true;
+        }
+
+        if (minstr == "-")
+        {
+            min.clear();
+            include_min = true;
+        }
+        else
+        {
+            min = minstr.substr(1);
+        }
+        if (maxstr == "+")
+        {
+            max.clear();
+            include_max = true;
+        }
+        else
+        {
+            max = maxstr.substr(1);
+        }
+        if (min > max && !max.empty())
+        {
+            return false;
+        }
+        return true;
+    }
 }
 

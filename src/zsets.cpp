@@ -71,12 +71,12 @@ namespace ardb
             ValueData score(cmd.GetArguments()[i]);
             if (score.type != INTEGER_VALUE && score.type != DOUBLE_VALUE)
             {
-            	if(!string_todouble(score.bytes_value, score.double_value))
-            	{
+                if (!string_todouble(score.bytes_value, score.double_value))
+                {
                     fill_error_reply(ctx.reply, "value is not a float or out of range");
                     return 0;
-            	}
-            	score.SetDoubleValue(score.double_value);
+                }
+                score.SetDoubleValue(score.double_value);
             }
             scores.push_back(score);
             svs.push_back(cmd.GetArguments()[i + 1]);
@@ -161,42 +161,12 @@ namespace ardb
         return 0;
     }
 
-    static bool process_query_options(const ArgumentArray& cmd, uint32 idx, ZSetQueryOptions& options)
-    {
-        for (uint32 i = idx; i < cmd.size(); i++)
-        {
-            if (!strcasecmp(cmd[i].c_str(), "withscores"))
-            {
-                options.withscores = true;
-            }
-            else if (!strcasecmp(cmd[i].c_str(), "limit"))
-            {
-                if (i + 2 >= cmd.size())
-                {
-                    return false;
-                }
-                if (!string_toint32(cmd[i + 1], options.limit_offset)
-                        || !string_toint32(cmd[i + 2], options.limit_count))
-                {
-                    return false;
-                }
-                options.withlimit = true;
-                i += 2;
-            }
-            else
-            {
-                return false;
-            }
-        }
-        return true;
-    }
-
     int ArdbServer::ZRangeByScore(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         ZSetQueryOptions options;
         if (cmd.GetArguments().size() >= 4)
         {
-            bool ret = process_query_options(cmd.GetArguments(), 3, options);
+            bool ret = options.Parse(cmd.GetArguments(), 3);
             if (!ret)
             {
                 fill_error_reply(ctx.reply, "syntax error");
@@ -205,8 +175,8 @@ namespace ardb
         }
 
         ValueDataArray vs;
-        int ret = m_db->ZRangeByScore(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], cmd.GetArguments()[2], vs,
-                options);
+        int ret = m_db->ZRangeByScore(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1],
+                cmd.GetArguments()[2], vs, options);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_array_reply(ctx.reply, vs);
         return 0;
@@ -314,7 +284,7 @@ namespace ardb
         ZSetQueryOptions options;
         if (cmd.GetArguments().size() >= 4)
         {
-            bool ret = process_query_options(cmd.GetArguments(), 3, options);
+            bool ret = options.Parse(cmd.GetArguments(), 3);
             if (!ret)
             {
                 fill_error_reply(ctx.reply, "syntax error");
@@ -323,8 +293,8 @@ namespace ardb
         }
 
         ValueDataArray vs;
-        int ret = m_db->ZRevRangeByScore(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], cmd.GetArguments()[2], vs,
-                options);
+        int ret = m_db->ZRevRangeByScore(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1],
+                cmd.GetArguments()[2], vs, options);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_array_reply(ctx.reply, vs);
         return 0;
@@ -486,7 +456,8 @@ namespace ardb
         }
         std::string newcursor = "0";
         ValueDataArray vs;
-        int ret = m_db->ZScan(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], pattern, limit, vs, newcursor);
+        int ret = m_db->ZScan(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], pattern, limit, vs,
+                newcursor);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         ctx.reply.type = REDIS_REPLY_ARRAY;
         ctx.reply.elements.push_back(RedisReply(newcursor));
@@ -517,6 +488,62 @@ namespace ardb
         int ret = m_db->ZClear(ctx.currentDB, cmd.GetArguments()[0]);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         fill_status_reply(ctx.reply, "OK");
+        return 0;
+    }
+
+    int ArdbServer::ZLexCount(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        LexRange range;
+        if (!range.Parse(cmd.GetArguments()[1], cmd.GetArguments()[2]))
+        {
+            fill_error_reply(ctx.reply, "syntax error");
+            return 0;
+        }
+        int64 count = 0;
+        int ret = m_db->ZLexCount(ctx.currentDB, cmd.GetArguments()[0], range, count);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
+        fill_int_reply(ctx.reply, count);
+        return 0;
+    }
+
+    int ArdbServer::ZRangeByLex(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        ZRangeLexOptions options;
+        if (!options.range.Parse(cmd.GetArguments()[1], cmd.GetArguments()[2]))
+        {
+            fill_error_reply(ctx.reply, "syntax error");
+            return 0;
+        }
+        if (cmd.GetArguments().size() >= 4)
+        {
+            bool ret = options.queryOption.Parse(cmd.GetArguments(), 3);
+            if (!ret)
+            {
+                fill_error_reply(ctx.reply, "syntax error");
+                return 0;
+            }
+        }
+        DEBUG_LOG("#####Start from:%s", options.range.min.c_str());
+        options.reverse = cmd.GetType() == REDIS_CMD_ZREVRANGEBYLEX;
+        StringArray vs;
+        int ret = m_db->ZRangeByLex(ctx.currentDB, cmd.GetArguments()[0], options, vs);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
+        fill_str_array_reply(ctx.reply, vs);
+        return 0;
+    }
+
+    int ArdbServer::ZRemRangeByLex(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        LexRange range;
+        if (!range.Parse(cmd.GetArguments()[1], cmd.GetArguments()[2]))
+        {
+            fill_error_reply(ctx.reply, "syntax error");
+            return 0;
+        }
+        int64 count = 0;
+        int ret = m_db->ZRemRangeByLex(ctx.currentDB, cmd.GetArguments()[0], range, count);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
+        fill_int_reply(ctx.reply, count);
         return 0;
     }
 
@@ -704,9 +731,9 @@ namespace ardb
         }
         fit->count--;
         ZScoreRangeCounterArray::iterator before = fit - 1;
-        if(fit == meta.ranges.begin())
+        if (fit == meta.ranges.begin())
         {
-        	before = meta.ranges.end();
+            before = meta.ranges.end();
         }
         ZScoreRangeCounterArray::iterator after = fit + 1;
         if (fit->count == 0)
@@ -764,11 +791,11 @@ namespace ardb
         }
         else
         {
-        	fit->count++;
-        	if(fit->min > v)
-        	{
-        		fit->min = v;
-        	}
+            fit->count++;
+            if (fit->min > v)
+            {
+                fit->min = v;
+            }
         }
         if (meta.ranges.size() < MAX_ZSET_RANGE_COUNT_TABLE_SIZE && fit->count > MAX_ZSET_RANGE_SIZE
                 && (fit->count) * meta.ranges.size() > meta.size && fit->min < fit->max)
@@ -2729,5 +2756,253 @@ namespace ardb
         DELETE(meta);
         return 0;
     }
+
+    int Ardb::ZNodeIterate(const DBID& db, const Slice& key, const std::string& start, bool reverse,
+            ValueVisitCallback* cb, void* cbdata)
+    {
+        int err = 0;
+        bool createzset = false;
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_VALUE, err, createzset);
+        if (NULL == meta || createzset)
+        {
+            DELETE(meta);
+            return err;
+        }
+        uint32 cursor = 0;
+        if (meta->encoding == ZSET_ENCODING_ZIPLIST)
+        {
+            ZSetElement se;
+            se.value.SetValue(start, true);
+            DEBUG_LOG("#######@@@@%s-%s  %d", se.value.bytes_value.c_str(), start.c_str(), reverse);
+            if (reverse)
+            {
+                if (!meta->zipvs.empty())
+                {
+                    ZSetElementDeque::iterator it = std::upper_bound(meta->zipvs.begin(), meta->zipvs.end(), se,
+                            less_by_zset_value);
+                    if (it == meta->zipvs.end())
+                    {
+                        it = meta->zipvs.end() - 1;
+                    }
+                    if (it > meta->zipvs.begin())
+                    {
+                        uint32 len = it - meta->zipvs.begin() + 1;
+                        for (uint32 i = 0; i < len; i++)
+                        {
+                            if (cb(it->value, cursor++, cbdata) < 0)
+                            {
+                                break;
+                            }
+                            it--;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                ZSetElementDeque::iterator it = std::lower_bound(meta->zipvs.begin(), meta->zipvs.end(), se,
+                        less_by_zset_value);
+                while (it != meta->zipvs.end())
+                {
+                    if (cb(it->value, cursor++, cbdata) < 0)
+                    {
+                        break;
+                    }
+                    it++;
+                }
+            }
+
+            return 0;
+        }
+        else
+        {
+            ZSetNodeKeyObject zk(key, start, db);
+            struct ZSetWalk: public WalkHandler
+            {
+                    ValueVisitCallback* vcb;
+                    void* vcb_data;
+                    uint32 cur;
+                    int OnKeyValue(KeyObject* k, ValueObject* v, uint32 cursor)
+                    {
+                        ZSetNodeKeyObject* zsk = (ZSetNodeKeyObject*) k;
+                        return vcb(zsk->value, cur++, vcb_data);
+                    }
+                    ZSetWalk(ValueVisitCallback* cb, void* cbdata) :
+                            vcb(cb), vcb_data(cbdata), cur(0)
+                    {
+                    }
+            } walk(cb, cbdata);
+            Walk(zk, reverse, false, &walk);
+        }
+        DELETE(meta);
+        return 0;
+    }
+
+    static int ZLexCountIterCallback(const ValueData& value, int cursor, void* cb)
+    {
+        std::pair<LexRange, int64>* p = (std::pair<LexRange, int64>*) cb;
+        std::string v;
+        value.ToString(v);
+        bool inc = false;
+        if (p->first.include_min || p->first.min < v)
+        {
+            inc = true;
+            if (!p->first.max.empty())
+            {
+                if (p->first.max < v)
+                {
+                    return -1;
+                }
+                else if (p->first.max == v && !p->first.include_max)
+                {
+                    return -1;
+                }
+            }
+        }
+        if (inc)
+        {
+            p->second++;
+        }
+        return 0;
+    }
+
+    int Ardb::ZLexCount(const DBID& db, const std::string& key, const LexRange& range, int64& count)
+    {
+        std::pair<LexRange, int64> pair = std::make_pair(range, count);
+        int ret = ZNodeIterate(db, key, range.min, false, ZLexCountIterCallback, &pair);
+        count = pair.second;
+        return ret;
+    }
+
+    static int ZRangeLexIterCallback(const ValueData& value, int cursor, void* cb)
+    {
+        std::pair<ZRangeLexOptions, StringArray*>* p = (std::pair<ZRangeLexOptions, StringArray*>*) cb;
+        std::string v;
+        value.ToString(v);
+        bool insert = false;
+        ZRangeLexOptions& options = p->first;
+        StringArray& result = *(p->second);
+        if (!options.reverse)
+        {
+            if (options.range.include_min || options.range.min < v)
+            {
+                insert = true;
+                if (!options.range.max.empty())
+                {
+                    if (options.range.max < v)
+                    {
+                        return -1;
+                    }
+                    else if (options.range.max == v && !options.range.include_max)
+                    {
+                        return -1;
+                    }
+                }
+            }
+        }
+        else
+        {
+            if (options.range.max.empty() || options.range.include_max || options.range.max > v)
+            {
+                insert = true;
+                if (!options.range.min.empty())
+                {
+                    if (options.range.min > v)
+                    {
+                        return -1;
+                    }
+                    else if (options.range.min == v && !options.range.include_min)
+                    {
+                        return -1;
+                    }
+                }
+            }
+        }
+
+        if (insert)
+        {
+            if (options.queryOption.withlimit && options.queryOption.limit_offset > options.__cursor)
+            {
+                options.__cursor++;
+                return 0;
+            }
+            options.__cursor++;
+            result.push_back(v);
+            if (options.queryOption.withlimit)
+            {
+                if ((uint32) options.queryOption.limit_count <= result.size())
+                {
+                    return -1;
+                }
+            }
+        }
+        return 0;
+    }
+
+    int Ardb::ZRangeByLex(const DBID& db, const std::string& key, const ZRangeLexOptions& options, StringArray& results)
+    {
+        std::pair<ZRangeLexOptions, StringArray*> pair = std::make_pair(options, &results);
+        const std::string* start = options.reverse ? &(options.range.max) : &(options.range.min);
+        if (options.reverse && options.range.max.empty())
+        {
+            start = &(MaxString());
+        }
+        int ret = ZNodeIterate(db, key, *start, options.reverse, ZRangeLexIterCallback, &pair);
+        return ret;
+    }
+
+    struct ZLexRangeContext
+    {
+            Ardb* db;
+            DBID dbid;
+            std::string key;
+            LexRange range;
+            int64 count;
+    };
+
+    static int ZLexRemIterCallback(const ValueData& value, int cursor, void* cb)
+    {
+        ZLexRangeContext& ctx = *((ZLexRangeContext*) cb);
+        std::string v;
+        value.ToString(v);
+        bool remove = false;
+        if (ctx.range.include_min || ctx.range.min < v)
+        {
+            remove = true;
+            if (!ctx.range.max.empty())
+            {
+                if (ctx.range.max < v)
+                {
+                    return -1;
+                }
+                else if (ctx.range.max == v && !ctx.range.include_max)
+                {
+                    return -1;
+                }
+            }
+        }
+        if (remove)
+        {
+            if (0 == ctx.db->ZRem(ctx.dbid, ctx.key, v))
+            {
+                ctx.count++;
+            }
+        }
+        return 0;
+    }
+
+    int Ardb::ZRemRangeByLex(const DBID& db, const std::string& key, const LexRange& range, int64& count)
+    {
+        ZLexRangeContext ctx;
+        ctx.db = this;
+        ctx.dbid = db;
+        ctx.key = key;
+        ctx.range = range;
+        ctx.count = 0;
+        int ret = ZNodeIterate(db, key, range.min, false, ZLexRemIterCallback, &ctx);
+        count = ctx.count;
+        return ret;
+    }
+
 }
 

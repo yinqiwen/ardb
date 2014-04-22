@@ -610,6 +610,7 @@ namespace ardb
                     withscores(false), withlimit(false), withattr(false), limit_offset(0), limit_count(0)
             {
             }
+            bool Parse(const StringArray& cmd, uint32 idx);
     };
 
     struct SortOptions
@@ -658,7 +659,7 @@ namespace ardb
             bool get_attr;
             std::string get_pattern;
             GeoSearchGetOption() :
-                    get_coodinates(false), get_distances(false),get_attr(false)
+                    get_coodinates(false), get_distances(false), get_attr(false)
             {
             }
     };
@@ -684,9 +685,9 @@ namespace ardb
             StringStringMap excludes;
 
             GeoGetOptionDeque get_patterns;
-            GeoSearchOptions() :coord_type(0),
-                    nosort(true), asc(false), radius(0), offset(0), limit(0), by_member(false), by_location(false), in_members(false),x(
-                            0), y(0)
+            GeoSearchOptions() :
+                    coord_type(0), nosort(true), asc(false), radius(0), offset(0), limit(0), by_member(false), by_location(
+                            false), in_members(false), x(0), y(0)
             {
             }
 
@@ -713,6 +714,33 @@ namespace ardb
         CODEC_DEFINE(x,y, attrs)
     };
     typedef std::deque<GeoPoint> GeoPointArray;
+
+    struct LexRange
+    {
+            std::string min;
+            std::string max;
+            bool include_min;
+            bool include_max;
+
+            LexRange() :
+                    include_min(false), include_max(false)
+            {
+            }
+            bool Parse(const std::string& minstr, const std::string& maxstr);
+    };
+
+    struct ZRangeLexOptions
+    {
+            ZSetQueryOptions queryOption;
+            LexRange range;
+            bool reverse;
+
+            int64 __cursor; //not used as para
+            ZRangeLexOptions() :
+                    reverse(false),__cursor(0)
+            {
+            }
+    };
 
     /*
      * typedefs

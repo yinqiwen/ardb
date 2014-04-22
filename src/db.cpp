@@ -33,6 +33,8 @@
 #include "util/thread/thread.hpp"
 #include "helper/db_helpers.hpp"
 
+#define MAX_STRING_LENGTH 1024
+
 namespace ardb
 {
     size_t Ardb::RealPosition(std::string& buf, int pos)
@@ -50,6 +52,19 @@ namespace ardb
             pos = 0;
         }
         return pos;
+    }
+
+    const std::string& Ardb::MaxString()
+    {
+        static std::string value;
+        if(value.empty())
+        {
+            value.resize(MAX_STRING_LENGTH);
+            char* v = &(value[0]);
+            memset(v, 127, MAX_STRING_LENGTH);
+        }
+
+        return value;
     }
 
     Ardb::Ardb(KeyValueEngineFactory* engine, uint32 multi_thread_num) :

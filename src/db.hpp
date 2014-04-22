@@ -218,6 +218,7 @@ namespace ardb
     {
         private:
             static size_t RealPosition(std::string& buf, int pos);
+            static const std::string& MaxString();
 
             KeyValueEngineFactory* m_engine_factory;
             KeyValueEngine* m_engine;
@@ -276,6 +277,8 @@ namespace ardb
             int ZGetNodeValue(const DBID& db, const Slice& key, const Slice& value, ValueData& score, ValueData& attr);
             CacheItem* GetLoadedCache(const DBID& db, const Slice& key, KeyType type, bool evict_non_loaded,
                     bool create_if_not_exist);
+            int ZNodeIterate(const DBID& db, const Slice& key, const std::string& start, bool reverse, ValueVisitCallback* cb,
+                    void* cbdata);
 
             int GetType(const DBID& db, const Slice& key, KeyType& type);
             int SetMeta(KeyObject& key, CommonMetaValue& meta);
@@ -344,7 +347,7 @@ namespace ardb
                     volatile bool in_lock;
                     volatile uint32 wait_num;
                     Barrier() :
-                        in_lock(false),wait_num(0)
+                            in_lock(false), wait_num(0)
                     {
                     }
             };
@@ -410,7 +413,7 @@ namespace ardb
                             if (NULL != barrier)
                             {
                                 LockGuard<ThreadMutexLock> guard(*barrier);
-                                if(barrier->in_lock)
+                                if (barrier->in_lock)
                                 {
                                     barrier->wait_num++;
                                     barrier->Wait();
@@ -429,7 +432,7 @@ namespace ardb
                         if (NULL != barrier)
                         {
                             LockGuard<ThreadMutexLock> guard(*barrier);
-                            if(barrier->wait_num > 0)
+                            if (barrier->wait_num > 0)
                             {
                                 barrier->NotifyAll();
                             }
@@ -608,6 +611,9 @@ namespace ardb
             int ZClear(const DBID& db, const Slice& key);
             int ZScan(const DBID& db, const std::string& key, const std::string& cursor, const std::string& pattern,
                     uint32 limit, ValueDataArray& vs, std::string& newcursor);
+            int ZLexCount(const DBID& db, const std::string& key, const LexRange& range, int64& count);
+            int ZRangeByLex(const DBID& db, const std::string& key, const ZRangeLexOptions& options, StringArray& results);
+            int ZRemRangeByLex(const DBID& db, const std::string& key, const LexRange& range, int64& count);
 
             /*
              * Set operations

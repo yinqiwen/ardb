@@ -661,6 +661,9 @@ namespace ardb
             int ZUnionStore(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int ZScore(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int ZScan(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            int ZLexCount(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            int ZRangeByLex(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            int ZRemRangeByLex(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
             int LIndex(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int LInsert(ArdbConnContext& ctx, RedisCommandFrame& cmd);

@@ -208,6 +208,11 @@ namespace ardb
             REDIS_CMD_PFMERGE = 171,
             REDIS_CMD_PFMERGECOUNT = 172,
 
+            REDIS_CMD_ZLEXCOUNT = 160,
+            REDIS_CMD_ZRANGEBYLEX = 161,
+            REDIS_CMD_ZREVRANGEBYLEX = 173,
+            REDIS_CMD_ZREMRANGEBYLEX = 174,
+
         };
 
         class RedisCommandDecoder;
