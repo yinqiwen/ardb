@@ -2773,7 +2773,6 @@ namespace ardb
         {
             ZSetElement se;
             se.value.SetValue(start, true);
-            DEBUG_LOG("#######@@@@%s-%s  %d", se.value.bytes_value.c_str(), start.c_str(), reverse);
             if (reverse)
             {
                 if (!meta->zipvs.empty())
