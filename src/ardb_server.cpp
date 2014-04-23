@@ -118,6 +118,8 @@ namespace ardb
         conf_get_bool(props, "zset-write-fill-cache", cfg.db_cfg.zset_write_fill_cache);
         conf_get_bool(props, "read-fill-cache", cfg.db_cfg.read_fill_cache);
 
+        conf_get_int64(props, "hll-sparse-max-bytes", cfg.db_cfg.hll_sparse_max_bytes);
+
         conf_get_bool(props, "slave-read-only", cfg.slave_readonly);
         conf_get_bool(props, "slave-serve-stale-data", cfg.slave_serve_stale_data);
         conf_get_int64(props, "slave-priority", cfg.slave_priority);
@@ -375,9 +377,8 @@ namespace ardb
                 { "cache", REDIS_CMD_CACHE, &ArdbServer::Cache, 2, 2, "r", 0 },
                 { "auth", REDIS_CMD_AUTH, &ArdbServer::Auth, 1, 1, "r", 0 },
                 { "pfadd", REDIS_CMD_PFADD, &ArdbServer::PFAdd, 2, -1, "w", 0 },
-                { "pfcount", REDIS_CMD_PFCOUNT, &ArdbServer::PFCount, 1, 1, "w", 0 },
-                { "pfmerge", REDIS_CMD_PFMERGE, &ArdbServer::PFMerge, 2, -1, "w", 0 },
-                { "pfmergecount", REDIS_CMD_PFMERGECOUNT, &ArdbServer::PFMergeCount, 1, -1, "r", 0 }, };
+                { "pfcount", REDIS_CMD_PFCOUNT, &ArdbServer::PFCount, 1, -1, "w", 0 },
+                { "pfmerge", REDIS_CMD_PFMERGE, &ArdbServer::PFMerge, 2, -1, "w", 0 }, };
 
         uint32 arraylen = arraysize(settingTable);
         for (uint32 i = 0; i < arraylen; i++)

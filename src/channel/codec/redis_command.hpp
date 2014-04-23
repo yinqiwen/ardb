@@ -206,7 +206,6 @@ namespace ardb
             REDIS_CMD_PFADD = 169,
             REDIS_CMD_PFCOUNT = 170,
             REDIS_CMD_PFMERGE = 171,
-            REDIS_CMD_PFMERGECOUNT = 172,
 
             REDIS_CMD_ZLEXCOUNT = 160,
             REDIS_CMD_ZRANGEBYLEX = 161,

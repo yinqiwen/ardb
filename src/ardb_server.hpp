@@ -71,10 +71,11 @@
     switch(ret){\
         case ERR_INVALID_ARGS: ardb::fill_error_reply(reply, "Invalid arguments."); return 0;\
         case ERR_INVALID_TYPE: ardb::fill_error_reply(reply, "Operation against a key holding the wrong kind of value."); return 0;\
+        case ERR_INVALID_HLL_TYPE: ardb::fill_fix_error_reply(reply, "WRONGTYPE Key is not a valid HyperLogLog string value."); return 0;\
+        case ERR_CORRUPTED_HLL_VALUE: ardb::fill_error_reply(reply, "INVALIDOBJ Corrupted HLL object detected."); return 0;\
         default:break; \
     }\
 }while(0)
-
 
 using namespace ardb::codec;
 namespace ardb
@@ -298,7 +299,7 @@ namespace ardb
             WatchKey key;
             ArdbServer* server;
             BlockConnWakeContext() :
-                    ctx(NULL),server(NULL)
+                    ctx(NULL), server(NULL)
             {
             }
     };
@@ -700,7 +701,6 @@ namespace ardb
             int PFAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int PFCount(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int PFMerge(ArdbConnContext& ctx, RedisCommandFrame& cmd);
-            int PFMergeCount(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 
             Timer& GetTimer();
 

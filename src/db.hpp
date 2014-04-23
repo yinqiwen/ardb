@@ -60,6 +60,7 @@
 #define ERR_NOT_EXIST -10
 #define ERR_TOO_LARGE_RESPONSE -11
 #define ERR_INVALID_HLL_TYPE -12
+#define ERR_CORRUPTED_HLL_VALUE -13
 
 #define ARDB_GLOBAL_DB 0xFFFFFF
 
@@ -203,11 +204,13 @@ namespace ardb
 //            bool set_write_fill_cache;
 //            bool list_write_fill_cache;
 
+            int64 hll_sparse_max_bytes;
+
             ArdbConfig() :
                     hash_max_ziplist_entries(128), hash_max_ziplist_value(64), list_max_ziplist_entries(128), list_max_ziplist_value(
                             64), zset_max_ziplist_entries(128), zset_max_ziplist_value(64), set_max_ziplist_entries(
                             128), set_max_ziplist_value(64), L1_cache_memory_limit(0), check_type_before_set_string(
-                            false), read_fill_cache(true), zset_write_fill_cache(false)
+                            false), read_fill_cache(true), zset_write_fill_cache(false), hll_sparse_max_bytes(3000)
             {
             }
     };
@@ -277,8 +280,8 @@ namespace ardb
             int ZGetNodeValue(const DBID& db, const Slice& key, const Slice& value, ValueData& score, ValueData& attr);
             CacheItem* GetLoadedCache(const DBID& db, const Slice& key, KeyType type, bool evict_non_loaded,
                     bool create_if_not_exist);
-            int ZNodeIterate(const DBID& db, const Slice& key, const std::string& start, bool reverse, ValueVisitCallback* cb,
-                    void* cbdata);
+            int ZNodeIterate(const DBID& db, const Slice& key, const std::string& start, bool reverse,
+                    ValueVisitCallback* cb, void* cbdata);
 
             int GetType(const DBID& db, const Slice& key, KeyType& type);
             int SetMeta(KeyObject& key, CommonMetaValue& meta);
@@ -314,6 +317,8 @@ namespace ardb
             int KeysVisit(const DBID& db, const std::string& pattern, const std::string& from, ValueVisitCallback* cb,
                     void* data);
 
+            int PFCountKey(const DBID& db, const Slice& key, uint64& v);
+
             /*
              * Set operation
              */
@@ -333,8 +338,6 @@ namespace ardb
             int SInter(const DBID& db, SliceArray& keys, SetOperationCallback* callback, uint32 max_subset_num);
             int SUnion(const DBID& db, SliceArray& keys, SetOperationCallback* callback, uint32 max_subset_num);
             int SDiff(const DBID& db, SliceArray& keys, SetOperationCallback* callback, uint32 max_subset_num);
-
-            int PFMerge(const DBID& db, const SliceArray& srckeys, std::string& hllvalue);
 
             std::string m_err_cause;
             void SetErrorCause(const std::string& cause)
@@ -612,7 +615,8 @@ namespace ardb
             int ZScan(const DBID& db, const std::string& key, const std::string& cursor, const std::string& pattern,
                     uint32 limit, ValueDataArray& vs, std::string& newcursor);
             int ZLexCount(const DBID& db, const std::string& key, const LexRange& range, int64& count);
-            int ZRangeByLex(const DBID& db, const std::string& key, const ZRangeLexOptions& options, StringArray& results);
+            int ZRangeByLex(const DBID& db, const std::string& key, const ZRangeLexOptions& options,
+                    StringArray& results);
             int ZRemRangeByLex(const DBID& db, const std::string& key, const LexRange& range, int64& count);
 
             /*
@@ -664,7 +668,7 @@ namespace ardb
             int FlushScripts();
 
             int PFAdd(const DBID& db, const Slice& key, const SliceArray& members);
-            int PFCount(const DBID& db, const Slice& key, uint64& v);
+            int PFCount(const DBID& db, const SliceArray& keys, uint64& v);
             int PFMerge(const DBID& db, const Slice& destkey, const SliceArray& srckeys);
             int PFMergeCount(const DBID& db, const SliceArray& srckeys, uint64& v);
 
