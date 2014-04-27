@@ -318,7 +318,7 @@ namespace ardb
 		int rc = mdb_cursor_get(m_cursor, &m_key, &m_value, MDB_LAST);
 		m_valid = rc == 0;
 	}
-	void LMDBIterator::Seek(const Slice& target);
+	void LMDBIterator::Seek(const Slice& target)
 	{
 	    /*
 	     * not implemented
