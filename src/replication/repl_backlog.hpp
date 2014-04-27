@@ -120,7 +120,7 @@ namespace ardb
             void SetServerkey(const std::string& serverkey);
             void SetReplOffset(int64 offset);
             void SetChecksum(uint64 cksm);
-
+            void ClearState();
     };
 }
 

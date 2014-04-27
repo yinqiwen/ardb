@@ -79,6 +79,9 @@ namespace ardb
 
             time_t m_routine_ts;
 
+            std::string m_cached_master_runid;
+            int64 m_cached_master_repl_offset;
+
             void HandleRedisCommand(Channel* ch, RedisCommandFrame& cmd);
             void HandleRedisReply(Channel* ch, RedisReply& reply);
             void HandleRedisDumpChunk(Channel* ch, RedisDumpFileChunk& chunk);
@@ -91,6 +94,7 @@ namespace ardb
             void InitCron();
             RedisDumpFile* GetNewRedisDumpFile();
             ArdbConnContext* GetArdbConnContext();
+            void SwitchSyncedState();
             static void LoadRDBRoutine(void* cb);
         public:
             Slave(ArdbServer* serv);

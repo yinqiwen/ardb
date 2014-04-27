@@ -244,5 +244,11 @@ namespace ardb
         m_state->cksm = cksm;
         m_sync_state_change = true;
     }
+
+    void ReplBacklog::ClearState()
+    {
+        SetReplOffset(0);
+        SetServerkey(random_hex_string(SERVER_KEY_SIZE));
+    }
 }
 

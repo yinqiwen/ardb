@@ -44,7 +44,7 @@ namespace ardb
             m_serv(serv), m_client(NULL), m_slave_state(
             SLAVE_STATE_CLOSED), m_cron_inited(false), m_ping_recved_time(0), m_master_link_down_time(0), m_server_type(
             ARDB_DB_SERVER_TYPE), m_server_support_psync(false), m_actx(
-            NULL), m_rdb(NULL), m_backlog(serv->m_repl_backlog), m_routine_ts(0)
+            NULL), m_rdb(NULL), m_backlog(serv->m_repl_backlog), m_routine_ts(0), m_cached_master_repl_offset(0)
     {
     }
 
@@ -113,9 +113,10 @@ namespace ardb
                 string_touint64(cmd.GetArguments()[0], offset);
                 string_touint64(cmd.GetArguments()[1], cksm);
                 m_backlog.SetChecksum(cksm);
-                ASSERT(offset == m_backlog.GetReplEndOffset());
+                ASSERT((int64)offset == m_cached_master_repl_offset);
                 //m_backlog.SetReplOffset(offset);
-                m_slave_state = SLAVE_STATE_SYNCED;
+                //m_slave_state = SLAVE_STATE_SYNCED;
+                SwitchSyncedState();
                 //Disconnect all slaves when all data resynced
                 m_serv->m_master_serv.DisconnectAllSlaves();
                 return;
@@ -159,7 +160,7 @@ namespace ardb
             {
                 if (m_slave_state == SLAVE_STATE_SYNCED)
                 {
-                    INFO_LOG("now = %u, ping_recved_time=%u", now, m_ping_recved_time);
+                    DEBUG_LOG("now = %u, ping_recved_time=%u", now, m_ping_recved_time);
                     Timeout();
                     return;
                 }
@@ -298,8 +299,8 @@ namespace ardb
                     {
                         m_serv->m_db->FlushAll();
                     }
-                    m_backlog.SetServerkey(ss[1]);
-                    m_backlog.SetReplOffset(offset);
+                    m_cached_master_runid = ss[1];
+                    m_cached_master_repl_offset = offset;
                     if (m_server_type == ARDB_DB_SERVER_TYPE)
                     {
                         //Do NOT change state, since master would send  "FULLSYNCED" after all data synced
@@ -367,13 +368,22 @@ namespace ardb
             {
                 m_client->AttachFD();
             }
-            m_slave_state = SLAVE_STATE_SYNCED;
+            SwitchSyncedState();
+
             m_rdb->Remove();
             DELETE(m_rdb);
 
             //Disconnect all slaves when all data resynced
             m_serv->m_master_serv.DisconnectAllSlaves();
         }
+    }
+
+    void Slave::SwitchSyncedState()
+    {
+        m_slave_state = SLAVE_STATE_SYNCED;
+        m_backlog.SetServerkey(m_cached_master_runid);
+        m_backlog.SetReplOffset(m_cached_master_repl_offset);
+
     }
 
     void Slave::MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisMessage>& e)
@@ -394,6 +404,7 @@ namespace ardb
 
     void Slave::ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e)
     {
+        INFO_LOG("[Slave]Replication connection closed.");
         m_master_link_down_time = time(NULL);
         m_client = NULL;
         m_slave_state = 0;
