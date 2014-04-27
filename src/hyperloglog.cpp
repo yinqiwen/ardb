@@ -710,6 +710,12 @@ int hllSparseAdd(sds* value, unsigned char *ele, size_t elesize, uint32_t hll_sp
     long index, first, span;
     long is_zero = 0, is_xzero = 0, is_val = 0, runlen = 0;
     int scanlen;
+    int seqlen;
+    int oldlen;
+    int deltalen;
+    int last;
+    int len;
+    uint8_t seq[5], *n;
 
     /* Update the register if this element produced a longer run of zeroes. */
     count = hllPatLen(ele, elesize, &index);
@@ -850,9 +856,9 @@ int hllSparseAdd(sds* value, unsigned char *ele, size_t elesize, uint32_t hll_sp
      * with 'newlen' as length. Later the new sequence is inserted in place
      * of the old one, possibly moving what is on the right a few bytes
      * if the new sequence is longer than the older one. */
-    uint8_t seq[5], *n = seq;
-    int last = first + span - 1; /* Last register covered by the sequence. */
-    int len;
+    n = seq;
+    last = first + span - 1; /* Last register covered by the sequence. */
+    //int len;
 
     if (is_zero || is_xzero)
     {
@@ -913,9 +919,9 @@ int hllSparseAdd(sds* value, unsigned char *ele, size_t elesize, uint32_t hll_sp
      *
      * Note that we already allocated space on the sds string
      * calling sdsMakeRoomFor(). */
-    int seqlen = n - seq;
-    int oldlen = is_xzero ? 2 : 1;
-    int deltalen = seqlen - oldlen;
+    seqlen = n - seq;
+    oldlen = is_xzero ? 2 : 1;
+    deltalen = seqlen - oldlen;
 
     if (deltalen > 0 && sdslen(*value) + deltalen > hll_sparse_max_bytes)
         goto promote;
