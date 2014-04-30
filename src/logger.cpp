@@ -137,6 +137,7 @@ namespace ardb
                 break;
             }
             log_line_size <<= 1;
+            DELETE_A(content);
         }
 
         uint32 mills = timestamp % 1000;
