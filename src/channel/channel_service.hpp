@@ -148,7 +148,7 @@ namespace ardb
             void SetThreadPoolSize(uint32 size);
             uint32 GetThreadPoolSize();
             ChannelService& GetNextChannelService();
-            ChannelService& GetIdlestChannelService();
+            ChannelService& GetIdlestChannelService(uint32 min , uint32 max);
             uint32 GetPoolIndex()
             {
                 return m_pool_index;

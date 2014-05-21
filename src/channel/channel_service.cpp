@@ -105,15 +105,27 @@ ChannelService& ChannelService::GetNextChannelService()
     return *(m_sub_pool[idx++]);
 }
 
-ChannelService& ChannelService::GetIdlestChannelService()
+ChannelService& ChannelService::GetIdlestChannelService(uint32 min , uint32 max)
 {
     if (m_sub_pool.empty())
     {
         return *this;
     }
+    if(max >= m_sub_pool.size())
+    {
+        max = m_sub_pool.size();
+    }
+    if(min >= m_sub_pool.size())
+    {
+        min = m_sub_pool.size() - 1;
+    }
+    if(min == max)
+    {
+        max = min + 1;
+    }
     uint32 size = 0;
     uint32 idx = 0;
-    for (uint32 i = 0; i < m_sub_pool.size(); i++)
+    for (uint32 i = min; i < max; i++)
     {
         if (size == 0 || m_sub_pool[i]->m_channel_table.size() < size)
         {

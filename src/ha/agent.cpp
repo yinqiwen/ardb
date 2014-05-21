@@ -153,7 +153,7 @@ namespace ardb
         }
         std::string role = m_server->m_cfg.master_host.empty() ? "master" : "slave";
         char znode[512];
-        sprintf(znode, "/ardb/servers/%s/%s:%"PRId64, m_server->m_repl_backlog.GetServerKey(), localip.c_str(), m_server->m_cfg.listen_port);
+        sprintf(znode, "/ardb/servers/%s/%s:%u", m_server->m_repl_backlog.GetServerKey(), localip.c_str(), *(m_server->m_cfg.listen_ports.begin()));
         m_zk_client->Create(znode, role, acls, ZOO_EPHEMERAL);
     }
 

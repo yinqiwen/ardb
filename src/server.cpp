@@ -145,7 +145,7 @@ namespace ardb
             {
                 info.append("run_id:").append(m_master_serv.GetReplBacklog().GetServerKey()).append("\r\n");
             }
-            sprintf(tmp, "%"PRId64, m_cfg.listen_port);
+            sprintf(tmp, "%s", string_join_container(m_cfg.listen_ports, ",").c_str());
             info.append("tcp_port:").append(tmp).append("\r\n");
         }
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "clients"))

@@ -80,11 +80,13 @@
 using namespace ardb::codec;
 namespace ardb
 {
+    typedef std::set<uint16> PortSet;
     struct ArdbServerConfig
     {
             bool daemonize;
             std::string listen_host;
-            int64 listen_port;
+
+            PortSet listen_ports;
             std::string listen_unix_path;
             int64 unixsocketperm;
             int64 max_clients;
@@ -131,7 +133,7 @@ namespace ardb
 
             ArdbConfig db_cfg;
             ArdbServerConfig() :
-                    daemonize(false), listen_port(0), unixsocketperm(755), max_clients(10000), tcp_keepalive(0), timeout(
+                    daemonize(false), unixsocketperm(755), max_clients(10000), tcp_keepalive(0), timeout(
                             0), slowlog_log_slower_than(10000), slowlog_max_len(128), repl_data_dir("./repl"), backup_dir(
                             "./backup"), repl_ping_slave_period(10), repl_timeout(60), repl_backlog_size(
                             100 * 1024 * 1024), repl_state_persist_period(1), slave_cleardb_before_fullresync(true), slave_readonly(

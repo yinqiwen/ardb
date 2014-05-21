@@ -40,6 +40,8 @@ namespace ardb
 	{
 		protected:
 			uint32 m_connected_socks;
+			uint32 m_pool_min;
+			uint32 m_pool_max;
 			bool DoBind(Address* local);
 			bool DoConnect(Address* remote);
 			bool DoConfigure(const ChannelOptions& options);
@@ -49,6 +51,7 @@ namespace ardb
 		public:
 			ServerSocketChannel(ChannelService& factory);
 			uint32 ConnectedSockets();
+			void BindThreadPool(uint32 min, uint32 max);
 			~ServerSocketChannel();
 	};
 }

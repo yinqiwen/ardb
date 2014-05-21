@@ -223,7 +223,7 @@ namespace ardb
                     m_server_support_psync = true;
                 }
                 Buffer replconf;
-                replconf.Printf("replconf listening-port %u\r\n", m_serv->GetServerConfig().listen_port);
+                replconf.Printf("replconf listening-port %u\r\n", *(m_serv->GetServerConfig().listen_ports.begin()));
                 ch->Write(replconf);
                 m_slave_state = SLAVE_STATE_WAITING_REPLCONF_REPLY;
                 break;

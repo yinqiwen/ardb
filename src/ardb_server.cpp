@@ -70,7 +70,25 @@ namespace ardb
 
         conf_get_string(props, "pidfile", cfg.pidfile);
 
-        conf_get_int64(props, "port", cfg.listen_port);
+        std::string ports;
+        conf_get_string(props, "port", ports);
+        if (!ports.empty())
+        {
+            std::vector<std::string> ss = split_string(ports, ",");
+            for (uint32 i = 0; i < ss.size(); i++)
+            {
+                uint32 port = 0;
+                if (string_touint32(ss[i], port) && port > 0 && port < 65535)
+                {
+                    cfg.listen_ports.insert((uint16) port);
+                }
+                else
+                {
+                    WARN_LOG("Invalid 'port' config.");
+                }
+            }
+        }
+
         conf_get_int64(props, "tcp-keepalive", cfg.tcp_keepalive);
         conf_get_int64(props, "timeout", cfg.timeout);
         conf_get_int64(props, "unixsocketperm", cfg.unixsocketperm);
@@ -136,7 +154,7 @@ namespace ardb
                     cfg.master_host = "";
                     WARN_LOG("Invalid 'slaveof' config.");
                 }
-                if (cfg.master_port == cfg.listen_port && is_local_ip(cfg.master_host))
+                if (cfg.listen_ports.count((uint16) cfg.master_port) > 0 && is_local_ip(cfg.master_host))
                 {
                     cfg.master_host = "";
                     WARN_LOG("Invalid 'slaveof' config.");
@@ -776,24 +794,38 @@ namespace ardb
         if (m_cfg.listen_host.empty() && m_cfg.listen_unix_path.empty())
         {
             m_cfg.listen_host = "0.0.0.0";
-            if (m_cfg.listen_port == 0)
+            if (m_cfg.listen_ports.empty())
             {
-                m_cfg.listen_port = 6379;
+                m_cfg.listen_ports.insert(6379);
             }
+        }
+
+        uint32 thread_pool_size = m_cfg.worker_count;
+        if (!m_cfg.listen_host.empty())
+        {
+            thread_pool_size = thread_pool_size * m_cfg.listen_ports.size();
         }
 
         if (!m_cfg.listen_host.empty())
         {
-            SocketHostAddress address(m_cfg.listen_host.c_str(), m_cfg.listen_port);
-            ServerSocketChannel* server = m_service->NewServerSocketChannel();
-            if (!server->Bind(&address))
+            PortSet::iterator pit = m_cfg.listen_ports.begin();
+            uint32 j = 0;
+            while (pit != m_cfg.listen_ports.end())
             {
-                ERROR_LOG("Failed to bind on %s:%d", m_cfg.listen_host.c_str(), m_cfg.listen_port);
-                goto sexit;
+                SocketHostAddress address(m_cfg.listen_host.c_str(), *pit);
+                ServerSocketChannel* server = m_service->NewServerSocketChannel();
+                if (!server->Bind(&address))
+                {
+                    ERROR_LOG("Failed to bind on %s:%d", m_cfg.listen_host.c_str(), *pit);
+                    goto sexit;
+                }
+                server->Configure(ops);
+                server->SetChannelPipelineInitializor(conn_pipeline_init, this);
+                server->SetChannelPipelineFinalizer(conn_pipeline_finallize, NULL);
+                server->BindThreadPool(j * m_cfg.worker_count, (j+1) * m_cfg.worker_count);
+                j++;
+                pit++;
             }
-            server->Configure(ops);
-            server->SetChannelPipelineInitializor(conn_pipeline_init, this);
-            server->SetChannelPipelineFinalizer(conn_pipeline_finallize, NULL);
         }
         if (!m_cfg.listen_unix_path.empty())
         {
@@ -835,10 +867,10 @@ namespace ardb
             goto sexit;
         }
         m_service->GetTimer().Schedule(&(ServerStat::GetSingleton()), 1, 1, SECONDS);
-        m_service->SetThreadPoolSize(m_cfg.worker_count);
+        m_service->SetThreadPoolSize(thread_pool_size);
         m_service->RegisterUserEventCallback(ArdbServer::ServerEventCallback, this);
         INFO_LOG("Server started, Ardb version %s", ARDB_VERSION);
-        INFO_LOG("The server is now ready to accept connections on port %d", m_cfg.listen_port);
+        INFO_LOG("The server is now ready to accept connections on port %s", string_join_container(m_cfg.listen_ports, ",").c_str());
 
         m_service->Start();
         sexit: m_master_serv.Stop();
