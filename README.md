@@ -62,7 +62,6 @@ LevelDB Options: block_cache_size=512m, write_buffer_size=512m, thread_pool_size
     MSET (10 keys)	                   12923.24	            54347.82
 
 - Note: The 'get' performance in Ardb may be slower in reality becauseof cache missing.
-
          
 
 ## Ardb vs Redis(2.8.9) 
@@ -90,6 +89,17 @@ LevelDB Options: block_cache_size=512m, write_buffer_size=512m, thread_pool_size
   - GeoAdd
   - GeoSearch
   - Cache 
+
+## Misc
+###Memory Usage
+In basho's fork leveldb [project](https://github.com/basho/leveldb), it gives a way to estimate memory usage of a database.    
+
+      write_buffer_size*2    
+     + max_open_files*4194304    
+     + (size in NewLRUCache initialization)  
+ 
+If you want to limit the total memory usage, you should tweak the configuration which have name start with 'leveldb.' in ardb.conf.
+ 
   
 
 
