@@ -1889,33 +1889,34 @@ namespace ardb
         if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
             ZSetElement min_ele(Slice(), range.min);
-            ZSetElement max_ele(Slice(), range.max);
             ZSetElementDeque::iterator min_it = std::lower_bound(meta->zipvs.begin(), meta->zipvs.end(), min_ele,
-                    less_by_zset_score);
-            ZSetElementDeque::iterator max_it = std::lower_bound(meta->zipvs.begin(), meta->zipvs.end(), max_ele,
                     less_by_zset_score);
             if (min_it != meta->zipvs.end())
             {
-                while (!range.contain_min && min_it != meta->zipvs.end()
-                        && min_it->score.NumberValue() == range.min.NumberValue())
+                while (min_it != meta->zipvs.end())
                 {
-                    min_it++;
-                }
-                while (!range.contain_max && max_it != meta->zipvs.end()
-                        && max_it->score.NumberValue() == range.max.NumberValue())
-                {
-                    max_it--;
-                }
-                while (min_it != max_it && min_it != meta->zipvs.end())
-                {
-                    cb(min_it->value, cursor++, cbdata);
+                    ZSetElement& e = *min_it;
+                    if (!range.contain_min && e.score.NumberValue() == range.min.NumberValue())
+                    {
+                        min_it++;
+                        continue;
+                    }
+                    if (e.score.NumberValue() > range.max.NumberValue())
+                    {
+                        break;
+                    }
+                    if (!range.contain_max && e.score.NumberValue() == range.max.NumberValue())
+                    {
+                        break;
+                    }
+                    cb(e.value, cursor++, cbdata);
                     if (options.withscores)
                     {
-                        cb(min_it->score, cursor++, cbdata);
+                        cb(e.score, cursor++, cbdata);
                     }
                     if (options.withattr)
                     {
-                        cb(min_it->attr, cursor++, cbdata);
+                        cb(e.attr, cursor++, cbdata);
                     }
                     min_it++;
                 }
@@ -2132,28 +2133,26 @@ namespace ardb
         if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
             ZSetElement min_ele(Slice(), range.min);
-            ZSetElement max_ele(Slice(), range.max);
             ZSetElementDeque::iterator min_it = std::lower_bound(meta->zipvs.begin(), meta->zipvs.end(), min_ele,
-                    less_by_zset_score);
-            ZSetElementDeque::iterator max_it = std::lower_bound(meta->zipvs.begin(), meta->zipvs.end(), max_ele,
                     less_by_zset_score);
             if (min_it != meta->zipvs.end())
             {
-                while (!range.contain_min && min_it->score.NumberValue() == range.min.NumberValue())
+                while (min_it != meta->zipvs.end())
                 {
-                    min_it++;
-                }
-                while (!range.contain_max && max_it != meta->zipvs.end()
-                        && max_it->score.NumberValue() == range.max.NumberValue())
-                {
-                    max_it--;
-                }
-                if (max_it == meta->zipvs.end())
-                {
-                    max_it--;
-                }
-                while (min_it != max_it && min_it != meta->zipvs.end())
-                {
+                    ZSetElement& e = *min_it;
+                    if (!range.contain_min && e.score.NumberValue() == range.min.NumberValue())
+                    {
+                        min_it++;
+                        continue;
+                    }
+                    if (e.score.NumberValue() > range.max.NumberValue())
+                    {
+                        break;
+                    }
+                    if (!range.contain_max && e.score.NumberValue() == range.max.NumberValue())
+                    {
+                        break;
+                    }
                     if (options.withscores)
                     {
                         values.push_front(min_it->score);
