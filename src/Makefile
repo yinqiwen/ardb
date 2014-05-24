@@ -157,14 +157,14 @@ ifeq ($(storage_engine), kyotocabinet)
   STORAGE_ENGINE=kyotocabinet ${STORAGE_ENGINE_OBJ}
   INCS+=-I${KCDB_PATH}
   
-  LIBS:= ${KCDB_LIBA} ${LIBS} -lz
+  LIBS:= ${KCDB_LIBA} ${SNAPPY_LIBA} ${LIBS} -lz
   CXXFLAGS+=-D__USE_KYOTOCABINET__
 else
 ifeq ($(storage_engine), lmdb)
   STORAGE_ENGINE_OBJ=${LMDB_ENGINE}
   STORAGE_ENGINE=lmdb ${STORAGE_ENGINE_OBJ}
   INCS+=-I${LMDB_PATH}
-  LIBS:= ${LMDB_LIBA} ${LIBS}
+  LIBS:= ${LMDB_LIBA} ${SNAPPY_LIBA} ${LIBS}
   CXXFLAGS+=-D__USE_LMDB__
 else
 ifeq ($(storage_engine), rocksdb)
@@ -189,7 +189,7 @@ $(DIST_LIB): $(CORE_OBJECTS)
 $(DIST_LIBA):$(CORE_OBJECTS)
 	ar rcs $@ $^
 
-lib:$(DEP_LIBS) lua zookeeper $(DIST_LIBA)
+lib:$(DEP_LIBS) lua zookeeper snappy $(DIST_LIBA)
 
 server:${STORAGE_ENGINE} lib clean_launch_obj $(CORE_OBJECTS) ${SERVEROBJ}
 	${CXX} -o ardb-server $(SERVEROBJ)  $(CORE_OBJECTS) ${STORAGE_ENGINE_OBJ} $(LIBS)
