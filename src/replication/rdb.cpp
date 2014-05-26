@@ -619,6 +619,7 @@ namespace ardb
             }
             double score = zzlGetScore(iter);
             m_db->ZAdd(m_current_db, key, score, value);
+            iter = ziplistNext(data, iter);
         }
     }
 
@@ -635,13 +636,12 @@ namespace ardb
             {
                 if (fstr)
                 {
-                    value = Slice((char*) fstr, flen);
+                	field = Slice((char*) fstr, flen);
                 }
                 else
                 {
-                    value = stringfromll(flong);
+                	field = stringfromll(flong);
                 }
-                m_db->LPush(m_current_db, key, value);
             }
             else
             {
