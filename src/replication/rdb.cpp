@@ -555,10 +555,10 @@ namespace ardb
             long long vlong;
             if (ziplistGet(iter, &vstr, &vlen, &vlong))
             {
-                Slice value;
+                std::string value;
                 if (vstr)
                 {
-                    value = Slice((char*) vstr, vlen);
+                    value.assign((char*) vstr, vlen);
                 }
                 else
                 {
@@ -600,12 +600,12 @@ namespace ardb
             unsigned char *vstr;
             unsigned int vlen;
             long long vlong;
-            Slice value;
+            std::string value;
             if (ziplistGet(iter, &vstr, &vlen, &vlong))
             {
                 if (vstr)
                 {
-                    value = Slice((char*) vstr, vlen);
+                    value.assign((char*) vstr, vlen);
                 }
                 else
                 {
@@ -631,12 +631,12 @@ namespace ardb
             unsigned char *vstr, *fstr;
             unsigned int vlen, flen;
             long long vlong, flong;
-            Slice field, value;
+            std::string field, value;
             if (ziplistGet(iter, &fstr, &flen, &flong))
             {
                 if (fstr)
                 {
-                	field = Slice((char*) fstr, flen);
+                    field.assign((char*) fstr, flen);
                 }
                 else
                 {
@@ -656,7 +656,7 @@ namespace ardb
             {
                 if (vstr)
                 {
-                    value = Slice((char*) vstr, vlen);
+                    value.assign((char*) vstr, vlen);
                 }
                 else
                 {
