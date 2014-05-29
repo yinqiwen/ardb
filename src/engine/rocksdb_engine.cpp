@@ -61,13 +61,14 @@ namespace ardb
     {
         cfg.path = ".";
         conf_get_string(props, "data-dir", cfg.path);
-        conf_get_int64(props, "leveldb.block_cache_size", cfg.block_cache_size);
-        conf_get_int64(props, "leveldb.write_buffer_size", cfg.write_buffer_size);
-        conf_get_int64(props, "leveldb.max_open_files", cfg.max_open_files);
-        conf_get_int64(props, "leveldb.block_size", cfg.block_size);
-        conf_get_int64(props, "leveldb.block_restart_interval", cfg.block_restart_interval);
-        conf_get_int64(props, "leveldb.bloom_bits", cfg.bloom_bits);
-        conf_get_int64(props, "leveldb.batch_commit_watermark", cfg.batch_commit_watermark);
+        conf_get_int64(props, "rocksdb.block_cache_size", cfg.block_cache_size);
+        conf_get_int64(props, "rocksdb.write_buffer_size", cfg.write_buffer_size);
+        conf_get_int64(props, "rocksdb.max_open_files", cfg.max_open_files);
+        conf_get_int64(props, "rocksdb.block_size", cfg.block_size);
+        conf_get_int64(props, "rocksdb.block_restart_interval", cfg.block_restart_interval);
+        conf_get_int64(props, "rocksdb.bloom_bits", cfg.bloom_bits);
+        conf_get_int64(props, "rocksdb.batch_commit_watermark", cfg.batch_commit_watermark);
+        conf_get_string(props, "rocksdb.compression", cfg.compression);
     }
 
     KeyValueEngine* RocksDBEngineFactory::CreateDB(const std::string& name)
@@ -165,6 +166,15 @@ namespace ardb
         if (cfg.bloom_bits > 0)
         {
             m_options.filter_policy = rocksdb::NewBloomFilterPolicy(cfg.bloom_bits);
+        }
+
+        if (!strcasecmp(cfg.compression.c_str(), "none"))
+        {
+            m_options.compression = rocksdb::kNoCompression;
+        }
+        else
+        {
+            m_options.compression = rocksdb::kSnappyCompression;
         }
 
         make_dir(cfg.path);

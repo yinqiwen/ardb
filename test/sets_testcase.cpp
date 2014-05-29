@@ -175,7 +175,7 @@ void test_set_union(Ardb& db)
     std::string str;
     CHECK_FATAL(values.begin()->ToString(str) != "a", "SUnion store failed:");
     db.SUnionStore(dbid, "myset4", keys);
-    CHECK_FATAL(db.SCard(dbid, "myset4") != 105, "SUnionStore myset2 failed:");
+    CHECK_FATAL(db.SCard(dbid, "myset4") != 105, "SUnionStore myset2 failed:%d", db.SCard(dbid, "myset4"));
 }
 
 void test_set_expire(Ardb& db)

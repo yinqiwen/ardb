@@ -34,22 +34,22 @@
 CXX=g++
 CC=gcc
 
-ARDB_VERSION=0.7.1
+ARDB_VERSION=0.7.2
 
 uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 
 LIB_PATH=$(PWD)/../deps
 
 LMDB_PATH=${LIB_PATH}/mdb-mdb/libraries/liblmdb
-LMDB_FILE=${LIB_PATH}/LMDB_0_9_6.gz
+LMDB_FILE=${LIB_PATH}/LMDB_0.9.11.tar.gz
 LMDB_LIBA=${LMDB_PATH}/liblmdb.a
 
-JEMALLOC_VER=jemalloc-3.5.0
+JEMALLOC_VER=jemalloc-3.6.0
 JEMALLOC_PATH=${LIB_PATH}/${JEMALLOC_VER}
 JEMALLOC_FILE=${JEMALLOC_PATH}.tar.bz2
 JEMALLOC_LIBA=${JEMALLOC_PATH}/lib/libjemalloc.a
 
-SNAPPY_VER=snappy-1.1.1
+SNAPPY_VER=snappy-1.1.2
 SNAPPY_PATH=${LIB_PATH}/${SNAPPY_VER}
 SNAPPY_FILE=${SNAPPY_PATH}.tar.gz
 SNAPPY_LIBA=${SNAPPY_PATH}/.libs/libsnappy.a
@@ -59,7 +59,7 @@ LEVELDB_PATH=${LIB_PATH}/${LEVELDB_VER}
 LEVELDB_FILE=${LEVELDB_PATH}.tar.gz
 LEVELDB_LIBA=${LEVELDB_PATH}/libleveldb.a
 
-ROCKSDB_VER=rocksdb-2.7.fb
+ROCKSDB_VER=rocksdb-rocksdb-3.1
 ROCKSDB_PATH=${LIB_PATH}/${ROCKSDB_VER}
 ROCKSDB_FILE=${ROCKSDB_PATH}.tar.gz
 ROCKSDB_LIBA=${ROCKSDB_PATH}/librocksdb.a
@@ -70,10 +70,6 @@ ZOOKEEPER_FILE=${ZOOKEEPER_PATH}.tar.gz
 ZOOKEEPER_LIBA=${ZOOKEEPER_PATH}/.libs/libzkst.a
 ZOOKEEPER_LIBHTA=${ZOOKEEPER_PATH}/.libs/libhashtable.a
 
-KCDB_VER=kyotocabinet-1.2.76
-KCDB_PATH=${LIB_PATH}/${KCDB_VER}
-KCDB_FILE=${KCDB_PATH}.tar.gz
-KCDB_LIBA=${KCDB_PATH}/libkyotocabinet.a
 
 LUA_VER=lua
 LUA_PATH=${LIB_PATH}/${LUA_VER}
@@ -135,8 +131,7 @@ CORE_OBJECTS := db.o data_format.o hash.o kv.o lists.o logger.o sets.o \
                 $(UTIL_OBJECTS) $(CHANNEL_OBJECTS) 
 
 LEVELDB_ENGINE :=  engine/leveldb_engine.o    
-ROCKSDB_ENGINE :=  engine/rocksdb_engine.o     
-KCDB_ENGINE :=  engine/kyotocabinet_engine.o     
+ROCKSDB_ENGINE :=  engine/rocksdb_engine.o        
 LMDB_ENGINE :=  engine/lmdb_engine.o     
 TESTOBJ := ../test/ardb_test.o
 SERVEROBJ := main.o
@@ -151,14 +146,6 @@ ifeq ($(storage_engine), leveldb)
   STORAGE_ENGINE=leveldb ${STORAGE_ENGINE_OBJ}
   INCS+=-I${LEVELDB_PATH}/include
   LIBS:=${LEVELDB_LIBA} ${SNAPPY_LIBA} ${LIBS}
-else
-ifeq ($(storage_engine), kyotocabinet)
-  STORAGE_ENGINE_OBJ=${KCDB_ENGINE}
-  STORAGE_ENGINE=kyotocabinet ${STORAGE_ENGINE_OBJ}
-  INCS+=-I${KCDB_PATH}
-  
-  LIBS:= ${KCDB_LIBA} ${SNAPPY_LIBA} ${LIBS} -lz
-  CXXFLAGS+=-D__USE_KYOTOCABINET__
 else
 ifeq ($(storage_engine), lmdb)
   STORAGE_ENGINE_OBJ=${LMDB_ENGINE}
@@ -177,7 +164,6 @@ else
   $(error Only leveldb/kyotocabinet/lmdb/rocksdb supported as env storage_engine's value)
 endif
 endif 
-endif
 endif
 
 
@@ -212,14 +198,6 @@ snappy:
     else \
       cd ${LIB_PATH};tar zxvf ${SNAPPY_FILE};cd ${SNAPPY_PATH};\
       ./configure;make libsnappy.la;\
-    fi
-
-kyotocabinet:
-	@if test -f ${KCDB_LIBA}; then\
-      :; \
-    else \
-      cd ${LIB_PATH};tar zxvf ${KCDB_FILE};cd ${KCDB_PATH};\
-      ./configure;make;\
     fi
 
 lmdb:

@@ -6,11 +6,7 @@
  */
 
 #include "test_common.hpp"
-#ifdef __USE_KYOTOCABINET__
-#include "engine/kyotocabinet_engine.hpp"
-typedef ardb::KCDBEngineFactory SelectedDBEngineFactory;
-#define _DB_PATH "KyotoCabinet"
-#elif defined __USE_LMDB__
+#if defined __USE_LMDB__
 #include "engine/lmdb_engine.hpp"
 #define _DB_PATH "LMDB"
 typedef ardb::LMDBEngineFactory SelectedDBEngineFactory;

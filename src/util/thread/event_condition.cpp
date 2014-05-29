@@ -21,17 +21,17 @@ namespace ardb
     }
     int EventCondition::Wait()
     {
-        atomic_add_uint32(&m_waiting_num, 1);
+        //atomic_add_uint32(&m_waiting_num, 1);
         char buf;
         int ret;
         while ((ret = read(m_read_fd, &buf, 1)) != 1)
             ;
-        atomic_sub_uint32(&m_waiting_num, 1);
+        //atomic_sub_uint32(&m_waiting_num, 1);
         return 0;
     }
     int EventCondition::Notify()
     {
-        if (m_waiting_num > 0)
+        //if (m_waiting_num > 0)
         {
             write(m_write_fd, "N", 1);
         }

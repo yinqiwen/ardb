@@ -28,10 +28,7 @@
  */
 
 #include "ardb_server.hpp"
-#ifdef __USE_KYOTOCABINET__
-#include "engine/kyotocabinet_engine.hpp"
-typedef ardb::KCDBEngineFactory SelectedDBEngineFactory;
-#elif defined __USE_LMDB__
+#if defined __USE_LMDB__
 #include "engine/lmdb_engine.hpp"
 typedef ardb::LMDBEngineFactory SelectedDBEngineFactory;
 #elif defined __USE_ROCKSDB__

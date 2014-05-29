@@ -149,7 +149,7 @@ int Buffer::IndexOf(const void* data, size_t len, size_t start, size_t end)
 	{
 		char *start_at = m_buffer + start_idx;
 		char* p = (char *) memchr(start_at, first, end - start_idx);
-		if (p)
+		if (p && (p + len - 1) < (m_buffer + end))
 		{
 			//start_idx.pos += p - start_at;
 			start_idx += (p - start_at);

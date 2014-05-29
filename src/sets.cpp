@@ -375,7 +375,8 @@ namespace ardb
         }
         std::string newcursor = "0";
         ValueDataArray vs;
-        int ret = m_db->SScan(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], pattern, limit, vs, newcursor);
+        int ret = m_db->SScan(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], pattern, limit, vs,
+                newcursor);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         ctx.reply.type = REDIS_REPLY_ARRAY;
         ctx.reply.elements.push_back(RedisReply(newcursor));
@@ -859,8 +860,10 @@ namespace ardb
                             }
                         }
                     }
+                    std::string str;
                     if (end.Compare(sek->value) < 0)
                     {
+                        std::string str1, str2;
                         return -1;
                     }
                     z_values.push_back(sek->value);
@@ -1040,7 +1043,6 @@ namespace ardb
                 uint32 count;
                 void OnSubset(ValueDataArray& array)
                 {
-                    //INFO_LOG("size = %u",array.size());
                     count += array.size();
                 }
         } callback;
@@ -1123,7 +1125,6 @@ namespace ardb
                 uint32 count;
                 void OnSubset(ValueDataArray& array)
                 {
-                    //INFO_LOG("size = %u",array.size());
                     count += array.size();
                 }
         } callback;
@@ -1235,6 +1236,7 @@ namespace ardb
             }
             FindSetMinMaxValue(db, *kit, meta);
             metas.push_back(meta);
+
             if (min.type == EMPTY_VALUE || min.Compare(meta->min) < 0)
             {
                 min = meta->min;
@@ -1684,6 +1686,7 @@ namespace ardb
         {
             return ERR_INVALID_ARGS;
         }
+
         struct UnionCallback: public SetOperationCallback
         {
                 Ardb* db;
@@ -1697,7 +1700,6 @@ namespace ardb
                 }
                 void OnSubset(ValueDataArray& array)
                 {
-                    BatchWriteGuard guard(db->GetEngine());
                     meta.size += array.size();
                     if (array.size() > 0)
                     {
@@ -1721,6 +1723,7 @@ namespace ardb
         callback.db = this;
         SClear(db, dst);
         KeyLockerGuard keyguard(m_key_locker, db, dst);
+        BatchWriteGuard guard(GetEngine());
         SUnion(db, keys, &callback, MAX_SET_OP_STORE_NUM);
         return callback.meta.size;
     }

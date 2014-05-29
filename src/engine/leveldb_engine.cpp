@@ -57,7 +57,6 @@ namespace ardb
         ParseConfig(props, m_cfg);
     }
 
-
     void LevelDBEngineFactory::ParseConfig(const Properties& props, LevelDBConfig& cfg)
     {
         cfg.path = ".";
@@ -69,6 +68,7 @@ namespace ardb
         conf_get_int64(props, "leveldb.block_restart_interval", cfg.block_restart_interval);
         conf_get_int64(props, "leveldb.bloom_bits", cfg.bloom_bits);
         conf_get_int64(props, "leveldb.batch_commit_watermark", cfg.batch_commit_watermark);
+        conf_get_string(props, "leveldb.compression", cfg.compression);
     }
 
     KeyValueEngine* LevelDBEngineFactory::CreateDB(const std::string& name)
@@ -170,10 +170,11 @@ namespace ardb
         {
             m_options.filter_policy = leveldb::NewBloomFilterPolicy(cfg.bloom_bits);
         }
-        if(!strcasecmp(cfg.compression.c_str(), "none"))
+        if (!strcasecmp(cfg.compression.c_str(), "none"))
         {
             m_options.compression = leveldb::kNoCompression;
-        }else
+        }
+        else
         {
             m_options.compression = leveldb::kSnappyCompression;
         }
