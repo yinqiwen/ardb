@@ -34,33 +34,42 @@ It should compile to several executables in 'src' directory, such as ardb-server
 Since ardb is a full redis-protocol compatible server, you can use any redis client to connect it. Here lists all redis clients. <http://www.redis.io/clients>
 
 ## Benchmark
-Benchmarks were all performed on a four-core Intel(R) Xeon(R) CPU X3440 @ 2.53GHz, with 8 GB of DDR3 RAM.
+Benchmarks were all performed on a four-core Intel(R) Xeon(R) CPU           E5520@2.27GHz, with 64 GB of DDR3 RAM, 500 GB of SCSI disk
 
-The benchmark tool is 'redis-benchmark' from redis,50 parallel clients, 10000000 requests, 1000000 random keys each test case.
+The benchmark tool is 'redis-benchmark' from redis,50 parallel clients, 10000000 requests, 1000000 random keys each test case. There would be no benchamrk test for RocksDB engine because of OS and compiler version limit in the test machine.
 
-LevelDB Options: block_cache_size=512m, write_buffer_size=512m, thread_pool_size=2
+GCC Version:3.4.5  
+OS Version: Red Hat Enterprise Linux AS release 4 (Nahant Update 3)   
+Kernel Version: 2.6.32_1-10-6-0       
+Redis Version: 2.8.9  
+Ardb Version: 0.7.2(LMDB 0.9.11, LevelDB1.16.0)  
+LevelDB Options: thread_pool_size=2, block_cache_size=512m, write_buffer_size=128m, compression=snappy  
+LMDB Option: thread_pool_size=2, database_max_size=10G, readahead=no    
 
 ![Benchmark Img](https://raw.github.com/yinqiwen/ardb/master/doc/benchmark.png)
 
-	Becnhmark data(./redis-benchmark -t 'xxx' -r 10000000 -n 10000000):
-	                                  Ardb-LevelDB(qps)    Redis(qps)
-    PING_INLINE	                      158730.16            156250
-    PING_BULK	                      161290.33            163934.42
-    SET	                              90859.53	            140845.06
-    GET	                              128279.13            149253.73
-    INCR	                          79841.59	            149253.73
-    LPUSH	                          74112.50	            161290.33
-    LPOP	                          41666.67	            161290.33
-    SADD	                          29583.09	            149253.73
-    SPOP	                          27638.05	            153846.16
-    LPUSH	                          72674.41	            161290.33
-    LRANGE_100(first 100 elements)	   15262.52             49019.61
-    LRANGE_300(first 300 elements)	   5015.80	            21008.4
-    LRANGE_500(first 450 elements)	   3430.06	            14684.29
-    LRANGE_600(first 600 elements)	   2614.72	            11312.22
-    MSET (10 keys)	                   12923.24	            54347.82
+	Becnhmark data(./redis-benchmark -r 10000000 -n 10000000):
+	                                  LevelDB    LMDB       Redis
+    PING_INLINE	                      90682.38   90020.34   76523.39
+    PING_BULK	                      92039.51   92506.94   87438.58
+    SET	                              49030.18	 62066.71   71850.44
+    GET	                              50949.18   87973.19   79349.96
+    INCR	                          32067.83	 48217.17   79298.37
+    LPUSH	                          26702.13	 15689.55   77643.97        
+    LPOP	                           7395.19	  9658.43   77026.77
+    SADD	                          11958.49	 16065.06   76780.74
+    SPOP	                           109.326	 17067.09   70997.52
+    LPUSH(for LRANGE)	              19161.13	 15705.01   79808.46
+    LRANGE_100(first 100 elements)	   6796.99   13343.12   38269.61
+    LRANGE_300(first 300 elements)	   2374.41	  4751.47   15735.71
+    LRANGE_500(first 450 elements)	   1650.37	  3004.68   12432.77
+    LRANGE_600(first 600 elements)	   1345.24	  2505.98    9586.19
+    MSET (10 keys)	                   5472.67	  4794.23   35967.61
 
-- Note: The 'get' performance in Ardb may be slower in reality becauseof cache missing.
+* Note: 
+  - **Ardb use 2 threads in benchmark test, while redis is only single thread application.That's the reason ardb is faster than redis in some test case .**
+  - **LevelDB & LMDB both use tree like structure on disk, more data stored, the server is more slow.**
+  - **'SPOP' is very slow with LevelDB engine**
          
 
 ## Ardb vs Redis(2.8.9) 
