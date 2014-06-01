@@ -640,7 +640,7 @@ namespace ardb
                 }
                 else
                 {
-                	field = stringfromll(flong);
+                    field = stringfromll(flong);
                 }
             }
             else
@@ -1361,7 +1361,7 @@ namespace ardb
                             case ZSET_META:
                             {
                                 ZSetMetaValue* mmeta = (ZSetMetaValue*) meta;
-                                if (!mmeta->encoding)
+                                if (mmeta->encoding != ZSET_ENCODING_ZIPLIST)
                                 {
                                     return 0;
                                 }
@@ -1404,8 +1404,8 @@ namespace ardb
                     {
                         case STRING_META:
                         {
-                            CommonValueObject* cv = (CommonValueObject*) value;
-                            DUMP_CHECK_WRITE(r.WriteStringObject(cv->data));
+                            StringMetaValue* cv = (StringMetaValue*) value;
+                            DUMP_CHECK_WRITE(r.WriteStringObject(cv->value));
                             break;
                         }
                         case LIST_ELEMENT:

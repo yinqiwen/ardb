@@ -99,6 +99,7 @@ namespace ardb
 
             std::string repl_data_dir;
             std::string backup_dir;
+            bool backup_redis_format;
 
             int64 repl_ping_slave_period;
             int64 repl_timeout;
@@ -133,12 +134,12 @@ namespace ardb
 
             ArdbConfig db_cfg;
             ArdbServerConfig() :
-                    daemonize(false), unixsocketperm(755), max_clients(10000), tcp_keepalive(0), timeout(
-                            0), slowlog_log_slower_than(10000), slowlog_max_len(128), repl_data_dir("./repl"), backup_dir(
-                            "./backup"), repl_ping_slave_period(10), repl_timeout(60), repl_backlog_size(
-                            100 * 1024 * 1024), repl_state_persist_period(1), slave_cleardb_before_fullresync(true), slave_readonly(
-                            true), slave_serve_stale_data(true), slave_priority(100), lua_time_limit(0), master_port(0), worker_count(
-                            1), loglevel("INFO")
+                    daemonize(false), unixsocketperm(755), max_clients(10000), tcp_keepalive(0), timeout(0), slowlog_log_slower_than(
+                            10000), slowlog_max_len(128), repl_data_dir("./repl"), backup_dir("./backup"), backup_redis_format(
+                            false), repl_ping_slave_period(10), repl_timeout(60), repl_backlog_size(100 * 1024 * 1024), repl_state_persist_period(
+                            1), slave_cleardb_before_fullresync(true), slave_readonly(true), slave_serve_stale_data(
+                            true), slave_priority(100), lua_time_limit(0), master_port(0), worker_count(1), loglevel(
+                            "INFO")
             {
             }
     };
@@ -480,6 +481,7 @@ namespace ardb
             Master m_master_serv;
             Slave m_slave_client;
             ArdbDumpFile m_rdb;
+            RedisDumpFile m_redis_rdb;
 
             ZKAgent m_ha_agent;
 
@@ -523,6 +525,8 @@ namespace ardb
             void BlockConn(ArdbConnContext& ctx, uint32 timeout);
             void UnblockConn(ArdbConnContext& ctx);
             void CheckBlockingConnectionsByListKey(const WatchKey& key);
+
+            DataDumpFile& GetDataDumpFile();
 
             int Time(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int FlushDB(ArdbConnContext& ctx, RedisCommandFrame& cmd);

@@ -105,6 +105,13 @@ namespace ardb
         make_dir(cfg.backup_dir);
         cfg.repl_data_dir = real_path(cfg.repl_data_dir);
 
+        std::string backup_file_format;
+        conf_get_string(props, "backup-file-format", backup_file_format);
+        if(!strcasecmp(backup_file_format.c_str(), "redis"))
+        {
+            cfg.backup_redis_format = true;
+        }
+
         conf_get_string(props, "zookeeper-servers", cfg.zookeeper_servers);
 
         conf_get_string(props, "loglevel", cfg.loglevel);
@@ -844,6 +851,7 @@ namespace ardb
         ArdbLogger::InitDefaultLogger(m_cfg.loglevel, m_cfg.logfile);
 
         m_rdb.Init(m_db);
+        m_redis_rdb.Init(m_db);
         if (0 == m_repl_backlog.Init(this))
         {
             if (0 != m_master_serv.Init())

@@ -42,14 +42,33 @@ namespace ardb
         serv->Continue();
     }
 
+    DataDumpFile& ArdbServer::GetDataDumpFile()
+    {
+        if (m_cfg.backup_redis_format)
+        {
+            return m_redis_rdb;
+        }
+        else
+        {
+            return m_rdb;
+        }
+    }
+
     int ArdbServer::Save(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
         char tmp[1024];
         uint32 now = time(NULL);
-        sprintf(tmp, "%s/dump-%u.ardb", m_cfg.backup_dir.c_str(), now);
         ChannelService& serv = ctx.conn->GetService();
         uint32 conn_id = ctx.conn_id;
-        int ret = m_rdb.Save(tmp, RDBSaveLoadRoutine, &serv);
+        if (m_cfg.backup_redis_format)
+        {
+            sprintf(tmp, "%s/dump-%u.rdb", m_cfg.backup_dir.c_str(), now);
+        }
+        else
+        {
+            sprintf(tmp, "%s/dump-%u.ardb", m_cfg.backup_dir.c_str(), now);
+        }
+        int ret = GetDataDumpFile().Save(tmp, RDBSaveLoadRoutine, &serv);
         if (serv.GetChannel(conn_id) != NULL)
         {
             if (ret == 0)
@@ -67,7 +86,7 @@ namespace ardb
 
     int ArdbServer::LastSave(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        int ret = m_rdb.LastSave();
+        int ret = GetDataDumpFile().LastSave();
         fill_int_reply(ctx.reply, ret);
         return 0;
     }
@@ -76,8 +95,15 @@ namespace ardb
     {
         char tmp[1024];
         uint32 now = time(NULL);
-        sprintf(tmp, "%s/dump-%u.ardb", m_cfg.backup_dir.c_str(), now);
-        int ret = m_rdb.BGSave(tmp);
+        if (m_cfg.backup_redis_format)
+        {
+            sprintf(tmp, "%s/dump-%u.rdb", m_cfg.backup_dir.c_str(), now);
+        }
+        else
+        {
+            sprintf(tmp, "%s/dump-%u.ardb", m_cfg.backup_dir.c_str(), now);
+        }
+        int ret = GetDataDumpFile().BGSave(tmp);
         if (ret == 0)
         {
             fill_status_reply(ctx.reply, "OK");

@@ -57,7 +57,7 @@ namespace ardb
     const std::string& Ardb::MaxString()
     {
         static std::string value;
-        if(value.empty())
+        if (value.empty())
         {
             value.resize(MAX_STRING_LENGTH);
             char* v = &(value[0]);
@@ -118,12 +118,12 @@ namespace ardb
 
     void Ardb::Walk(KeyObject& key, bool reverse, bool decodeValue, WalkHandler* handler)
     {
-        bool checkType = false;
+        bool checkType = true;
         if (key.type == KEY_END)
         {
             key.type = KEY_META;
             key.key = Slice();
-            checkType = true;
+            checkType = false;
         }
         bool isFirstElement = true;
         Iterator* iter = FindValue(key);
@@ -136,8 +136,8 @@ namespace ardb
         while (NULL != iter && iter->Valid())
         {
             Slice tmpkey = iter->Key();
-            KeyObject* kk = decode_key(tmpkey, &key);
-            if (NULL == kk || (checkType && (kk->type != key.type || kk->key.compare(key.key) != 0)))
+            KeyObject* kk = decode_key(tmpkey, checkType ? &key : NULL);
+            if (NULL == kk)
             {
                 DELETE(kk);
                 if (reverse && isFirstElement)
@@ -352,16 +352,17 @@ namespace ardb
     {
         DBID current = 0;
         DBID next = 0;
-        while(true)
+        while (true)
         {
             next = 0;
-            if(DBExist(current, next))
+            if (DBExist(current, next))
             {
                 dbs.insert(current);
                 current++;
-            }else
+            }
+            else
             {
-                if(next == ARDB_GLOBAL_DB)
+                if (next == ARDB_GLOBAL_DB)
                 {
                     break;
                 }
@@ -713,7 +714,8 @@ namespace ardb
         return err;
     }
 
-    CacheItem* Ardb::GetLoadedCache(const DBID& db, const Slice& key, KeyType type, bool evict_non_loaded, bool create_if_not_exist)
+    CacheItem* Ardb::GetLoadedCache(const DBID& db, const Slice& key, KeyType type, bool evict_non_loaded,
+            bool create_if_not_exist)
     {
         if (NULL != m_level1_cahce)
         {
