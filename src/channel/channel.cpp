@@ -510,7 +510,8 @@ void Channel::OnWrite()
 {
     if (!DoFlush())
     {
-        fire_channel_closed(this);
+        //fire_channel_closed(this);
+        return;
     }
     else
     {

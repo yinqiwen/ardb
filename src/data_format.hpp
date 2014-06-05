@@ -184,6 +184,8 @@ namespace ardb
             double double_value;
             std::string bytes_value;
 
+            Slice slice_value;
+
             ValueData(const Slice& slice) :
                     type(EMPTY_VALUE), integer_value(0), double_value(0)
             {
@@ -244,7 +246,7 @@ namespace ardb
             ValueData& operator/=(uint32 i);
             double NumberValue() const;
             bool Encode(Buffer& buf) const;
-            bool Decode(Buffer& buf);
+            bool Decode(Buffer& buf, bool to_slice= false);
             std::string& ToString(std::string& str) const;
             std::string AsString() const;
             int ToNumber();
@@ -254,6 +256,8 @@ namespace ardb
             int Compare(const ValueData& other) const;
             void Clear();
     };
+
+
 
     struct CommonValueObject: public ValueObject
     {
@@ -784,7 +788,7 @@ namespace ardb
     CommonMetaValue* decode_meta(const char* data, size_t size, bool only_head);
     void encode_meta(Buffer& buf, CommonMetaValue& meta);
     ValueObject* decode_value_obj(KeyType type, const char* data, size_t size);
-    bool decode_value(Buffer& buf, ValueData& value);
+    bool decode_value(Buffer& buf, ValueData& value, bool to_slice = false);
     bool decode_value_by_string(const std::string& str, ValueData& value);
     void encode_value(Buffer& buf, const ValueData& value);
     bool peek_dbkey_header(const Slice& key, DBID& db, KeyType& type);

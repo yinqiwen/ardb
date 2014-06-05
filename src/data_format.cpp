@@ -115,7 +115,7 @@ namespace ardb
         }
         return true;
     }
-    bool ValueData::Decode(Buffer& buf)
+    bool ValueData::Decode(Buffer& buf, bool to_slice)
     {
         if (!BufferHelper::ReadFixUInt8(buf, type))
         {
@@ -136,7 +136,13 @@ namespace ardb
             }
             case BYTES_VALUE:
             {
-                ret = BufferHelper::ReadVarString(buf, bytes_value);
+                if(to_slice)
+                {
+                    ret = BufferHelper::ReadVarSlice(buf, slice_value);
+                }else
+                {
+                    ret = BufferHelper::ReadVarString(buf, bytes_value);
+                }
                 break;
             }
             case EMPTY_VALUE:
@@ -353,6 +359,10 @@ namespace ardb
             }
             default:
             {
+                if(bytes_value.empty() && other.bytes_value.empty())
+                {
+                    return slice_value.compare(other.slice_value);
+                }
                 return bytes_value.compare(other.bytes_value);
             }
         }
@@ -431,8 +441,8 @@ namespace ardb
             case HASH_FIELD:
             {
                 ValueData av, bv;
-                found_a = decode_value(ak_buf, av);
-                found_b = decode_value(bk_buf, bv);
+                found_a = decode_value(ak_buf, av, true);
+                found_b = decode_value(bk_buf, bv, true);
                 COMPARE_EXIST(found_a, found_b);
                 ret = av.Compare(bv);
                 break;
@@ -440,8 +450,8 @@ namespace ardb
             case LIST_ELEMENT:
             {
                 ValueData av, bv;
-                found_a = decode_value(ak_buf, av);
-                found_b = decode_value(bk_buf, bv);
+                found_a = decode_value(ak_buf, av, true);
+                found_b = decode_value(bk_buf, bv, true);
                 COMPARE_EXIST(found_a, found_b);
                 ret = COMPARE_NUMBER(av.NumberValue(), bv.NumberValue());
                 break;
@@ -450,8 +460,8 @@ namespace ardb
             case SET_ELEMENT:
             {
                 ValueData av, bv;
-                found_a = decode_value(ak_buf, av);
-                found_b = decode_value(bk_buf, bv);
+                found_a = decode_value(ak_buf, av, true);
+                found_b = decode_value(bk_buf, bv, true);
                 COMPARE_EXIST(found_a, found_b);
                 ret = av.Compare(bv);
                 break;
@@ -459,15 +469,15 @@ namespace ardb
             case ZSET_ELEMENT:
             {
                 ValueData ascore, bscore;
-                found_a = decode_value(ak_buf, ascore);
-                found_b = decode_value(bk_buf, bscore);
+                found_a = decode_value(ak_buf, ascore, true);
+                found_b = decode_value(bk_buf, bscore, true);
                 COMPARE_EXIST(found_a, found_b);
                 ret = COMPARE_NUMBER(ascore.NumberValue(), bscore.NumberValue());
                 if (ret == 0)
                 {
                     ValueData av, bv;
-                    found_a = decode_value(ak_buf, av);
-                    found_b = decode_value(bk_buf, bv);
+                    found_a = decode_value(ak_buf, av, true);
+                    found_b = decode_value(bk_buf, bv, true);
                     COMPARE_EXIST(found_a, found_b);
                     ret = av.Compare(bv);
                 }
@@ -902,9 +912,9 @@ namespace ardb
         value.Encode(buf);
     }
 
-    bool decode_value(Buffer& buf, ValueData& value)
+    bool decode_value(Buffer& buf, ValueData& value, bool to_slice)
     {
-        return value.Decode(buf);
+        return value.Decode(buf, to_slice);
     }
 
     bool decode_value_by_string(const std::string& str, ValueData& value)
