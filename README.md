@@ -3,7 +3,7 @@ Ardb is a BSD licensed, redis-protocol compatible persistent storage server, it 
 
 
 ## Compile
-LevelDB is the defaul storeage engine, to compile with leveldb, just type 'make' to compile server & lib & tests.
+LevelDB is the default storage engine, to compile with leveldb, just type 'make' to compile server & lib & tests.
 
 To use LMDB/RocksDB as storage engine, you should set env 'storage_engine' first.
 	
@@ -14,11 +14,11 @@ It should compile to several executables in 'src' directory, such as ardb-server
 	
 
 ## Features
-- Full redis-protocol compatible
+- Full redis-protocol compatibility
 - 2d spatial index supported. [Spatial Index](https://github.com/yinqiwen/ardb/blob/develop/doc/spatial-index.md)
 - Most redis commands supported, and a few new commands
   * [Ardb commands VS Redis Commands](https://github.com/yinqiwen/ardb/wiki/ARDB-Commands)
-- Different storage engine supported(LevelDB/KyotoCabinet/LMDB/RocksDB)
+- Different storage engine supported (LevelDB/KyotoCabinet/LMDB/RocksDB)
 - Replication compatible with Redis 2.6/2.8
   * Ardb instance work as slave of Redis 2.6/2.8+ instance
   * Ardb instance work as master of Redis 2.6/2.8+ instance
@@ -34,9 +34,9 @@ It should compile to several executables in 'src' directory, such as ardb-server
 Since ardb is a full redis-protocol compatible server, you can use any redis client to connect it. Here lists all redis clients. <http://www.redis.io/clients>
 
 ## Benchmark
-Benchmarks were all performed on a four-core Intel(R) Xeon(R) CPU           E5520@2.27GHz, with 64 GB of DDR3 RAM, 500 GB of SCSI disk
+Benchmarks were all performed on a four-core Intel(R) Xeon(R) CPU E5520@2.27GHz, with 64 GB of DDR3 RAM, 500 GB of SCSI disk
 
-The benchmark tool is 'redis-benchmark' from redis,50 parallel clients, 10000000 requests, 1000000 random keys each test case. There would be no benchamrk test for RocksDB engine because of OS and compiler version limit in the test machine.
+The benchmark tool is 'redis-benchmark' from redis,50 parallel clients, 10000000 requests, 1000000 random keys each test case. There would be no benchmark test for RocksDB engine because of OS and compiler version limit in the test machine.
 
 GCC Version:3.4.5  
 OS Version: Red Hat Enterprise Linux AS release 4 (Nahant Update 3)   
@@ -67,8 +67,8 @@ LMDB Option: thread_pool_size=2, database_max_size=10G, readahead=no
     MSET (10 keys)	                   5472.67	  4794.23   35967.61
 
 * Note: 
-  - **Ardb use 2 threads in benchmark test, while redis is only single thread application.That's the reason ardb is faster than redis in some test case .**
-  - **LevelDB & LMDB both use tree like structure on disk, more data stored, the server is more slow.**
+  - **Ardb uses 2 threads in benchmark test, while redis is single threaded application. That's the reason ardb is faster than redis in some test cases.**
+  - **LevelDB & LMDB both use tree like structure on disk, more data is stored, the server is slower.**
   - **'SPOP' is very slow with LevelDB engine**
          
 
@@ -100,18 +100,10 @@ LMDB Option: thread_pool_size=2, database_max_size=10G, readahead=no
 
 ## Misc
 ###Memory Usage
-In basho's fork leveldb [project](https://github.com/basho/leveldb), it gives a way to estimate memory usage of a database.    
+In basho's fork of leveldb [project](https://github.com/basho/leveldb), they give a way to estimate memory usage of a database.
 
       write_buffer_size*2    
      + max_open_files*4194304    
      + (size in NewLRUCache initialization)  
  
-If you want to limit the total memory usage, you should tweak the configuration which have name start with 'leveldb.' in ardb.conf.
- 
-  
-
-
-
-
-
-
+If you want to limit the total memory usage, you should tweak configuration options whoose names start with 'leveldb.' in ardb.conf.
