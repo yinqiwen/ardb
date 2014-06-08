@@ -176,7 +176,8 @@ namespace ardb
         {
             m_options.compression = rocksdb::kSnappyCompression;
         }
-
+        m_options.OptimizeLevelStyleCompaction();
+        m_options.IncreaseParallelism();
         make_dir(cfg.path);
         m_db_path = cfg.path;
         rocksdb::Status status = rocksdb::DB::Open(m_options, cfg.path.c_str(), &m_db);
@@ -278,6 +279,7 @@ namespace ardb
     {
         rocksdb::ReadOptions options;
         options.fill_cache = fill_cache;
+        options.verify_checksums = false;
         ContextHolder& holder = m_context.GetValue();
         options.snapshot = holder.snapshot;
         rocksdb::Status s = m_db->Get(options, ROCKSDB_SLICE(key), value);
