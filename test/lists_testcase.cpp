@@ -202,6 +202,7 @@ void test_list_expire(Ardb& db)
     db.Expire(dbid, "mylist", 1);
     CHECK_FATAL(db.Exists(dbid, "mylist") == false, "Expire mylist failed");
     sleep(2);
+    db.CheckExpireKey(dbid, 50, 10000);
     CHECK_FATAL(db.Exists(dbid, "mylist") == true, "Expire mylist failed");
 }
 

@@ -1426,6 +1426,7 @@ namespace ardb
         if (meta->ziped)
         {
             DelMeta(db1, key1, meta);
+            meta->header.expireat = 0;
             SetMeta(db2, key2, *meta);
         }
         else

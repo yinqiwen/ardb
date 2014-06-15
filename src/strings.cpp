@@ -434,6 +434,7 @@ namespace ardb
     int Ardb::Incrby(const DBID& db, const Slice& key, int64_t increment, int64_t& value)
     {
         CommonMetaValue* meta = GetMeta(db, key, false);
+        int ret = 0;
         StringMetaValue* smeta = NULL;
         if (NULL != meta)
         {
@@ -451,7 +452,7 @@ namespace ardb
             }
             smeta->value.Incrby(increment);
             value = smeta->value.integer_value;
-            SetMeta(db, key, *smeta);
+            ret = SetMeta(db, key, *smeta);
             DELETE(smeta);
         }
         else
@@ -459,10 +460,10 @@ namespace ardb
             StringMetaValue nsmeta;
             nsmeta.value.SetIntValue(increment);
             KeyObject k(key, KEY_META, db);
-            SetMeta(k, nsmeta);
+            ret = SetMeta(k, nsmeta);
             value = increment;
         }
-        return 0;
+        return ret;
     }
 
     int Ardb::Decr(const DBID& db, const Slice& key, int64_t& value)
@@ -479,7 +480,7 @@ namespace ardb
     {
         CommonMetaValue* meta = GetMeta(db, key, false);
         StringMetaValue* smeta = NULL;
-
+        int ret = 0;
         if (NULL != meta)
         {
             if (meta->header.type != STRING_META)
@@ -496,6 +497,7 @@ namespace ardb
             }
             smeta->value.IncrbyFloat(increment);
             value = smeta->value.double_value;
+            ret = SetMeta(db, key, *smeta);
             DELETE(smeta);
         }
         else
@@ -503,10 +505,10 @@ namespace ardb
             StringMetaValue nsmeta;
             nsmeta.value.SetDoubleValue(increment);
             KeyObject k(key, KEY_META, db);
-            SetMeta(k, nsmeta);
+            ret = SetMeta(k, nsmeta);
             value = increment;
         }
-        return 0;
+        return ret;
     }
 
     int Ardb::GetRange(const DBID& db, const Slice& key, int start, int end, std::string& v)

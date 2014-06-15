@@ -360,7 +360,7 @@ namespace ardb
 
     int Ardb::DelValue(KeyObject& key)
     {
-        DBWatcher& watcher = m_watcher.GetValue();
+        DBContext& watcher = m_db_ctx.GetValue();
         if (watcher.on_key_update != NULL)
         {
             watcher.on_key_update(key.db, key.key, watcher.on_key_update_data);
@@ -611,23 +611,25 @@ namespace ardb
         return -1;
     }
 
-    int Ardb::SetExpiration(const DBID& db, const Slice& key, uint64 expire, bool check_exists)
+    int Ardb::SetExpiration(const DBID& db, const Slice& key, uint64 expire)
     {
-        if (check_exists && expire > 0 && !Exists(db, key))
+        BatchWriteGuard guard(GetEngine());
+        CommonMetaValue* meta = GetMeta(db, key, false);
+        if (NULL == meta)
         {
             return -1;
         }
-        BatchWriteGuard guard(GetEngine());
-        uint64 old_expire;
-        if (0 == GetExpiration(db, key, old_expire))
+        if (expire == meta->header.expireat)
         {
-            if (old_expire == expire)
-            {
-                return 0;
-            }
-            ExpireKeyObject expire_key(key, old_expire, db);
+            return 0;
+        }
+        if (meta->header.expireat > 0)
+        {
+            ExpireKeyObject expire_key(key, meta->header.expireat, db);
             DelValue(expire_key);
         }
+        meta->header.expireat = expire;
+        SetMeta(db, key, *meta);
         if (expire > 0)
         {
             ExpireKeyObject keyobject(key, expire, db);
@@ -637,9 +639,10 @@ namespace ardb
         return 0;
     }
 
-    void Ardb::CheckExpireKey(const DBID& db, uint64 maxexec, uint32 maxcheckitems)
+    int Ardb::CheckExpireKey(const DBID& db, uint64 maxexec, uint32 maxcheckitems, ExpireKeyCallback* cb, void* data)
     {
         uint32 checked = 0;
+        int expire_num = 0;
         uint64 start = get_current_epoch_micros();
         Slice empty;
         ExpireKeyObject keyobject(empty, 0, db);
@@ -669,9 +672,13 @@ namespace ardb
                 ExpireKeyObject* ek = (ExpireKeyObject*) kk;
                 if (ek->expireat <= now)
                 {
-                    DelValue(*ek);
+                    if (NULL != cb)
+                    {
+                        cb(db, ek->key, data);
+                    }
                     Del(db, ek->key);
                     DELETE(kk);
+                    expire_num++;
                 }
                 else
                 {
@@ -682,6 +689,7 @@ namespace ardb
             iter->Next();
         }
         DELETE(iter);
+        return expire_num;
     }
 
     int Ardb::Strlen(const DBID& db, const Slice& key)
@@ -697,30 +705,30 @@ namespace ardb
     {
         uint64_t now = get_current_epoch_micros();
         uint64_t expire = now + (uint64_t) secs * 1000000L;
-        return SetExpiration(db, key, expire, true);
+        return SetExpiration(db, key, expire);
     }
 
     int Ardb::Expireat(const DBID& db, const Slice& key, uint32_t ts)
     {
         uint64_t expire = (uint64_t) ts * 1000000L;
-        return SetExpiration(db, key, expire, true);
+        return SetExpiration(db, key, expire);
     }
 
     int Ardb::Persist(const DBID& db, const Slice& key)
     {
-        return SetExpiration(db, key, 0, true);
+        return SetExpiration(db, key, 0);
     }
 
     int Ardb::Pexpire(const DBID& db, const Slice& key, uint32_t ms)
     {
         uint64_t now = get_current_epoch_micros();
         uint64_t expire = now + (uint64_t) ms * 1000;
-        return SetExpiration(db, key, expire, true);
+        return SetExpiration(db, key, expire);
     }
 
     int Ardb::Pexpireat(const DBID& db, const Slice& key, uint64_t ms)
     {
-        return SetExpiration(db, key, ms, true);
+        return SetExpiration(db, key, ms);
     }
 
     int64 Ardb::PTTL(const DBID& db, const Slice& key)

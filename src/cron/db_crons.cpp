@@ -26,50 +26,37 @@
  *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
+#include "db_crons.hpp"
 
-#ifndef DB_HELPERS_HPP_
-#define DB_HELPERS_HPP_
-#include <stdint.h>
-#include <float.h>
-#include <map>
-#include <vector>
-#include <list>
-#include <string>
-#include <deque>
-#include "common.hpp"
-#include "util/thread/thread.hpp"
-#include "util/thread/thread_mutex.hpp"
-#include "util/thread/lock_guard.hpp"
-#include "util/concurrent_queue.hpp"
-#include "util/lru.hpp"
-#include "db.hpp"
 namespace ardb
 {
-    class ExpireCheck: public Runnable
+    DBCrons::DBCrons() : m_db_server(NULL),m_expire_check(NULL)
     {
-        private:
-            DBID m_checking_db;
-            Ardb* m_db;
-            void Run();
-        public:
-            ExpireCheck(Ardb* db);
-    };
+    }
 
-    class DBHelper: public Thread
+    int DBCrons::Init(ArdbServer* server)
     {
-        private:
-            ChannelService m_serv;
-            Ardb* m_db;
-            ExpireCheck m_expire_check;
-            void Run();
-        public:
-            DBHelper(Ardb* db);
-            ChannelService& GetChannelService()
-            {
-                return m_serv;
-            }
-            void StopSelf();
-    };
+        m_db_server = server;
+        if(NULL != server)
+        {
+            NEW(m_expire_check, ExpireCheck(server));
+        }
+        return 0;
+    }
+
+    void DBCrons::Run()
+    {
+        if(NULL != m_expire_check)
+        {
+            m_serv.GetTimer().Schedule(m_expire_check, 100, 100, MILLIS);
+        }
+        m_serv.Start();
+    }
+
+    void DBCrons::StopSelf()
+    {
+        m_serv.Stop();
+        m_serv.Wakeup();
+    }
 }
 
-#endif /* DB_HELPERS_HPP_ */

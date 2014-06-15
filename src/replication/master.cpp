@@ -25,7 +25,7 @@ namespace ardb
      */
     Master::Master(ArdbServer* server) :
             m_server(server), m_notify_channel(NULL), m_backlog(server->m_repl_backlog), m_dumping_db(false), m_dumpdb_offset(
-                    -1), m_thread(NULL), m_thread_running(false)
+                    -1),m_repl_no_slaves_since(0),m_backlog_enable(true), m_thread(NULL), m_thread_running(false)
     {
     }
 
@@ -73,8 +73,33 @@ namespace ardb
             //let master feed 'ping' command
             return;
         }
+        if(m_slave_table.empty())
+        {
+            if(0 == m_repl_no_slaves_since)
+            {
+                m_repl_no_slaves_since = time(NULL);
+            }
+            else if(m_backlog_enable)
+            {
+                if(m_server->m_cfg.repl_backlog_time_limit > 0)
+                {
+                    time_t now = time(NULL);
+                    if(now - m_repl_no_slaves_since >= m_server->m_cfg.repl_backlog_time_limit)
+                    {
+                        m_backlog_enable = false;
+                    }
+                }
+            }else
+            {
+                return;
+            }
+        }
+
         if (!m_slave_table.empty())
         {
+            m_repl_no_slaves_since = 0;
+            m_backlog_enable = true;
+
             RedisReplCommand ping;
             ping.cmd.SetCommand("ping");
             ping.cmd.SetType(REDIS_CMD_PING);
@@ -609,6 +634,11 @@ namespace ardb
 
     void Master::FeedSlaves(Channel* src, const DBID& dbid, RedisCommandFrame& cmd)
     {
+        if(!m_backlog_enable)
+        {
+            DEBUG_LOG("Backlog is no enabled.");
+            return;
+        }
         RedisReplCommand* newcmd = new RedisReplCommand;
         newcmd->cmd = cmd;
         newcmd->dbid = dbid;

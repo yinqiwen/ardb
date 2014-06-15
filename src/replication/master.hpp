@@ -108,6 +108,9 @@ namespace ardb
             bool m_dumping_db;
             int64 m_dumpdb_offset;
 
+            time_t m_repl_no_slaves_since;
+            volatile bool m_backlog_enable;
+
             Thread* m_thread;
             bool m_thread_running;
 

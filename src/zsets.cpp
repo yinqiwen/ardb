@@ -29,7 +29,6 @@
 
 #include "db.hpp"
 #include "ardb_server.hpp"
-#include "helper/db_helpers.hpp"
 #include <fnmatch.h>
 #include <algorithm>
 
@@ -1876,6 +1875,13 @@ namespace ardb
                 m_level1_cahce->Recycle(cache);
                 return 0;
             }
+            else
+            {
+                if (m_config.zset_read_load_cache && NULL != m_level1_cahce)
+                {
+                    m_level1_cahce->Load(db, key);
+                }
+            }
         }
         int err = 0;
         bool createZset = false;
@@ -2623,6 +2629,7 @@ namespace ardb
         if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
             DelMeta(db1, key1, meta);
+            meta->header.expireat = 0;
             SetMeta(db2, key2, *meta);
         }
         else

@@ -61,6 +61,7 @@
 #define ERR_TOO_LARGE_RESPONSE -11
 #define ERR_INVALID_HLL_TYPE -12
 #define ERR_CORRUPTED_HLL_VALUE -13
+#define ERR_STORAGE_ENGINE_INTERNAL -14
 
 #define ARDB_GLOBAL_DB 0xFFFFFF
 
@@ -92,6 +93,7 @@ namespace ardb
             virtual int CommitBatchWrite() = 0;
             virtual int DiscardBatchWrite() = 0;
             virtual Iterator* Find(const Slice& findkey, bool cache) = 0;
+
             virtual const std::string Stats()
             {
                 return "";
@@ -150,16 +152,20 @@ namespace ardb
     };
 
     typedef void DataChangeCallback(const DBID& db, const Slice& key, void*);
-    struct DBWatcher
+    struct DBContext
     {
             bool data_changed;
             DataChangeCallback* on_key_update;
             void* on_key_update_data;
+            RedisCommandFrameArray propagate_cmds;
+            std::string last_error;
             void Clear()
             {
                 data_changed = false;
+                propagate_cmds.clear();
+                last_error.clear();
             }
-            DBWatcher() :
+            DBContext() :
                     data_changed(false), on_key_update(NULL), on_key_update_data(
                     NULL)
             {
@@ -182,6 +188,8 @@ namespace ardb
             }
     };
 
+    typedef void ExpireKeyCallback(const DBID& db, const Slice& key, void* data);
+
     struct ArdbConfig
     {
             int64 hash_max_ziplist_entries;
@@ -199,6 +207,7 @@ namespace ardb
 
             bool read_fill_cache;
             bool zset_write_fill_cache;
+            bool zset_read_load_cache;
 //            bool string_write_fill_cache;
 //            bool hash_write_fill_cache;
 //            bool set_write_fill_cache;
@@ -210,12 +219,12 @@ namespace ardb
                     hash_max_ziplist_entries(128), hash_max_ziplist_value(64), list_max_ziplist_entries(128), list_max_ziplist_value(
                             64), zset_max_ziplist_entries(128), zset_max_ziplist_value(64), set_max_ziplist_entries(
                             128), set_max_ziplist_value(64), L1_cache_memory_limit(0), check_type_before_set_string(
-                            false), read_fill_cache(true), zset_write_fill_cache(false), hll_sparse_max_bytes(3000)
+                            false), read_fill_cache(true), zset_write_fill_cache(false), zset_read_load_cache(false), hll_sparse_max_bytes(
+                            3000)
             {
             }
     };
 
-    class DBHelper;
     class L1Cache;
     class Ardb
     {
@@ -227,7 +236,7 @@ namespace ardb
             KeyValueEngine* m_engine;
             ThreadMutex m_mutex;
 
-            ThreadLocal<DBWatcher> m_watcher;
+            ThreadLocal<DBContext> m_db_ctx;
             template<typename T>
             int SetKeyValueObject(KeyObject& key, T& obj)
             {
@@ -287,7 +296,7 @@ namespace ardb
             int SetMeta(KeyObject& key, CommonMetaValue& meta);
             int SetMeta(const DBID& db, const Slice& key, CommonMetaValue& meta);
             int DelMeta(const DBID& db, const Slice& key, CommonMetaValue* meta);
-            int SetExpiration(const DBID& db, const Slice& key, uint64 expire, bool check_exists);
+            int SetExpiration(const DBID& db, const Slice& key, uint64 expire);
             int GetExpiration(const DBID& db, const Slice& key, uint64& expire);
 
             int GetValueByPattern(const DBID& db, const Slice& pattern, ValueData& subst, ValueData& value);
@@ -303,7 +312,6 @@ namespace ardb
             int ListPop(const DBID& db, const Slice& key, bool athead, std::string& value);
 
             void FindSetMinMaxValue(const DBID& db, const Slice& key, SetMetaValue* meta);
-            //int FindZSetMinMaxScore(const DBID& db, const Slice& key, ZSetMetaValue* meta, double& min, double& max);
 
             int BitsAnd(const DBID& db, SliceArray& keys, BitSetElementValueMap*& result, BitSetElementValueMap*& tmp);
             int BitsOr(const DBID& db, SliceArray& keys, BitSetElementValueMap*& result, bool isXor);
@@ -467,7 +475,6 @@ namespace ardb
                     }
             };
             KeyLocker m_key_locker;
-            DBHelper* m_db_helper;
             L1Cache* m_level1_cahce;
             ArdbConfig m_config;
 
@@ -681,9 +688,13 @@ namespace ardb
             void Walk(KeyObject& key, bool reverse, bool decodeValue, WalkHandler* handler);
 
             KeyValueEngine* GetEngine();
-            DBWatcher& GetDBWatcher()
+            DBContext& GetDBContext()
             {
-                return m_watcher.GetValue();
+                return m_db_ctx.GetValue();
+            }
+            const std::string& LastError()
+            {
+                return GetDBContext().last_error;
             }
 
             bool DBExist(const DBID& db, DBID& nextdb);
@@ -691,7 +702,8 @@ namespace ardb
             /*
              * Default max execution time 50ms, max check item number 10000
              */
-            void CheckExpireKey(const DBID& db, uint64 maxexec = 50, uint32 maxcheckitems = 10000);
+            int CheckExpireKey(const DBID& db, uint64 maxexec, uint32 maxcheckitems, ExpireKeyCallback* cb = NULL,
+                    void* data = NULL);
     };
 }
 

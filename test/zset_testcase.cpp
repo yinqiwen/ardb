@@ -248,6 +248,7 @@ void test_zset_expire(Ardb& db)
     db.Expire(dbid, "myzset", 1);
     CHECK_FATAL(db.Exists(dbid, "myzset") == false, "Expire myzset failed");
     sleep(2);
+    db.CheckExpireKey(dbid, 50, 10000);
     CHECK_FATAL(db.Exists(dbid, "myzset") == true, "Expire myzset failed");
 }
 

@@ -31,7 +31,6 @@
 #include <string.h>
 #include <sstream>
 #include "util/thread/thread.hpp"
-#include "helper/db_helpers.hpp"
 
 #define MAX_STRING_LENGTH 1024
 
@@ -68,8 +67,7 @@ namespace ardb
     }
 
     Ardb::Ardb(KeyValueEngineFactory* engine, uint32 multi_thread_num) :
-            m_engine_factory(engine), m_engine(NULL), m_key_locker(multi_thread_num), m_db_helper(
-            NULL), m_level1_cahce(NULL)
+            m_engine_factory(engine), m_engine(NULL), m_key_locker(multi_thread_num), m_level1_cahce(NULL)
     {
     }
 
@@ -86,15 +84,11 @@ namespace ardb
             }
             if (NULL != m_engine)
             {
-                /**
-                 * Init db helper
-                 */
-                NEW(m_db_helper, DBHelper(this));
                 if (m_config.L1_cache_memory_limit > 0)
                 {
                     NEW(m_level1_cahce, L1Cache(this));
+                    m_level1_cahce->Start();
                 }
-                m_db_helper->Start();
                 INFO_LOG("Init storage engine success.");
             }
         }
@@ -103,13 +97,12 @@ namespace ardb
 
     Ardb::~Ardb()
     {
-        if (NULL != m_db_helper)
+        if (NULL != m_level1_cahce)
         {
-            m_db_helper->StopSelf();
-            m_db_helper->Join();
-            DELETE(m_db_helper);
+            m_level1_cahce->StopSelf();
+            DELETE(m_level1_cahce);
         }
-        DELETE(m_level1_cahce);
+
         if (NULL != m_engine)
         {
             m_engine_factory->CloseDB(m_engine);
@@ -187,7 +180,8 @@ namespace ardb
 
     int Ardb::RawGet(const Slice& key, std::string* value)
     {
-        return GetEngine()->Get(key, value, false);
+        int ret = GetEngine()->Get(key, value, false);
+        return ret;
     }
 
     int Ardb::Type(const DBID& db, const Slice& key)
@@ -529,7 +523,7 @@ namespace ardb
 
     int Ardb::SetRawValue(KeyObject& key, Buffer& value)
     {
-        DBWatcher& watcher = m_watcher.GetValue();
+        DBContext& watcher = m_db_ctx.GetValue();
         watcher.data_changed = true;
         if (watcher.on_key_update != NULL)
         {
@@ -561,15 +555,11 @@ namespace ardb
     }
     int Ardb::SetMeta(KeyObject& key, CommonMetaValue& meta)
     {
-        DBWatcher& watcher = m_watcher.GetValue();
+        DBContext& watcher = m_db_ctx.GetValue();
         watcher.data_changed = true;
         if (watcher.on_key_update != NULL)
         {
             watcher.on_key_update(key.db, key.key, watcher.on_key_update_data);
-        }
-        if (meta.header.expireat > 0)
-        {
-            SetExpiration(key.db, key.key, meta.header.expireat, false);
         }
         Buffer keybuf;
         keybuf.EnsureWritableBytes(key.key.size() + 16);
@@ -610,7 +600,26 @@ namespace ardb
         std::string v;
         if (0 == GetRawValue(verkey, v) && v.size() > 1)
         {
-            return decode_meta(v.data(), v.size(), onlyHead);
+            CommonMetaValue* meta = decode_meta(v.data(), v.size(), onlyHead);
+            if (NULL != meta)
+            {
+                if (meta->header.expireat > 0)
+                {
+                    if (meta->header.expireat < get_current_epoch_millis())
+                    {
+                        //expired
+                        Del(db, key);
+                        ArgumentArray args;
+                        args.push_back("del");
+                        args.push_back(std::string(key.data(), key.size()));
+                        RedisCommandFrame cmd(args);
+                        GetDBContext().propagate_cmds.push_back(cmd);
+                        DELETE(meta);
+                        return NULL;
+                    }
+                }
+            }
+            return meta;
         }
         else
         {

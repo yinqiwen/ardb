@@ -186,6 +186,7 @@ void test_set_expire(Ardb& db)
     db.Expire(dbid, "myset", 1);
     CHECK_FATAL(db.Exists(dbid, "myset") == false, "Expire myset failed");
     sleep(2);
+    db.CheckExpireKey(dbid,50, 10000);
     CHECK_FATAL(db.Exists(dbid, "myset") == true, "Expire myset failed");
 }
 

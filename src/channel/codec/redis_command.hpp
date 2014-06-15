@@ -343,6 +343,8 @@ namespace ardb
 
                 }
         };
+
+        typedef std::vector<RedisCommandFrame> RedisCommandFrameArray;
     }
 }
 

@@ -37,6 +37,7 @@
 #include <sstream>
 #include "util/file_helper.hpp"
 #include "channel/zookeeper/zookeeper_client.hpp"
+#include "cron/db_crons.hpp"
 
 namespace ardb
 {
@@ -107,7 +108,7 @@ namespace ardb
 
         std::string backup_file_format;
         conf_get_string(props, "backup-file-format", backup_file_format);
-        if(!strcasecmp(backup_file_format.c_str(), "redis"))
+        if (!strcasecmp(backup_file_format.c_str(), "redis"))
         {
             cfg.backup_redis_format = true;
         }
@@ -128,6 +129,7 @@ namespace ardb
         conf_get_int64(props, "repl-ping-slave-period", cfg.repl_ping_slave_period);
         conf_get_int64(props, "repl-timeout", cfg.repl_timeout);
         conf_get_int64(props, "repl-state-persist-period", cfg.repl_state_persist_period);
+        conf_get_int64(props, "repl-backlog-ttl", cfg.repl_backlog_time_limit);
         conf_get_int64(props, "lua-time-limit", cfg.lua_time_limit);
 
         conf_get_int64(props, "hash-max-ziplist-entries", cfg.db_cfg.hash_max_ziplist_entries);
@@ -141,6 +143,7 @@ namespace ardb
 
         conf_get_int64(props, "L1-cache-max-memory", cfg.db_cfg.L1_cache_memory_limit);
         conf_get_bool(props, "zset-write-fill-cache", cfg.db_cfg.zset_write_fill_cache);
+        conf_get_bool(props, "zset-read-load-cache", cfg.db_cfg.zset_read_load_cache);
         conf_get_bool(props, "read-fill-cache", cfg.db_cfg.read_fill_cache);
 
         conf_get_int64(props, "hll-sparse-max-bytes", cfg.db_cfg.hll_sparse_max_bytes);
@@ -565,7 +568,7 @@ namespace ardb
         /*
          * Feed commands which modified data
          */
-        DBWatcher& watcher = m_db->GetDBWatcher();
+        DBContext& db_ctx = m_db->GetDBContext();
         if (m_repl_backlog.IsInited() && (flags & ARDB_PROCESS_WITHOUT_REPLICATION) == 0)
         {
             if ((flags & ARDB_PROCESS_FEED_REPLICATION_ONLY) || (flags & ARDB_PROCESS_FORCE_REPLICATION))
@@ -573,7 +576,7 @@ namespace ardb
                 //feed to replication
                 m_master_serv.FeedSlaves(ctx.conn, ctx.currentDB, args);
             }
-            else if (watcher.data_changed)
+            else if (db_ctx.data_changed)
             {
                 if (args.GetType() == REDIS_CMD_EXEC)
                 {
@@ -597,7 +600,17 @@ namespace ardb
                 }
             }
         }
-        watcher.Clear();
+        if (!db_ctx.propagate_cmds.empty())
+        {
+            RedisCommandFrameArray::iterator pit = db_ctx.propagate_cmds.begin();
+            while (pit != db_ctx.propagate_cmds.end())
+            {
+                m_master_serv.FeedSlaves(NULL, ctx.currentDB, *pit);
+                pit++;
+            }
+        }
+
+        db_ctx.Clear();
         if (args.GetType() == REDIS_CMD_EXEC)
         {
             ctx.ClearTransaction();
@@ -791,6 +804,9 @@ namespace ardb
             ERROR_LOG("Failed to init DB.");
             return -1;
         }
+        DBCrons crons;
+        crons.Init(this);
+
         m_service = new ChannelService(m_cfg.max_clients + 32);
         ChannelOptions ops;
         ops.tcp_nodelay = true;
@@ -829,7 +845,7 @@ namespace ardb
                 server->Configure(ops);
                 server->SetChannelPipelineInitializor(conn_pipeline_init, this);
                 server->SetChannelPipelineFinalizer(conn_pipeline_finallize, NULL);
-                server->BindThreadPool(j * m_cfg.worker_count, (j+1) * m_cfg.worker_count);
+                server->BindThreadPool(j * m_cfg.worker_count, (j + 1) * m_cfg.worker_count);
                 j++;
                 pit++;
             }
@@ -877,12 +893,17 @@ namespace ardb
         m_service->GetTimer().Schedule(&(ServerStat::GetSingleton()), 1, 1, SECONDS);
         m_service->SetThreadPoolSize(thread_pool_size);
         m_service->RegisterUserEventCallback(ArdbServer::ServerEventCallback, this);
+
+        crons.Start();
+
         INFO_LOG("Server started, Ardb version %s", ARDB_VERSION);
-        INFO_LOG("The server is now ready to accept connections on port %s", string_join_container(m_cfg.listen_ports, ",").c_str());
+        INFO_LOG("The server is now ready to accept connections on port %s",
+                string_join_container(m_cfg.listen_ports, ",").c_str());
 
         m_service->Start();
         sexit: m_master_serv.Stop();
         m_ha_agent.Close();
+        crons.StopSelf();
         DELETE(m_service);
         DELETE(m_db);
         ArdbLogger::DestroyDefaultLogger();

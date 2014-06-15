@@ -209,6 +209,7 @@ void test_hash_expire(Ardb& db)
     db.Expire(dbid, "myhash", 1);
     CHECK_FATAL(db.Exists(dbid, "myhash") == false, "Expire myhash failed");
     sleep(2);
+    db.CheckExpireKey(dbid, 50, 10000);
     CHECK_FATAL(db.Exists(dbid, "myhash") == true, "Expire myhash failed");
 }
 

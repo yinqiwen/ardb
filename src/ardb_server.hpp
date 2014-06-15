@@ -73,6 +73,7 @@
         case ERR_INVALID_TYPE: ardb::fill_error_reply(reply, "Operation against a key holding the wrong kind of value."); return 0;\
         case ERR_INVALID_HLL_TYPE: ardb::fill_fix_error_reply(reply, "WRONGTYPE Key is not a valid HyperLogLog string value."); return 0;\
         case ERR_CORRUPTED_HLL_VALUE: ardb::fill_error_reply(reply, "INVALIDOBJ Corrupted HLL object detected."); return 0;\
+        case ERR_STORAGE_ENGINE_INTERNAL: ardb::fill_error_reply(reply, "Storage engine internal error:%s.", m_db->LastError().c_str()); return 0;\
         default:break; \
     }\
 }while(0)
@@ -105,6 +106,7 @@ namespace ardb
             int64 repl_timeout;
             int64 repl_backlog_size;
             int64 repl_state_persist_period;
+            int64 repl_backlog_time_limit;
             bool slave_cleardb_before_fullresync;
             bool slave_readonly;
             bool slave_serve_stale_data;
@@ -137,9 +139,9 @@ namespace ardb
                     daemonize(false), unixsocketperm(755), max_clients(10000), tcp_keepalive(0), timeout(0), slowlog_log_slower_than(
                             10000), slowlog_max_len(128), repl_data_dir("./repl"), backup_dir("./backup"), backup_redis_format(
                             false), repl_ping_slave_period(10), repl_timeout(60), repl_backlog_size(100 * 1024 * 1024), repl_state_persist_period(
-                            1), slave_cleardb_before_fullresync(true), slave_readonly(true), slave_serve_stale_data(
-                            true), slave_priority(100), lua_time_limit(0), master_port(0), worker_count(1), loglevel(
-                            "INFO")
+                            1), repl_backlog_time_limit(3600), slave_cleardb_before_fullresync(true), slave_readonly(
+                            true), slave_serve_stale_data(true), slave_priority(100), lua_time_limit(0), master_port(0), worker_count(
+                            1), loglevel("INFO")
             {
             }
     };
@@ -724,6 +726,19 @@ namespace ardb
                 return m_ctx_local.GetValue();
             }
             int Start(const Properties& props);
+
+            Master& GetMaster()
+            {
+                return m_master_serv;
+            }
+            Ardb& GetDB()
+            {
+                return *m_db;
+            }
+            const ArdbServerConfig& GetConfig()
+            {
+                return m_cfg;
+            }
             ~ArdbServer();
     };
 }

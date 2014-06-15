@@ -28,7 +28,6 @@
  */
 #include "level1_cache.hpp"
 #include "db.hpp"
-#include "helper/db_helpers.hpp"
 #include <algorithm>
 
 namespace ardb
@@ -44,11 +43,10 @@ namespace ardb
     }
 
     L1Cache::L1Cache(Ardb* db) :
-            m_serv(db->m_db_helper->GetChannelService()), m_db(db), m_estimate_mem_size(0), m_signal_notifier(NULL)
+            m_db(db), m_estimate_mem_size(0), m_signal_notifier(NULL)
     {
         m_signal_notifier = m_serv.NewSoftSignalChannel();
         m_signal_notifier->Register(kCacheSignal, this);
-        m_serv.GetTimer().Schedule(this, 100, 100, MILLIS);
         m_cache.SetMaxCacheSize(UINT_MAX);
     }
 
@@ -58,8 +56,21 @@ namespace ardb
 
     void L1Cache::Run()
     {
-        CheckMemory(NULL);
-        CheckInstQueue();
+        struct PeriodTask: public Runnable
+        {
+                L1Cache* c;
+                PeriodTask(L1Cache* cc) :
+                        c(cc)
+                {
+                }
+                void Run()
+                {
+                    c->CheckMemory(NULL);
+                    c->CheckInstQueue();
+                }
+        };
+        m_serv.GetTimer().ScheduleHeapTask(new PeriodTask(this), 100, 100, MILLIS);
+        m_serv.Start();
     }
 
     void L1Cache::OnSoftSignal(uint32 soft_signo, uint32 appendinfo)
@@ -89,7 +100,7 @@ namespace ardb
 
     void L1Cache::CheckMemory(CacheItem* exclude_item)
     {
-        while (m_estimate_mem_size > (uint64)m_db->m_config.L1_cache_memory_limit && m_cache.Size() > 1)
+        while (m_estimate_mem_size > (uint64) m_db->m_config.L1_cache_memory_limit && m_cache.Size() > 1)
         {
             LRUCache<DBItemKey, CacheItem*>::CacheEntry entry;
             CacheLockGuard guard(m_cache_mutex);
@@ -374,6 +385,12 @@ namespace ardb
         {
             item->DecRef();
         }
+    }
+
+    void L1Cache::StopSelf()
+    {
+        m_serv.Stop();
+        m_serv.Wakeup();
     }
 }
 

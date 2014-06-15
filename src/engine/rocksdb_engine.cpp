@@ -336,9 +336,12 @@ namespace ardb
 
     const std::string RocksDBEngine::Stats()
     {
-        std::string str;
+        std::string str, version_info;
+
         m_db->GetProperty("RocksDB.stats", &str);
-        return str;
+        version_info.append("RocksDB version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(
+                        stringfromll(rocksdb::kMinorVersion)).append(".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
+        return version_info + str;
     }
 
     RocksDBIterator::~RocksDBIterator()

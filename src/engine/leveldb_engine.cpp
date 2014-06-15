@@ -341,9 +341,12 @@ namespace ardb
 
     const std::string LevelDBEngine::Stats()
     {
-        std::string str;
+        std::string str, version_info;
+        version_info.append("LevelDB version:").append(stringfromll(leveldb::kMajorVersion)).append(".").append(
+                stringfromll(leveldb::kMinorVersion)).append("\r\n");
         m_db->GetProperty("leveldb.stats", &str);
-        return str;
+
+        return version_info + str;
     }
 
     LevelDBIterator::~LevelDBIterator()

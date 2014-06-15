@@ -70,9 +70,6 @@ namespace ardb
             SpinRWLock m_lock;
             typedef ReadLockGuard<SpinRWLock> CacheReadLockGuard;
             typedef WriteLockGuard<SpinRWLock> CacheWriteLockGuard;
-//            ThreadMutex m_lock;
-//            typedef LockGuard<ThreadMutex> ZCacheReadLockGuard;
-//            typedef LockGuard<ThreadMutex> ZCacheWriteLockGuard;
             friend class L1Cache;
             void AddEstimateMemSize(uint32 delta)
             {
@@ -199,10 +196,10 @@ namespace ardb
      * Only zset cache supported now
      */
     class Ardb;
-    class L1Cache: public Runnable, public SoftSignalHandler
+    class L1Cache: public Thread, public SoftSignalHandler
     {
         private:
-            ChannelService& m_serv;
+            ChannelService m_serv;
             Ardb* m_db;
             volatile uint64_t m_estimate_mem_size;
 
@@ -245,6 +242,8 @@ namespace ardb
             {
                 return m_cache.Size();
             }
+
+            void StopSelf();
             ~L1Cache();
     };
 }

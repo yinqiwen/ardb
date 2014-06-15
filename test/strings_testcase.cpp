@@ -106,6 +106,7 @@ void test_strings_expire(Ardb& db)
     db.Expire(dbid, "intkey1", 1);
     CHECK_FATAL(db.Exists(dbid, "intkey1") == false, "Expire intkey1 failed");
     sleep(2);
+    db.CheckExpireKey(dbid, 50, 10000);
     CHECK_FATAL(db.Exists(dbid, "intkey1") == true, "Expire intkey failed");
 }
 

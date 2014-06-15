@@ -99,8 +99,8 @@ namespace ardb
         }
         if (m_watch_context_table.empty())
         {
-            m_db->GetDBWatcher().on_key_update = NULL;
-            m_db->GetDBWatcher().on_key_update_data = NULL;
+            m_db->GetDBContext().on_key_update = NULL;
+            m_db->GetDBContext().on_key_update_data = NULL;
         }
         ctx.GetTransc().watch_key_set.clear();
     }
@@ -149,8 +149,8 @@ namespace ardb
     {
         ctx.reply.type = REDIS_REPLY_STATUS;
         ctx.reply.str = "OK";
-        m_db->GetDBWatcher().on_key_update = ArdbServer::OnKeyUpdated;
-        m_db->GetDBWatcher().on_key_update_data = this;
+        m_db->GetDBContext().on_key_update = ArdbServer::OnKeyUpdated;
+        m_db->GetDBContext().on_key_update_data = this;
         ArgumentArray::const_iterator it = cmd.GetArguments().begin();
         while (it != cmd.GetArguments().end())
         {

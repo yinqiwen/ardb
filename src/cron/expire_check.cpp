@@ -26,17 +26,35 @@
  *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include "db_helpers.hpp"
+#include "db_crons.hpp"
 
 namespace ardb
 {
-    ExpireCheck::ExpireCheck(Ardb* db) :
-            m_checking_db(0), m_db(db)
+    ExpireCheck::ExpireCheck(ArdbServer* serv) :
+            m_checking_db(0), m_server(serv)
     {
+    }
+
+    void ExpireCheck::ExpireCheckCallback(const DBID& db, const Slice& key, void* data)
+    {
+        ExpireCheck* e = (ExpireCheck*) data;
+        ArgumentArray args;
+        args.push_back("del");
+        args.push_back(std::string(key.data(), key.size()));
+        RedisCommandFrame cmd(args);
+        e->m_server->GetMaster().FeedSlaves(NULL, db, cmd);
     }
 
     void ExpireCheck::Run()
     {
+        if (!m_server->GetConfig().master_host.empty())
+        {
+            /*
+             * no expire on slave, master would sync the expire/del operations to slaves.
+             */
+            return;
+        }
+        Ardb& db = m_server->GetDB();
         uint64 start = get_current_epoch_millis();
         while (m_checking_db < ARDB_GLOBAL_DB)
         {
@@ -46,7 +64,7 @@ namespace ardb
                 return;
             }
             DBID nexdb = 0;
-            if (!m_db->DBExist(m_checking_db, nexdb))
+            if (!db.DBExist(m_checking_db, nexdb))
             {
                 if (nexdb == m_checking_db || nexdb == ARDB_GLOBAL_DB)
                 {
@@ -55,7 +73,7 @@ namespace ardb
                 }
                 m_checking_db = nexdb;
             }
-            m_db->CheckExpireKey(m_checking_db);
+            db.CheckExpireKey(m_checking_db, 50, 10000, ExpireCheckCallback, this);
             m_checking_db++;
         }
         m_checking_db = 0;
