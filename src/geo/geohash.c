@@ -182,71 +182,112 @@ static int geohash_move_y(GeoHashBits* hash, int8_t d)
 
 int geohash_get_neighbors(const GeoHashBits* hash, GeoHashNeighbors* neighbors)
 {
-    neighbors->east = *hash;
-    neighbors->west = *hash;
-    neighbors->north = *hash;
-    neighbors->south = *hash;
-    neighbors->south_east = *hash;
-    neighbors->south_west = *hash;
-    neighbors->north_east = *hash;
-    neighbors->north_west = *hash;
+    geohash_get_neighbor(hash, GEOHASH_NORTH, &neighbors->north);
+    geohash_get_neighbor(hash, GEOHASH_EAST, &neighbors->east);
+    geohash_get_neighbor(hash, GEOHASH_WEST, &neighbors->west);
+    geohash_get_neighbor(hash, GEOHASH_SOUTH, &neighbors->south);
+    geohash_get_neighbor(hash, GEOHASH_SOUTH_WEST, &neighbors->south_west);
+    geohash_get_neighbor(hash, GEOHASH_SOUTH_EAST, &neighbors->south_east);
+    geohash_get_neighbor(hash, GEOHASH_NORT_WEST, &neighbors->north_west);
+    geohash_get_neighbor(hash, GEOHASH_NORT_EAST, &neighbors->north_east);
+    return 0;
+}
 
-    geohash_move_x(&neighbors->east, 1);
-    geohash_move_y(&neighbors->east, 0);
-
-    geohash_move_x(&neighbors->west, -1);
-    geohash_move_y(&neighbors->west, 0);
-
-    geohash_move_x(&neighbors->south, 0);
-    geohash_move_y(&neighbors->south, -1);
-
-    geohash_move_x(&neighbors->north, 0);
-    geohash_move_y(&neighbors->north, 1);
-
-    geohash_move_x(&neighbors->north_west, -1);
-    geohash_move_y(&neighbors->north_west, 1);
-
-    geohash_move_x(&neighbors->north_east, 1);
-    geohash_move_y(&neighbors->north_east, 1);
-
-    geohash_move_x(&neighbors->south_east, 1);
-    geohash_move_y(&neighbors->south_east, -1);
-
-    geohash_move_x(&neighbors->south_west, -1);
-    geohash_move_y(&neighbors->south_west, -1);
+int geohash_get_neighbor(const GeoHashBits* hash, GeoDirection direction, GeoHashBits* neighbor)
+{
+    if (NULL == neighbor)
+    {
+        return -1;
+    }
+    *neighbor = *hash;
+    switch (direction)
+    {
+        case GEOHASH_NORTH:
+        {
+            geohash_move_x(neighbor, 0);
+            geohash_move_y(neighbor, 1);
+            break;
+        }
+        case GEOHASH_SOUTH:
+        {
+            geohash_move_x(neighbor, 0);
+            geohash_move_y(neighbor, -1);
+            break;
+        }
+        case GEOHASH_EAST:
+        {
+            geohash_move_x(neighbor, 1);
+            geohash_move_y(neighbor, 0);
+            break;
+        }
+        case GEOHASH_WEST:
+        {
+            geohash_move_x(neighbor, -1);
+            geohash_move_y(neighbor, 0);
+            break;
+        }
+        case GEOHASH_SOUTH_WEST:
+        {
+            geohash_move_x(neighbor, -1);
+            geohash_move_y(neighbor, -1);
+            break;
+        }
+        case GEOHASH_SOUTH_EAST:
+        {
+            geohash_move_x(neighbor, 1);
+            geohash_move_y(neighbor, -1);
+            break;
+        }
+        case GEOHASH_NORT_WEST:
+        {
+            geohash_move_x(neighbor, -1);
+            geohash_move_y(neighbor, 1);
+            break;
+        }
+        case GEOHASH_NORT_EAST:
+        {
+            geohash_move_x(neighbor, 1);
+            geohash_move_y(neighbor, 1);
+            break;
+        }
+        default:
+        {
+            return -1;
+        }
+    }
 
     return 0;
 }
 /*
-int main()
-{
-    GeoHashBits hash;
-    hash.bits = 3;
-    hash.step = 2;
-    GeoHashNeighbors neighbors;
-    geohash_get_neighbors(&hash, &neighbors);
-    printf("%x\n", hash.bits);
-    printf("%x\n", neighbors.east.bits);
-    printf("%x\n", neighbors.west.bits);
-    printf("%x\n", neighbors.south.bits);
-    printf("%x\n", neighbors.north.bits);
-    printf("%x\n", neighbors.north_west.bits);
-    printf("%x\n", neighbors.north_east.bits);
-    printf("%x\n", neighbors.south_east.bits);
-    printf("%x\n", neighbors.south_west.bits);
+ int main()
+ {
+ GeoHashBits hash;
+ hash.bits = 3;
+ hash.step = 2;
+ GeoHashNeighbors neighbors;
+ geohash_get_neighbors(&hash, &neighbors);
+ printf("%x\n", hash.bits);
+ printf("%x\n", neighbors.east.bits);
+ printf("%x\n", neighbors.west.bits);
+ printf("%x\n", neighbors.south.bits);
+ printf("%x\n", neighbors.north.bits);
+ printf("%x\n", neighbors.north_west.bits);
+ printf("%x\n", neighbors.north_east.bits);
+ printf("%x\n", neighbors.south_east.bits);
+ printf("%x\n", neighbors.south_west.bits);
 
-    GeoHashRange lat_range, lon_range;
-    lat_range.max = 90.0;
-    lat_range.min = -90.0;
-    lon_range.max = 180.0;
-    lon_range.min = -180.0;
-    geohash_encode(&lat_range, &lon_range, -32.1, 120.3, 4, &hash);
-    printf("%x\n", hash.bits);
-    GeoHashArea area;
-    geohash_decode(&lat_range, &lon_range, &hash, &area);
-    printf("%.2f %.2f\n", area.latitude.min, area.latitude.max);
-    printf("%.2f %.2f\n", area.longitude.min, area.longitude.max);
+ GeoHashRange lat_range, lon_range;
+ lat_range.max = 90.0;
+ lat_range.min = -90.0;
+ lon_range.max = 180.0;
+ lon_range.min = -180.0;
+ geohash_encode(&lat_range, &lon_range, -32.1, 120.3, 4, &hash);
+ printf("%x\n", hash.bits);
+ GeoHashArea area;
+ geohash_decode(&lat_range, &lon_range, &hash, &area);
+ printf("%.2f %.2f\n", area.latitude.min, area.latitude.max);
+ printf("%.2f %.2f\n", area.longitude.min, area.longitude.max);
 
-    return 0;
-}
-*/
+ return 0;
+ }
+ */

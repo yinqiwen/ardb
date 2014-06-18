@@ -703,6 +703,10 @@ namespace ardb
 
             int GeoAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int GeoSearch(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            int AreaAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            int AreaDel(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            int AreaClear(ArdbConnContext& ctx, RedisCommandFrame& cmd);
+            int AreaLocate(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int Cache(ArdbConnContext& ctx, RedisCommandFrame& cmd);
             int Auth(ArdbConnContext& ctx, RedisCommandFrame& cmd);
 

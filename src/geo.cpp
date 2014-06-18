@@ -92,6 +92,87 @@ namespace ardb
         return 0;
     }
 
+    /*
+     *  AreaAdd key value MERCATOR|WGS84  vertex_x vertex_y [vertex_x vertex_y] ....
+     */
+    int ArdbServer::AreaAdd(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        AreaAddOptions options;
+        std::string err;
+        if (0 != options.Parse(cmd.GetArguments(), err, 1))
+        {
+            fill_error_reply(ctx.reply, "%s", err.c_str());
+            return 0;
+        }
+        int ret = m_db->AreaAdd(ctx.currentDB, cmd.GetArguments()[0], options);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
+        if (ret >= 0)
+        {
+            fill_status_reply(ctx.reply, "OK");
+        }
+        else
+        {
+            fill_error_reply(ctx.reply, "Failed to %s", cmd.ToString().c_str());
+        }
+        return 0;
+    }
+
+    /*
+     *  AreaDel key value
+     */
+    int ArdbServer::AreaDel(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int ret = m_db->AreaDel(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
+        if (ret >= 0)
+        {
+            fill_status_reply(ctx.reply, "OK");
+        }
+        else
+        {
+            fill_error_reply(ctx.reply, "Failed to %s", cmd.ToString().c_str());
+        }
+        return 0;
+    }
+
+    /*
+     *  AreaClear key
+     */
+    int ArdbServer::AreaClear(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        int ret = m_db->AreaClear(ctx.currentDB, cmd.GetArguments()[0]);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
+        if (ret >= 0)
+        {
+            fill_status_reply(ctx.reply, "OK");
+        }
+        else
+        {
+            fill_error_reply(ctx.reply, "Failed to %s", cmd.ToString().c_str());
+        }
+        return 0;
+    }
+
+    /*
+     *  AreaLocate key MERCATOR|WGS84 x y [GET pattern [GET pattern ...]]
+     */
+    int ArdbServer::AreaLocate(ArdbConnContext& ctx, RedisCommandFrame& cmd)
+    {
+        AreaLocateOptions options;
+        std::string err;
+        if (0 != options.Parse(cmd.GetArguments(), err, 1))
+        {
+            fill_error_reply(ctx.reply, "%s", err.c_str());
+            return 0;
+        }
+        ValueDataDeque res;
+        int ret = m_db->AreaLocate(ctx.currentDB, cmd.GetArguments()[0], options, res);
+        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
+        fill_array_reply(ctx.reply, res);
+        return 0;
+    }
+
+    //=======================================================DB========================================================
     int Ardb::GeoAdd(const DBID& db, const Slice& key, const GeoAddOptions& options)
     {
         GeoHashRange lat_range, lon_range;
@@ -390,6 +471,231 @@ namespace ardb
         }
         uint64 end_time = get_current_epoch_micros();
         DEBUG_LOG("Cost %llu microseconds to search.", end_time - start_time);
+        return 0;
+    }
+
+    int Ardb::AreaIter(const AreaValue& area, OnSubArea* cb, void* data)
+    {
+        GeoHashRange lat_range, lon_range;
+        GeoHashHelper::GetCoordRange(area.coord_type, lat_range, lon_range);
+
+        GeoHashBits geohash_cursor;
+        geohash_encode(&lat_range, &lon_range, area.min_x, area.min_y, m_config.area_geohash_step, &geohash_cursor);
+        GeoHashArea cursor_area;
+        geohash_decode(&lat_range, &lon_range, &geohash_cursor, &cursor_area);
+        double delta_x = cursor_area.longitude.max - cursor_area.longitude.min;
+        double delta_y = cursor_area.latitude.max - cursor_area.latitude.min;
+
+        double x_cursor = cursor_area.longitude.min;
+        while (x_cursor <= area.max_x)
+        {
+            double y_cursor = cursor_area.latitude.min;
+            GeoHashBits x_current = geohash_cursor;
+            while (y_cursor <= area.max_y)
+            {
+                cb(geohash_cursor, data);
+                GeoHashBits tmp = geohash_cursor;
+                geohash_get_neighbor(&tmp, GEOHASH_NORTH, &geohash_cursor);
+                y_cursor += delta_y;
+            }
+            geohash_get_neighbor(&x_current, GEOHASH_EAST, &geohash_cursor);
+            x_cursor += delta_x;
+        }
+        return 0;
+    }
+
+    struct AreaAddIterContext
+    {
+            Ardb* db;
+            DBID dbid;
+            std::string key;
+            std::string value;
+    };
+
+    static void AreaAddIterCallback(const GeoHashBits& hash, void* data)
+    {
+        AreaAddIterContext* ctx = (AreaAddIterContext*) data;
+        std::string key = ctx->key;
+        key.append(":").append(stringfromll(hash.bits));
+        ctx->db->SAdd(ctx->dbid, key, ctx->value);
+    }
+
+    int Ardb::AreaAdd(const DBID& db, const Slice& key, const AreaAddOptions& options)
+    {
+        KeyLockerGuard keyguard(m_key_locker, db, key);
+        std::string value;
+        int ret = HGet(db, key, options.value, &value);
+        if (ret != 0 && ret != ERR_NOT_EXIST)
+        {
+            return ret;
+        }
+        AreaValue area;
+        if (0 == ret)
+        {
+            AreaDel(db, key, options.value);
+        }
+        area.xx = options.xx;
+        area.yy = options.yy;
+        area.geohash_step = m_config.area_geohash_step;
+        area.coord_type = options.coord_type;
+#define GET_MIN(current, value)  \
+do{\
+       if(DBL_MIN == current || value < current) current = value;\
+}while(0)
+#define GET_MAX(current, value)  \
+do{\
+       if(DBL_MIN == current || value > current) current = value;\
+}while(0)
+        for (uint32 i = 0; i < area.xx.size(); i++)
+        {
+            GET_MIN(area.min_x, area.xx[i]);
+            GET_MIN(area.min_y, area.yy[i]);
+            GET_MAX(area.max_x, area.xx[i]);
+            GET_MAX(area.max_y, area.yy[i]);
+        }
+        Buffer buf;
+        area.Encode(buf);
+        Slice sv(buf.GetRawReadBuffer(), buf.ReadableBytes());
+        HSet(db, key, options.value, sv);
+        AreaAddIterContext ctx;
+        ctx.db = this;
+        ctx.dbid = db;
+        ctx.key.assign(key.data(), key.size());
+        ctx.value.assign(options.value.data(), options.value.size());
+        AreaIter(area, AreaAddIterCallback, &ctx);
+
+        return 0;
+    }
+
+    int Ardb::AreaLocate(const DBID& db, const Slice& key, const AreaLocateOptions& options, ValueDataDeque& results)
+    {
+        GeoHashRange lat_range, lon_range;
+        GeoHashHelper::GetCoordRange(options.coord_type, lat_range, lon_range);
+        GeoHashBits hash;
+        geohash_encode(&lat_range, &lon_range, options.x, options.y, m_config.area_geohash_step, &hash);
+        std::string sk;
+        sk.assign(key.data(), key.size());
+        sk.append(":").append(stringfromll(hash.bits));
+        ValueDataDeque rs;
+        SMembers(db, sk, rs);
+        ValueDataDeque::iterator it = rs.begin();
+        while (it != rs.end())
+        {
+            ValueData& field = *it;
+            std::string v;
+            if (0 == HGet(db, key, field.AsString(), &v))
+            {
+                AreaValue av;
+                Buffer buf(const_cast<char*>(v.data()), 0, v.size());
+                if (!av.Decode(buf))
+                {
+                    WARN_LOG("Invalid content for area %s", field.AsString().c_str());
+                    it++;
+                    continue;
+                }
+                if (av.xx.size() > 0)
+                {
+                    /*
+                     * This algorithm is ported from http://alienryderflex.com/polygon/
+                     */
+                    uint32 i, j = av.xx.size() - 1;
+                    bool oddNodes = false;
+                    for (i = 0; i < av.xx.size(); i++)
+                    {
+                        if (((av.yy[i] < options.y && av.yy[j] >= options.y)
+                                || (av.yy[j] < options.y && av.yy[i] >= options.y))
+                                && (av.xx[i] <= options.x || av.xx[j] <= options.x))
+                        {
+                            oddNodes ^=
+                                    (av.xx[i] + (options.y - av.yy[i]) / (av.yy[j] - av.yy[i]) * (av.xx[j] - av.xx[i])
+                                            < options.x);
+                        }
+                        j = i;
+                    }
+                    if (oddNodes)
+                    {
+                        results.push_back(field);
+                        StringArray::const_iterator git = options.get_patterns.begin();
+                        while (git != options.get_patterns.end())
+                        {
+                            ValueData join;
+                            GetValueByPattern(db, *git, field, join);
+                            results.push_back(join);
+                            git++;
+                        }
+                    }
+                }
+            }
+            it++;
+        }
+        return 0;
+    }
+    struct AreaDelIterContext
+    {
+            Ardb* db;
+            DBID dbid;
+            std::string key;
+            std::string value;
+    };
+
+    static void AreaDelIterCallback(const GeoHashBits& hash, void* data)
+    {
+        AreaDelIterContext* ctx = (AreaDelIterContext*) data;
+        std::string key = ctx->key;
+        key.append(":").append(stringfromll(hash.bits));
+        ctx->db->SRem(ctx->dbid, key, ctx->value);
+    }
+    int Ardb::AreaDel(const DBID& db, const Slice& key, const Slice& value)
+    {
+        KeyLockerGuard keyguard(m_key_locker, db, key);
+        std::string v;
+        int ret = HGet(db, key, value, &v);
+        if (ret != 0)
+        {
+            return ret;
+        }
+        AreaValue area;
+        Buffer buf(const_cast<char*>(v.data()), 0, v.size());
+        if (!area.Decode(buf))
+        {
+            WARN_LOG("Invalid content for area %s", value.data());
+            return -1;
+        }
+        AreaDelIterContext ctx;
+        ctx.db = this;
+        ctx.dbid = db;
+        ctx.key.assign(key.data(), key.size());
+        ctx.value.assign(value.data(), value.size());
+        AreaIter(area, AreaDelIterCallback, &ctx);
+        return 0;
+    }
+
+    struct AreaClearContext
+    {
+            Ardb* db;
+            DBID dbid;
+            std::string key;
+
+    };
+    static int AreaClearVisitCallback(const ValueData& value, int cursor, void* cb)
+    {
+        AreaClearContext* ctx = (AreaClearContext*) cb;
+        if (cursor % 2 == 0)
+        {
+            ctx->db->AreaDel(ctx->dbid, ctx->key, value.AsString());
+        }
+        return 0;
+    }
+
+    int Ardb::AreaClear(const DBID& db, const Slice& key)
+    {
+        KeyLockerGuard keyguard(m_key_locker, db, key);
+        AreaClearContext ctx;
+        ctx.db = this;
+        ctx.key.assign(key.data(), key.size());
+        ctx.dbid = db;
+        HIterate(db, key, AreaClearVisitCallback, &ctx);
+        HClear(db, key);
         return 0;
     }
 }

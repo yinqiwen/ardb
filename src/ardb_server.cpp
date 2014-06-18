@@ -147,6 +147,7 @@ namespace ardb
         conf_get_bool(props, "read-fill-cache", cfg.db_cfg.read_fill_cache);
 
         conf_get_int64(props, "hll-sparse-max-bytes", cfg.db_cfg.hll_sparse_max_bytes);
+        conf_get_int64(props, "area-mesh-geohash-step", cfg.db_cfg.area_geohash_step);
 
         conf_get_bool(props, "slave-read-only", cfg.slave_readonly);
         conf_get_bool(props, "slave-serve-stale-data", cfg.slave_serve_stale_data);
@@ -406,7 +407,11 @@ namespace ardb
                 { "auth", REDIS_CMD_AUTH, &ArdbServer::Auth, 1, 1, "r", 0 },
                 { "pfadd", REDIS_CMD_PFADD, &ArdbServer::PFAdd, 2, -1, "w", 0 },
                 { "pfcount", REDIS_CMD_PFCOUNT, &ArdbServer::PFCount, 1, -1, "w", 0 },
-                { "pfmerge", REDIS_CMD_PFMERGE, &ArdbServer::PFMerge, 2, -1, "w", 0 }, };
+                { "pfmerge", REDIS_CMD_PFMERGE, &ArdbServer::PFMerge, 2, -1, "w", 0 },
+                { "areaadd", REDIS_CMD_AREA_ADD, &ArdbServer::AreaAdd, 9, -1, "w", 0 },
+                { "areadel", REDIS_CMD_AREA_DEL, &ArdbServer::AreaDel, 2, 2, "w", 0 },
+                { "arealocate", REDIS_CMD_AREA_LOCATE, &ArdbServer::AreaLocate, 4, -1, "r", 0 },
+                { "areaclear", REDIS_CMD_AREA_CLEAR, &ArdbServer::AreaClear, 1, 1, "w", 0 },};
 
         uint32 arraylen = arraysize(settingTable);
         for (uint32 i = 0; i < arraylen; i++)

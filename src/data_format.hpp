@@ -246,7 +246,7 @@ namespace ardb
             ValueData& operator/=(uint32 i);
             double NumberValue() const;
             bool Encode(Buffer& buf) const;
-            bool Decode(Buffer& buf, bool to_slice= false);
+            bool Decode(Buffer& buf, bool to_slice = false);
             std::string& ToString(std::string& str) const;
             std::string AsString() const;
             int ToNumber();
@@ -256,8 +256,6 @@ namespace ardb
             int Compare(const ValueData& other) const;
             void Clear();
     };
-
-
 
     struct CommonValueObject: public ValueObject
     {
@@ -719,6 +717,51 @@ namespace ardb
     };
     typedef std::deque<GeoPoint> GeoPointArray;
 
+    struct AreaAddOptions
+    {
+            uint8 coord_type;
+            Slice value;
+            DoubleArray xx;
+            DoubleArray yy;
+            AreaAddOptions() :
+                    coord_type(0)
+            {
+            }
+
+            int Parse(const StringArray& args, std::string& err, uint32 off = 0);
+    };
+
+    struct AreaLocateOptions
+    {
+            uint8 coord_type;
+            double x;
+            double y;
+            StringArray get_patterns;
+            AreaLocateOptions() :
+                    coord_type(0), x(0), y(0)
+            {
+            }
+
+            int Parse(const StringArray& args, std::string& err, uint32 off = 0);
+    };
+
+    struct AreaValue
+    {
+            uint8 coord_type;
+            uint8 geohash_step;
+            DoubleArray xx;
+            DoubleArray yy;
+            double min_x;
+            double min_y;
+            double max_x;
+            double max_y;
+            AreaValue() :
+                    coord_type(0), geohash_step(15), min_x(DBL_MIN), min_y(DBL_MIN), max_x(DBL_MIN), max_y(DBL_MIN)
+            {
+            }
+        CODEC_DEFINE(coord_type, geohash_step, xx,yy, min_x, min_y, max_x, max_x)
+    };
+
     struct LexRange
     {
             std::string min;
@@ -741,7 +784,7 @@ namespace ardb
 
             int64 __cursor; //not used as para
             ZRangeLexOptions() :
-                    reverse(false),__cursor(0)
+                    reverse(false), __cursor(0)
             {
             }
     };

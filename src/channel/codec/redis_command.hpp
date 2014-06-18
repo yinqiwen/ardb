@@ -212,6 +212,11 @@ namespace ardb
             REDIS_CMD_ZREVRANGEBYLEX = 173,
             REDIS_CMD_ZREMRANGEBYLEX = 174,
 
+            REDIS_CMD_AREA_ADD = 175,
+            REDIS_CMD_AREA_DEL = 176,
+            REDIS_CMD_AREA_CLEAR = 177,
+            REDIS_CMD_AREA_LOCATE = 178,
+
         };
 
         class RedisCommandDecoder;

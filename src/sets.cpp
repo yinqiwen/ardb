@@ -658,7 +658,13 @@ namespace ardb
             }
             erased -= meta->zipvs.size();
             meta->size = meta->zipvs.size();
-            SetMeta(db, key, *meta);
+            if(meta->size > 0)
+            {
+                SetMeta(db, key, *meta);
+            }else
+            {
+                DelMeta(db, key, meta);
+            }
             DELETE(meta);
             return erased;
         }

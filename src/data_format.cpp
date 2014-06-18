@@ -136,10 +136,11 @@ namespace ardb
             }
             case BYTES_VALUE:
             {
-                if(to_slice)
+                if (to_slice)
                 {
                     ret = BufferHelper::ReadVarSlice(buf, slice_value);
-                }else
+                }
+                else
                 {
                     ret = BufferHelper::ReadVarString(buf, bytes_value);
                 }
@@ -359,7 +360,7 @@ namespace ardb
             }
             default:
             {
-                if(bytes_value.empty() && other.bytes_value.empty())
+                if (bytes_value.empty() && other.bytes_value.empty())
                 {
                     return slice_value.compare(other.slice_value);
                 }
@@ -1124,6 +1125,87 @@ namespace ardb
         {
             err = "no location/member specified";
             return -1;
+        }
+        return 0;
+    }
+
+    int AreaAddOptions::Parse(const StringArray& args, std::string& err, uint32 off)
+    {
+        value = args[off++];
+        if (!strcasecmp(args[off].c_str(), "wgs84"))
+        {
+            coord_type = GEO_WGS84_TYPE;
+        }
+        else if (!strcasecmp(args[off].c_str(), "mercator"))
+        {
+            coord_type = GEO_MERCATOR_TYPE;
+        }
+        else
+        {
+            WARN_LOG("Invalid coord-type:%s.", args[off].c_str());
+            return -1;
+        }
+        off++;
+        while (off + 1 < args.size())
+        {
+            double x, y;
+            if (!string_todouble(args[off], x) || !string_todouble(args[off + 1], y))
+            {
+                err = "Invalid coodinates " + args[off] + "/" + args[off + 1];
+                return -1;
+            }
+            if (!GeoHashHelper::VerifyCoordinates(coord_type, x, y))
+            {
+                err = "Invalid coodinates " + args[off] + "/" + args[off + 1];
+                return -1;
+            }
+            xx.push_back(x);
+            yy.push_back(y);
+            off += 2;
+        }
+        if (xx.size() < 3)
+        {
+            err = "At least 3 vertex needed.";
+            return -1;
+        }
+        if (off < args.size())
+        {
+            err = "Rest arg:" + args[off];
+            return -1;
+        }
+        return 0;
+    }
+
+    int AreaLocateOptions::Parse(const StringArray& args, std::string& err, uint32 off)
+    {
+        if (!strcasecmp(args[off].c_str(), "wgs84"))
+        {
+            coord_type = GEO_WGS84_TYPE;
+        }
+        else if (!strcasecmp(args[off].c_str(), "mercator"))
+        {
+            coord_type = GEO_MERCATOR_TYPE;
+        }
+        else
+        {
+            WARN_LOG("Invalid coord-type:%s.", args[off].c_str());
+            return -1;
+        }
+        off++;
+        if (!string_todouble(args[off], x) || !string_todouble(args[off + 1], y))
+        {
+            err = "Invalid coodinates " + args[off] + "/" + args[off + 1];
+            return -1;
+        }
+        if (!GeoHashHelper::VerifyCoordinates(coord_type, x, y))
+        {
+            err = "Invalid coodinates " + args[off] + "/" + args[off + 1];
+            return -1;
+        }
+        off += 2;
+        for (; off < args.size(); off++)
+        {
+            get_patterns.push_back(args[off]);
         }
         return 0;
     }

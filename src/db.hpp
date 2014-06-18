@@ -214,13 +214,14 @@ namespace ardb
 //            bool list_write_fill_cache;
 
             int64 hll_sparse_max_bytes;
+            int64 area_geohash_step;
 
             ArdbConfig() :
                     hash_max_ziplist_entries(128), hash_max_ziplist_value(64), list_max_ziplist_entries(128), list_max_ziplist_value(
                             64), zset_max_ziplist_entries(128), zset_max_ziplist_value(64), set_max_ziplist_entries(
                             128), set_max_ziplist_value(64), L1_cache_memory_limit(0), check_type_before_set_string(
                             false), read_fill_cache(true), zset_write_fill_cache(false), zset_read_load_cache(false), hll_sparse_max_bytes(
-                            3000)
+                            3000), area_geohash_step(15)
             {
             }
     };
@@ -347,6 +348,9 @@ namespace ardb
             int SUnion(const DBID& db, SliceArray& keys, SetOperationCallback* callback, uint32 max_subset_num);
             int SDiff(const DBID& db, SliceArray& keys, SetOperationCallback* callback, uint32 max_subset_num);
 
+            typedef void OnSubArea(const GeoHashBits& hash, void* data);
+            int AreaIter(const AreaValue& area, OnSubArea* cb, void* data);
+
             std::string m_err_cause;
             void SetErrorCause(const std::string& cause)
             {
@@ -355,10 +359,11 @@ namespace ardb
 
             struct Barrier: public ThreadMutexLock
             {
-                    volatile bool in_lock;
+                    volatile uint32 in_lock;
                     volatile uint32 wait_num;
+                    volatile pthread_t pid;
                     Barrier() :
-                            in_lock(false), wait_num(0)
+                            in_lock(0), wait_num(0), pid(0)
                     {
                     }
             };
@@ -411,12 +416,18 @@ namespace ardb
                                 if (!insert.second && NULL != insert.first->second)
                                 {
                                     barrier = insert.first->second;
+                                    if (barrier->pid == pthread_self())
+                                    {
+                                        barrier->in_lock++;
+                                        return barrier;
+                                    }
                                 }
                                 else if (!m_barrier_pool.empty())
                                 {
                                     barrier = m_barrier_pool.front();
                                     m_barrier_pool.pop_front();
-                                    barrier->in_lock = true;
+                                    barrier->in_lock++;
+                                    barrier->pid = pthread_self();
                                     insert.first->second = barrier;
                                     return barrier;
                                 }
@@ -424,7 +435,7 @@ namespace ardb
                             if (NULL != barrier)
                             {
                                 LockGuard<ThreadMutexLock> guard(*barrier);
-                                if (barrier->in_lock)
+                                if (barrier->in_lock > 0)
                                 {
                                     barrier->wait_num++;
                                     barrier->Wait();
@@ -443,11 +454,19 @@ namespace ardb
                         if (NULL != barrier)
                         {
                             LockGuard<ThreadMutexLock> guard(*barrier);
-                            if (barrier->wait_num > 0)
+                            barrier->in_lock--;
+                            if (0 == barrier->in_lock)
                             {
-                                barrier->NotifyAll();
+                                barrier->pid = 0;
+                                if (barrier->wait_num > 0)
+                                {
+                                    barrier->NotifyAll();
+                                }
                             }
-                            barrier->in_lock = false;
+                            else
+                            {
+                                return;
+                            }
                         }
                         if (NULL != barrier)
                         {
@@ -658,6 +677,11 @@ namespace ardb
 
             int GeoAdd(const DBID& db, const Slice& key, const GeoAddOptions& options);
             int GeoSearch(const DBID& db, const Slice& key, const GeoSearchOptions& options, ValueDataDeque& results);
+
+            int AreaAdd(const DBID& db, const Slice& key, const AreaAddOptions& options);
+            int AreaDel(const DBID& db, const Slice& key, const Slice& value);
+            int AreaClear(const DBID& db, const Slice& key);
+            int AreaLocate(const DBID& db, const Slice& key, const AreaLocateOptions& options, ValueDataDeque& results);
 
             int CacheLoad(const DBID& db, const Slice& key);
             int CacheEvict(const DBID& db, const Slice& key);
