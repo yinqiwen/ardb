@@ -61,7 +61,7 @@ First of all, We should estimate the geohash encoding bits by raius value first.
 ----------
 
 #### GeoAdd ####
-Syntax: **GEOADD key longitude latitude value**  
+Syntax: **GEOADD key [WGS84|MERCATOR] longitude latitude value**  
 
 #### GeoSearch ####
 Syntax: **GEOSEARCH key LOCATION lat lon RADIUS r [ASC|DESC] [WITHCOORDINATES] [WITHDISTANCES] [GET pattern [GET pattern ...]] [LIMIT offset count]**  
