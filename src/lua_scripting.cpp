@@ -836,7 +836,7 @@ namespace ardb
             std::string cachedfunc;
             if (isSHA1Func)
             {
-                if (!m_server->m_db->GetScript(funcname, cachedfunc))
+                if (m_server->m_db->GetScript(funcname, cachedfunc) != 0)
                 {
                     lua_pop(m_lua, 1);
                     /* remove the error handler from the stack. */
