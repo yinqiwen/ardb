@@ -436,12 +436,14 @@ namespace ardb
          */
         if (value > thres_max)
         {
-            while (snprintf(str, slen, "%e", neg ? -value : value) < 0)
+            int printed = snprintf(str, slen, "%e", neg ? -value : value);
+            while (printed < 0)
             {
                 slen *= 2;
                 str = (char*) realloc(str, slen);
+		printed = snprintf(str, slen, "%e", neg ? -value : value);
             }
-            result.assign(str, (wstr - str));
+            result.assign(str, printed);
             free(str);
             return;
         }
