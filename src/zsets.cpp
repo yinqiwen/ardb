@@ -1114,7 +1114,7 @@ namespace ardb
             }
         }
         DELETE(meta);
-        return 0;
+        return err;
     }
 
     int Ardb::ZScore(const DBID& db, const Slice& key, const Slice& value, ValueData& score)
