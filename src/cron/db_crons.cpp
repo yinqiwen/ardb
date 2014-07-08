@@ -30,27 +30,53 @@
 
 namespace ardb
 {
-    DBCrons::DBCrons() : m_db_server(NULL),m_expire_check(NULL)
+    DBCrons* DBCrons::g_crons = NULL;
+    DBCrons::DBCrons() :
+            m_db_server(NULL), m_expire_check(NULL), m_gc(NULL)
     {
+    }
+
+    DBCrons& DBCrons::GetSingleton()
+    {
+        if (NULL == g_crons)
+        {
+            g_crons = new DBCrons;
+        }
+        return *g_crons;
+    }
+
+    void DBCrons::DestroySingleton()
+    {
+        delete g_crons;
     }
 
     int DBCrons::Init(ArdbServer* server)
     {
         m_db_server = server;
-        if(NULL != server)
+        if (NULL != server)
         {
             NEW(m_expire_check, ExpireCheck(server));
+            NEW(m_gc, CompactGC(server));
         }
         return 0;
     }
 
     void DBCrons::Run()
     {
-        if(NULL != m_expire_check)
+        if (NULL != m_expire_check)
         {
             m_serv.GetTimer().Schedule(m_expire_check, 100, 100, MILLIS);
         }
+        if (NULL != m_gc)
+        {
+            m_serv.GetTimer().Schedule(m_gc, 10, 10, SECONDS);
+        }
         m_serv.Start();
+    }
+
+    CompactGC& DBCrons::GetCompactGC()
+    {
+        return *m_gc;
     }
 
     void DBCrons::StopSelf()

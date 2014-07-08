@@ -31,6 +31,7 @@
 #include <string.h>
 #include <sstream>
 #include "util/thread/thread.hpp"
+#include "cron/db_crons.hpp"
 
 #define MAX_STRING_LENGTH 1024
 
@@ -169,18 +170,27 @@ namespace ardb
 
     int Ardb::RawSet(const Slice& key, const Slice& value)
     {
+        uint64 start = get_current_epoch_micros();
         int ret = GetEngine()->Put(key, value);
+        uint64 end = get_current_epoch_micros();
+        DBCrons::GetSingleton().GetCompactGC().StatWriteLatency(end - start);
         return ret;
     }
     int Ardb::RawDel(const Slice& key)
     {
+        uint64 start = get_current_epoch_micros();
         int ret = GetEngine()->Del(key);
+        uint64 end = get_current_epoch_micros();
+        DBCrons::GetSingleton().GetCompactGC().StatWriteLatency(end - start);
         return ret;
     }
 
     int Ardb::RawGet(const Slice& key, std::string* value)
     {
+        uint64 start = get_current_epoch_micros();
         int ret = GetEngine()->Get(key, value, false);
+        uint64 end = get_current_epoch_micros();
+        DBCrons::GetSingleton().GetCompactGC().StatReadLatency(end - start);
         return ret;
     }
 
@@ -318,8 +328,13 @@ namespace ardb
         DELETE(iter);
     }
 
-    int Ardb::CompactAll()
+    int Ardb::CompactAll(bool sync)
     {
+        if (sync)
+        {
+            GetEngine()->CompactRange(Slice(), Slice());
+            return 0;
+        }
         struct CompactTask: public Thread
         {
                 Ardb* adb;
@@ -338,7 +353,6 @@ namespace ardb
          */
         Thread* t = new CompactTask(this);
         t->Start();
-        return 0;
         return 0;
     }
 
@@ -495,7 +509,10 @@ namespace ardb
         Buffer keybuf(key.key.size() + 16);
         encode_key(keybuf, key);
         Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
+        uint64 start = get_current_epoch_micros();
         Iterator* iter = GetEngine()->Find(k, cache);
+        uint64 end = get_current_epoch_micros();
+        DBCrons::GetSingleton().GetCompactGC().StatReadLatency(end - start);
         return iter;
     }
 
@@ -504,7 +521,10 @@ namespace ardb
         Buffer keybuf(key.key.size() + 16);
         encode_key(keybuf, key);
         Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
+        uint64 start = get_current_epoch_micros();
         iter->Seek(k);
+        uint64 end = get_current_epoch_micros();
+        DBCrons::GetSingleton().GetCompactGC().StatReadLatency(end - start);
     }
 
     int Ardb::GetRawValue(const KeyObject& key, std::string& value)
@@ -513,7 +533,10 @@ namespace ardb
         encode_key(keybuf, key);
         Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
         bool fill_cache = true;
+        uint64 start = get_current_epoch_micros();
         int ret = GetEngine()->Get(k, &value, fill_cache);
+        uint64 end = get_current_epoch_micros();
+        DBCrons::GetSingleton().GetCompactGC().StatReadLatency(end - start);
         if (ret == 0)
         {
             return ARDB_OK;
@@ -534,7 +557,8 @@ namespace ardb
         encode_key(keybuf, key);
         Slice k(keybuf.GetRawReadBuffer(), keybuf.ReadableBytes());
         Slice v(value.GetRawReadBuffer(), value.ReadableBytes());
-        return RawSet(k, v);
+        int ret = RawSet(k, v);
+        return ret;
     }
 
     int Ardb::GetType(const DBID& db, const Slice& key, KeyType& type)

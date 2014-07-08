@@ -226,6 +226,26 @@ namespace ardb
             }
         }
 
+        fit = props.find("compact-gc");
+        if (fit != props.end())
+        {
+            const ConfItemsArray& cs = fit->second;
+            if (cs.size() != 1)
+            {
+                ERROR_LOG("Only ONE 'compact-gc' config supported.");
+            }
+            CompactParam para;
+            if (string_touint32(cs[0].at(0), para.latency_limit) && string_touint32(cs[0].at(1), para.exceed_count))
+            {
+                cfg.compact_para = para;
+            }
+            else
+            {
+                ERROR_LOG("Invalid 'compact-gc' config.");
+            }
+        }
+        conf_get_int64(props, "compact-gc-min-interval", cfg.compact_min_interval);
+        conf_get_bool(props, "compact-gc-enable", cfg.compact_enable);
         if (!verify_config(cfg))
         {
             return -1;
@@ -411,7 +431,7 @@ namespace ardb
                 { "areaadd", REDIS_CMD_AREA_ADD, &ArdbServer::AreaAdd, 9, -1, "w", 0 },
                 { "areadel", REDIS_CMD_AREA_DEL, &ArdbServer::AreaDel, 2, 2, "w", 0 },
                 { "arealocate", REDIS_CMD_AREA_LOCATE, &ArdbServer::AreaLocate, 4, -1, "r", 0 },
-                { "areaclear", REDIS_CMD_AREA_CLEAR, &ArdbServer::AreaClear, 1, 1, "w", 0 },};
+                { "areaclear", REDIS_CMD_AREA_CLEAR, &ArdbServer::AreaClear, 1, 1, "w", 0 }, };
 
         uint32 arraylen = arraysize(settingTable);
         for (uint32 i = 0; i < arraylen; i++)
@@ -735,7 +755,8 @@ namespace ardb
         }
     }
 
-    Timer& ArdbServer::GetTimer()
+    Timer&
+    ArdbServer::GetTimer()
     {
         return m_service->GetTimer();
     }
@@ -809,8 +830,7 @@ namespace ardb
             ERROR_LOG("Failed to init DB.");
             return -1;
         }
-        DBCrons crons;
-        crons.Init(this);
+        DBCrons::GetSingleton().Init(this);
 
         m_service = new ChannelService(m_cfg.max_clients + 32);
         ChannelOptions ops;
@@ -849,7 +869,8 @@ namespace ardb
                 }
                 server->Configure(ops);
                 server->SetChannelPipelineInitializor(conn_pipeline_init, this);
-                server->SetChannelPipelineFinalizer(conn_pipeline_finallize, NULL);
+                server->SetChannelPipelineFinalizer(conn_pipeline_finallize,
+                NULL);
                 server->BindThreadPool(j * m_cfg.worker_count, (j + 1) * m_cfg.worker_count);
                 j++;
                 pit++;
@@ -899,7 +920,7 @@ namespace ardb
         m_service->SetThreadPoolSize(thread_pool_size);
         m_service->RegisterUserEventCallback(ArdbServer::ServerEventCallback, this);
 
-        crons.Start();
+        DBCrons::GetSingleton().Start();
 
         INFO_LOG("Server started, Ardb version %s", ARDB_VERSION);
         INFO_LOG("The server is now ready to accept connections on port %s",
@@ -908,7 +929,8 @@ namespace ardb
         m_service->Start();
         sexit: m_master_serv.Stop();
         m_ha_agent.Close();
-        crons.StopSelf();
+        DBCrons::GetSingleton().StopSelf();
+        DBCrons::DestroySingleton();
         DELETE(m_service);
         DELETE(m_db);
         ArdbLogger::DestroyDefaultLogger();

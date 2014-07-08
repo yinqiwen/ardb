@@ -30,6 +30,7 @@
 #include "ardb_server.hpp"
 #include "util/socket_address.hpp"
 #include "util/lru.hpp"
+#include "cron/db_crons.hpp"
 #include <fnmatch.h>
 #include <sstream>
 
@@ -262,6 +263,14 @@ namespace ardb
             char qps[100];
             sprintf(qps, "%.2f", ServerStat::GetSingleton().CurrentQPS());
             info.append("current_commands_qps:").append(qps).append("\r\n");
+            sprintf(qps, "%.2f", DBCrons::GetSingleton().GetCompactGC().AverageReadLatency());
+            info.append("current_read_latency:").append(qps).append("us\r\n");
+            sprintf(qps, "%.2f", DBCrons::GetSingleton().GetCompactGC().AverageWriteLatency());
+            info.append("current_write_latency:").append(qps).append("us\r\n");
+            if(!DBCrons::GetSingleton().GetCompactGC().LastCompactTime().empty())
+            {
+                info.append("last_compact_gc_time:").append(DBCrons::GetSingleton().GetCompactGC().LastCompactTime()).append("\r\n");
+            }
         }
 
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "memory"))

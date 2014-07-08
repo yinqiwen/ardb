@@ -57,17 +57,44 @@ namespace ardb
             ExpireCheck(ArdbServer* serv);
     };
 
+
+    class CompactGC:public Runnable
+    {
+        private:
+            ArdbServer* m_server;
+            volatile uint64 m_read_count;
+            volatile uint64 m_read_latency;
+            volatile uint64 m_write_count;
+            volatile uint64 m_write_latency;
+            time_t m_last_compact;
+            volatile uint32 m_latency_exceed_count;
+            void Run();
+        public:
+            CompactGC(ArdbServer* serv);
+            void StatReadLatency(uint64 latency);
+            void StatWriteLatency(uint64 latency);
+            double AverageReadLatency();
+            double AverageWriteLatency();
+            std::string LastCompactTime();
+    };
+
     class DBCrons: public Thread
     {
         private:
+            static DBCrons* g_crons;
             ChannelService m_serv;
             ArdbServer* m_db_server;
             ExpireCheck* m_expire_check;
+            CompactGC* m_gc;
             void Run();
-        public:
             DBCrons();
+        public:
             int Init(ArdbServer* server);
+            CompactGC& GetCompactGC();
             void StopSelf();
+            static DBCrons& GetSingleton();
+            static void DestroySingleton();
+
     };
 }
 

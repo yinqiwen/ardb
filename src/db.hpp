@@ -692,7 +692,7 @@ namespace ardb
             int FlushDB(const DBID& db);
             int FlushAll();
             int CompactDB(const DBID& db);
-            int CompactAll();
+            int CompactAll(bool sync = false);
 
             int GetScript(const std::string& funacname, std::string& funcbody);
             int SaveScript(const std::string& funacname, const std::string& funcbody);

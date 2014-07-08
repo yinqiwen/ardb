@@ -302,6 +302,7 @@ namespace ardb
     typedef std::vector<double> ZSetScoreArray;
     typedef TreeMap<std::string, std::string>::Type StringStringMap;
     typedef TreeMap<uint64, std::string>::Type UInt64StringMap;
+    typedef TreeMap<int64, int64>::Type Int64PairMap;
 
     struct ZSetElement
     {
