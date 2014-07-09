@@ -72,7 +72,25 @@ namespace ardb
             }
             case DOUBLE_VALUE:
             {
-                fast_dtoa(double_value, 10, str);
+                //fast_dtoa(double_value, 10, str);
+                if (std::isinf(double_value))
+                {
+                    /* Libc in odd systems (Hi Solaris!) will format infinite in a
+                     * different way, so better to handle it in an explicit way. */
+                    if(double_value > 0)
+                    {
+                        str = "inf";
+                    }else
+                    {
+                        str = "-inf";
+                    }
+                }
+                else
+                {
+                    char dbuf[128];
+                    int dlen = snprintf(dbuf, sizeof(dbuf), "%.17g", double_value);
+                    str.assign(dbuf, dlen);
+                }
                 break;
             }
             case BYTES_VALUE:

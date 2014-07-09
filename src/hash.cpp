@@ -110,7 +110,8 @@ namespace ardb
         }
         std::string newcursor = "0";
         ValueDataArray vs;
-        int ret = m_db->HScan(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], pattern, limit, vs, newcursor);
+        int ret = m_db->HScan(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], pattern, limit, vs,
+                newcursor);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
         ctx.reply.type = REDIS_REPLY_ARRAY;
         ctx.reply.elements.push_back(RedisReply(newcursor));
@@ -122,7 +123,7 @@ namespace ardb
 
     int ArdbServer::HMGet(ArdbConnContext& ctx, RedisCommandFrame& cmd)
     {
-        StringArray vals;
+        ValueDataArray vals;
         SliceArray fs;
         for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
         {
@@ -130,7 +131,7 @@ namespace ardb
         }
         int ret = m_db->HMGet(ctx.currentDB, cmd.GetArguments()[0], fs, vals);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
-        fill_str_array_reply(ctx.reply, vals);
+        fill_array_reply(ctx.reply, vals);
         return 0;
     }
 
@@ -567,15 +568,37 @@ namespace ardb
         return 0;
     }
 
-    int Ardb::HMGet(const DBID& db, const Slice& key, const SliceArray& fields, StringArray& values)
+    int Ardb::HMGet(const DBID& db, const Slice& key, const SliceArray& fields, ValueDataArray& values)
     {
+        values.resize(fields.size());
+        int err = 0;
+        bool createHash = false;
+        bool createMeta = false;
+        HashMetaValue* meta = NULL;
+        if (NULL == meta)
+        {
+            meta = GetHashMeta(db, key, err, createHash);
+            createMeta = true;
+            if (NULL == meta || createHash)
+            {
+                DELETE(meta);
+                return err;
+            }
+        }
         SliceArray::const_iterator it = fields.begin();
+        int i = 0;
         while (it != fields.end())
         {
-            std::string valueObj;
-            HGet(db, key, *it, &valueObj);
-            values.push_back(valueObj);
+            HashKeyObject hk(key, *it, db);
+            CommonValueObject valueObj;
+            int ret = HGetValue(hk, NULL, valueObj);
+            if (ret == 0)
+            {
+                values[i] = valueObj.data;
+                return 0;
+            }
             it++;
+            i++;
         }
         return 0;
     }

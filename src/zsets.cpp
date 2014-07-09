@@ -1130,7 +1130,7 @@ namespace ardb
         int err = 0;
         bool createZset = false;
         ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_VALUE, err, createZset);
-        if (NULL == meta || createZset)
+        if (NULL == meta)
         {
             DELETE(meta);
             return err;
@@ -1139,25 +1139,23 @@ namespace ardb
         {
             ValueData v(value);
             ZSetElement element;
-            if (0 == GetZSetZipEntry(meta, v, element, true))
+            GetZSetZipEntry(meta, v, element, true);
+            if (0 != GetZSetZipEntry(meta, v, element, true))
             {
-                element.score += increment;
-                score = element.score;
-                InsertZSetZipEntry(meta, element, SORT_BY_VALUE);
-                SetMeta(db, key, *meta);
+                element.value = v;
             }
-            else
-            {
-                err = ERR_NOT_EXIST;
-            }
+            element.score += increment;
+            score = element.score;
+            InsertZSetZipEntry(meta, element, SORT_BY_VALUE);
+            SetMeta(db, key, *meta);
         }
         else
         {
             ZSetNodeKeyObject zk(key, value, db);
             ZSetNodeValueObject zv;
+            BatchWriteGuard guard(GetEngine());
             if (0 == GetKeyValueObject(zk, zv))
             {
-                BatchWriteGuard guard(GetEngine());
                 ZSetKeyObject zsk(key, value, zv.score, db);
                 DelValue(zsk);
                 ZDeleteRangeScore(db, key, *meta, zv.score);
@@ -1167,14 +1165,16 @@ namespace ardb
                 zsv.data = zv.attr;
                 SetKeyValueObject(zsk, zsv);
                 score = zsk.score;
-                SetKeyValueObject(zk, zv);
-                ZInsertRangeScore(db, key, *meta, score);
-                err = 0;
             }
             else
             {
-                err = ERR_NOT_EXIST;
+                ZSetKeyObject zsk(key, value, score, db);
+                CommonValueObject zsv;
+                SetKeyValueObject(zsk, zsv);
             }
+            SetKeyValueObject(zk, zv);
+            ZInsertRangeScore(db, key, *meta, score);
+            err = 0;
         }
         DELETE(meta);
         ZSetCache* cache = (ZSetCache*) GetLoadedCache(db, key, ZSET_META, true, false);

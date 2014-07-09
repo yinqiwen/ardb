@@ -577,7 +577,7 @@ namespace ardb
             int HMIncrby(const DBID& db, const Slice& key, const SliceArray& fields, const Int64Array& increments,
                     Int64Array& vs);
             int HIncrbyFloat(const DBID& db, const Slice& key, const Slice& field, double increment, double& value);
-            int HMGet(const DBID& db, const Slice& key, const SliceArray& fields, StringArray& values);
+            int HMGet(const DBID& db, const Slice& key, const SliceArray& fields, ValueDataArray& values);
             int HMSet(const DBID& db, const Slice& key, const SliceArray& fields, const SliceArray& values);
             int HGetAll(const DBID& db, const Slice& key, StringArray& fields, StringArray& values);
             int HKeys(const DBID& db, const Slice& key, StringArray& fields);
