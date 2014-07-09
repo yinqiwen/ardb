@@ -34,6 +34,7 @@
  */
 #include "data_format.hpp"
 #include "geo/geohash_helper.hpp"
+#include <cmath>
 
 #define  GET_KEY_TYPE(KEY, TYPE)   do{ \
 		Iterator* iter = FindValue(KEY, true);  \
