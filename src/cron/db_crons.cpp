@@ -65,11 +65,11 @@ namespace ardb
     {
         if (NULL != m_expire_check)
         {
-            m_serv.GetTimer().Schedule(m_expire_check, 100, 100, MILLIS);
+            m_serv.GetTimer().ScheduleHeapTask(m_expire_check, 100, 100, MILLIS);
         }
         if (NULL != m_gc)
         {
-            m_serv.GetTimer().Schedule(m_gc, 10, 10, SECONDS);
+            m_serv.GetTimer().ScheduleHeapTask(m_gc, 10, 10, SECONDS);
         }
         m_serv.Start();
     }

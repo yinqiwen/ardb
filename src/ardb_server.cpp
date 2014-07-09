@@ -229,20 +229,31 @@ namespace ardb
         fit = props.find("compact-gc");
         if (fit != props.end())
         {
+            cfg.compact_paras.clear();
             const ConfItemsArray& cs = fit->second;
-            if (cs.size() != 1)
+            ConfItemsArray::const_iterator cit = cs.begin();
+            while (cit != cs.end())
             {
-                ERROR_LOG("Only ONE 'compact-gc' config supported.");
+                if (cit->size() != 2)
+                {
+                    ERROR_LOG("Invalid 'rename-command' config.");
+                }
+                else
+                {
+                    CompactParam para;
+                    if (string_touint32(cs[0].at(0), para.latency_limit)
+                            && string_touint32(cs[0].at(1), para.exceed_count))
+                    {
+                        cfg.compact_paras.push_back(para);
+                    }
+                    else
+                    {
+                        ERROR_LOG("Invalid 'compact-gc' config.");
+                    }
+                }
+                cit++;
             }
-            CompactParam para;
-            if (string_touint32(cs[0].at(0), para.latency_limit) && string_touint32(cs[0].at(1), para.exceed_count))
-            {
-                cfg.compact_para = para;
-            }
-            else
-            {
-                ERROR_LOG("Invalid 'compact-gc' config.");
-            }
+
         }
         conf_get_int64(props, "compact-gc-min-interval", cfg.compact_min_interval);
         conf_get_bool(props, "compact-gc-enable", cfg.compact_enable);

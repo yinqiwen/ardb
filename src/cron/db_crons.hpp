@@ -67,7 +67,9 @@ namespace ardb
             volatile uint64 m_write_count;
             volatile uint64 m_write_latency;
             time_t m_last_compact;
-            volatile uint32 m_latency_exceed_count;
+            typedef std::vector<uint32> Counts;
+            CompactParams m_compact_trigger;
+            Counts m_latency_exceed_counts;
             void Run();
         public:
             CompactGC(ArdbServer* serv);

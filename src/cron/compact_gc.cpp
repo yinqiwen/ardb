@@ -31,18 +31,31 @@
 namespace ardb
 {
     static time_t g_init_time = time(NULL);
-    CompactGC::CompactGC(ArdbServer* serv) :
-            m_server(serv), m_read_count(0), m_read_latency(0), m_write_count(0), m_write_latency(0), m_last_compact(0), m_latency_exceed_count(
-                    0)
+
+    bool CompactParaCompareFunc(const CompactParam& i, const CompactParam& j)
     {
+        return i.latency_limit > j.latency_limit;
+    }
+
+    CompactGC::CompactGC(ArdbServer* serv) :
+            m_server(serv), m_read_count(0), m_read_latency(0), m_write_count(0), m_write_latency(0), m_last_compact(0)
+    {
+        m_compact_trigger = serv->GetConfig().compact_paras;
+        std::sort(m_compact_trigger.begin(), m_compact_trigger.end(), CompactParaCompareFunc);
+        m_latency_exceed_counts.resize(m_compact_trigger.size());
     }
     void CompactGC::StatReadLatency(uint64 latency)
     {
         atomic_add_uint64(&m_read_count, 1);
         atomic_add_uint64(&m_read_latency, latency);
-        if (latency >= m_server->GetConfig().compact_para.latency_limit * 1000)
+
+        for (uint32 i = 0; i < m_latency_exceed_counts.size(); i++)
         {
-            atomic_add_uint32(&m_latency_exceed_count, 1);
+            if (latency >= m_server->GetConfig().compact_paras[i].latency_limit * 1000)
+            {
+                atomic_add_uint32(&(m_latency_exceed_counts[i]), 1);
+                break;
+            }
         }
     }
 
@@ -80,7 +93,7 @@ namespace ardb
 
     void CompactGC::Run()
     {
-        if(!m_server->GetConfig().compact_enable)
+        if (!m_server->GetConfig().compact_enable)
         {
             return;
         }
@@ -97,11 +110,18 @@ namespace ardb
                 should_compact = true;
             }
         }
-        if (!should_compact && m_latency_exceed_count > m_server->GetConfig().compact_para.exceed_count)
+        if (!should_compact)
         {
-            should_compact = true;
+            for (uint32 i = 0; i < m_latency_exceed_counts.size(); i++)
+            {
+                if (m_latency_exceed_counts[i] >= m_compact_trigger[i].exceed_count)
+                {
+                    should_compact = true;
+                    break;
+                }
+            }
         }
-        if(!should_compact && now - g_init_time >= m_server->GetConfig().compact_max_interval)
+        if (!should_compact && now - g_init_time >= m_server->GetConfig().compact_max_interval)
         {
             should_compact = true;
         }
@@ -112,7 +132,8 @@ namespace ardb
             m_read_latency = 0;
             m_write_count = 0;
             m_write_latency = 0;
-            m_latency_exceed_count = 0;
+            m_latency_exceed_counts.clear();
+            m_latency_exceed_counts.resize(m_compact_trigger.size());
             INFO_LOG("Start compact DB.");
             uint64 start = get_current_epoch_millis();
             m_server->GetDB().CompactAll(true);
