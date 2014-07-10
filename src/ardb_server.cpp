@@ -345,7 +345,7 @@ namespace ardb
                 { "hexists", REDIS_CMD_HEXISTS, &ArdbServer::HExists, 2, 2, "r", 0 },
                 { "hget", REDIS_CMD_HGET, &ArdbServer::HGet, 2, 2, "r", 0 },
                 { "hgetall", REDIS_CMD_HGETALL, &ArdbServer::HGetAll, 1, 1, "r", 0 },
-                { "hincr", REDIS_CMD_HINCR, &ArdbServer::HIncrby, 3, 3, "w", 0 },
+                { "hincrby", REDIS_CMD_HINCR, &ArdbServer::HIncrby, 3, 3, "w", 0 },
                 { "hmincrby", REDIS_CMD_HMINCRBY, &ArdbServer::HMIncrby, 3, -1, "w", 0 },
                 { "hincrbyfloat", REDIS_CMD_HINCRBYFLOAT, &ArdbServer::HIncrbyFloat, 3, 3, "w", 0 },
                 { "hkeys", REDIS_CMD_HKEYS, &ArdbServer::HKeys, 1, 1, "r", 0 },

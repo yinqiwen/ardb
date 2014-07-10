@@ -573,12 +573,10 @@ namespace ardb
         values.resize(fields.size());
         int err = 0;
         bool createHash = false;
-        bool createMeta = false;
         HashMetaValue* meta = NULL;
         if (NULL == meta)
         {
             meta = GetHashMeta(db, key, err, createHash);
-            createMeta = true;
             if (NULL == meta || createHash)
             {
                 DELETE(meta);

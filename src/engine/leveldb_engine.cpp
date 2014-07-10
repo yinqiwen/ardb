@@ -29,7 +29,7 @@
 
 #include "leveldb_engine.hpp"
 #include "data_format.hpp"
-#include "util/helpers.hpp"
+#include "leveldb/env.h"
 #include <string.h>
 
 #define LEVELDB_SLICE(slice) leveldb::Slice(slice.data(), slice.size())
@@ -37,6 +37,20 @@
 
 namespace ardb
 {
+    class LevelDBLogger: public rocksdb::Logger
+    {
+        private:
+            void Logv(const char* format, va_list ap)
+            {
+                char logbuf[1024];
+                int len = vsnprintf(logbuf, sizeof(logbuf), format, ap);
+                if (len < sizeof(logbuf))
+                {
+                    INFO_LOG(logbuf);
+                }
+            }
+    };
+
     int LevelDBComparator::Compare(const leveldb::Slice& a, const leveldb::Slice& b) const
     {
         return ardb_compare_keys(a.data(), a.size(), b.data(), b.size());
@@ -178,6 +192,7 @@ namespace ardb
         {
             m_options.compression = leveldb::kSnappyCompression;
         }
+        m_options.info_log = new LevelDBLogger;
         make_dir(cfg.path);
         m_db_path = cfg.path;
         leveldb::Status status = leveldb::DB::Open(m_options, cfg.path.c_str(), &m_db);

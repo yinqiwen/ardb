@@ -38,7 +38,7 @@ namespace ardb
     }
 
     CompactGC::CompactGC(ArdbServer* serv) :
-            m_server(serv), m_read_count(0), m_read_latency(0), m_write_count(0), m_write_latency(0), m_last_compact(0)
+            m_server(serv), m_read_count(0), m_read_latency(0), m_write_count(0), m_write_latency(0), m_last_compact(0),m_last_compact_duration(0)
     {
         m_compact_trigger = serv->GetConfig().compact_paras;
         std::sort(m_compact_trigger.begin(), m_compact_trigger.end(), CompactParaCompareFunc);
@@ -51,7 +51,7 @@ namespace ardb
 
         for (uint32 i = 0; i < m_latency_exceed_counts.size(); i++)
         {
-            if (latency >= m_server->GetConfig().compact_paras[i].latency_limit * 1000)
+            if (latency >= m_compact_trigger[i].latency_limit * 1000)
             {
                 atomic_add_uint32(&(m_latency_exceed_counts[i]), 1);
                 break;
@@ -74,6 +74,15 @@ namespace ardb
         return m_write_count == 0 ? 0 : m_write_latency * 1.0 / m_write_count;
     }
 
+    uint64 CompactGC::PeriodWriteCount()
+    {
+        return m_write_count;
+    }
+    uint64 CompactGC::PeriodReadCount()
+    {
+        return m_read_count;
+    }
+
     std::string CompactGC::LastCompactTime()
     {
         if (0 == m_last_compact)
@@ -89,6 +98,11 @@ namespace ardb
         char tmp[1024];
         size_t len = strftime(tmp, sizeof(tmp), "%F %T", &tt);
         return std::string(tmp, len);
+    }
+
+    uint64 CompactGC::LastCompactDuration()
+    {
+        return m_last_compact_duration;
     }
 
     void CompactGC::Run()
@@ -138,7 +152,8 @@ namespace ardb
             uint64 start = get_current_epoch_millis();
             m_server->GetDB().CompactAll(true);
             uint64 end = get_current_epoch_millis();
-            INFO_LOG("Cost %llums to compact DB.", end - start);
+            m_last_compact_duration = end-start;
+            INFO_LOG("Cost %llums to compact DB.", m_last_compact_duration);
         }
     }
 }

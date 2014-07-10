@@ -30,13 +30,29 @@
 #include "rocksdb_engine.hpp"
 #include "data_format.hpp"
 #include "util/helpers.hpp"
+#include "rocksdb/env.h"
 #include <string.h>
+#include <stdarg.h>
 
 #define ROCKSDB_SLICE(slice) rocksdb::Slice(slice.data(), slice.size())
 #define ARDB_SLICE(slice) Slice(slice.data(), slice.size())
 
 namespace ardb
 {
+    class RocksDBLogger: public rocksdb::Logger
+    {
+        private:
+            void Logv(const char* format, va_list ap)
+            {
+                char logbuf[1024];
+                int len = vsnprintf(logbuf, sizeof(logbuf), format, ap);
+                if(len < sizeof(logbuf))
+                {
+                    INFO_LOG(logbuf);
+                }
+            }
+    };
+
     int RocksDBComparator::Compare(const rocksdb::Slice& a, const rocksdb::Slice& b) const
     {
         return ardb_compare_keys(a.data(), a.size(), b.data(), b.size());
@@ -44,12 +60,10 @@ namespace ardb
 
     void RocksDBComparator::FindShortestSeparator(std::string* start, const rocksdb::Slice& limit) const
     {
-
     }
 
     void RocksDBComparator::FindShortSuccessor(std::string* key) const
     {
-
     }
 
     RocksDBEngineFactory::RocksDBEngineFactory(const Properties& props)
@@ -62,6 +76,7 @@ namespace ardb
         cfg.path = ".";
         conf_get_string(props, "data-dir", cfg.path);
         conf_get_int64(props, "rocksdb.block_cache_size", cfg.block_cache_size);
+        conf_get_int64(props, "rocksdb.block_cache_compressed", cfg.block_cache_compressed_size);
         conf_get_int64(props, "rocksdb.write_buffer_size", cfg.write_buffer_size);
         conf_get_int64(props, "rocksdb.max_open_files", cfg.max_open_files);
         conf_get_int64(props, "rocksdb.block_size", cfg.block_size);
@@ -149,6 +164,7 @@ namespace ardb
         if (cfg.block_cache_size > 0)
         {
             m_options.block_cache = rocksdb::NewLRUCache(cfg.block_cache_size);
+            //m_options.block_cache_compressed = rocksdb::NewLRUCache(cfg.block_cache_compressed_size);
         }
         if (cfg.block_size > 0)
         {
@@ -176,8 +192,11 @@ namespace ardb
         {
             m_options.compression = rocksdb::kSnappyCompression;
         }
+
         m_options.OptimizeLevelStyleCompaction();
         m_options.IncreaseParallelism();
+
+        m_options.info_log.reset(new RocksDBLogger);
         make_dir(cfg.path);
         m_db_path = cfg.path;
         rocksdb::Status status = rocksdb::DB::Open(m_options, cfg.path.c_str(), &m_db);
@@ -338,9 +357,9 @@ namespace ardb
     {
         std::string str, version_info;
 
-        m_db->GetProperty("RocksDB.stats", &str);
+        m_db->GetProperty("rocksdb.stats", &str);
         version_info.append("RocksDB version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(
-                        stringfromll(rocksdb::kMinorVersion)).append(".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
+                stringfromll(rocksdb::kMinorVersion)).append(".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
         return version_info + str;
     }
 

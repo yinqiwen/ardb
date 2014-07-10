@@ -263,13 +263,20 @@ namespace ardb
             char qps[100];
             sprintf(qps, "%.2f", ServerStat::GetSingleton().CurrentQPS());
             info.append("current_commands_qps:").append(qps).append("\r\n");
+            info.append("period_write_op_count:").append(
+                    stringfromll(DBCrons::GetSingleton().GetCompactGC().PeriodWriteCount())).append("\r\n");
+            info.append("period_read_op_count:").append(
+                    stringfromll(DBCrons::GetSingleton().GetCompactGC().PeriodReadCount())).append("\r\n");
             sprintf(qps, "%.2f", DBCrons::GetSingleton().GetCompactGC().AverageReadLatency());
             info.append("current_read_latency:").append(qps).append("us\r\n");
             sprintf(qps, "%.2f", DBCrons::GetSingleton().GetCompactGC().AverageWriteLatency());
             info.append("current_write_latency:").append(qps).append("us\r\n");
-            if(!DBCrons::GetSingleton().GetCompactGC().LastCompactTime().empty())
+            if (!DBCrons::GetSingleton().GetCompactGC().LastCompactTime().empty())
             {
-                info.append("last_compact_gc_time:").append(DBCrons::GetSingleton().GetCompactGC().LastCompactTime()).append("\r\n");
+                info.append("last_compact_gc_time:").append(DBCrons::GetSingleton().GetCompactGC().LastCompactTime()).append(
+                        "\r\n");
+                info.append("last_compact_duration:").append(stringfromll(DBCrons::GetSingleton().GetCompactGC().LastCompactDuration())).append(
+                                       "ms\r\n");
             }
         }
 

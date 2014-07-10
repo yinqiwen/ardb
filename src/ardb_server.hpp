@@ -157,7 +157,7 @@ namespace ardb
                             false), repl_ping_slave_period(10), repl_timeout(60), repl_backlog_size(100 * 1024 * 1024), repl_state_persist_period(
                             1), repl_backlog_time_limit(3600), slave_cleardb_before_fullresync(true), slave_readonly(
                             true), slave_serve_stale_data(true), slave_priority(100), lua_time_limit(0), master_port(0), worker_count(
-                            1), loglevel("INFO"),compact_min_interval(600),compact_max_interval(3600),compact_enable(true)
+                            1), loglevel("INFO"),compact_min_interval(1200),compact_max_interval(7200),compact_enable(true)
             {
             }
     };

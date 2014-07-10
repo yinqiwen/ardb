@@ -107,6 +107,7 @@ namespace ardb
     {
             std::string path;
             int64 block_cache_size;
+            int64 block_cache_compressed_size;
             int64 write_buffer_size;
             int64 max_open_files;
             int64 block_size;
@@ -115,8 +116,9 @@ namespace ardb
             int64 batch_commit_watermark;
             std::string compression;
             RocksDBConfig() :
-                    block_cache_size(0), write_buffer_size(0), max_open_files(10240), block_size(0), block_restart_interval(
-                            0), bloom_bits(10), batch_commit_watermark(1024),compression("snappy")
+                    block_cache_size(0), block_cache_compressed_size(0), write_buffer_size(0), max_open_files(10240), block_size(
+                            0), block_restart_interval(0), bloom_bits(10), batch_commit_watermark(1024), compression(
+                            "snappy")
             {
             }
     };

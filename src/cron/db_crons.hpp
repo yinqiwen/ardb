@@ -67,6 +67,7 @@ namespace ardb
             volatile uint64 m_write_count;
             volatile uint64 m_write_latency;
             time_t m_last_compact;
+            uint64 m_last_compact_duration;
             typedef std::vector<uint32> Counts;
             CompactParams m_compact_trigger;
             Counts m_latency_exceed_counts;
@@ -77,7 +78,10 @@ namespace ardb
             void StatWriteLatency(uint64 latency);
             double AverageReadLatency();
             double AverageWriteLatency();
+            uint64 PeriodWriteCount();
+            uint64 PeriodReadCount();
             std::string LastCompactTime();
+            uint64 LastCompactDuration();
     };
 
     class DBCrons: public Thread

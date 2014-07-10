@@ -158,7 +158,7 @@ ifeq ($(storage_engine), rocksdb)
   STORAGE_ENGINE_OBJ=${ROCKSDB_ENGINE}
   STORAGE_ENGINE=rocksdb ${STORAGE_ENGINE_OBJ}
   INCS+=-I${ROCKSDB_PATH}/include
-  LIBS:= ${ROCKSDB_LIBA} ${SNAPPY_LIBA} ${LIBS}
+  LIBS:= ${ROCKSDB_LIBA} ${SNAPPY_LIBA} ${LIBS} -lz -lbz2
   CXXFLAGS+=-D__USE_ROCKSDB__ -std=c++11
 else
   $(error Only leveldb/kyotocabinet/lmdb/rocksdb supported as env storage_engine's value)
