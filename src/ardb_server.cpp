@@ -226,7 +226,7 @@ namespace ardb
             }
         }
 
-        fit = props.find("compact-gc");
+        fit = props.find("compact");
         if (fit != props.end())
         {
             cfg.compact_paras.clear();
@@ -236,27 +236,28 @@ namespace ardb
             {
                 if (cit->size() != 2)
                 {
-                    ERROR_LOG("Invalid 'rename-command' config.");
+                    ERROR_LOG("Invalid 'compact' config.");
                 }
                 else
                 {
                     CompactParam para;
-                    if (string_touint32(cs[0].at(0), para.latency_limit)
-                            && string_touint32(cs[0].at(1), para.exceed_count))
+                    if (string_touint32(cit->at(0), para.latency_limit)
+                            && string_touint32(cit->at(1), para.exceed_count))
                     {
                         cfg.compact_paras.push_back(para);
                     }
                     else
                     {
-                        ERROR_LOG("Invalid 'compact-gc' config.");
+                        ERROR_LOG("Invalid 'compact' config.");
                     }
                 }
                 cit++;
             }
 
         }
-        conf_get_int64(props, "compact-gc-min-interval", cfg.compact_min_interval);
-        conf_get_bool(props, "compact-gc-enable", cfg.compact_enable);
+        conf_get_int64(props, "compact-min-interval", cfg.compact_min_interval);
+        conf_get_int64(props, "compact-max-interval", cfg.compact_max_interval);
+        conf_get_bool(props, "compact-enable", cfg.compact_enable);
         if (!verify_config(cfg))
         {
             return -1;
