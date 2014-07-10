@@ -595,7 +595,7 @@ namespace ardb
             if (ret == 0)
             {
                 values[i] = valueObj.data;
-                return 0;
+                //return 0;
             }
             it++;
             i++;
