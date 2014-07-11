@@ -1399,6 +1399,10 @@ namespace ardb
     int Ardb::LLen(const DBID& db, const Slice& key)
     {
         CommonMetaValue* meta = GetMeta(db, key, false);
+        if(NULL == meta)
+        {
+            return ERR_NOT_EXIST;
+        }
         if (NULL != meta && meta->header.type != LIST_META)
         {
             DELETE(meta);
