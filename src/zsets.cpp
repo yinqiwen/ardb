@@ -1804,11 +1804,16 @@ namespace ardb
         {
             stop = stop + meta->size;
         }
-        if (start < 0 || stop < 0 || (uint32) start >= meta->size)
+        if (start < 0)
+        {
+            start = 0;
+        }
+        if (start > stop || (uint32) start >= meta->size)
         {
             DELETE(meta);
-            return ERR_INVALID_ARGS;
+            return 0;
         }
+
         if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
             ZSetElementDeque::iterator esit = meta->zipvs.begin() + start;
@@ -2061,11 +2066,16 @@ namespace ardb
         {
             stop = stop + meta->size;
         }
-        if (start < 0 || stop < 0 || (uint32) start >= meta->size)
+        if (start < 0)
+        {
+            start = 0;
+        }
+        if (start > stop || (uint32) start >= meta->size)
         {
             DELETE(meta);
-            return ERR_INVALID_ARGS;
+            return 0;
         }
+
         if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
             ZSetElementDeque::reverse_iterator esit = meta->zipvs.rbegin() + start;
