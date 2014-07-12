@@ -71,6 +71,7 @@ namespace ardb
             typedef std::vector<uint32> Counts;
             CompactParams m_compact_trigger;
             Counts m_latency_exceed_counts;
+            bool m_is_compacting;
             void Run();
         public:
             CompactGC(ArdbServer* serv);
@@ -78,10 +79,13 @@ namespace ardb
             void StatWriteLatency(uint64 latency);
             double AverageReadLatency();
             double AverageWriteLatency();
+            double PeriodReadOps();
+            double PeriodWriteOps();
             uint64 PeriodWriteCount();
             uint64 PeriodReadCount();
             std::string LastCompactTime();
             uint64 LastCompactDuration();
+            bool IsCompacting();
     };
 
     class DBCrons: public Thread

@@ -38,7 +38,8 @@ namespace ardb
     }
 
     CompactGC::CompactGC(ArdbServer* serv) :
-            m_server(serv), m_read_count(0), m_read_latency(0), m_write_count(0), m_write_latency(0), m_last_compact(0),m_last_compact_duration(0)
+            m_server(serv), m_read_count(0), m_read_latency(0), m_write_count(0), m_write_latency(0), m_last_compact(0), m_last_compact_duration(
+                    0),m_is_compacting(false)
     {
         m_compact_trigger = serv->GetConfig().compact_paras;
         std::sort(m_compact_trigger.begin(), m_compact_trigger.end(), CompactParaCompareFunc);
@@ -83,6 +84,25 @@ namespace ardb
         return m_read_count;
     }
 
+    double CompactGC::PeriodReadOps()
+    {
+        time_t now = time(NULL);
+        if (now == m_last_compact)
+        {
+            return 0;
+        }
+        return m_read_count * 1.0 / (now - m_last_compact);
+    }
+    double CompactGC::PeriodWriteOps()
+    {
+        time_t now = time(NULL);
+        if (now == m_last_compact)
+        {
+            return 0;
+        }
+        return m_write_count * 1.0 / (now - m_last_compact);
+    }
+
     std::string CompactGC::LastCompactTime()
     {
         if (0 == m_last_compact)
@@ -103,6 +123,11 @@ namespace ardb
     uint64 CompactGC::LastCompactDuration()
     {
         return m_last_compact_duration;
+    }
+
+    bool CompactGC::IsCompacting()
+    {
+        return m_is_compacting;
     }
 
     void CompactGC::Run()
@@ -141,7 +166,6 @@ namespace ardb
         }
         if (should_compact)
         {
-            m_last_compact = now;
             m_read_count = 0;
             m_read_latency = 0;
             m_write_count = 0;
@@ -149,10 +173,13 @@ namespace ardb
             m_latency_exceed_counts.clear();
             m_latency_exceed_counts.resize(m_compact_trigger.size());
             INFO_LOG("Start compact DB.");
+            m_is_compacting = true;
             uint64 start = get_current_epoch_millis();
             m_server->GetDB().CompactAll(true);
             uint64 end = get_current_epoch_millis();
-            m_last_compact_duration = end-start;
+            m_last_compact_duration = end - start;
+            m_last_compact = time(NULL);
+            m_is_compacting = false;
             INFO_LOG("Cost %llums to compact DB.", m_last_compact_duration);
         }
     }

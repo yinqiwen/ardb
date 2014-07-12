@@ -37,7 +37,7 @@
 
 namespace ardb
 {
-    class LevelDBLogger: public rocksdb::Logger
+    class LevelDBLogger: public leveldb::Logger
     {
         private:
             void Logv(const char* format, va_list ap)
