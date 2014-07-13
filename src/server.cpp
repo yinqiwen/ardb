@@ -277,9 +277,15 @@ namespace ardb
             info.append("current_read_latency:").append(qps).append("us\r\n");
             sprintf(qps, "%.2f", DBCrons::GetSingleton().GetCompactGC().AverageWriteLatency());
             info.append("current_write_latency:").append(qps).append("us\r\n");
+            info.append("max_read_latency:").append(
+                    stringfromll(DBCrons::GetSingleton().GetCompactGC().MaxReadLatency())).append("us\r\n");
+            info.append("max_write_latency:").append(
+                    stringfromll(DBCrons::GetSingleton().GetCompactGC().MaxWriteLatency())).append("us\r\n");
+            info.append("compacting:").append(DBCrons::GetSingleton().GetCompactGC().IsCompacting() ? "yes" : "no").append(
+                    "\r\n");
             if (!DBCrons::GetSingleton().GetCompactGC().LastCompactTime().empty())
             {
-                info.append("last_compact_gc_time:").append(DBCrons::GetSingleton().GetCompactGC().LastCompactTime()).append(
+                info.append("last_compact_time:").append(DBCrons::GetSingleton().GetCompactGC().LastCompactTime()).append(
                         "\r\n");
                 info.append("last_compact_duration:").append(
                         stringfromll(DBCrons::GetSingleton().GetCompactGC().LastCompactDuration())).append("ms\r\n");

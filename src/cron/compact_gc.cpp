@@ -39,7 +39,7 @@ namespace ardb
 
     CompactGC::CompactGC(ArdbServer* serv) :
             m_server(serv), m_read_count(0), m_read_latency(0), m_write_count(0), m_write_latency(0), m_last_compact(0), m_last_compact_duration(
-                    0),m_is_compacting(false)
+                    0), m_is_compacting(false), m_max_read_latency(0), m_max_write_latency(0)
     {
         m_compact_trigger = serv->GetConfig().compact_paras;
         std::sort(m_compact_trigger.begin(), m_compact_trigger.end(), CompactParaCompareFunc);
@@ -58,12 +58,20 @@ namespace ardb
                 break;
             }
         }
+        if (latency > m_max_read_latency)
+        {
+            m_max_read_latency = latency;
+        }
     }
 
     void CompactGC::StatWriteLatency(uint64 latency)
     {
         atomic_add_uint64(&m_write_count, 1);
         atomic_add_uint64(&m_write_latency, latency);
+        if (latency > m_max_write_latency)
+        {
+            m_max_write_latency = latency;
+        }
     }
 
     double CompactGC::AverageReadLatency()
@@ -83,7 +91,14 @@ namespace ardb
     {
         return m_read_count;
     }
-
+    uint32 CompactGC::MaxReadLatency()
+    {
+        return m_max_read_latency;
+    }
+    uint32 CompactGC::MaxWriteLatency()
+    {
+        return m_max_write_latency;
+    }
     double CompactGC::PeriodReadOps()
     {
         time_t now = time(NULL);
@@ -166,12 +181,10 @@ namespace ardb
         }
         if (should_compact)
         {
-            m_read_count = 0;
-            m_read_latency = 0;
-            m_write_count = 0;
-            m_write_latency = 0;
-            m_latency_exceed_counts.clear();
-            m_latency_exceed_counts.resize(m_compact_trigger.size());
+            if(m_write_latency < m_server->GetConfig().compact_trigger_write_count)
+            {
+                return;
+            }
             INFO_LOG("Start compact DB.");
             m_is_compacting = true;
             uint64 start = get_current_epoch_millis();
@@ -180,6 +193,12 @@ namespace ardb
             m_last_compact_duration = end - start;
             m_last_compact = time(NULL);
             m_is_compacting = false;
+            m_read_count = 0;
+            m_read_latency = 0;
+            m_write_count = 0;
+            m_write_latency = 0;
+            m_latency_exceed_counts.clear();
+            m_latency_exceed_counts.resize(m_compact_trigger.size());
             INFO_LOG("Cost %llums to compact DB.", m_last_compact_duration);
         }
     }

@@ -257,6 +257,7 @@ namespace ardb
         }
         conf_get_int64(props, "compact-min-interval", cfg.compact_min_interval);
         conf_get_int64(props, "compact-max-interval", cfg.compact_max_interval);
+        conf_get_int64(props, "compact-trigger-write-count", cfg.compact_trigger_write_count);
         conf_get_bool(props, "compact-enable", cfg.compact_enable);
         if (!verify_config(cfg))
         {

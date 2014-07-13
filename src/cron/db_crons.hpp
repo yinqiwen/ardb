@@ -72,6 +72,8 @@ namespace ardb
             CompactParams m_compact_trigger;
             Counts m_latency_exceed_counts;
             bool m_is_compacting;
+            uint32 m_max_read_latency;
+            uint32 m_max_write_latency;
             void Run();
         public:
             CompactGC(ArdbServer* serv);
@@ -79,6 +81,8 @@ namespace ardb
             void StatWriteLatency(uint64 latency);
             double AverageReadLatency();
             double AverageWriteLatency();
+            uint32 MaxReadLatency();
+            uint32 MaxWriteLatency();
             double PeriodReadOps();
             double PeriodWriteOps();
             uint64 PeriodWriteCount();
