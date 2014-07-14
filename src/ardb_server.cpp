@@ -71,33 +71,68 @@ namespace ardb
 
         conf_get_string(props, "pidfile", cfg.pidfile);
 
-        std::string ports;
-        conf_get_string(props, "port", ports);
-        if (!ports.empty())
-        {
-            std::vector<std::string> ss = split_string(ports, ",");
-            for (uint32 i = 0; i < ss.size(); i++)
-            {
-                uint32 port = 0;
-                if (string_touint32(ss[i], port) && port > 0 && port < 65535)
-                {
-                    cfg.listen_ports.insert((uint16) port);
-                }
-                else
-                {
-                    WARN_LOG("Invalid 'port' config.");
-                }
-            }
-        }
-
         conf_get_int64(props, "tcp-keepalive", cfg.tcp_keepalive);
         conf_get_int64(props, "timeout", cfg.timeout);
         conf_get_int64(props, "unixsocketperm", cfg.unixsocketperm);
         conf_get_int64(props, "slowlog-log-slower-than", cfg.slowlog_log_slower_than);
         conf_get_int64(props, "slowlog-max-len", cfg.slowlog_max_len);
         conf_get_int64(props, "maxclients", cfg.max_clients);
-        conf_get_string(props, "bind", cfg.listen_host);
-        conf_get_string(props, "unixsocket", cfg.listen_unix_path);
+        Properties::const_iterator listen_it = props.find("listen");
+        if (listen_it != props.end())
+        {
+            const ConfItemsArray& cs = listen_it->second;
+            for (uint32 i = 0; i < cs.size(); i++)
+            {
+                if (cs[i].size() != 1)
+                {
+                    WARN_LOG("Invalid config 'listen'");
+                }
+                else
+                {
+                    cfg.listen_addresses.push_back(cs[i][0]);
+                }
+            }
+        }
+        if (cfg.listen_addresses.empty())
+        {
+            cfg.listen_addresses.push_back("0.0.0.0:16379");
+        }
+        Properties::const_iterator tp_it = props.find("thread-pool-size");
+        if (tp_it != props.end())
+        {
+            const ConfItemsArray& cs = tp_it->second;
+            for (uint32 i = 0; i < cs.size(); i++)
+            {
+                uint32 size = 0;
+                if (cs[i].size() != 1 || !string_touint32(cs[i][0], size))
+                {
+                    WARN_LOG("Invalid config 'thread-pool-size'");
+                }
+                else
+                {
+                    cfg.thread_pool_sizes.push_back((int64) size);
+                }
+            }
+        }
+        Properties::const_iterator qp_it = props.find("qps-limit");
+        if (qp_it != props.end())
+        {
+            const ConfItemsArray& cs = qp_it->second;
+            for (uint32 i = 0; i < cs.size(); i++)
+            {
+                uint32 limit = 0;
+                if (cs[i].size() != 1 || !string_touint32(cs[i][0], limit))
+                {
+                    WARN_LOG("Invalid config 'qps-limit'");
+                }
+                else
+                {
+                    cfg.qps_limits.push_back((int64) limit);
+                }
+            }
+        }
+        cfg.thread_pool_sizes.resize(cfg.listen_addresses.size());
+        cfg.qps_limits.resize(cfg.listen_addresses.size());
 
         conf_get_string(props, "data-dir", cfg.data_base_path);
         conf_get_string(props, "backup-dir", cfg.backup_dir);
@@ -119,11 +154,11 @@ namespace ardb
         conf_get_string(props, "logfile", cfg.logfile);
         conf_get_bool(props, "daemonize", cfg.daemonize);
 
-        conf_get_int64(props, "thread-pool-size", cfg.worker_count);
-        if (cfg.worker_count <= 0)
-        {
-            cfg.worker_count = available_processors();
-        }
+//        conf_get_int64(props, "thread-pool-size", cfg.worker_count);
+//        if (cfg.worker_count <= 0)
+//        {
+//            cfg.worker_count = available_processors();
+//        }
 
         conf_get_int64(props, "repl-backlog-size", cfg.repl_backlog_size);
         conf_get_int64(props, "repl-ping-slave-period", cfg.repl_ping_slave_period);
@@ -165,11 +200,11 @@ namespace ardb
                     cfg.master_host = "";
                     WARN_LOG("Invalid 'slaveof' config.");
                 }
-                if (cfg.listen_ports.count((uint16) cfg.master_port) > 0 && is_local_ip(cfg.master_host))
-                {
-                    cfg.master_host = "";
-                    WARN_LOG("Invalid 'slaveof' config.");
-                }
+//                if (cfg.listen_ports.count((uint16) cfg.master_port) > 0 && is_local_ip(cfg.master_host))
+//                {
+//                    cfg.master_host = "";
+//                    WARN_LOG("Invalid 'slaveof' config.");
+//                }
             }
             else
             {
@@ -269,8 +304,8 @@ namespace ardb
     }
 
     ArdbServer::ArdbServer(KeyValueEngineFactory& engine) :
-            m_service(NULL), m_db(NULL), m_engine(engine), m_slowlog_handler(m_cfg), m_master_serv(this), m_slave_client(
-                    this), m_watch_mutex(
+            m_service(NULL), m_db(NULL), m_primary_port(0), m_engine(engine), m_slowlog_handler(m_cfg), m_master_serv(
+                    this), m_slave_client(this), m_watch_mutex(
             PTHREAD_MUTEX_RECURSIVE), m_ctx_local(false)
     {
         struct RedisCommandHandlerSetting settingTable[] =
@@ -515,7 +550,12 @@ namespace ardb
         lower_string(cmd);
         RedisCommandHandlerSetting* setting = FindRedisCommandHandlerSetting(cmd);
         DEBUG_LOG("Process recved cmd:%s with flags:%d", args.ToString().c_str(), flags);
-        ServerStat::GetSingleton().IncRecvCommands();
+        if (ServerStat::GetStatInstance(ctx.server_address).IncRecvCommands() < 0)
+        {
+            //exceed qps limit
+            fill_error_reply(ctx.reply, "exceed QPS limit");
+            return 0;
+        }
 
         int ret = 0;
         if (NULL != setting)
@@ -728,7 +768,7 @@ namespace ardb
     {
         server->m_clients_holder.EraseConn(ctx.GetChannel());
         server->ClearClosedConnContext(ardbctx);
-        ServerStat::GetSingleton().DecAcceptedClient();
+        ServerStat::GetStatInstance(ardbctx.server_address).DecAcceptedClient();
         ardbctx.conn_id = 0;
     }
 
@@ -738,12 +778,15 @@ namespace ardb
         {
             server->TouchIdleConn(ctx.GetChannel());
         }
-        ServerStat::GetSingleton().IncAcceptedClient();
         if (!server->m_cfg.requirepass.empty())
         {
             ardbctx.authenticated = false;
         }
+        uint32 parent_id = ctx.GetChannel()->GetParentID();
+        ServerSocketChannel* server_socket = (ServerSocketChannel*)server->m_service->GetChannel(parent_id);
         ardbctx.conn_id = ctx.GetChannel()->GetID();
+        ardbctx.server_address = server_socket->GetStringAddress();
+        ServerStat::GetStatInstance(ardbctx.server_address).IncAcceptedClient();
     }
 
     static void daemonize(void)
@@ -768,8 +811,7 @@ namespace ardb
         }
     }
 
-    Timer&
-    ArdbServer::GetTimer()
+    Timer& ArdbServer::GetTimer()
     {
         return m_service->GetTimer();
     }
@@ -784,7 +826,6 @@ namespace ardb
                 LUAInterpreter::ScriptEventCallback(serv, ev, data);
                 break;
             }
-
             default:
             {
                 break;
@@ -837,7 +878,21 @@ namespace ardb
 
         RenameCommand();
 
-        m_db = new Ardb(&m_engine, (uint32) m_cfg.worker_count);
+        uint32 worker_count = 0;
+        for (uint32 i = 0; i < m_cfg.thread_pool_sizes.size(); i++)
+        {
+            if (m_cfg.thread_pool_sizes[i] == 0)
+            {
+                m_cfg.thread_pool_sizes[i] = 1;
+            }
+            else if (m_cfg.thread_pool_sizes[i] < 0)
+            {
+                m_cfg.thread_pool_sizes[i] = available_processors();
+            }
+            worker_count += m_cfg.thread_pool_sizes[i];
+        }
+
+        m_db = new Ardb(&m_engine, worker_count);
         if (!m_db->Init(m_cfg.db_cfg))
         {
             ERROR_LOG("Failed to init DB.");
@@ -846,63 +901,62 @@ namespace ardb
         DBCrons::GetSingleton().Init(this);
 
         m_service = new ChannelService(m_cfg.max_clients + 32);
+        m_service->SetThreadPoolSize(worker_count);
         ChannelOptions ops;
         ops.tcp_nodelay = true;
         if (m_cfg.tcp_keepalive > 0)
         {
             ops.keep_alive = m_cfg.tcp_keepalive;
         }
-        if (m_cfg.listen_host.empty() && m_cfg.listen_unix_path.empty())
+        for (uint32 i = 0; i < m_cfg.listen_addresses.size(); i++)
         {
-            m_cfg.listen_host = "0.0.0.0";
-            if (m_cfg.listen_ports.empty())
+            const std::string& address = m_cfg.listen_addresses[i];
+            ServerSocketChannel* server = NULL;
+            if (address.find(":") == std::string::npos)
             {
-                m_cfg.listen_ports.insert(6379);
-            }
-        }
-
-        uint32 thread_pool_size = m_cfg.worker_count;
-        if (!m_cfg.listen_host.empty())
-        {
-            thread_pool_size = thread_pool_size * m_cfg.listen_ports.size();
-        }
-
-        if (!m_cfg.listen_host.empty())
-        {
-            PortSet::iterator pit = m_cfg.listen_ports.begin();
-            uint32 j = 0;
-            while (pit != m_cfg.listen_ports.end())
-            {
-                SocketHostAddress address(m_cfg.listen_host.c_str(), *pit);
-                ServerSocketChannel* server = m_service->NewServerSocketChannel();
-                if (!server->Bind(&address))
+                SocketUnixAddress unix_address(address);
+                server = m_service->NewServerSocketChannel();
+                if (!server->Bind(&unix_address))
                 {
-                    ERROR_LOG("Failed to bind on %s:%d", m_cfg.listen_host.c_str(), *pit);
+                    ERROR_LOG("Failed to bind on %s", address.c_str());
                     goto sexit;
                 }
-                server->Configure(ops);
-                server->SetChannelPipelineInitializor(conn_pipeline_init, this);
-                server->SetChannelPipelineFinalizer(conn_pipeline_finallize,
-                NULL);
-                server->BindThreadPool(j * m_cfg.worker_count, (j + 1) * m_cfg.worker_count);
-                j++;
-                pit++;
+                chmod(address.c_str(), m_cfg.unixsocketperm);
             }
-        }
-        if (!m_cfg.listen_unix_path.empty())
-        {
-            SocketUnixAddress address(m_cfg.listen_unix_path);
-            ServerSocketChannel* server = m_service->NewServerSocketChannel();
-            if (!server->Bind(&address))
+            else
             {
-                ERROR_LOG("Failed to bind on %s", m_cfg.listen_unix_path.c_str());
-                goto sexit;
+                std::vector<std::string> ss = split_string(address, ":");
+                uint32 port;
+                if (ss.size() != 2 || !string_touint32(ss[1], port))
+                {
+                    ERROR_LOG("Invalid server socket address %s", address.c_str());
+                    goto sexit;
+                }
+                if (m_primary_port == 0)
+                {
+                    m_primary_port = port;
+                }
+                SocketHostAddress socket_address(ss[0], port);
+                server = m_service->NewServerSocketChannel();
+                if (!server->Bind(&socket_address))
+                {
+                    ERROR_LOG("Failed to bind on %s", address.c_str());
+                    goto sexit;
+                }
             }
             server->Configure(ops);
             server->SetChannelPipelineInitializor(conn_pipeline_init, this);
             server->SetChannelPipelineFinalizer(conn_pipeline_finallize, NULL);
-            chmod(m_cfg.listen_unix_path.c_str(), m_cfg.unixsocketperm);
+            uint32 min = 0;
+            for (uint32 j = 0; j < i; j++)
+            {
+                min += min + m_cfg.thread_pool_sizes[j];
+            }
+            server->BindThreadPool(min, min + m_cfg.thread_pool_sizes[i]);
+            m_service->GetTimer().Schedule(&(ServerStat::GetStatInstance(address)), 1, 1, SECONDS);
+            ServerStat::GetStatInstance(address).qps_limit = m_cfg.qps_limits[i];
         }
+        m_service->GetTimer().Schedule(&(ServerStat::GetStatInstance(SLAVE_SERVER_ADDRESS_NAME)), 1, 1, SECONDS);
         ArdbLogger::InitDefaultLogger(m_cfg.loglevel, m_cfg.logfile);
 
         m_rdb.Init(m_db);
@@ -929,15 +983,15 @@ namespace ardb
         {
             goto sexit;
         }
-        m_service->GetTimer().Schedule(&(ServerStat::GetSingleton()), 1, 1, SECONDS);
-        m_service->SetThreadPoolSize(thread_pool_size);
+        //
+
         m_service->RegisterUserEventCallback(ArdbServer::ServerEventCallback, this);
 
         DBCrons::GetSingleton().Start();
 
         INFO_LOG("Server started, Ardb version %s", ARDB_VERSION);
-        INFO_LOG("The server is now ready to accept connections on port %s",
-                string_join_container(m_cfg.listen_ports, ",").c_str());
+        INFO_LOG("The server is now ready to accept connections on  %s",
+                string_join_container(m_cfg.listen_addresses, ",").c_str());
 
         m_service->Start();
         sexit: m_master_serv.Stop();

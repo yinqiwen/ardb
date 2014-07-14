@@ -43,6 +43,8 @@
 
 using namespace ardb::codec;
 
+#define SLAVE_SERVER_ADDRESS_NAME "slave"
+
 namespace ardb
 {
     struct ArdbConnContext;

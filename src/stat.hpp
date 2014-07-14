@@ -48,13 +48,18 @@ namespace ardb
             volatile uint64 connected_clients;
             volatile uint64 stat_numconnections;
             time_t now;
+            std::string name;
+            int64 qps_limit;
             ServerStat();
             void Run();
-            void IncRecvCommands();
+            int IncRecvCommands();
             void IncAcceptedClient();
             void DecAcceptedClient();
             double CurrentQPS();
-            static ServerStat& GetSingleton();
+            std::string ToString();
+            static ServerStat& GetStatInstance(const std::string& name);
+            static std::string AllStats();
+            static std::string ClientsStat();
     };
 }
 

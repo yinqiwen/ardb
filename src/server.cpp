@@ -172,14 +172,13 @@ namespace ardb
             {
                 info.append("run_id:").append(m_master_serv.GetReplBacklog().GetServerKey()).append("\r\n");
             }
-            sprintf(tmp, "%s", string_join_container(m_cfg.listen_ports, ",").c_str());
-            info.append("tcp_port:").append(tmp).append("\r\n");
+            info.append("tcp_port:").append(stringfromll(PrimaryPort())).append("\r\n");
+            info.append("listen:").append(string_join_container(m_cfg.listen_addresses, ",")).append("\r\n");
         }
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "clients"))
         {
             info.append("# Clients\r\n");
-            info.append("connected_clients:").append(stringfromll(ServerStat::GetSingleton().connected_clients)).append(
-                    "\r\n");
+            info.append(ServerStat::ClientsStat());
         }
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "databases"))
         {
@@ -256,18 +255,13 @@ namespace ardb
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "stats"))
         {
             info.append("# Stats\r\n");
-            info.append("total_commands_processed:").append(stringfromll(ServerStat::GetSingleton().stat_numcommands)).append(
-                    "\r\n");
-            info.append("total_connections_received:").append(
-                    stringfromll(ServerStat::GetSingleton().stat_numconnections)).append("\r\n");
-            char qps[100];
-            sprintf(qps, "%.2f", ServerStat::GetSingleton().CurrentQPS());
-            info.append("current_commands_qps:").append(qps).append("\r\n");
+            info.append(ServerStat::AllStats());
+
+            char qps[1024];
             info.append("period_read_op_count:").append(
                     stringfromll(DBCrons::GetSingleton().GetCompactGC().PeriodReadCount())).append("\r\n");
             info.append("period_write_op_count:").append(
                     stringfromll(DBCrons::GetSingleton().GetCompactGC().PeriodWriteCount())).append("\r\n");
-
             sprintf(qps, "%.2f", DBCrons::GetSingleton().GetCompactGC().PeriodReadOps());
             info.append("period_read_ops:").append(qps).append("\r\n");
             sprintf(qps, "%.2f", DBCrons::GetSingleton().GetCompactGC().PeriodWriteOps());

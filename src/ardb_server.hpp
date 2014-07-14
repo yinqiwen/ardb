@@ -97,10 +97,13 @@ namespace ardb
     struct ArdbServerConfig
     {
             bool daemonize;
-            std::string listen_host;
+            StringArray listen_addresses;
+            Int64Array thread_pool_sizes;
+            Int64Array qps_limits;
+            //std::string listen_host;
 
-            PortSet listen_ports;
-            std::string listen_unix_path;
+            //PortSet listen_ports;
+            //std::string listen_unix_path;
             int64 unixsocketperm;
             int64 max_clients;
             int64 tcp_keepalive;
@@ -132,7 +135,7 @@ namespace ardb
             DBIDArray repl_includes;
             DBIDArray repl_excludes;
 
-            int64 worker_count;
+            //int64 worker_count;
             std::string loglevel;
             std::string logfile;
 
@@ -157,8 +160,7 @@ namespace ardb
                             10000), slowlog_max_len(128), repl_data_dir("./repl"), backup_dir("./backup"), backup_redis_format(
                             false), repl_ping_slave_period(10), repl_timeout(60), repl_backlog_size(100 * 1024 * 1024), repl_state_persist_period(
                             1), repl_backlog_time_limit(3600), slave_cleardb_before_fullresync(true), slave_readonly(
-                            true), slave_serve_stale_data(true), slave_priority(100), lua_time_limit(0), master_port(0), worker_count(
-                            1), loglevel("INFO"), compact_min_interval(1200), compact_max_interval(7200), compact_trigger_write_count(
+                            true), slave_serve_stale_data(true), slave_priority(100), lua_time_limit(0), master_port(0), loglevel("INFO"), compact_min_interval(1200), compact_max_interval(7200), compact_trigger_write_count(
                             10000), compact_enable(true)
             {
             }
@@ -354,6 +356,7 @@ namespace ardb
 
             bool authenticated;
             uint32 conn_id;
+            std::string server_address;
 
             ArdbConnContext() :
                     currentDB(0), conn(NULL), is_slave_conn(false), transc(NULL), pubsub(
@@ -473,6 +476,7 @@ namespace ardb
             Properties m_cfg_props;
             ChannelService* m_service;
             Ardb* m_db;
+            uint32 m_primary_port;
             KeyValueEngineFactory& m_engine;
 
             typedef TreeMap<std::string, RedisCommandHandlerSetting>::Type RedisCommandHandlerSettingTable;
@@ -760,6 +764,10 @@ namespace ardb
             const ArdbServerConfig& GetConfig()
             {
                 return m_cfg;
+            }
+            uint32 PrimaryPort()
+            {
+                return m_primary_port;
             }
             ~ArdbServer();
     };

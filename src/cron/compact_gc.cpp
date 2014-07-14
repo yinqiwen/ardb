@@ -102,20 +102,31 @@ namespace ardb
     double CompactGC::PeriodReadOps()
     {
         time_t now = time(NULL);
-        if (now == m_last_compact)
+        uint32 base = m_last_compact;
+        if (0 == m_last_compact)
+        {
+            base = g_init_time;
+        }
+        if (now == base)
         {
             return 0;
         }
-        return m_read_count * 1.0 / (now - m_last_compact);
+        return m_read_count * 1.0 / (now - base);
     }
     double CompactGC::PeriodWriteOps()
     {
         time_t now = time(NULL);
-        if (now == m_last_compact)
+        uint32 base = m_last_compact;
+        if (0 == m_last_compact)
+        {
+            base = g_init_time;
+        }
+        if (now == base)
         {
             return 0;
         }
-        return m_write_count * 1.0 / (now - m_last_compact);
+
+        return m_write_count * 1.0 / (now - base);
     }
 
     std::string CompactGC::LastCompactTime()
@@ -181,7 +192,7 @@ namespace ardb
         }
         if (should_compact)
         {
-            if(m_write_latency < m_server->GetConfig().compact_trigger_write_count)
+            if (m_write_latency < m_server->GetConfig().compact_trigger_write_count)
             {
                 return;
             }

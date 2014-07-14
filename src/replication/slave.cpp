@@ -136,7 +136,7 @@ namespace ardb
         GetArdbConnContext();
         m_actx->is_slave_conn = true;
         m_actx->conn = ch;
-
+        m_actx->server_address = SLAVE_SERVER_ADDRESS_NAME;
         if (strcasecmp(cmd.GetCommand().c_str(), "SELECT") && strcasecmp(cmd.GetCommand().c_str(), "__SET__")
                 && strcasecmp(cmd.GetCommand().c_str(), "__DEL__"))
         {
@@ -223,7 +223,8 @@ namespace ardb
                     m_server_support_psync = true;
                 }
                 Buffer replconf;
-                replconf.Printf("replconf listening-port %u\r\n", *(m_serv->GetServerConfig().listen_ports.begin()));
+                //std::vector<std::string> ss = split_string(m_serv->GetServerConfig().listen_addresses[0], ":");
+                replconf.Printf("replconf listening-port %u\r\n", m_serv->PrimaryPort());
                 ch->Write(replconf);
                 m_slave_state = SLAVE_STATE_WAITING_REPLCONF_REPLY;
                 break;
