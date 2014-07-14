@@ -56,7 +56,7 @@ namespace ardb
     {
         int ret = m_db->HSet(ctx.currentDB, cmd.GetArguments()[0], cmd.GetArguments()[1], cmd.GetArguments()[2]);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
-        fill_int_reply(ctx.reply, 1);
+        fill_int_reply(ctx.reply, ret);
         return 0;
     }
     int ArdbServer::HSetNX(ArdbConnContext& ctx, RedisCommandFrame& cmd)
@@ -315,7 +315,8 @@ namespace ardb
                 meta->dirty = true;
                 SetMeta(key.db, key.key, *meta);
             }
-            return SetKeyValueObject(key, value);
+            int ret = SetKeyValueObject(key, value);
+            return ret >= 0 ? 1 : ret;
         }
         else
         {
@@ -333,6 +334,7 @@ namespace ardb
             {
                 zipSave = true;
             }
+            bool contains_value = meta->values.find(key.field) != meta->values.end();
             meta->values[key.field] = value.data;
             if (!zipSave)
             {
@@ -350,8 +352,8 @@ namespace ardb
                 meta->values.clear();
             }
             SetMeta(key.db, key.key, *meta);
+            return contains_value ? 0 : 1;
         }
-        return 0;
     }
     int Ardb::HSet(const DBID& db, const Slice& key, const Slice& field, const Slice& value)
     {
@@ -365,7 +367,7 @@ namespace ardb
         CommonValueObject valueobject;
         valueobject.data.SetValue(value, true);
         HashKeyObject hk(key, field, db);
-        int ret = HSetValue(hk, meta, valueobject) == 0 ? 1 : 0;
+        int ret = HSetValue(hk, meta, valueobject);
         DELETE(meta);
         return ret;
     }

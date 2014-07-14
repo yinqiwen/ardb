@@ -41,9 +41,12 @@ namespace ardb
             m_server(serv), m_read_count(0), m_read_latency(0), m_write_count(0), m_write_latency(0), m_last_compact(0), m_last_compact_duration(
                     0), m_is_compacting(false), m_max_read_latency(0), m_max_write_latency(0)
     {
-        m_compact_trigger = serv->GetConfig().compact_paras;
-        std::sort(m_compact_trigger.begin(), m_compact_trigger.end(), CompactParaCompareFunc);
-        m_latency_exceed_counts.resize(m_compact_trigger.size());
+        if(NULL != serv)
+        {
+            m_compact_trigger = serv->GetConfig().compact_paras;
+            std::sort(m_compact_trigger.begin(), m_compact_trigger.end(), CompactParaCompareFunc);
+            m_latency_exceed_counts.resize(m_compact_trigger.size());
+        }
     }
     void CompactGC::StatReadLatency(uint64 latency)
     {
@@ -125,7 +128,6 @@ namespace ardb
         {
             return 0;
         }
-
         return m_write_count * 1.0 / (now - base);
     }
 

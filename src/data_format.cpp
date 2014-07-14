@@ -78,10 +78,11 @@ namespace ardb
                 {
                     /* Libc in odd systems (Hi Solaris!) will format infinite in a
                      * different way, so better to handle it in an explicit way. */
-                    if(double_value > 0)
+                    if (double_value > 0)
                     {
                         str = "inf";
-                    }else
+                    }
+                    else
                     {
                         str = "-inf";
                     }

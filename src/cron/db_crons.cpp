@@ -76,7 +76,12 @@ namespace ardb
 
     CompactGC& DBCrons::GetCompactGC()
     {
-        return *m_gc;
+        static CompactGC empty(NULL);
+        if(NULL != m_gc)
+        {
+            return *m_gc;
+        }
+        return empty;
     }
 
     void DBCrons::StopSelf()

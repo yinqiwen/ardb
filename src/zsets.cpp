@@ -35,8 +35,10 @@
 #define MAX_ZSET_RANGE_NUM  1000
 
 #define SORT_BY_NOSORT 0
-#define SORT_BY_VALUE 1
-#define SORT_BY_SCORE 2
+#define SORT_BY_LESS_VALUE 1
+#define SORT_BY_LESS_SCORE 2
+#define SORT_BY_GREAT_VALUE 3
+#define SORT_BY_GREAT_SCORE 4
 
 #define MAX_ZSET_RANGE_COUNT_TABLE_SIZE  4096
 #define MAX_ZSET_RANGE_SIZE  512
@@ -522,7 +524,7 @@ namespace ardb
                 return 0;
             }
         }
-        DEBUG_LOG("#####Start from:%s", options.range.min.c_str());
+        //DEBUG_LOG("#####Start from:%s", options.range.min.c_str());
         options.reverse = cmd.GetType() == REDIS_CMD_ZREVRANGEBYLEX;
         StringArray vs;
         int ret = m_db->ZRangeByLex(ctx.currentDB, cmd.GetArguments()[0], options, vs);
@@ -589,10 +591,18 @@ namespace ardb
     {
         return v1.score.NumberValue() < v2.score.NumberValue();
     }
+    static bool greate_by_zset_score(const ZSetElement& v1, const ZSetElement& v2)
+    {
+        return v1.score.NumberValue() > v2.score.NumberValue();
+    }
 
     static bool less_by_zset_value(const ZSetElement& v1, const ZSetElement& v2)
     {
         return v1.value < v2.value;
+    }
+    static bool greate_by_zset_value(const ZSetElement& v1, const ZSetElement& v2)
+    {
+        return v1.value > v2.value;
     }
 
     ZSetMetaValue* Ardb::GetZSetMeta(const DBID& db, const Slice& key, uint8 sort_func, int& err, bool& created)
@@ -621,8 +631,33 @@ namespace ardb
                     if (zmeta->sort_func != sort_func)
                     {
                         zmeta->sort_func = sort_func;
-                        std::sort(zmeta->zipvs.begin(), zmeta->zipvs.end(),
-                                sort_func == SORT_BY_SCORE ? less_by_zset_score : less_by_zset_value);
+                        switch (sort_func)
+                        {
+                            case SORT_BY_LESS_VALUE:
+                            {
+                                std::sort(zmeta->zipvs.begin(), zmeta->zipvs.end(), less_by_zset_value);
+                                break;
+                            }
+                            case SORT_BY_LESS_SCORE:
+                            {
+                                std::sort(zmeta->zipvs.begin(), zmeta->zipvs.end(), less_by_zset_score);
+                                break;
+                            }
+                            case SORT_BY_GREAT_VALUE:
+                            {
+                                std::sort(zmeta->zipvs.begin(), zmeta->zipvs.end(), greate_by_zset_value);
+                                break;
+                            }
+                            case SORT_BY_GREAT_SCORE:
+                            {
+                                std::sort(zmeta->zipvs.begin(), zmeta->zipvs.end(), greate_by_zset_score);
+                                break;
+                            }
+                            default:
+                            {
+                                break;
+                            }
+                        }
                     }
                 }
             }
@@ -639,10 +674,10 @@ namespace ardb
             {
                 meta->sort_func = sort_func;
                 std::sort(meta->zipvs.begin(), meta->zipvs.end(),
-                        sort_func == SORT_BY_SCORE ? less_by_zset_score : less_by_zset_value);
+                        sort_func == SORT_BY_LESS_SCORE ? less_by_zset_score : less_by_zset_value);
             }
             ZSetElementDeque::iterator it = std::lower_bound(meta->zipvs.begin(), meta->zipvs.end(), entry,
-                    sort_func == SORT_BY_SCORE ? less_by_zset_score : less_by_zset_value);
+                    sort_func == SORT_BY_LESS_SCORE ? less_by_zset_score : less_by_zset_value);
             if (it != meta->zipvs.end())
             {
                 meta->zipvs.insert(it, entry);
@@ -661,9 +696,9 @@ namespace ardb
 
     int Ardb::GetZSetZipEntry(ZSetMetaValue* meta, const ValueData& value, ZSetElement& entry, bool remove)
     {
-        if (meta->sort_func != SORT_BY_VALUE)
+        if (meta->sort_func != SORT_BY_LESS_VALUE)
         {
-            meta->sort_func = SORT_BY_VALUE;
+            meta->sort_func = SORT_BY_LESS_VALUE;
             std::sort(meta->zipvs.begin(), meta->zipvs.end(), less_by_zset_value);
         }
         ZSetElement serachEntry;
@@ -690,7 +725,7 @@ namespace ardb
     {
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_VALUE, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_LESS_VALUE, err, createZset);
         if (NULL == meta)
         {
             DELETE(meta);
@@ -888,7 +923,7 @@ namespace ardb
                 }
                 else
                 {
-                    InsertZSetZipEntry(&meta, element, SORT_BY_VALUE);
+                    InsertZSetZipEntry(&meta, element, SORT_BY_LESS_VALUE);
                     return 1;
                 }
             }
@@ -906,7 +941,7 @@ namespace ardb
                 if (zip_save)
                 {
                     meta.size++;
-                    InsertZSetZipEntry(&meta, element, SORT_BY_VALUE);
+                    InsertZSetZipEntry(&meta, element, SORT_BY_LESS_VALUE);
                     return 1;
                 }
             }
@@ -1002,7 +1037,7 @@ namespace ardb
         KeyLockerGuard keyguard(m_key_locker, db, key);
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_VALUE, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_LESS_VALUE, err, createZset);
         if (NULL == meta)
         {
             DELETE(meta);
@@ -1064,7 +1099,7 @@ namespace ardb
         {
             ZSetElement e;
             e.value.SetValue(value, true);
-            if (SORT_BY_VALUE == meta->sort_func)
+            if (SORT_BY_LESS_VALUE == meta->sort_func)
             {
                 ZSetElementDeque::iterator fit = std::lower_bound(meta->zipvs.begin(), meta->zipvs.end(), e,
                         less_by_zset_value);
@@ -1129,7 +1164,7 @@ namespace ardb
         KeyLockerGuard keyguard(m_key_locker, db, key);
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_VALUE, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_LESS_VALUE, err, createZset);
         if (NULL == meta)
         {
             DELETE(meta);
@@ -1146,7 +1181,7 @@ namespace ardb
             }
             element.score += increment;
             score = element.score;
-            InsertZSetZipEntry(meta, element, SORT_BY_VALUE);
+            InsertZSetZipEntry(meta, element, SORT_BY_LESS_VALUE);
             SetMeta(db, key, *meta);
         }
         else
@@ -1191,7 +1226,7 @@ namespace ardb
         KeyLockerGuard keyguard(m_key_locker, db, key);
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_SCORE, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_LESS_SCORE, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
@@ -1308,7 +1343,7 @@ namespace ardb
         KeyLockerGuard keyguard(m_key_locker, db, key);
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_VALUE, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_LESS_VALUE, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
@@ -1421,7 +1456,7 @@ namespace ardb
         }
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_SCORE, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_LESS_SCORE, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
@@ -1472,7 +1507,7 @@ namespace ardb
     {
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_SCORE, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_LESS_SCORE, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
@@ -1519,7 +1554,7 @@ namespace ardb
     {
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_SCORE, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_LESS_SCORE, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
@@ -1616,7 +1651,7 @@ namespace ardb
         KeyLockerGuard keyguard(m_key_locker, db, key);
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_SCORE, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_LESS_SCORE, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
@@ -1694,7 +1729,7 @@ namespace ardb
         KeyLockerGuard keyguard(m_key_locker, db, key);
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_SCORE, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_LESS_SCORE, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
@@ -1790,7 +1825,7 @@ namespace ardb
     {
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_SCORE, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_LESS_SCORE, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
@@ -1890,13 +1925,14 @@ namespace ardb
         }
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_SCORE, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_LESS_SCORE, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
             return err;
         }
         int cursor = 0;
+        int offset = 0;
         if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
             ZSetElement min_ele(Slice(), range.min);
@@ -1920,15 +1956,24 @@ namespace ardb
                     {
                         break;
                     }
-                    cb(e.value, cursor++, cbdata);
-                    if (options.withscores)
+                    if ((options.withlimit && options.limit_offset >= offset
+                            && offset < (options.limit_offset + options.limit_count)) || !options.withlimit)
                     {
-                        cb(e.score, cursor++, cbdata);
+                        cb(e.value, cursor++, cbdata);
+                        if (options.withscores)
+                        {
+                            cb(e.score, cursor++, cbdata);
+                        }
+                        if (options.withattr)
+                        {
+                            cb(e.attr, cursor++, cbdata);
+                        }
                     }
-                    if (options.withattr)
+                    if (options.withlimit && (offset >= (options.limit_offset + options.limit_count)))
                     {
-                        cb(e.attr, cursor++, cbdata);
+                        break;
                     }
+                    offset++;
                     min_it++;
                 }
             }
@@ -2052,7 +2097,7 @@ namespace ardb
     {
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_SCORE, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_LESS_SCORE, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
@@ -2134,7 +2179,7 @@ namespace ardb
     {
         int err = 0;
         bool createZset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_SCORE, err, createZset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_GREAT_SCORE, err, createZset);
         if (NULL == meta || createZset)
         {
             DELETE(meta);
@@ -2148,34 +2193,41 @@ namespace ardb
         }
         if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
-            ZSetElement min_ele(Slice(), range.min);
-            ZSetElementDeque::iterator min_it = std::lower_bound(meta->zipvs.begin(), meta->zipvs.end(), min_ele,
-                    less_by_zset_score);
-            if (min_it != meta->zipvs.end())
+            ZSetElement max_ele(Slice(), range.max);
+            ZSetElementDeque::iterator max_it = std::lower_bound(meta->zipvs.begin(), meta->zipvs.end(), max_ele,
+                    greate_by_zset_score);
+            int offset = 0;
+            while (max_it != meta->zipvs.end())
             {
-                while (min_it != meta->zipvs.end())
+                ZSetElement& e = *max_it;
+                if (!range.contain_max && e.score.NumberValue() == range.max.NumberValue())
                 {
-                    ZSetElement& e = *min_it;
-                    if (!range.contain_min && e.score.NumberValue() == range.min.NumberValue())
-                    {
-                        min_it++;
-                        continue;
-                    }
-                    if (e.score.NumberValue() > range.max.NumberValue())
-                    {
-                        break;
-                    }
-                    if (!range.contain_max && e.score.NumberValue() == range.max.NumberValue())
-                    {
-                        break;
-                    }
+                    max_it++;
+                    continue;
+                }
+                if (e.score.NumberValue() < range.min.NumberValue())
+                {
+                    break;
+                }
+                if (!range.contain_min && e.score.NumberValue() == range.min.NumberValue())
+                {
+                    break;
+                }
+                if ((options.withlimit && options.limit_offset >= offset
+                        && offset < (options.limit_offset + options.limit_count)) || !options.withlimit)
+                {
+                    values.push_back(max_it->value);
                     if (options.withscores)
                     {
-                        values.push_front(min_it->score);
+                        values.push_back(max_it->score);
                     }
-                    values.push_front(min_it->value);
-                    min_it++;
                 }
+                if (options.withlimit && (offset >= (options.limit_offset + options.limit_count)))
+                {
+                    break;
+                }
+                max_it++;
+                offset++;
             }
             DELETE(meta);
             return 0;
@@ -2254,9 +2306,9 @@ namespace ardb
         }
         if (ZSET_ENCODING_ZIPLIST == meta->encoding)
         {
-            if (meta->sort_func != SORT_BY_VALUE)
+            if (meta->sort_func != SORT_BY_LESS_VALUE)
             {
-                meta->sort_func = SORT_BY_VALUE;
+                meta->sort_func = SORT_BY_LESS_VALUE;
                 std::sort(meta->zipvs.begin(), meta->zipvs.end(), less_by_zset_value);
             }
             ZSetElement entry;
@@ -2778,7 +2830,7 @@ namespace ardb
     {
         int err = 0;
         bool createzset = false;
-        ZSetMetaValue* meta = GetZSetMeta(db, key, SORT_BY_VALUE, err, createzset);
+        ZSetMetaValue* meta = GetZSetMeta(db, key, reverse ? SORT_BY_GREAT_VALUE : SORT_BY_LESS_VALUE, err, createzset);
         if (NULL == meta || createzset)
         {
             DELETE(meta);
@@ -2789,42 +2841,15 @@ namespace ardb
         {
             ZSetElement se;
             se.value.SetValue(start, true);
-            if (reverse)
+            ZSetElementDeque::iterator it = std::lower_bound(meta->zipvs.begin(), meta->zipvs.end(), se,
+                    reverse ? greate_by_zset_value : less_by_zset_value);
+            while (it != meta->zipvs.end())
             {
-                if (!meta->zipvs.empty())
+                if (cb(it->value, cursor++, cbdata) < 0)
                 {
-                    ZSetElementDeque::iterator it = std::upper_bound(meta->zipvs.begin(), meta->zipvs.end(), se,
-                            less_by_zset_value);
-                    if (it == meta->zipvs.end())
-                    {
-                        it = meta->zipvs.end() - 1;
-                    }
-                    if (it > meta->zipvs.begin())
-                    {
-                        uint32 len = it - meta->zipvs.begin() + 1;
-                        for (uint32 i = 0; i < len; i++)
-                        {
-                            if (cb(it->value, cursor++, cbdata) < 0)
-                            {
-                                break;
-                            }
-                            it--;
-                        }
-                    }
+                    break;
                 }
-            }
-            else
-            {
-                ZSetElementDeque::iterator it = std::lower_bound(meta->zipvs.begin(), meta->zipvs.end(), se,
-                        less_by_zset_value);
-                while (it != meta->zipvs.end())
-                {
-                    if (cb(it->value, cursor++, cbdata) < 0)
-                    {
-                        break;
-                    }
-                    it++;
-                }
+                it++;
             }
 
             return 0;
