@@ -1956,7 +1956,7 @@ namespace ardb
                     {
                         break;
                     }
-                    if ((options.withlimit && options.limit_offset >= offset
+                    if ((options.withlimit &&  offset >= options.limit_offset
                             && offset < (options.limit_offset + options.limit_count)) || !options.withlimit)
                     {
                         cb(e.value, cursor++, cbdata);
@@ -2213,7 +2213,7 @@ namespace ardb
                 {
                     break;
                 }
-                if ((options.withlimit && options.limit_offset >= offset
+                if ((options.withlimit && offset >= options.limit_offset
                         && offset < (options.limit_offset + options.limit_count)) || !options.withlimit)
                 {
                     values.push_back(max_it->value);
