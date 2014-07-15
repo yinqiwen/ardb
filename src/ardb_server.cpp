@@ -900,7 +900,13 @@ namespace ardb
         }
         DBCrons::GetSingleton().Init(this);
 
-        m_service = new ChannelService(m_cfg.max_clients + 32);
+        int64 set_size_adjustment = 32;
+        if (m_engine.GetName() == "LevelDB" || m_engine.GetName() == "RocksDB")
+        {
+            set_size_adjustment += m_db->GetEngine()->MaxOpenFiles();
+        }
+
+        m_service = new ChannelService(m_cfg.max_clients + set_size_adjustment);
         m_service->SetThreadPoolSize(worker_count);
         ChannelOptions ops;
         ops.tcp_nodelay = true;
