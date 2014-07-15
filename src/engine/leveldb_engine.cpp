@@ -364,6 +364,11 @@ namespace ardb
         return version_info + str;
     }
 
+    int LevelDBEngine::MaxOpenFiles()
+    {
+        return m_options.max_open_files;
+    }
+
     LevelDBIterator::~LevelDBIterator()
     {
         delete m_iter;
