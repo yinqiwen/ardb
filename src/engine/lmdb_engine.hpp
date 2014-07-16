@@ -184,6 +184,7 @@ namespace ardb
             Iterator* Find(const Slice& findkey, bool cache);
             void Close();
             void Clear();
+            int MaxOpenFiles();
 
     };
 

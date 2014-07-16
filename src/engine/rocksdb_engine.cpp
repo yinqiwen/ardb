@@ -363,6 +363,11 @@ namespace ardb
         return version_info + str;
     }
 
+    int RocksDBEngine::MaxOpenFiles()
+    {
+        return m_options.max_open_files;
+    }
+
     RocksDBIterator::~RocksDBIterator()
     {
         delete m_iter;

@@ -444,6 +444,11 @@ namespace ardb
         return iter;
     }
 
+    int LMDBEngine::MaxOpenFiles()
+    {
+        return 2;
+    }
+
     void LMDBIterator::SeekToFirst()
     {
         int rc = mdb_cursor_get(m_cursor, &m_key, &m_value, MDB_FIRST);

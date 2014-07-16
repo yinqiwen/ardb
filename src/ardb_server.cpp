@@ -900,7 +900,7 @@ namespace ardb
         }
         DBCrons::GetSingleton().Init(this);
 
-        m_service = new ChannelService(m_cfg.max_clients + 32);
+        m_service = new ChannelService(m_cfg.max_clients + 32 + m_db->GetEngine()->MaxOpenFiles());
         m_service->SetThreadPoolSize(worker_count);
         ChannelOptions ops;
         ops.tcp_nodelay = true;
