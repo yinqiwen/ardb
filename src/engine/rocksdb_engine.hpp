@@ -182,6 +182,7 @@ namespace ardb
             const std::string Stats();
             void CompactRange(const Slice& begin, const Slice& end);
             void ReleaseContextSnapshot();
+            int MaxOpenFiles();
     };
 
     class RocksDBEngineFactory: public KeyValueEngineFactory

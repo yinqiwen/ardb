@@ -104,6 +104,10 @@ namespace ardb
             virtual ~KeyValueEngine()
             {
             }
+            virtual int MaxOpenFiles()
+            {
+                return 0;
+            }
     };
 
     class BatchWriteGuard
