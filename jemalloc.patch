@@ -1,0 +1,12 @@
+--- configure.ac	2014-06-30 19:29:34.145426242 -0700
++++ configure.ac	2014-06-30 19:29:48.818214447 -0700
+@@ -1012,7 +1012,8 @@
+     return 0;
+ ]])],
+                              [je_cv_static_page_shift=`cat conftest.out`],
+-                             [je_cv_static_page_shift=undefined]))
++                             [je_cv_static_page_shift=undefined],
++                             [je_cv_static_page_shift=12]))
+ 
+ if test "x$je_cv_static_page_shift" != "xundefined"; then
+    AC_DEFINE_UNQUOTED([STATIC_PAGE_SHIFT], [$je_cv_static_page_shift])

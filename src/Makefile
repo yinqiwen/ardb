@@ -70,6 +70,10 @@ ZOOKEEPER_FILE=${ZOOKEEPER_PATH}.tar.gz
 ZOOKEEPER_LIBA=${ZOOKEEPER_PATH}/.libs/libzkst.a
 ZOOKEEPER_LIBHTA=${ZOOKEEPER_PATH}/.libs/libhashtable.a
 
+# Cross compiling variables
+XC_HOST=
+XC_TGT=
+XC_BUILD=
 
 LUA_VER=lua
 LUA_PATH=${LIB_PATH}/${LUA_VER}
@@ -188,7 +192,9 @@ jemalloc:
       :; \
     else \
       cd ${LIB_PATH};tar jxvf ${JEMALLOC_FILE};cd ${JEMALLOC_PATH};\
-      ./configure;make build_lib_static;\
+      patch < ../../jemalloc.patch;\
+      autoconf configure.ac > configure;\
+      ./configure ${XC_BUILD} ${XC_HOST} ${XC_TGT};make build_lib_static;\
     fi
 
     
@@ -197,7 +203,7 @@ snappy:
       :; \
     else \
       cd ${LIB_PATH};tar zxvf ${SNAPPY_FILE};cd ${SNAPPY_PATH};\
-      ./configure;make libsnappy.la;\
+      ./configure ${XC_BUILD} ${XC_HOST} ${XC_TGT};make libsnappy.la;\
     fi
 
 lmdb:
@@ -235,7 +241,12 @@ zookeeper:
 	@if test -f ${ZOOKEEPER_LIBA}; then\
       :; \
     else \
-      cd ${LIB_PATH};tar zxvf ${ZOOKEEPER_FILE};cd ${ZOOKEEPER_PATH}; ./configure;make;\
+      cd ${LIB_PATH};tar zxvf ${ZOOKEEPER_FILE};cd ${ZOOKEEPER_PATH}/src; \
+      patch < ../../../zookeeper.mt_adaptor.patch;\
+      cd ${ZOOKEEPER_PATH};\
+      patch < ../../zookeeper.configure.ac.patch;\
+      autoconf configure.ac > configure;\
+      ./configure ${XC_BUILD} ${XC_HOST} ${XC_TGT} ;make;\
     fi
 
 clean_launch_obj:

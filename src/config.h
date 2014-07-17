@@ -98,13 +98,12 @@
 #define HAVE_TASKINFO 1
 #endif
 
-#if (__i386 || __amd64) && __GNUC__
+#if (__i386 || __amd64 || __arm__) && __GNUC__
 #define GNUC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
 #if GNUC_VERSION >= 40100
 #define HAVE_SYNC_OP
 #endif
 #endif
-
 
 
 #endif /* CONFIG_H_ */
