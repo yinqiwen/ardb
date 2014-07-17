@@ -74,6 +74,28 @@ LMDB Option: thread_pool_size=2, database_max_size=10G, readahead=no
   - **'SPOP' is very slow with LevelDB engine**
          
 
+## Cross compilation
+
+Cross compilation is a work in progress. It has been shown to work for
+the LevelDB engine and the LMDB engine when compiling on x86 for 32bit
+ARM. The RocksDB engine has not been shown to work.  To cross compile,
+set the make variables XC_BUILD, XC_HOST, and XC_TGT. These make
+variables correspond to autoconf's notion of build, host, and
+target. This [link]
+(https://www.gnu.org/software/autoconf/manual/autoconf-2.69/html_node/Specifying-Target-Triplets.html#Specifying-Target-Triplets)
+explains what each means. You will also need to set appropriate values
+for LD, CC, and CXX to point to the appropriate compilers and linkers
+for the platform are used. For example, to build on x86 for 32 bit
+ARM, the make invocation could look like:
+
+> make AR=<path to ARM ar> LD=<path to ARM ld> CC=<path to ARM gcc> CXX=<path to ARM g++> XC_HOST="x86-unknown-linux" XC_HOST="arm-unknown-linux"
+
+If you see an error like:
+
+>#error "Missing implementation for 32-bit atomic operations"
+
+Then you can either use `-DJE_FORCE_SYNC_COMPARE_AND_SWAP_4` as a CPP flag or use libc for malloc by setting the make variable `MALLOC` to `libc`.
+
 ## Ardb vs Redis(2.8.9) 
  * Unsupported Redis Commands:
   - DUMP 
