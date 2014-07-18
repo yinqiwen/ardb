@@ -66,13 +66,8 @@
 #endif /* gcc & gcc version < 2.9 */
 
 typedef void* vptr_t;
-#if defined(__i386__)
-#ifdef __x86_64__
-ATOMIC_FUNC_XCHG(get_and_set, "xchgq %1, %0", vptr_t)
-#else
-ATOMIC_FUNC_XCHG(get_and_set, "xchgl %1, %0", vptr_t)
-#endif
-#elif defined(HAVE_SYNC_OP)
+
+#if defined(HAVE_SYNC_OP)
 static vptr_t atomic_get_and_set_vptr_t(volatile vptr_t* var, vptr_t v) {
   bool res;
   vptr_t expected;
@@ -83,6 +78,10 @@ static vptr_t atomic_get_and_set_vptr_t(volatile vptr_t* var, vptr_t v) {
   }
   return expected;
 }
+#elif defined  __x86_64__
+ATOMIC_FUNC_XCHG(get_and_set, "xchgq %1, %0", vptr_t)
+#else
+ATOMIC_FUNC_XCHG(get_and_set, "xchgl %1, %0", vptr_t)
 #endif
 
 
