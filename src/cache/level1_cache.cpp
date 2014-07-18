@@ -43,7 +43,7 @@ namespace ardb
     }
 
     L1Cache::L1Cache(Ardb* db) :
-            m_db(db), m_estimate_mem_size(0), m_signal_notifier(NULL)
+            m_db(db), m_estimate_mem_size(0), m_signal_notifier(NULL),m_timer_task_id(-1)
     {
         m_signal_notifier = m_serv.NewSoftSignalChannel();
         m_signal_notifier->Register(kCacheSignal, this);
@@ -69,7 +69,7 @@ namespace ardb
                     c->CheckInstQueue();
                 }
         };
-        m_serv.GetTimer().ScheduleHeapTask(new PeriodTask(this), 100, 100, MILLIS);
+        m_timer_task_id = m_serv.GetTimer().ScheduleHeapTask(new PeriodTask(this), 100, 100, MILLIS);
         m_serv.Start();
     }
 
@@ -389,8 +389,14 @@ namespace ardb
 
     void L1Cache::StopSelf()
     {
+        while(m_timer_task_id == -1)
+        {
+            //wait the thread start
+            usleep(1000);
+        }
         m_serv.Stop();
         m_serv.Wakeup();
+        Join();
     }
 }
 

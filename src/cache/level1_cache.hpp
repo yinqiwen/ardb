@@ -208,6 +208,7 @@ namespace ardb
             typedef LRUCache<DBItemKey, CacheItem*> L1CacheTable;
             L1CacheTable m_cache;
             SpinMutexLock m_cache_mutex;
+            int32 m_timer_task_id;
             typedef LockGuard<SpinMutexLock> CacheLockGuard;
             void LoadZSetCache(const DBItemKey& key, ZSetCache* item);
             void Run();
