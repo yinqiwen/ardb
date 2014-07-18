@@ -36,7 +36,6 @@
 #include <fnmatch.h>
 #include <sstream>
 #include "util/file_helper.hpp"
-#include "channel/zookeeper/zookeeper_client.hpp"
 #include "cron/db_crons.hpp"
 
 namespace ardb
@@ -979,10 +978,10 @@ namespace ardb
             m_slave_client.ConnectMaster(m_cfg.master_host, m_cfg.master_port);
         }
 
-        if (0 != m_ha_agent.Init(this))
-        {
-            goto sexit;
-        }
+//        if (0 != m_ha_agent.Init(this))
+//        {
+//            goto sexit;
+//        }
         //
 
         m_service->RegisterUserEventCallback(ArdbServer::ServerEventCallback, this);
@@ -995,7 +994,7 @@ namespace ardb
 
         m_service->Start();
         sexit: m_master_serv.Stop();
-        m_ha_agent.Close();
+        //m_ha_agent.Close();
         DBCrons::GetSingleton().StopSelf();
         DBCrons::DestroySingleton();
         DELETE(m_service);

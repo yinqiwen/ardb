@@ -37,7 +37,7 @@
 #include "db.hpp"
 #include "replication/slave.hpp"
 #include "replication/master.hpp"
-#include "ha/agent.hpp"
+//#include "ha/agent.hpp"
 #include "lua_scripting.hpp"
 #include "stat.hpp"
 
@@ -507,7 +507,7 @@ namespace ardb
             ArdbDumpFile m_rdb;
             RedisDumpFile m_redis_rdb;
 
-            ZKAgent m_ha_agent;
+            //ZKAgent m_ha_agent;
 
             WatchKeyContextTable m_watch_context_table;
             ThreadMutex m_watch_mutex;

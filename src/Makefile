@@ -90,7 +90,7 @@ LDFLAGS=-g
 LUA_CFLAGS+= -O2 -Wall -DLUA_ANSI $(CCFLAGS)
 LUA_LDFLAGS+= $(LDFLAGS)
 
-INCS=-I./ -I${LIB_PATH}/cpp-btree -I${LUA_PATH}/src -I${SNAPPY_PATH} -I${ZOOKEEPER_PATH}/include -I${ZOOKEEPER_PATH}/generated
+INCS=-I./ -I${LIB_PATH}/cpp-btree -I${LUA_PATH}/src -I${SNAPPY_PATH} 
 
 # Default allocator
 ifeq ($(uname_S),Linux)
@@ -107,7 +107,7 @@ MALLOC_LIBA=${JEMALLOC_LIBA}
 DEP_LIBS+=jemalloc
 endif
 
-LIBS= ${LUA_LIBA} ${ZOOKEEPER_LIBA} ${ZOOKEEPER_LIBHTA} ${MALLOC_LIBA} ${SNAPPY_LIBA} -lpthread
+LIBS= ${LUA_LIBA} ${MALLOC_LIBA} ${SNAPPY_LIBA} -lpthread
 
 %.o : %.cpp
 	${CXX} -c ${CXXFLAGS} ${INCS} $< -o $@
@@ -116,7 +116,7 @@ LIBS= ${LUA_LIBA} ${ZOOKEEPER_LIBA} ${ZOOKEEPER_LIBHTA} ${MALLOC_LIBA} ${SNAPPY_
 	${CC} -c ${CCFLAGS} ${INCS} $< -o $@
 
 
-CHANNEL_CPP_VPATH=channel channel/socket channel/fifo channel/codec channel/timer channel/signal channel/zookeeper
+CHANNEL_CPP_VPATH=channel channel/socket channel/fifo channel/codec channel/timer channel/signal
 CHANNEL_C_VPATH=channel/redis 
 CHANNEL_CPPFILES := $(foreach dir, $(CHANNEL_CPP_VPATH), $(wildcard $(dir)/*.cpp))
 CHANNEL_CFILES := $(foreach dir, $(CHANNEL_C_VPATH), $(wildcard $(dir)/*.c))
@@ -130,7 +130,7 @@ CORE_OBJECTS := db.o data_format.o hash.o kv.o lists.o logger.o sets.o \
                 zsets.o strings.o bits.o sort.o geo.o server.o connection.o\
                 ardb_server.o lua_scripting.o transaction.o slowlog.o hyperloglog.o \
                 replication/rdb.o replication/slave.o replication/repl_backlog.o \
-                replication/master.o ha/agent.o pubsub.o stat.o \
+                replication/master.o pubsub.o stat.o \
                 $(UTIL_OBJECTS) $(CHANNEL_OBJECTS) 
 
 LEVELDB_ENGINE :=  engine/leveldb_engine.o    
@@ -171,11 +171,22 @@ else
 endif
 endif 
 endif
+
+
+LAST_ENGINE=`cat .kv_engine`
+ifeq ($(storage_engine), $(LAST_ENGINE))
+#do nothing
+else
+   $(shell sh -c 'echo $(storage_engine) > .kv_engine')
+   PREBUILD = clean_launch_obj clean_test
+endif
+#
+
+#$(CORE_OBJECTS) $(SERVEROBJ) $(TESTOBJ): | $(ZOOKEEPER_PATH) $(STORAGE_ENGINE_PATH)
+
+all: ${PREBUILD} test server 
+
 $(STORAGE_ENGINE_OBJ): $(STORAGE_ENGINE)
-
-$(CORE_OBJECTS) $(SERVEROBJ) $(TESTOBJ): | $(ZOOKEEPER_PATH) $(STORAGE_ENGINE_PATH)
-
-all: test server 
 
 $(DIST_LIB): $(CORE_OBJECTS)
 	${CXX} -shared -o $@ $^
@@ -183,7 +194,7 @@ $(DIST_LIB): $(CORE_OBJECTS)
 $(DIST_LIBA):$(CORE_OBJECTS)
 	ar rcs $@ $^
 
-lib: $(DEP_LIBS) lua zookeeper snappy $(storage_engine) $(DIST_LIBA)
+lib: $(DEP_LIBS) lua snappy $(storage_engine) $(DIST_LIBA)
 
 server: ${STORAGE_ENGINE_OBJ} lib $(CORE_OBJECTS) ${SERVEROBJ}
 	${CXX} -o ardb-server $(SERVEROBJ)  $(CORE_OBJECTS) ${STORAGE_ENGINE_OBJ} $(LIBS)
@@ -267,7 +278,7 @@ $(LUA_LIBA):
 	cd ${LIB_PATH} && \
 	cd ${LUA_PATH}/src && \
 	$(MAKE) all CFLAGS="$(LUA_CFLAGS)" MYLDFLAGS="$(LUA_LDFLAGS)" && \
-	echo ">>>>> Done building LUA" && \
+	echo ">>>>> Done building LUA"
 
 .PHONY: zookeeper
 zookeeper: $(ZOOKEEPER_LIBA)

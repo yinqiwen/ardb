@@ -352,10 +352,10 @@ void ChannelService::Continue()
 
 void ChannelService::Stop()
 {
+    aeStop(m_eventLoop);
     if (m_running)
     {
         m_running = false;
-        aeStop(m_eventLoop);
         if (!IsInLoopThread())
         {
             Wakeup();
