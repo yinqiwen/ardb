@@ -1,0 +1,4 @@
+lua/src/lua
+lua/src/luac
+rocksdb-*
+zookeeper-*

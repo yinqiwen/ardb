@@ -99,7 +99,6 @@ else
 	MALLOC=libc
 endif
 
-#DEP_LIBS=sparsehash
 
 ifeq ($(MALLOC),libc)
 #do nothing
@@ -147,29 +146,34 @@ storage_engine?=leveldb
 
 ifeq ($(storage_engine), leveldb)
   STORAGE_ENGINE_OBJ=${LEVELDB_ENGINE}
-  STORAGE_ENGINE=leveldb ${STORAGE_ENGINE_OBJ}
+  STORAGE_ENGINE=$(LEVELDB_LIBA)
+  STORAGE_ENGINE_PATH=$(LEVELDB_PATH)
   INCS+=-I${LEVELDB_PATH}/include
   LIBS:=${LEVELDB_LIBA} ${SNAPPY_LIBA} ${LIBS}
 else
 ifeq ($(storage_engine), lmdb)
   STORAGE_ENGINE_OBJ=${LMDB_ENGINE}
-  STORAGE_ENGINE=lmdb ${STORAGE_ENGINE_OBJ}
+  STORAGE_ENGINE=$(LMDB_LIBA)
+  STORAGE_ENGINE_PATH=$(LMDB_PATH)
   INCS+=-I${LMDB_PATH}
   LIBS:= ${LMDB_LIBA} ${SNAPPY_LIBA} ${LIBS}
   CXXFLAGS+=-D__USE_LMDB__
 else
 ifeq ($(storage_engine), rocksdb)
   STORAGE_ENGINE_OBJ=${ROCKSDB_ENGINE}
-  STORAGE_ENGINE=rocksdb ${STORAGE_ENGINE_OBJ}
+  STORAGE_ENGINE=$(ROCKSDB_LIBA)
+  STORAGE_ENGINE_PATH=$(ROCKSDB_PATH)
   INCS+=-I${ROCKSDB_PATH}/include
   LIBS:= ${ROCKSDB_LIBA} ${SNAPPY_LIBA} ${LIBS} -lz -lbz2
   CXXFLAGS+=-D__USE_ROCKSDB__ -std=c++11
 else
-  $(error Only leveldb/kyotocabinet/lmdb/rocksdb supported as env storage_engine's value)
+  $(error Only leveldb/lmdb/rocksdb supported as env storage_engine value)
 endif
 endif 
 endif
+$(STORAGE_ENGINE_OBJ): $(STORAGE_ENGINE)
 
+$(CORE_OBJECTS) $(SERVEROBJ) $(TESTOBJ): | $(ZOOKEEPER_PATH) $(STORAGE_ENGINE_PATH)
 
 all: test server 
 
@@ -179,88 +183,128 @@ $(DIST_LIB): $(CORE_OBJECTS)
 $(DIST_LIBA):$(CORE_OBJECTS)
 	ar rcs $@ $^
 
-lib:$(DEP_LIBS) lua zookeeper snappy $(DIST_LIBA)
+lib: $(DEP_LIBS) lua zookeeper snappy $(storage_engine) $(DIST_LIBA)
 
-server:${STORAGE_ENGINE} lib clean_launch_obj $(CORE_OBJECTS) ${SERVEROBJ}
+server: ${STORAGE_ENGINE_OBJ} lib $(CORE_OBJECTS) ${SERVEROBJ}
 	${CXX} -o ardb-server $(SERVEROBJ)  $(CORE_OBJECTS) ${STORAGE_ENGINE_OBJ} $(LIBS)
 
-test:clean_test ${STORAGE_ENGINE} lib ${TESTOBJ} $(CORE_OBJECTS)
+test: ${STORAGE_ENGINE_OBJ} lib ${TESTOBJ} $(CORE_OBJECTS)
 	${CXX} -o ardb-test ${STORAGE_ENGINE_OBJ} ${TESTOBJ} $(CORE_OBJECTS) $(LIBS) 
-    
-jemalloc:
-	@if test -f ${JEMALLOC_LIBA}; then\
-      :; \
-    else \
-      cd ${LIB_PATH};tar jxvf ${JEMALLOC_FILE};cd ${JEMALLOC_PATH};\
-      patch < ../../jemalloc.patch;\
-      autoconf configure.ac > configure;\
-      ./configure ${XC_BUILD} ${XC_HOST} ${XC_TGT};make build_lib_static;\
-    fi
 
-    
-snappy:
-	@if test -f ${SNAPPY_LIBA}; then\
-      :; \
-    else \
-      cd ${LIB_PATH};tar zxvf ${SNAPPY_FILE};cd ${SNAPPY_PATH};\
-      ./configure ${XC_BUILD} ${XC_HOST} ${XC_TGT};make libsnappy.la;\
-    fi
+.PHONY: jemalloc
+jemalloc: $(JEMALLOC_LIBA)
+$(JEMALLOC_LIBA):
+	echo ">>>>> Building JEMALLOC" && \
+	cd ${LIB_PATH} && \
+	tar jxf ${JEMALLOC_FILE} && \
+	cd ${JEMALLOC_PATH} && \
+	patch < ../../jemalloc.patch && \
+	autoconf configure.ac > configure 2> autoconf.out && \
+	./configure ${XC_BUILD} ${XC_HOST} ${XC_TGT} > configure.out && \
+	$(MAKE) build_lib_static && \
+	echo "<<<<< Done building JEMALLOC"
 
-lmdb:
-	@if test -f ${LMDB_LIBA}; then\
-      :; \
-    else \
-      cd ${LIB_PATH};tar zxvf ${LMDB_FILE};cd ${LMDB_PATH};\
-      make;\
-    fi
+.PHONY: snappy
+snappy: $(SNAPPY_LIBA)
+$(SNAPPY_LIBA):
+	echo ">>>>> Building SNAPPY" && \
+	cd ${LIB_PATH} && \
+	tar zxf ${SNAPPY_FILE} && \
+	cd ${SNAPPY_PATH} && \
+	./configure ${XC_BUILD} ${XC_HOST} ${XC_TGT} > configure.out && \
+	$(MAKE) libsnappy.la && \
+	echo "<<<<< Done building SNAPPY"
 
-leveldb:snappy
-	@if test -f ${LEVELDB_LIBA}; then\
-      :; \
-    else \
-      cd ${LIB_PATH};tar zxvf ${LEVELDB_FILE};cd ${LEVELDB_PATH};\
-      CXXFLAGS="-I${SNAPPY_PATH} -fno-access-control" CFLAGS="-I${SNAPPY_PATH}" LDFLAGS="${SNAPPY_PATH}/.libs" make libleveldb.a;\
-    fi
-    
-rocksdb:snappy
-	@if test -f ${ROCKSDB_LIBA}; then\
-      :; \
-    else \
-      cd ${LIB_PATH};tar zxvf ${ROCKSDB_FILE};cd ${ROCKSDB_PATH};\
-      CXXFLAGS="-I${SNAPPY_PATH}" CFLAGS="-I${SNAPPY_PATH}" LDFLAGS="${SNAPPY_PATH}/.libs" make librocksdb.a;\
-    fi
+.PHONY: lmdb
+lmdb: $(LMDB_LIBA)
+$(LMDB_LIBA): $(LMDB_PATH)
+	echo ">>>>> Building LMDB" && \
+	cd ${LMDB_PATH} && \
+	$(MAKE) && \
+	echo "<<<<< Done building LMDB"
 
-lua:
-	@if test -f ${LUA_LIBA}; then\
-      :; \
-    else \
-      cd ${LIB_PATH};cd ${LUA_PATH}/src; make all CFLAGS="$(LUA_CFLAGS)" MYLDFLAGS="$(LUA_LDFLAGS)";\
-    fi
+$(LMDB_PATH):
+	echo ">>>>> Unpacking LMDB" && \
+	cd ${LIB_PATH} && \
+	tar zxf ${LMDB_FILE} && \
+	echo "<<<<< Done unpacking LMDB"
 
-zookeeper:
-	@if test -f ${ZOOKEEPER_LIBA}; then\
-      :; \
-    else \
-      cd ${LIB_PATH};tar zxvf ${ZOOKEEPER_FILE};cd ${ZOOKEEPER_PATH}/src; \
-      patch < ../../../zookeeper.mt_adaptor.patch;\
-      cd ${ZOOKEEPER_PATH};\
-      patch < ../../zookeeper.configure.ac.patch;\
-      autoconf configure.ac > configure;\
-      ./configure ${XC_BUILD} ${XC_HOST} ${XC_TGT} ;make;\
-    fi
+.PHONY: leveldb
+leveldb: $(LEVELDB_LIBA)
+$(LEVELDB_LIBA): $(SNAPPY_LIBA) $(LEVELDB_PATH)
+	echo ">>>>> Building LEVELDB" && \
+	cd ${LEVELDB_PATH} && \
+	CXXFLAGS="-I${SNAPPY_PATH} -fno-access-control" \
+		CFLAGS="-I${SNAPPY_PATH}" \
+		LDFLAGS="${SNAPPY_PATH}/.libs" \
+		$(MAKE) libleveldb.a && \
+	echo "<<<<< Done building LEVELDB"
+
+$(LEVELDB_PATH):
+	echo ">>>>> Unpacking LEVELDB" && \
+	cd ${LIB_PATH} && \
+	tar zxf ${LEVELDB_FILE} && \
+	echo "<<<<< Done unpacking LEVELDB"
+
+.PHONY: rocksdb
+rocksdb: $(ROCKSDB_LIBA)
+$(ROCKSDB_LIBA): $(SNAPPY_LIBA) $(ROCKSDB_PATH)
+	echo ">>>>> Building ROCKSDB" && \
+	cd ${ROCKSDB_PATH} && \
+	CXXFLAGS="-I${SNAPPY_PATH}" CFLAGS="-I${SNAPPY_PATH}" LDFLAGS="${SNAPPY_PATH}/.libs" $(MAKE) librocksdb.a && \
+	echo "<<<<< Done building ROCKSDB"
+
+$(ROCKSDB_PATH):
+	echo ">>>>> Unpacking LEVELDB" && \
+	cd ${LIB_PATH} && \
+	tar zxf ${ROCKSDB_FILE} && \
+	echo "<<<<< Done unpacking LEVELDB"
+
+.PHONY: lua
+lua: $(LUA_LIBA)
+$(LUA_LIBA):
+	echo ">>>>> Building LUA" && \
+	cd ${LIB_PATH} && \
+	cd ${LUA_PATH}/src && \
+	$(MAKE) all CFLAGS="$(LUA_CFLAGS)" MYLDFLAGS="$(LUA_LDFLAGS)" && \
+	echo ">>>>> Done building LUA" && \
+
+.PHONY: zookeeper
+zookeeper: $(ZOOKEEPER_LIBA)
+$(ZOOKEEPER_LIBA): $(ZOOKEEPER_PATH)
+	echo ">>>>> Building ZOOKEEPER" && \
+	cd $(ZOOKEEPER_PATH) && \
+	./configure ${XC_BUILD} ${XC_HOST} ${XC_TGT} > configure.out && \
+	$(MAKE)
+
+$(ZOOKEEPER_PATH):
+	echo ">>>>> Unpacking ZOOKEEPER" && \
+	cd ${LIB_PATH} && \
+	tar zxf ${ZOOKEEPER_FILE} && \
+	cd ${ZOOKEEPER_PATH}/src && \
+	patch < ../../../zookeeper.mt_adaptor.patch && \
+	cd ${ZOOKEEPER_PATH} && \
+	patch < ../../zookeeper.configure.ac.patch && \
+	autoconf configure.ac > configure 2> autoconf.out && \
+	echo "<<<<<< Done unpacking ZOOKEEPER"
 
 clean_launch_obj:
 	rm -f main.o
 
 clean_test:
 	rm -f ${TESTOBJ};rm -f ardb-test
-	
+
+clean_deps:
+	rm -rf $(LMDB_PATH) $(JEMALLOC_PATH) $(SNAPPY_PATH) $(LEVELDB_PATH) \
+		$(ROCKSDB_PATH) $(ZOOKEEPER_PATH)
+	$(MAKE) -C $(LUA_PATH) clean
+
 noopt:
 	$(MAKE) OPT="-O0"
-	
+
 valgrind:
 	$(MAKE) OPT="-O0" MALLOC="libc"
-	
+
 dist:clean all
 	rm -rf ardb-${ARDB_VERSION};mkdir -p ardb-${ARDB_VERSION}/bin ardb-${ARDB_VERSION}/conf ardb-${ARDB_VERSION}/logs ardb-${ARDB_VERSION}/data ardb-${ARDB_VERSION}/repl ardb-${ARDB_VERSION}/backup; \
 	cp ardb-server ardb-${ARDB_VERSION}/bin; cp ardb-test ardb-${ARDB_VERSION}/bin; cp ../ardb.conf ardb-${ARDB_VERSION}/conf; \
@@ -271,3 +315,5 @@ clean:
 	      $(SERVEROBJ) $(DIST_LIBA) $(DIST_LIB)   \
 	      $(LEVELDB_ENGINE) $(KCDB_ENGINE) $(LMDB_ENGINE) $(TESTOBJ)\
 	      ardb-test  ardb-server
+
+clobber: clean_deps clean
