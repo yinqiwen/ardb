@@ -312,6 +312,7 @@ OP_NAMESPACE_BEGIN
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
         if (0 != err || meta.meta.Length() == 0)
         {
+            ctx.reply.type = REDIS_REPLY_NIL;
             return 0;
         }
         KeyLockerGuard keylock(m_key_lock, ctx.currentDB, cmd.GetArguments()[0]);
@@ -336,9 +337,8 @@ OP_NAMESPACE_BEGIN
                 if (count == 0)
                 {
                     Data* element = iter.Element();
-                    RedisReply r;
                     std::string tmp;
-                    fill_str_reply(r, element->GetDecodeString(tmp));
+                    fill_str_reply(ctx.reply, element->GetDecodeString(tmp));
                     KeyObject k;
                     k.type = SET_ELEMENT;
                     k.key = meta.key.key;
@@ -367,6 +367,10 @@ OP_NAMESPACE_BEGIN
             {
                 SetKeyValue(ctx, meta);
             }
+        }
+        if(ctx.reply.type != REDIS_REPLY_STRING)
+        {
+            ctx.reply.type = REDIS_REPLY_NIL;
         }
         return 0;
     }
