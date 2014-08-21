@@ -1,5 +1,5 @@
 # Ardb
-Ardb is a BSD licensed, redis-protocol compatible persistent storage server, it support different storage engines. Currently LevelDB/LMDB/RocksDB are supported, but only LevelDB engine is well tested.
+Ardb is a BSD licensed, redis-protocol compatible persistent storage server, it support different storage engines. Currently LevelDB/LMDB/RocksDB are supported, the default engine is leveldb.
 
 
 ## Compile
@@ -18,7 +18,7 @@ It should compile to several executables in 'src' directory, such as ardb-server
 - 2d spatial index supported. [Spatial Index](https://github.com/yinqiwen/ardb/blob/develop/doc/spatial-index.md)
 - Most redis commands supported, and a few new commands
   * [Ardb commands VS Redis Commands](https://github.com/yinqiwen/ardb/wiki/ARDB-Commands)
-- Different storage engine supported (LevelDB/KyotoCabinet/LMDB/RocksDB)
+- Different storage engine supported (LevelDB/LMDB/RocksDB)
 - Replication compatible with Redis 2.6/2.8
   * Ardb instance work as slave of Redis 2.6/2.8+ instance
   * Ardb instance work as master of Redis 2.6/2.8+ instance
@@ -57,21 +57,20 @@ LMDB Option: thread_pool_size=2, database_max_size=10G, readahead=no
     GET	                    69045.99	93805.12	68078.16	82459.95
     INCR	                47572.16	59805.03	34883.32	74940.61
     LPUSH	                47369.57	27713.11	40584.42	105466.32
-    LPOP	                14205.29	14711.51	10088.27	105797.72
+    LPOP	                31787.41	14711.51	10088.27	105797.72
     SADD	                37583.39	41779.82	24421.81	100405.64
-    SPOP	                 109.326	17614.32	  87.634	75253.04
+    SPOP	                 8538.13	17614.32	7955.45  	75253.04
     LPUSH(for LRANGE)	    49504.95	16998.71	40719.93	87989.45
-    LRANGE_100 	             7981.99	17639.79	7445.68  	45831.61
-    LRANGE_300               3829.91	6578.86	    3113.99	    17608.11
-    LRANGE_500 	             2504.61	4552.06  	2156.08     12345.07
-    LRANGE_600 	             1734.72	3082.94	    1650.46	     7906.01
+    LRANGE_100 	            11090.16	17639.79	10302.91  	45831.61
+    LRANGE_300               4453.15  	6578.86	    4127.29	    17608.11
+    LRANGE_500 	             3503.85	4552.06  	2185.72     12345.07
+    LRANGE_600 	             2680.82	3082.94	    1650.46      7906.01
     MSET (10 keys)	         9675.48	7204.56	    5255.44	     35967.6
 
 
 * Note: 
   - **Ardb uses 2 threads in benchmark test, while redis is single threaded application. That's the reason ardb is faster than redis in some test cases.**
-  - **LevelDB & LMDB both use tree like structure on disk, more data is stored, the server is slower.**
-  - **'SPOP' is very slow with LevelDB engine**
+  - **LevelDB & LMDB & RocksDB all use tree like structure on disk, more data is stored, the server is slower for query operations in theory.**
          
 
 ## Cross compilation
