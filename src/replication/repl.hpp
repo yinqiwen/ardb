@@ -25,9 +25,5 @@
 #define REDIS_DB_CLIENT_TYPE 1
 #define ARDB_DB_CLIENT_TYPE 2
 
-namespace ardb
-{
-
-}
 
 #endif /* REPL_HPP_ */

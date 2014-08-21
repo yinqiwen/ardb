@@ -5,12 +5,12 @@
  *      Author: yinqiwen@gmail.com
  */
 #include "backup.hpp"
-#include "ardb_server.hpp"
+#include "ardb.hpp"
 
 namespace ardb
 {
 
-	Backup::Backup(ArdbServer* server) :
+	Backup::Backup(Ardb* server) :
 			m_is_saving(false), m_server(server), m_last_save(0)
 	{
 
@@ -21,7 +21,7 @@ namespace ardb
 		{
 			return 1;
 		}
-		if (m_server->m_cfg.backup_dir.empty())
+		if (m_server->GetConfig().backup_dir.empty())
 		{
 			ERROR_LOG("Empty bakup dir for backup.");
 			return -1;
@@ -29,24 +29,24 @@ namespace ardb
 		//m_server->m_db->CloseAll();
 		m_is_saving = true;
 		int ret = 0;
-		char cmd[m_server->m_cfg.data_base_path.size() + 256];
-		make_dir(m_server->m_cfg.backup_dir);
+		char cmd[m_server->GetConfig().data_base_path.size() + 256];
+		make_dir(m_server->GetConfig().backup_dir);
 
-		char dest[m_server->m_cfg.backup_dir.size() + 256];
-		char shasumfile[m_server->m_cfg.backup_dir.size() + 256];
+		char dest[m_server->GetConfig().backup_dir.size() + 256];
+		char shasumfile[m_server->GetConfig().backup_dir.size() + 256];
 		uint32 now = time(NULL);
-		sprintf(dest, "%s/dbsave-%u.tar", m_server->m_cfg.backup_dir.c_str(), now);
-		sprintf(shasumfile, "%s/dbsave-%u.sha", m_server->m_cfg.backup_dir.c_str(), now);
-		std::string source = m_server->m_cfg.data_base_path;
-		if (0 == chdir(m_server->m_cfg.data_base_path.c_str()))
+		sprintf(dest, "%s/dbsave-%u.tar", m_server->GetConfig().backup_dir.c_str(), now);
+		sprintf(shasumfile, "%s/dbsave-%u.sha", m_server->GetConfig().backup_dir.c_str(), now);
+		std::string source = m_server->GetConfig().data_base_path;
+		if (0 == chdir(m_server->GetConfig().data_base_path.c_str()))
 		{
 			source = "*";
 		}
 		sprintf(cmd, "tar cf %s %s;", dest, source.c_str());
 		ret = system(cmd);
-		if (0 != chdir(m_server->m_cfg.home.c_str()))
+		if (0 != chdir(m_server->GetConfig().home.c_str()))
 		{
-			WARN_LOG("Failed to change dir to home:%s", m_server->m_cfg.home.c_str());
+			WARN_LOG("Failed to change dir to home:%s", m_server->GetConfig().home.c_str());
 		}
 		if (-1 == ret)
 		{

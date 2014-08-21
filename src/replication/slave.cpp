@@ -28,19 +28,19 @@
  */
 
 #include "slave.hpp"
-#include "ardb_server.hpp"
 #include <sstream>
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include "ardb.hpp"
 
 #define ARDB_SLAVE_SYNC_STATE_MMAP_FILE_SIZE 512
 
 namespace ardb
 {
-    Slave::Slave(ArdbServer* serv) :
+    Slave::Slave(Ardb* serv) :
             m_serv(serv), m_client(NULL), m_slave_state(
             SLAVE_STATE_CLOSED), m_cron_inited(false), m_ping_recved_time(0), m_master_link_down_time(0), m_server_type(
             ARDB_DB_SERVER_TYPE), m_server_support_psync(false), m_actx(
@@ -54,11 +54,11 @@ namespace ardb
         return 0;
     }
 
-    ArdbConnContext* Slave::GetArdbConnContext()
+    Context* Slave::GetArdbConnContext()
     {
         if (NULL == m_actx)
         {
-            NEW(m_actx, ArdbConnContext);
+            NEW(m_actx, Context);
             if (m_backlog.GetCurrentDBID() != ARDB_GLOBAL_DB)
             {
                 m_actx->currentDB = m_backlog.GetCurrentDBID();
@@ -75,7 +75,7 @@ namespace ardb
         uint32 now = time(NULL);
         sprintf(tmp, "%s/temp-%u-%u.rdb", dump_file_path.c_str(), getpid(), now);
         NEW(m_rdb, RedisDumpFile);
-        m_rdb->Init(m_serv->m_db);
+        m_rdb->Init(m_serv);
         m_rdb->OpenWriteFile(tmp);
         INFO_LOG("[Slave]Create redis dump file:%s", tmp);
         return m_rdb;
@@ -113,12 +113,12 @@ namespace ardb
                 string_touint64(cmd.GetArguments()[0], offset);
                 string_touint64(cmd.GetArguments()[1], cksm);
                 m_backlog.SetChecksum(cksm);
-                ASSERT((int64)offset == m_cached_master_repl_offset);
+                ASSERT((int64 )offset == m_cached_master_repl_offset);
                 //m_backlog.SetReplOffset(offset);
                 //m_slave_state = SLAVE_STATE_SYNCED;
                 SwitchSyncedState();
                 //Disconnect all slaves when all data resynced
-                m_serv->m_master_serv.DisconnectAllSlaves();
+                m_serv->m_master.DisconnectAllSlaves();
                 return;
             }
         }
@@ -135,8 +135,8 @@ namespace ardb
         }
         GetArdbConnContext();
         m_actx->is_slave_conn = true;
-        m_actx->conn = ch;
-        m_actx->server_address = SLAVE_SERVER_ADDRESS_NAME;
+        m_actx->client = NULL;
+        m_actx->server_address = MASTER_SERVER_ADDRESS_NAME;
         if (strcasecmp(cmd.GetCommand().c_str(), "SELECT") && strcasecmp(cmd.GetCommand().c_str(), "__SET__")
                 && strcasecmp(cmd.GetCommand().c_str(), "__DEL__"))
         {
@@ -149,7 +149,7 @@ namespace ardb
                 flag |= ARDB_PROCESS_FEED_REPLICATION_ONLY;
             }
         }
-        m_serv->ProcessRedisCommand(*m_actx, cmd, flag);
+        m_serv->Call(*m_actx, cmd, flag);
     }
     void Slave::Routine()
     {
@@ -160,7 +160,7 @@ namespace ardb
             {
                 if (m_slave_state == SLAVE_STATE_SYNCED)
                 {
-                    DEBUG_LOG("now = %u, ping_recved_time=%u", now, m_ping_recved_time);
+                    WARN_LOG("now = %u, ping_recved_time=%u", now, m_ping_recved_time);
                     Timeout();
                     return;
                 }
@@ -224,7 +224,7 @@ namespace ardb
                 }
                 Buffer replconf;
                 //std::vector<std::string> ss = split_string(m_serv->GetServerConfig().listen_addresses[0], ":");
-                replconf.Printf("replconf listening-port %u\r\n", m_serv->PrimaryPort());
+                replconf.Printf("replconf listening-port %u\r\n", m_serv->GetConfig().PrimayPort());
                 ch->Write(replconf);
                 m_slave_state = SLAVE_STATE_WAITING_REPLCONF_REPLY;
                 break;
@@ -298,7 +298,8 @@ namespace ardb
                      */
                     if (m_serv->m_cfg.slave_cleardb_before_fullresync)
                     {
-                        m_serv->m_db->FlushAll();
+                        Context tmp;
+                        m_serv->FlushAllData(tmp);
                     }
                     m_cached_master_runid = ss[1];
                     m_cached_master_repl_offset = offset;
@@ -353,11 +354,13 @@ namespace ardb
         if (chunk.IsLastChunk())
         {
             m_rdb->Flush();
+            m_rdb->RenameToDefault();
             m_decoder.SwitchToCommandDecoder();
             m_slave_state = SLAVE_STATE_LOADING_DUMP_DATA;
             if (m_serv->m_cfg.slave_cleardb_before_fullresync && !m_server_support_psync)
             {
-                m_serv->m_db->FlushAll();
+                Context tmp;
+                m_serv->FlushAllData(tmp);
             }
             INFO_LOG("Start loading RDB dump file.");
             if (NULL != m_client)
@@ -371,20 +374,19 @@ namespace ardb
             }
             SwitchSyncedState();
 
-            m_rdb->Remove();
             DELETE(m_rdb);
 
             //Disconnect all slaves when all data resynced
-            m_serv->m_master_serv.DisconnectAllSlaves();
+            m_serv->m_master.DisconnectAllSlaves();
         }
     }
 
     void Slave::SwitchSyncedState()
     {
+        m_ping_recved_time = time(NULL);
         m_slave_state = SLAVE_STATE_SYNCED;
         m_backlog.SetServerkey(m_cached_master_runid);
         m_backlog.SetReplOffset(m_cached_master_repl_offset);
-
     }
 
     void Slave::MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisMessage>& e)
@@ -466,7 +468,7 @@ namespace ardb
         }
         m_master_addr = addr;
         Close();
-        m_client = m_serv->m_service->NewClientSocketChannel();
+        m_client = m_serv->GetChannelService().NewClientSocketChannel();
 
         m_decoder.Clear();
         m_client->GetPipeline().AddLast("decoder", &m_decoder);

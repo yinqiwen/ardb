@@ -28,7 +28,8 @@
  */
 
 #include "leveldb_engine.hpp"
-#include "data_format.hpp"
+#include "codec.hpp"
+#include "util/file_helper.hpp"
 #include "leveldb/env.h"
 #include <string.h>
 
@@ -53,7 +54,7 @@ namespace ardb
 
     int LevelDBComparator::Compare(const leveldb::Slice& a, const leveldb::Slice& b) const
     {
-        return ardb_compare_keys(a.data(), a.size(), b.data(), b.size());
+        return CommonComparator::Compare(a.data(), a.size(), b.data(), b.size());
     }
 
     void LevelDBComparator::FindShortestSeparator(std::string* start, const leveldb::Slice& limit) const
@@ -83,6 +84,7 @@ namespace ardb
         conf_get_int64(props, "leveldb.bloom_bits", cfg.bloom_bits);
         conf_get_int64(props, "leveldb.batch_commit_watermark", cfg.batch_commit_watermark);
         conf_get_string(props, "leveldb.compression", cfg.compression);
+        conf_get_bool(props, "leveldb.logenable", cfg.logenable);
     }
 
     KeyValueEngine* LevelDBEngineFactory::CreateDB(const std::string& name)
@@ -192,7 +194,10 @@ namespace ardb
         {
             m_options.compression = leveldb::kSnappyCompression;
         }
-        m_options.info_log = new LevelDBLogger;
+        if(cfg.logenable)
+        {
+            m_options.info_log = new LevelDBLogger;
+        }
         make_dir(cfg.path);
         m_db_path = cfg.path;
         leveldb::Status status = leveldb::DB::Open(m_options, cfg.path.c_str(), &m_db);
@@ -272,7 +277,7 @@ namespace ardb
         count++;
     }
 
-    int LevelDBEngine::Put(const Slice& key, const Slice& value)
+    int LevelDBEngine::Put(const Slice& key, const Slice& value, const Options& options)
     {
         leveldb::Status s = leveldb::Status::OK();
         ContextHolder& holder = m_context.GetValue();
@@ -296,16 +301,16 @@ namespace ardb
         }
         return ret;
     }
-    int LevelDBEngine::Get(const Slice& key, std::string* value, bool fill_cache)
+    int LevelDBEngine::Get(const Slice& key, std::string* value, const Options& options)
     {
-        leveldb::ReadOptions options;
-        options.fill_cache = fill_cache;
+        leveldb::ReadOptions read_options;
+        read_options.fill_cache = options.read_fill_cache;
         ContextHolder& holder = m_context.GetValue();
-        options.snapshot = holder.snapshot;
-        leveldb::Status s = m_db->Get(options, LEVELDB_SLICE(key), value);
+        read_options.snapshot = holder.snapshot;
+        leveldb::Status s = m_db->Get(read_options, LEVELDB_SLICE(key), value);
         return s.ok() ? 0 : -1;
     }
-    int LevelDBEngine::Del(const Slice& key)
+    int LevelDBEngine::Del(const Slice& key, const Options& options)
     {
         leveldb::Status s = leveldb::Status::OK();
         ContextHolder& holder = m_context.GetValue();
@@ -324,18 +329,18 @@ namespace ardb
         return s.ok() ? 0 : -1;
     }
 
-    Iterator* LevelDBEngine::Find(const Slice& findkey, bool cache)
+    Iterator* LevelDBEngine::Find(const Slice& findkey, const Options& options)
     {
-        leveldb::ReadOptions options;
-        options.fill_cache = cache;
+        leveldb::ReadOptions read_options;
+        read_options.fill_cache = options.seek_fill_cache;
         ContextHolder& holder = m_context.GetValue();
         if (NULL == holder.snapshot)
         {
             holder.snapshot = m_db->GetSnapshot();
         }
         holder.snapshot_ref++;
-        options.snapshot = holder.snapshot;
-        leveldb::Iterator* iter = m_db->NewIterator(options);
+        read_options.snapshot = holder.snapshot;
+        leveldb::Iterator* iter = m_db->NewIterator(read_options);
         iter->Seek(LEVELDB_SLICE(findkey));
         return new LevelDBIterator(this, iter);
     }

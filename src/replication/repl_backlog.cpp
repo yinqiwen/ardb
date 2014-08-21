@@ -4,7 +4,7 @@
  *  Created on: 2013-08-29      Author: wqy
  */
 #include "repl_backlog.hpp"
-#include "ardb_server.hpp"
+#include "ardb.hpp"
 #include "redis/crc64.h"
 #include <unistd.h>
 #include <sys/mman.h>
@@ -99,10 +99,10 @@ namespace ardb
         m_sync_state_change = false;
     }
 
-    int ReplBacklog::Init(ArdbServer* server)
+    int ReplBacklog::Init(Ardb* server)
     {
         m_inited = false;
-        ArdbServerConfig& cfg = server->m_cfg;
+        ArdbConfig& cfg = server->GetConfig();
         uint64 backlog_size = cfg.repl_backlog_size;
         if (cfg.repl_backlog_size == 0)
         {

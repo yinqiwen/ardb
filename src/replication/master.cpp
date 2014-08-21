@@ -6,7 +6,7 @@
  */
 #include "master.hpp"
 #include "rdb.hpp"
-#include "ardb_server.hpp"
+#include "ardb.hpp"
 #include <fcntl.h>
 #include <sys/stat.h>
 
@@ -20,22 +20,35 @@
 
 namespace ardb
 {
+    struct RedisReplCommand
+    {
+            RedisCommandFrame cmd;
+            DBID dbid;
+            RedisReplCommand() :
+                    dbid(0)
+            {
+            }
+    };
+
+    static Master* g_master = NULL;
+
     /*
      * Master
      */
-    Master::Master(ArdbServer* server) :
-            m_server(server), m_notify_channel(NULL), m_backlog(server->m_repl_backlog), m_dumping_db(false), m_dumpdb_offset(
-                    -1),m_repl_no_slaves_since(0),m_backlog_enable(true), m_thread(NULL), m_thread_running(false)
+    Master::Master() :
+            m_dumping_db(false), m_dumpdb_offset(-1), m_repl_no_slaves_since(0), m_backlog_enable(true)
     {
+        g_master = this;
     }
 
     int Master::Init()
     {
-        m_notify_channel = m_channel_service.NewSoftSignalChannel();
-        ChannelOptions options;
-        options.max_write_buffer_size = 0; //disable write buffer for thread-safe reason
-        m_notify_channel->Configure(options);
-        m_notify_channel->Register(SOFT_SIGNAL_REPL_INSTRUCTION, this);
+        Start();
+        return 0;
+    }
+
+    void Master::Run()
+    {
         struct HeartbeatTask: public Runnable
         {
                 Master* serv;
@@ -49,47 +62,37 @@ namespace ardb
                 }
         };
 
-        m_channel_service.GetTimer().ScheduleHeapTask(new HeartbeatTask(this), m_server->m_cfg.repl_ping_slave_period,
-                m_server->m_cfg.repl_ping_slave_period, SECONDS);
-
-        m_thread = new Thread(this);
-        m_thread_running = true;
-        m_thread->Start();
-        return 0;
-    }
-
-    void Master::Run()
-    {
+        m_channel_service.GetTimer().ScheduleHeapTask(new HeartbeatTask(this), g_db->GetConfig().repl_ping_slave_period,
+                g_db->GetConfig().repl_ping_slave_period, SECONDS);
         m_channel_service.Start();
-        m_thread_running = false;
     }
 
     void Master::OnHeartbeat()
     {
         //Just process instructions  since the soft signal may loss
-        OnInstructions();
-        if (!m_server->m_cfg.master_host.empty())
+        if (!g_db->GetConfig().master_host.empty())
         {
             //let master feed 'ping' command
             return;
         }
-        if(m_slave_table.empty())
+        if (m_slave_table.empty())
         {
-            if(0 == m_repl_no_slaves_since)
+            if (0 == m_repl_no_slaves_since)
             {
                 m_repl_no_slaves_since = time(NULL);
             }
-            else if(m_backlog_enable)
+            else if (m_backlog_enable)
             {
-                if(m_server->m_cfg.repl_backlog_time_limit > 0)
+                if (g_db->GetConfig().repl_backlog_time_limit > 0)
                 {
                     time_t now = time(NULL);
-                    if(now - m_repl_no_slaves_since >= m_server->m_cfg.repl_backlog_time_limit)
+                    if (now - m_repl_no_slaves_since >= g_db->GetConfig().repl_backlog_time_limit)
                     {
                         m_backlog_enable = false;
                     }
                 }
-            }else
+            }
+            else
             {
                 return;
             }
@@ -100,11 +103,10 @@ namespace ardb
             m_repl_no_slaves_since = 0;
             m_backlog_enable = true;
 
-            RedisReplCommand ping;
-            ping.cmd.SetCommand("ping");
-            ping.cmd.SetType(REDIS_CMD_PING);
-            ping.dbid = 0;
-            WriteSlaves(&ping);
+            RedisCommandFrame ping;
+            ping.SetCommand("ping");
+            ping.SetType(REDIS_CMD_PING);
+            WriteSlaves(0, ping);
             DEBUG_LOG("Ping slaves.");
         }
     }
@@ -114,7 +116,7 @@ namespace ardb
         DEBUG_LOG("[Master]Write command:%s to slave.", cmd.ToString().c_str());
         Buffer buffer(256);
         RedisCommandEncoder::Encode(buffer, cmd);
-        m_backlog.Feed(buffer);
+        g_db->m_repl_backlog.Feed(buffer);
         SlaveConnTable::iterator it = m_slave_table.begin();
         for (; it != m_slave_table.end(); it++)
         {
@@ -126,15 +128,15 @@ namespace ardb
         }
     }
 
-    void Master::WriteSlaves(const RedisReplCommand* cmd)
+    void Master::WriteSlaves(DBID db, const RedisCommandFrame& cmd)
     {
-        switch (cmd->cmd.GetType())
+        switch (cmd.GetType())
         {
             case REDIS_CMD_SELECT:
             {
                 DBID id = 0;
-                string_touint32(cmd->cmd.GetArguments()[0], id);
-                m_backlog.SetCurrentDBID(id);
+                string_touint32(cmd.GetArguments()[0], id);
+                g_db->m_repl_backlog.SetCurrentDBID(id);
                 break;
             }
             case REDIS_CMD_PING:
@@ -143,31 +145,32 @@ namespace ardb
             }
             default:
             {
-                if (m_backlog.GetCurrentDBID() != cmd->dbid)
+                if (g_db->m_repl_backlog.GetCurrentDBID() != db)
                 {
-                    if (!m_server->m_cfg.master_host.empty())
+                    if (!g_db->GetConfig().master_host.empty())
                     {
                         ERROR_LOG(
                                 "Can NOT happen since slave instance can NOT generate select command for cmd:%s to switch DB from %u to %u",
-                                cmd->cmd.GetCommand().c_str(), m_backlog.GetCurrentDBID(), cmd->dbid);
+                                cmd.GetCommand().c_str(), g_db->m_repl_backlog.GetCurrentDBID(), db);
                     }
                     else
                     {
-                        RedisCommandFrame select("select %u", cmd->dbid);
+                        RedisCommandFrame select;
+                        select.SetFullCommand("select %u", db);
                         select.SetType(REDIS_CMD_SELECT);
-                        m_backlog.SetCurrentDBID(cmd->dbid);
+                        g_db->m_repl_backlog.SetCurrentDBID(db);
                         WriteCmdToSlaves(select);
                     }
                 }
                 break;
             }
         }
-        WriteCmdToSlaves(cmd->cmd);
+        WriteCmdToSlaves(cmd);
     }
 
     static void slave_pipeline_init(ChannelPipeline* pipeline, void* data)
     {
-        Master* master = (Master*) data;
+        Master* master = g_master;
         pipeline->AddLast("decoder", new RedisCommandDecoder);
         pipeline->AddLast("encoder", new RedisCommandEncoder);
         pipeline->AddLast("handler", master);
@@ -181,63 +184,14 @@ namespace ardb
         DELETE(handler);
     }
 
-    void Master::OnInstructions()
-    {
-        ReplicationInstruction instruction;
-        while (m_inst_queue.Pop(instruction))
-        {
-            switch (instruction.type)
-            {
-                case REPL_INSTRUCTION_ADD_SLAVE:
-                {
-                    SlaveConnection* conn = (SlaveConnection*) instruction.ptr;
-                    m_channel_service.AttachChannel(conn->conn, true);
-                    conn->state = SLAVE_STATE_CONNECTED;
-                    m_slave_table[conn->conn->GetID()] = conn;
-                    conn->conn->ClearPipeline();
-                    {
-                        LockGuard<ThreadMutex> guard(m_port_table_mutex);
-                        conn->port = m_slave_port_table[conn->conn->GetID()];
-                    }
-
-                    ChannelOptions options;
-                    options.auto_disable_writing = false;
-                    conn->conn->Configure(options);
-                    conn->conn->SetChannelPipelineInitializor(slave_pipeline_init, this);
-                    conn->conn->SetChannelPipelineFinalizer(slave_pipeline_finallize, NULL);
-                    SyncSlave(*conn);
-                    break;
-                }
-                case REPL_INSTRUCTION_FEED_CMD:
-                {
-                    RedisReplCommand* cmd = (RedisReplCommand*) instruction.ptr;
-                    //m_backlog.Feed(cmd->second, cmd->first);
-                    WriteSlaves(cmd);
-                    DELETE(cmd);
-                    break;
-                }
-                case REPL_INSTRUCTION_DELETE_SLAVES:
-                {
-                    SlaveConnTable tmp = m_slave_table;
-                    SlaveConnTable::iterator it = tmp.begin();
-                    while (it != tmp.end())
-                    {
-                        it->second->conn->Close();
-                        it++;
-                    }
-                    break;
-                }
-                default:
-                {
-                    break;
-                }
-            }
-        }
-    }
     static void DumpRDBRoutine(void* cb)
     {
-        ChannelService* serv = (ChannelService*) cb;
-        serv->Continue();
+        SlaveConnection* slave = (SlaveConnection*)cb;
+        Buffer newline;
+        newline.Write("\n", 1);
+        slave->conn->Write(newline);
+        ChannelService& serv =  slave->conn->GetService();
+        serv.Continue();
     }
 
     void Master::FullResyncArdbSlave(SlaveConnection& slave)
@@ -248,44 +202,43 @@ namespace ardb
          * the same db syncing from cache.
          */
 
-        DBID currentDB = m_backlog.GetCurrentDBID();
-        uint64 cksm = m_backlog.GetChecksum();
-        slave.sync_offset = m_backlog.GetReplEndOffset();
-        struct DBVisitor: public RawValueVisitor
+        DBID currentDB = g_db->m_repl_backlog.GetCurrentDBID();
+        uint64 cksm = g_db->m_repl_backlog.GetChecksum();
+        slave.sync_offset = g_db->m_repl_backlog.GetReplEndOffset();
+
+        uint64 count;
+        if (slave.include_dbs.empty() && slave.exclude_dbs.empty())
         {
-                SlaveConnection& conn;
-                uint64 count;
-                DBVisitor(SlaveConnection& c) :
-                        conn(c), count(0)
-                {
-                }
-                int OnRawKeyValue(const Slice& key, const Slice& value)
+            KeyObject k;
+            k.db = 0;
+            k.type = KEY_META;
+            Iterator* iter = g_db->IteratorKeyValue(k, false);
+            if (NULL != iter)
+            {
+                while (iter->Valid())
                 {
                     ArgumentArray args;
                     args.push_back("__SET__");
-                    args.push_back(std::string(key.data(), key.size()));
-                    args.push_back(std::string(value.data(), value.size()));
+                    args.push_back(std::string(iter->Key().data(), iter->Key().size()));
+                    args.push_back(std::string(iter->Value().data(), iter->Value().size()));
                     RedisCommandFrame cmd(args);
-                    conn.conn->Write(cmd);
+                    slave.conn->Write(cmd);
                     count++;
                     if (count % 10000 == 0)
                     {
-                        conn.conn->GetService().Continue();
+                        slave.conn->GetService().Continue();
                     }
-                    return 0;
+                    iter->Next();
                 }
-        } visitor(slave);
-
-        if (slave.include_dbs.empty() && slave.exclude_dbs.empty())
-        {
-            m_server->m_db->VisitAllDB(&visitor);
+                DELETE(iter);
+            }
         }
         else
         {
             DBIDSet visit_dbs = slave.include_dbs;
             if (slave.include_dbs.empty())
             {
-                m_server->m_db->GetAllDBIDSet(visit_dbs);
+                g_db->GetAllDBIDSet(visit_dbs);
             }
             if (!slave.exclude_dbs.empty())
             {
@@ -299,10 +252,39 @@ namespace ardb
             DBIDSet::iterator it = visit_dbs.begin();
             while (it != visit_dbs.end())
             {
-                m_server->m_db->VisitDB(*it, &visitor);
+                KeyObject k;
+                k.db = *it;
+                k.type = KEY_META;
+                Iterator* iter = g_db->IteratorKeyValue(k, false);
+                if (NULL != iter)
+                {
+                    while (iter->Valid())
+                    {
+                        KeyObject kk;
+                        if (decode_key(iter->Key(), kk))
+                        {
+                            if (kk.db != k.db)
+                            {
+                                break;
+                            }
+                        }
+                        ArgumentArray args;
+                        args.push_back("__SET__");
+                        args.push_back(std::string(iter->Key().data(), iter->Key().size()));
+                        args.push_back(std::string(iter->Value().data(), iter->Value().size()));
+                        RedisCommandFrame cmd(args);
+                        slave.conn->Write(cmd);
+                        count++;
+                        if (count % 10000 == 0)
+                        {
+                            slave.conn->GetService().Continue();
+                        }
+                        iter->Next();
+                    }
+                    DELETE(iter);
+                }
                 it++;
             }
-            m_server->m_db->VisitDB(ARDB_GLOBAL_DB, &visitor);
         }
         if (currentDB != ARDB_GLOBAL_DB)
         {
@@ -318,7 +300,7 @@ namespace ardb
 
     void Master::FullResyncRedisSlave(SlaveConnection& slave)
     {
-        std::string dump_file_path = m_server->m_cfg.repl_data_dir + "/dump.rdb";
+        std::string dump_file_path = g_db->GetConfig().repl_data_dir + "/dump.rdb";
         slave.state = SLAVE_STATE_WAITING_DUMP_DATA;
         if (m_dumping_db)
         {
@@ -327,12 +309,12 @@ namespace ardb
         }
         INFO_LOG("[Master]Start dump data to file:%s", dump_file_path.c_str());
         m_dumping_db = true;
-        m_dumpdb_offset = m_backlog.GetReplEndOffset();
+        m_dumpdb_offset = g_db->m_repl_backlog.GetReplEndOffset();
         slave.sync_offset = m_dumpdb_offset;
 
         RedisDumpFile rdb;
-        rdb.Init(m_server->m_db);
-        rdb.Save(dump_file_path, DumpRDBRoutine, &m_channel_service);
+        rdb.Init(g_db);
+        rdb.Save(dump_file_path, DumpRDBRoutine, &slave);
         INFO_LOG("[REPL]Saved rdb dump file:%s", dump_file_path.c_str());
         OnDumpComplete();
     }
@@ -378,7 +360,8 @@ namespace ardb
         if (slave.isRedisSlave && ARDB_GLOBAL_DB != slave.syncing_from)
         {
             //need send 'select <currentdb>' first
-            RedisCommandFrame select("select %u", slave.syncing_from);
+            RedisCommandFrame select;
+            select.SetFullCommand("select %u", slave.syncing_from);
             slave.conn->Write(select);
             slave.syncing_from = ARDB_GLOBAL_DB;
         }
@@ -391,7 +374,7 @@ namespace ardb
     {
         INFO_LOG("[REPL]Send dump file to slave");
         slave.state = SLAVE_STATE_SYNING_DUMP_DATA;
-        std::string dump_file_path = m_server->m_cfg.repl_data_dir + "/dump.rdb";
+        std::string dump_file_path = g_db->GetConfig().repl_data_dir + "/dump.rdb";
         SendFileSetting setting;
         setting.fd = open(dump_file_path.c_str(), O_RDONLY);
         if (-1 == setting.fd)
@@ -429,7 +412,7 @@ namespace ardb
         else
         {
             Buffer msg;
-            if (m_backlog.IsValidOffset(slave.server_key, slave.sync_offset))
+            if (g_db->m_repl_backlog.IsValidOffset(slave.server_key, slave.sync_offset))
             {
                 msg.Printf("+CONTINUE\r\n");
                 slave.state = SLAVE_STATE_SYNING_CACHE_DATA;
@@ -439,17 +422,18 @@ namespace ardb
                 //FULLRESYNC
                 if (!m_dumping_db)
                 {
-                    slave.syncing_from = m_backlog.GetCurrentDBID();
+                    slave.syncing_from = g_db->m_repl_backlog.GetCurrentDBID();
                 }
-                uint64 offset = m_backlog.GetReplEndOffset();
+                uint64 offset = g_db->m_repl_backlog.GetReplEndOffset();
                 if (slave.syncing_from != ARDB_GLOBAL_DB && slave.isRedisSlave)
                 {
-                    RedisCommandFrame select("select %u", slave.syncing_from);
+                    RedisCommandFrame select;
+                    select.SetFullCommand("select %u", slave.syncing_from);
                     Buffer buf;
                     RedisCommandEncoder::Encode(buf, select);
                     offset -= buf.ReadableBytes();
                 }
-                msg.Printf("+FULLRESYNC %s %lld\r\n", m_backlog.GetServerKey(), offset);
+                msg.Printf("+FULLRESYNC %s %lld\r\n", g_db->m_repl_backlog.GetServerKey(), offset);
                 slave.state = SLAVE_STATE_WAITING_DUMP_DATA;
             }
             slave.conn->Write(msg);
@@ -471,12 +455,6 @@ namespace ardb
         }
     }
 
-    void Master::OnSoftSignal(uint32 soft_signo, uint32 appendinfo)
-    {
-        ASSERT(soft_signo == SOFT_SIGNAL_REPL_INSTRUCTION);
-        OnInstructions();
-    }
-
     void Master::ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e)
     {
         uint32 conn_id = ctx.GetChannel()->GetID();
@@ -496,10 +474,11 @@ namespace ardb
         if (found != m_slave_table.end())
         {
             SlaveConnection* slave = found->second;
-            DEBUG_LOG("[Master]Slave sync from %lld to %llu at state:%u", slave->sync_offset, m_backlog.GetReplEndOffset(), slave->state);
+            DEBUG_LOG("[Master]Slave sync from %lld to %llu at state:%u", slave->sync_offset,
+                    g_db->m_repl_backlog.GetReplEndOffset(), slave->state);
             if (slave->state == SLAVE_STATE_SYNING_CACHE_DATA)
             {
-                if ((uint64) slave->sync_offset == m_backlog.GetReplEndOffset())
+                if ((uint64) slave->sync_offset == g_db->m_repl_backlog.GetReplEndOffset())
                 {
                     slave->state = SLAVE_STATE_SYNCED;
                     ChannelOptions options;
@@ -507,16 +486,17 @@ namespace ardb
                     slave->conn->Configure(options);
                     DEBUG_LOG("[Master]Slave synced.");
                 }
-                else if ((uint64) slave->sync_offset < m_backlog.GetReplEndOffset())
+                else if ((uint64) slave->sync_offset < g_db->m_repl_backlog.GetReplEndOffset())
                 {
-                    if (!m_backlog.IsValidOffset(slave->sync_offset))
+                    if (!g_db->m_repl_backlog.IsValidOffset(slave->sync_offset))
                     {
                         WARN_LOG("[Master]Replication buffer overflow while syncing slave.");
                         slave->conn->Close();
                     }
                     else
                     {
-                        size_t len = m_backlog.WriteChannel(slave->conn, slave->sync_offset, MAX_SEND_CACHE_SIZE);
+                        size_t len = g_db->m_repl_backlog.WriteChannel(slave->conn, slave->sync_offset,
+                        MAX_SEND_CACHE_SIZE);
                         slave->sync_offset += len;
                         slave->conn->EnableWriting();
                     }
@@ -527,7 +507,8 @@ namespace ardb
                     slave->conn->Close();
                 }
             }
-        }else
+        }
+        else
         {
             WARN_LOG("[Master]No slave found for:%u", conn_id);
         }
@@ -555,23 +536,24 @@ namespace ardb
         }
     }
 
-    void Master::OfferReplInstruction(ReplicationInstruction& inst)
+    void Master::OnAddSlave(Channel* ch, void* data)
     {
-        m_inst_queue.Push(inst);
-        if (NULL != m_notify_channel)
+        SlaveConnection* conn = (SlaveConnection*) data;
+        g_master->m_channel_service.AttachChannel(conn->conn, true);
+        conn->state = SLAVE_STATE_CONNECTED;
+        g_master->m_slave_table[conn->conn->GetID()] = conn;
+        conn->conn->ClearPipeline();
         {
-            /*
-             * m_notify_channel use pipes to notify master thread, and for pipes
-             * POSIX.1-2001 says that write(2)s of less than PIPE_BUF(512) bytes must be atomic,
-             * in most time is's safe here.
-             *
-             */
-            m_notify_channel->FireSoftSignal(SOFT_SIGNAL_REPL_INSTRUCTION, 0);
+            LockGuard<ThreadMutex> guard(g_master->m_port_table_mutex);
+            conn->port = g_master->m_slave_port_table[conn->conn->GetID()];
         }
-        else
-        {
-            DEBUG_LOG("NULL singnal channel:%p %p", m_notify_channel, this);
-        }
+
+        ChannelOptions options;
+        options.auto_disable_writing = false;
+        conn->conn->Configure(options);
+        conn->conn->SetChannelPipelineInitializor(slave_pipeline_init, NULL);
+        conn->conn->SetChannelPipelineFinalizer(slave_pipeline_finallize, NULL);
+        g_master->SyncSlave(*conn);
     }
 
     void Master::AddSlave(Channel* slave, RedisCommandFrame& cmd)
@@ -627,14 +609,20 @@ namespace ardb
                 }
             }
         }
-        m_server->m_service->DetachChannel(slave, true);
-        ReplicationInstruction inst(conn, REPL_INSTRUCTION_ADD_SLAVE);
-        OfferReplInstruction(inst);
+        slave->GetService().DetachChannel(slave, true);
+        m_channel_service.AsyncIO(0, OnAddSlave, conn);
     }
 
-    void Master::FeedSlaves(Channel* src, const DBID& dbid, RedisCommandFrame& cmd)
+    void Master::OnFeedSlave(Channel* ch, void* data)
     {
-        if(!m_backlog_enable)
+        RedisReplCommand* cmd = (RedisReplCommand*) data;
+        g_master->WriteSlaves(cmd->dbid, cmd->cmd);
+        DELETE(cmd);
+    }
+
+    void Master::FeedSlaves(const DBID& dbid, RedisCommandFrame& cmd)
+    {
+        if (!m_backlog_enable || !g_db->m_repl_backlog.IsInited())
         {
             DEBUG_LOG("Backlog is no enabled.");
             return;
@@ -642,22 +630,31 @@ namespace ardb
         RedisReplCommand* newcmd = new RedisReplCommand;
         newcmd->cmd = cmd;
         newcmd->dbid = dbid;
-        newcmd->src = src;
-        ReplicationInstruction inst(newcmd, REPL_INSTRUCTION_FEED_CMD);
-        OfferReplInstruction(inst);
+        m_channel_service.AsyncIO(0, OnFeedSlave, newcmd);
+    }
+
+    void Master::OnDisconnectAllSlaves(Channel*, void*)
+    {
+        SlaveConnTable tmp = g_master->m_slave_table;
+        SlaveConnTable::iterator it = tmp.begin();
+        while (it != tmp.end())
+        {
+            it->second->conn->Close();
+            it++;
+        }
     }
 
     void Master::DisconnectAllSlaves()
     {
         INFO_LOG("[REPL]Disconnect all slaves.");
-        ReplicationInstruction inst(NULL, REPL_INSTRUCTION_DELETE_SLAVES);
-        OfferReplInstruction(inst);
+        m_channel_service.AsyncIO(0, OnDisconnectAllSlaves, NULL);
     }
 
     void Master::Stop()
     {
         m_channel_service.Stop();
-        while (m_thread_running)
+        m_channel_service.Wakeup();
+        while (GetState() == RUNNING)
         {
             m_channel_service.Stop();
             Thread::Sleep(10);
@@ -721,7 +718,7 @@ namespace ardb
             }
             uint32 lag = time(NULL) - slave->acktime;
             sprintf(buffer, "slave%u:%s,state=%s,"
-                    "offset=%"PRId64",lag=%u\r\n", i, address.c_str(), state, slave->sync_offset, lag);
+                    "offset=%" PRId64",lag=%u\r\n", i, address.c_str(), state, slave->sync_offset, lag);
             it++;
             i++;
             str.append(buffer);

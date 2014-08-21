@@ -8,22 +8,22 @@
 #ifndef BACKUP_HPP_
 #define BACKUP_HPP_
 
-#include "util/thread/thread.hpp"
-#include "db.hpp"
+#include "thread/thread.hpp"
+
 #include <string>
 #include <time.h>
 
 namespace ardb
 {
-	class ArdbServer;
+	class Ardb;
 	class Backup
 	{
 		private:
 			bool m_is_saving;
-			ArdbServer* m_server;
+			Ardb* m_server;
 			uint32 m_last_save;
 		public:
-			Backup(ArdbServer* server);
+			Backup(Ardb* server);
 			int Save();
 			int BGSave();
 			uint32 LastSave()

@@ -34,7 +34,7 @@
 CXX=g++
 CC=gcc
 
-ARDB_VERSION=0.7.2
+ARDB_VERSION=0.8.0
 
 uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 
@@ -59,7 +59,7 @@ LEVELDB_PATH=${LIB_PATH}/${LEVELDB_VER}
 LEVELDB_FILE=${LEVELDB_PATH}.tar.gz
 LEVELDB_LIBA=${LEVELDB_PATH}/libleveldb.a
 
-ROCKSDB_VER=rocksdb-rocksdb-3.2
+ROCKSDB_VER=rocksdb-rocksdb-3.3
 ROCKSDB_PATH=${LIB_PATH}/${ROCKSDB_VER}
 ROCKSDB_FILE=${ROCKSDB_PATH}.tar.gz
 ROCKSDB_LIBA=${ROCKSDB_PATH}/librocksdb.a
@@ -90,7 +90,7 @@ LDFLAGS=-g
 LUA_CFLAGS+= -O2 -Wall -DLUA_ANSI $(CCFLAGS)
 LUA_LDFLAGS+= $(LDFLAGS)
 
-INCS=-I./ -I${LIB_PATH}/cpp-btree -I${LUA_PATH}/src -I${SNAPPY_PATH} 
+INCS=-I./ -I./common -I${LIB_PATH}/cpp-btree -I${LUA_PATH}/src -I${SNAPPY_PATH} 
 
 # Default allocator
 ifeq ($(uname_S),Linux)
@@ -116,27 +116,33 @@ LIBS= ${LUA_LIBA} ${MALLOC_LIBA} ${SNAPPY_LIBA} -lpthread
 	${CC} -c ${CCFLAGS} ${INCS} $< -o $@
 
 
-CHANNEL_CPP_VPATH=channel channel/socket channel/fifo channel/codec channel/timer channel/signal
-CHANNEL_C_VPATH=channel/redis 
+CHANNEL_CPP_VPATH=common/channel common/channel/socket common/channel/fifo common/channel/codec common/channel/timer common/channel/signal
+CHANNEL_C_VPATH=common/channel/redis 
 CHANNEL_CPPFILES := $(foreach dir, $(CHANNEL_CPP_VPATH), $(wildcard $(dir)/*.cpp))
 CHANNEL_CFILES := $(foreach dir, $(CHANNEL_C_VPATH), $(wildcard $(dir)/*.c))
 CHANNEL_OBJECTS := $(patsubst %.cpp, %.o, $(CHANNEL_CPPFILES)) $(patsubst %.c, %.o, $(CHANNEL_CFILES))
 
-UTIL_VPATH=./util ./util/exception  ./util/thread  ./redis ./cron ./buffer ./cache ./geo
-UTIL_CPPFILES := $(foreach dir, $(UTIL_VPATH), $(wildcard $(dir)/*.cpp))
-UTIL_CFILES := $(foreach dir, $(UTIL_VPATH), $(wildcard $(dir)/*.c))
-UTIL_OBJECTS := $(patsubst %.cpp, %.o, $(UTIL_CPPFILES)) $(patsubst %.c, %.o, $(UTIL_CFILES))
-CORE_OBJECTS := db.o data_format.o hash.o kv.o lists.o logger.o sets.o \
-                zsets.o strings.o bits.o sort.o geo.o server.o connection.o\
-                ardb_server.o lua_scripting.o transaction.o slowlog.o hyperloglog.o \
-                replication/rdb.o replication/slave.o replication/repl_backlog.o \
-                replication/master.o pubsub.o stat.o \
-                $(UTIL_OBJECTS) $(CHANNEL_OBJECTS) 
+COMMON_VPATH=common/util common/util/exception  common/thread  common/redis common/buffer common/geo
+COMMON_CPPFILES := $(foreach dir, $(COMMON_VPATH), $(wildcard $(dir)/*.cpp))
+COMMON_CFILES := $(foreach dir, $(COMMON_VPATH), $(wildcard $(dir)/*.c))
+COMMON_OBJECTS := $(patsubst %.cpp, %.o, $(COMMON_CPPFILES)) $(patsubst %.c, %.o, $(COMMON_CFILES))
+
+COMMAND_VPATH=command
+COMMAND_CPPFILES := $(foreach dir, $(COMMAND_VPATH), $(wildcard $(dir)/*.cpp))
+COMMAND_OBJECTS := $(patsubst %.cpp, %.o, $(COMMAND_CPPFILES))
+
+REPL_VPATH=replication
+REPL_CPPFILES := $(foreach dir, $(REPL_VPATH), $(wildcard $(dir)/*.cpp))
+REPL_OBJECTS := $(patsubst %.cpp, %.o, $(REPL_CPPFILES))
+
+CORE_OBJECTS := ardb.o codec.o comparator.o config.o cron.o logger.o iterator.o \
+                network.o options.o statistics.o cache/cache.o \
+                $(COMMON_OBJECTS) $(CHANNEL_OBJECTS) $(COMMAND_OBJECTS) $(REPL_OBJECTS) 
 
 LEVELDB_ENGINE :=  engine/leveldb_engine.o    
 ROCKSDB_ENGINE :=  engine/rocksdb_engine.o        
 LMDB_ENGINE :=  engine/lmdb_engine.o     
-TESTOBJ := ../test/ardb_test.o
+TESTOBJ := ../test/test_suite.o
 SERVEROBJ := main.o
 
 #DIST_LIB = libardb.so
@@ -173,7 +179,7 @@ endif
 endif
 
 
-LAST_ENGINE=`cat .kv_engine`
+LAST_ENGINE := $(shell sh -c 'cat .kv_engine')
 ifeq ($(storage_engine), $(LAST_ENGINE))
 #do nothing
 else
@@ -322,9 +328,7 @@ dist:clean all
 	tar czvf ardb-bin-${ARDB_VERSION}.tar.gz ardb-${ARDB_VERSION}; rm -rf ardb-${ARDB_VERSION};
 
 clean:
-	rm -f $(LEVELDB_TEST) $(KCDB_TEST) ${CORE_OBJECTS} ${LEVELDB_OBJECTS} \
-	      $(SERVEROBJ) $(DIST_LIBA) $(DIST_LIB)   \
-	      $(LEVELDB_ENGINE) $(KCDB_ENGINE) $(LMDB_ENGINE) $(TESTOBJ)\
-	      ardb-test  ardb-server
+	rm -f  ${CORE_OBJECTS} $(STORAGE_ENGINE_OBJ) $(SERVEROBJ) ${TESTOBJ}\
+	       ardb-test  ardb-server
 
 clobber: clean_deps clean

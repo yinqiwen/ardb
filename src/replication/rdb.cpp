@@ -45,6 +45,7 @@ extern "C"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include "ardb.hpp"
 
 #define RETURN_NEGATIVE_EXPR(x)  do\
     {                    \
@@ -135,6 +136,20 @@ namespace ardb
         {
             fflush(m_write_fp);
         }
+    }
+
+    void DataDumpFile::RenameToDefault()
+    {
+        std::string default_file = m_db->GetConfig().repl_data_dir;
+        default_file.append("/dump.rdb");
+        if(default_file == GetPath())
+        {
+            return;
+        }
+        Close();
+
+        rename(GetPath().c_str(), default_file.c_str());
+        m_file_path = default_file;
     }
 
     void DataDumpFile::Remove()
@@ -548,6 +563,15 @@ namespace ardb
     void RedisDumpFile::LoadListZipList(unsigned char* data, const std::string& key)
     {
         unsigned char* iter = ziplistIndex(data, 0);
+        Context tmpctx;
+        ValueObject listmeta;
+        tmpctx.currentDB = m_current_db;
+        listmeta.key.db = m_current_db;
+        listmeta.key.type = KEY_META;
+        listmeta.key.key = key;
+        listmeta.type = LIST_META;
+        listmeta.meta.encoding = COLLECTION_ECODING_ZIPLIST;
+        BatchWriteGuard guard(m_db->GetKeyValueEngine());
         while (iter != NULL)
         {
             unsigned char *vstr;
@@ -564,10 +588,11 @@ namespace ardb
                 {
                     value = stringfromll(vlong);
                 }
-                m_db->LPush(m_current_db, key, value);
+                m_db->ListInsert(tmpctx, listmeta, NULL, value, true, false);
             }
             iter = ziplistNext(data, iter);
         }
+        m_db->SetKeyValue(tmpctx, listmeta);
     }
 
     static double zzlGetScore(unsigned char *sptr)
@@ -594,6 +619,15 @@ namespace ardb
     }
     void RedisDumpFile::LoadZSetZipList(unsigned char* data, const std::string& key)
     {
+        Context tmpctx;
+        ValueObject zmeta;
+        tmpctx.currentDB = m_current_db;
+        zmeta.key.db = m_current_db;
+        zmeta.key.key = key;
+        zmeta.key.type = KEY_META;
+        zmeta.type = ZSET_META;
+        zmeta.meta.encoding = COLLECTION_ECODING_ZIPZSET;
+        BatchWriteGuard guard(m_db->GetKeyValueEngine());
         unsigned char* iter = ziplistIndex(data, 0);
         while (iter != NULL)
         {
@@ -618,13 +652,26 @@ namespace ardb
                 break;
             }
             double score = zzlGetScore(iter);
-            m_db->ZAdd(m_current_db, key, score, value);
+            Data element, scorev;
+            element.SetString(value, true);
+            scorev.SetDouble(score);
+            m_db->ZSetAdd(tmpctx, zmeta, element, scorev, NULL);
             iter = ziplistNext(data, iter);
         }
+        m_db->SetKeyValue(tmpctx, zmeta);
     }
 
     void RedisDumpFile::LoadHashZipList(unsigned char* data, const std::string& key)
     {
+        Context tmpctx;
+        ValueObject zmeta;
+        tmpctx.currentDB = m_current_db;
+        zmeta.key.db = m_current_db;
+        zmeta.key.type = KEY_META;
+        zmeta.key.key = key;
+        zmeta.type = HASH_META;
+        zmeta.meta.encoding = COLLECTION_ECODING_ZIPMAP;
+        BatchWriteGuard guard(m_db->GetKeyValueEngine());
         unsigned char* iter = ziplistIndex(data, 0);
         while (iter != NULL)
         {
@@ -662,25 +709,44 @@ namespace ardb
                 {
                     value = stringfromll(vlong);
                 }
-                m_db->HSet(m_current_db, key, field, value);
+                Data f, v;
+                f.SetString(field, true);
+                v.SetString(value, true);
+                m_db->HashSet(tmpctx, zmeta, f, v);
+                //m_db->HSet(m_current_db, key, field, value);
             }
             iter = ziplistNext(data, iter);
         }
+        m_db->SetKeyValue(tmpctx, zmeta);
     }
 
     void RedisDumpFile::LoadSetIntSet(unsigned char* data, const std::string& key)
     {
         int ii = 0;
         int64_t llele = 0;
+        Context tmpctx;
+        ValueObject zmeta;
+        tmpctx.currentDB = m_current_db;
+        zmeta.key.db = m_current_db;
+        zmeta.key.type = KEY_META;
+        zmeta.key.key = key;
+        zmeta.type = SET_META;
+        zmeta.meta.encoding = COLLECTION_ECODING_ZIPSET;
         while (!intsetGet((intset*) data, ii++, &llele))
         {
             //value
-            m_db->SAdd(m_current_db, key, stringfromll(llele));
+            //m_db->SAdd(m_current_db, key, stringfromll(llele));
+            bool tmp;
+            m_db->SetAdd(tmpctx, zmeta, stringfromll(llele), tmp);
         }
+        m_db->SetKeyValue(tmpctx, zmeta);
     }
 
     bool RedisDumpFile::LoadObject(int rdbtype, const std::string& key)
     {
+        Context tmpctx;
+        tmpctx.currentDB = m_current_db;
+        BatchWriteGuard guard(m_db->GetKeyValueEngine());
         switch (rdbtype)
         {
             case REDIS_RDB_TYPE_STRING:
@@ -689,7 +755,9 @@ namespace ardb
                 if (ReadString(str))
                 {
                     //save key-value
-                    m_db->Set(m_current_db, key, str);
+                    GenericSetOptions options;
+                    options.fill_reply = false;
+                    m_db->GenericSet(tmpctx, key, str, options);
                 }
                 else
                 {
@@ -703,6 +771,21 @@ namespace ardb
                 uint32 len;
                 if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR)
                     return false;
+                ValueObject zmeta;
+                tmpctx.currentDB = m_current_db;
+                zmeta.key.db = m_current_db;
+                zmeta.key.type = KEY_META;
+                zmeta.key.key = key;
+                if (REDIS_RDB_TYPE_SET == rdbtype)
+                {
+                    zmeta.type = SET_META;
+                    zmeta.meta.encoding = COLLECTION_ECODING_ZIPSET;
+                }
+                else
+                {
+                    zmeta.type = LIST_META;
+                    zmeta.meta.encoding = COLLECTION_ECODING_ZIPLIST;
+                }
                 while (len--)
                 {
                     std::string str;
@@ -711,11 +794,12 @@ namespace ardb
                         //push to list/set
                         if (REDIS_RDB_TYPE_SET == rdbtype)
                         {
-                            m_db->SAdd(m_current_db, key, str);
+                            bool tmp;
+                            m_db->SetAdd(tmpctx, zmeta, str, tmp);
                         }
                         else
                         {
-                            m_db->LPush(m_current_db, key, str);
+                            m_db->ListInsert(tmpctx, zmeta, NULL, str, true, false);
                         }
                     }
                     else
@@ -723,6 +807,7 @@ namespace ardb
                         return false;
                     }
                 }
+                m_db->SetKeyValue(tmpctx, zmeta);
                 break;
             }
             case REDIS_RDB_TYPE_ZSET:
@@ -730,6 +815,12 @@ namespace ardb
                 uint32 len;
                 if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR)
                     return false;
+                ValueObject zmeta;
+                zmeta.key.db = m_current_db;
+                zmeta.key.type = KEY_META;
+                zmeta.type = ZSET_META;
+                zmeta.key.key = key;
+                zmeta.meta.encoding = COLLECTION_ECODING_ZIPZSET;
                 while (len--)
                 {
                     std::string str;
@@ -737,13 +828,18 @@ namespace ardb
                     if (ReadString(str) && 0 == ReadDoubleValue(score))
                     {
                         //save value score
-                        m_db->ZAdd(m_current_db, key, score, str);
+                        //m_db->ZAdd(m_current_db, key, score, str);
+                        Data element, scorev;
+                        element.SetString(key, true);
+                        scorev.SetDouble(score);
+                        m_db->ZSetAdd(tmpctx, zmeta, element, scorev, NULL);
                     }
                     else
                     {
                         return false;
                     }
                 }
+                m_db->SetKeyValue(tmpctx, zmeta);
                 break;
             }
             case REDIS_RDB_TYPE_HASH:
@@ -751,19 +847,29 @@ namespace ardb
                 uint32 len;
                 if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR)
                     return false;
+                ValueObject zmeta;
+                zmeta.key.db = m_current_db;
+                zmeta.key.type = KEY_META;
+                zmeta.type = HASH_META;
+                zmeta.key.key = key;
+                zmeta.meta.encoding = COLLECTION_ECODING_ZIPMAP;
                 while (len--)
                 {
                     std::string field, str;
                     if (ReadString(field) && ReadString(str))
                     {
                         //save hash value
-                        m_db->HSet(m_current_db, key, field, str);
+                        Data f, v;
+                        f.SetString(field, true);
+                        v.SetString(str, true);
+                        m_db->HashSet(tmpctx, zmeta, f, v);
                     }
                     else
                     {
                         return false;
                     }
                 }
+                m_db->SetKeyValue(tmpctx, zmeta);
                 break;
             }
             case REDIS_RDB_TYPE_HASH_ZIPMAP:
@@ -786,6 +892,12 @@ namespace ardb
                         unsigned char *fstr, *vstr;
                         unsigned int flen, vlen;
                         unsigned int maxlen = 0;
+                        ValueObject zmeta;
+                        zmeta.key.db = m_current_db;
+                        zmeta.key.type = KEY_META;
+                        zmeta.type = HASH_META;
+                        zmeta.key.key = key;
+                        zmeta.meta.encoding = COLLECTION_ECODING_ZIPMAP;
                         while ((zi = zipmapNext(zi, &fstr, &flen, &vstr, &vlen)) != NULL)
                         {
                             if (flen > maxlen)
@@ -796,7 +908,11 @@ namespace ardb
                             //save hash value data
                             Slice field((char*) fstr, flen);
                             Slice value((char*) vstr, vlen);
-                            m_db->HSet(m_current_db, key, field, value);
+                            //m_db->HSet(m_current_db, key, field, value);
+                            Data f, v;
+                            f.SetString(field, true);
+                            v.SetString(value, true);
+                            m_db->HashSet(tmpctx, zmeta, f, v);
                         }
                         break;
                     }
@@ -869,6 +985,7 @@ namespace ardb
         std::string key;
 
         m_current_db = 0;
+        BatchWriteGuard guard(m_db->GetKeyValueEngine());
         if (!Read(buf, 9, true))
             goto eoferr;
         buf[9] = '\0';
@@ -933,7 +1050,9 @@ namespace ardb
                 ERROR_LOG("Failed to read current key.");
                 goto eoferr;
             }
-            m_db->Del(m_current_db, key);
+            Context tmpctx;
+            tmpctx.currentDB = m_current_db;
+            m_db->DeleteKey(tmpctx, key);
             if (!LoadObject(type, key))
             {
                 ERROR_LOG("Failed to load object:%d", type);
@@ -941,7 +1060,8 @@ namespace ardb
             }
             if (-1 != expiretime)
             {
-                m_db->Pexpireat(m_current_db, key, expiretime);
+                m_db->GenericExpire(tmpctx, key, expiretime);
+                //m_db->Pexpireat(m_current_db, key, expiretime);
             }
         }
 
@@ -991,22 +1111,27 @@ namespace ardb
             {
                 return WriteType(REDIS_RDB_TYPE_STRING);
             }
+            case SET_META:
             case SET_ELEMENT:
             {
                 return WriteType(REDIS_RDB_TYPE_SET);
             }
+            case LIST_META:
             case LIST_ELEMENT:
             {
                 return WriteType(REDIS_RDB_TYPE_LIST);
             }
-            case ZSET_ELEMENT:
+            case ZSET_META:
+            case ZSET_ELEMENT_SCORE:
             {
                 return WriteType(REDIS_RDB_TYPE_ZSET);
             }
+            case HASH_META:
             case HASH_FIELD:
             {
                 return WriteType(REDIS_RDB_TYPE_HASH);
             }
+            case BITSET_META:
             case BITSET_ELEMENT:
             {
                 return WriteType(REDIS_RDB_TYPE_STRING);
@@ -1126,18 +1251,18 @@ namespace ardb
     }
 
     /* Like rdbSaveStringObjectRaw() but handle encoded objects */
-    int RedisDumpFile::WriteStringObject(ValueData& o)
+    int RedisDumpFile::WriteStringObject(Data& o)
     {
         /* Avoid to decode the object, then encode it again, if the
          * object is alrady integer encoded. */
-        if (o.type == INTEGER_VALUE)
+        if (o.encoding == STRING_ECODING_INT64)
         {
-            return WriteLongLongAsStringObject(o.integer_value);
+            return WriteLongLongAsStringObject(o.value.iv);
         }
         else
         {
-            o.ToBytes();
-            return WriteRawString(o.bytes_value.data(), o.bytes_value.size());
+            o.ToString();
+            return WriteRawString(o.RawString(), sdslen(o.RawString()));
         }
     }
 
@@ -1282,7 +1407,7 @@ namespace ardb
             if (Write(buf, 1) == -1)
                 return -1;
             len = htonl(len);
-            if (Write(&len, 4) == -4)
+            if (Write(&len, 4) == -1)
                 return -1;
             nwritten = 1 + 4;
         }
@@ -1292,245 +1417,212 @@ namespace ardb
     int RedisDumpFile::DoSave()
     {
         WriteMagicHeader();
-        struct VisitorTask: public WalkHandler
-        {
-                RedisDumpFile& r;
-                Ardb* db;
-                DBID currentDb;
-                std::string currentKey;
-                int err;
+
 #define DUMP_CHECK_WRITE(x)  do\
     {                    \
         if((x) < 0) {   \
-        	   err = errno;  \
-           return -1; \
+               err = errno;  \
+          break; \
         }             \
     }while(0)
-
-                VisitorTask(RedisDumpFile& rr, Ardb* ptr) :
-                        r(rr), db(ptr), currentDb(0), err(0)
+        KeyObject k;
+        k.db = 0;
+        k.type = KEY_META;
+        Context tmpctx;
+        BatchWriteGuard guard(m_db->GetKeyValueEngine());
+        Iterator* iter = m_db->IteratorKeyValue(k, false);
+        uint32 cursor = 0;
+        int err = 0;
+        if (NULL != iter)
+        {
+            std::string currentKey;
+            while (iter->Valid())
+            {
+                KeyObject kk;
+                ValueObject vv;
+                if (!decode_key(iter->Key(), kk) || !decode_value(iter->Value(), vv))
                 {
+                    ERROR_LOG("Failed to decode key or value.");
+                    break;
                 }
-                int OnKeyValue(KeyObject* key, ValueObject* value, uint32 cursor)
+                if (kk.db == ARDB_GLOBAL_DB)
                 {
-                    if (key->db == ARDB_GLOBAL_DB)
-                    {
-                        return -1;
-                    }
-                    if (cursor == 0 || (key->db != currentDb))
-                    {
-                        currentDb = key->db;
-                        currentKey.clear();
-                        DUMP_CHECK_WRITE(r.WriteType(REDIS_RDB_OPCODE_SELECTDB));
-                        DUMP_CHECK_WRITE(r.WriteLen(currentDb));
-                    }
-                    if (key->type != KEY_META && key->type != LIST_ELEMENT && key->type != ZSET_ELEMENT
-                            && key->type != SET_ELEMENT && key->type != BITSET_ELEMENT && key->type != HASH_FIELD)
-                    {
-                        return 0;
-                    }
-                    if (key->type == KEY_META)
-                    {
-                        CommonMetaValue* meta = (CommonMetaValue*) value;
-                        key->type = meta->header.type;
-                        switch (meta->header.type)
-                        {
-                            case STRING_META:
-                            {
-                                key->type = STRING_META;
-                                break;
-                            }
-                            case LIST_META:
-                            {
-                                ListMetaValue* mmeta = (ListMetaValue*) meta;
-                                if (!mmeta->ziped)
-                                {
-                                    return 0;
-                                }
-                                break;
-                            }
-                            case HASH_META:
-                            {
-                                HashMetaValue* mmeta = (HashMetaValue*) meta;
-                                if (!mmeta->ziped)
-                                {
-                                    return 0;
-                                }
-                                break;
-                            }
-                            case ZSET_META:
-                            {
-                                ZSetMetaValue* mmeta = (ZSetMetaValue*) meta;
-                                if (mmeta->encoding != ZSET_ENCODING_ZIPLIST)
-                                {
-                                    return 0;
-                                }
-                                break;
-                            }
-                            case SET_META:
-                            {
-                                SetMetaValue* mmeta = (SetMetaValue*) meta;
-                                if (!mmeta->ziped)
-                                {
-                                    return 0;
-                                }
-                                break;
-                            }
-                            case BITSET_META:
-                            default:
-                            {
-                                return 0;
-                            }
-                        }
-                    }
-
-                    bool firstElementInKey = false;
-                    if (currentKey.size() != key->key.size()
-                            || strncmp(currentKey.c_str(), key->key.data(), currentKey.size()))
-                    {
-                        int64 expiretime = r.m_db->PTTL(currentDb, key->key);
-                        if (expiretime > 0)
-                        {
-                            DUMP_CHECK_WRITE(r.WriteType(REDIS_RDB_OPCODE_EXPIRETIME_MS));
-                            DUMP_CHECK_WRITE(r.WriteMillisecondTime(expiretime));
-                        }
-                        DUMP_CHECK_WRITE(r.WriteKeyType(key->type));
-                        currentKey.assign(key->key.data(), key->key.size());
-                        DUMP_CHECK_WRITE(r.WriteRawString(currentKey.data(), currentKey.size()));
-                        firstElementInKey = true;
-                    }
-
-                    switch (key->type)
+                    return -1;
+                }
+                if (cursor == 0 || (kk.db != m_current_db))
+                {
+                    m_current_db = kk.db;
+                    tmpctx.currentDB = kk.db;
+                    currentKey.clear();
+                    DUMP_CHECK_WRITE(WriteType(REDIS_RDB_OPCODE_SELECTDB));
+                    DUMP_CHECK_WRITE(WriteLen(m_current_db));
+                }
+                cursor++;
+                if (kk.type != KEY_META && kk.type != LIST_ELEMENT && kk.type != ZSET_ELEMENT_SCORE
+                        && kk.type != SET_ELEMENT && kk.type != BITSET_ELEMENT && kk.type != HASH_FIELD)
+                {
+                    iter->Next();
+                    continue;
+                }
+                if (kk.type == KEY_META)
+                {
+                    kk.type = vv.type;
+                    switch (vv.type)
                     {
                         case STRING_META:
                         {
-                            StringMetaValue* cv = (StringMetaValue*) value;
-                            DUMP_CHECK_WRITE(r.WriteStringObject(cv->value));
-                            break;
-                        }
-                        case LIST_ELEMENT:
-                        {
-                            CommonValueObject* cv = (CommonValueObject*) value;
-                            if (firstElementInKey)
-                            {
-                                DUMP_CHECK_WRITE(r.WriteLen(db->LLen(key->db, key->key)));
-                            }
-                            DUMP_CHECK_WRITE(r.WriteStringObject(cv->data));
-                            break;
-                        }
-                        case SET_ELEMENT:
-                        {
-                            if (firstElementInKey)
-                            {
-                                DUMP_CHECK_WRITE(r.WriteLen(db->SCard(key->db, key->key)));
-                            }
-                            SetKeyObject* sk = (SetKeyObject*) key;
-                            DUMP_CHECK_WRITE(r.WriteStringObject(sk->value));
-                            break;
-                        }
-                        case ZSET_ELEMENT:
-                        {
-                            if (firstElementInKey)
-                            {
-                                DUMP_CHECK_WRITE(r.WriteLen(db->ZCard(key->db, key->key)));
-                            }
-                            ZSetKeyObject* zk = (ZSetKeyObject*) key;
-                            DUMP_CHECK_WRITE(r.WriteStringObject(zk->value));
-                            DUMP_CHECK_WRITE(r.WriteDouble(zk->score.NumberValue()));
-                            break;
-                        }
-                        case HASH_FIELD:
-                        {
-                            if (firstElementInKey)
-                            {
-                                DUMP_CHECK_WRITE(r.WriteLen(db->HLen(key->db, key->key)));
-                            }
-                            HashKeyObject* hk = (HashKeyObject*) key;
-                            std::string fstr;
-                            hk->field.ToString(fstr);
-                            CommonValueObject* cv = (CommonValueObject*) value;
-                            DUMP_CHECK_WRITE(r.WriteRawString(fstr.data(), fstr.size()));
-                            DUMP_CHECK_WRITE(r.WriteStringObject(cv->data));
-                            break;
-                        }
-                        case HASH_META:
-                        {
-                            HashMetaValue* mmeta = (HashMetaValue*) value;
-                            if (mmeta->ziped)
-                            {
-                                DUMP_CHECK_WRITE(r.WriteLen(mmeta->values.size()));
-                                HashFieldMap::iterator it = mmeta->values.begin();
-                                while (it != mmeta->values.end())
-                                {
-                                    std::string field_name;
-                                    it->first.ToString(field_name);
-                                    DUMP_CHECK_WRITE(r.WriteRawString(field_name.data(), field_name.size()));
-                                    DUMP_CHECK_WRITE(r.WriteStringObject(it->second));
-                                    it++;
-                                }
-                            }
+                            kk.type = STRING_META;
                             break;
                         }
                         case LIST_META:
-                        {
-                            ListMetaValue* mmeta = (ListMetaValue*) value;
-                            if (mmeta->ziped)
-                            {
-                                DUMP_CHECK_WRITE(r.WriteLen(mmeta->zipvs.size()));
-                                ValueDataDeque::iterator it = mmeta->zipvs.begin();
-                                while (it != mmeta->zipvs.end())
-                                {
-                                    DUMP_CHECK_WRITE(r.WriteStringObject(*it));
-                                    it++;
-                                }
-                            }
-                            break;
-                        }
+                        case HASH_META:
                         case ZSET_META:
-                        {
-                            ZSetMetaValue* mmeta = (ZSetMetaValue*) value;
-                            if (ZSET_ENCODING_ZIPLIST == mmeta->encoding)
-                            {
-                                DUMP_CHECK_WRITE(r.WriteLen(mmeta->zipvs.size()));
-                                ZSetElementDeque::iterator it = mmeta->zipvs.begin();
-                                while (it != mmeta->zipvs.end())
-                                {
-                                    DUMP_CHECK_WRITE(r.WriteStringObject(it->value));
-                                    DUMP_CHECK_WRITE(r.WriteDouble(it->score.NumberValue()));
-                                    it++;
-                                }
-                            }
-                            break;
-                        }
                         case SET_META:
                         {
-                            SetMetaValue* mmeta = (SetMetaValue*) value;
-                            if (mmeta->ziped)
+                            if (vv.meta.encoding == COLLECTION_ECODING_RAW)
                             {
-                                DUMP_CHECK_WRITE(r.WriteLen(mmeta->zipvs.size()));
-                                ValueSet::iterator it = mmeta->zipvs.begin();
-                                while (it != mmeta->zipvs.end())
-                                {
-                                    ValueData data = *it;
-                                    DUMP_CHECK_WRITE(r.WriteStringObject(data));
-                                    it++;
-                                }
+                                iter->Next();
+                                continue;
                             }
                             break;
                         }
+                        case BITSET_META:
                         default:
                         {
-                            break;
+                            iter->Next();
+                            continue;
                         }
                     }
-                    return 0;
                 }
-        } visitor(*this, m_db);
-        KeyObject s(Slice(), KEY_END, 0);
-        m_db->Walk(s, false, true, &visitor);
-        if (visitor.err != 0)
+
+                bool firstElementInKey = false;
+                if (currentKey.size() != kk.key.size() || strncmp(currentKey.c_str(), kk.key.data(), currentKey.size()))
+                {
+                    uint64 expiretime = 0;
+                    m_db->GenericTTL(tmpctx, kk.key, expiretime);
+                    if (expiretime > 0)
+                    {
+                        DUMP_CHECK_WRITE(WriteType(REDIS_RDB_OPCODE_EXPIRETIME_MS));
+                        DUMP_CHECK_WRITE(WriteMillisecondTime(expiretime));
+                    }
+                    DUMP_CHECK_WRITE(WriteKeyType((KeyType )kk.type));
+                    currentKey.assign(kk.key.data(), kk.key.size());
+                    DUMP_CHECK_WRITE(WriteRawString(currentKey.data(), currentKey.size()));
+                    firstElementInKey = true;
+                }
+
+                switch (kk.type)
+                {
+                    case STRING_META:
+                    {
+                        DUMP_CHECK_WRITE(WriteStringObject(vv.meta.str_value));
+                        break;
+                    }
+                    case LIST_ELEMENT:
+                    {
+                        if (firstElementInKey)
+                        {
+                            m_db->ListLen(tmpctx, kk.key);
+                            DUMP_CHECK_WRITE(WriteLen(tmpctx.reply.integer));
+                        }
+                        DUMP_CHECK_WRITE(WriteStringObject(vv.element));
+                        break;
+                    }
+                    case SET_ELEMENT:
+                    {
+                        if (firstElementInKey)
+                        {
+                            m_db->SetLen(tmpctx, kk.key);
+                            DUMP_CHECK_WRITE(WriteLen(tmpctx.reply.integer));
+                        }
+                        DUMP_CHECK_WRITE(WriteStringObject(kk.element));
+                        break;
+                    }
+                    case ZSET_ELEMENT_SCORE:
+                    {
+                        if (firstElementInKey)
+                        {
+                            m_db->ZSetLen(tmpctx, kk.key);
+                            DUMP_CHECK_WRITE(WriteLen(tmpctx.reply.integer));
+                        }
+                        DUMP_CHECK_WRITE(WriteStringObject(kk.element));
+                        DUMP_CHECK_WRITE(WriteDouble(kk.score.NumberValue()));
+                        break;
+                    }
+                    case HASH_FIELD:
+                    {
+                        if (firstElementInKey)
+                        {
+                            m_db->HashLen(tmpctx, kk.key);
+                            DUMP_CHECK_WRITE(WriteLen(tmpctx.reply.integer));
+                        }
+                        const std::string& fstr = kk.element.ToString();
+                        DUMP_CHECK_WRITE(WriteRawString(fstr.data(), fstr.size()));
+                        DUMP_CHECK_WRITE(WriteStringObject(vv.element));
+                        break;
+                    }
+                    case HASH_META:
+                    {
+                        DUMP_CHECK_WRITE(WriteLen(vv.meta.zipmap.size()));
+                        DataMap::iterator it = vv.meta.zipmap.begin();
+                        while (it != vv.meta.zipmap.end())
+                        {
+                            std::string field_name;
+                            it->first.GetDecodeString(field_name);
+                            DUMP_CHECK_WRITE(WriteRawString(field_name.data(), field_name.size()));
+                            DUMP_CHECK_WRITE(WriteStringObject(it->second));
+                            it++;
+                        }
+                        break;
+                    }
+                    case LIST_META:
+                    {
+                        DUMP_CHECK_WRITE(WriteLen(vv.meta.ziplist.size()));
+                        DataArray::iterator it = vv.meta.ziplist.begin();
+                        while (it != vv.meta.ziplist.end())
+                        {
+                            DUMP_CHECK_WRITE(WriteStringObject(*it));
+                            it++;
+                        }
+                        break;
+                    }
+                    case ZSET_META:
+                    {
+                        DUMP_CHECK_WRITE(WriteLen(vv.meta.zipmap.size()));
+                        DataMap::iterator it = vv.meta.zipmap.begin();
+                        while (it != vv.meta.zipmap.end())
+                        {
+                            Data d = it->first;
+                            DUMP_CHECK_WRITE(WriteStringObject(d));
+                            DUMP_CHECK_WRITE(WriteDouble(it->second.NumberValue()));
+                            it++;
+                        }
+                        break;
+                    }
+                    case SET_META:
+                    {
+                        DUMP_CHECK_WRITE(WriteLen(vv.meta.zipset.size()));
+                        DataSet::iterator it = vv.meta.zipset.begin();
+                        while (it != vv.meta.zipset.end())
+                        {
+                            DUMP_CHECK_WRITE(WriteStringObject(*it));
+                            it++;
+                        }
+                        break;
+                    }
+                    default:
+                    {
+                        break;
+                    }
+                }
+                iter->Next();
+            }
+            DELETE(iter);
+        }
+
+        if (err != 0)
         {
-            ERROR_LOG("Failed to write dump file for reason:%s", strerror(visitor.err));
+            ERROR_LOG("Failed to write dump file for reason:%s", strerror(err));
             Close();
             return -1;
         }
@@ -1634,20 +1726,22 @@ namespace ardb
     int ArdbDumpFile::DoSave()
     {
         RETURN_NEGATIVE_EXPR(WriteMagicHeader());
-        struct VisitorTask: public RawValueVisitor
+
+        KeyObject k;
+        k.db = 0;
+        k.type = KEY_META;
+        BatchWriteGuard guard(m_db->GetKeyValueEngine());
+        Iterator* iter = m_db->IteratorKeyValue(k, false);
+        if (NULL != iter)
         {
-                ArdbDumpFile& r;
-                VisitorTask(ArdbDumpFile& rr) :
-                        r(rr)
-                {
-                }
-                int OnRawKeyValue(const Slice& key, const Slice& value)
-                {
-                    RETURN_NEGATIVE_EXPR(r.SaveRawKeyValue(key, value));
-                    return 0;
-                }
-        } visitor(*this);
-        m_db->VisitAllDB(&visitor);
+            while (iter->Valid())
+            {
+                //DelRaw(ctx, iter->Key());
+                SaveRawKeyValue(iter->Key(), iter->Value());
+                iter->Next();
+            }
+            DELETE(iter);
+        }
         FlushWriteBuffer();
         WriteType(REDIS_RDB_OPCODE_EOF);
         uint64 cksm = m_cksm;
@@ -1672,7 +1766,8 @@ namespace ardb
             Slice key, value;
             RETURN_NEGATIVE_EXPR(BufferHelper::ReadVarSlice(buffer, key));
             RETURN_NEGATIVE_EXPR(BufferHelper::ReadVarSlice(buffer, value));
-            m_db->RawSet(key, value);
+            Context tmpctx;
+            m_db->SetRaw(tmpctx, key, value);
         }
         return 0;
     }
@@ -1685,7 +1780,7 @@ namespace ardb
         uint32 len = 0;
         uint32 rawlen, compressedlen;
         std::string origin;
-
+        BatchWriteGuard guard(m_db->GetKeyValueEngine());
         if (!Read(buf, 8, true))
             goto eoferr;
         buf[9] = '\0';

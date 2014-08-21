@@ -34,9 +34,9 @@
 #include "leveldb/comparator.h"
 #include "leveldb/cache.h"
 #include "leveldb/filter_policy.h"
-#include "db.hpp"
+#include "engine.hpp"
 #include "util/config_helper.hpp"
-#include "util/thread/thread_local.hpp"
+#include "thread/thread_local.hpp"
 #include <stack>
 
 namespace ardb
@@ -113,9 +113,10 @@ namespace ardb
             int64 bloom_bits;
             int64 batch_commit_watermark;
             std::string compression;
+            bool logenable;
             LevelDBConfig() :
                     block_cache_size(0), write_buffer_size(0), max_open_files(10240), block_size(0), block_restart_interval(
-                            0), bloom_bits(10), batch_commit_watermark(1024),compression("snappy")
+                            0), bloom_bits(10), batch_commit_watermark(1024),compression("snappy"),logenable(false)
             {
             }
     };
@@ -169,13 +170,13 @@ namespace ardb
             LevelDBEngine();
             ~LevelDBEngine();
             int Init(const LevelDBConfig& cfg);
-            int Put(const Slice& key, const Slice& value);
-            int Get(const Slice& key, std::string* value, bool fill_cache);
-            int Del(const Slice& key);
+            int Put(const Slice& key, const Slice& value, const Options& options);
+            int Get(const Slice& key, std::string* value, const Options& options);
+            int Del(const Slice& key, const Options& options);
             int BeginBatchWrite();
             int CommitBatchWrite();
             int DiscardBatchWrite();
-            Iterator* Find(const Slice& findkey, bool cache);
+            Iterator* Find(const Slice& findkey, const Options& options);
             const std::string Stats();
             void CompactRange(const Slice& begin, const Slice& end);
             void ReleaseContextSnapshot();

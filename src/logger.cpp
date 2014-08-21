@@ -1,5 +1,5 @@
 /*
- *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
+ *Copyright (c) 2013-2014, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
  *Redistribution and use in source and binary forms, with or without
@@ -29,8 +29,8 @@
 
 #include "logger.hpp"
 #include "util/helpers.hpp"
-#include "util/thread/thread_mutex.hpp"
-#include "util/thread/lock_guard.hpp"
+#include "thread/thread_mutex.hpp"
+#include "thread/lock_guard.hpp"
 #include <stdarg.h>
 #include <stdio.h>
 #include <sstream>

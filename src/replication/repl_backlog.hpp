@@ -43,7 +43,7 @@
 #include "channel/all_includes.hpp"
 #include "util/mmap.hpp"
 #include "repl.hpp"
-#include "data_format.hpp"
+#include "codec.hpp"
 
 #define SERVER_KEY_SIZE 40
 
@@ -63,7 +63,7 @@ namespace ardb
             DBID current_db;
     };
 
-    class ArdbServer;
+    class Ardb;
     class ReplBacklog: public Runnable
     {
         private:
@@ -81,7 +81,7 @@ namespace ardb
             void Persist();
         public:
             ReplBacklog();
-            int Init(ArdbServer* server);
+            int Init(Ardb* server);
             bool IsInited()
             {
                 return m_inited;

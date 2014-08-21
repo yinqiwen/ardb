@@ -37,22 +37,22 @@
 #define SLAVE_CLIENT_HPP_
 #include "channel/all_includes.hpp"
 #include "util/mmap.hpp"
-#include "db.hpp"
 #include "rdb.hpp"
 #include "repl_backlog.hpp"
+#include "codec.hpp"
 
 using namespace ardb::codec;
 
-#define SLAVE_SERVER_ADDRESS_NAME "slave"
+#define MASTER_SERVER_ADDRESS_NAME "master"
 
 namespace ardb
 {
-    struct ArdbConnContext;
-    class ArdbServer;
+    struct Context;
+    class Ardb;
     class Slave: public ChannelUpstreamHandler<RedisMessage>
     {
         private:
-            ArdbServer* m_serv;
+            Ardb* m_serv;
             Channel* m_client;
             SocketHostAddress m_master_addr;
             uint32 m_slave_state;
@@ -71,7 +71,7 @@ namespace ardb
 
             DBIDSet m_exclude_dbs;
 
-            ArdbConnContext *m_actx;
+            Context *m_actx;
 
             /**
              * Redis dump file
@@ -88,18 +88,17 @@ namespace ardb
             void HandleRedisReply(Channel* ch, RedisReply& reply);
             void HandleRedisDumpChunk(Channel* ch, RedisDumpFileChunk& chunk);
             void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisMessage>& e);
-            //void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisReply>& e);
             void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e);
             void ChannelConnected(ChannelHandlerContext& ctx, ChannelStateEvent& e);
             void Timeout();
             void Routine();
             void InitCron();
             RedisDumpFile* GetNewRedisDumpFile();
-            ArdbConnContext* GetArdbConnContext();
+            Context* GetArdbConnContext();
             void SwitchSyncedState();
             static void LoadRDBRoutine(void* cb);
         public:
-            Slave(ArdbServer* serv);
+            Slave(Ardb* serv);
             bool Init();
             const SocketHostAddress& GetMasterAddress()
             {

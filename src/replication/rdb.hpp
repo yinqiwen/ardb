@@ -32,12 +32,13 @@
 #include <string>
 #include "common.hpp"
 #include "buffer/buffer_helper.hpp"
-#include "db.hpp"
+#include "codec.hpp"
 
 namespace ardb
 {
     typedef void DumpRoutine(void* cb);
 
+    class Ardb;
     class DataDumpFile
     {
         protected:
@@ -78,6 +79,7 @@ namespace ardb
             }
             void Flush();
             void Remove();
+            void RenameToDefault();
             virtual ~DataDumpFile();
     };
 
@@ -110,7 +112,7 @@ namespace ardb
             int WriteRawString(const char *s, size_t len);
             int WriteLzfStringObject(const char *s, size_t len);
             int WriteTime(time_t t);
-            int WriteStringObject(ValueData& o);
+            int WriteStringObject(Data& o);
             int DoLoad();
             int DoSave();
         public:

@@ -28,7 +28,7 @@
  */
 
 #include "lmdb_engine.hpp"
-#include "data_format.hpp"
+#include "codec.hpp"
 #include "util/helpers.hpp"
 #include <string.h>
 #include <unistd.h>
@@ -37,7 +37,7 @@ namespace ardb
 {
     static int LMDBCompareFunc(const MDB_val *a, const MDB_val *b)
     {
-        return ardb_compare_keys((const char*) a->mv_data, a->mv_size, (const char*) b->mv_data, b->mv_size);
+        return CommonComparator::Compare((const char*) a->mv_data, a->mv_size, (const char*) b->mv_data, b->mv_size);
     }
     LMDBEngineFactory::LMDBEngineFactory(const Properties& props) :
             m_env(NULL), m_env_opened(false)
@@ -325,7 +325,7 @@ namespace ardb
         m_queue_cond.Unlock();
     }
 
-    int LMDBEngine::Put(const Slice& key, const Slice& value)
+    int LMDBEngine::Put(const Slice& key, const Slice& value, const Options& options)
     {
         LMDBContext& holder = m_ctx_local.GetValue();
         MDB_txn *txn = holder.readonly_txn;
@@ -356,7 +356,7 @@ namespace ardb
         }
         return 0;
     }
-    int LMDBEngine::Get(const Slice& key, std::string* value, bool fill_cache)
+    int LMDBEngine::Get(const Slice& key, std::string* value, const Options& options)
     {
         MDB_val k, v;
         k.mv_data = const_cast<char*>(key.data());
@@ -384,7 +384,7 @@ namespace ardb
         }
         return rc;
     }
-    int LMDBEngine::Del(const Slice& key)
+    int LMDBEngine::Del(const Slice& key, const Options& options)
     {
         LMDBContext& holder = m_ctx_local.GetValue();
         MDB_txn *txn = holder.readonly_txn;
@@ -413,7 +413,7 @@ namespace ardb
         return 0;
     }
 
-    Iterator* LMDBEngine::Find(const Slice& findkey, bool cache)
+    Iterator* LMDBEngine::Find(const Slice& findkey, const Options& options)
     {
         MDB_val k, data;
         k.mv_data = const_cast<char*>(findkey.data());

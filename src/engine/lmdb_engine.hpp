@@ -31,12 +31,12 @@
 #define LMDB_ENGINE_HPP_
 
 #include "lmdb.h"
-#include "db.hpp"
+#include "engine.hpp"
 #include "channel/all_includes.hpp"
 #include "util/config_helper.hpp"
-#include "util/thread/thread_local.hpp"
-#include "util/thread/thread_mutex_lock.hpp"
-#include "util/thread/event_condition.hpp"
+#include "thread/thread_local.hpp"
+#include "thread/thread_mutex_lock.hpp"
+#include "thread/event_condition.hpp"
 #include "util/concurrent_queue.hpp"
 #include <stack>
 
@@ -174,14 +174,14 @@ namespace ardb
             LMDBEngine();
             ~LMDBEngine();
             int Init(const LMDBConfig& cfg, MDB_env *env, const std::string& name);
-            int Put(const Slice& key, const Slice& value);
-            int Get(const Slice& key, std::string* value, bool fill_cache);
-            int Del(const Slice& key);
+            int Put(const Slice& key, const Slice& value, const Options& options);
+            int Get(const Slice& key, std::string* value, const Options& options);
+            int Del(const Slice& key, const Options& options);
             int BeginBatchWrite();
             int CommitBatchWrite();
             int DiscardBatchWrite();
             const std::string Stats();
-            Iterator* Find(const Slice& findkey, bool cache);
+            Iterator* Find(const Slice& findkey, const Options& options);
             void Close();
             void Clear();
             int MaxOpenFiles();

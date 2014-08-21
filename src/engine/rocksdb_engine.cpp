@@ -28,7 +28,7 @@
  */
 
 #include "rocksdb_engine.hpp"
-#include "data_format.hpp"
+#include "codec.hpp"
 #include "util/helpers.hpp"
 #include "rocksdb/env.h"
 #include <string.h>
@@ -55,7 +55,7 @@ namespace ardb
 
     int RocksDBComparator::Compare(const rocksdb::Slice& a, const rocksdb::Slice& b) const
     {
-        return ardb_compare_keys(a.data(), a.size(), b.data(), b.size());
+        return CommonComparator::Compare(a.data(), a.size(), b.data(), b.size());
     }
 
     void RocksDBComparator::FindShortestSeparator(std::string* start, const rocksdb::Slice& limit) const
@@ -84,6 +84,8 @@ namespace ardb
         conf_get_int64(props, "rocksdb.bloom_bits", cfg.bloom_bits);
         conf_get_int64(props, "rocksdb.batch_commit_watermark", cfg.batch_commit_watermark);
         conf_get_string(props, "rocksdb.compression", cfg.compression);
+        conf_get_bool(props, "rocksdb.logenable", cfg.logenable);
+        conf_get_bool(props, "rocksdb.skip_log_error_on_recovery", cfg.skip_log_error_on_recovery);
     }
 
     KeyValueEngine* RocksDBEngineFactory::CreateDB(const std::string& name)
@@ -196,7 +198,7 @@ namespace ardb
         m_options.OptimizeLevelStyleCompaction();
         m_options.IncreaseParallelism();
 
-        m_options.info_log.reset(new RocksDBLogger);
+        //m_options.info_log.reset(new RocksDBLogger);
         make_dir(cfg.path);
         m_db_path = cfg.path;
         rocksdb::Status status = rocksdb::DB::Open(m_options, cfg.path.c_str(), &m_db);
@@ -276,7 +278,7 @@ namespace ardb
         count++;
     }
 
-    int RocksDBEngine::Put(const Slice& key, const Slice& value)
+    int RocksDBEngine::Put(const Slice& key, const Slice& value, const Options& options)
     {
         rocksdb::Status s = rocksdb::Status::OK();
         ContextHolder& holder = m_context.GetValue();
@@ -294,17 +296,17 @@ namespace ardb
         }
         return s.ok() ? 0 : -1;
     }
-    int RocksDBEngine::Get(const Slice& key, std::string* value, bool fill_cache)
+    int RocksDBEngine::Get(const Slice& key, std::string* value, const Options& options)
     {
-        rocksdb::ReadOptions options;
-        options.fill_cache = fill_cache;
-        options.verify_checksums = false;
+        rocksdb::ReadOptions read_options;
+        read_options.fill_cache = options.read_fill_cache;
+        read_options.verify_checksums = false;
         ContextHolder& holder = m_context.GetValue();
-        options.snapshot = holder.snapshot;
-        rocksdb::Status s = m_db->Get(options, ROCKSDB_SLICE(key), value);
+        read_options.snapshot = holder.snapshot;
+        rocksdb::Status s = m_db->Get(read_options, ROCKSDB_SLICE(key), value);
         return s.ok() ? 0 : -1;
     }
-    int RocksDBEngine::Del(const Slice& key)
+    int RocksDBEngine::Del(const Slice& key, const Options& options)
     {
         rocksdb::Status s = rocksdb::Status::OK();
         ContextHolder& holder = m_context.GetValue();
@@ -323,18 +325,18 @@ namespace ardb
         return s.ok() ? 0 : -1;
     }
 
-    Iterator* RocksDBEngine::Find(const Slice& findkey, bool cache)
+    Iterator* RocksDBEngine::Find(const Slice& findkey, const Options& options)
     {
-        rocksdb::ReadOptions options;
-        options.fill_cache = cache;
+        rocksdb::ReadOptions read_options;
+        read_options.fill_cache = options.seek_fill_cache;
         ContextHolder& holder = m_context.GetValue();
         if (NULL == holder.snapshot)
         {
             holder.snapshot = m_db->GetSnapshot();
         }
         holder.snapshot_ref++;
-        options.snapshot = holder.snapshot;
-        rocksdb::Iterator* iter = m_db->NewIterator(options);
+        read_options.snapshot = holder.snapshot;
+        rocksdb::Iterator* iter = m_db->NewIterator(read_options);
         iter->Seek(ROCKSDB_SLICE(findkey));
         return new RocksDBIterator(this, iter);
     }

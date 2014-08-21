@@ -1,5 +1,5 @@
 /*
- *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
+ *Copyright (c) 2013-2014, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
  *Redistribution and use in source and binary forms, with or without
@@ -27,7 +27,7 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "ardb_server.hpp"
+#include "ardb.hpp"
 #if defined __USE_LMDB__
 #include "engine/lmdb_engine.hpp"
 typedef ardb::LMDBEngineFactory SelectedDBEngineFactory;
@@ -97,14 +97,18 @@ int main(int argc, char** argv)
                         argv[0]);
     }
     signal_setting();
-    ArdbServerConfig cfg;
-    if (0 != ArdbServer::ParseConfig(props, cfg))
+    ArdbConfig cfg;
+    if(!cfg.Parse(props))
     {
+        printf("Failed to parse config file.\n");
         return -1;
     }
     SelectedDBEngineFactory engine(props);
-    ArdbServer server(engine);
-    server.Start(props);
+    Ardb server(engine);
+    if(0 == server.Init(cfg))
+    {
+        server.Start();
+    }
     return 0;
 }
 
