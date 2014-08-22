@@ -292,7 +292,7 @@ OP_NAMESPACE_BEGIN
         {
             Data* value = iter.Value();
             RedisReply& r = ctx.reply.AddMember();
-            fill_str_reply(r, value->ToString());
+            fill_value_reply(r, *value);
             iter.Next();
         }
         return 0;
@@ -316,10 +316,9 @@ OP_NAMESPACE_BEGIN
             const Data* field = iter.Field();
             Data* value = iter.Value();
             RedisReply& r = ctx.reply.AddMember();
-            std::string tmp;
-            fill_str_reply(r, field->GetDecodeString(tmp));
+            fill_value_reply(r, *field);
             RedisReply& r1 = ctx.reply.AddMember();
-            fill_str_reply(r1, value->GetDecodeString(tmp));
+            fill_value_reply(r1, *value);
             iter.Next();
         }
         return 0;
@@ -383,7 +382,7 @@ OP_NAMESPACE_BEGIN
                 RedisReply& rr1 = r2.AddMember();
                 RedisReply& rr2 = r2.AddMember();
                 fill_str_reply(rr1, tmp);
-                fill_str_reply(rr2, iter.Value()->ToString());
+                fill_value_reply(rr2, *(iter.Value()));
             }
             if (r2.MemberSize() >= (limit * 2))
             {

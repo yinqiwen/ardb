@@ -85,7 +85,7 @@ OP_NAMESPACE_BEGIN
             Data* entry = GetZipEntry(meta.meta.ziplist, index);
             if (NULL != entry)
             {
-                fill_str_reply(ctx.reply, entry->ToString());
+                fill_value_reply(ctx.reply, *entry);
             }
             else
             {
@@ -108,7 +108,7 @@ OP_NAMESPACE_BEGIN
             {
                 if (cursor == std::abs(index))
                 {
-                    fill_str_reply(ctx.reply, iter.Element()->ToString());
+                    fill_value_reply(ctx.reply, *(iter.Element()));
                     return 0;
                 }
                 cursor++;
@@ -158,13 +158,13 @@ OP_NAMESPACE_BEGIN
                 if (lpop)
                 {
                     Data& data = meta.meta.ziplist.front();
-                    fill_str_reply(ctx.reply, data.ToString());
+                    fill_value_reply(ctx.reply, data);
                     meta.meta.ziplist.pop_front();
                 }
                 else
                 {
                     Data& data = meta.meta.ziplist.back();
-                    fill_str_reply(ctx.reply, data.ToString());
+                    fill_value_reply(ctx.reply, data);
                     meta.meta.ziplist.pop_back();
                 }
                 if (meta.meta.ziplist.empty())
@@ -600,7 +600,7 @@ OP_NAMESPACE_BEGIN
             while (rangelen--)
             {
                 RedisReply& r = ctx.reply.AddMember();
-                fill_str_reply(r, meta.meta.ziplist[i++].ToString());
+                fill_value_reply(r, meta.meta.ziplist[i++]);
             }
         }
         else

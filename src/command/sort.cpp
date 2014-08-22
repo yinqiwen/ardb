@@ -437,7 +437,9 @@ namespace ardb
             {
                 if (!it->IsNil())
                 {
-                    ListInsert(ctx, list_meta, NULL, it->ToString(), false, false);
+                    std::string tmp;
+                    it->GetDecodeString(tmp);
+                    ListInsert(ctx, list_meta, NULL, tmp, false, false);
                 }
                 it++;
             }

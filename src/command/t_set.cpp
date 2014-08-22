@@ -523,14 +523,14 @@ OP_NAMESPACE_BEGIN
                 if (NULL != store)
                 {
                     bool tmp;
-                    SetAdd(ctx, dest_meta, iter.Element()->ToString(), tmp);
+                    std::string tmpstr;
+                    iter.Element()->GetDecodeString(tmpstr);
+                    SetAdd(ctx, dest_meta, tmpstr, tmp);
                 }
                 if (NULL == store && NULL == count)
                 {
                     RedisReply& r = ctx.reply.AddMember();
-                    std::string tmp;
-                    iter.Element()->GetDecodeString(tmp);
-                    fill_str_reply(r, tmp);
+                    fill_value_reply(r, *(iter.Element()));
                 }
             }
             iter.Next();
@@ -673,13 +673,15 @@ OP_NAMESPACE_BEGIN
             if (NULL != store)
             {
                 bool tmp;
-                SetAdd(ctx, dest_meta, min_max.ToString(), tmp);
+                std::string tmpstr;
+                min_max.GetDecodeString(tmpstr);
+                SetAdd(ctx, dest_meta, tmpstr, tmp);
                 SetKeyValue(ctx, dest_meta);
             }
             if (NULL == store && NULL == count)
             {
                 RedisReply& r = ctx.reply.AddMember();
-                fill_str_reply(r, min_max.ToString());
+                fill_value_reply(r, min_max);
             }
             return 0;
         }
@@ -711,12 +713,14 @@ OP_NAMESPACE_BEGIN
                     if (NULL != store)
                     {
                         bool tmp;
-                        SetAdd(ctx, dest_meta, iter.Element()->ToString(), tmp);
+                        std::string tmpstr;
+                        iter.Element()->GetDecodeString(tmpstr);
+                        SetAdd(ctx, dest_meta, tmpstr, tmp);
                     }
                     if (NULL == store && NULL == count)
                     {
                         RedisReply& r = ctx.reply.AddMember();
-                        fill_str_reply(r, iter.Element()->ToString());
+                        fill_value_reply(r, *(iter.Element()));
                     }
                 }
                 iter.Next();
@@ -817,14 +821,14 @@ OP_NAMESPACE_BEGIN
                     if (NULL != store)
                     {
                         bool tmp;
-                        SetAdd(ctx, dest_meta, iter.Element()->ToString(), tmp);
+                        std::string tmpstr;
+                        iter.Element()->GetDecodeString(tmpstr);
+                        SetAdd(ctx, dest_meta, tmpstr, tmp);
                     }
                     if (NULL == store && NULL == count)
                     {
                         RedisReply& r = ctx.reply.AddMember();
-                        std::string tmp;
-                        iter.Element()->GetDecodeString(tmp);
-                        fill_str_reply(r, tmp);
+                        fill_value_reply(r, *(iter.Element()));
                     }
                 }
                 iter.Next();
@@ -953,7 +957,7 @@ OP_NAMESPACE_BEGIN
         {
             iter.Next();
             Data* next_field = iter.Element();
-            fill_str_reply(r1, next_field->ToString());
+            fill_value_reply(r1, *(next_field));
         }
         else
         {

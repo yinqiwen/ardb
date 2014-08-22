@@ -1274,7 +1274,7 @@ namespace ardb
         int n, nwritten = 0;
 
         /* Try integer encoding */
-        if (len <= 11)
+        if (len > 0 && len <= 11)
         {
             unsigned char buf[5];
             if ((enclen = TryIntegerEncoding((char*) s, len, buf)) > 0)
@@ -1556,7 +1556,8 @@ namespace ardb
                             m_db->HashLen(tmpctx, kk.key);
                             DUMP_CHECK_WRITE(WriteLen(tmpctx.reply.integer));
                         }
-                        const std::string& fstr = kk.element.ToString();
+                        std::string fstr;
+                        kk.element.GetDecodeString(fstr);
                         DUMP_CHECK_WRITE(WriteRawString(fstr.data(), fstr.size()));
                         DUMP_CHECK_WRITE(WriteStringObject(vv.element));
                         break;

@@ -148,6 +148,10 @@ OP_NAMESPACE_BEGIN
         encoding = data.encoding;
         switch (data.encoding)
         {
+            case STRING_ECODING_NIL:
+            {
+                break;
+            }
             case STRING_ECODING_INT64:
             {
                 value.iv = data.value.iv;
@@ -158,12 +162,17 @@ OP_NAMESPACE_BEGIN
                 value.dv = data.value.dv;
                 break;
             }
-            default:
+            case STRING_ECODING_RAW:
             {
                 if (NULL != data.value.sv)
                 {
                     value.sv = sdsnewlen(data.value.sv, sdslen(data.value.sv));
                 }
+                break;
+            }
+            default:
+            {
+                abort();
                 break;
             }
         }
@@ -376,6 +385,11 @@ OP_NAMESPACE_BEGIN
     {
         switch (encoding)
         {
+            case STRING_ECODING_NIL:
+            {
+                str.clear();
+                break;
+            }
             case STRING_ECODING_INT64:
             {
                 str = stringfromll(value.iv);

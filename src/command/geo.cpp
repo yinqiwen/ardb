@@ -443,7 +443,7 @@ namespace ardb
                     v.SetString(pit->value, false);
                     GetValueByPattern(ctx, ait->get_pattern, v, attr);
                     RedisReply& rr = ctx.reply.AddMember();
-                    fill_str_reply(rr, attr.ToString());
+                    fill_value_reply(rr, attr);
                 }
                 ait++;
             }

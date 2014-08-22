@@ -463,7 +463,7 @@ OP_NAMESPACE_BEGIN
         newscore.IncrBy(incr);
         ZSetAdd(ctx, meta, element, newscore, ret == 0 ? (&oldscore) : NULL);
         SetKeyValue(ctx, meta);
-        fill_str_reply(ctx.reply, newscore.ToString());
+        fill_value_reply(ctx.reply, newscore);
         return 0;
     }
 
@@ -543,11 +543,11 @@ OP_NAMESPACE_BEGIN
                 else
                 {
                     RedisReply& r1 = ctx.reply.AddMember();
-                    fill_str_reply(r1, array[cursor].first.ToString());
+                    fill_value_reply(r1, array[cursor].first);
                     if (withscores)
                     {
                         RedisReply& r2 = ctx.reply.AddMember();
-                        fill_str_reply(r2, array[cursor].second.ToString());
+                        fill_value_reply(r2, array[cursor].second);
                     }
                 }
                 if (reverse)
@@ -701,11 +701,11 @@ OP_NAMESPACE_BEGIN
                             if (options.fill_reply)
                             {
                                 RedisReply& r = ctx.reply.AddMember();
-                                fill_str_reply(r, array[i].first.ToString());
+                                fill_value_reply(r, array[i].first);
                                 if (options.withscores)
                                 {
                                     RedisReply& r1 = ctx.reply.AddMember();
-                                    fill_str_reply(r1, array[i].second.ToString());
+                                    fill_value_reply(r1, array[i].second);
                                 }
                             }
                             else
@@ -1337,8 +1337,7 @@ OP_NAMESPACE_BEGIN
         err = ZSetScore(ctx, meta, element, score);
         if (0 == err)
         {
-            //fill_double_reply(ctx.reply, score.NumberValue());
-            fill_str_reply(ctx.reply, score.ToString());
+            fill_value_reply(ctx.reply, score);
         }
         else
         {
