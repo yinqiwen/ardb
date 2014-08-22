@@ -1115,6 +1115,7 @@ OP_NAMESPACE_BEGIN
             DelKeyValue(tmpctx, v.key);
             v.key.encode_buf.Clear();
             v.key.db = dstdb;
+            v.key.key = dstkey;
             v.meta.expireat = 0;
             SetKeyValue(ctx, v);
         }
