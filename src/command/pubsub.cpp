@@ -162,6 +162,7 @@ namespace ardb
 
     int Ardb::Subscribe(Context& ctx, RedisCommandFrame& cmd)
     {
+        ctx.client->GetWritableOptions().max_write_buffer_size = (int32)(m_cfg.pubsub_client_output_buffer_limit);
         for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
         {
             SubscribeChannel(ctx, cmd.GetArguments()[i], true);
@@ -186,6 +187,7 @@ namespace ardb
     }
     int Ardb::PSubscribe(Context& ctx, RedisCommandFrame& cmd)
     {
+        ctx.client->GetWritableOptions().max_write_buffer_size = (int32)(m_cfg.pubsub_client_output_buffer_limit);
         for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
         {
             PSubscribeChannel(ctx, cmd.GetArguments()[i], true);
@@ -239,7 +241,10 @@ namespace ardb
     static void async_write_message(Channel* ch, void * data)
     {
         RedisReply* r = (RedisReply*) data;
-        ch->Write(*r);
+        if(!ch->Write(*r))
+        {
+            ch->Close();
+        }
         DELETE(r);
     }
 

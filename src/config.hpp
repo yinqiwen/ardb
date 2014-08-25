@@ -131,6 +131,9 @@ OP_NAMESPACE_BEGIN
 
             uint32 primary_port;
 
+            int64 slave_client_output_buffer_limit;
+            int64 pubsub_client_output_buffer_limit;
+
             ArdbConfig() :
                     daemonize(false), unixsocketperm(755), max_clients(10000), tcp_keepalive(0), timeout(0), slowlog_log_slower_than(
                             10000), slowlog_max_len(128), repl_data_dir("./repl"), backup_dir("./backup"), backup_redis_format(
@@ -146,7 +149,8 @@ OP_NAMESPACE_BEGIN
                             false), L1_string_read_fill_cache(false), check_type_before_set_string(false), hll_sparse_max_bytes(
                             3000), compact_min_interval(1200), compact_max_interval(7200), compact_trigger_write_count(
                             10000), compact_enable(true), replace_for_multi_sadd(false), replace_for_hmset(false), reply_pool_size(
-                            5000), primary_port(0)
+                            5000), primary_port(0), slave_client_output_buffer_limit(256 * 1024 * 1024), pubsub_client_output_buffer_limit(
+                            32 * 1024 * 1024)
             {
             }
             bool Parse(const Properties& props);

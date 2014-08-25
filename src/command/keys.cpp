@@ -173,6 +173,17 @@ OP_NAMESPACE_BEGIN
                     count++;
                 }
             }
+            else
+            {
+                /*
+                 * If the '*' is the last char, we can break iteration now
+                 */
+                size_t pos = options.pattern.find("*");
+                if (pos == options.pattern.size() - 1)
+                {
+                    break;
+                }
+            }
             iter->Next();
         }
         DELETE(iter);
@@ -622,7 +633,7 @@ OP_NAMESPACE_BEGIN
         {
             KeyType type = KEY_END;
             GetType(ctx, cmd.GetArguments()[1], type);
-            if(type != KEY_END)
+            if (type != KEY_END)
             {
                 CacheLoadOptions options;
                 options.deocode_geo = true;

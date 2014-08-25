@@ -250,6 +250,15 @@ namespace ardb
             }
             bool SetIOEventCallback(ChannelIOEventCallback* cb, int mask, void* data);
             bool Configure(const ChannelOptions& options);
+            const ChannelOptions& GetOptions() const
+            {
+                return m_options;
+            }
+            ChannelOptions& GetWritableOptions()
+            {
+                return m_options;
+            }
+
             bool Open();
             bool Bind(Address* local);
             bool Connect(Address* remote);

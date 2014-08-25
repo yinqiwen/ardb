@@ -117,14 +117,25 @@ namespace ardb
         Buffer buffer(256);
         RedisCommandEncoder::Encode(buffer, cmd);
         g_db->m_repl_backlog.Feed(buffer);
+
+        std::vector<Channel*> closing_slaves;
         SlaveConnTable::iterator it = m_slave_table.begin();
         for (; it != m_slave_table.end(); it++)
         {
             if (it->second->state == SLAVE_STATE_SYNCED)
             {
                 buffer.SetReadIndex(0);
-                it->second->conn->Write(buffer);
+                if(!it->second->conn->Write(buffer))
+                {
+                    ERROR_LOG("Failed to write command to slave, we'll close it later.");
+                    it->second->state = SLAVE_STATE_CLOSING;
+                    closing_slaves.push_back(it->second->conn);
+                }
             }
+        }
+        for(uint32 i = 0; i < closing_slaves.size(); i++)
+        {
+            closing_slaves[i]->Close();
         }
     }
 
@@ -560,6 +571,7 @@ namespace ardb
     {
         DEBUG_LOG("Recv sync command:%s", cmd.ToString().c_str());
         slave->Flush();
+        slave->GetWritableOptions().max_write_buffer_size = (int32)(g_db->GetConfig().slave_client_output_buffer_limit);
         SlaveConnection* conn = NULL;
         NEW(conn, SlaveConnection);
         conn->conn = slave;

@@ -31,6 +31,7 @@
 #include "codec.hpp"
 #include "util/helpers.hpp"
 #include "rocksdb/env.h"
+#include "rocksdb/rate_limiter.h"
 #include <string.h>
 #include <stdarg.h>
 
@@ -86,6 +87,8 @@ namespace ardb
         conf_get_string(props, "rocksdb.compression", cfg.compression);
         conf_get_bool(props, "rocksdb.logenable", cfg.logenable);
         conf_get_bool(props, "rocksdb.skip_log_error_on_recovery", cfg.skip_log_error_on_recovery);
+        conf_get_int64(props, "rocksdb.flush_compact_rate_bytes_per_sec", cfg.flush_compact_rate_bytes_per_sec);
+        conf_get_double(props, "rocksdb.hard_rate_limit", cfg.hard_rate_limit);
     }
 
     KeyValueEngine* RocksDBEngineFactory::CreateDB(const std::string& name)
@@ -194,11 +197,18 @@ namespace ardb
         {
             m_options.compression = rocksdb::kSnappyCompression;
         }
-
+        if(cfg.flush_compact_rate_bytes_per_sec > 0)
+        {
+            m_options.rate_limiter.reset(rocksdb::NewGenericRateLimiter(cfg.flush_compact_rate_bytes_per_sec));
+        }
+        m_options.hard_rate_limit = cfg.hard_rate_limit;
         m_options.OptimizeLevelStyleCompaction();
         m_options.IncreaseParallelism();
 
-        //m_options.info_log.reset(new RocksDBLogger);
+        if(cfg.logenable)
+        {
+            m_options.info_log.reset(new RocksDBLogger);
+        }
         make_dir(cfg.path);
         m_db_path = cfg.path;
         rocksdb::Status status = rocksdb::DB::Open(m_options, cfg.path.c_str(), &m_db);

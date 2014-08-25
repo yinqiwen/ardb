@@ -261,6 +261,9 @@ OP_NAMESPACE_BEGIN
         conf_get_bool(props, "replace-all-for-multi-sadd", replace_for_multi_sadd);
         conf_get_bool(props, "replace-all-for-hmset", replace_for_hmset);
 
+        conf_get_int64(props, "slave-client-output-buffer-limit", slave_client_output_buffer_limit);
+        conf_get_int64(props, "pubsub-client-output-buffer-limit", pubsub_client_output_buffer_limit);
+
         trusted_ip.clear();
         Properties::const_iterator ip_it = props.find("trusted-ip");
         if (ip_it != props.end())
