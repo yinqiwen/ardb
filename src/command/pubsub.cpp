@@ -273,6 +273,7 @@ namespace ardb
                     cc->client->GetService().AsyncIO(cc->client->GetID(), async_write_message, r);
                     receiver++;
                 }
+                cit++;
             }
         }
         PubsubContextTable::iterator pit = m_pubsub_patterns.begin();
