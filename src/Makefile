@@ -148,7 +148,7 @@ SERVEROBJ := main.o
 #DIST_LIB = libardb.so
 DIST_LIBA = libardb.a
 
-storage_engine?=leveldb
+storage_engine?=rocksdb
 
 ifeq ($(storage_engine), leveldb)
   STORAGE_ENGINE_OBJ=${LEVELDB_ENGINE}
