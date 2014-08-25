@@ -45,6 +45,7 @@
 #include "repl.hpp"
 #include "repl_backlog.hpp"
 #include "codec.hpp"
+#include "iterator.hpp"
 #include <map>
 
 using namespace ardb::codec;
@@ -67,9 +68,14 @@ namespace ardb
 
             DBIDSet include_dbs;
             DBIDSet exclude_dbs;
+            DBIDSet syncing_dbs;
+
+            Iterator* db_iter;
+            uint64 repl_chsm_before_sync;
+            DBID repl_dbid_before_sync;
             SlaveConnection() :
                     conn(NULL), sync_offset(0), acktime(0), port(0), repldbfd(-1), isRedisSlave(false), state(0), syncing_from(
-                            0)
+                            0), db_iter(NULL), repl_chsm_before_sync(0), repl_dbid_before_sync(0)
             {
             }
     };
@@ -84,7 +90,8 @@ namespace ardb
             SlavePortTable m_slave_port_table;
             ThreadMutex m_port_table_mutex;
 
-            bool m_dumping_db;
+            bool m_dumping_rdb;
+            bool m_dumping_ardb;
             int64 m_dumpdb_offset;
 
             time_t m_repl_no_slaves_since;
@@ -92,7 +99,8 @@ namespace ardb
 
             void Run();
             void OnHeartbeat();
-            void OnDumpComplete();
+            void OnRedisDumpComplete();
+            void OnArdbDumpComplete();
 
             void FullResyncRedisSlave(SlaveConnection& slave);
             void FullResyncArdbSlave(SlaveConnection& slave);
@@ -103,18 +111,21 @@ namespace ardb
             void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e);
             void WriteCmdToSlaves(const RedisCommandFrame& cmd);
             void WriteSlaves(DBID db, const RedisCommandFrame& cmd);
-
-            static void OnAddSlave(Channel* , void* );
-            static void OnFeedSlave(Channel* , void* );
-            static void OnDisconnectAllSlaves(Channel* , void* );
+            void SendRedisDumpToSlave(SlaveConnection& slave);
+            void SendArdbDumpToSlave(SlaveConnection& slave);
+            void SendCacheToSlave(SlaveConnection& slave);
+            static void OnAddSlave(Channel*, void*);
+            static void OnFeedSlave(Channel*, void*);
+            static void OnDisconnectAllSlaves(Channel*, void*);
+            static void OnDumpFileSendComplete(void* data);
+            static void OnDumpFileSendFailure(void* data);
         public:
             Master();
             int Init();
             void AddSlave(Channel* slave, RedisCommandFrame& cmd);
             void AddSlavePort(Channel* slave, uint32 port);
             void FeedSlaves(const DBID& dbid, RedisCommandFrame& cmd);
-            void SendDumpToSlave(SlaveConnection& slave);
-            void SendCacheToSlave(SlaveConnection& slave);
+
             size_t ConnectedSlaves();
             void Stop();
             void PrintSlaves(std::string& str);

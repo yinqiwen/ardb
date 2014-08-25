@@ -74,9 +74,9 @@ namespace ardb
             Context *m_actx;
 
             /**
-             * Redis dump file
+             * Redis/Ardb dump file
              */
-            RedisDumpFile* m_rdb;
+            DataDumpFile* m_rdb;
             ReplBacklog& m_backlog;
 
             time_t m_routine_ts;
@@ -93,7 +93,7 @@ namespace ardb
             void Timeout();
             void Routine();
             void InitCron();
-            RedisDumpFile* GetNewRedisDumpFile();
+            DataDumpFile* GetNewDumpFile();
             Context* GetArdbConnContext();
             void SwitchSyncedState();
             static void LoadRDBRoutine(void* cb);

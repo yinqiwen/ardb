@@ -177,6 +177,7 @@ namespace ardb
             bool m_block_read;
 
             SendFileSetting* m_file_sending;
+            void* m_attach;
 
             Channel(Channel* parent, ChannelService& factory);
 
@@ -257,6 +258,15 @@ namespace ardb
             ChannelOptions& GetWritableOptions()
             {
                 return m_options;
+            }
+
+            void Attach(void* attach)
+            {
+                m_attach = attach;
+            }
+            void* Attachment()
+            {
+                return m_attach;
             }
 
             bool Open();

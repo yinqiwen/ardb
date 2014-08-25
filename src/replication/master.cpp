@@ -36,7 +36,8 @@ namespace ardb
      * Master
      */
     Master::Master() :
-            m_dumping_db(false), m_dumpdb_offset(-1), m_repl_no_slaves_since(0), m_backlog_enable(true)
+            m_dumping_rdb(false), m_dumping_ardb(false), m_dumpdb_offset(-1), m_repl_no_slaves_since(0), m_backlog_enable(
+                    true)
     {
         g_master = this;
     }
@@ -125,7 +126,7 @@ namespace ardb
             if (it->second->state == SLAVE_STATE_SYNCED)
             {
                 buffer.SetReadIndex(0);
-                if(!it->second->conn->Write(buffer))
+                if (!it->second->conn->Write(buffer))
                 {
                     ERROR_LOG("Failed to write command to slave, we'll close it later.");
                     it->second->state = SLAVE_STATE_CLOSING;
@@ -133,7 +134,7 @@ namespace ardb
                 }
             }
         }
-        for(uint32 i = 0; i < closing_slaves.size(); i++)
+        for (uint32 i = 0; i < closing_slaves.size(); i++)
         {
             closing_slaves[i]->Close();
         }
@@ -197,154 +198,90 @@ namespace ardb
 
     static void DumpRDBRoutine(void* cb)
     {
-        SlaveConnection* slave = (SlaveConnection*)cb;
+        SlaveConnection* slave = (SlaveConnection*) cb;
         Buffer newline;
         newline.Write("\n", 1);
         slave->conn->Write(newline);
-        ChannelService& serv =  slave->conn->GetService();
+        ChannelService& serv = slave->conn->GetService();
         serv.Continue();
     }
 
     void Master::FullResyncArdbSlave(SlaveConnection& slave)
     {
-        /*
-         * Save dbid first. After full resynced, the first syncing
-         * command MUST be SELECT to make sure that slave/master have
-         * the same db syncing from cache.
-         */
+        std::string dump_file_path = g_db->GetConfig().repl_data_dir + "/dump.ardb";
+        slave.state = SLAVE_STATE_WAITING_DUMP_DATA;
+        if (m_dumping_ardb)
+        {
+            slave.sync_offset = m_dumpdb_offset;
+            return;
+        }
+        INFO_LOG("[Master]Start dump ardb data to file:%s", dump_file_path.c_str());
+        m_dumping_ardb = true;
+        m_dumpdb_offset = g_db->m_repl_backlog.GetReplEndOffset();
+        slave.repl_dbid_before_sync = g_db->m_repl_backlog.GetCurrentDBID();
+        slave.repl_chsm_before_sync = g_db->m_repl_backlog.GetChecksum();
+        slave.sync_offset = m_dumpdb_offset;
 
-        DBID currentDB = g_db->m_repl_backlog.GetCurrentDBID();
-        uint64 cksm = g_db->m_repl_backlog.GetChecksum();
-        slave.sync_offset = g_db->m_repl_backlog.GetReplEndOffset();
-
-        uint64 count;
-        if (slave.include_dbs.empty() && slave.exclude_dbs.empty())
-        {
-            KeyObject k;
-            k.db = 0;
-            k.type = KEY_META;
-            Iterator* iter = g_db->IteratorKeyValue(k, false);
-            if (NULL != iter)
-            {
-                while (iter->Valid())
-                {
-                    ArgumentArray args;
-                    args.push_back("__SET__");
-                    args.push_back(std::string(iter->Key().data(), iter->Key().size()));
-                    args.push_back(std::string(iter->Value().data(), iter->Value().size()));
-                    RedisCommandFrame cmd(args);
-                    slave.conn->Write(cmd);
-                    count++;
-                    if (count % 10000 == 0)
-                    {
-                        slave.conn->GetService().Continue();
-                    }
-                    iter->Next();
-                }
-                DELETE(iter);
-            }
-        }
-        else
-        {
-            DBIDSet visit_dbs = slave.include_dbs;
-            if (slave.include_dbs.empty())
-            {
-                g_db->GetAllDBIDSet(visit_dbs);
-            }
-            if (!slave.exclude_dbs.empty())
-            {
-                DBIDSet::iterator it = slave.exclude_dbs.begin();
-                while (it != slave.exclude_dbs.end())
-                {
-                    visit_dbs.erase(*it);
-                    it++;
-                }
-            }
-            DBIDSet::iterator it = visit_dbs.begin();
-            while (it != visit_dbs.end())
-            {
-                KeyObject k;
-                k.db = *it;
-                k.type = KEY_META;
-                Iterator* iter = g_db->IteratorKeyValue(k, false);
-                if (NULL != iter)
-                {
-                    while (iter->Valid())
-                    {
-                        KeyObject kk;
-                        if (decode_key(iter->Key(), kk))
-                        {
-                            if (kk.db != k.db)
-                            {
-                                break;
-                            }
-                        }
-                        ArgumentArray args;
-                        args.push_back("__SET__");
-                        args.push_back(std::string(iter->Key().data(), iter->Key().size()));
-                        args.push_back(std::string(iter->Value().data(), iter->Value().size()));
-                        RedisCommandFrame cmd(args);
-                        slave.conn->Write(cmd);
-                        count++;
-                        if (count % 10000 == 0)
-                        {
-                            slave.conn->GetService().Continue();
-                        }
-                        iter->Next();
-                    }
-                    DELETE(iter);
-                }
-                it++;
-            }
-        }
-        if (currentDB != ARDB_GLOBAL_DB)
-        {
-            Buffer select;
-            select.Printf("select %u\r\n", currentDB);
-            slave.conn->Write(select);
-        }
-        Buffer msg;
-        msg.Printf("FULLSYNCED %llu %llu\r\n", slave.sync_offset, cksm);
-        slave.conn->Write(msg);
-        SendCacheToSlave(slave);
+        //force master generate 'select' later
+        g_db->m_repl_backlog.SetCurrentDBID(ARDB_GLOBAL_DB);
+        ArdbDumpFile rdb;
+        rdb.Init(g_db);
+        rdb.Save(dump_file_path, DumpRDBRoutine, &slave);
+        INFO_LOG("[REPL]Saved ardb dump file:%s", dump_file_path.c_str());
+        OnArdbDumpComplete();
     }
 
     void Master::FullResyncRedisSlave(SlaveConnection& slave)
     {
         std::string dump_file_path = g_db->GetConfig().repl_data_dir + "/dump.rdb";
         slave.state = SLAVE_STATE_WAITING_DUMP_DATA;
-        if (m_dumping_db)
+        if (m_dumping_rdb)
         {
             slave.sync_offset = m_dumpdb_offset;
             return;
         }
         INFO_LOG("[Master]Start dump data to file:%s", dump_file_path.c_str());
-        m_dumping_db = true;
+        m_dumping_rdb = true;
         m_dumpdb_offset = g_db->m_repl_backlog.GetReplEndOffset();
         slave.sync_offset = m_dumpdb_offset;
 
+        //force master generate 'select' later
+        g_db->m_repl_backlog.SetCurrentDBID(ARDB_GLOBAL_DB);
         RedisDumpFile rdb;
         rdb.Init(g_db);
         rdb.Save(dump_file_path, DumpRDBRoutine, &slave);
         INFO_LOG("[REPL]Saved rdb dump file:%s", dump_file_path.c_str());
-        OnDumpComplete();
+        OnRedisDumpComplete();
     }
 
-    void Master::OnDumpComplete()
+    void Master::OnRedisDumpComplete()
     {
         SlaveConnTable::iterator it = m_slave_table.begin();
         while (it != m_slave_table.end())
         {
-            if (it->second->state == SLAVE_STATE_WAITING_DUMP_DATA)
+            if (it->second->state == SLAVE_STATE_WAITING_DUMP_DATA && it->second->isRedisSlave)
             {
-                SendDumpToSlave(*(it->second));
+                SendRedisDumpToSlave(*(it->second));
             }
             it++;
         }
-        m_dumping_db = false;
+        m_dumping_rdb = false;
+    }
+    void Master::OnArdbDumpComplete()
+    {
+        SlaveConnTable::iterator it = m_slave_table.begin();
+        while (it != m_slave_table.end())
+        {
+            if (it->second->state == SLAVE_STATE_WAITING_DUMP_DATA && !it->second->isRedisSlave)
+            {
+                SendArdbDumpToSlave(*(it->second));
+            }
+            it++;
+        }
+        m_dumping_ardb = false;
     }
 
-    static void OnDumpFileSendComplete(void* data)
+    void Master::OnDumpFileSendComplete(void* data)
     {
         std::pair<void*, void*>* p = (std::pair<void*, void*>*) data;
         Master* master = (Master*) p->first;
@@ -356,7 +293,7 @@ namespace ardb
         master->SendCacheToSlave(*slave);
     }
 
-    static void OnDumpFileSendFailure(void* data)
+    void Master::OnDumpFileSendFailure(void* data)
     {
         std::pair<void*, void*>* p = (std::pair<void*, void*>*) data;
         //Master* master = (Master*) p->first;
@@ -368,24 +305,56 @@ namespace ardb
 
     void Master::SendCacheToSlave(SlaveConnection& slave)
     {
-        if (slave.isRedisSlave && ARDB_GLOBAL_DB != slave.syncing_from)
-        {
-            //need send 'select <currentdb>' first
-            RedisCommandFrame select;
-            select.SetFullCommand("select %u", slave.syncing_from);
-            slave.conn->Write(select);
-            slave.syncing_from = ARDB_GLOBAL_DB;
-        }
+//        if (ARDB_GLOBAL_DB != slave.syncing_from)
+//        {
+//            //need send 'select <currentdb>' first
+//            RedisCommandFrame select;
+//            select.SetFullCommand("select %u", slave.syncing_from);
+//            slave.conn->Write(select);
+//            slave.syncing_from = ARDB_GLOBAL_DB;
+//        }
         slave.state = SLAVE_STATE_SYNING_CACHE_DATA;
         slave.conn->EnableWriting();
         INFO_LOG("[Master]Slave request offset: %lld", slave.sync_offset);
     }
 
-    void Master::SendDumpToSlave(SlaveConnection& slave)
+    void Master::SendRedisDumpToSlave(SlaveConnection& slave)
     {
         INFO_LOG("[REPL]Send dump file to slave");
         slave.state = SLAVE_STATE_SYNING_DUMP_DATA;
         std::string dump_file_path = g_db->GetConfig().repl_data_dir + "/dump.rdb";
+        SendFileSetting setting;
+        setting.fd = open(dump_file_path.c_str(), O_RDONLY);
+        if (-1 == setting.fd)
+        {
+            int err = errno;
+            ERROR_LOG("Failed to open file:%s for reason:%s", dump_file_path.c_str(), strerror(err));
+            slave.conn->Close();
+            return;
+        }
+        setting.file_offset = 0;
+        struct stat st;
+        fstat(setting.fd, &st);
+        Buffer header;
+        header.Printf("$%llu\r\n", st.st_size);
+        slave.conn->Write(header);
+
+        setting.file_rest_len = st.st_size;
+        setting.on_complete = OnDumpFileSendComplete;
+        setting.on_failure = OnDumpFileSendFailure;
+        std::pair<void*, void*>* cb = new std::pair<void*, void*>;
+        cb->first = this;
+        cb->second = &slave;
+        setting.data = cb;
+        slave.repldbfd = setting.fd;
+        slave.conn->SendFile(setting);
+    }
+
+    void Master::SendArdbDumpToSlave(SlaveConnection& slave)
+    {
+        INFO_LOG("[REPL]Send ardb dump file to slave");
+        slave.state = SLAVE_STATE_SYNING_DUMP_DATA;
+        std::string dump_file_path = g_db->GetConfig().repl_data_dir + "/dump.ardb";
         SendFileSetting setting;
         setting.fd = open(dump_file_path.c_str(), O_RDONLY);
         if (-1 == setting.fd)
@@ -431,7 +400,7 @@ namespace ardb
             else
             {
                 //FULLRESYNC
-                if (!m_dumping_db)
+                if ((slave.isRedisSlave && !m_dumping_rdb) || (!slave.isRedisSlave&& !m_dumping_ardb))
                 {
                     slave.syncing_from = g_db->m_repl_backlog.GetCurrentDBID();
                 }
@@ -485,10 +454,10 @@ namespace ardb
         if (found != m_slave_table.end())
         {
             SlaveConnection* slave = found->second;
-            DEBUG_LOG("[Master]Slave sync from %lld to %llu at state:%u", slave->sync_offset,
-                    g_db->m_repl_backlog.GetReplEndOffset(), slave->state);
             if (slave->state == SLAVE_STATE_SYNING_CACHE_DATA)
             {
+                DEBUG_LOG("[Master]Slave sync from %lld to %llu at state:%u", slave->sync_offset,
+                        g_db->m_repl_backlog.GetReplEndOffset(), slave->state);
                 if ((uint64) slave->sync_offset == g_db->m_repl_backlog.GetReplEndOffset())
                 {
                     slave->state = SLAVE_STATE_SYNCED;
@@ -518,6 +487,63 @@ namespace ardb
                     slave->conn->Close();
                 }
             }
+//            else if (slave->state == SLAVE_STATE_FULL_SYNCING)
+//            {
+//                Channel* conn = ctx.GetChannel();
+//                Iterator* iter = slave->db_iter;
+//                while (iter->Valid())
+//                {
+//                    if (!slave->include_dbs.empty() || !slave->exclude_dbs.empty())
+//                    {
+//                        KeyObject kk;
+//                        if (decode_key(iter->Key(), kk))
+//                        {
+//                            if (slave->syncing_dbs.count(kk.db) == 0)
+//                            {
+//                                if (kk.db > *(slave->syncing_dbs.rbegin()))
+//                                {
+//                                    break;
+//                                }
+//                                KeyObject k;
+//                                k.db = kk.db + 1;
+//                                k.type = KEY_META;
+//                                g_db->IteratorSeek(iter, k);
+//                                continue;
+//                            }
+//                        }
+//                        else
+//                        {
+//                            WARN_LOG("Invalid record in syncing.");
+//                            iter->Next();
+//                            continue;
+//                        }
+//                    }
+//                    ArgumentArray args;
+//                    args.push_back("__SET__");
+//                    args.push_back(std::string(iter->Key().data(), iter->Key().size()));
+//                    args.push_back(std::string(iter->Value().data(), iter->Value().size()));
+//                    RedisCommandFrame cmd(args);
+//                    conn->Write(cmd);
+//                    iter->Next();
+//                    if (conn->IsEnableWriting())
+//                    {
+//                        //slave connection is busy
+//                        return;
+//                    }
+//                }
+//
+//                DELETE(slave->db_iter);
+//                if (slave->repl_dbid_before_sync != ARDB_GLOBAL_DB)
+//                {
+//                    Buffer select;
+//                    select.Printf("select %u\r\n", slave->repl_dbid_before_sync);
+//                    conn->Write(select);
+//                }
+//                Buffer msg;
+//                msg.Printf("FULLSYNCED %llu %llu\r\n", slave->sync_offset, slave->repl_chsm_before_sync);
+//                conn->Write(msg);
+//                SendCacheToSlave(*slave);
+//            }
         }
         else
         {
@@ -571,7 +597,8 @@ namespace ardb
     {
         DEBUG_LOG("Recv sync command:%s", cmd.ToString().c_str());
         slave->Flush();
-        slave->GetWritableOptions().max_write_buffer_size = (int32)(g_db->GetConfig().slave_client_output_buffer_limit);
+        slave->GetWritableOptions().max_write_buffer_size =
+                (int32) (g_db->GetConfig().slave_client_output_buffer_limit);
         SlaveConnection* conn = NULL;
         NEW(conn, SlaveConnection);
         conn->conn = slave;

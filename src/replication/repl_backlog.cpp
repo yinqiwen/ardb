@@ -163,6 +163,7 @@ namespace ardb
 
         m_state->cksm = crc64(m_state->cksm, (const unsigned char *)(buffer.GetRawReadBuffer()), buffer.ReadableBytes());
         m_sync_state_change = true;
+
     }
 
     const char* ReplBacklog::GetServerKey()
@@ -207,8 +208,8 @@ namespace ardb
         if (offset < 0 || (uint64) offset < m_state->repl_backlog_off
                 || (uint64) offset > (m_state->repl_backlog_off + m_state->repl_backlog_histlen))
         {
-            INFO_LOG("Unable to partial resync with the slave for lack of backlog (Slave request was: %"PRId64").",
-                    offset);
+            INFO_LOG("Unable to partial resync with the slave for lack of backlog (Slave request was: %" PRId64"), and server offset is %" PRId64,
+                    offset, m_state->master_repl_offset);
             return false;
         }
         return true;

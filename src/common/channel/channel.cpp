@@ -68,7 +68,7 @@ Channel::Channel(Channel* parent, ChannelService& service) :
         NULL), m_pipeline_initailizor_user_data(NULL), m_pipeline_finallizer(
         NULL), m_pipeline_finallizer_user_data(NULL), m_detached(false), m_close_after_write(false), m_block_read(
                 false), m_file_sending(
-        NULL)
+        NULL),m_attach(NULL)
 {
 
     {
@@ -309,6 +309,7 @@ int32 Channel::WriteNow(Buffer* buffer)
                     || (write_buffer_size + buf_len) > (uint32) m_options.max_write_buffer_size)
             {
                 //overflow
+                WARN_LOG("Channel:%u write buffer exceed limit:%d", m_id, m_options.max_write_buffer_size);
                 return 0;
             }
         }
