@@ -487,63 +487,6 @@ namespace ardb
                     slave->conn->Close();
                 }
             }
-//            else if (slave->state == SLAVE_STATE_FULL_SYNCING)
-//            {
-//                Channel* conn = ctx.GetChannel();
-//                Iterator* iter = slave->db_iter;
-//                while (iter->Valid())
-//                {
-//                    if (!slave->include_dbs.empty() || !slave->exclude_dbs.empty())
-//                    {
-//                        KeyObject kk;
-//                        if (decode_key(iter->Key(), kk))
-//                        {
-//                            if (slave->syncing_dbs.count(kk.db) == 0)
-//                            {
-//                                if (kk.db > *(slave->syncing_dbs.rbegin()))
-//                                {
-//                                    break;
-//                                }
-//                                KeyObject k;
-//                                k.db = kk.db + 1;
-//                                k.type = KEY_META;
-//                                g_db->IteratorSeek(iter, k);
-//                                continue;
-//                            }
-//                        }
-//                        else
-//                        {
-//                            WARN_LOG("Invalid record in syncing.");
-//                            iter->Next();
-//                            continue;
-//                        }
-//                    }
-//                    ArgumentArray args;
-//                    args.push_back("__SET__");
-//                    args.push_back(std::string(iter->Key().data(), iter->Key().size()));
-//                    args.push_back(std::string(iter->Value().data(), iter->Value().size()));
-//                    RedisCommandFrame cmd(args);
-//                    conn->Write(cmd);
-//                    iter->Next();
-//                    if (conn->IsEnableWriting())
-//                    {
-//                        //slave connection is busy
-//                        return;
-//                    }
-//                }
-//
-//                DELETE(slave->db_iter);
-//                if (slave->repl_dbid_before_sync != ARDB_GLOBAL_DB)
-//                {
-//                    Buffer select;
-//                    select.Printf("select %u\r\n", slave->repl_dbid_before_sync);
-//                    conn->Write(select);
-//                }
-//                Buffer msg;
-//                msg.Printf("FULLSYNCED %llu %llu\r\n", slave->sync_offset, slave->repl_chsm_before_sync);
-//                conn->Write(msg);
-//                SendCacheToSlave(*slave);
-//            }
         }
         else
         {

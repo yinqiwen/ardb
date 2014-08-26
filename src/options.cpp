@@ -480,6 +480,14 @@ OP_NAMESPACE_BEGIN
                 get_patterns.push_back(get);
                 i++;
             }
+            else if ((!strcasecmp(args[i].c_str(), "HGETALL")) && i < args.size() - 1)
+            {
+                GeoSearchGetOption get;
+                get.get_pattern = args[i + 1];
+                get.hgetall = true;
+                get_patterns.push_back(get);
+                i++;
+            }
             else if ((!strcasecmp(args[i].c_str(), "include")) && i < args.size() - 2)
             {
                 if (!includes.insert(StringStringMap::value_type(args[i + 1], args[i + 2])).second)

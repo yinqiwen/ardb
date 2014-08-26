@@ -89,6 +89,8 @@ namespace ardb
         conf_get_bool(props, "rocksdb.skip_log_error_on_recovery", cfg.skip_log_error_on_recovery);
         conf_get_int64(props, "rocksdb.flush_compact_rate_bytes_per_sec", cfg.flush_compact_rate_bytes_per_sec);
         conf_get_double(props, "rocksdb.hard_rate_limit", cfg.hard_rate_limit);
+        conf_get_bool(props, "rocksdb.disableWAL", cfg.disableWAL);
+        conf_get_int64(props, "rocksdb.max_manifest_file_size", cfg.max_manifest_file_size);
     }
 
     KeyValueEngine* RocksDBEngineFactory::CreateDB(const std::string& name)
@@ -202,6 +204,10 @@ namespace ardb
             m_options.rate_limiter.reset(rocksdb::NewGenericRateLimiter(cfg.flush_compact_rate_bytes_per_sec));
         }
         m_options.hard_rate_limit = cfg.hard_rate_limit;
+        if(m_cfg.max_manifest_file_size > 0)
+        {
+            m_options.max_manifest_file_size = m_cfg.max_manifest_file_size;
+        }
         m_options.OptimizeLevelStyleCompaction();
         m_options.IncreaseParallelism();
 
@@ -263,7 +269,9 @@ namespace ardb
 
     int RocksDBEngine::FlushWriteBatch(ContextHolder& holder)
     {
-        rocksdb::Status s = m_db->Write(rocksdb::WriteOptions(), &holder.batch);
+        rocksdb::WriteOptions options;
+        options.disableWAL = m_cfg.disableWAL;
+        rocksdb::Status s = m_db->Write(options, &holder.batch);
         holder.Clear();
         return s.ok() ? 0 : -1;
     }
@@ -302,7 +310,9 @@ namespace ardb
         }
         else
         {
-            s = m_db->Put(rocksdb::WriteOptions(), ROCKSDB_SLICE(key), ROCKSDB_SLICE(value));
+            rocksdb::WriteOptions options;
+            options.disableWAL = m_cfg.disableWAL;
+            s = m_db->Put(options, ROCKSDB_SLICE(key), ROCKSDB_SLICE(value));
         }
         return s.ok() ? 0 : -1;
     }

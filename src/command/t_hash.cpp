@@ -297,12 +297,13 @@ OP_NAMESPACE_BEGIN
         }
         return 0;
     }
-    int Ardb::HGetAll(Context& ctx, RedisCommandFrame& cmd)
+
+    int Ardb::HashGetAll(Context& ctx, const Slice& key, RedisReply& reply)
     {
         ValueObject meta;
-        int err = GetMetaValue(ctx, cmd.GetArguments()[0], HASH_META, meta);
+        int err = GetMetaValue(ctx, key, HASH_META, meta);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
-        ctx.reply.type = REDIS_REPLY_ARRAY;
+        reply.type = REDIS_REPLY_ARRAY;
         if (0 != err)
         {
             return 0;
@@ -310,17 +311,23 @@ OP_NAMESPACE_BEGIN
         HashIterator iter;
         err = HashIter(ctx, meta, "", iter, true);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
-        ctx.reply.type = REDIS_REPLY_ARRAY;
+        reply.type = REDIS_REPLY_ARRAY;
         while (iter.Valid())
         {
             const Data* field = iter.Field();
             Data* value = iter.Value();
-            RedisReply& r = ctx.reply.AddMember();
+            RedisReply& r = reply.AddMember();
             fill_value_reply(r, *field);
-            RedisReply& r1 = ctx.reply.AddMember();
+            RedisReply& r1 = reply.AddMember();
             fill_value_reply(r1, *value);
             iter.Next();
         }
+        return 0;
+    }
+
+    int Ardb::HGetAll(Context& ctx, RedisCommandFrame& cmd)
+    {
+        HashGetAll(ctx, cmd.GetArguments()[0], ctx.reply);
         return 0;
     }
     int Ardb::HScan(Context& ctx, RedisCommandFrame& cmd)

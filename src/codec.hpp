@@ -355,6 +355,7 @@ OP_NAMESPACE_BEGIN
     typedef std::vector<std::string> StringArray;
     typedef std::vector<ValueObject> ValueObjectArray;
     typedef TreeSet<std::string>::Type StringSet;
+    typedef TreeMap<std::string, ValueObject>::Type ValueObjectMap;
 
     typedef std::pair<Data, Data> ZSetElement;
     typedef std::vector<ZSetElement> ZSetElementArray;

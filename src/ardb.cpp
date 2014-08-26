@@ -452,6 +452,7 @@ OP_NAMESPACE_BEGIN
         m_service->Start();
         sexit: m_master.Stop();
         m_cron.StopSelf();
+        m_cache.StopSelf();
         DELETE(m_service);
         DELETE(m_engine);
         ArdbLogger::DestroyDefaultLogger();

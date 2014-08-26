@@ -65,7 +65,6 @@ namespace ardb
             if (point.x < lon_range.min || point.x > lon_range.max || point.y < lat_range.min
                     || point.y > lat_range.max)
             {
-
                 guard.MarkFailed();
                 break;
             }
@@ -277,7 +276,6 @@ namespace ardb
             DEBUG_LOG("After areas merging, reduce searching area size from %u to %u", ress.size(), range_array.size());
             std::vector<ZRangeSpec>::iterator hit = range_array.begin();
             ZSetIterator* iter = NULL;
-            uint32 outrange = 0;
             while (hit != range_array.end())
             {
                 ZRangeSpec& range = *hit;
@@ -396,6 +394,7 @@ namespace ardb
             }
         }
         DEBUG_LOG("####Step4: Cost %lluus", get_current_epoch_micros() - start_time);
+        ValueObjectMap meta_cache;
         GeoPointArray::iterator pit = points.begin();
         while (pit != points.end())
         {
@@ -437,11 +436,22 @@ namespace ardb
                         rr2.str.assign(dbuf, dlen);
                     }
                 }
+                else if (ait->hgetall)
+                {
+                    std::string keystr(ait->get_pattern.data(), ait->get_pattern.size());
+                    string_replace(keystr, "*", pit->value);
+                    size_t pos = keystr.find("->");
+                    std::string field = keystr.substr(pos + 2);
+                    keystr = keystr.substr(0, pos);
+                    RedisReply& rr = ctx.reply.AddMember();
+                    rr.type = REDIS_REPLY_ARRAY;
+                    HashGetAll(ctx, keystr, rr);
+                }
                 else
                 {
                     Data v, attr;
                     v.SetString(pit->value, false);
-                    GetValueByPattern(ctx, ait->get_pattern, v, attr);
+                    GetValueByPattern(ctx, ait->get_pattern, v, attr, &meta_cache);
                     RedisReply& rr = ctx.reply.AddMember();
                     fill_value_reply(rr, attr);
                 }

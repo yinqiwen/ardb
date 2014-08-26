@@ -263,6 +263,7 @@ OP_NAMESPACE_BEGIN
             int HashGet(Context& ctx, const std::string& key, const std::string& field, Data& v);
             int HashIter(Context& ctx, ValueObject& meta, const std::string& from, HashIterator& iter, bool readonly);
             int HashLen(Context& ctx, const Slice& key);
+            int HashGetAll(Context& ctx, const Slice& key, RedisReply& r);
 
             int ZipListConvert(Context& ctx, ValueObject& meta);
             int ListIter(Context& ctx, ValueObject& meta, ListIterator& iter, bool reverse);
@@ -324,7 +325,7 @@ OP_NAMESPACE_BEGIN
 
             int MatchValueByPattern(Context& ctx, const Slice& key_pattern, const Slice& value_pattern, Data& subst,
                     Data& value);
-            int GetValueByPattern(Context& ctx, const Slice& pattern, Data& subst, Data& value);
+            int GetValueByPattern(Context& ctx, const Slice& pattern, Data& subst, Data& value, ValueObjectMap* meta_cache = NULL);
             int SortCommand(Context& ctx, const Slice& key, SortOptions& options, DataArray& values);
 
             int GetType(Context& ctx, const Slice& key, KeyType& type);

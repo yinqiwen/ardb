@@ -266,9 +266,10 @@ OP_NAMESPACE_BEGIN
     {
             bool get_coodinates;
             bool get_distances;
+            bool hgetall;
             std::string get_pattern;
             GeoSearchGetOption() :
-                    get_coodinates(false), get_distances(false)
+                    get_coodinates(false), get_distances(false),hgetall(false)
             {
             }
     };

@@ -99,7 +99,8 @@ namespace ardb
         return fnmatch(vpattern.c_str(), str.c_str(), 0) == 0 ? 0 : -1;
     }
 
-    int Ardb::GetValueByPattern(Context& ctx, const Slice& pattern, Data& subst, Data& value)
+    int Ardb::GetValueByPattern(Context& ctx, const Slice& pattern, Data& subst, Data& value,
+            ValueObjectMap* meta_cache)
     {
         const char *p, *f;
         const char* spat;
@@ -155,7 +156,7 @@ namespace ardb
                     }
                     case ZSET_META:
                     {
-                       ZSetLen(ctx, keystr);
+                        ZSetLen(ctx, keystr);
                         break;
                     }
                     default:
@@ -169,7 +170,7 @@ namespace ardb
             }
             ValueObject vv;
             int ret = StringGet(ctx, keystr, vv);
-            if(0 == ret)
+            if (0 == ret)
             {
                 value = vv.meta.str_value;
                 //value.ToString();
@@ -181,7 +182,24 @@ namespace ardb
             size_t pos = keystr.find("->");
             std::string field = keystr.substr(pos + 2);
             keystr = keystr.substr(0, pos);
-            int ret= HashGet(ctx, keystr, field, value);
+            int ret = 0;
+            if (NULL == meta_cache)
+            {
+                ret = HashGet(ctx, keystr, field, value);
+            }
+            else
+            {
+                ValueObjectMap::iterator fit = meta_cache->find(keystr);
+                if (fit == meta_cache->end())
+                {
+                    ValueObject meta;
+                    GetMetaValue(ctx, keystr, HASH_META, meta);
+                    fit = meta_cache->insert(ValueObjectMap::value_type(keystr, meta)).first;
+                }
+                Data ff;
+                ff.SetString(field, true);
+                ret = HashGet(ctx, fit->second, ff, value);
+            }
             //value.ToString();
             return ret;
         }
@@ -208,7 +226,7 @@ namespace ardb
             }
             case ZSET_META:
             {
-                ZSetRange(ctx, key, 0, -1, false,false, OP_GET);
+                ZSetRange(ctx, key, 0, -1, false, false, OP_GET);
                 if (NULL == options.by)
                 {
                     options.nosort = true;
@@ -221,9 +239,9 @@ namespace ardb
             }
         }
         DataArray sortvals;
-        if(ctx.reply.MemberSize() > 0)
+        if (ctx.reply.MemberSize() > 0)
         {
-            for(uint32 i = 0 ; i < ctx.reply.MemberSize(); i++)
+            for (uint32 i = 0; i < ctx.reply.MemberSize(); i++)
             {
                 Data v;
                 v.SetString(ctx.reply.MemberAt(i).str, true);
@@ -365,7 +383,7 @@ namespace ardb
                     size_t count = values.size() / step;
                     for (uint32 i = 0; i < result.size(); i++)
                     {
-                        result[i].SetDouble(result[i].NumberValue()/count);
+                        result[i].SetDouble(result[i].NumberValue() / count);
                     }
                 }
                 values.assign(result.begin(), result.end());
@@ -380,7 +398,8 @@ namespace ardb
                 {
                     for (uint32 j = i; j < values.size(); j += step)
                     {
-                        if (result[i].IsNil()){
+                        if (result[i].IsNil())
+                        {
                             result[i] = values[j];
                         }
                         else

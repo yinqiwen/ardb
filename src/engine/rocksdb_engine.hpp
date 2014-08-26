@@ -119,10 +119,13 @@ namespace ardb
             bool skip_log_error_on_recovery;
             double hard_rate_limit;
             int64 flush_compact_rate_bytes_per_sec;
+            bool disableWAL;
+            int64 max_manifest_file_size;
             RocksDBConfig() :
                     block_cache_size(0), block_cache_compressed_size(0), write_buffer_size(0), max_open_files(10240), block_size(
                             0), block_restart_interval(0), bloom_bits(10), batch_commit_watermark(1024), compression(
-                            "snappy"),logenable(false),skip_log_error_on_recovery(false),hard_rate_limit(2.0),flush_compact_rate_bytes_per_sec(0)
+                            "snappy"), logenable(false), skip_log_error_on_recovery(false), hard_rate_limit(2.0), flush_compact_rate_bytes_per_sec(
+                            0), disableWAL(false),max_manifest_file_size(0)
             {
             }
     };
