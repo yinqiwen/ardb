@@ -440,9 +440,6 @@ namespace ardb
                 {
                     std::string keystr(ait->get_pattern.data(), ait->get_pattern.size());
                     string_replace(keystr, "*", pit->value);
-                    size_t pos = keystr.find("->");
-                    std::string field = keystr.substr(pos + 2);
-                    keystr = keystr.substr(0, pos);
                     RedisReply& rr = ctx.reply.AddMember();
                     rr.type = REDIS_REPLY_ARRAY;
                     HashGetAll(ctx, keystr, rr);

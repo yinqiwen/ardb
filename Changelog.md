@@ -10,7 +10,7 @@
 ### Improve
 - Refactor all code, much easier to add new command & unit test case, and easier to embed it as a library.
 - New internal encode/decode format, which make it not compatible with previous version.
-- Huge performance improvement for lpop/spop.
+- Huge performance improvement for lpop/spop/lrange.
 - More unit test case. 
 - Many bug fixed.
 
