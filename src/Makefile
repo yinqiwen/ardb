@@ -179,7 +179,7 @@ endif
 endif
 
 
-LAST_ENGINE := $(shell sh -c 'cat .kv_engine')
+LAST_ENGINE := $(shell sh -c 'cat .kv_engine 2>&1')
 ifeq ($(storage_engine), $(LAST_ENGINE))
 #do nothing
 else
@@ -272,7 +272,7 @@ $(ROCKSDB_LIBA): $(SNAPPY_LIBA) $(ROCKSDB_PATH)
 	echo "<<<<< Done building ROCKSDB"
 
 $(ROCKSDB_PATH):
-	echo ">>>>> Unpacking LEVELDB" && \
+	echo ">>>>> Unpacking ROCKSDB" && \
 	cd ${LIB_PATH} && \
 	tar zxf ${ROCKSDB_FILE} && \
 	echo "<<<<< Done unpacking LEVELDB"

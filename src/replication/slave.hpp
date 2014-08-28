@@ -84,6 +84,8 @@ namespace ardb
             std::string m_cached_master_runid;
             int64 m_cached_master_repl_offset;
 
+            time_t m_lastinteraction;
+
             void HandleRedisCommand(Channel* ch, RedisCommandFrame& cmd);
             void HandleRedisReply(Channel* ch, RedisReply& reply);
             void HandleRedisDumpChunk(Channel* ch, RedisDumpFileChunk& chunk);
@@ -111,7 +113,12 @@ namespace ardb
             void Stop();
             bool IsConnected();
             bool IsSynced();
+            bool IsSyncing();
+            uint32 GetState();
             uint32 GetMasterLinkDownTime();
+            time_t GetMasterLastinteractionTime();
+            int64 SyncLeftBytes();
+            int64 LoadingLeftBytes();
     };
 }
 

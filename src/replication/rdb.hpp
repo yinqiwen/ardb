@@ -56,10 +56,12 @@ namespace ardb
             uint32 m_last_save;
             uint64 m_routinetime;
             char* m_read_buf;
+
+            int64 m_expected_data_size;
+            int64 m_writed_data_size;
             virtual int DoLoad() = 0;
             virtual int DoSave() = 0;
             bool Read(void* buf, size_t buflen, bool cksm = true);
-            void Close();
         public:
             DataDumpFile();
             int Init(Ardb* db);
@@ -67,6 +69,9 @@ namespace ardb
             {
                 return m_file_path;
             }
+            void SetExpectedDataSize(int64 size);
+            int64 DumpLeftDataSize();
+            int64 ProcessLeftDataSize();
             int Write(const void* buf, size_t buflen);
             int OpenWriteFile(const std::string& file);
             int OpenReadFile(const std::string& file);
@@ -80,6 +85,7 @@ namespace ardb
             void Flush();
             void Remove();
             void RenameToDefault();
+            void Close();
             virtual ~DataDumpFile();
     };
 

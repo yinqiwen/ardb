@@ -256,16 +256,30 @@ namespace ardb
                     info.append("master_host:").append(m_cfg.master_host).append("\r\n");
                     info.append("master_port:").append(stringfromll(m_cfg.master_port)).append("\r\n");
                     info.append("master_link_status:").append(m_slave.IsConnected() ? "up" : "down").append("\r\n");
+                    if(m_slave.IsConnected())
+                    {
+                        info.append("master_last_io_seconds_ago:").append(stringfromll(time(NULL) - m_slave.GetMasterLastinteractionTime())).append("\r\n");
+                    }else
+                    {
+                        info.append("master_last_io_seconds_ago:").append("-1").append("\r\n");
+                    }
+                    info.append("master_sync_in_progress:").append(m_slave.IsSyncing()?"1":"0").append("\r\n");
+                    if(m_slave.GetState() == SLAVE_STATE_SYNING_DUMP_DATA)
+                    {
+                        info.append("master_sync_left_bytes:").append(stringfromll(m_slave.SyncLeftBytes())).append("\r\n");
+                    }
+                    if(m_slave.GetState() == SLAVE_STATE_LOADING_DUMP_DATA)
+                    {
+                        info.append("slave_loading_left_bytes:").append(stringfromll(m_slave.LoadingLeftBytes())).append("\r\n");
+                    }
                     info.append("slave_repl_offset:").append(stringfromll(m_repl_backlog.GetReplEndOffset())).append(
                             "\r\n");
                     if (!m_slave.IsConnected())
                     {
                         info.append("master_link_down_since_seconds:").append(
                                 stringfromll(time(NULL) - m_slave.GetMasterLinkDownTime())).append("\r\n");
-
                     }
                     info.append("slave_priority:").append(stringfromll(m_cfg.slave_priority)).append("\r\n");
-
                 }
 
                 info.append("connected_slaves: ").append(stringfromll(m_master.ConnectedSlaves())).append("\r\n");

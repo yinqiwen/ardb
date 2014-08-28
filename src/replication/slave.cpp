@@ -44,7 +44,8 @@ namespace ardb
             m_serv(serv), m_client(NULL), m_slave_state(
             SLAVE_STATE_CLOSED), m_cron_inited(false), m_ping_recved_time(0), m_master_link_down_time(0), m_server_type(
             ARDB_DB_SERVER_TYPE), m_server_support_psync(false), m_actx(
-            NULL), m_rdb(NULL), m_backlog(serv->m_repl_backlog), m_routine_ts(0), m_cached_master_repl_offset(0)
+            NULL), m_rdb(NULL), m_backlog(serv->m_repl_backlog), m_routine_ts(0), m_cached_master_repl_offset(0), m_lastinteraction(
+                    0)
     {
     }
 
@@ -95,7 +96,7 @@ namespace ardb
         info.Printf("info Server\r\n");
         ctx.GetChannel()->Write(info);
         m_slave_state = SLAVE_STATE_WAITING_INFO_REPLY;
-        m_ping_recved_time = time(NULL);
+        m_lastinteraction = m_ping_recved_time = time(NULL);
         m_master_link_down_time = 0;
     }
 
@@ -341,90 +342,92 @@ namespace ardb
                 break;
             }
         }
-        }
+    }
 
-        void Slave::HandleRedisDumpChunk(Channel* ch, RedisDumpFileChunk& chunk)
+    void Slave::HandleRedisDumpChunk(Channel* ch, RedisDumpFileChunk& chunk)
+    {
+        if (m_slave_state != SLAVE_STATE_SYNING_DUMP_DATA)
         {
-            if (m_slave_state != SLAVE_STATE_SYNING_DUMP_DATA)
-            {
-                ERROR_LOG("Invalid state:%u to handler redis dump file chunk.", m_slave_state);
-                ch->Close();
-                return;
-            }
-            if (chunk.IsFirstChunk())
-            {
-                GetNewDumpFile();
-            }
-            if (!chunk.chunk.empty())
-            {
-                m_rdb->Write(chunk.chunk.c_str(), chunk.chunk.size());
-            }
-            if (chunk.IsLastChunk())
-            {
-                m_rdb->Flush();
-                m_rdb->RenameToDefault();
-                m_decoder.SwitchToCommandDecoder();
-                m_slave_state = SLAVE_STATE_LOADING_DUMP_DATA;
-                if (m_serv->m_cfg.slave_cleardb_before_fullresync && !m_server_support_psync)
-                {
-                    Context tmp;
-                    m_serv->FlushAllData(tmp);
-                }
-                INFO_LOG("Start loading RDB dump file.");
-                if (NULL != m_client)
-                {
-                    m_client->DetachFD();
-                }
-                m_rdb->Load(m_rdb->GetPath(), Slave::LoadRDBRoutine, this);
-                if (NULL != m_client)
-                {
-                    m_client->AttachFD();
-                }
-                SwitchSyncedState();
-                DELETE(m_rdb);
-                //Disconnect all slaves when all data resynced
-                m_serv->m_master.DisconnectAllSlaves();
-            }
+            ERROR_LOG("Invalid state:%u to handler redis dump file chunk.", m_slave_state);
+            ch->Close();
+            return;
         }
-
-        void Slave::SwitchSyncedState()
+        if (chunk.IsFirstChunk())
         {
-            m_ping_recved_time = time(NULL);
-            m_slave_state = SLAVE_STATE_SYNCED;
-            m_backlog.SetServerkey(m_cached_master_runid);
-            m_backlog.SetReplOffset(m_cached_master_repl_offset);
+            GetNewDumpFile()->SetExpectedDataSize(chunk.len);
         }
-
-        void Slave::MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisMessage>& e)
+        if (!chunk.chunk.empty())
         {
-            if (e.GetMessage()->IsReply())
-            {
-                HandleRedisReply(ctx.GetChannel(), e.GetMessage()->reply);
-            }
-            else if (e.GetMessage()->IsCommand())
-            {
-                HandleRedisCommand(ctx.GetChannel(), e.GetMessage()->command);
-            }
-            else
-            {
-                HandleRedisDumpChunk(ctx.GetChannel(), e.GetMessage()->chunk);
-            }
+            m_rdb->Write(chunk.chunk.c_str(), chunk.chunk.size());
         }
-
-        void Slave::ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e)
+        if (chunk.IsLastChunk())
         {
-            INFO_LOG("[Slave]Replication connection closed.");
-            m_master_link_down_time = time(NULL);
-            m_client = NULL;
-            m_slave_state = 0;
-            DELETE(m_actx);
-            m_slave_state = SLAVE_STATE_CLOSED;
-            //reconnect master after 1000ms
-            struct ReconnectTask: public Runnable
+            m_rdb->Flush();
+            m_rdb->RenameToDefault();
+            m_decoder.SwitchToCommandDecoder();
+            m_slave_state = SLAVE_STATE_LOADING_DUMP_DATA;
+            if (m_serv->m_cfg.slave_cleardb_before_fullresync && !m_server_support_psync)
             {
+                Context tmp;
+                m_serv->FlushAllData(tmp);
+            }
+            INFO_LOG("Start loading RDB dump file.");
+            if (NULL != m_client)
+            {
+                m_client->DetachFD();
+            }
+            m_rdb->Load(m_rdb->GetPath(), Slave::LoadRDBRoutine, this);
+            if (NULL != m_client)
+            {
+                m_client->AttachFD();
+            }
+            SwitchSyncedState();
+            m_rdb->Close();
+            //DELETE(m_rdb);
+            //Disconnect all slaves when all data resynced
+            m_serv->m_master.DisconnectAllSlaves();
+        }
+    }
+
+    void Slave::SwitchSyncedState()
+    {
+        m_ping_recved_time = time(NULL);
+        m_slave_state = SLAVE_STATE_SYNCED;
+        m_backlog.SetServerkey(m_cached_master_runid);
+        m_backlog.SetReplOffset(m_cached_master_repl_offset);
+    }
+
+    void Slave::MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisMessage>& e)
+    {
+        m_lastinteraction = time(NULL);
+        if (e.GetMessage()->IsReply())
+        {
+            HandleRedisReply(ctx.GetChannel(), e.GetMessage()->reply);
+        }
+        else if (e.GetMessage()->IsCommand())
+        {
+            HandleRedisCommand(ctx.GetChannel(), e.GetMessage()->command);
+        }
+        else
+        {
+            HandleRedisDumpChunk(ctx.GetChannel(), e.GetMessage()->chunk);
+        }
+    }
+
+    void Slave::ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e)
+    {
+        INFO_LOG("[Slave]Replication connection closed.");
+        m_lastinteraction = m_master_link_down_time = time(NULL);
+        m_client = NULL;
+        m_slave_state = 0;
+        DELETE(m_actx);
+        m_slave_state = SLAVE_STATE_CLOSED;
+        //reconnect master after 1000ms
+        struct ReconnectTask: public Runnable
+        {
                 Slave& sc;
                 ReconnectTask(Slave& ssc) :
-                sc(ssc)
+                        sc(ssc)
                 {
                 }
                 void Run()
@@ -434,96 +437,124 @@ namespace ardb
                         sc.ConnectMaster(sc.m_master_addr.GetHost(), sc.m_master_addr.GetPort());
                     }
                 }
-            };
-            m_serv->GetTimer().ScheduleHeapTask(new ReconnectTask(*this), 1000, -1, MILLIS);
-        }
+        };
+        m_serv->GetTimer().ScheduleHeapTask(new ReconnectTask(*this), 1000, -1, MILLIS);
+    }
 
-        void Slave::Timeout()
-        {
-            WARN_LOG("Master connection timeout.");
-            Close();
-        }
+    void Slave::Timeout()
+    {
+        WARN_LOG("Master connection timeout.");
+        Close();
+    }
 
-        void Slave::InitCron()
+    void Slave::InitCron()
+    {
+        if (!m_cron_inited)
         {
-            if (!m_cron_inited)
+            m_cron_inited = true;
+            struct RoutineTask: public Runnable
             {
-                m_cron_inited = true;
-                struct RoutineTask: public Runnable
-                {
                     Slave* c;
                     RoutineTask(Slave* cc) :
-                    c(cc)
+                            c(cc)
                     {
                     }
                     void Run()
                     {
                         c->Routine();
                     }
-                };
-                m_serv->GetTimer().ScheduleHeapTask(new RoutineTask(this), 1, 1, SECONDS);
-            }
-        }
-
-        int Slave::ConnectMaster(const std::string& host, uint32 port)
-        {
-            SocketHostAddress addr(host, port);
-            if (m_master_addr == addr && NULL != m_client)
-            {
-                return 0;
-            }
-            m_master_addr = addr;
-            Close();
-            m_client = m_serv->GetChannelService().NewClientSocketChannel();
-
-            m_decoder.Clear();
-            m_client->GetPipeline().AddLast("decoder", &m_decoder);
-            m_client->GetPipeline().AddLast("encoder", &m_encoder);
-            m_client->GetPipeline().AddLast("handler", this);
-            m_decoder.SwitchToReplyDecoder();
-            m_slave_state = SLAVE_STATE_CONNECTING;
-            m_client->Connect(&m_master_addr);
-            DEBUG_LOG("[Slave]Connecting master %s:%u", host.c_str(), port);
-            return 0;
-        }
-
-        void Slave::Stop()
-        {
-            SocketHostAddress empty;
-            m_master_addr = empty;
-            m_slave_state = 0;
-            Close();
-        }
-        void Slave::Close()
-        {
-            if (NULL != m_client)
-            {
-                m_client->Close();
-                m_client = NULL;
-            }
-        }
-
-        bool Slave::IsConnected()
-        {
-            return m_slave_state != SLAVE_STATE_CLOSED && m_slave_state != SLAVE_STATE_CONNECTING;
-        }
-        bool Slave::IsSynced()
-        {
-            return m_slave_state != SLAVE_STATE_SYNCED;
-        }
-
-        void Slave::SetIncludeDBs(const DBIDArray& dbs)
-        {
-            convert_vector_to_set(dbs, m_include_dbs);
-        }
-        void Slave::SetExcludeDBs(const DBIDArray& dbs)
-        {
-            convert_vector_to_set(dbs, m_exclude_dbs);
-        }
-        uint32
-        Slave::GetMasterLinkDownTime()
-        {
-            return m_master_link_down_time;
+            };
+            m_serv->GetTimer().ScheduleHeapTask(new RoutineTask(this), 1, 1, SECONDS);
         }
     }
+
+    int Slave::ConnectMaster(const std::string& host, uint32 port)
+    {
+        SocketHostAddress addr(host, port);
+        if (m_master_addr == addr && NULL != m_client)
+        {
+            return 0;
+        }
+        m_master_addr = addr;
+        Close();
+        m_client = m_serv->GetChannelService().NewClientSocketChannel();
+
+        m_decoder.Clear();
+        m_client->GetPipeline().AddLast("decoder", &m_decoder);
+        m_client->GetPipeline().AddLast("encoder", &m_encoder);
+        m_client->GetPipeline().AddLast("handler", this);
+        m_decoder.SwitchToReplyDecoder();
+        m_slave_state = SLAVE_STATE_CONNECTING;
+        m_client->Connect(&m_master_addr);
+        DEBUG_LOG("[Slave]Connecting master %s:%u", host.c_str(), port);
+        return 0;
+    }
+
+    void Slave::Stop()
+    {
+        SocketHostAddress empty;
+        m_master_addr = empty;
+        m_slave_state = 0;
+        Close();
+    }
+    void Slave::Close()
+    {
+        if (NULL != m_client)
+        {
+            m_client->Close();
+            m_client = NULL;
+        }
+    }
+
+    bool Slave::IsConnected()
+    {
+        return m_slave_state != SLAVE_STATE_CLOSED && m_slave_state != SLAVE_STATE_CONNECTING;
+    }
+    bool Slave::IsSynced()
+    {
+        return m_slave_state != SLAVE_STATE_SYNCED;
+    }
+
+    bool Slave::IsSyncing()
+    {
+        return m_slave_state == SLAVE_STATE_SYNING_DUMP_DATA || m_slave_state == SLAVE_STATE_LOADING_DUMP_DATA;
+    }
+    uint32 Slave::GetState()
+    {
+        return m_slave_state;
+    }
+
+    void Slave::SetIncludeDBs(const DBIDArray& dbs)
+    {
+        convert_vector_to_set(dbs, m_include_dbs);
+    }
+    void Slave::SetExcludeDBs(const DBIDArray& dbs)
+    {
+        convert_vector_to_set(dbs, m_exclude_dbs);
+    }
+    uint32 Slave::GetMasterLinkDownTime()
+    {
+        return m_master_link_down_time;
+    }
+    time_t Slave::GetMasterLastinteractionTime()
+    {
+        return m_lastinteraction;
+    }
+    int64 Slave::SyncLeftBytes()
+    {
+        if (NULL != m_rdb)
+        {
+            return m_rdb->DumpLeftDataSize();
+        }
+        return 0;
+    }
+    int64 Slave::LoadingLeftBytes()
+    {
+        if (NULL != m_rdb)
+        {
+            return m_rdb->ProcessLeftDataSize();
+        }
+        return 0;
+    }
+}
 

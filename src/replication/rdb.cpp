@@ -120,7 +120,7 @@ namespace ardb
             m_read_fp(NULL), m_write_fp(NULL), m_current_db(0), m_db(NULL), m_cksm(0), m_routine_cb(
             NULL), m_routine_cbdata(
             NULL), m_processed_bytes(0), m_file_size(0), m_is_saving(false), m_last_save(0), m_routinetime(0), m_read_buf(
-            NULL)
+            NULL),m_expected_data_size(0),m_writed_data_size(0)
     {
 
     }
@@ -128,6 +128,21 @@ namespace ardb
     {
         this->m_db = db;
         return 0;
+    }
+
+    void DataDumpFile::SetExpectedDataSize(int64 size)
+    {
+        m_expected_data_size = size;
+    }
+
+    int64 DataDumpFile::DumpLeftDataSize()
+    {
+        return m_expected_data_size - m_writed_data_size;
+    }
+
+    int64 DataDumpFile::ProcessLeftDataSize()
+    {
+        return m_expected_data_size - m_processed_bytes;
     }
 
     void DataDumpFile::Flush()
@@ -179,6 +194,7 @@ namespace ardb
             ERROR_LOG("Failed to open ardb dump file:%s to write", m_file_path.c_str());
             return -1;
         }
+        m_writed_data_size = 0;
         return 0;
     }
 
@@ -241,6 +257,7 @@ namespace ardb
             data += bytes_to_write;
             buflen -= bytes_to_write;
         }
+        m_writed_data_size += buflen;
         return 0;
     }
 
