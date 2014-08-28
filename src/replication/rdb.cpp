@@ -830,7 +830,7 @@ namespace ardb
                         //save value score
                         //m_db->ZAdd(m_current_db, key, score, str);
                         Data element, scorev;
-                        element.SetString(key, true);
+                        element.SetString(str, true);
                         scorev.SetDouble(score);
                         m_db->ZSetAdd(tmpctx, zmeta, element, scorev, NULL);
                     }

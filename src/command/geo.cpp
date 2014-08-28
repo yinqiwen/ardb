@@ -150,16 +150,20 @@ namespace ardb
             do
             {
                 ctx.reply.Clear();
-                uint32 point_num = GeoSearchByOptions(ctx, meta, options);
+                int point_num = GeoSearchByOptions(ctx, meta, options);
+                if(point_num < 0)
+                {
+                    break;
+                }
                 if (options.radius == old_radius)
                 {
-                    return 0;
+                    break;
                 }
                 if (point_num > 0)
                 {
                     if (point_num >= options.limit)
                     {
-                        return 0;
+                        break;
                     }
                     options.radius *= sqrt((options.limit / point_num) + 1);
                 }
@@ -177,13 +181,13 @@ namespace ardb
         {
             GeoSearchByOptions(ctx, meta, options);
         }
-
+        ctx.reply.type = REDIS_REPLY_ARRAY;
         uint64 t2 = get_current_epoch_millis();
         DEBUG_LOG("####Cost %llums to range geosearch", t2 - t1);
         return 0;
     }
 
-    uint32 Ardb::GeoSearchByOptions(Context& ctx, ValueObject& meta, GeoSearchOptions& options)
+    int Ardb::GeoSearchByOptions(Context& ctx, ValueObject& meta, GeoSearchOptions& options)
     {
         uint64 start_time = get_current_epoch_micros();
         int ret = 0;
@@ -193,9 +197,9 @@ namespace ardb
             Data element, score;
             element.SetString(options.member, true);
             ret = ZSetScore(ctx, meta, element, score);
-            if (0 != ret)
+            if (0 != ret || score.IsNil())
             {
-                return 0;
+                return -1;
             }
             GeoHashHelper::GetMercatorXYByHash(score.value.iv, x, y);
         }

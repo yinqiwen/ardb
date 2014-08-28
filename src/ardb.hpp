@@ -343,7 +343,7 @@ OP_NAMESPACE_BEGIN
             int RenameZSet(Context& ctx, DBID srcdb, const std::string& srckey, DBID dstdb, const std::string& dstkey);
             int RenameBitset(Context& ctx, DBID srcdb, const std::string& srckey, DBID dstdb, const std::string& dstkey);
 
-            uint32 GeoSearchByOptions(Context& ctx, ValueObject& meta, GeoSearchOptions& options);
+            int GeoSearchByOptions(Context& ctx, ValueObject& meta, GeoSearchOptions& options);
 
             int DoCompact(Context& ctx, DBID db, bool sync);
             int DoCompact(const std::string& start, const std::string& end);
