@@ -844,6 +844,11 @@ OP_NAMESPACE_BEGIN
             }
             else
             {
+                if (m_slave.IsSyncing())
+                {
+                    fill_error_reply(ctx.reply, "SYNC with master in progress, not available for write");
+                    return ret;
+                }
                 /*
                  * Do NOT feed replication log while current instance is not a readonly slave
                  */
