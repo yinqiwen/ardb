@@ -36,7 +36,7 @@
 
 namespace ardb
 {
-    typedef void DumpRoutine(void* cb);
+    typedef int DumpRoutine(void* cb);
 
     class Ardb;
     class DataDumpFile

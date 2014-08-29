@@ -39,10 +39,11 @@
 
 namespace ardb
 {
-    static void RDBSaveLoadRoutine(void* cb)
+    static int RDBSaveLoadRoutine(void* cb)
     {
         ChannelService* serv = (ChannelService*) cb;
         serv->Continue();
+        return 0;
     }
 
     DataDumpFile& Ardb::GetDataDumpFile()
@@ -256,21 +257,25 @@ namespace ardb
                     info.append("master_host:").append(m_cfg.master_host).append("\r\n");
                     info.append("master_port:").append(stringfromll(m_cfg.master_port)).append("\r\n");
                     info.append("master_link_status:").append(m_slave.IsConnected() ? "up" : "down").append("\r\n");
-                    if(m_slave.IsConnected())
+                    if (m_slave.IsConnected())
                     {
-                        info.append("master_last_io_seconds_ago:").append(stringfromll(time(NULL) - m_slave.GetMasterLastinteractionTime())).append("\r\n");
-                    }else
+                        info.append("master_last_io_seconds_ago:").append(
+                                stringfromll(time(NULL) - m_slave.GetMasterLastinteractionTime())).append("\r\n");
+                    }
+                    else
                     {
                         info.append("master_last_io_seconds_ago:").append("-1").append("\r\n");
                     }
-                    info.append("master_sync_in_progress:").append(m_slave.IsSyncing()?"1":"0").append("\r\n");
-                    if(m_slave.GetState() == SLAVE_STATE_SYNING_DUMP_DATA)
+                    info.append("master_sync_in_progress:").append(m_slave.IsSyncing() ? "1" : "0").append("\r\n");
+                    if (m_slave.GetState() == SLAVE_STATE_SYNING_DUMP_DATA)
                     {
-                        info.append("master_sync_left_bytes:").append(stringfromll(m_slave.SyncLeftBytes())).append("\r\n");
+                        info.append("master_sync_left_bytes:").append(stringfromll(m_slave.SyncLeftBytes())).append(
+                                "\r\n");
                     }
-                    if(m_slave.GetState() == SLAVE_STATE_LOADING_DUMP_DATA)
+                    if (m_slave.GetState() == SLAVE_STATE_LOADING_DUMP_DATA)
                     {
-                        info.append("slave_loading_left_bytes:").append(stringfromll(m_slave.LoadingLeftBytes())).append("\r\n");
+                        info.append("slave_loading_left_bytes:").append(stringfromll(m_slave.LoadingLeftBytes())).append(
+                                "\r\n");
                     }
                     info.append("slave_repl_offset:").append(stringfromll(m_repl_backlog.GetReplEndOffset())).append(
                             "\r\n");
@@ -472,10 +477,10 @@ namespace ardb
                 info.append("fd=").append(stringfromll(it->second->client->GetReadFD())).append(" ");
                 info.append("name=").append(it->second->name).append(" ");
                 uint64 borntime = it->second->born_time;
-                uint64 elpased = (now <= borntime ? 0 : now - borntime)/1000000;
+                uint64 elpased = (now <= borntime ? 0 : now - borntime) / 1000000;
                 info.append("age=").append(stringfromll(elpased)).append(" ");
                 uint64 activetime = it->second->last_interaction_ustime;
-                elpased = (now <= activetime ? 0 : now - activetime)/1000000;
+                elpased = (now <= activetime ? 0 : now - activetime) / 1000000;
                 info.append("idle=").append(stringfromll(elpased)).append(" ");
                 info.append("db=").append(stringfromll(it->second->currentDB)).append(" ");
                 std::string cmd;
@@ -876,6 +881,11 @@ namespace ardb
             fill_error_reply(ctx.reply, "Ardb instance's replication log not enabled, can NOT serve as master.");
             return -1;
         }
+        if (!m_cfg.master_host.empty() && !m_slave.IsSynced())
+        {
+            fill_error_reply(ctx.reply, "Server is not synced with remote master, can NOT serv as master.");
+            return -1;
+        }
         m_master.AddSlave(ctx.client, cmd);
         FreeClientContext(ctx);
         return 0;
@@ -886,6 +896,11 @@ namespace ardb
         if (!m_repl_backlog.IsInited())
         {
             fill_error_reply(ctx.reply, "Ardb instance's replication backlog not enabled, can NOT serve as master.");
+            return -1;
+        }
+        if (!m_cfg.master_host.empty() && !m_slave.IsSynced())
+        {
+            fill_error_reply(ctx.reply, "Server is not synced with remote master, can NOT serv as master.");
             return -1;
         }
         m_master.AddSlave(ctx.client, cmd);

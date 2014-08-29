@@ -140,6 +140,8 @@ namespace ardb
             }
     };
 
+    typedef void AttachDestructor(void* attach);
+
     class ChannelService;
     class Channel: public Runnable
     {
@@ -178,6 +180,7 @@ namespace ardb
 
             SendFileSetting* m_file_sending;
             void* m_attach;
+            AttachDestructor* m_attach_destructor;
 
             Channel(Channel* parent, ChannelService& factory);
 
@@ -260,9 +263,10 @@ namespace ardb
                 return m_options;
             }
 
-            void Attach(void* attach)
+            void Attach(void* attach, AttachDestructor* destructor = NULL)
             {
                 m_attach = attach;
+                m_attach_destructor = destructor;
             }
             void* Attachment()
             {

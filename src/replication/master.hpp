@@ -73,6 +73,8 @@ namespace ardb
             Iterator* db_iter;
             uint64 repl_chsm_before_sync;
             DBID repl_dbid_before_sync;
+
+            std::string GetAddress();
             SlaveConnection() :
                     conn(NULL), sync_offset(0), acktime(0), port(0), repldbfd(-1), isRedisSlave(false), state(0), syncing_from(
                             0), db_iter(NULL), repl_chsm_before_sync(0), repl_dbid_before_sync(0)
@@ -85,14 +87,12 @@ namespace ardb
         private:
             ChannelService m_channel_service;
             typedef TreeMap<uint32, SlaveConnection*>::Type SlaveConnTable;
-            typedef TreeMap<uint32, uint32>::Type SlavePortTable;
             SlaveConnTable m_slave_table;
-            SlavePortTable m_slave_port_table;
-            ThreadMutex m_port_table_mutex;
 
             bool m_dumping_rdb;
             bool m_dumping_ardb;
-            int64 m_dumpdb_offset;
+            int64 m_dump_rdb_offset;
+            int64 m_dump_ardb_offset;
 
             time_t m_repl_no_slaves_since;
             volatile bool m_backlog_enable;
@@ -114,11 +114,14 @@ namespace ardb
             void SendRedisDumpToSlave(SlaveConnection& slave);
             void SendArdbDumpToSlave(SlaveConnection& slave);
             void SendCacheToSlave(SlaveConnection& slave);
+            SlaveConnection& GetSlaveConn(Channel* conn);
+
             static void OnAddSlave(Channel*, void*);
             static void OnFeedSlave(Channel*, void*);
             static void OnDisconnectAllSlaves(Channel*, void*);
             static void OnDumpFileSendComplete(void* data);
             static void OnDumpFileSendFailure(void* data);
+            static int DumpRDBRoutine(void* cb);
         public:
             Master();
             int Init();

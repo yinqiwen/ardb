@@ -68,7 +68,7 @@ Channel::Channel(Channel* parent, ChannelService& service) :
         NULL), m_pipeline_initailizor_user_data(NULL), m_pipeline_finallizer(
         NULL), m_pipeline_finallizer_user_data(NULL), m_detached(false), m_close_after_write(false), m_block_read(
                 false), m_file_sending(
-        NULL),m_attach(NULL)
+        NULL),m_attach(NULL),m_attach_destructor(NULL)
 {
 
     {
@@ -717,5 +717,9 @@ Channel::~Channel()
     if (NULL != m_pipeline_finallizer)
     {
         m_pipeline_finallizer(&m_pipeline, m_pipeline_finallizer_user_data);
+    }
+    if(NULL != m_attach && NULL != m_attach_destructor)
+    {
+        m_attach_destructor(m_attach);
     }
 }

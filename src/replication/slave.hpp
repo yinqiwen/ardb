@@ -98,7 +98,7 @@ namespace ardb
             DataDumpFile* GetNewDumpFile();
             Context* GetArdbConnContext();
             void SwitchSyncedState();
-            static void LoadRDBRoutine(void* cb);
+            static int LoadRDBRoutine(void* cb);
         public:
             Slave(Ardb* serv);
             bool Init();

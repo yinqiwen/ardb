@@ -235,7 +235,11 @@ namespace ardb
          */
         if (NULL != m_routine_cb && get_current_epoch_millis() - m_routinetime >= 100)
         {
-            m_routine_cb(m_routine_cbdata);
+            int cbret = m_routine_cb(m_routine_cbdata);
+            if(0 != cbret)
+            {
+                return cbret;
+            }
             m_routinetime = get_current_epoch_millis();
         }
 
@@ -274,7 +278,11 @@ namespace ardb
          */
         if (NULL != m_routine_cb && get_current_epoch_millis() - m_routinetime >= 100)
         {
-            m_routine_cb(m_routine_cbdata);
+            int cbret = m_routine_cb(m_routine_cbdata);
+            if(0 != cbret)
+            {
+                return cbret;
+            }
             m_routinetime = get_current_epoch_millis();
         }
         size_t max_read_bytes = 1024 * 1024 * 2;
@@ -312,7 +320,7 @@ namespace ardb
         Close();
         m_last_save = time(NULL);
         m_is_saving = false;
-        return 0;
+        return ret;
     }
     int DataDumpFile::BGSave(const std::string& file)
     {
@@ -1435,13 +1443,7 @@ namespace ardb
     {
         WriteMagicHeader();
 
-#define DUMP_CHECK_WRITE(x)  do\
-    {                    \
-        if((x) < 0) {   \
-               err = errno;  \
-          break; \
-        }             \
-    }while(0)
+#define DUMP_CHECK_WRITE(x)  if((err = (x)) != 0) break
         KeyObject k;
         k.db = 0;
         k.type = KEY_META;
@@ -1637,10 +1639,9 @@ namespace ardb
             }
             DELETE(iter);
         }
-
         if (err != 0)
         {
-            ERROR_LOG("Failed to write dump file for reason:%s", strerror(err));
+            ERROR_LOG("Failed to write dump file for reason code:%d", err);
             Close();
             return -1;
         }
@@ -1683,7 +1684,11 @@ namespace ardb
          */
         if (NULL != m_routine_cb && get_current_epoch_millis() - m_routinetime >= 100)
         {
-            m_routine_cb(m_routine_cbdata);
+            int cbret = m_routine_cb(m_routine_cbdata);
+            if(0 != cbret)
+            {
+                return cbret;
+            }
             m_routinetime = get_current_epoch_millis();
         }
         BufferHelper::WriteVarSlice(m_write_buffer, key);
@@ -1755,11 +1760,17 @@ namespace ardb
             while (iter->Valid())
             {
                 //DelRaw(ctx, iter->Key());
-                SaveRawKeyValue(iter->Key(), iter->Value());
+                int ret = SaveRawKeyValue(iter->Key(), iter->Value());
+                if(0 != ret)
+                {
+                    DELETE(iter);
+                    Close();
+                    return ret;
+                }
                 iter->Next();
             }
-            DELETE(iter);
         }
+        DELETE(iter);
         FlushWriteBuffer();
         WriteType(REDIS_RDB_OPCODE_EOF);
         uint64 cksm = m_cksm;

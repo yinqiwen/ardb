@@ -176,7 +176,7 @@ namespace ardb
         }
         if (m_slave_state == SLAVE_STATE_SYNCED || m_slave_state == SLAVE_STATE_LOADING_DUMP_DATA)
         {
-            if (m_server_support_psync)
+            if (m_server_support_psync && NULL != m_client)
             {
                 Buffer ack;
                 ack.Printf("REPLCONF ACK %lld\r\n", m_backlog.GetReplEndOffset());
@@ -186,7 +186,7 @@ namespace ardb
         m_routine_ts = now;
     }
 
-    void Slave::LoadRDBRoutine(void* cb)
+    int Slave::LoadRDBRoutine(void* cb)
     {
         Slave* slave = (Slave*) cb;
         if (NULL != slave->m_client)
@@ -197,6 +197,7 @@ namespace ardb
         {
             slave->Routine();
         }
+        return 0;
     }
     void Slave::HandleRedisReply(Channel* ch, RedisReply& reply)
     {
