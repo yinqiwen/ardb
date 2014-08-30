@@ -1,0 +1,17 @@
+language: cpp
+compiler:
+  - gcc
+  - clang
+script: storage_engine=leveldb make
+branches:
+  only:
+    - master
+notifications:
+  recipients:
+    - yinqiwen@gmail.com
+  email:
+    on_success: change
+    on_failure: always
+os:
+  - linux
+  - osx
