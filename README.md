@@ -1,4 +1,4 @@
-# Ardb
+# Ardb [![Build Status](https://travis-ci.org/yinqiwen/ardb.svg?branch=master)](https://travis-ci.org/yinqiwen/ardb)
 Ardb is a BSD licensed, redis-protocol compatible persistent storage server, it support different storage engines. Currently LevelDB/LMDB/RocksDB are supported, the default engine is rocksdb.
 
 

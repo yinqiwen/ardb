@@ -118,12 +118,12 @@ OP_NAMESPACE_BEGIN
 
             bool processing;
             bool close_after_processed;
-            int exec_flags;
+            int cmd_setting_flags;
             Context() :
                     thread_idx(0), transc(NULL), pubsub(NULL), lua(NULL), block(NULL), client(NULL), currentDB(0), is_slave_conn(
                             false), authenticated(true), data_change(false), current_cmd(NULL), current_cmd_type(
                             REDIS_CMD_INVALID), born_time(0), last_interaction_ustime(0), processing(false), close_after_processed(
-                            false), exec_flags(0)
+                            false), cmd_setting_flags(0)
             {
             }
             TranscContext& GetTransc()

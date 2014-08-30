@@ -420,10 +420,19 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::GenericExpire(Context& ctx, const Slice& key, uint64 ms)
     {
-        if (ms > 0 || get_current_epoch_millis() >= ms)
+        if (ms > 0 && get_current_epoch_millis() >= ms)
         {
             return 0;
         }
+        if(m_cfg.slave_ignore_expire && ctx.is_slave_conn)
+        {
+            /*
+             * ignore expire setting, but issue data change event for replication
+             */
+            ctx.data_change = true;
+            return 0;
+        }
+
         ValueObject meta;
         int err = GetMetaValue(ctx, key, KEY_END, meta);
         if (0 != err)

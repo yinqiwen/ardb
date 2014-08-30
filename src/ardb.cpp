@@ -605,7 +605,7 @@ OP_NAMESPACE_BEGIN
                     ERROR_LOG("Failed to decode value for key %s", key.key.data());
                     return -1;
                 }
-                bool is_read_ctx = (ctx.exec_flags & ARDB_CMD_READONLY) != 0;
+                bool is_read_ctx = (ctx.cmd_setting_flags & ARDB_CMD_READONLY) != 0;
                 CacheSetOptions options;
                 options.from_read_result = is_read_ctx;
                 options.cmd = ctx.current_cmd_type;
@@ -738,7 +738,7 @@ OP_NAMESPACE_BEGIN
     {
         uint64 start_time = get_current_epoch_micros();
         ctx.last_interaction_ustime = start_time;
-        ctx.exec_flags = setting.flags;
+        ctx.cmd_setting_flags = setting.flags;
         int ret = (this->*(setting.handler))(ctx, args);
         uint64 stop_time = get_current_epoch_micros();
         ctx.last_interaction_ustime = stop_time;
