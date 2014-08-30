@@ -2,7 +2,7 @@ language: cpp
 compiler:
   - gcc
   - clang
-script: storage_engine=leveldb make
+script: storage_engine=leveldb make && ./src/ardb-test
 branches:
   only:
     - master
