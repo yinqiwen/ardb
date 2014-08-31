@@ -145,8 +145,7 @@ namespace ardb
         m_actx->is_slave_conn = true;
         m_actx->client = NULL;
         m_actx->server_address = MASTER_SERVER_ADDRESS_NAME;
-        if (strcasecmp(cmd.GetCommand().c_str(), "SELECT") && strcasecmp(cmd.GetCommand().c_str(), "__SET__")
-                && strcasecmp(cmd.GetCommand().c_str(), "__DEL__"))
+        if (0 != strcasecmp(cmd.GetCommand().c_str(), "SELECT"))
         {
             if (!m_include_dbs.empty() && m_include_dbs.count(m_actx->currentDB) == 0)
             {
@@ -251,19 +250,8 @@ namespace ardb
                     Buffer sync;
                     if (m_server_type == ARDB_DB_SERVER_TYPE)
                     {
-                        std::string includes = "*";
-                        std::string excludes = "-";
-                        if (!m_include_dbs.empty())
-                        {
-                            includes = string_join_container(m_include_dbs, "|");
-                        }
-                        if (!m_exclude_dbs.empty())
-                        {
-                            excludes = string_join_container(m_exclude_dbs, "|");
-                        }
-                        sync.Printf("apsync %s %lld cksm %llu include %s exclude %s\r\n", m_backlog.GetServerKey(),
-                                m_backlog.GetReplEndOffset(), m_backlog.GetChecksum(), includes.c_str(),
-                                excludes.c_str());
+                        sync.Printf("apsync %s %lld cksm %llu\r\n", m_backlog.GetServerKey(),
+                                m_backlog.GetReplEndOffset(), m_backlog.GetChecksum());
                     }
                     else
                     {

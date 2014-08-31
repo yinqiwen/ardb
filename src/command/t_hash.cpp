@@ -677,6 +677,7 @@ OP_NAMESPACE_BEGIN
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
         if (0 != err)
         {
+            fill_error_reply(ctx.reply, "no such key or some error");
             return 0;
         }
         if (v.meta.encoding == COLLECTION_ECODING_ZIPMAP)

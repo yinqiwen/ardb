@@ -148,6 +148,7 @@ OP_NAMESPACE_BEGIN
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
         if (0 != err)
         {
+            ctx.reply.type = REDIS_REPLY_NIL;
             return 0;
         }
         BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.encoding != COLLECTION_ECODING_ZIPLIST);
@@ -191,8 +192,7 @@ OP_NAMESPACE_BEGIN
             {
                 if (!found)
                 {
-                    ctx.reply.type = REDIS_REPLY_STRING;
-                    iter.Element()->GetDecodeString(ctx.reply.str);
+                    fill_value_reply(ctx.reply, *(iter.Element()));
                     found = true;
                     meta.meta.len--;
                     KeyObject k;
@@ -222,7 +222,6 @@ OP_NAMESPACE_BEGIN
                 {
                     iter.Prev();
                 }
-
             }
             if (found)
             {
@@ -1108,6 +1107,7 @@ OP_NAMESPACE_BEGIN
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
         if (0 != err)
         {
+            fill_error_reply(ctx.reply, "no such key or some error");
             return 0;
         }
         if (v.meta.encoding == COLLECTION_ECODING_ZIPLIST)
