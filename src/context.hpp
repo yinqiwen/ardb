@@ -39,6 +39,12 @@
 #define BLOCK_STATE_WAKING 1
 #define BLOCK_STATE_WAKED 2
 
+#define CONTEXT_NORMAL_CONNECTION 1
+#define CONTEXT_SLAVE_CONNECTION  2
+#define CONTEXT_DUMP_SYNC_LOADING 3
+#define CONTEXT_UNIT_TEST         4
+#define CONTEXT_LIBRARY           5
+
 using namespace ardb::codec;
 OP_NAMESPACE_BEGIN
 
@@ -94,7 +100,6 @@ OP_NAMESPACE_BEGIN
 
     struct Context
     {
-            uint32 thread_idx;
             TranscContext* transc;
             PubSubContext* pubsub;
             LUAContext* lua;
@@ -104,7 +109,6 @@ OP_NAMESPACE_BEGIN
             DBID currentDB;
             RedisReply reply;
 
-            bool is_slave_conn;
             std::string server_address;
             bool authenticated;
 
@@ -119,11 +123,12 @@ OP_NAMESPACE_BEGIN
             bool processing;
             bool close_after_processed;
             int cmd_setting_flags;
+            uint8 identity;
             Context() :
-                    thread_idx(0), transc(NULL), pubsub(NULL), lua(NULL), block(NULL), client(NULL), currentDB(0), is_slave_conn(
-                            false), authenticated(true), data_change(false), current_cmd(NULL), current_cmd_type(
+                    transc(NULL), pubsub(NULL), lua(NULL), block(NULL), client(
+                    NULL), currentDB(0), authenticated(true), data_change(false), current_cmd(NULL), current_cmd_type(
                             REDIS_CMD_INVALID), born_time(0), last_interaction_ustime(0), processing(false), close_after_processed(
-                            false), cmd_setting_flags(0)
+                            false), cmd_setting_flags(0), identity(CONTEXT_NORMAL_CONNECTION)
             {
             }
             TranscContext& GetTransc()
@@ -157,6 +162,14 @@ OP_NAMESPACE_BEGIN
                     block = new ListBlockContext;
                 }
                 return *block;
+            }
+            bool IsSlave()
+            {
+                return identity == CONTEXT_SLAVE_CONNECTION;
+            }
+            bool IsDumpFile()
+            {
+                return identity == CONTEXT_DUMP_SYNC_LOADING;
             }
             bool InTransc()
             {

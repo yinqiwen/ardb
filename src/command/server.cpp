@@ -133,7 +133,7 @@ namespace ardb
         {
             RedisDumpFile rdb;
             rdb.Init(this);
-            ret = rdb.Load(file, RDBSaveLoadRoutine, &(ctx.client->GetService()));
+            ret = rdb.Load(ctx.identity, file, RDBSaveLoadRoutine, &(ctx.client->GetService()));
         }
         else
         {

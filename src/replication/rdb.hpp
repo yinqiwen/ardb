@@ -39,11 +39,13 @@ namespace ardb
     typedef int DumpRoutine(void* cb);
 
     class Ardb;
+    class Context;
     class DataDumpFile
     {
         protected:
             FILE* m_read_fp;
             FILE* m_write_fp;
+            Context* m_dump_ctx;
             std::string m_file_path;
             DBID m_current_db;
             Ardb* m_db;
@@ -75,7 +77,7 @@ namespace ardb
             int Write(const void* buf, size_t buflen);
             int OpenWriteFile(const std::string& file);
             int OpenReadFile(const std::string& file);
-            int Load(const std::string& file, DumpRoutine* cb, void *data);
+            int Load(uint8 ctx_identity, const std::string& file, DumpRoutine* cb, void *data);
             int Save(const std::string& file, DumpRoutine* cb, void *data);
             int BGSave(const std::string& file);
             uint32 LastSave()

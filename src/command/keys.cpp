@@ -424,7 +424,7 @@ OP_NAMESPACE_BEGIN
         {
             return 0;
         }
-        if(m_cfg.slave_ignore_expire && ctx.is_slave_conn)
+        if(m_cfg.slave_ignore_expire && ctx.IsSlave())
         {
             /*
              * ignore expire setting, but issue data change event for replication

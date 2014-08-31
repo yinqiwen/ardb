@@ -113,23 +113,6 @@ namespace ardb
         }
         DEBUG_LOG("Recv master cmd %s at %lld at flag:%d at state:%d", cmd.ToString().c_str(),
                 m_backlog.GetReplEndOffset(), flag, m_slave_state);
-//        if (m_slave_state == SLAVE_STATE_WAITING_PSYNC_REPLY && m_server_type == ARDB_DB_SERVER_TYPE)
-//        {
-//            if (!strcasecmp(cmd.GetCommand().c_str(), "FULLSYNCED"))
-//            {
-//                uint64 offset, cksm;
-//                string_touint64(cmd.GetArguments()[0], offset);
-//                string_touint64(cmd.GetArguments()[1], cksm);
-//                m_backlog.SetChecksum(cksm);
-//                ASSERT((int64 )offset == m_cached_master_repl_offset);
-//                //m_backlog.SetReplOffset(offset);
-//                //m_slave_state = SLAVE_STATE_SYNCED;
-//                SwitchSyncedState();
-//                //Disconnect all slaves when all data resynced
-//                m_serv->m_master.DisconnectAllSlaves();
-//                return;
-//            }
-//        }
 
         if (!strcasecmp(cmd.GetCommand().c_str(), "PING"))
         {
@@ -142,16 +125,12 @@ namespace ardb
             m_backlog.SetCurrentDBID(id);
         }
         GetArdbConnContext();
-        m_actx->is_slave_conn = true;
+        m_actx->identity = CONTEXT_SLAVE_CONNECTION;
         m_actx->client = NULL;
         m_actx->server_address = MASTER_SERVER_ADDRESS_NAME;
         if (0 != strcasecmp(cmd.GetCommand().c_str(), "SELECT"))
         {
-            if (!m_include_dbs.empty() && m_include_dbs.count(m_actx->currentDB) == 0)
-            {
-                flag |= ARDB_PROCESS_FEED_REPLICATION_ONLY;
-            }
-            if (!m_exclude_dbs.empty() && m_exclude_dbs.count(m_actx->currentDB) > 0)
+            if(!SupportDBID(m_actx->currentDB))
             {
                 flag |= ARDB_PROCESS_FEED_REPLICATION_ONLY;
             }
@@ -365,7 +344,7 @@ namespace ardb
             {
                 m_client->DetachFD();
             }
-            m_rdb->Load(m_rdb->GetPath(), Slave::LoadRDBRoutine, this);
+            m_rdb->Load(CONTEXT_DUMP_SYNC_LOADING, m_rdb->GetPath(), Slave::LoadRDBRoutine, this);
             if (NULL != m_client)
             {
                 m_client->AttachFD();
@@ -520,6 +499,22 @@ namespace ardb
     void Slave::SetExcludeDBs(const DBIDArray& dbs)
     {
         convert_vector_to_set(dbs, m_exclude_dbs);
+    }
+    bool Slave::SupportDBID(DBID id)
+    {
+        if(m_include_dbs.empty() && m_exclude_dbs.empty())
+        {
+            return true;
+        }
+        if(m_exclude_dbs.count(id) > 0)
+        {
+            return false;
+        }
+        if(m_include_dbs.count(id) == 0)
+        {
+            return false;
+        }
+        return true;
     }
     uint32 Slave::GetMasterLinkDownTime()
     {

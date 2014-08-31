@@ -108,6 +108,7 @@ namespace ardb
             }
             void SetIncludeDBs(const DBIDArray& dbs);
             void SetExcludeDBs(const DBIDArray& dbs);
+            bool SupportDBID(DBID id);
             int ConnectMaster(const std::string& host, uint32 port);
             void Close();
             void Stop();

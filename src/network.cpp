@@ -97,6 +97,7 @@ OP_NAMESPACE_BEGIN
         m_ctx.born_time = get_current_epoch_micros();
         m_ctx.last_interaction_ustime = get_current_epoch_micros();
         m_ctx.client = ctx.GetChannel();
+        m_ctx.identity = CONTEXT_NORMAL_CONNECTION;
         RedisReplyPool& reply_pool =  m_db->GetRedisReplyPool();
         reply_pool.SetMaxSize((uint32)(m_db->GetConfig().reply_pool_size));
         m_ctx.reply.SetPool(&reply_pool);

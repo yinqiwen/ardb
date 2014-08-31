@@ -117,12 +117,13 @@ namespace ardb
     static const uint32 kloading_process_events_interval_bytes = 10 * 1024 * 1024;
     static const uint32 kmax_read_buffer_size = 10 * 1024 * 1024;
     DataDumpFile::DataDumpFile() :
-            m_read_fp(NULL), m_write_fp(NULL), m_current_db(0), m_db(NULL), m_cksm(0), m_routine_cb(
+            m_read_fp(NULL), m_write_fp(NULL), m_dump_ctx(NULL),m_current_db(0), m_db(NULL), m_cksm(0), m_routine_cb(
             NULL), m_routine_cbdata(
             NULL), m_processed_bytes(0), m_file_size(0), m_is_saving(false), m_last_save(0), m_routinetime(0), m_read_buf(
             NULL),m_expected_data_size(0),m_writed_data_size(0)
     {
-
+        m_dump_ctx = new Context;
+        m_dump_ctx->identity = CONTEXT_DUMP_SYNC_LOADING;
     }
     int DataDumpFile::Init(Ardb* db)
     {
@@ -216,8 +217,9 @@ namespace ardb
         }
         return 0;
     }
-    int DataDumpFile::Load(const std::string& file, DumpRoutine* cb, void *data)
+    int DataDumpFile::Load(uint8 ctx_identity,const std::string& file, DumpRoutine* cb, void *data)
     {
+        m_dump_ctx->identity = ctx_identity;
         this->m_routine_cb = cb;
         this->m_routine_cbdata = data;
         int ret = OpenReadFile(file);
@@ -356,6 +358,7 @@ namespace ardb
     {
         Close();
         DELETE_A(m_read_buf);
+        DELETE(m_dump_ctx);
     }
 
     RedisDumpFile::RedisDumpFile()
@@ -588,7 +591,7 @@ namespace ardb
     void RedisDumpFile::LoadListZipList(unsigned char* data, const std::string& key)
     {
         unsigned char* iter = ziplistIndex(data, 0);
-        Context tmpctx;
+        Context& tmpctx = *m_dump_ctx;
         ValueObject listmeta;
         tmpctx.currentDB = m_current_db;
         listmeta.key.db = m_current_db;
@@ -644,7 +647,7 @@ namespace ardb
     }
     void RedisDumpFile::LoadZSetZipList(unsigned char* data, const std::string& key)
     {
-        Context tmpctx;
+        Context& tmpctx = *m_dump_ctx;
         ValueObject zmeta;
         tmpctx.currentDB = m_current_db;
         zmeta.key.db = m_current_db;
@@ -688,7 +691,7 @@ namespace ardb
 
     void RedisDumpFile::LoadHashZipList(unsigned char* data, const std::string& key)
     {
-        Context tmpctx;
+        Context& tmpctx = *m_dump_ctx;
         ValueObject zmeta;
         tmpctx.currentDB = m_current_db;
         zmeta.key.db = m_current_db;
@@ -749,7 +752,7 @@ namespace ardb
     {
         int ii = 0;
         int64_t llele = 0;
-        Context tmpctx;
+        Context& tmpctx = *m_dump_ctx;
         ValueObject zmeta;
         tmpctx.currentDB = m_current_db;
         zmeta.key.db = m_current_db;
@@ -769,7 +772,7 @@ namespace ardb
 
     bool RedisDumpFile::LoadObject(int rdbtype, const std::string& key)
     {
-        Context tmpctx;
+        Context& tmpctx = *m_dump_ctx;
         tmpctx.currentDB = m_current_db;
         BatchWriteGuard guard(m_db->GetKeyValueEngine());
         switch (rdbtype)
@@ -1075,7 +1078,7 @@ namespace ardb
                 ERROR_LOG("Failed to read current key.");
                 goto eoferr;
             }
-            Context tmpctx;
+            Context& tmpctx = *m_dump_ctx;
             tmpctx.currentDB = m_current_db;
             m_db->DeleteKey(tmpctx, key);
             if (!LoadObject(type, key))
@@ -1447,7 +1450,7 @@ namespace ardb
         KeyObject k;
         k.db = 0;
         k.type = KEY_META;
-        Context tmpctx;
+        Context& tmpctx = *m_dump_ctx;
         BatchWriteGuard guard(m_db->GetKeyValueEngine());
         Iterator* iter = m_db->IteratorKeyValue(k, false);
         uint32 cursor = 0;
@@ -1795,7 +1798,17 @@ namespace ardb
             Slice key, value;
             RETURN_NEGATIVE_EXPR(BufferHelper::ReadVarSlice(buffer, key));
             RETURN_NEGATIVE_EXPR(BufferHelper::ReadVarSlice(buffer, value));
-            Context tmpctx;
+            Context& tmpctx = *m_dump_ctx;
+            if(tmpctx.identity == CONTEXT_DUMP_SYNC_LOADING)
+            {
+                uint32 header;
+                memcpy(&header, key.data(), sizeof(header));
+                DBID db = header >> 8;
+                if(!g_db->m_slave.SupportDBID(db))
+                {
+                    continue;
+                }
+            }
             m_db->SetRaw(tmpctx, key, value);
         }
         return 0;

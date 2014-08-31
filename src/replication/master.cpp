@@ -583,25 +583,25 @@ namespace ardb
             else
             {
                 conn.isRedisSlave = false;
-                for (uint32 i = 2; i < cmd.GetArguments().size(); i += 2)
-                {
-                    if (cmd.GetArguments()[i] == "include")
-                    {
-                        DBIDArray ids;
-                        split_uint32_array(cmd.GetArguments()[i + 1], "|", ids);
-                        convert_vector_to_set(ids, conn.include_dbs);
-                    }
-                    else if (cmd.GetArguments()[i] == "exclude")
-                    {
-                        DBIDArray ids;
-                        split_uint32_array(cmd.GetArguments()[i + 1], "|", ids);
-                        convert_vector_to_set(ids, conn.exclude_dbs);
-                    }
-                    else if (cmd.GetArguments()[i] == "cksm")
-                    {
-
-                    }
-                }
+//                for (uint32 i = 2; i < cmd.GetArguments().size(); i += 2)
+//                {
+//                    if (cmd.GetArguments()[i] == "include")
+//                    {
+//                        DBIDArray ids;
+//                        split_uint32_array(cmd.GetArguments()[i + 1], "|", ids);
+//                        convert_vector_to_set(ids, conn.include_dbs);
+//                    }
+//                    else if (cmd.GetArguments()[i] == "exclude")
+//                    {
+//                        DBIDArray ids;
+//                        split_uint32_array(cmd.GetArguments()[i + 1], "|", ids);
+//                        convert_vector_to_set(ids, conn.exclude_dbs);
+//                    }
+//                    else if (cmd.GetArguments()[i] == "cksm")
+//                    {
+//
+//                    }
+//                }
             }
         }
         slave->GetService().DetachChannel(slave, true);
