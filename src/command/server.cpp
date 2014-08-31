@@ -137,7 +137,7 @@ namespace ardb
         }
         else
         {
-            ret = m_ardb_dump.Load(file, RDBSaveLoadRoutine, &(ctx.client->GetService()));
+            ret = m_ardb_dump.Load(ctx.identity, file, RDBSaveLoadRoutine, &(ctx.client->GetService()));
         }
         if (serv.GetChannel(conn_id) != NULL)
         {
