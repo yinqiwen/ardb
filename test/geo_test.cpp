@@ -26,9 +26,12 @@ void test_geo_common(Context& ctx, Ardb& db)
     {
         char name[100];
         sprintf(name, "p%u", i);
-        double xx = x + i * 0.1;
-        double yy = y + i * 0.1;
-        if (((xx - p_x) * (xx - p_x) + (yy - p_y) * (yy - p_y)) < raius * raius)
+        /*
+         * min accuracy is 0.2meters
+         */
+        double xx = x + i * 0.3;
+        double yy = y + i * 0.3;
+        if (((xx - p_x) * (xx - p_x) + (yy - p_y) * (yy - p_y)) <= raius * raius)
         {
             GeoPoint p;
             p.x = xx;
