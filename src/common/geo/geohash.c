@@ -302,41 +302,52 @@ GeoHashBits geohash_next_righttop(GeoHashBits bits)
  lat_range.min = -20037726.37;
  lon_range.max = 20037726.37;
  lon_range.min = -20037726.37;
- double radius = 5000;
- double latitude = 9741705.20;
- double longitude = 5417390.90;
- GeoHashBits hash_min, hash_max, hash_lt, hash_gr;
- geohash_encode(&lat_range, &lon_range, latitude, longitude, 13, &hash);
- geohash_encode(&lat_range, &lon_range, latitude - radius, longitude - radius, 13, &hash_min);
- geohash_encode(&lat_range, &lon_range, latitude + radius, longitude + radius, 13, &hash_max);
- geohash_encode(&lat_range, &lon_range, latitude + radius, longitude - radius, 13, &hash_lt);
- geohash_encode(&lat_range, &lon_range, latitude - radius, longitude + radius, 13, &hash_gr);
+  double latitude = 0;
+  double longitude = 0;
+  geohash_encode(&lat_range, &lon_range, latitude, longitude, 30, &hash);
+  printf("%lld\n", hash.bits);
 
- printf("%lld\n", hash.bits);
- geohash_get_neighbors(&hash, &neighbors);
- printf("%lld\n", hash.bits);
- printf("%lld\n", neighbors.east.bits);
- printf("%lld\n", neighbors.west.bits);
- printf("%lld\n", neighbors.south.bits);
- printf("%lld\n", neighbors.north.bits);
- printf("%lld\n", neighbors.north_west.bits);
- printf("%lld\n", neighbors.north_east.bits);
- printf("%lld\n", neighbors.south_east.bits);
- printf("%lld\n", neighbors.south_west.bits);
+   GeoHashArea area;
+   geohash_decode(&lat_range, &lon_range, &hash, &area);
+   printf("%.10f %.10f\n", area.latitude.min, area.latitude.max);
+   printf("%.10f %.10f\n", area.longitude.min, area.longitude.max);
 
- printf("##%lld\n", hash_min.bits);
- printf("##%lld\n", hash_max.bits);
- printf("##%lld\n", hash_lt.bits);
- printf("##%lld\n", hash_gr.bits);
 
- //    geohash_encode(&lat_range, &lon_range, 9741705.20, 5417390.90, 13, &hash);
- //    printf("from %lld to %lld \n", hash.bits << 2, (hash.bits+1) << 2);
-
- GeoHashArea area;
- geohash_decode(&lat_range, &lon_range, &hash, &area);
- printf("%.10f %.10f\n", area.latitude.min, area.latitude.max);
- printf("%.10f %.10f\n", area.longitude.min, area.longitude.max);
+// double radius = 5000;
+// double latitude = 9741705.20;
+// double longitude = 5417390.90;
+// GeoHashBits hash_min, hash_max, hash_lt, hash_gr;
+// geohash_encode(&lat_range, &lon_range, latitude, longitude, 13, &hash);
+// geohash_encode(&lat_range, &lon_range, latitude - radius, longitude - radius, 13, &hash_min);
+// geohash_encode(&lat_range, &lon_range, latitude + radius, longitude + radius, 13, &hash_max);
+// geohash_encode(&lat_range, &lon_range, latitude + radius, longitude - radius, 13, &hash_lt);
+// geohash_encode(&lat_range, &lon_range, latitude - radius, longitude + radius, 13, &hash_gr);
+//
+// printf("%lld\n", hash.bits);
+// geohash_get_neighbors(&hash, &neighbors);
+// printf("%lld\n", hash.bits);
+// printf("%lld\n", neighbors.east.bits);
+// printf("%lld\n", neighbors.west.bits);
+// printf("%lld\n", neighbors.south.bits);
+// printf("%lld\n", neighbors.north.bits);
+// printf("%lld\n", neighbors.north_west.bits);
+// printf("%lld\n", neighbors.north_east.bits);
+// printf("%lld\n", neighbors.south_east.bits);
+// printf("%lld\n", neighbors.south_west.bits);
+//
+// printf("##%lld\n", hash_min.bits);
+// printf("##%lld\n", hash_max.bits);
+// printf("##%lld\n", hash_lt.bits);
+// printf("##%lld\n", hash_gr.bits);
+//
+// //    geohash_encode(&lat_range, &lon_range, 9741705.20, 5417390.90, 13, &hash);
+// //    printf("from %lld to %lld \n", hash.bits << 2, (hash.bits+1) << 2);
+//
+// GeoHashArea area;
+// geohash_decode(&lat_range, &lon_range, &hash, &area);
+// printf("%.10f %.10f\n", area.latitude.min, area.latitude.max);
+// printf("%.10f %.10f\n", area.longitude.min, area.longitude.max);
 
  return 0;
  }
- */
+*/

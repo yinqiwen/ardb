@@ -42,10 +42,10 @@ namespace ardb
 {
     Slave::Slave(Ardb* serv) :
             m_serv(serv), m_client(NULL), m_slave_state(
-            SLAVE_STATE_CLOSED), m_cron_inited(false), m_ping_recved_time(0), m_master_link_down_time(0), m_server_type(
+            SLAVE_STATE_CLOSED), m_cron_inited(false), m_cmd_recved_time(0), m_master_link_down_time(0), m_server_type(
             ARDB_DB_SERVER_TYPE), m_server_support_psync(false), m_actx(
-            NULL), m_rdb(NULL), m_backlog(serv->m_repl_backlog), m_routine_ts(0), m_cached_master_repl_offset(0), m_lastinteraction(
-                    0)
+            NULL), m_rdb(NULL), m_backlog(serv->m_repl_backlog), m_routine_ts(0), m_cached_master_repl_offset(0), m_cached_master_repl_cksm(
+                    0), m_lastinteraction(0)
     {
     }
 
@@ -85,7 +85,7 @@ namespace ardb
         }
         m_rdb->Init(m_serv);
         m_rdb->OpenWriteFile(tmp);
-        INFO_LOG("[Slave]Create redis/ardb dump file:%s", tmp);
+        INFO_LOG("[Slave]Create dump file:%s, master is redis:%d", tmp, m_server_type != ARDB_DB_SERVER_TYPE);
         return m_rdb;
     }
 
@@ -96,7 +96,7 @@ namespace ardb
         info.Printf("info Server\r\n");
         ctx.GetChannel()->Write(info);
         m_slave_state = SLAVE_STATE_WAITING_INFO_REPLY;
-        m_lastinteraction = m_ping_recved_time = time(NULL);
+        m_lastinteraction = m_cmd_recved_time = time(NULL);
         m_master_link_down_time = 0;
     }
 
@@ -113,12 +113,8 @@ namespace ardb
         }
         DEBUG_LOG("Recv master cmd %s at %lld at flag:%d at state:%d", cmd.ToString().c_str(),
                 m_backlog.GetReplEndOffset(), flag, m_slave_state);
-
-        if (!strcasecmp(cmd.GetCommand().c_str(), "PING"))
-        {
-            m_ping_recved_time = time(NULL);
-        }
-        else if (!strcasecmp(cmd.GetCommand().c_str(), "SELECT"))
+        m_cmd_recved_time = time(NULL);
+        if (!strcasecmp(cmd.GetCommand().c_str(), "SELECT"))
         {
             DBID id = 0;
             string_touint32(cmd.GetArguments()[0], id);
@@ -130,7 +126,7 @@ namespace ardb
         m_actx->server_address = MASTER_SERVER_ADDRESS_NAME;
         if (0 != strcasecmp(cmd.GetCommand().c_str(), "SELECT"))
         {
-            if(!SupportDBID(m_actx->currentDB))
+            if (!SupportDBID(m_actx->currentDB))
             {
                 flag |= ARDB_PROCESS_FEED_REPLICATION_ONLY;
             }
@@ -142,11 +138,11 @@ namespace ardb
         uint32 now = time(NULL);
         if (m_slave_state == SLAVE_STATE_SYNCED)
         {
-            if (m_ping_recved_time > 0 && now - m_ping_recved_time >= m_serv->m_cfg.repl_timeout)
+            if (m_cmd_recved_time > 0 && now - m_cmd_recved_time >= m_serv->m_cfg.repl_timeout)
             {
                 if (m_slave_state == SLAVE_STATE_SYNCED)
                 {
-                    WARN_LOG("now = %u, ping_recved_time=%u", now, m_ping_recved_time);
+                    WARN_LOG("now = %u, ping_recved_time=%u", now, m_cmd_recved_time);
                     Timeout();
                     return;
                 }
@@ -279,12 +275,20 @@ namespace ardb
                     }
                     m_cached_master_runid = ss[1];
                     m_cached_master_repl_offset = offset;
-//                    if (m_server_type == ARDB_DB_SERVER_TYPE)
-//                    {
-//                        //Do NOT change state, since master would send  "FULLSYNCED" after all data synced
-//                        m_decoder.SwitchToCommandDecoder();
-//                        return;
-//                    }
+                    /*
+                     * if remote master is ardb, there would be a cksm part
+                     */
+                    if (ss.size() > 3)
+                    {
+                        uint64 cksm;
+                        if (!string_touint64(ss[3], cksm))
+                        {
+                            ERROR_LOG("Invalid psync cksm:%s", ss[3].c_str());
+                            ch->Close();
+                            return;
+                        }
+                        m_cached_master_repl_cksm = cksm;
+                    }
                     m_slave_state = SLAVE_STATE_SYNING_DUMP_DATA;
                     m_decoder.SwitchToDumpFileDecoder();
                     break;
@@ -331,7 +335,7 @@ namespace ardb
         if (chunk.IsLastChunk())
         {
             m_rdb->Flush();
-            m_rdb->RenameToDefault();
+            m_rdb->Rename();
             m_decoder.SwitchToCommandDecoder();
             m_slave_state = SLAVE_STATE_LOADING_DUMP_DATA;
             if (m_serv->m_cfg.slave_cleardb_before_fullresync && !m_server_support_psync)
@@ -344,11 +348,18 @@ namespace ardb
             {
                 m_client->DetachFD();
             }
-            m_rdb->Load(CONTEXT_DUMP_SYNC_LOADING, m_rdb->GetPath(), Slave::LoadRDBRoutine, this);
+            int ret = m_rdb->Load(CONTEXT_DUMP_SYNC_LOADING, m_rdb->GetPath(), Slave::LoadRDBRoutine, this);
             if (NULL != m_client)
             {
                 m_client->AttachFD();
             }
+            if(0 != ret)
+            {
+                m_client->Close();
+                WARN_LOG("Failed to load RDB dump file.");
+                return;
+            }
+
             SwitchSyncedState();
             m_rdb->Close();
             //DELETE(m_rdb);
@@ -359,10 +370,12 @@ namespace ardb
 
     void Slave::SwitchSyncedState()
     {
-        m_ping_recved_time = time(NULL);
+        m_cmd_recved_time = time(NULL);
         m_slave_state = SLAVE_STATE_SYNCED;
         m_backlog.SetServerkey(m_cached_master_runid);
         m_backlog.SetReplOffset(m_cached_master_repl_offset);
+        m_backlog.SetChecksum(m_cached_master_repl_cksm);
+        m_backlog.Persist();
     }
 
     void Slave::MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisMessage>& e)
@@ -502,15 +515,15 @@ namespace ardb
     }
     bool Slave::SupportDBID(DBID id)
     {
-        if(m_include_dbs.empty() && m_exclude_dbs.empty())
+        if (m_include_dbs.empty() && m_exclude_dbs.empty())
         {
             return true;
         }
-        if(m_exclude_dbs.count(id) > 0)
+        if (m_exclude_dbs.count(id) > 0)
         {
             return false;
         }
-        if(m_include_dbs.count(id) == 0)
+        if (m_include_dbs.count(id) == 0)
         {
             return false;
         }

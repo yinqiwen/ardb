@@ -73,7 +73,7 @@ namespace ardb
             static double GetWGS84X(double x);
             static double GetWGS84Y(double y);
             static bool VerifyCoordinates(uint8 coord_type, double x, double y);
-            static bool GetDistanceSquareIfInRadius(uint8 coord_type, double x1, double y1, double x2, double y2, double radius, double& distance);
+            static bool GetDistanceSquareIfInRadius(uint8 coord_type, double x1, double y1, double x2, double y2, double radius, double& distance, double accurace);
 
             static bool GetMercatorXYByHash(GeoHashFix60Bits hash, double& x, double& y);
     };

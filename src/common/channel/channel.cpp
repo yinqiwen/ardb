@@ -68,7 +68,7 @@ Channel::Channel(Channel* parent, ChannelService& service) :
         NULL), m_pipeline_initailizor_user_data(NULL), m_pipeline_finallizer(
         NULL), m_pipeline_finallizer_user_data(NULL), m_detached(false), m_close_after_write(false), m_block_read(
                 false), m_file_sending(
-        NULL),m_attach(NULL),m_attach_destructor(NULL)
+        NULL), m_attach(NULL), m_attach_destructor(NULL)
 {
 
     {
@@ -322,19 +322,32 @@ int32 Channel::WriteNow(Buffer* buffer)
         else
         {
             //EnableWriting();
-            Flush();
+            if (m_options.async_write)
+            {
+                EnableWriting();
+            }
+            else
+            {
+                Flush();
+            }
         }
         return buf_len;
     }
     else
     {
         bool enable_writing = IsEnableWriting();
-        if (buf_len < m_options.user_write_buffer_water_mark || enable_writing)
+        if (buf_len < m_options.user_write_buffer_water_mark || enable_writing || m_options.async_write)
         {
             m_outputBuffer.Write(buffer, buf_len);
-            if(!enable_writing)
+            if (!enable_writing)
             {
-                CreateFlushTimerTask();
+                if (m_options.async_write)
+                {
+                    EnableWriting();
+                }
+                {
+                    CreateFlushTimerTask();
+                }
             }
             return buf_len;
         }
@@ -718,7 +731,7 @@ Channel::~Channel()
     {
         m_pipeline_finallizer(&m_pipeline, m_pipeline_finallizer_user_data);
     }
-    if(NULL != m_attach && NULL != m_attach_destructor)
+    if (NULL != m_attach && NULL != m_attach_destructor)
     {
         m_attach_destructor(m_attach);
     }

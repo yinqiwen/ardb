@@ -86,7 +86,7 @@ namespace ardb
             }
             void Flush();
             void Remove();
-            void RenameToDefault();
+            int Rename(const std::string& default_file="dump.rdb");
             void Close();
             virtual ~DataDumpFile();
     };

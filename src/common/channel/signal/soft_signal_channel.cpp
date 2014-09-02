@@ -84,16 +84,17 @@ int SoftSignalChannel::FireSoftSignal(uint32 signo, uint32 info)
 {
     uint64 v = info;
     v = (v << 32) + signo;
-    Buffer content((char*) &v, 0, sizeof(v));
-    if (m_thread_safe)
-    {
-        m_lock.Lock();
-    }
-    int ret = WriteNow(&content);
-    if (m_thread_safe)
-    {
-        m_lock.Unlock();
-    }
+//    Buffer content((char*) &v, 0, sizeof(v));
+//    if (m_thread_safe)
+//    {
+//        m_lock.Lock();
+//    }
+//    int ret = WriteNow(&content);
+//    if (m_thread_safe)
+//    {
+//        m_lock.Unlock();
+//    }
+    int ret = ::write(GetWriteFD(), &v, sizeof(v));
     return ret;
 }
 

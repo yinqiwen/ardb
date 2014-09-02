@@ -79,11 +79,11 @@ namespace ardb
 			{
 				EnsureWritableBytes(size);
 			}
-			inline size_t GetReadIndex()
+			inline size_t GetReadIndex() const
 			{
 				return m_read_idx;
 			}
-			inline size_t GetWriteIndex()
+			inline size_t GetWriteIndex() const
 			{
 				return m_write_idx;
 			}
@@ -103,19 +103,19 @@ namespace ardb
 			{
 				m_write_idx += step;
 			}
-			inline bool Readable()
+			inline bool Readable() const
 			{
 				return m_write_idx > m_read_idx;
 			}
-			inline bool Writeable()
+			inline bool Writeable() const
 			{
 				return m_buffer_len > m_write_idx;
 			}
-			inline size_t ReadableBytes()
+			inline size_t ReadableBytes() const
 			{
 				return Readable() ? m_write_idx - m_read_idx : 0;
 			}
-			inline size_t WriteableBytes()
+			inline size_t WriteableBytes() const
 			{
 				return Writeable() ? m_buffer_len - m_write_idx : 0;
 			}
@@ -360,7 +360,7 @@ namespace ardb
 			int ReadFD(int fd, int& err);
 			int WriteFD(int fd, int& err);
 
-			inline std::string AsString()
+			inline std::string AsString() const
 			{
 				return std::string(m_buffer + m_read_idx, ReadableBytes());
 			}

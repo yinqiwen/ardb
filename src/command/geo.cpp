@@ -263,7 +263,7 @@ namespace ardb
             {
                 ZRangeSpec range;
                 range.contain_min = true;
-                range.contain_max = false;
+                range.contain_max = true;
                 range.min.SetInt64(tit->first);
                 range.max.SetInt64(tit->second);
                 while (nit != tmp.end() && nit->first == range.max.value.iv)
@@ -306,7 +306,7 @@ namespace ardb
             //GeoHashFix60Bits score = vit->value.iv;
             //GeoHashHelper::GetMercatorXYByHash(score, point.x, point.y);
             if (GeoHashHelper::GetDistanceSquareIfInRadius(GEO_MERCATOR_TYPE, x, y, point.x, point.y, options.radius,
-                    point.distance))
+                    point.distance, 0.1))
             {
                 vit->GetDecodeString(point.value);
                 /*

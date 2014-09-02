@@ -235,6 +235,7 @@ Channel* ChannelService::AttachChannel(Channel* ch, bool transfer_service_only)
     {
         ch->m_service = this;
         ch->AttachFD();
+        m_channel_table[ch->GetID()] = ch;
         return ch;
     }
     if (m_channel_table.count(ch->GetID()) > 0)

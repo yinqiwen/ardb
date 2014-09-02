@@ -97,11 +97,12 @@ namespace ardb
             uint32 user_write_buffer_flush_timeout_mills;
             int32 max_write_buffer_size;  //-1: means unlimit 0: disable
             bool auto_disable_writing;
+            bool async_write;
 
             ChannelOptions() :
                     receive_buffer_size(0), send_buffer_size(0), tcp_nodelay(true), keep_alive(0), reuse_address(true), user_write_buffer_water_mark(
                             0), user_write_buffer_flush_timeout_mills(0), max_write_buffer_size(-1), auto_disable_writing(
-                            true)
+                            true),async_write(false)
             {
             }
     };
@@ -231,6 +232,11 @@ namespace ardb
             inline uint32 WritableBytes()
             {
                 return m_outputBuffer.ReadableBytes();
+            }
+
+            inline const Buffer& GetOutputBuffer() const
+            {
+                return m_outputBuffer;
             }
 
             inline uint32 ReadableBytes()

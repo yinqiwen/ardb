@@ -55,9 +55,9 @@ namespace ardb
     {
             char serverkey[SERVER_KEY_SIZE + 1];
             uint64 cksm;
-            uint32 repl_backlog_size;
+            uint64 repl_backlog_size;
             uint64 repl_backlog_off;
-            uint32 repl_backlog_idx;
+            uint64 repl_backlog_idx;
             uint64 repl_backlog_histlen;
             uint64 master_repl_offset;
             DBID current_db;
@@ -78,7 +78,7 @@ namespace ardb
             void Run();
 
             bool Load(const std::string& path, uint32 backlog_size);
-            void Persist();
+
         public:
             ReplBacklog();
             int Init(Ardb* server);
@@ -86,9 +86,11 @@ namespace ardb
             {
                 return m_inited;
             }
+            void Persist();
             void Feed(Buffer& cmd);
             bool IsValidOffset(int64 offset);
             bool IsValidOffset(const std::string& server_key, int64 offset);
+            bool IsValidCksm(int64 offset, uint64 cksm);
             const char* GetServerKey();
             uint64 GetChecksum()
             {

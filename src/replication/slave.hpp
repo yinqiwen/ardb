@@ -57,7 +57,7 @@ namespace ardb
             SocketHostAddress m_master_addr;
             uint32 m_slave_state;
             bool m_cron_inited;
-            uint32 m_ping_recved_time;
+            uint32 m_cmd_recved_time;
             uint32 m_master_link_down_time;
             RedisMessageDecoder m_decoder;
             NullRedisReplyEncoder m_encoder;
@@ -83,6 +83,7 @@ namespace ardb
 
             std::string m_cached_master_runid;
             int64 m_cached_master_repl_offset;
+            uint64 m_cached_master_repl_cksm;
 
             time_t m_lastinteraction;
 

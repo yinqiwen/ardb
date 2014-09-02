@@ -58,28 +58,19 @@ namespace ardb
             Channel* conn;
             std::string server_key;
             int64 sync_offset;
+            uint64 sync_cksm;
             uint32 acktime;
             uint32 port;
             int repldbfd;
             bool isRedisSlave;
             uint8 state;
 
-            DBID syncing_from;
-
-            DBIDSet include_dbs;
-            DBIDSet exclude_dbs;
-            DBIDSet syncing_dbs;
-
-            Iterator* db_iter;
-            uint64 repl_chsm_before_sync;
-            DBID repl_dbid_before_sync;
-
             std::string GetAddress();
             SlaveConnection() :
-                    conn(NULL), sync_offset(0), acktime(0), port(0), repldbfd(-1), isRedisSlave(false), state(0), syncing_from(
-                            0), db_iter(NULL), repl_chsm_before_sync(0), repl_dbid_before_sync(0)
+                    conn(NULL), sync_offset(0), sync_cksm(0), acktime(0), port(0), repldbfd(-1), isRedisSlave(false), state(0)
             {
             }
+            ~SlaveConnection();
     };
 
     class Master: public Thread, public ChannelUpstreamHandler<RedisCommandFrame>
@@ -106,6 +97,8 @@ namespace ardb
             void FullResyncArdbSlave(SlaveConnection& slave);
             void SyncSlave(SlaveConnection& slave);
 
+            void ClearNilSlave();
+
             void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e);
             void ChannelWritable(ChannelHandlerContext& ctx, ChannelStateEvent& e);
             void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e);
@@ -114,8 +107,8 @@ namespace ardb
             void SendRedisDumpToSlave(SlaveConnection& slave);
             void SendArdbDumpToSlave(SlaveConnection& slave);
             void SendCacheToSlave(SlaveConnection& slave);
-            SlaveConnection& GetSlaveConn(Channel* conn);
 
+            static SlaveConnection& GetSlaveConn(Channel* conn);
             static void OnAddSlave(Channel*, void*);
             static void OnFeedSlave(Channel*, void*);
             static void OnDisconnectAllSlaves(Channel*, void*);

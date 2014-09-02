@@ -154,18 +154,21 @@ namespace ardb
         }
     }
 
-    void DataDumpFile::RenameToDefault()
+    int DataDumpFile::Rename(const std::string& default_file)
     {
-        std::string default_file = m_db->GetConfig().repl_data_dir;
-        default_file.append("/dump.rdb");
-        if(default_file == GetPath())
+        std::string file = m_db->GetConfig().repl_data_dir;
+        file.append("/").append(default_file);
+        if(file == GetPath())
         {
-            return;
+            return 0;
         }
         Close();
-
-        rename(GetPath().c_str(), default_file.c_str());
-        m_file_path = default_file;
+        int ret = rename(GetPath().c_str(), file.c_str());
+        if(0 == ret)
+        {
+            m_file_path = file;
+        }
+        return ret;
     }
 
     void DataDumpFile::Remove()
@@ -1819,6 +1822,7 @@ namespace ardb
         char buf[1024];
         int rdbver, type;
         std::string key;
+        std::string verstr;
         uint32 len = 0;
         uint32 rawlen, compressedlen;
         std::string origin;
@@ -1832,10 +1836,11 @@ namespace ardb
             WARN_LOG("Wrong signature:%s trying to load DB from file:%s", buf, m_file_path.c_str());
             return -1;
         }
-        rdbver = atoi(buf + 4);
-        if (rdbver < 1 || rdbver > REDIS_RDB_VERSION)
+        verstr.assign(buf + 4, 4);
+        rdbver = atoi(verstr.c_str());
+        if (rdbver < 1 || rdbver > ARDB_RDB_VERSION)
         {
-            WARN_LOG("Can't handle RDB format version %d", rdbver);
+            WARN_LOG("Can't handle ARDB format version %d", rdbver);
             return -1;
         }
 

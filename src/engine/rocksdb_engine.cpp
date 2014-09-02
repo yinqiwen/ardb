@@ -380,9 +380,12 @@ namespace ardb
         std::string str, version_info;
 
         m_db->GetProperty("rocksdb.stats", &str);
+        std::string numkeys;
+        m_db->GetProperty("rocksdb.estimate-num-keys", &numkeys);
+        numkeys = "estimate-num-keys: " + numkeys + "\r\n";
         version_info.append("RocksDB version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(
                 stringfromll(rocksdb::kMinorVersion)).append(".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
-        return version_info + str;
+        return version_info + numkeys + str;
     }
 
     int RocksDBEngine::MaxOpenFiles()

@@ -344,7 +344,6 @@ namespace ardb
                 results.insert(neighbors.south_west);
             }
         }
-
         return 0;
     }
 
@@ -432,14 +431,17 @@ namespace ardb
     }
 
     bool GeoHashHelper::GetDistanceSquareIfInRadius(uint8 coord_type, double x1, double y1, double x2, double y2,
-            double radius, double& distance)
+            double radius, double& distance, double accurace)
     {
         if (coord_type == GEO_WGS84_TYPE)
         {
             distance = distanceEarth(y1, x1, y2, x2);
             if (distance > radius)
             {
-                return false;
+                if(std::abs(distance - radius) > std::abs(accurace))
+                {
+                    return false;
+                }
             }
             distance = distance * distance;
         }
@@ -448,9 +450,14 @@ namespace ardb
             double xx = (x1 - x2) * (x1 - x2);
             double yy = (y1 - y2) * (y1 - y2);
             double dd = xx + yy;
-            if (dd > radius * radius)
+            double rr = radius * radius;
+            if (dd > rr)
             {
-                return false;
+                double rr1 = (radius + accurace) * (radius + accurace);
+                if(dd > rr1)
+                {
+                    return false;
+                }
             }
             distance = dd;
         }

@@ -350,6 +350,7 @@ OP_NAMESPACE_BEGIN
 
     void Ardb::Start()
     {
+        ArdbLogger::InitDefaultLogger(m_cfg.loglevel, m_cfg.logfile);
         uint32 worker_count = 0;
         for (uint32 i = 0; i < m_cfg.thread_pool_sizes.size(); i++)
         {

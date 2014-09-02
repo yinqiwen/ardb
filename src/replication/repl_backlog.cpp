@@ -160,10 +160,9 @@ namespace ardb
         /* Set the offset of the first byte we have in the backlog. */
         m_state->repl_backlog_off = m_state->master_repl_offset - m_state->repl_backlog_histlen + 1;
 
-
-        m_state->cksm = crc64(m_state->cksm, (const unsigned char *)(buffer.GetRawReadBuffer()), buffer.ReadableBytes());
+        m_state->cksm = crc64(m_state->cksm, (const unsigned char *) (buffer.GetRawReadBuffer()),
+                buffer.ReadableBytes());
         m_sync_state_change = true;
-
     }
 
     const char* ReplBacklog::GetServerKey()
@@ -186,21 +185,30 @@ namespace ardb
         {
             return 0;
         }
-        uint32 total = m_state->master_repl_offset - offset;
+
+        int64 total = m_state->master_repl_offset - offset;
+        size_t write_len = 0;
         if (m_state->repl_backlog_idx >= total)
         {
-            Buffer buf(m_repl_backlog + m_state->repl_backlog_idx - total, 0, total);
+            write_len = total > len ? len : total;
+            Buffer buf(m_repl_backlog + m_state->repl_backlog_idx - total, 0, write_len);
             channle->Write(buf);
         }
         else
         {
-            Buffer buf1(m_repl_backlog + m_state->repl_backlog_size - total + m_state->repl_backlog_idx, 0,
-                    total - m_state->repl_backlog_idx);
+            int64 start_pos = m_state->repl_backlog_size - total + m_state->repl_backlog_idx;
+            total = total - m_state->repl_backlog_idx;
+            if (total <= len)
+            {
+                write_len = total;
+            }else
+            {
+                write_len = len;
+            }
+            Buffer buf1(m_repl_backlog + start_pos, 0, write_len);
             channle->Write(buf1);
-            Buffer buf2(m_repl_backlog, 0, m_state->repl_backlog_idx);
-            channle->Write(buf2);
         }
-        return total;
+        return write_len;
     }
 
     bool ReplBacklog::IsValidOffset(int64 offset)
@@ -208,7 +216,8 @@ namespace ardb
         if (offset < 0 || (uint64) offset < m_state->repl_backlog_off
                 || (uint64) offset > (m_state->repl_backlog_off + m_state->repl_backlog_histlen))
         {
-            INFO_LOG("Unable to partial resync with the slave for lack of backlog (Slave request was: %" PRId64"), and server offset is %" PRId64,
+            INFO_LOG(
+                    "Unable to partial resync with the slave for lack of backlog (Slave request was: %" PRId64"), and server offset is %" PRId64,
                     offset, m_state->master_repl_offset);
             return false;
         }
@@ -224,6 +233,32 @@ namespace ardb
             return false;
         }
         return IsValidOffset(offset);
+    }
+
+    bool ReplBacklog::IsValidCksm(int64 offset, uint64 cksm)
+    {
+        uint32 total = m_state->master_repl_offset - offset;
+        uint64 newcksm = cksm;
+        if (m_state->repl_backlog_idx >= total)
+        {
+            newcksm = crc64(newcksm, (const unsigned char *) (m_repl_backlog + m_state->repl_backlog_idx - total),
+                    total);
+        }
+        else
+        {
+            newcksm = crc64(newcksm,
+                    (const unsigned char *) (m_repl_backlog + m_state->repl_backlog_size - total
+                            + m_state->repl_backlog_idx), total - m_state->repl_backlog_idx);
+            newcksm = crc64(newcksm, (const unsigned char *) m_repl_backlog, m_state->repl_backlog_idx);
+        }
+        if (newcksm != m_state->cksm)
+        {
+            INFO_LOG(
+                    "Unable to partial resync with the slave for confilct checksum (Slave cksm is: %llu, and server cksm is %llu",
+                    newcksm, m_state->cksm);
+            return false;
+        }
+        return true;
     }
 
     void ReplBacklog::SetServerkey(const std::string& serverkey)
