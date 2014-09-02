@@ -301,12 +301,11 @@ namespace ardb
             GeoPoint point;
             point.x = loc.x;
             point.y = loc.y;
-            //scores
-            //vit++;
-            //GeoHashFix60Bits score = vit->value.iv;
-            //GeoHashHelper::GetMercatorXYByHash(score, point.x, point.y);
+            /*
+             * distance accuracy is 0.2m
+             */
             if (GeoHashHelper::GetDistanceSquareIfInRadius(GEO_MERCATOR_TYPE, x, y, point.x, point.y, options.radius,
-                    point.distance, 0.1))
+                    point.distance, 0.2))
             {
                 vit->GetDecodeString(point.value);
                 /*

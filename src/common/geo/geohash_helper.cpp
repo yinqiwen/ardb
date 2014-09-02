@@ -30,6 +30,7 @@
 #include <math.h>
 #include <assert.h>
 #include <set>
+#include <complex>
 
 #define D_R (M_PI / 180.0)
 #define R_D (180.0 / M_PI)
