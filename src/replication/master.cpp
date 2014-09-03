@@ -605,6 +605,7 @@ namespace ardb
     void Master::OnAddSlave(Channel* ch, void* data)
     {
         SlaveConnection* conn = (SlaveConnection*) data;
+        DEBUG_LOG("Add slave %s", conn->GetAddress().c_str());
         g_master->m_channel_service.AttachChannel(conn->conn, true);
 
         conn->state = SLAVE_STATE_CONNECTED;

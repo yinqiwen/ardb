@@ -343,6 +343,10 @@ namespace ardb
                 Context tmp;
                 m_serv->FlushAllData(tmp);
             }
+            if(!m_server_support_psync)
+            {
+                m_backlog.SetCurrentDBID(0);
+            }
             INFO_LOG("Start loading RDB dump file.");
             if (NULL != m_client)
             {
@@ -372,9 +376,12 @@ namespace ardb
     {
         m_cmd_recved_time = time(NULL);
         m_slave_state = SLAVE_STATE_SYNCED;
-        m_backlog.SetServerkey(m_cached_master_runid);
-        m_backlog.SetReplOffset(m_cached_master_repl_offset);
-        m_backlog.SetChecksum(m_cached_master_repl_cksm);
+        if(!m_cached_master_runid.empty())
+        {
+            m_backlog.SetServerkey(m_cached_master_runid);
+            m_backlog.SetReplOffset(m_cached_master_repl_offset);
+            m_backlog.SetChecksum(m_cached_master_repl_cksm);
+        }
         m_backlog.Persist();
     }
 
@@ -493,7 +500,7 @@ namespace ardb
     }
     bool Slave::IsSynced()
     {
-        return m_slave_state != SLAVE_STATE_SYNCED;
+        return m_slave_state == SLAVE_STATE_SYNCED;
     }
 
     bool Slave::IsSyncing()
