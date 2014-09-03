@@ -20,7 +20,7 @@ namespace ardb
                     m_buf(0), m_size(0)
             {
             }
-            int Init(const std::string& path, uint64 size);
+            int Init(const std::string& path, uint64 size, int advice_flag);
             ~MMapBuf();
     };
 }

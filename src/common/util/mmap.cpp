@@ -14,7 +14,7 @@
 
 namespace ardb
 {
-    int MMapBuf::Init(const std::string& path, uint64 size)
+    int MMapBuf::Init(const std::string& path, uint64 size, int advice_flag)
     {
         int fd = open(path.c_str(), O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
         if (fd < 0)
@@ -43,6 +43,7 @@ namespace ardb
         {
             m_buf = mbuf;
             m_size = size;
+            madvise(m_buf, m_size, advice_flag);
         }
         return 0;
     }

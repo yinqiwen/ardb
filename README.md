@@ -106,13 +106,9 @@ Then you can either use `-DJE_FORCE_SYNC_COMPARE_AND_SWAP_4` as a CPP flag or us
   - MONITOR
   - BITPOS
   - PUBSUB
- * Additional Commands:
-  - HClear/SClear/ZClear/LClear
+ * New Ardb Commands:
   - SUnionCount/SInterCount/SDiffCount
-  - ZAdd with limit
-  - ZPop/ZRPop
   - HMIncrby
-  - \_\_SET\_\_/\_\_DEL\_\_(for replication)
   - CompactDB/CompactAll
   - BitOPCount
   - Import

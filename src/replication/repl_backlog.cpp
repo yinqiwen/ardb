@@ -32,8 +32,7 @@ namespace ardb
 
     bool ReplBacklog::Load(const std::string& path, uint32 backlog_size)
     {
-        if (0 != m_backlog.Init(path,
-        REPL_STATE_MAX_SIZE + backlog_size))
+        if (0 != m_backlog.Init(path, REPL_STATE_MAX_SIZE + backlog_size, MADV_SEQUENTIAL))
         {
             return false;
         }
@@ -79,20 +78,20 @@ namespace ardb
         {
             return;
         }
-        msync(m_state, sizeof(ReplPersistState), MS_ASYNC);
+        msync(m_state, sizeof(ReplPersistState), MS_ASYNC | MS_INVALIDATE);
         if (m_state->repl_backlog_off > m_last_sync_offset)
         {
             uint64 len = m_state->repl_backlog_off - m_last_sync_offset;
             if ((uint64) (m_state->repl_backlog_idx) > len)
             {
                 msync(m_repl_backlog + m_state->repl_backlog_idx - len, len,
-                MS_ASYNC);
+                MS_ASYNC | MS_INVALIDATE);
             }
             else
             {
                 msync(m_repl_backlog + m_state->repl_backlog_size - len + m_state->repl_backlog_idx,
-                        len - m_state->repl_backlog_idx, MS_ASYNC);
-                msync(m_repl_backlog, m_state->repl_backlog_idx, MS_ASYNC);
+                        len - m_state->repl_backlog_idx, MS_ASYNC | MS_INVALIDATE);
+                msync(m_repl_backlog, m_state->repl_backlog_idx, MS_ASYNC | MS_INVALIDATE);
             }
             m_last_sync_offset = m_state->repl_backlog_off;
         }
@@ -201,7 +200,8 @@ namespace ardb
             if (total <= len)
             {
                 write_len = total;
-            }else
+            }
+            else
             {
                 write_len = len;
             }

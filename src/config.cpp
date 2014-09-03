@@ -151,6 +151,7 @@ OP_NAMESPACE_BEGIN
         conf_get_int64(props, "repl-timeout", repl_timeout);
         conf_get_int64(props, "repl-state-persist-period", repl_state_persist_period);
         conf_get_int64(props, "repl-backlog-ttl", repl_backlog_time_limit);
+        conf_get_bool(props, "repl-disable-tcp-nodelay", repl_disable_tcp_nodelay);
         conf_get_int64(props, "lua-time-limit", lua_time_limit);
 
         conf_get_int64(props, "hash-max-ziplist-entries", hash_max_ziplist_entries);

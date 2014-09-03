@@ -68,10 +68,17 @@ bool SocketChannel::DoConfigure(const ChannelOptions& options)
     }
 
     int flag = 1;
-    if (options.tcp_nodelay && (setsockopt(m_fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag)) < 0))
+    bool set_tcp_dealy = false;
+    if(m_options.tcp_nodelay != options.tcp_nodelay)
     {
-        WARN_LOG("init_sock_opt: could not disable Nagle: %s", strerror(errno));
+        set_tcp_dealy = true;
+        flag = options.tcp_nodelay? 1:0;
     }
+    if (set_tcp_dealy && (setsockopt(m_fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag)) < 0))
+    {
+        WARN_LOG("init_sock_opt: could not disable/enable Nagle: %s", strerror(errno));
+    }
+
 
     if (options.keep_alive > 0)
     {

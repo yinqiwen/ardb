@@ -451,14 +451,10 @@ namespace ardb
             double xx = (x1 - x2) * (x1 - x2);
             double yy = (y1 - y2) * (y1 - y2);
             double dd = xx + yy;
-            double rr = radius * radius;
+            double rr = (radius + accurace) * (radius + accurace);
             if (dd > rr)
             {
-                double rr1 = (radius + accurace) * (radius + accurace);
-                if(dd > rr1)
-                {
-                    return false;
-                }
+                return false;
             }
             distance = dd;
         }

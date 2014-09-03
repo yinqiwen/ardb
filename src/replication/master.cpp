@@ -611,6 +611,12 @@ namespace ardb
         g_master->m_slave_table[conn->conn->GetID()] = conn;
         conn->conn->ClearPipeline();
 
+        if(g_db->GetConfig().repl_disable_tcp_nodelay)
+        {
+            ChannelOptions newoptions = conn->conn->GetOptions();
+            newoptions.tcp_nodelay = false;
+            conn->conn->Configure(newoptions);
+        }
         conn->conn->SetChannelPipelineInitializor(slave_pipeline_init, NULL);
         conn->conn->SetChannelPipelineFinalizer(slave_pipeline_finallize, NULL);
         conn->conn->GetWritableOptions().auto_disable_writing = false;
