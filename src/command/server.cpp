@@ -316,6 +316,23 @@ namespace ardb
             info.append("\r\n");
         }
 
+        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "Keyspace"))
+        {
+            DBIDSet ids;
+            GetAllDBIDSet(ids);
+            if (!ids.empty())
+            {
+                info.append("# Keyspace\r\n");
+                DBIDSet::iterator it = ids.begin();
+                while (it != ids.end())
+                {
+                    info.append("db").append(stringfromll(*it)).append(":").append("keys=-1").append("\r\n");
+                    it++;
+                }
+                info.append("\r\n");
+            }
+        }
+
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "cache"))
         {
             info.append("# Cache\r\n");
@@ -608,6 +625,15 @@ namespace ardb
 
     void Ardb::GetAllDBIDSet(DBIDSet& ids)
     {
+        {
+            LockGuard<SpinMutexLock> guard(m_cached_dbids_lock);
+            if (!m_cached_dbids.empty())
+            {
+                ids = m_cached_dbids;
+                return;
+            }
+        }
+
         KeyObject k;
         k.db = 0;
         k.type = KEY_META;
@@ -633,6 +659,8 @@ namespace ardb
             }
             DELETE(iter);
         }
+        LockGuard<SpinMutexLock> lockguard(m_cached_dbids_lock);
+        m_cached_dbids = ids;
     }
 
     int Ardb::FlushAllData(Context& ctx)
@@ -896,12 +924,12 @@ namespace ardb
         if (!m_repl_backlog.IsInited())
         {
             fill_error_reply(ctx.reply, "Ardb instance's replication backlog not enabled, can NOT serve as master.");
-            return -1;
+            return 0;
         }
         if (!m_cfg.master_host.empty() && !m_slave.IsSynced())
         {
             fill_error_reply(ctx.reply, "Server is not synced with remote master, can NOT serv as master.");
-            return -1;
+            return 0;
         }
         m_master.AddSlave(ctx.client, cmd);
         FreeClientContext(ctx);

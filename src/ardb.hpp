@@ -225,6 +225,9 @@ OP_NAMESPACE_BEGIN
             time_t m_last_compact_start_time;
             uint64 m_last_compact_duration;
 
+            SpinMutexLock m_cached_dbids_lock;
+            DBIDSet m_cached_dbids;
+
             DataDumpFile& GetDataDumpFile();
             void FillInfoResponse(const std::string& section, std::string& info);
 
