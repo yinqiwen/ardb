@@ -185,6 +185,7 @@ OP_NAMESPACE_BEGIN
         conf_get_bool(props, "slave-serve-stale-data", slave_serve_stale_data);
         conf_get_int64(props, "slave-priority", slave_priority);
         conf_get_bool(props, "slave-ignore-expire", slave_ignore_expire);
+        conf_get_bool(props, "slave-ignore-del", slave_ignore_del);
 
         std::string slaveof;
         if (conf_get_string(props, "slaveof", slaveof))

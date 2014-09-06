@@ -54,11 +54,8 @@ OP_NAMESPACE_BEGIN
         }
         ctx.currentDB = newdb;
         fill_status_reply(ctx.reply, "OK");
-        if(newdb != 0)
-        {
-            LockGuard<SpinMutexLock> guard(m_cached_dbids_lock);
-            m_cached_dbids.insert(newdb);
-        }
+        LockGuard<SpinMutexLock> guard(m_cached_dbids_lock);
+        m_cached_dbids.insert(newdb);
         return 0;
     }
 

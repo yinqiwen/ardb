@@ -350,11 +350,17 @@ namespace ardb
             INFO_LOG("Start loading RDB dump file.");
             if (NULL != m_client)
             {
+                /*
+                 * Disable read on connection with master while loading data from dump file
+                 */
                 m_client->DetachFD();
             }
             int ret = m_rdb->Load(CONTEXT_DUMP_SYNC_LOADING, m_rdb->GetPath(), Slave::LoadRDBRoutine, this);
             if (NULL != m_client)
             {
+                /*
+                 * resume read
+                 */
                 m_client->AttachFD();
             }
             if(0 != ret)

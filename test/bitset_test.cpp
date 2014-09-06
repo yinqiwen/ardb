@@ -94,32 +94,6 @@ void test_bitset_bitop(Context& ctx, Ardb& db)
 
 }
 
-void test_bitop(Ardb& db)
-{
-//    DBID dbid = 0;
-//    db.Del(dbid, "mybits1");
-//    db.Del(dbid, "mybits2");
-//    for (uint32 i = 1000; i < 5000; i++)
-//    {
-//        db.SetBit(dbid, "mybits1", i, 1);
-//    }
-//
-//    for (uint32 i = 4000; i < 6000; i++)
-//    {
-//        db.SetBit(dbid, "mybits2", i, 1);
-//    }
-//
-//    SliceArray keys;
-//    keys.push_back("mybits1");
-//    keys.push_back("mybits2");
-//    int ret = db.BitOPCount(dbid, "and", keys);
-//    CHECK_FATAL(ret != 1000, "bitopcount and keys failed:%d", ret);
-//    ret = db.BitOPCount(dbid, "or", keys);
-//    CHECK_FATAL(ret != 5000, "bitopcount or keys failed:%d", ret);
-//    ret = db.BitOPCount(dbid, "xor", keys);
-//    CHECK_FATAL(ret != 4000, "bitopcount xor keys failed:%d", ret);
-}
-
 void test_bitset(Ardb& db)
 {
     Context ctx;

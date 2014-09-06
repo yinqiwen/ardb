@@ -326,6 +326,9 @@ namespace ardb
                 DBIDSet::iterator it = ids.begin();
                 while (it != ids.end())
                 {
+                    /*
+                     * Can NOT tell how many keys now
+                     */
                     info.append("db").append(stringfromll(*it)).append(":").append("keys=-1").append("\r\n");
                     it++;
                 }
@@ -712,6 +715,8 @@ namespace ardb
     {
         FlushDBData(ctx);
         fill_status_reply(ctx.reply, "OK");
+        LockGuard<SpinMutexLock> guard(m_cached_dbids_lock);
+        m_cached_dbids.erase(ctx.currentDB);
         return 0;
     }
 
@@ -719,6 +724,8 @@ namespace ardb
     {
         FlushAllData(ctx);
         fill_status_reply(ctx.reply, "OK");
+        LockGuard<SpinMutexLock> guard(m_cached_dbids_lock);
+        m_cached_dbids.clear();
         return 0;
     }
 

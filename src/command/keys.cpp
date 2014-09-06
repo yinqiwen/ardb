@@ -622,6 +622,10 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::Del(Context& ctx, RedisCommandFrame& cmd)
     {
+        if(ctx.IsSlave() && m_cfg.slave_ignore_del)
+        {
+            return 0;
+        }
         BatchWriteGuard guard(GetKeyValueEngine());
         int count = 0;
         for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
