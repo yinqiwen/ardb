@@ -83,7 +83,7 @@ bool RedisReplyEncoder::Encode(Buffer& buf, RedisReply& reply)
         {
             if (NULL == reply.elements)
             {
-                buf.Printf("*%0\r\n");
+                buf.Printf("*0\r\n");
                 break;
             }
             buf.Printf("*%d\r\n", reply.elements->size());
