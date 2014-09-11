@@ -563,6 +563,7 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         ValueObject meta;
+        KeyLockerGuard keylock(m_key_lock, ctx.currentDB, cmd.GetArguments()[0]);
         int err = GetMetaValue(ctx, cmd.GetArguments()[0], HASH_META, meta);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
         Data field(cmd.GetArguments()[1]);

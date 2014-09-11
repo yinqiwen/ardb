@@ -6,7 +6,6 @@
 ardb-test*
 ardb-server*
 *.bak
-.*
 snappy-*/
 gperftools-*/
 jemalloc-*/
