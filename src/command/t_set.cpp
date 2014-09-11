@@ -147,7 +147,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::SAdd(Context& ctx, RedisCommandFrame& cmd)
     {
-        if(m_cfg.replace_for_multi_sadd)
+        if(m_cfg.replace_for_multi_sadd && cmd.GetArguments().size() > 2)
         {
             SReplace(ctx, cmd);
             return 0;

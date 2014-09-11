@@ -176,6 +176,7 @@ OP_NAMESPACE_BEGIN
             fill_error_reply(ctx.reply, "wrong number of arguments for HReplace");
             return 0;
         }
+        KeyLockerGuard keylock(m_key_lock, ctx.currentDB, cmd.GetArguments()[0]);
         ValueObject meta;
         meta.key.db = ctx.currentDB;
         meta.key.key = cmd.GetArguments()[0];
@@ -207,6 +208,7 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         ValueObject meta;
+        KeyLockerGuard keylock(m_key_lock, ctx.currentDB, cmd.GetArguments()[0]);
         int err = GetMetaValue(ctx, cmd.GetArguments()[0], HASH_META, meta);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
         DataMap fs;
@@ -222,6 +224,7 @@ OP_NAMESPACE_BEGIN
     int Ardb::HSet(Context& ctx, RedisCommandFrame& cmd)
     {
         ValueObject meta;
+        KeyLockerGuard keylock(m_key_lock, ctx.currentDB, cmd.GetArguments()[0]);
         int err = GetMetaValue(ctx, cmd.GetArguments()[0], HASH_META, meta);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
         Data field(cmd.GetArguments()[1]), value(cmd.GetArguments()[2]);
@@ -232,6 +235,7 @@ OP_NAMESPACE_BEGIN
     int Ardb::HSetNX(Context& ctx, RedisCommandFrame& cmd)
     {
         ValueObject meta;
+        KeyLockerGuard keylock(m_key_lock, ctx.currentDB, cmd.GetArguments()[0]);
         int err = GetMetaValue(ctx, cmd.GetArguments()[0], HASH_META, meta);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
         Data value;
