@@ -48,6 +48,9 @@
 #define COLLECTION_ECODING_ZIPSET   3
 #define COLLECTION_ECODING_ZIPZSET  4
 
+#define COLLECTION_FLAG_NORMAL      0
+#define COLLECTION_FLAG_SEQLIST     1   //indicate that list is only sequentially pushed/poped at head/tail
+
 #define ARDB_GLOBAL_DB 0xFFFFFF
 
 OP_NAMESPACE_BEGIN
@@ -257,7 +260,7 @@ OP_NAMESPACE_BEGIN
     struct MetaValue
     {
             uint64 expireat;
-            uint8 encoding;
+            uint8 attribute;
             Data str_value;
             int64 len; //-1 means unknown
 
@@ -268,12 +271,32 @@ OP_NAMESPACE_BEGIN
             Data min_index;  //min index value in collection(list/set)
             Data max_index;  //max index value in collection(list/set)
 
-            //ScoreRanges zset_score_range;
 
             MetaValue() :
-                    expireat(0), encoding(0), len(0)
+                    expireat(0), attribute(0), len(0)
             {
             }
+            uint8 Encoding()
+            {
+                return attribute & 0xF;
+            }
+            uint8 Flag()
+            {
+                return attribute >> 4;
+            }
+            void SetEncoding(uint8 enc)
+            {
+                attribute = ((attribute & 0xF0) | enc);
+            }
+            void SetFlag(uint8 f)
+            {
+                attribute = ((f << 4) | (attribute & 0x0F));
+            }
+            bool IsSequentialList()
+            {
+                return Flag()  == COLLECTION_FLAG_SEQLIST;
+            }
+
             int64 Length();
             void Encode(Buffer& buf, uint8 type);
             bool Decode(Buffer& buf, uint8 type);

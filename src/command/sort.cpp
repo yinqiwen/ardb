@@ -30,7 +30,6 @@
 #include "ardb.hpp"
 #include <algorithm>
 #include <vector>
-#include <fnmatch.h>
 
 namespace ardb
 {
@@ -96,7 +95,7 @@ namespace ardb
         std::string str;
         value.GetDecodeString(str);
         std::string vpattern(value_pattern.data(), value_pattern.size());
-        return fnmatch(vpattern.c_str(), str.c_str(), 0) == 0 ? 0 : -1;
+        return stringmatchlen(vpattern.c_str(), vpattern.size(), str.c_str(),str.size(), 0) == 1 ? 0 : -1;
     }
 
     int Ardb::GetValueByPattern(Context& ctx, const Slice& pattern, Data& subst, Data& value,
@@ -448,7 +447,7 @@ namespace ardb
             list_meta.key.type = KEY_META;
             list_meta.key.db = ctx.currentDB;
             list_meta.type = LIST_META;
-            list_meta.meta.encoding = COLLECTION_ECODING_ZIPLIST;
+            list_meta.meta.SetEncoding(COLLECTION_ECODING_ZIPLIST);
 
             BatchWriteGuard guard(GetKeyValueEngine());
             DataArray::iterator it = values.begin();

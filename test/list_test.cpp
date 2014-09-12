@@ -409,11 +409,9 @@ void test_lists_ltrim(Context& ctx, Ardb& db)
 void test_lists_rpoplpush(Context& ctx, Ardb& db)
 {
     db.GetConfig().list_max_ziplist_entries = 16;
-    RedisCommandFrame del, del1;
-    del.SetFullCommand("del mylist");
-    del1.SetFullCommand("del mylist1");
+    RedisCommandFrame del;
+    del.SetFullCommand("del mylist mylist1");
     db.Call(ctx, del, 0);
-    db.Call(ctx, del1, 0);
     //ziplist push
     for (int i = 0; i < 10; i++)
     {
@@ -439,6 +437,46 @@ void test_lists_rpoplpush(Context& ctx, Ardb& db)
     CHECK_FATAL(ctx.reply.str != "value1", "rpoplpush mylist failed");
 }
 
+void test_sequential_list(Context& ctx, Ardb& db)
+{
+    db.GetConfig().list_max_ziplist_entries = 16;
+    RedisCommandFrame del;
+    del.SetFullCommand("del mylist");
+    db.Call(ctx, del, 0);
+
+    for (int i = 0; i < 10000; i++)
+    {
+        RedisCommandFrame lpush;
+        lpush.SetFullCommand("lpush mylist xvalue%d", i);
+        db.Call(ctx, lpush, 0);
+    }
+    for (int i = 0; i < 10000; i++)
+    {
+        RedisCommandFrame rpush;
+        rpush.SetFullCommand("rpush mylist yvalue%d", i);
+        db.Call(ctx, rpush, 0);
+    }
+    RedisCommandFrame index;
+    index.SetFullCommand("lindex mylist 10001");
+    uint64 start = get_current_epoch_millis();
+    db.Call(ctx, index, 0);
+    uint64 end = get_current_epoch_millis();
+    CHECK_FATAL(ctx.reply.type != REDIS_REPLY_STRING, "lindex mylist failed");
+    CHECK_FATAL(ctx.reply.str != "yvalue1", "lindex mylist failed");
+    CHECK_FATAL((end - start) > 100, "lindex too slow for sequential list");
+
+    RedisCommandFrame lrange;
+    lrange.SetFullCommand("lrange mylist 10000 10005");
+    start = get_current_epoch_millis();
+    db.Call(ctx, lrange, 0);
+    end = get_current_epoch_millis();
+    CHECK_FATAL(ctx.reply.type != REDIS_REPLY_ARRAY, "lrange mylist failed");
+    CHECK_FATAL(ctx.reply.MemberSize() != 6, "lrange mylist failed");
+    CHECK_FATAL(ctx.reply.MemberAt(5).str != "yvalue5", "lrange mylist failed");
+    CHECK_FATAL((end - start) > 100, "lrange too slow for sequential list");
+
+}
+
 void test_list(Ardb& db)
 {
     Context tmpctx;
@@ -452,5 +490,6 @@ void test_list(Ardb& db)
     test_lists_lset(tmpctx, db);
     test_lists_ltrim(tmpctx, db);
     test_lists_rpoplpush(tmpctx, db);
+    test_sequential_list(tmpctx, db);
 }
 

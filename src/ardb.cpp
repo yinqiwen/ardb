@@ -673,22 +673,22 @@ OP_NAMESPACE_BEGIN
         {
             case LIST_META:
             {
-                v.meta.encoding = COLLECTION_ECODING_ZIPLIST;
+                v.meta.SetEncoding(COLLECTION_ECODING_ZIPLIST);
                 break;
             }
             case SET_META:
             {
-                v.meta.encoding = COLLECTION_ECODING_ZIPSET;
+                v.meta.SetEncoding(COLLECTION_ECODING_ZIPSET);
                 break;
             }
             case HASH_META:
             {
-                v.meta.encoding = COLLECTION_ECODING_ZIPMAP;
+                v.meta.SetEncoding(COLLECTION_ECODING_ZIPMAP);
                 break;
             }
             case ZSET_META:
             {
-                v.meta.encoding = COLLECTION_ECODING_ZIPZSET;
+                v.meta.SetEncoding(COLLECTION_ECODING_ZIPZSET);
                 break;
             }
             default:

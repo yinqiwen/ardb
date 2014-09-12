@@ -28,7 +28,6 @@
  */
 
 #include "ardb.hpp"
-#include <fnmatch.h>
 
 namespace ardb
 {

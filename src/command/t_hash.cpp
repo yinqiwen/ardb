@@ -28,13 +28,12 @@
  */
 
 #include "ardb.hpp"
-#include <fnmatch.h>
 
 OP_NAMESPACE_BEGIN
 
     int Ardb::HashMultiSet(Context& ctx, ValueObject& meta, DataMap& fs)
     {
-        if (meta.meta.encoding != COLLECTION_ECODING_ZIPMAP)
+        if (meta.meta.Encoding() != COLLECTION_ECODING_ZIPMAP)
         {
             bool multi_write = fs.size() > 1;
             bool set_meta = meta.meta.len != -1;
@@ -105,7 +104,7 @@ OP_NAMESPACE_BEGIN
                 }
                 meta.meta.len = meta.meta.zipmap.size();
                 meta.meta.zipmap.clear();
-                meta.meta.encoding = COLLECTION_ECODING_RAW;
+                meta.meta.SetEncoding(COLLECTION_ECODING_RAW);
             }
             SetKeyValue(ctx, meta);
             fill_int_reply(ctx.reply, meta.meta.Length() - oldlen);
@@ -123,7 +122,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::HashGet(Context& ctx, ValueObject& meta, Data& field, Data& value)
     {
-        if (meta.meta.encoding != COLLECTION_ECODING_ZIPMAP)
+        if (meta.meta.Encoding() != COLLECTION_ECODING_ZIPMAP)
         {
             ValueObject vv;
             vv.key.type = HASH_FIELD;
@@ -182,7 +181,7 @@ OP_NAMESPACE_BEGIN
         meta.key.key = cmd.GetArguments()[0];
         meta.key.type = KEY_META;
         meta.type = HASH_META;
-        meta.meta.encoding = COLLECTION_ECODING_ZIPMAP;
+        meta.meta.SetEncoding(COLLECTION_ECODING_ZIPMAP);
         DataMap fs;
         for (uint32 i = 1; i < cmd.GetArguments().size(); i += 2)
         {
@@ -388,7 +387,7 @@ OP_NAMESPACE_BEGIN
             const Data* field = iter.Field();
             std::string tmp;
             field->GetDecodeString(tmp);
-            if ((pattern.empty() || fnmatch(pattern.c_str(), tmp.c_str(), 0) == 0))
+            if ((pattern.empty() || stringmatchlen(pattern.c_str(), pattern.size(), tmp.c_str(), tmp.size(), 0) == 1))
             {
                 RedisReply& rr1 = r2.AddMember();
                 RedisReply& rr2 = r2.AddMember();
@@ -607,6 +606,7 @@ OP_NAMESPACE_BEGIN
     int Ardb::HDel(Context& ctx, RedisCommandFrame& cmd)
     {
         ValueObject meta;
+        KeyLockerGuard keylock(m_key_lock, ctx.currentDB, cmd.GetArguments()[0]);
         int err = GetMetaValue(ctx, cmd.GetArguments()[0], HASH_META, meta);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
         int count = 0;
@@ -620,7 +620,7 @@ OP_NAMESPACE_BEGIN
                 err = HashGet(ctx, meta, field, value);
                 if (err == 0)
                 {
-                    if (meta.meta.encoding != COLLECTION_ECODING_ZIPMAP)
+                    if (meta.meta.Encoding() != COLLECTION_ECODING_ZIPMAP)
                     {
                         KeyObject k;
                         k.db = ctx.currentDB;
@@ -658,8 +658,8 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::HClear(Context& ctx, ValueObject& meta)
     {
-        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.encoding != COLLECTION_ECODING_ZIPMAP);
-        if (meta.meta.encoding != COLLECTION_ECODING_ZIPMAP)
+        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.Encoding() != COLLECTION_ECODING_ZIPMAP);
+        if (meta.meta.Encoding() != COLLECTION_ECODING_ZIPMAP)
         {
             HashIterator iter;
             HashIter(ctx, meta, "", iter, false);
@@ -685,7 +685,7 @@ OP_NAMESPACE_BEGIN
             fill_error_reply(ctx.reply, "no such key or some error");
             return 0;
         }
-        if (v.meta.encoding == COLLECTION_ECODING_ZIPMAP)
+        if (v.meta.Encoding() == COLLECTION_ECODING_ZIPMAP)
         {
             DelKeyValue(tmpctx, v.key);
             v.key.encode_buf.Clear();
@@ -703,7 +703,7 @@ OP_NAMESPACE_BEGIN
             dstmeta.key.type = KEY_META;
             dstmeta.key.key = dstkey;
             dstmeta.type = HASH_META;
-            dstmeta.meta.encoding = COLLECTION_ECODING_ZIPMAP;
+            dstmeta.meta.SetEncoding(COLLECTION_ECODING_ZIPMAP);
             BatchWriteGuard guard(GetKeyValueEngine());
             while (iter.Valid())
             {

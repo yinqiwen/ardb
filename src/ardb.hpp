@@ -270,6 +270,7 @@ OP_NAMESPACE_BEGIN
 
             int ZipListConvert(Context& ctx, ValueObject& meta);
             int ListIter(Context& ctx, ValueObject& meta, ListIterator& iter, bool reverse);
+            int SequencialListIter(Context& ctx, ValueObject& meta, ListIterator& iter, int64 index);
             int ListPop(Context& ctx, const std::string& key, bool lpop);
             int ListInsert(Context& ctx, const std::string& key, const std::string* match, const std::string& value,
                     bool head, bool abort_nonexist);

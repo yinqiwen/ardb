@@ -573,7 +573,7 @@ OP_NAMESPACE_BEGIN
 
     int64 MetaValue::Length()
     {
-        switch (encoding)
+        switch (Encoding())
         {
             case COLLECTION_ECODING_ZIPLIST:
             {
@@ -607,8 +607,8 @@ OP_NAMESPACE_BEGIN
             }
             case HASH_META:
             {
-                buf.WriteByte((char) encoding);
-                if (encoding == COLLECTION_ECODING_ZIPMAP)
+                buf.WriteByte((char) attribute);
+                if (Encoding() == COLLECTION_ECODING_ZIPMAP)
                 {
                     encode_arg(buf, zipmap);
                 }
@@ -620,8 +620,8 @@ OP_NAMESPACE_BEGIN
             }
             case SET_META:
             {
-                buf.WriteByte((char) encoding);
-                if (encoding == COLLECTION_ECODING_ZIPSET)
+                buf.WriteByte((char) attribute);
+                if (Encoding() == COLLECTION_ECODING_ZIPSET)
                 {
                     encode_arg(buf, zipset);
                 }
@@ -635,8 +635,8 @@ OP_NAMESPACE_BEGIN
             }
             case LIST_META:
             {
-                buf.WriteByte((char) encoding);
-                if (encoding == COLLECTION_ECODING_ZIPLIST)
+                buf.WriteByte((char) attribute);
+                if (Encoding() == COLLECTION_ECODING_ZIPLIST)
                 {
                     encode_arg(buf, ziplist);
                 }
@@ -651,8 +651,8 @@ OP_NAMESPACE_BEGIN
 
             case ZSET_META:
             {
-                buf.WriteByte((char) encoding);
-                if (encoding == COLLECTION_ECODING_ZIPZSET)
+                buf.WriteByte((char) attribute);
+                if (Encoding() == COLLECTION_ECODING_ZIPZSET)
                 {
                     encode_arg(buf, zipmap);
                 }
@@ -703,8 +703,8 @@ OP_NAMESPACE_BEGIN
                 {
                     return false;
                 }
-                encoding = (uint8) tmp;
-                if (encoding == COLLECTION_ECODING_ZIPMAP)
+                attribute = (uint8) tmp;
+                if (Encoding() == COLLECTION_ECODING_ZIPMAP)
                 {
                     if (!decode_arg(buf, zipmap))
                     {
@@ -727,8 +727,8 @@ OP_NAMESPACE_BEGIN
                 {
                     return false;
                 }
-                encoding = (uint8) tmp;
-                if (encoding == COLLECTION_ECODING_ZIPSET)
+                attribute = (uint8) tmp;
+                if (Encoding() == COLLECTION_ECODING_ZIPSET)
                 {
                     if (!decode_arg(buf, zipset))
                     {
@@ -751,8 +751,8 @@ OP_NAMESPACE_BEGIN
                 {
                     return false;
                 }
-                encoding = (uint8) tmp;
-                if (encoding == COLLECTION_ECODING_ZIPLIST)
+                attribute = (uint8) tmp;
+                if (Encoding() == COLLECTION_ECODING_ZIPLIST)
                 {
                     if (!decode_arg(buf, ziplist))
                     {
@@ -776,8 +776,8 @@ OP_NAMESPACE_BEGIN
                 {
                     return false;
                 }
-                encoding = (uint8) tmp;
-                if (encoding == COLLECTION_ECODING_ZIPZSET)
+                attribute = (uint8) tmp;
+                if (Encoding() == COLLECTION_ECODING_ZIPZSET)
                 {
                     if (!decode_arg(buf, zipmap))
                     {
@@ -790,10 +790,6 @@ OP_NAMESPACE_BEGIN
                     {
                         return false;
                     }
-//                    if (!decode_arg(buf, zset_score_range))
-//                    {
-//                        return false;
-//                    }
                 }
                 break;
             }

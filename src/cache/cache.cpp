@@ -773,7 +773,7 @@ OP_NAMESPACE_BEGIN
                         meta->state = CACHE_STATE_META_LOADED;
                     }
                     if (v.type == STRING_META
-                            || (meta->state == CACHE_STATE_META_LOADED && v.meta.encoding > COLLECTION_ECODING_RAW))
+                            || (meta->state == CACHE_STATE_META_LOADED && v.meta.Encoding() > COLLECTION_ECODING_RAW))
                     {
                         meta->state = CACHE_STATE_FULL_LOADED;
                     }

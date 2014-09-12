@@ -601,7 +601,7 @@ namespace ardb
         listmeta.key.type = KEY_META;
         listmeta.key.key = key;
         listmeta.type = LIST_META;
-        listmeta.meta.encoding = COLLECTION_ECODING_ZIPLIST;
+        listmeta.meta.SetEncoding(COLLECTION_ECODING_ZIPLIST);
         BatchWriteGuard guard(m_db->GetKeyValueEngine());
         while (iter != NULL)
         {
@@ -657,7 +657,7 @@ namespace ardb
         zmeta.key.key = key;
         zmeta.key.type = KEY_META;
         zmeta.type = ZSET_META;
-        zmeta.meta.encoding = COLLECTION_ECODING_ZIPZSET;
+        zmeta.meta.SetEncoding(COLLECTION_ECODING_ZIPZSET);
         BatchWriteGuard guard(m_db->GetKeyValueEngine());
         unsigned char* iter = ziplistIndex(data, 0);
         while (iter != NULL)
@@ -701,7 +701,7 @@ namespace ardb
         zmeta.key.type = KEY_META;
         zmeta.key.key = key;
         zmeta.type = HASH_META;
-        zmeta.meta.encoding = COLLECTION_ECODING_ZIPMAP;
+        zmeta.meta.SetEncoding(COLLECTION_ECODING_ZIPMAP);
         BatchWriteGuard guard(m_db->GetKeyValueEngine());
         unsigned char* iter = ziplistIndex(data, 0);
         while (iter != NULL)
@@ -762,7 +762,7 @@ namespace ardb
         zmeta.key.type = KEY_META;
         zmeta.key.key = key;
         zmeta.type = SET_META;
-        zmeta.meta.encoding = COLLECTION_ECODING_ZIPSET;
+        zmeta.meta.SetEncoding(COLLECTION_ECODING_ZIPSET);
         while (!intsetGet((intset*) data, ii++, &llele))
         {
             //value
@@ -810,12 +810,12 @@ namespace ardb
                 if (REDIS_RDB_TYPE_SET == rdbtype)
                 {
                     zmeta.type = SET_META;
-                    zmeta.meta.encoding = COLLECTION_ECODING_ZIPSET;
+                    zmeta.meta.SetEncoding(COLLECTION_ECODING_ZIPSET);
                 }
                 else
                 {
                     zmeta.type = LIST_META;
-                    zmeta.meta.encoding = COLLECTION_ECODING_ZIPLIST;
+                    zmeta.meta.SetEncoding(COLLECTION_ECODING_ZIPLIST);
                 }
                 while (len--)
                 {
@@ -851,7 +851,7 @@ namespace ardb
                 zmeta.key.type = KEY_META;
                 zmeta.type = ZSET_META;
                 zmeta.key.key = key;
-                zmeta.meta.encoding = COLLECTION_ECODING_ZIPZSET;
+                zmeta.meta.SetEncoding(COLLECTION_ECODING_ZIPZSET);
                 while (len--)
                 {
                     std::string str;
@@ -883,7 +883,7 @@ namespace ardb
                 zmeta.key.type = KEY_META;
                 zmeta.type = HASH_META;
                 zmeta.key.key = key;
-                zmeta.meta.encoding = COLLECTION_ECODING_ZIPMAP;
+                zmeta.meta.SetEncoding(COLLECTION_ECODING_ZIPMAP);
                 while (len--)
                 {
                     std::string field, str;
@@ -928,7 +928,7 @@ namespace ardb
                         zmeta.key.type = KEY_META;
                         zmeta.type = HASH_META;
                         zmeta.key.key = key;
-                        zmeta.meta.encoding = COLLECTION_ECODING_ZIPMAP;
+                        zmeta.meta.SetEncoding(COLLECTION_ECODING_ZIPMAP);
                         while ((zi = zipmapNext(zi, &fstr, &flen, &vstr, &vlen)) != NULL)
                         {
                             if (flen > maxlen)
@@ -1504,7 +1504,7 @@ namespace ardb
                         case ZSET_META:
                         case SET_META:
                         {
-                            if (vv.meta.encoding == COLLECTION_ECODING_RAW)
+                            if (vv.meta.Encoding() == COLLECTION_ECODING_RAW)
                             {
                                 iter->Next();
                                 continue;

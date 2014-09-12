@@ -28,7 +28,6 @@
  */
 #include "network.hpp"
 #include "ardb.hpp"
-#include <fnmatch.h>
 
 OP_NAMESPACE_BEGIN
     void RedisRequestHandler::PipelineInit(ChannelPipeline* pipeline, void* data)
@@ -98,8 +97,8 @@ OP_NAMESPACE_BEGIN
         m_ctx.last_interaction_ustime = get_current_epoch_micros();
         m_ctx.client = ctx.GetChannel();
         m_ctx.identity = CONTEXT_NORMAL_CONNECTION;
-        RedisReplyPool& reply_pool =  m_db->GetRedisReplyPool();
-        reply_pool.SetMaxSize((uint32)(m_db->GetConfig().reply_pool_size));
+        RedisReplyPool& reply_pool = m_db->GetRedisReplyPool();
+        reply_pool.SetMaxSize((uint32) (m_db->GetConfig().reply_pool_size));
         m_ctx.reply.SetPool(&reply_pool);
         if (!m_db->GetConfig().requirepass.empty())
         {
@@ -125,9 +124,9 @@ OP_NAMESPACE_BEGIN
                     StringSet::iterator sit = m_db->GetConfig().trusted_ip.begin();
                     while (sit != m_db->GetConfig().trusted_ip.end())
                     {
-                        if (fnmatch(sit->c_str(), ip.c_str(), 0) == 0)
+                        if (stringmatchlen(sit->c_str(), sit->size(), ip.c_str(), ip.size(), 0) == 1)
                         {
-                           return;
+                            return;
                         }
                         sit++;
                     }

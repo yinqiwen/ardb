@@ -27,7 +27,6 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include "ardb.hpp"
-#include <fnmatch.h>
 
 OP_NAMESPACE_BEGIN
     int Ardb::RawSet(Context& ctx, RedisCommandFrame& cmd)
@@ -116,7 +115,7 @@ OP_NAMESPACE_BEGIN
             {
                 break;
             }
-            if ((pattern.empty() || fnmatch(pattern.c_str(), tmpkey.c_str(), 0) == 0))
+            if ((pattern.empty() || stringmatchlen(pattern.c_str(),pattern.size(), tmpkey.c_str(),tmpkey.size(), 0) == 1))
             {
                 RedisReply& rr1 = r2.AddMember();
                 fill_str_reply(rr1, tmpkey);
@@ -140,13 +139,18 @@ OP_NAMESPACE_BEGIN
         KeyObject from;
         from.db = ctx.currentDB;
         from.type = KEY_META;
-        if (options.pattern != "*")
+
+        std::string::size_type cursor = options.pattern.find("*");
+        if (cursor == std::string::npos)
         {
             from.key = options.pattern;
         }
         else
         {
-            //options.pattern = "";
+            if(options.pattern != "*" && cursor > 0)
+            {
+                from.key = options.pattern.substr(0, cursor);
+            }
         }
         Iterator* iter = IteratorKeyValue(from, false);
         std::string tmpkey;
@@ -160,8 +164,7 @@ OP_NAMESPACE_BEGIN
             }
             tmpkey.clear();
             tmpkey.assign(kk.key.data(), kk.key.size());
-            if ((options.pattern.empty() || options.pattern == "*"
-                    || fnmatch(options.pattern.c_str(), tmpkey.c_str(), 0) == 0))
+            if ((options.pattern == "*" || stringmatchlen(options.pattern.c_str(), options.pattern.size(), tmpkey.data(), tmpkey.size(), 0) == 1))
             {
                 if (options.op == OP_GET)
                 {
@@ -178,8 +181,7 @@ OP_NAMESPACE_BEGIN
                 /*
                  * If the '*' is the last char, we can break iteration now
                  */
-                size_t pos = options.pattern.find("*");
-                if (pos == options.pattern.size() - 1)
+                if (cursor == options.pattern.size() - 1)
                 {
                     break;
                 }
@@ -424,7 +426,7 @@ OP_NAMESPACE_BEGIN
         {
             return 0;
         }
-        if(m_cfg.slave_ignore_expire && ctx.IsSlave())
+        if (m_cfg.slave_ignore_expire && ctx.IsSlave())
         {
             /*
              * ignore expire setting, but issue data change event for replication
@@ -622,7 +624,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::Del(Context& ctx, RedisCommandFrame& cmd)
     {
-        if(ctx.IsSlave() && m_cfg.slave_ignore_del)
+        if (ctx.IsSlave() && m_cfg.slave_ignore_del)
         {
             return 0;
         }

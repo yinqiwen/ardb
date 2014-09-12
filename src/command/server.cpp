@@ -30,7 +30,6 @@
 #include "ardb.hpp"
 #include "util/socket_address.hpp"
 #include "util/lru.hpp"
-#include <fnmatch.h>
 #include <sstream>
 #include <sys/utsname.h>
 #include <sys/time.h>
@@ -554,7 +553,7 @@ namespace ardb
             Properties::iterator it = m_cfg_props.begin();
             while (it != m_cfg_props.end())
             {
-                if (fnmatch(cmd.GetArguments()[1].c_str(), it->first.c_str(), 0) == 0)
+                if (stringmatchlen(cmd.GetArguments()[1].c_str(), cmd.GetArguments()[1].size(), it->first.c_str(),it->first.size(), 0) == 1)
                 {
                     RedisReply& r = ctx.reply.AddMember();
                     fill_str_reply(r, it->first);

@@ -28,7 +28,6 @@
  */
 
 #include "ardb.hpp"
-#include <fnmatch.h>
 #include <float.h>
 
 OP_NAMESPACE_BEGIN
@@ -48,7 +47,8 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::ZipListConvert(Context& ctx, ValueObject& meta)
     {
-        meta.meta.encoding = COLLECTION_ECODING_RAW;
+        meta.meta.SetEncoding(COLLECTION_ECODING_RAW);
+        meta.meta.SetFlag(COLLECTION_FLAG_SEQLIST);
         meta.meta.min_index.SetInt64(0);
         meta.meta.max_index.SetInt64(meta.meta.ziplist.size() - 1);
         for (uint32 i = 0; i < meta.meta.ziplist.size(); i++)
@@ -80,7 +80,7 @@ OP_NAMESPACE_BEGIN
         {
             return 0;
         }
-        if (meta.meta.encoding == COLLECTION_ECODING_ZIPLIST)
+        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
         {
             Data* entry = GetZipEntry(meta.meta.ziplist, index);
             if (NULL != entry)
@@ -95,30 +95,44 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-            if ((index >= 0 && index >= meta.meta.Length()) || (index < 0 && (-index - 1) >= meta.meta.Length()))
+            if ((index >= 0 && index >= meta.meta.Length()) || (index < 0 && (meta.meta.Length() + index) < 0))
             {
                 ctx.reply.type = REDIS_REPLY_NIL;
                 return 0;
             }
             ListIterator iter;
-            err = ListIter(ctx, meta, iter, index < 0);
-            uint32 cursor = index < 0 ? 1 : 0;
-
-            while (iter.Valid())
+            if (meta.meta.IsSequentialList())
             {
-                if (cursor == std::abs(index))
+                err = SequencialListIter(ctx, meta, iter, index);
+                if (0 == err)
                 {
-                    fill_value_reply(ctx.reply, *(iter.Element()));
-                    return 0;
+                    if (iter.Valid())
+                    {
+                        fill_value_reply(ctx.reply, *(iter.Element()));
+                        return 0;
+                    }
                 }
-                cursor++;
-                if (index >= 0)
+            }
+            else
+            {
+                err = ListIter(ctx, meta, iter, index < 0);
+                uint32 cursor = index < 0 ? 1 : 0;
+                while (iter.Valid())
                 {
-                    iter.Next();
-                }
-                else
-                {
-                    iter.Prev();
+                    if (cursor == std::abs(index))
+                    {
+                        fill_value_reply(ctx.reply, *(iter.Element()));
+                        return 0;
+                    }
+                    cursor++;
+                    if (index >= 0)
+                    {
+                        iter.Next();
+                    }
+                    else
+                    {
+                        iter.Prev();
+                    }
                 }
             }
             ctx.reply.type = REDIS_REPLY_NIL;
@@ -144,6 +158,7 @@ OP_NAMESPACE_BEGIN
     int Ardb::ListPop(Context& ctx, const std::string& key, bool lpop)
     {
         ValueObject meta;
+        KeyLockerGuard keylock(m_key_lock, ctx.currentDB, key);
         int err = GetMetaValue(ctx, key, LIST_META, meta);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
         if (0 != err)
@@ -151,8 +166,8 @@ OP_NAMESPACE_BEGIN
             ctx.reply.type = REDIS_REPLY_NIL;
             return 0;
         }
-        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.encoding != COLLECTION_ECODING_ZIPLIST);
-        if (meta.meta.encoding == COLLECTION_ECODING_ZIPLIST)
+        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.Encoding() != COLLECTION_ECODING_ZIPLIST);
+        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
         {
             if (!meta.meta.ziplist.empty())
             {
@@ -185,47 +200,76 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-            ListIterator iter;
-            err = ListIter(ctx, meta, iter, !lpop);
-            bool found = false;
-            while (iter.Valid())
+            bool poped = false;
+            if (meta.meta.IsSequentialList())
             {
-                if (!found)
+                if (meta.meta.Length() > 0)
                 {
-                    fill_value_reply(ctx.reply, *(iter.Element()));
-                    found = true;
-                    meta.meta.len--;
-                    KeyObject k;
-                    k.type = LIST_ELEMENT;
-                    k.key = meta.key.key;
-                    k.db = ctx.currentDB;
-                    k.score = *(iter.Score());
-                    DelKeyValue(ctx, k);
-                }
-                else
-                {
-                    if (lpop)
+                    ValueObject lkv;
+                    lkv.key.type = LIST_ELEMENT;
+                    lkv.key.key = meta.key.key;
+                    lkv.key.db = ctx.currentDB;
+                    lkv.key.score = lpop ? meta.meta.min_index : meta.meta.max_index;
+                    if (0 == GetKeyValue(ctx, lkv.key, &lkv))
                     {
-                        meta.meta.min_index = *(iter.Score());
+                        DelKeyValue(ctx, lkv.key);
+                        if (lpop)
+                        {
+                            meta.meta.min_index.IncrBy(1);
+                        }
+                        else
+                        {
+                            meta.meta.max_index.IncrBy(-1);
+                        }
+                        meta.meta.len--;
+                        poped = true;
+                        fill_value_reply(ctx.reply, lkv.element);
+                    }
+                }
+            }
+            else
+            {
+                ListIterator iter;
+                err = ListIter(ctx, meta, iter, !lpop);
+                while (iter.Valid())
+                {
+                    if (!poped)
+                    {
+                        fill_value_reply(ctx.reply, *(iter.Element()));
+                        poped = true;
+                        meta.meta.len--;
+                        KeyObject k;
+                        k.type = LIST_ELEMENT;
+                        k.key = meta.key.key;
+                        k.db = ctx.currentDB;
+                        k.score = *(iter.Score());
+                        DelKeyValue(ctx, k);
                     }
                     else
                     {
-                        meta.meta.max_index = *(iter.Score());
+                        if (lpop)
+                        {
+                            meta.meta.min_index = *(iter.Score());
+                        }
+                        else
+                        {
+                            meta.meta.max_index = *(iter.Score());
+                        }
+                        break;
                     }
-                    break;
-                }
-                if (lpop)
-                {
-                    iter.Next();
-                }
-                else
-                {
-                    iter.Prev();
+                    if (lpop)
+                    {
+                        iter.Next();
+                    }
+                    else
+                    {
+                        iter.Prev();
+                    }
                 }
             }
-            if (found)
+            if (poped)
             {
-                if (meta.meta.len > 0)
+                if (meta.meta.Length() > 0)
                 {
                     SetKeyValue(ctx, meta);
                 }
@@ -257,7 +301,7 @@ OP_NAMESPACE_BEGIN
         }
         if (NULL != match)
         {
-            if (meta.meta.encoding == COLLECTION_ECODING_ZIPLIST)
+            if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
             {
                 Data element;
                 element.SetString(value, true);
@@ -349,6 +393,7 @@ OP_NAMESPACE_BEGIN
                     else
                     {
                         score.SetDouble((prev.NumberValue() + current.NumberValue()) / 2);
+                        meta.meta.SetFlag(COLLECTION_FLAG_NORMAL);
                     }
                 }
                 else
@@ -360,6 +405,7 @@ OP_NAMESPACE_BEGIN
                     else
                     {
                         score.SetDouble((next.NumberValue() + current.NumberValue()) / 2);
+                        meta.meta.SetFlag(COLLECTION_FLAG_NORMAL);
                     }
                 }
 
@@ -378,7 +424,7 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-            if (meta.meta.encoding == COLLECTION_ECODING_ZIPLIST)
+            if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
             {
                 Data element;
                 element.SetString(value, true);
@@ -415,9 +461,7 @@ OP_NAMESPACE_BEGIN
                 {
                     v.key.score = meta.meta.max_index.IncrBy(1);
                 }
-
                 SetKeyValue(ctx, v);
-
             }
             fill_int_reply(ctx.reply, meta.meta.Length());
             return 0;
@@ -522,7 +566,7 @@ OP_NAMESPACE_BEGIN
         ValueObject meta;
         int err = GetMetaValue(ctx, key, LIST_META, meta);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
-        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.encoding != COLLECTION_ECODING_ZIPLIST);
+        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.Encoding() != COLLECTION_ECODING_ZIPLIST);
         if (0 != err && abort_nonexist)
         {
             fill_int_reply(ctx.reply, 0);
@@ -593,7 +637,7 @@ OP_NAMESPACE_BEGIN
         if (end >= meta.meta.Length())
             end = meta.meta.Length() - 1;
         int64 rangelen = (end - start) + 1;
-        if (meta.meta.encoding == COLLECTION_ECODING_ZIPLIST)
+        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
         {
             uint32 i = start;
             while (rangelen--)
@@ -605,38 +649,53 @@ OP_NAMESPACE_BEGIN
         else
         {
             ListIterator iter;
-            if (start > meta.meta.len / 2)
+            if (meta.meta.IsSequentialList())
             {
-                start -= meta.meta.len;
-                end -= meta.meta.len;
-            }
-
-            ListIter(ctx, meta, iter, start < 0);
-            int64 cursor = start < 0 ? -1 : 0;
-            while (iter.Valid())
-            {
-                if (cursor >= start && cursor <= end)
+                SequencialListIter(ctx, meta, iter, start);
+                uint32 count = 0;
+                while (iter.Valid() && count < rangelen)
                 {
                     RedisReply& r = ctx.reply.AddMember();
                     fill_str_reply(r, iter.Element()->ToString());
+                    count++;
+                    iter.Next();
                 }
-                if (start < 0)
+            }
+            else
+            {
+                if (start > meta.meta.len / 2)
                 {
-                    if (cursor < start)
-                    {
-                        break;
-                    }
-                    cursor--;
+                    start -= meta.meta.len;
+                    end -= meta.meta.len;
                 }
-                else
+
+                ListIter(ctx, meta, iter, start < 0);
+                int64 cursor = start < 0 ? -1 : 0;
+                while (iter.Valid())
                 {
-                    if (cursor > end)
+                    if (cursor >= start && cursor <= end)
                     {
-                        break;
+                        RedisReply& r = ctx.reply.AddMember();
+                        fill_str_reply(r, iter.Element()->ToString());
                     }
-                    cursor++;
+                    if (start < 0)
+                    {
+                        if (cursor < start)
+                        {
+                            break;
+                        }
+                        cursor--;
+                    }
+                    else
+                    {
+                        if (cursor > end)
+                        {
+                            break;
+                        }
+                        cursor++;
+                    }
+                    iter.Next();
                 }
-                iter.Next();
             }
         }
         return 0;
@@ -672,7 +731,7 @@ OP_NAMESPACE_BEGIN
         Data element;
         element.SetString(cmd.GetArguments()[2], true);
         KeyLockerGuard lock(m_key_lock, ctx.currentDB, cmd.GetArguments()[0]);
-        if (meta.meta.encoding == COLLECTION_ECODING_ZIPLIST)
+        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
         {
             uint32 oldlen = meta.meta.ziplist.size();
             int64 removed = 0;
@@ -716,16 +775,15 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         BatchWriteGuard guard(GetKeyValueEngine());
-
         ListIterator iter;
         ListIter(ctx, meta, iter, count < 0);
-
         int64 remove = 0;
         while (iter.Valid())
         {
             if (iter.Element()->Compare(element) == 0)
             {
                 meta.meta.len--;
+                meta.meta.SetFlag(COLLECTION_FLAG_NORMAL);
                 KeyObject k;
                 k.db = meta.key.db;
                 k.key = meta.key.key;
@@ -771,7 +829,7 @@ OP_NAMESPACE_BEGIN
             fill_error_reply(ctx.reply, "no such key");
             return 0;
         }
-        if (meta.meta.encoding == COLLECTION_ECODING_ZIPLIST)
+        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
         {
             Data* entry = GetZipEntry(meta.meta.ziplist, index);
             if (NULL == entry)
@@ -795,39 +853,65 @@ OP_NAMESPACE_BEGIN
                 return 0;
             }
 
-            ListIterator iter;
-            ListIter(ctx, meta, iter, index < 0);
-            int64 cursor = index >= 0 ? 0 : -1;
-            while (iter.Valid())
+            if (meta.meta.IsSequentialList())
             {
-                if (cursor == index)
+                ValueObject list_element;
+                list_element.key.db = meta.key.db;
+                list_element.key.key = meta.key.key;
+                list_element.key.type = LIST_ELEMENT;
+                list_element.key.score = meta.meta.min_index;
+                if (index >= 0)
                 {
-                    ValueObject v;
-                    v.key.db = meta.key.db;
-                    v.key.key = meta.key.key;
-                    v.key.type = LIST_ELEMENT;
-                    v.key.score = *(iter.Score());
-                    v.type = LIST_ELEMENT;
-                    v.element.SetString(cmd.GetArguments()[2], true);
-                    SetKeyValue(ctx, v);
+                    list_element.key.score.IncrBy(index);
+                }
+                else
+                {
+                    list_element.key.score.IncrBy(index + meta.meta.Length());
+                }
+                if (0 == GetKeyValue(ctx, list_element.key, &list_element))
+                {
+                    list_element.element.SetString(cmd.GetArguments()[2], true);
+                    SetKeyValue(ctx, list_element);
                     fill_status_reply(ctx.reply, "OK");
                     return 0;
                 }
-                if (cursor >= 0)
+            }
+            else
+            {
+                ListIterator iter;
+                ListIter(ctx, meta, iter, index < 0);
+                int64 cursor = index >= 0 ? 0 : -1;
+                while (iter.Valid())
                 {
-                    cursor++;
-                }
-                else
-                {
-                    cursor--;
-                }
-                if (index < 0)
-                {
-                    iter.Prev();
-                }
-                else
-                {
-                    iter.Next();
+                    if (cursor == index)
+                    {
+                        ValueObject v;
+                        v.key.db = meta.key.db;
+                        v.key.key = meta.key.key;
+                        v.key.type = LIST_ELEMENT;
+                        v.key.score = *(iter.Score());
+                        v.type = LIST_ELEMENT;
+                        v.element.SetString(cmd.GetArguments()[2], true);
+                        SetKeyValue(ctx, v);
+                        fill_status_reply(ctx.reply, "OK");
+                        return 0;
+                    }
+                    if (cursor >= 0)
+                    {
+                        cursor++;
+                    }
+                    else
+                    {
+                        cursor--;
+                    }
+                    if (index < 0)
+                    {
+                        iter.Prev();
+                    }
+                    else
+                    {
+                        iter.Next();
+                    }
                 }
             }
             fill_error_reply(ctx.reply, "index out of range");
@@ -868,7 +952,7 @@ OP_NAMESPACE_BEGIN
             DeleteKey(ctx, cmd.GetArguments()[0]);
             return 0;
         }
-        if (meta.meta.encoding == COLLECTION_ECODING_ZIPLIST)
+        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
         {
             DataArray newzip;
             for (int64 i = start; i <= end; i++)
@@ -881,26 +965,51 @@ OP_NAMESPACE_BEGIN
         else
         {
             BatchWriteGuard guard(GetKeyValueEngine());
-            ListIterator iter;
-            ListIter(ctx, meta, iter, false);
-            int64 cursor = 0;
-            while (iter.Valid())
+            if (meta.meta.IsSequentialList())
             {
-                if (cursor < start || cursor > end)
+                int64 listlen = meta.meta.Length();
+                for (int64 s = 0; s < listlen; s++)
                 {
-                    DelRaw(ctx, iter.CurrentRawKey());
+                    if (s == start)
+                    {
+                        s = end;
+                        continue;
+                    }
+                    KeyObject lk;
+                    lk.db = meta.key.db;
+                    lk.key = meta.key.key;
+                    lk.type = LIST_ELEMENT;
+                    lk.score = meta.meta.min_index.IncrBy(s);
                     meta.meta.len--;
+                    DelKeyValue(ctx, lk);
                 }
-                if (cursor == start)
+                meta.meta.max_index = meta.meta.min_index;
+                meta.meta.min_index.IncrBy(start);
+                meta.meta.max_index.IncrBy(end);
+            }
+            else
+            {
+                ListIterator iter;
+                ListIter(ctx, meta, iter, false);
+                int64 cursor = 0;
+                while (iter.Valid())
                 {
-                    meta.meta.min_index = *(iter.Element());
+                    if (cursor < start || cursor > end)
+                    {
+                        DelRaw(ctx, iter.CurrentRawKey());
+                        meta.meta.len--;
+                    }
+                    if (cursor == start)
+                    {
+                        meta.meta.min_index = *(iter.Element());
+                    }
+                    else if (cursor == end)
+                    {
+                        meta.meta.max_index = *(iter.Element());
+                    }
+                    cursor++;
+                    iter.Next();
                 }
-                else if (cursor == end)
-                {
-                    meta.meta.max_index = *(iter.Element());
-                }
-                cursor++;
-                iter.Next();
             }
             SetKeyValue(ctx, meta);
         }
@@ -950,7 +1059,7 @@ OP_NAMESPACE_BEGIN
     {
         if (NULL != ctx.block)
         {
-            if(ctx.block->blocking_timer_task_id != -1)
+            if (ctx.block->blocking_timer_task_id != -1)
             {
                 ctx.client->GetService().GetTimer().Cancel(ctx.block->blocking_timer_task_id);
             }
@@ -1077,8 +1186,8 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::LClear(Context& ctx, ValueObject& meta)
     {
-        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.encoding != COLLECTION_ECODING_ZIPLIST);
-        if (meta.meta.encoding != COLLECTION_ECODING_ZIPLIST)
+        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.Encoding() != COLLECTION_ECODING_ZIPLIST);
+        if (meta.meta.Encoding() != COLLECTION_ECODING_ZIPLIST)
         {
             ListIterator iter;
             meta.meta.len = 0;
@@ -1110,7 +1219,7 @@ OP_NAMESPACE_BEGIN
             fill_error_reply(ctx.reply, "no such key or some error");
             return 0;
         }
-        if (v.meta.encoding == COLLECTION_ECODING_ZIPLIST)
+        if (v.meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
         {
             DelKeyValue(tmpctx, v.key);
             v.key.encode_buf.Clear();
@@ -1128,7 +1237,8 @@ OP_NAMESPACE_BEGIN
             dstmeta.key.type = KEY_META;
             dstmeta.key.key = dstkey;
             dstmeta.type = LIST_META;
-            dstmeta.meta.encoding = COLLECTION_ECODING_ZIPLIST;
+            dstmeta.meta.SetFlag(COLLECTION_FLAG_SEQLIST);
+            dstmeta.meta.SetEncoding(COLLECTION_ECODING_ZIPLIST);
             BatchWriteGuard guard(GetKeyValueEngine());
             while (iter.Valid())
             {

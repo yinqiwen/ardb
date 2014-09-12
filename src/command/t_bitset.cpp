@@ -28,7 +28,6 @@
  */
 
 #include "ardb.hpp"
-#include <fnmatch.h>
 
 OP_NAMESPACE_BEGIN
     static const unsigned long BITOP_AND = 0;
