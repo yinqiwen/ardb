@@ -32,6 +32,7 @@
 #include "util/helpers.hpp"
 #include "rocksdb/env.h"
 #include "rocksdb/rate_limiter.h"
+#include "rocksdb/table.h"
 #include <string.h>
 #include <stdarg.h>
 
@@ -91,6 +92,7 @@ namespace ardb
         conf_get_double(props, "rocksdb.hard_rate_limit", cfg.hard_rate_limit);
         conf_get_bool(props, "rocksdb.disableWAL", cfg.disableWAL);
         conf_get_int64(props, "rocksdb.max_manifest_file_size", cfg.max_manifest_file_size);
+        conf_get_string(props, "rocksdb.compacton_style", cfg.compacton_style);
     }
 
     KeyValueEngine* RocksDBEngineFactory::CreateDB(const std::string& name)
@@ -168,19 +170,25 @@ namespace ardb
         m_cfg = cfg;
         m_options.create_if_missing = true;
         m_options.comparator = &m_comparator;
+        rocksdb::BlockBasedTableOptions block_options;
         if (cfg.block_cache_size > 0)
         {
-            m_options.block_cache = rocksdb::NewLRUCache(cfg.block_cache_size);
+            block_options.block_cache = rocksdb::NewLRUCache(cfg.block_cache_size);
             //m_options.block_cache_compressed = rocksdb::NewLRUCache(cfg.block_cache_compressed_size);
+        }else if(cfg.block_cache_size < 0)
+        {
+            block_options.no_block_cache = true;
         }
         if (cfg.block_size > 0)
         {
-            m_options.block_size = cfg.block_size;
+            block_options.block_size = cfg.block_size;
         }
         if (cfg.block_restart_interval > 0)
         {
-            m_options.block_restart_interval = cfg.block_restart_interval;
+            block_options.block_restart_interval = cfg.block_restart_interval;
         }
+        m_options.table_factory.reset(rocksdb::NewBlockBasedTableFactory(block_options));
+
         if (cfg.write_buffer_size > 0)
         {
             m_options.write_buffer_size = cfg.write_buffer_size;
@@ -188,7 +196,7 @@ namespace ardb
         m_options.max_open_files = cfg.max_open_files;
         if (cfg.bloom_bits > 0)
         {
-            m_options.filter_policy = rocksdb::NewBloomFilterPolicy(cfg.bloom_bits);
+            block_options.filter_policy = rocksdb::NewBloomFilterPolicy(cfg.bloom_bits);
         }
 
         if (!strcasecmp(cfg.compression.c_str(), "none"))
@@ -208,7 +216,13 @@ namespace ardb
         {
             m_options.max_manifest_file_size = m_cfg.max_manifest_file_size;
         }
-        m_options.OptimizeLevelStyleCompaction();
+        if(!strcasecmp(m_cfg.compacton_style.c_str(), "universal"))
+        {
+            m_options.OptimizeUniversalStyleCompaction();
+        }else
+        {
+            m_options.OptimizeLevelStyleCompaction();
+        }
         m_options.IncreaseParallelism();
 
         if(cfg.logenable)
