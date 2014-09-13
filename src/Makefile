@@ -41,7 +41,7 @@ uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 LIB_PATH=$(PWD)/../deps
 
 LMDB_PATH=${LIB_PATH}/mdb-mdb/libraries/liblmdb
-LMDB_FILE=${LIB_PATH}/LMDB_0.9.11.tar.gz
+LMDB_FILE=${LIB_PATH}/LMDB_0.9.13.tar.gz
 LMDB_LIBA=${LMDB_PATH}/liblmdb.a
 
 JEMALLOC_VER=jemalloc-3.6.0
@@ -59,7 +59,7 @@ LEVELDB_PATH=${LIB_PATH}/${LEVELDB_VER}
 LEVELDB_FILE=${LEVELDB_PATH}.tar.gz
 LEVELDB_LIBA=${LEVELDB_PATH}/libleveldb.a
 
-ROCKSDB_VER=rocksdb-rocksdb-3.4
+ROCKSDB_VER=rocksdb-rocksdb-3.5
 ROCKSDB_PATH=${LIB_PATH}/${ROCKSDB_VER}
 ROCKSDB_FILE=${ROCKSDB_PATH}.tar.gz
 ROCKSDB_LIBA=${ROCKSDB_PATH}/librocksdb.a
