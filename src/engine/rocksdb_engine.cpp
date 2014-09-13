@@ -187,6 +187,10 @@ namespace ardb
         {
             block_options.block_restart_interval = cfg.block_restart_interval;
         }
+        if (cfg.bloom_bits > 0)
+        {
+            block_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(cfg.bloom_bits));
+        }
         m_options.table_factory.reset(rocksdb::NewBlockBasedTableFactory(block_options));
 
         if (cfg.write_buffer_size > 0)
@@ -194,10 +198,6 @@ namespace ardb
             m_options.write_buffer_size = cfg.write_buffer_size;
         }
         m_options.max_open_files = cfg.max_open_files;
-        if (cfg.bloom_bits > 0)
-        {
-            block_options.filter_policy = rocksdb::NewBloomFilterPolicy(cfg.bloom_bits);
-        }
 
         if (!strcasecmp(cfg.compression.c_str(), "none"))
         {
