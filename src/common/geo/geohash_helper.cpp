@@ -183,10 +183,10 @@ namespace ardb
 
         int steps = estimate_geohash_steps_by_radius(radius_meters);
         GeoHashBits hash;
-        geohash_encode(&lat_range, &lat_range, latitude, longitude, steps, &hash);
+        geohash_fast_encode(lat_range, lat_range, latitude, longitude, steps, &hash);
 
         GeoHashArea area;
-        geohash_decode(&lat_range, &lat_range, &hash, &area);
+        geohash_fast_decode(lat_range, lat_range, hash, &area);
         results.insert(hash);
 
         double range_lon = (area.longitude.max - area.longitude.min) / 2;
@@ -200,7 +200,7 @@ namespace ardb
         bool split_south = false;
         if (max_lon > area.longitude.max)
         {
-            geohash_get_neighbor(&hash, GEOHASH_NORTH, &(neighbors.east));
+            geohash_get_neighbor(hash, GEOHASH_NORTH, &(neighbors.east));
             if (area.longitude.max + range_lon > max_lon)
             {
                 results.insert(geohash_next_leftbottom(neighbors.east));
@@ -214,7 +214,7 @@ namespace ardb
         }
         if (min_lon < area.longitude.min)
         {
-            geohash_get_neighbor(&hash, GEOHASH_WEST, &neighbors.west);
+            geohash_get_neighbor(hash, GEOHASH_WEST, &neighbors.west);
             if (area.longitude.min - range_lon < min_lon)
             {
                 results.insert(geohash_next_rightbottom(neighbors.west));
@@ -228,7 +228,7 @@ namespace ardb
         }
         if (max_lat > area.latitude.max)
         {
-            geohash_get_neighbor(&hash, GEOHASH_EAST, &neighbors.north);
+            geohash_get_neighbor(hash, GEOHASH_EAST, &neighbors.north);
             if (area.latitude.max + range_lat > max_lat)
             {
                 results.insert(geohash_next_rightbottom(neighbors.north));
@@ -242,7 +242,7 @@ namespace ardb
         }
         if (min_lat < area.latitude.min)
         {
-            geohash_get_neighbor(&hash, GEOHASH_SOUTH, &neighbors.south);
+            geohash_get_neighbor(hash, GEOHASH_SOUTH, &neighbors.south);
 
             if (area.latitude.min - range_lat < min_lat)
             {
@@ -259,7 +259,7 @@ namespace ardb
         if (max_lon > area.longitude.max && max_lat > area.latitude.max)
         {
 
-            geohash_get_neighbor(&hash, GEOHASH_NORT_EAST, &neighbors.north_east);
+            geohash_get_neighbor(hash, GEOHASH_NORT_EAST, &neighbors.north_east);
             if (split_north && split_east)
             {
                 results.insert(geohash_next_leftbottom(neighbors.north_east));
@@ -281,7 +281,7 @@ namespace ardb
         }
         if (max_lon > area.longitude.max && min_lat < area.latitude.min)
         {
-            geohash_get_neighbor(&hash, GEOHASH_SOUTH_EAST, &neighbors.south_east);
+            geohash_get_neighbor(hash, GEOHASH_SOUTH_EAST, &neighbors.south_east);
             if (split_south && split_east)
             {
                 results.insert(geohash_next_lefttop(neighbors.south_east));
@@ -303,7 +303,7 @@ namespace ardb
         }
         if (min_lon < area.longitude.min && max_lat > area.latitude.max)
         {
-            geohash_get_neighbor(&hash, GEOHASH_NORT_WEST, &neighbors.north_west);
+            geohash_get_neighbor(hash, GEOHASH_NORT_WEST, &neighbors.north_west);
             if (split_north && split_west)
             {
                 results.insert(geohash_next_rightbottom(neighbors.north_west));
@@ -325,7 +325,7 @@ namespace ardb
         }
         if (min_lon < area.longitude.min && min_lat < area.latitude.min)
         {
-            geohash_get_neighbor(&hash, GEOHASH_SOUTH_WEST, &neighbors.south_west);
+            geohash_get_neighbor(hash, GEOHASH_SOUTH_WEST, &neighbors.south_west);
             if (split_south && split_west)
             {
                 results.insert(geohash_next_righttop(neighbors.south_west));
@@ -368,14 +368,14 @@ namespace ardb
 
         int steps = estimate_geohash_steps_by_radius(radius_meters);
         GeoHashBits hash;
-        geohash_encode(&lat_range, &lat_range, latitude, longitude, steps, &hash);
+        geohash_fast_encode(lat_range, lat_range, latitude, longitude, steps, &hash);
 
         GeoHashArea area;
-        geohash_decode(&lat_range, &lat_range, &hash, &area);
+        geohash_fast_decode(lat_range, lat_range, hash, &area);
         results.insert(hash);
 
         GeoHashNeighbors neighbors;
-        geohash_get_neighbors(&hash, &neighbors);
+        geohash_get_neighbors(hash, &neighbors);
 
         results.insert(neighbors.east);
         results.insert(neighbors.west);
@@ -481,7 +481,7 @@ namespace ardb
         hashbits.bits = hash;
         hashbits.step = 30;
         GeoHashArea area;
-        if (0 == geohash_decode(&lat_range, &lon_range, &hashbits, &area))
+        if (0 == geohash_fast_decode(lat_range, lon_range, hashbits, &area))
         {
             y = (area.latitude.min + area.latitude.max) / 2;
             x = (area.longitude.min + area.longitude.max) / 2;

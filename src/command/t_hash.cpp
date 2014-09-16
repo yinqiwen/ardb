@@ -389,7 +389,6 @@ OP_NAMESPACE_BEGIN
                 FindElementByRedisCursor(cursor, scan_start_element);
             }
         }
-        bool reachend = false;
         HashIter(ctx, meta, scan_start_element, iter, true);
         std::string tmpelement;
         while (iter.Valid())

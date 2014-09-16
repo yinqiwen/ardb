@@ -84,11 +84,17 @@ extern "C"
      * 0:success
      * -1:failed
      */
-    int geohash_encode(const GeoHashRange* lat_range, const GeoHashRange* lon_range, double latitude, double longitude, uint8_t step, GeoHashBits* hash);
-    int geohash_decode(const GeoHashRange* lat_range, const GeoHashRange* lon_range, const GeoHashBits* hash, GeoHashArea* area);
-    int geohash_get_neighbors(const GeoHashBits* hash, GeoHashNeighbors* neighbors);
+    int geohash_encode(GeoHashRange lat_range, GeoHashRange lon_range, double latitude, double longitude, uint8_t step, GeoHashBits* hash);
+    int geohash_decode(GeoHashRange lat_range, GeoHashRange lon_range, GeoHashBits hash, GeoHashArea* area);
 
-    int geohash_get_neighbor(const GeoHashBits* hash, GeoDirection direction, GeoHashBits* neighbor);
+    /*
+     * Fast encode/decode version, more magic in implementation.
+     */
+    int geohash_fast_encode(GeoHashRange lat_range, GeoHashRange lon_range, double latitude, double longitude, uint8_t step, GeoHashBits* hash);
+    int geohash_fast_decode(GeoHashRange lat_range, GeoHashRange lon_range, GeoHashBits hash, GeoHashArea* area);
+
+    int geohash_get_neighbors(GeoHashBits hash, GeoHashNeighbors* neighbors);
+    int geohash_get_neighbor(GeoHashBits hash, GeoDirection direction, GeoHashBits* neighbor);
 
     GeoHashBits geohash_next_leftbottom(GeoHashBits bits);
     GeoHashBits geohash_next_rightbottom(GeoHashBits bits);

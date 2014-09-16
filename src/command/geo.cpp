@@ -69,7 +69,7 @@ namespace ardb
                 break;
             }
             GeoHashBits hash;
-            geohash_encode(&lat_range, &lon_range, point.y, point.x, 30, &hash);
+            geohash_fast_encode(lat_range, lon_range, point.y, point.x, 30, &hash);
             GeoHashFix60Bits score = hash.bits;
             Data score_value;
             score_value.SetInt64((int64) score);
