@@ -150,6 +150,7 @@ OP_NAMESPACE_BEGIN
     class ExpireCheck;
     class ConnectionTimeout;
     class CompactTask;
+    class RedisCursorClearTask;
     class Ardb
     {
         public:
@@ -227,6 +228,9 @@ OP_NAMESPACE_BEGIN
 
             SpinMutexLock m_cached_dbids_lock;
             DBIDSet m_cached_dbids;
+
+            SpinMutexLock m_redis_cursor_lock;
+            RedisCursorTable m_redis_cursor_table;
 
             DataDumpFile& GetDataDumpFile();
             void FillInfoResponse(const std::string& section, std::string& info);
@@ -546,6 +550,10 @@ OP_NAMESPACE_BEGIN
             void FreeClientContext(Context& ctx);
             void AddClientContext(Context& ctx);
             RedisReplyPool& GetRedisReplyPool();
+            uint64 GetNewRedisCursor(const std::string& element);
+            int FindElementByRedisCursor(const std::string& cursor, std::string& element);
+            void ClearExpireRedisCursor();
+
             friend class RedisRequestHandler;
             friend class LUAInterpreter;
             friend class Slave;
@@ -557,6 +565,7 @@ OP_NAMESPACE_BEGIN
             friend class ExpireCheck;
             friend class ConnectionTimeout;
             friend class CompactTask;
+            friend class RedisCursorClearTask;
             friend class L1Cache;
         public:
             Ardb(KeyValueEngineFactory& factory);

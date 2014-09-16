@@ -735,6 +735,61 @@ OP_NAMESPACE_BEGIN
         return m_reply_pool.GetValue();
     }
 
+    uint64 Ardb::GetNewRedisCursor(const std::string& element)
+    {
+        LockGuard<SpinMutexLock> guard(m_redis_cursor_lock);
+        RedisCursor cursor;
+        cursor.element = element;
+        cursor.ts = time(NULL);
+        if (m_redis_cursor_table.empty())
+        {
+            cursor.cursor = 1;
+        }
+        else
+        {
+            cursor.cursor = (m_redis_cursor_table.rbegin()->second.cursor + 1);
+        }
+        m_redis_cursor_table.insert(RedisCursorTable::value_type(cursor.cursor, cursor));
+        return cursor.cursor;
+    }
+    int Ardb::FindElementByRedisCursor(const std::string& cursor, std::string& element)
+    {
+        uint64 cursor_int = 0;
+        if (!string_touint64(cursor, cursor_int))
+        {
+            return -1;
+        }
+        LockGuard<SpinMutexLock> guard(m_redis_cursor_lock);
+        RedisCursorTable::iterator it = m_redis_cursor_table.find(cursor_int);
+        if (it == m_redis_cursor_table.end())
+        {
+            return -1;
+        }
+        element = it->second.element;
+        return 0;
+    }
+
+    void Ardb::ClearExpireRedisCursor()
+    {
+        if (!m_cfg.scan_redis_compatible)
+        {
+            return;
+        }
+        LockGuard<SpinMutexLock> guard(m_redis_cursor_lock);
+        while (!m_redis_cursor_table.empty())
+        {
+            RedisCursorTable::iterator it = m_redis_cursor_table.begin();
+            if (time(NULL) - it->second.ts  >= m_cfg.scan_cursor_expire_after)
+            {
+                m_redis_cursor_table.erase(it);
+            }
+            else
+            {
+                return;
+            }
+        }
+    }
+
     int Ardb::DoCall(Context& ctx, RedisCommandHandlerSetting& setting, RedisCommandFrame& args)
     {
         uint64 start_time = get_current_epoch_micros();

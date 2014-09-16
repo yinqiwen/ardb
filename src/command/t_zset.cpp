@@ -1267,15 +1267,16 @@ OP_NAMESPACE_BEGIN
         const std::string& cursor = cmd.GetArguments()[1];
         ZSetIterator iter;
         Data st;
-        if (cursor == "0")
+        std::string scan_start_element;
+        if (cursor != "0")
         {
-            st.SetDouble(-DBL_MAX);
+            if (m_cfg.scan_redis_compatible)
+            {
+                FindElementByRedisCursor(cursor, scan_start_element);
+            }
         }
-        else
-        {
-            st.SetNumber(cursor);
-        }
-        err = ZSetScoreIter(ctx, meta, st, iter, true);
+        st.SetString(scan_start_element, true);
+        err = ZSetValueIter(ctx, meta, st, iter, true);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
         ctx.reply.type = REDIS_REPLY_ARRAY;
         RedisReply& r1 = ctx.reply.AddMember();
@@ -1287,31 +1288,38 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
+            std::string tmpelement;
             while (iter.Valid())
             {
                 const Data* field = iter.Element();
-                std::string tmp;
-                field->GetDecodeString(tmp);
-                if ((pattern.empty() || stringmatchlen(pattern.c_str(), pattern.size(), tmp.c_str(), tmp.size(), 0) == 1))
-                {
-                    RedisReply& rr1 = r2.AddMember();
-                    fill_str_reply(rr1, tmp);
-                    RedisReply& rr2 = r2.AddMember();
-                    rr2.type = REDIS_REPLY_STRING;
-                    iter.Score()->GetDecodeString(rr2.str);
-                }
+                tmpelement.clear();
+                field->GetDecodeString(tmpelement);
                 if (r2.MemberSize() >= (limit * 2))
                 {
                     break;
+                }
+                if ((pattern.empty()
+                        || stringmatchlen(pattern.c_str(), pattern.size(), tmpelement.c_str(), tmpelement.size(), 0)
+                                == 1))
+                {
+                    RedisReply& rr1 = r2.AddMember();
+                    fill_str_reply(rr1, tmpelement);
+                    RedisReply& rr2 = r2.AddMember();
+                    rr2.type = REDIS_REPLY_STRING;
+                    iter.Score()->GetDecodeString(rr2.str);
                 }
                 iter.Next();
             }
             if (iter.Valid())
             {
-                iter.Next();
-                const Data* next_field = iter.Score();
-                std::string tmp;
-                fill_str_reply(r1, next_field->GetDecodeString(tmp));
+                if (m_cfg.scan_redis_compatible)
+                {
+                    fill_str_reply(r1, stringfromll(GetNewRedisCursor(tmpelement)));
+                }
+                else
+                {
+                    fill_str_reply(r1, tmpelement);
+                }
             }
             else
             {

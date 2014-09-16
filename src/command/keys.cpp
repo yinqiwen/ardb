@@ -94,9 +94,15 @@ OP_NAMESPACE_BEGIN
         KeyObject from;
         from.db = ctx.currentDB;
         from.type = KEY_META;
+        const std::string& cursor = cmd.GetArguments()[0];
+        std::string scan_start_cursor;
         if (cmd.GetArguments()[0] != "0")
         {
-            from.key = cmd.GetArguments()[0];
+            if (m_cfg.scan_redis_compatible)
+            {
+                FindElementByRedisCursor(cursor, scan_start_cursor);
+            }
+            from.key = scan_start_cursor;
         }
         Iterator* iter = IteratorKeyValue(from, false);
         bool reachend = false;
@@ -115,20 +121,29 @@ OP_NAMESPACE_BEGIN
             {
                 break;
             }
-            if ((pattern.empty() || stringmatchlen(pattern.c_str(),pattern.size(), tmpkey.c_str(),tmpkey.size(), 0) == 1))
+            if ((pattern.empty()
+                    || stringmatchlen(pattern.c_str(), pattern.size(), tmpkey.c_str(), tmpkey.size(), 0) == 1))
             {
                 RedisReply& rr1 = r2.AddMember();
                 fill_str_reply(rr1, tmpkey);
             }
             iter->Next();
         }
-        if (reachend)
+        if (reachend || !iter->Valid())
         {
             fill_str_reply(r1, "0");
         }
         else
         {
-            fill_str_reply(r1, tmpkey);
+            if (m_cfg.scan_redis_compatible)
+            {
+                uint64 newcursor = GetNewRedisCursor(tmpkey);
+                fill_str_reply(r1, stringfromll(newcursor));
+            }
+            else
+            {
+                fill_str_reply(r1, tmpkey);
+            }
         }
         DELETE(iter);
         return 0;
@@ -147,7 +162,7 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-            if(options.pattern != "*" && cursor > 0)
+            if (options.pattern != "*" && cursor > 0)
             {
                 from.key = options.pattern.substr(0, cursor);
             }
@@ -164,7 +179,9 @@ OP_NAMESPACE_BEGIN
             }
             tmpkey.clear();
             tmpkey.assign(kk.key.data(), kk.key.size());
-            if ((options.pattern == "*" || stringmatchlen(options.pattern.c_str(), options.pattern.size(), tmpkey.data(), tmpkey.size(), 0) == 1))
+            if ((options.pattern == "*"
+                    || stringmatchlen(options.pattern.c_str(), options.pattern.size(), tmpkey.data(), tmpkey.size(), 0)
+                            == 1))
             {
                 if (options.op == OP_GET)
                 {

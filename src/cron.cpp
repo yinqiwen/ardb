@@ -180,6 +180,14 @@ OP_NAMESPACE_BEGIN
             }
     };
 
+    struct RedisCursorClearTask: public Runnable
+    {
+            void Run()
+            {
+                g_db->ClearExpireRedisCursor();
+            }
+    };
+
     CronManager::CronManager()
     {
 
@@ -192,6 +200,7 @@ OP_NAMESPACE_BEGIN
         m_misc_cron.serv.GetTimer().ScheduleHeapTask(new ConnectionTimeout, 100, 100, MILLIS);
         m_misc_cron.serv.GetTimer().ScheduleHeapTask(new TrackOpsTask, 1, 1, SECONDS);
         m_misc_cron.serv.GetTimer().ScheduleHeapTask(new LatencyStatClearTask, 5, 5, MINUTES);
+        m_misc_cron.serv.GetTimer().ScheduleHeapTask(new RedisCursorClearTask, 1, 1, SECONDS);
 
         m_db_cron.Start();
         m_misc_cron.Start();

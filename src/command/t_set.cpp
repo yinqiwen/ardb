@@ -935,28 +935,47 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         SetIterator iter;
-        SetIter(ctx, meta, meta.meta.min_index, iter, false);
+        std::string scan_start_element;
+        const std::string& cursor = cmd.GetArguments()[1];
+        if (cursor != "0")
+        {
+            if (m_cfg.scan_redis_compatible)
+            {
+                FindElementByRedisCursor(cursor, scan_start_element);
+            }
+        }
+        Data start_element;
+        start_element.SetString(scan_start_element, true);
+        SetIter(ctx, meta, start_element, iter, false);
+        std::string tmpelement;
         while (iter.Valid())
         {
             Data* field = iter.Element();
-            std::string tmp;
-            field->GetDecodeString(tmp);
-            if ((pattern.empty() || stringmatchlen(pattern.c_str(), pattern.size(), tmp.c_str(), tmp.size(), 0) == 1))
-            {
-                RedisReply& rr = r2.AddMember();
-                fill_str_reply(rr, tmp);
-            }
+            tmpelement.clear();
+            field->GetDecodeString(tmpelement);
             if (r2.MemberSize() >= limit)
             {
                 break;
+            }
+
+            if ((pattern.empty()
+                    || stringmatchlen(pattern.c_str(), pattern.size(), tmpelement.c_str(), tmpelement.size(), 0) == 1))
+            {
+                RedisReply& rr = r2.AddMember();
+                fill_str_reply(rr, tmpelement);
             }
             iter.Next();
         }
         if (iter.Valid())
         {
-            iter.Next();
-            Data* next_field = iter.Element();
-            fill_value_reply(r1, *(next_field));
+            if (m_cfg.scan_redis_compatible)
+            {
+                fill_str_reply(r1, stringfromll(GetNewRedisCursor(tmpelement)));
+            }
+            else
+            {
+                fill_str_reply(r1, tmpelement);
+            }
         }
         else
         {

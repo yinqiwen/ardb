@@ -214,6 +214,18 @@ OP_NAMESPACE_BEGIN
     typedef std::deque<Context*> ContextDeque;
     typedef TreeMap<uint32, Context*>::Type ContextTable;
 
+    struct RedisCursor
+    {
+            std::string element;
+            time_t ts;
+            uint64 cursor;
+            RedisCursor() :
+                    ts(0), cursor(0)
+            {
+            }
+    };
+    typedef TreeMap<uint64, RedisCursor>::Type RedisCursorTable;
+
 OP_NAMESPACE_END
 
 #endif /* CONTEXT_HPP_ */

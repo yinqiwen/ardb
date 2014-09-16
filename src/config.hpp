@@ -138,6 +138,9 @@ OP_NAMESPACE_BEGIN
             bool slave_ignore_del;
             bool repl_disable_tcp_nodelay;
 
+            bool scan_redis_compatible;
+            int64 scan_cursor_expire_after;
+
             ArdbConfig() :
                     daemonize(false), unixsocketperm(755), max_clients(10000), tcp_keepalive(0), timeout(0), slowlog_log_slower_than(
                             10000), slowlog_max_len(128), repl_data_dir("./repl"), backup_dir("./backup"), backup_redis_format(
@@ -154,7 +157,8 @@ OP_NAMESPACE_BEGIN
                             3000), compact_min_interval(1200), compact_max_interval(7200), compact_trigger_write_count(
                             10000), compact_enable(true), replace_for_multi_sadd(false), replace_for_hmset(false), reply_pool_size(
                             5000), primary_port(0), slave_client_output_buffer_limit(256 * 1024 * 1024), pubsub_client_output_buffer_limit(
-                            32 * 1024 * 1024),slave_ignore_expire(false),slave_ignore_del(false),repl_disable_tcp_nodelay(false)
+                            32 * 1024 * 1024), slave_ignore_expire(false), slave_ignore_del(false), repl_disable_tcp_nodelay(
+                            false), scan_redis_compatible(true), scan_cursor_expire_after(60)
             {
             }
             bool Parse(const Properties& props);

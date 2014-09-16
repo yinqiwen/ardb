@@ -386,11 +386,16 @@ namespace ardb
 
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "misc"))
         {
+            info.append("# Misc\r\n");
             if (!m_cfg.additional_misc_info.empty())
             {
-                info.append("# Misc\r\n");
                 string_replace(m_cfg.additional_misc_info, "\\n", "\r\n");
                 info.append(m_cfg.additional_misc_info).append("\r\n");
+            }
+            if(m_cfg.scan_redis_compatible)
+            {
+                LockGuard<SpinMutexLock> guard(m_redis_cursor_lock);
+                info.append("redis_scan_cursor_cache_size:").append(stringfromll(m_redis_cursor_table.size())).append("\r\n");
             }
             info.append("\r\n");
         }
