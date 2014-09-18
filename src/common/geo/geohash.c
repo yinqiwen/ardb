@@ -243,16 +243,13 @@ int geohash_fast_decode(GeoHashRange lat_range, GeoHashRange lon_range, GeoHashB
     uint32_t ilato = xyhilo;        //get back the original integer coordinates
     uint32_t ilono = xyhilo >> 32;
 
-    //double lat_offset=ilato;
-    //double lon_offset=ilono;
-    //lat_offset /= (1<<step);
-    //lon_offset /= (1<<step);
-
-    //the ldexp call converts the integer to a double,then divides by 2**step to get the 0-1 coordinate, which is then multiplied times scale and added to the min to get the absolute coordinate
-    area->latitude.min = lat_range.min + ldexp(ilato, -step) * lat_scale;
-    area->latitude.max = lat_range.min + ldexp(ilato + 1, -step) * lat_scale;
-    area->longitude.min = lon_range.min + ldexp(ilono, -step) * lon_scale;
-    area->longitude.max = lon_range.min + ldexp(ilono + 1, -step) * lon_scale;
+    /*
+     * much faster than 'ldexp'
+     */
+    area->latitude.min = lat_range.min + (ilato * 1.0 / (1ull << step)) * lat_scale;
+    area->latitude.max = lat_range.min + ((ilato + 1) * 1.0 / (1ull << step)) * lat_scale;
+    area->longitude.min = lon_range.min + (ilono * 1.0 / (1ull << step)) * lon_scale;
+    area->longitude.max = lon_range.min + ((ilono + 1) * 1.0 / (1ull << step)) * lon_scale;
 
     return 0;
 }
