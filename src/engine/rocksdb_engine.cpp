@@ -170,28 +170,32 @@ namespace ardb
         m_cfg = cfg;
         m_options.create_if_missing = true;
         m_options.comparator = &m_comparator;
-        rocksdb::BlockBasedTableOptions block_options;
+        //rocksdb::BlockBasedTableOptions block_options;
         if (cfg.block_cache_size > 0)
         {
-            block_options.block_cache = rocksdb::NewLRUCache(cfg.block_cache_size);
-            //m_options.block_cache_compressed = rocksdb::NewLRUCache(cfg.block_cache_compressed_size);
+            //block_options.block_cache = rocksdb::NewLRUCache(cfg.block_cache_size);
+            m_options.block_cache_compressed = rocksdb::NewLRUCache(cfg.block_cache_compressed_size);
         }else if(cfg.block_cache_size < 0)
         {
-            block_options.no_block_cache = true;
+            //block_options.no_block_cache = true;
+            m_options.no_block_cache = true;
         }
         if (cfg.block_size > 0)
         {
-            block_options.block_size = cfg.block_size;
+            //block_options.block_size = cfg.block_size;
+            m_options.block_size = cfg.block_size;
         }
         if (cfg.block_restart_interval > 0)
         {
-            block_options.block_restart_interval = cfg.block_restart_interval;
+            //block_options.block_restart_interval = cfg.block_restart_interval;
+            m_options.block_restart_interval = cfg.block_restart_interval;
         }
         if (cfg.bloom_bits > 0)
         {
-            block_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(cfg.bloom_bits));
+            //block_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(cfg.bloom_bits));
+            m_options.filter_policy = rocksdb::NewBloomFilterPolicy(cfg.bloom_bits);
         }
-        m_options.table_factory.reset(rocksdb::NewBlockBasedTableFactory(block_options));
+        //m_options.table_factory.reset(rocksdb::NewBlockBasedTableFactory(block_options));
 
         if (cfg.write_buffer_size > 0)
         {

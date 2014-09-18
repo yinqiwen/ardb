@@ -154,8 +154,9 @@ OP_NAMESPACE_BEGIN
         if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPZSET)
         {
             meta.meta.zipmap[element] = score;
-            if (meta.meta.zipmap.size() > m_cfg.zset_max_ziplist_entries
-                    || element.StringLength() >= m_cfg.zset_max_ziplist_value)
+            if (meta.meta.zipmap.size() > 1
+                    && (meta.meta.zipmap.size() > m_cfg.zset_max_ziplist_entries
+                            || element.StringLength() >= m_cfg.zset_max_ziplist_value))
             {
                 meta.meta.SetEncoding(COLLECTION_ECODING_RAW);
                 DataMap::iterator it = meta.meta.zipmap.begin();

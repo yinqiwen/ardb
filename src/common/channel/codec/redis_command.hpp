@@ -214,6 +214,8 @@ namespace ardb
 
             REDIS_CMD_HREPLACE = 175,
             REDIS_CMD_SREPLACE = 176,
+
+            REDIS_CMD_CLUSTER = 177,  //used in cluster mode
         };
 
         class RedisCommandDecoder;

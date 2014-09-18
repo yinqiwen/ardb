@@ -147,9 +147,9 @@ OP_NAMESPACE_BEGIN
                             false), repl_ping_slave_period(10), repl_timeout(60), repl_backlog_size(100 * 1024 * 1024), repl_state_persist_period(
                             1), repl_backlog_time_limit(3600), slave_cleardb_before_fullresync(true), slave_readonly(
                             true), slave_serve_stale_data(true), slave_priority(100), lua_time_limit(0), master_port(0), loglevel(
-                            "INFO"), hash_max_ziplist_entries(128), hash_max_ziplist_value(64), list_max_ziplist_entries(
-                            128), list_max_ziplist_value(64), zset_max_ziplist_entries(128), zset_max_ziplist_value(64), set_max_ziplist_entries(
-                            128), set_max_ziplist_value(64), L1_zset_max_cache_size(0), L1_set_max_cache_size(0), L1_list_max_cache_size(
+                            "INFO"), hash_max_ziplist_entries(128), hash_max_ziplist_value(256), list_max_ziplist_entries(
+                            128), list_max_ziplist_value(256), zset_max_ziplist_entries(128), zset_max_ziplist_value(256), set_max_ziplist_entries(
+                            128), set_max_ziplist_value(256), L1_zset_max_cache_size(0), L1_set_max_cache_size(0), L1_list_max_cache_size(
                             0), L1_hash_max_cache_size(0), L1_string_max_cache_size(0), L1_zset_read_fill_cache(false), L1_zset_seek_load_cache(
                             false), L1_set_read_fill_cache(false), L1_set_seek_load_cache(false), L1_hash_read_fill_cache(
                             false), L1_hash_seek_load_cache(false), L1_list_read_fill_cache(false), L1_list_seek_load_cache(

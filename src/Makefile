@@ -34,7 +34,7 @@
 CXX=g++
 CC=gcc
 
-ARDB_VERSION=0.8.0
+ARDB_VERSION=0.8.1
 
 uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 
@@ -59,7 +59,7 @@ LEVELDB_PATH=${LIB_PATH}/${LEVELDB_VER}
 LEVELDB_FILE=${LEVELDB_PATH}.tar.gz
 LEVELDB_LIBA=${LEVELDB_PATH}/libleveldb.a
 
-ROCKSDB_VER=rocksdb-rocksdb-3.5
+ROCKSDB_VER=rocksdb-rocksdb-3.4
 ROCKSDB_PATH=${LIB_PATH}/${ROCKSDB_VER}
 ROCKSDB_FILE=${ROCKSDB_PATH}.tar.gz
 ROCKSDB_LIBA=${ROCKSDB_PATH}/librocksdb.a
@@ -268,6 +268,7 @@ rocksdb: $(ROCKSDB_LIBA)
 $(ROCKSDB_LIBA): $(SNAPPY_LIBA) $(ROCKSDB_PATH)
 	echo ">>>>> Building ROCKSDB" && \
 	cd ${ROCKSDB_PATH} && \
+	patch -p0 < ../../patch/rocksdb-3.4.patch && \
 	CXXFLAGS="-I${SNAPPY_PATH}" CFLAGS="-I${SNAPPY_PATH}" LDFLAGS="${SNAPPY_PATH}/.libs" $(MAKE) librocksdb.a && \
 	echo "<<<<< Done building ROCKSDB"
 
@@ -299,9 +300,9 @@ $(ZOOKEEPER_PATH):
 	cd ${LIB_PATH} && \
 	tar zxf ${ZOOKEEPER_FILE} && \
 	cd ${ZOOKEEPER_PATH}/src && \
-	patch < ../../../zookeeper.mt_adaptor.patch && \
+	patch < ../patch/zookeeper.mt_adaptor.patch && \
 	cd ${ZOOKEEPER_PATH} && \
-	patch < ../../zookeeper.configure.ac.patch && \
+	patch < ../patch/zookeeper.configure.ac.patch && \
 	autoconf configure.ac > configure 2> autoconf.out && \
 	echo "<<<<<< Done unpacking ZOOKEEPER"
 

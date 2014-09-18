@@ -1,0 +1,11 @@
+--- util/rate_limiter.cc	2014-09-18 19:43:00.509681500 +0800
++++ util/rate_limiter.cc	2014-09-18 19:36:31.071741600 +0800
+@@ -60,7 +60,7 @@
+ }
+ 
+ void GenericRateLimiter::Request(int64_t bytes, const Env::IOPriority pri) {
+-  assert(bytes < refill_bytes_per_period_);
++  assert(bytes <= refill_bytes_per_period_);
+ 
+   MutexLock g(&request_mutex_);
+   if (stop_) {

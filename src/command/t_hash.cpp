@@ -75,7 +75,7 @@ OP_NAMESPACE_BEGIN
                 it++;
                 if (!meta.attach.force_zipsave
                         && (field.StringLength() > m_cfg.hash_max_ziplist_value
-                                || value.StringLength() > m_cfg.hash_max_ziplist_value))
+                                || value.StringLength() > m_cfg.hash_max_ziplist_value) && meta.meta.zipmap.size() > 1)
                 {
                     zipsave = false;
                 }
@@ -400,7 +400,8 @@ OP_NAMESPACE_BEGIN
             {
                 break;
             }
-            if ((pattern.empty() || stringmatchlen(pattern.c_str(), pattern.size(), tmpelement.c_str(), tmpelement.size(), 0) == 1))
+            if ((pattern.empty()
+                    || stringmatchlen(pattern.c_str(), pattern.size(), tmpelement.c_str(), tmpelement.size(), 0) == 1))
             {
                 RedisReply& rr1 = r2.AddMember();
                 RedisReply& rr2 = r2.AddMember();
@@ -411,10 +412,11 @@ OP_NAMESPACE_BEGIN
         }
         if (iter.Valid())
         {
-            if(m_cfg.scan_redis_compatible)
+            if (m_cfg.scan_redis_compatible)
             {
                 fill_str_reply(r1, stringfromll(GetNewRedisCursor(tmpelement)));
-            }else
+            }
+            else
             {
                 fill_str_reply(r1, tmpelement);
             }

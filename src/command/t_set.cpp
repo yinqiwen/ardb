@@ -65,7 +65,7 @@ OP_NAMESPACE_BEGIN
             count++;
             if (!meta.attach.force_zipsave
                     && (meta.meta.zipset.size() > m_cfg.set_max_ziplist_entries
-                            || element.StringLength() >= m_cfg.set_max_ziplist_value))
+                            || element.StringLength() >= m_cfg.set_max_ziplist_value) && meta.meta.zipset.size() > 1)
             {
                 meta.meta.SetEncoding(COLLECTION_ECODING_RAW);
                 DataSet::iterator it = meta.meta.zipset.begin();
@@ -993,12 +993,7 @@ OP_NAMESPACE_BEGIN
             SetIter(ctx, meta, meta.meta.min_index, iter, false);
             while (iter.Valid())
             {
-                KeyObject fk;
-                fk.db = ctx.currentDB;
-                fk.key = meta.key.key;
-                fk.type = SET_ELEMENT;
-                fk.element = *(iter.Element());
-                DelKeyValue((ctx), fk);
+                DelRaw(ctx, iter.CurrentRawKey());
                 iter.Next();
             }
         }

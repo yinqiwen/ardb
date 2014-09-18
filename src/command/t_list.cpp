@@ -337,8 +337,9 @@ OP_NAMESPACE_BEGIN
                         meta.meta.ziplist.push_back(element);
                     }
                 }
-                if (meta.meta.Length() >= m_cfg.list_max_ziplist_entries
-                        || element.StringLength() >= m_cfg.list_max_ziplist_value)
+                if (meta.meta.Length() > 1
+                        && (meta.meta.Length() >= m_cfg.list_max_ziplist_entries
+                                || element.StringLength() >= m_cfg.list_max_ziplist_value))
                 {
                     //convert to non ziplist
                     ZipListConvert(ctx, meta);
