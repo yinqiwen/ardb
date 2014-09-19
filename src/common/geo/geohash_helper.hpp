@@ -76,6 +76,7 @@ namespace ardb
             static bool GetDistanceSquareIfInRadius(uint8 coord_type, double x1, double y1, double x2, double y2, double radius, double& distance, double accurace);
 
             static bool GetMercatorXYByHash(GeoHashFix60Bits hash, double& x, double& y);
+            static bool GetXYByHash(uint8 coord_type, GeoHashFix60Bits hash, double& x, double& y);
     };
 }
 

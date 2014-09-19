@@ -47,7 +47,8 @@ namespace ardb
             return 0;
         }
         GeoHashRange lat_range, lon_range;
-        GeoHashHelper::GetCoordRange(options.coord_type, lat_range, lon_range);
+        //GeoHashHelper::GetCoordRange(options.coord_type, lat_range, lon_range);
+        GeoHashHelper::GetCoordRange(GEO_MERCATOR_TYPE, lat_range, lon_range);
 
         KeyLockerGuard keylock(m_key_lock, ctx.currentDB, cmd.GetArguments()[0]);
         ValueObject meta;
@@ -62,6 +63,14 @@ namespace ardb
         while (git != options.points.end())
         {
             GeoPoint& point = *git;
+            /*
+             * Always to store mercator coordinates since it's easy&fast to compare distance in 'geosearch'
+             */
+            if(options.coord_type == GEO_WGS84_TYPE)
+            {
+                point.x = GeoHashHelper::GetMercatorX(point.x);
+                point.y = GeoHashHelper::GetMercatorY(point.y);
+            }
             if (point.x < lon_range.min || point.x > lon_range.max || point.y < lat_range.min
                     || point.y > lat_range.max)
             {
@@ -202,6 +211,7 @@ namespace ardb
                 return -1;
             }
             GeoHashHelper::GetMercatorXYByHash(score.value.iv, x, y);
+            //GeoHashHelper::GetXYByHash(score.value.iv, x, y);
         }
         else
         {
@@ -223,7 +233,6 @@ namespace ardb
             StringSet::iterator it = options.submembers.begin();
             while (it != options.submembers.end())
             {
-                //GeoPoint point;
                 Data element, score;
                 element.SetString(*it, true);
                 Location loc;
@@ -231,7 +240,6 @@ namespace ardb
                 if (0 == ret)
                 {
                     fetch_options.results.push_back(element);
-                    //fetch_options.results.push_back(score);
                     fetch_options.locs.push_back(loc);
                 }
                 it++;

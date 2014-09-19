@@ -439,7 +439,7 @@ namespace ardb
             distance = distanceEarth(y1, x1, y2, x2);
             if (distance > radius)
             {
-                if(std::abs(distance - radius) > std::abs(accurace))
+                if (std::abs(distance - radius) > std::abs(accurace))
                 {
                     return false;
                 }
@@ -473,10 +473,10 @@ namespace ardb
         return true;
     }
 
-    bool GeoHashHelper::GetMercatorXYByHash(GeoHashFix60Bits hash, double& x, double& y)
+    bool GeoHashHelper::GetXYByHash(uint8 coord_type, GeoHashFix60Bits hash, double& x, double& y)
     {
         GeoHashRange lat_range, lon_range;
-        GeoHashHelper::GetCoordRange(GEO_MERCATOR_TYPE, lat_range, lon_range);
+        GeoHashHelper::GetCoordRange(coord_type, lat_range, lon_range);
         GeoHashBits hashbits;
         hashbits.bits = hash;
         hashbits.step = 30;
@@ -491,6 +491,11 @@ namespace ardb
         {
             return false;
         }
+    }
+
+    bool GeoHashHelper::GetMercatorXYByHash(GeoHashFix60Bits hash, double& x, double& y)
+    {
+        return GetXYByHash(GEO_MERCATOR_TYPE, hash, x, y);
     }
 }
 
