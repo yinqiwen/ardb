@@ -30,8 +30,14 @@ It should compile to several executables in 'src' directory, such as ardb-server
   * Use 'import' to import backup data
   * [Backup & Restore](https://github.com/yinqiwen/ardb/wiki/Backup-Commands)
 
-## Client API
-Since ardb is a full redis-protocol compatible server, you can use any redis client to connect it. Here lists all redis clients. <http://www.redis.io/clients>
+## Clients
+Since ardb is a full redis-protocol compatible server, you can use most existed redis client to connect it without any problem. Here lists all redis clients. <http://www.redis.io/clients>  
+
+* **Known Issues**:   
+
+  - For Node.js, the recommand client [node_redis](https://github.com/mranney/node_redis) would try to parse `redis_version:x.y.z` from `info` command's output, Ardb users should uncomment `additional-misc-info` in ardb.conf to makesure that `redis_version:x.y.z` exists in `info` command's output. There is an online redis GUI admin service [redsmin](https://redsmin.com) build on [node_redis](https://github.com/mranney/node_redis), users can test ardb's redis protocol conformance by a visual way. 
+  
+  
 
 ## Benchmark
 Benchmarks were all performed on a four-core Intel(R) Xeon(R) CPU E5520@2.27GHz, with 64 GB of DDR3 RAM, 500 GB of SCSI disk
