@@ -48,7 +48,7 @@ namespace ardb
             {
                 char logbuf[1024];
                 int len = vsnprintf(logbuf, sizeof(logbuf), format, ap);
-                if(len < sizeof(logbuf))
+                if (len < sizeof(logbuf))
                 {
                     INFO_LOG(logbuf);
                 }
@@ -175,7 +175,8 @@ namespace ardb
         {
             //block_options.block_cache = rocksdb::NewLRUCache(cfg.block_cache_size);
             m_options.block_cache_compressed = rocksdb::NewLRUCache(cfg.block_cache_compressed_size);
-        }else if(cfg.block_cache_size < 0)
+        }
+        else if (cfg.block_cache_size < 0)
         {
             //block_options.no_block_cache = true;
             m_options.no_block_cache = true;
@@ -211,25 +212,26 @@ namespace ardb
         {
             m_options.compression = rocksdb::kSnappyCompression;
         }
-        if(cfg.flush_compact_rate_bytes_per_sec > 0)
+        if (cfg.flush_compact_rate_bytes_per_sec > 0)
         {
             m_options.rate_limiter.reset(rocksdb::NewGenericRateLimiter(cfg.flush_compact_rate_bytes_per_sec));
         }
         m_options.hard_rate_limit = cfg.hard_rate_limit;
-        if(m_cfg.max_manifest_file_size > 0)
+        if (m_cfg.max_manifest_file_size > 0)
         {
             m_options.max_manifest_file_size = m_cfg.max_manifest_file_size;
         }
-        if(!strcasecmp(m_cfg.compacton_style.c_str(), "universal"))
+        if (!strcasecmp(m_cfg.compacton_style.c_str(), "universal"))
         {
             m_options.OptimizeUniversalStyleCompaction();
-        }else
+        }
+        else
         {
             m_options.OptimizeLevelStyleCompaction();
         }
         m_options.IncreaseParallelism();
 
-        if(cfg.logenable)
+        if (cfg.logenable)
         {
             m_options.info_log.reset(new RocksDBLogger);
         }
@@ -395,15 +397,46 @@ namespace ardb
 
     const std::string RocksDBEngine::Stats()
     {
-        std::string str, version_info;
-
-        m_db->GetProperty("rocksdb.stats", &str);
-        std::string numkeys;
-        m_db->GetProperty("rocksdb.estimate-num-keys", &numkeys);
-        numkeys = "estimate-num-keys: " + numkeys + "\r\n";
+        std::string all, str, version_info;
         version_info.append("RocksDB version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(
                 stringfromll(rocksdb::kMinorVersion)).append(".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
-        return version_info + numkeys + str;
+        all.append(version_info);
+        std::string sv;
+        if (m_db->GetProperty("rocksdb.estimate-num-keys", &sv))
+        {
+            all.append("estimate-num-keys:").append(sv).append("\r\n");
+        }
+        if (m_db->GetProperty("rocksdb.num-immutable-mem-table", &sv))
+        {
+            all.append("num-immutable-mem-table:").append(sv).append("\r\n");
+        }
+        if (m_db->GetProperty("rocksdb.compaction-pending", &sv))
+        {
+            all.append("compaction-pending:").append(sv).append("\r\n");
+        }
+        if (m_db->GetProperty("rocksdb.background-errors", &sv))
+        {
+            all.append("background-errors:").append(sv).append("\r\n");
+        }
+        if (m_db->GetProperty("rocksdb.cur-size-active-mem-table", &sv))
+        {
+            all.append("cur-size-active-mem-table:").append(sv).append("\r\n");
+        }
+        if (m_db->GetProperty("rocksdb.num-entries-active-mem-table", &sv))
+        {
+            all.append("num-entries-active-mem-table:").append(sv).append("\r\n");
+        }
+        if (m_db->GetProperty("rocksdb.num-entries-imm-mem-tables", &sv))
+        {
+            all.append("num-entries-imm-mem-tables:").append(sv).append("\r\n");
+        }
+        if (m_db->GetProperty("rocksdb.estimate-table-readers-mem", &sv))
+        {
+            all.append("estimate-table-readers-mem:").append(sv).append("\r\n");
+        }
+        m_db->GetProperty("rocksdb.stats", &str);
+        all.append(str);
+        return all;
     }
 
     int RocksDBEngine::MaxOpenFiles()

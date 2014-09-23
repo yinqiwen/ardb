@@ -313,9 +313,14 @@ OP_NAMESPACE_BEGIN
         }
     }
 
-    int Ardb::Init(const ArdbConfig& cfg)
+    int Ardb::Init(const Properties& props)
     {
-        m_cfg = cfg;
+        m_cfg_props = props;
+        if (!m_cfg.Parse(props))
+        {
+            printf("Failed to parse config file.\n");
+            return -1;
+        }
         if (m_cfg.daemonize)
         {
             daemonize();
@@ -779,7 +784,7 @@ OP_NAMESPACE_BEGIN
         while (!m_redis_cursor_table.empty())
         {
             RedisCursorTable::iterator it = m_redis_cursor_table.begin();
-            if (time(NULL) - it->second.ts  >= m_cfg.scan_cursor_expire_after)
+            if (time(NULL) - it->second.ts >= m_cfg.scan_cursor_expire_after)
             {
                 m_redis_cursor_table.erase(it);
             }

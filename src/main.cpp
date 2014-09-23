@@ -97,15 +97,9 @@ int main(int argc, char** argv)
                         argv[0]);
     }
     signal_setting();
-    ArdbConfig cfg;
-    if(!cfg.Parse(props))
-    {
-        printf("Failed to parse config file.\n");
-        return -1;
-    }
     SelectedDBEngineFactory engine(props);
     Ardb server(engine);
-    if(0 == server.Init(cfg))
+    if(0 == server.Init(props))
     {
         server.Start();
     }

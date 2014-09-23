@@ -30,6 +30,7 @@
 #include "ardb.hpp"
 #include "util/socket_address.hpp"
 #include "util/lru.hpp"
+#include "util/system_helper.hpp"
 #include <sstream>
 #include <sys/utsname.h>
 #include <sys/time.h>
@@ -304,6 +305,14 @@ namespace ardb
             info.append("\r\n");
         }
 
+        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "memory"))
+        {
+            info.append("# Memory\r\n");
+            std::string tmp;
+            info.append("used_memory_rss:").append(stringfromll(mem_rss_size())).append("\r\n");
+            info.append("\r\n");
+        }
+
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "stats"))
         {
             info.append("# Stats\r\n");
@@ -315,7 +324,7 @@ namespace ardb
             info.append("\r\n");
         }
 
-        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "Keyspace"))
+        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "keyspace"))
         {
             DBIDSet ids;
             GetAllDBIDSet(ids);
@@ -392,10 +401,11 @@ namespace ardb
                 string_replace(m_cfg.additional_misc_info, "\\n", "\r\n");
                 info.append(m_cfg.additional_misc_info).append("\r\n");
             }
-            if(m_cfg.scan_redis_compatible)
+            if (m_cfg.scan_redis_compatible)
             {
                 LockGuard<SpinMutexLock> guard(m_redis_cursor_lock);
-                info.append("redis_scan_cursor_cache_size:").append(stringfromll(m_redis_cursor_table.size())).append("\r\n");
+                info.append("redis_scan_cursor_cache_size:").append(stringfromll(m_redis_cursor_table.size())).append(
+                        "\r\n");
             }
             info.append("\r\n");
         }
@@ -558,7 +568,8 @@ namespace ardb
             Properties::iterator it = m_cfg_props.begin();
             while (it != m_cfg_props.end())
             {
-                if (stringmatchlen(cmd.GetArguments()[1].c_str(), cmd.GetArguments()[1].size(), it->first.c_str(),it->first.size(), 0) == 1)
+                if (stringmatchlen(cmd.GetArguments()[1].c_str(), cmd.GetArguments()[1].size(), it->first.c_str(),
+                        it->first.size(), 0) == 1)
                 {
                     RedisReply& r = ctx.reply.AddMember();
                     fill_str_reply(r, it->first);
@@ -616,6 +627,11 @@ namespace ardb
             WriteLockGuard<SpinRWLock> guard(m_cfg_lock);
             m_cfg.Parse(m_cfg_props);
             fill_status_reply(ctx.reply, "OK");
+        }
+        else
+        {
+            //just return error
+            fill_error_reply(ctx.reply, "Not supported now");
         }
         return 0;
     }
