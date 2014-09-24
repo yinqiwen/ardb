@@ -70,8 +70,15 @@ OP_NAMESPACE_BEGIN
                     if (k.score.value.iv <= get_current_epoch_millis())
                     {
                         Context tmpctx;
+                        tmpctx.currentDB = db;
                         g_db->DeleteKey(tmpctx, k.key);
                         iter->Next();
+
+                        RedisCommandFrame del("del");
+                        std::string keystr;
+                        keystr.assign(k.key.data(), k.key.size());
+                        del.AddArg(keystr);
+                        g_db->m_master.FeedSlaves(db, del);
                     }
                     else
                     {

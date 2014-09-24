@@ -642,7 +642,7 @@ OP_NAMESPACE_BEGIN
         if (0 == ret)
         {
             v.key.meta_type = v.type;
-            if (v.meta.expireat >= get_current_epoch_millis())
+            if (v.meta.expireat > 0 && v.meta.expireat <= get_current_epoch_millis())
             {
                 //should delete this key in master
                 if (m_cfg.master_host.empty())

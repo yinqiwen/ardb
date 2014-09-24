@@ -633,6 +633,7 @@ OP_NAMESPACE_BEGIN
             KeyObject expire;
             expire.type = KEY_EXPIRATION_ELEMENT;
             expire.db = ctx.currentDB;
+            expire.key = key;
             expire.score.SetInt64(meta.meta.expireat);
             DelKeyValue(ctx, expire);
         }
