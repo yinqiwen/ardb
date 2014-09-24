@@ -114,12 +114,12 @@ namespace ardb
         DEBUG_LOG("Recv master cmd %s at %lld at flag:%d at state:%d", cmd.ToString().c_str(),
                 m_backlog.GetReplEndOffset(), flag, m_slave_state);
         m_cmd_recved_time = time(NULL);
-        if (!strcasecmp(cmd.GetCommand().c_str(), "SELECT"))
-        {
-            DBID id = 0;
-            string_touint32(cmd.GetArguments()[0], id);
-            m_backlog.SetCurrentDBID(id);
-        }
+//        if (!strcasecmp(cmd.GetCommand().c_str(), "SELECT"))
+//        {
+//            DBID id = 0;
+//            string_touint32(cmd.GetArguments()[0], id);
+//            m_backlog.SetCurrentDBID(id);
+//        }
         GetArdbConnContext();
         m_actx->identity = CONTEXT_SLAVE_CONNECTION;
         m_actx->client = NULL;

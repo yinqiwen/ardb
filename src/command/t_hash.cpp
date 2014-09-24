@@ -80,7 +80,7 @@ OP_NAMESPACE_BEGIN
                     zipsave = false;
                 }
             }
-            if (meta.meta.zipmap.size() > m_cfg.hash_max_ziplist_entries)
+            if (!meta.attach.force_zipsave && meta.meta.zipmap.size() > m_cfg.hash_max_ziplist_entries)
             {
                 zipsave = false;
             }
