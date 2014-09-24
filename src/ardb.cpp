@@ -313,14 +313,9 @@ OP_NAMESPACE_BEGIN
         }
     }
 
-    int Ardb::Init(const Properties& props)
+    int Ardb::Init(const ArdbConfig& cfg)
     {
-        m_cfg_props = props;
-        if (!m_cfg.Parse(props))
-        {
-            printf("Failed to parse config file.\n");
-            return -1;
-        }
+        m_cfg = cfg;
         if (m_cfg.daemonize)
         {
             daemonize();

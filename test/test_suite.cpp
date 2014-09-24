@@ -38,15 +38,15 @@ int main(int argc, char** argv)
 	Properties cfg;
 	std::string path = "/tmp/ardb/";
 	conf_set(cfg, "data-dir", "/tmp/ardb/");
+	ArdbConfig ccfg;
 	ArdbLogger::SetLogLevel("INFO");
 	SelectedDBEngineFactory engine(cfg);
 	std::cout << "ARDB Test(" << engine.GetName() << ")" << std::endl;
 	Ardb db(engine);
-	if(0 != db.Init(cfg))
+	if(0 != db.Init(ccfg))
 	{
 	    return 0;
 	}
-
 	test_string(db);
 	test_list(db);
 	test_hash(db);

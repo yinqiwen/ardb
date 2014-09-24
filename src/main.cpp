@@ -40,6 +40,8 @@ typedef ardb::LevelDBEngineFactory SelectedDBEngineFactory;
 #endif
 
 #include <signal.h>
+#include <limits.h>
+#include <stdlib.h>
 
 void version()
 {
@@ -70,6 +72,7 @@ int signal_setting()
 int main(int argc, char** argv)
 {
     Properties props;
+    std::string confpath;
     if (argc >= 2)
     {
         int j = 1; /* First option to parse in argv[] */
@@ -88,6 +91,11 @@ int main(int argc, char** argv)
                 printf("Error: Failed to parse conf file:%s\n", configfile);
                 return -1;
             }
+            char readpath_buf[4096];
+            if(NULL != realpath(configfile, readpath_buf))
+            {
+                confpath = readpath_buf;
+            }
         }
     }
     else
@@ -97,10 +105,17 @@ int main(int argc, char** argv)
                         argv[0]);
     }
     signal_setting();
+    ArdbConfig cfg;
+    if (!cfg.Parse(props))
+    {
+        printf("Failed to parse config file.\n");
+        return -1;
+    }
     SelectedDBEngineFactory engine(props);
     Ardb server(engine);
-    if(0 == server.Init(props))
+    if(0 == server.Init(cfg))
     {
+        server.GetConfig().conf_path = confpath;
         server.Start();
     }
     return 0;

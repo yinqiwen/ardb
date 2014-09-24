@@ -571,7 +571,7 @@ OP_NAMESPACE_BEGIN
             friend class L1Cache;
         public:
             Ardb(KeyValueEngineFactory& factory);
-            int Init(const Properties& props);
+            int Init(const ArdbConfig& cfg);
             void Start();
             ArdbConfig& GetConfig()
             {

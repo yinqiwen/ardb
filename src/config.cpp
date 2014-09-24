@@ -49,6 +49,7 @@ OP_NAMESPACE_BEGIN
     }
     bool ArdbConfig::Parse(const Properties& props)
     {
+        conf_props = props;
         conf_get_string(props, "home", home);
         if (home.empty())
         {

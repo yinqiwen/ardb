@@ -544,7 +544,7 @@ namespace ardb
     int Ardb::Config(Context& ctx, RedisCommandFrame& cmd)
     {
         std::string arg0 = string_tolower(cmd.GetArguments()[0]);
-        if (arg0 != "get" && arg0 != "set" && arg0 != "resetstat" && arg0 != "add" && arg0 != "del")
+        if (arg0 != "get" && arg0 != "set" && arg0 != "resetstat" && arg0 != "add" && arg0 != "del" && arg0 != "reload")
         {
             fill_error_reply(ctx.reply, "CONFIG subcommand must be one of GET, SET, RESETSTAT, ADD, DEL");
             return 0;
@@ -556,6 +556,7 @@ namespace ardb
                 fill_error_reply(ctx.reply, "Wrong number of arguments for CONFIG RESETSTAT");
                 return 0;
             }
+            fill_error_reply(ctx.reply, "Not supported now");
         }
         else if (arg0 == "get")
         {
@@ -565,8 +566,8 @@ namespace ardb
                 return 0;
             }
             ctx.reply.type = REDIS_REPLY_ARRAY;
-            Properties::iterator it = m_cfg_props.begin();
-            while (it != m_cfg_props.end())
+            Properties::iterator it = m_cfg.conf_props.begin();
+            while (it != m_cfg.conf_props.end())
             {
                 if (stringmatchlen(cmd.GetArguments()[1].c_str(), cmd.GetArguments()[1].size(), it->first.c_str(),
                         it->first.size(), 0) == 1)
@@ -599,9 +600,9 @@ namespace ardb
                 fill_error_reply(ctx.reply, "Wrong number of arguments for CONFIG SET");
                 return 0;
             }
-            conf_set(m_cfg_props, cmd.GetArguments()[1], cmd.GetArguments()[2]);
+            conf_set(m_cfg.conf_props, cmd.GetArguments()[1], cmd.GetArguments()[2]);
             WriteLockGuard<SpinRWLock> guard(m_cfg_lock);
-            m_cfg.Parse(m_cfg_props);
+            m_cfg.Parse(m_cfg.conf_props);
             fill_status_reply(ctx.reply, "OK");
         }
         else if (arg0 == "add")
@@ -611,9 +612,9 @@ namespace ardb
                 fill_error_reply(ctx.reply, "Wrong number of arguments for CONFIG ADD");
                 return 0;
             }
-            conf_set(m_cfg_props, cmd.GetArguments()[1], cmd.GetArguments()[2], false);
+            conf_set(m_cfg.conf_props, cmd.GetArguments()[1], cmd.GetArguments()[2], false);
             WriteLockGuard<SpinRWLock> guard(m_cfg_lock);
-            m_cfg.Parse(m_cfg_props);
+            m_cfg.Parse(m_cfg.conf_props);
             fill_status_reply(ctx.reply, "OK");
         }
         else if (arg0 == "del")
@@ -623,10 +624,25 @@ namespace ardb
                 fill_error_reply(ctx.reply, "Wrong number of arguments for CONFIG DEL");
                 return 0;
             }
-            conf_del(m_cfg_props, cmd.GetArguments()[1], cmd.GetArguments()[2]);
+            conf_del(m_cfg.conf_props, cmd.GetArguments()[1], cmd.GetArguments()[2]);
             WriteLockGuard<SpinRWLock> guard(m_cfg_lock);
-            m_cfg.Parse(m_cfg_props);
+            m_cfg.Parse(m_cfg.conf_props);
             fill_status_reply(ctx.reply, "OK");
+        }
+        else if (arg0 == "reload")
+        {
+            if (!m_cfg.conf_path.empty())
+            {
+                Properties props;
+                if (parse_conf_file(m_cfg.conf_path, props, " ") && m_cfg.Parse(props))
+                {
+                    m_cfg.conf_props = props;
+                    m_stat.Init();
+                    fill_status_reply(ctx.reply, "OK");
+                    return 0;
+                }
+            }
+            fill_error_reply(ctx.reply, "Failed to reload config");
         }
         else
         {
