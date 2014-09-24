@@ -42,7 +42,7 @@ Since ardb is a full redis-protocol compatible server, you can use most existed 
 ## Benchmark
 Benchmarks were all performed on a four-core Intel(R) Xeon(R) CPU E5520@2.27GHz, with 64 GB of DDR3 RAM, 500 GB of SCSI disk
 
-The benchmark tool is 'redis-benchmark' from redis,50 parallel clients, 10000000 requests, 1000000 random keys each test case. There would be no benchmark test for RocksDB engine because of OS and compiler version limit in the test machine.
+The benchmark tool is 'redis-benchmark' from redis,50 parallel clients, 10000000 requests, 1000000 random keys each test case.
 
 GCC Version:4.8.3  
 OS Version: Red Hat Enterprise Linux AS release 4 (Nahant Update 3)   
