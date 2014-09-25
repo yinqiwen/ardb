@@ -93,7 +93,7 @@ namespace ardb
             return -1;
         }
         std::string str;
-        value.GetDecodeString(str);
+        subst.GetDecodeString(str);
         std::string vpattern(value_pattern.data(), value_pattern.size());
         return stringmatchlen(vpattern.c_str(), vpattern.size(), str.c_str(),str.size(), 0) == 1 ? 0 : -1;
     }
