@@ -221,70 +221,70 @@ namespace ardb
         return get_host_address(inetaddr);
     }
 
-    // uint64 htonll(uint64 v)
-    // {
-    //     int num = 42;
-    //     //big or little
-    //     if (*(char *) &num == 42)
-    //     {
-    //         uint64_t temp = htonl(v & 0xFFFFFFFF);
-    //         temp <<= 32;
-    //         return temp | htonl(v >> 32);
-    //     }
-    //     else
-    //     {
-    //         return v;
-    //     }
+    uint64 htonll(uint64 v)
+    {
+        int num = 42;
+        //big or little
+        if (*(char *) &num == 42)
+        {
+            uint64_t temp = htonl(v & 0xFFFFFFFF);
+            temp <<= 32;
+            return temp | htonl(v >> 32);
+        }
+        else
+        {
+            return v;
+        }
 
-    // }
+    }
 
-    // uint64 ntohll(uint64 v)
-    // {
-    //     return htonll(v);
-    // }
+    uint64 ntohll(uint64 v)
+    {
+        return htonll(v);
+    }
 
-    // int get_ip_by_nic_name(const std::string& ifName, std::string& ip)
-    // {
-    //     int fd;
-    //     int intrface;
-    //     struct ifconf ifc;
-    //     struct ifreq ifr[kMaxNICCount];
+    int get_ip_by_nic_name(const std::string& ifName, std::string& ip)
+    {
+        int fd;
+        int intrface;
+        struct ifconf ifc;
+        struct ifreq ifr[kMaxNICCount];
 
-    //     if (-1 == (fd = socket(AF_INET, SOCK_DGRAM, 0)))
-    //     {
-    //         return -1;
-    //     }
+        if (-1 == (fd = socket(AF_INET, SOCK_DGRAM, 0)))
+        {
+            return -1;
+        }
 
-    //     ifc.ifc_len = sizeof(ifr);
-    //     ifc.ifc_buf = (caddr_t) ifr;
+        ifc.ifc_len = sizeof(ifr);
+        ifc.ifc_buf = (caddr_t) ifr;
 
-    //     if (-1 == ioctl(fd, SIOCGIFCONF, (char *) &ifc))
-    //     {
-    //         ::close(fd);
-    //         return -1;
-    //     }
+        if (-1 == ioctl(fd, SIOCGIFCONF, (char *) &ifc))
+        {
+            ::close(fd);
+            return -1;
+        }
 
-    //     intrface = ifc.ifc_len / sizeof(struct ifreq);
-    //     while (intrface-- > 0)
-    //     {
-    //         /*Get IP of the net card */
-    //         if (-1 == ioctl(fd, SIOCGIFADDR, (char *) &ifr[intrface]))
-    //             continue;
-    //         if (NULL == ifr[intrface].ifr_name)
-    //             continue;
+        intrface = ifc.ifc_len / sizeof(struct ifreq);
+        while (intrface-- > 0)
+        {
+            /*Get IP of the net card */
+            if (-1 == ioctl(fd, SIOCGIFADDR, (char *) &ifr[intrface]))
+                continue;
+            if (NULL == ifr[intrface].ifr_name)
+                continue;
 
-    //         if (0 == strcmp(ifName.c_str(), ifr[intrface].ifr_name))
-    //         {
-    //             SocketHostAddress addr = get_host_address(ifr[intrface].ifr_addr);
-    //             ip = addr.GetHost();
-    //             ::close(fd);
-    //             return 0;
-    //         }
-    //     }
+            if (0 == strcmp(ifName.c_str(), ifr[intrface].ifr_name))
+            {
+                SocketHostAddress addr = get_host_address(ifr[intrface].ifr_addr);
+                ip = addr.GetHost();
+                ::close(fd);
+                return 0;
+            }
+        }
 
-    //     close(fd);
-    //     return -1;
-    // }
+        close(fd);
+        return -1;
+    }
 
     int get_local_host_ip_list(std::vector<std::string>& iplist)
     {

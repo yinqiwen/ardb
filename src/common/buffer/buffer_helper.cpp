@@ -35,26 +35,26 @@ namespace ardb
 	static const int kMaxVarintBytes = 10;
 	static const int kMaxVarint32Bytes = 5;
 
-	// static uint64_t htonll(uint64_t v)
-	// {
-	// 	int num = 42;
-	// 	//big or little
-	// 	if (*(char *) &num == 42)
-	// 	{
-	// 		uint64_t temp = htonl(v & 0xFFFFFFFF);
-	// 		temp <<= 32;
-	// 		return temp | htonl(v >> 32);
-	// 	} else
-	// 	{
-	// 		return v;
-	// 	}
+	static uint64_t htonll(uint64_t v)
+	{
+		int num = 42;
+		//big or little
+		if (*(char *) &num == 42)
+		{
+			uint64_t temp = htonl(v & 0xFFFFFFFF);
+			temp <<= 32;
+			return temp | htonl(v >> 32);
+		} else
+		{
+			return v;
+		}
 
-	// }
+	}
 
-	// static uint64_t ntohll(uint64_t v)
-	// {
-	// 	return htonll(v);
-	// }
+	static uint64_t ntohll(uint64_t v)
+	{
+		return htonll(v);
+	}
 
 	static inline uint32_t ZigZagEncode32(int32_t n)
 	{
