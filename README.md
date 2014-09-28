@@ -15,7 +15,7 @@ It should compile to several executables in 'src' directory, such as ardb-server
 
 ## Features
 - Full redis-protocol compatibility
-- 2d spatial index supported. [Spatial Index](https://github.com/yinqiwen/ardb/blob/develop/doc/spatial-index.md)
+- 2d spatial index supported. [Spatial Index](https://github.com/yinqiwen/ardb/blob/master/doc/spatial-index.md)
 - Most redis commands supported, and a few new commands
   * [Ardb commands VS Redis Commands](https://github.com/yinqiwen/ardb/wiki/ARDB-Commands)
 - Different storage engine supported (LevelDB/LMDB/RocksDB)
