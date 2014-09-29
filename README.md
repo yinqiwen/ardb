@@ -3,7 +3,7 @@ Ardb is a BSD licensed, redis-protocol compatible persistent storage server, it 
 
 
 ## Compile
-LevelDB is the default storage engine, to compile with rocksdb, just type 'make' to compile server & lib & tests.
+Rocksdb is the default storage engine, to compile with rocksdb, just type 'make' to compile server & lib & tests.
 
 To use LMDB/LevelDB as storage engine, you should set env 'storage_engine' first.
 	
