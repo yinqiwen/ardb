@@ -3,7 +3,7 @@ Ardb is a BSD licensed, redis-protocol compatible persistent storage server, it 
 
 
 ## Compile
-LevelDB is the default storage engine, to compile with rocksdb, just type 'make' to compile server & lib & tests.
+Rocksdb is the default storage engine, to compile with rocksdb, just type 'make' to compile server & lib & tests.
 
 To use LMDB/LevelDB as storage engine, you should set env 'storage_engine' first.
 	
@@ -15,7 +15,7 @@ It should compile to several executables in 'src' directory, such as ardb-server
 
 ## Features
 - Full redis-protocol compatibility
-- 2d spatial index supported. [Spatial Index](https://github.com/yinqiwen/ardb/blob/develop/doc/spatial-index.md)
+- 2d spatial index supported. [Spatial Index](https://github.com/yinqiwen/ardb/blob/master/doc/spatial-index.md)
 - Most redis commands supported, and a few new commands
   * [Ardb commands VS Redis Commands](https://github.com/yinqiwen/ardb/wiki/ARDB-Commands)
 - Different storage engine supported (LevelDB/LMDB/RocksDB)
