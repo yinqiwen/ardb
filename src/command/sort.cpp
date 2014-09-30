@@ -94,8 +94,7 @@ namespace ardb
         }
         std::string str;
         value.GetDecodeString(str);
-        std::string vpattern(value_pattern.data(), value_pattern.size());
-        return stringmatchlen(vpattern.c_str(), vpattern.size(), str.c_str(),str.size(), 0) == 1 ? 0 : -1;
+        return stringmatchlen(value_pattern.data(), value_pattern.size(), str.c_str(),str.size(), 0) == 1 ? 0 : -1;
     }
 
     int Ardb::GetValueByPattern(Context& ctx, const Slice& pattern, Data& subst, Data& value,

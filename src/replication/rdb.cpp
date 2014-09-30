@@ -334,25 +334,21 @@ namespace ardb
             ERROR_LOG("There is already a background task saving data.");
             return -1;
         }
-        m_routine_cb = NULL;
-        m_routine_cbdata = NULL;
         struct BGTask: public Thread
         {
                 DataDumpFile* serv;
-                BGTask(DataDumpFile* s) :
-                        serv(s)
+                std::string path;
+                BGTask(DataDumpFile* s, const std::string& file) :
+                        serv(s), path(file)
                 {
                 }
                 void Run()
                 {
-                    serv->DoSave();
-                    serv->Close();
-                    serv->m_is_saving = false;
-                    serv->m_last_save = time(NULL);
+                    serv->Save(path, NULL, NULL);
                     delete this;
                 }
         };
-        BGTask* task = new BGTask(this);
+        BGTask* task = new BGTask(this, file);
         task->Start();
         return 0;
     }
