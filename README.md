@@ -1,16 +1,17 @@
-# Ardb [![Build Status](https://travis-ci.org/yinqiwen/ardb.svg?branch=master)](https://travis-ci.org/yinqiwen/ardb)
-Ardb is a BSD licensed, redis-protocol compatible persistent storage server, it support different storage engines. Currently LevelDB/LMDB/RocksDB are supported, the default engine is rocksdb.
+# Ardb: A High Performance Persistent NoSql, Full Redis-Protocol Compatibility
+[![Build Status](https://travis-ci.org/yinqiwen/ardb.svg?branch=master)](https://travis-ci.org/yinqiwen/ardb)  
+Ardb is a BSD licensed, redis-protocol compatible persistent nosql, it support multiple storage engines as backend like [Google's LevelDB](https://github.com/google/leveldb), [Facebook's RocksDB](https://github.com/facebook/rocksdb), [OpenLDAP's LMDB](http://symas.com/mdb/), the default backend is [Facebook's RocksDB](https://github.com/facebook/rocksdb).
 
 
 ## Compile
-Rocksdb is the default storage engine, to compile with rocksdb, just type 'make' to compile server & lib & tests.
+Rocksdb is the default storage engine, to compile with rocksdb, just type `make` to compile server & lib & tests.
 
-To use LMDB/LevelDB as storage engine, you should set env 'storage_engine' first.
+To use LMDB or LevelDB as storage engine, you should set env `storage_engine` first.
 	
 	storage_engine=lmdb make
 	storage_engine=leveldb make
 
-It should compile to several executables in 'src' directory, such as ardb-server, ardb-test etc.
+It should compile to several executables in `src` directory, such as ardb-server, ardb-test etc.
 	
 
 ## Features
@@ -25,6 +26,7 @@ It should compile to several executables in 'src' directory, such as ardb-server
   * Ardb instance work as slave of Ardb instance
   * [Replication detail](https://github.com/yinqiwen/ardb/wiki/Replication)
 - Auto failover support by redis-sentinel
+- Lua Scripting support 
 - Backup data online
   * Use 'save/bgsave' to backup data
   * Use 'import' to import backup data
@@ -131,4 +133,4 @@ In basho's fork of leveldb [project](https://github.com/basho/leveldb), they giv
      + max_open_files*4194304    
      + (size in NewLRUCache initialization)  
  
-If you want to limit the total memory usage, you should tweak configuration options whoose names start with 'leveldb.' in ardb.conf.
+If you want to limit the total memory usage, you should tweak configuration options whoose names start with `leveldb.` in ardb.conf.
