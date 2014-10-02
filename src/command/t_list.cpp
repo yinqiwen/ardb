@@ -29,6 +29,7 @@
 
 #include "ardb.hpp"
 #include <float.h>
+#include <cmath>
 
 OP_NAMESPACE_BEGIN
 

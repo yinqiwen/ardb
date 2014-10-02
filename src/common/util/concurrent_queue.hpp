@@ -66,16 +66,27 @@
 #endif /* gcc & gcc version < 2.9 */
 
 typedef void* vptr_t;
+#if defined(__i386__)
 #ifdef __x86_64__
 ATOMIC_FUNC_XCHG(get_and_set, "xchgq %1, %0", vptr_t)
 #else
 ATOMIC_FUNC_XCHG(get_and_set, "xchgl %1, %0", vptr_t)
 #endif
+#elif defined(HAVE_SYNC_OP)
+static vptr_t atomic_get_and_set_vptr_t(volatile vptr_t* var, vptr_t v) {
+  bool res;
+  vptr_t expected;
+  res = false;
+  while (!res) {
+    expected = *var;
+    res = __sync_bool_compare_and_swap(var, expected, v);
+  }
+  return expected;
+}
+#endif
 
-
-
-#if ( (__GNUC__ == 4) && (__GNUC_MINOR__ >= 1) || __GNUC__ > 4) && \
-(defined(__x86_64__) || defined(__i386__))
+#if(defined(__x86_64__) || defined(__i386__))
+#if ( (__GNUC__ == 4) && (__GNUC_MINOR__ >= 1) || __GNUC__ > 4)
 #define __memory_barrier() __sync_synchronize()
 
 #elif defined  __x86_64__
@@ -83,7 +94,9 @@ ATOMIC_FUNC_XCHG(get_and_set, "xchgl %1, %0", vptr_t)
 #else
 #define __memory_barrier() asm volatile(" lock; addl $0, 0(%%esp) \n\t " : : : "memory" )
 #endif
-
+#elif defined(HAVE_SYNC_OP)
+#define __memory_barrier() __sync_synchronize()
+#endif
 
 namespace ardb
 {
