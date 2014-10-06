@@ -87,8 +87,10 @@ CXXFLAGS=-Wall -g ${OPT} -fPIC -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VE
 CCFLAGS=-Wall -std=gnu99 ${OPT} -fPIC -pedantic -g -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"'
 LDFLAGS=-g 
 
+SNAPPY_CXXFLAGS=-g $(OPT)
+LEVELDB_OPT=-g $(OPT)
 
-LUA_CFLAGS+= -O2 -Wall -DLUA_ANSI $(CCFLAGS)
+LUA_CFLAGS+= $(OPT) -Wall -DLUA_ANSI $(CCFLAGS)
 LUA_LDFLAGS+= $(LDFLAGS)
 
 INCS=-I./ -I./common -I${LIB_PATH}/cpp-btree -I${LUA_PATH}/src -I${SNAPPY_PATH} 
@@ -229,7 +231,7 @@ $(SNAPPY_LIBA):
 	cd ${LIB_PATH} && \
 	tar zxf ${SNAPPY_FILE} && \
 	cd ${SNAPPY_PATH} && \
-	./configure ${XC_BUILD} ${XC_HOST} ${XC_TGT} > configure.out && \
+	./configure CXXFLAGS="$(SNAPPY_CXXFLAGS=)" ${XC_BUILD} ${XC_HOST} ${XC_TGT} > configure.out && \
 	$(MAKE) libsnappy.la && \
 	echo "<<<<< Done building SNAPPY"
 
@@ -252,6 +254,7 @@ leveldb: $(LEVELDB_LIBA)
 $(LEVELDB_LIBA): $(SNAPPY_LIBA) $(LEVELDB_PATH)
 	echo ">>>>> Building LEVELDB" && \
 	cd ${LEVELDB_PATH} && \
+	OPT="$(LEVELDB_OPT)" \
 	CXXFLAGS="-I${SNAPPY_PATH} -fno-access-control" \
 		CFLAGS="-I${SNAPPY_PATH}" \
 		LDFLAGS="${SNAPPY_PATH}/.libs" \
