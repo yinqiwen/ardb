@@ -39,6 +39,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <assert.h>
 #include "util/sha1.h"
 
 namespace ardb
@@ -561,47 +562,42 @@ namespace ardb
             return min;
         }
         std::string random_key;
-        for (uint32 i = 0; i < min.size() && i < max.size(); i++)
+        uint32 min_size = min.size() < max.size() ? min.size() : max.size();
+        uint32 i = 0;
+        for (; i < min_size; i++)
         {
-            if (min[i] < max[i])
+            if (random_key <= min)
             {
-                if (min[i] == max[i] - 1)
+                char c = (char) random_between_int32(min[i], max[i]);
+                random_key.push_back(c);
+            }
+            else if (random_key < max)
+            {
+                char c = (char) random_between_int32(0, 255);
+                random_key.push_back(c);
+                if (random_key >= max)
                 {
-                    random_key.push_back(min[i]);
-                    for (uint32 j = i + 1; j < min.size(); j++)
-                    {
-                        if (min[j] == 127)
-                        {
-                            random_key.push_back(min[j]);
-                        }
-                        else
-                        {
-                            char c = (char) random_between_int32(min[j], 127);
-                            random_key.push_back(c);
-                            if (c > min[j])
-                            {
-                                break;
-                            }
-                        }
-                    }
+                    random_key[random_key.size() - 1] = (char) random_between_int32(0, max[i]);
                 }
-                else
-                {
-                    char c = (char) random_between_int32(min[i], max[i]);
-                    while (c == min[i] || c == max[i])
-                    {
-                        c = (char) random_between_int32(min[i], max[i]);
-                    }
-                    random_key.push_back(c);
-                }
-                break;
             }
             else
             {
-                random_key.push_back(min[i]);
+                abort();
             }
         }
-        random_key.append(random_string(5));
+
+        if (random_key == min)
+        {
+            for (; i < max.size(); i++)
+            {
+                char c = (char) random_between_int32(0, 255);
+                random_key.push_back(c);
+                if (random_key >= max)
+                {
+                    random_key[random_key.size() - 1] = (char) random_between_int32(0, max[i]);
+                }
+            }
+        }
         return random_key;
     }
 

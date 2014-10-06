@@ -50,6 +50,65 @@ OP_NAMESPACE_BEGIN
     int Ardb::Randomkey(Context& ctx, RedisCommandFrame& cmd)
     {
         ctx.reply.type = REDIS_REPLY_NIL;
+        KeyObject from;
+        from.db = ctx.currentDB;
+        from.type = KEY_META;
+
+        std::string min_key, max_key, randkey;
+        Iterator* iter = IteratorKeyValue(from, false);
+        if (iter->Valid())
+        {
+            KeyObject kk;
+            if (!decode_key(iter->Key(), kk) || kk.db != ctx.currentDB || kk.type != KEY_META)
+            {
+                goto _end;
+            }
+            min_key.assign(kk.key.data(), kk.key.size());
+            max_key = min_key;
+            from.type = SET_ELEMENT;    //Refer comparator.cpp
+
+            from.encode_buf.Clear();
+            IteratorSeek(iter, from);
+            if (!iter->Valid())
+            {
+                iter->SeekToLast();
+            }
+            if (iter->Valid())
+            {
+                iter->Prev();
+                if (iter->Valid())
+                {
+                    if (decode_key(iter->Key(), kk) && kk.db == ctx.currentDB && kk.type == KEY_META)
+                    {
+                        max_key.assign(kk.key.data(), kk.key.size());
+                    }
+                }
+            }
+            randkey = min_key;
+            if (min_key < max_key)
+            {
+                randkey = random_between_string(min_key, max_key);
+                from.type = KEY_META;
+                from.db = ctx.currentDB;
+                from.key = randkey;
+                IteratorSeek(iter, from);
+                if (iter->Valid())
+                {
+                    KeyObject kk;
+                    if (!decode_key(iter->Key(), kk) || kk.db != ctx.currentDB || kk.type != KEY_META)
+                    {
+                        goto _end;
+                    }
+                    randkey.assign(kk.key.data(), kk.key.size());
+                }
+            }
+        }
+        if (!randkey.empty())
+        {
+            fill_str_reply(ctx.reply, randkey);
+        }
+        _end:
+        DELETE(iter);
         return 0;
     }
     int Ardb::Scan(Context& ctx, RedisCommandFrame& cmd)

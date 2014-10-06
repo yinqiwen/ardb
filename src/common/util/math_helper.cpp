@@ -53,6 +53,10 @@ namespace ardb
 
     int32 random_between_int32(int32 min, int32 max)
     {
+        if (min == max)
+        {
+            return min;
+        }
         srandom(time(NULL));
         int diff = max - min;
         return (int) (((double) (diff + 1) / RAND_MAX) * rand() + min);

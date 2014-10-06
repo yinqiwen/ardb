@@ -529,10 +529,7 @@ OP_NAMESPACE_BEGIN
 
     void Ardb::IteratorSeek(Iterator* iter, KeyObject& target)
     {
-        if (!target.encode_buf.Readable())
-        {
-            target.Encode();
-        }
+        target.Encode();
         Slice kbuf(target.encode_buf.GetRawReadBuffer(), target.encode_buf.ReadableBytes());
 
         uint64 start = get_current_epoch_micros();
