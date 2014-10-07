@@ -281,8 +281,8 @@ namespace ardb
             const std::string& pattern = pit->first;
             if (stringmatchlen(pattern.c_str(), pattern.size(), channel.c_str(), channel.size(), 0))
             {
-                ContextSet::iterator cit = fit->second.begin();
-                while (cit != fit->second.end())
+                ContextSet::iterator cit = pit->second.begin();
+                while (cit != pit->second.end())
                 {
                     Context* cc = *cit;
                     if (NULL != cc && cc->client != NULL)
