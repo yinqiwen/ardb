@@ -530,9 +530,8 @@ OP_NAMESPACE_BEGIN
         if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPZSET)
         {
             ZSetElementArray array(meta.meta.zipmap.begin(), meta.meta.zipmap.end());
-            std::sort(array.begin(), array.end(), less_by_zset_score);
+            std::sort(array.begin(), array.end(), reverse ? greate_by_zset_score : less_by_zset_score);
             bool loop = true;
-            int64 cursor = reverse ? end : start;
             while (loop)
             {
                 if (op == OP_DELETE)
@@ -543,23 +542,14 @@ OP_NAMESPACE_BEGIN
                 else
                 {
                     RedisReply& r1 = ctx.reply.AddMember();
-                    fill_value_reply(r1, array[cursor].first);
+                    fill_value_reply(r1, array[start].first);
                     if (withscores)
                     {
                         RedisReply& r2 = ctx.reply.AddMember();
-                        fill_value_reply(r2, array[cursor].second);
+                        fill_value_reply(r2, array[start].second);
                     }
                 }
-                if (reverse)
-                {
-                    end--;
-                    cursor = end;
-                }
-                else
-                {
-                    start++;
-                    cursor = start;
-                }
+                start++;
                 loop = (start <= end);
             }
         }
@@ -567,7 +557,7 @@ OP_NAMESPACE_BEGIN
         {
             uint32 rank_cursor = 0;
             ZSetIterator iter;
-            ZSetScoreIter(ctx, meta, meta.meta.min_index, iter, true);
+            ZSetScoreIter(ctx, meta, reverse ? meta.meta.max_index : meta.meta.min_index, iter, op != OP_DELETE);
             while (iter.Valid())
             {
                 bool match_value = false;
@@ -589,33 +579,25 @@ OP_NAMESPACE_BEGIN
                     }
                     else
                     {
-                        if (!reverse)
+                        RedisReply& r = ctx.reply.AddMember();
+                        std::string tmp;
+                        fill_str_reply(r, iter.Element()->GetDecodeString(tmp));
+                        if (withscores)
                         {
-                            RedisReply& r = ctx.reply.AddMember();
-                            std::string tmp;
-                            fill_str_reply(r, iter.Element()->GetDecodeString(tmp));
-                            if (withscores)
-                            {
-                                RedisReply& r1 = ctx.reply.AddMember();
-                                r1.type = REDIS_REPLY_STRING;
-                                iter.Score()->GetDecodeString(r1.str);
-                            }
-                        }
-                        else
-                        {
-                            if (withscores)
-                            {
-                                RedisReply& r1 = ctx.reply.AddMember(false);
-                                r1.type = REDIS_REPLY_STRING;
-                                iter.Score()->GetDecodeString(r1.str);
-                            }
-                            RedisReply& r = ctx.reply.AddMember(false);
-                            std::string tmp;
-                            fill_str_reply(r, iter.Element()->GetDecodeString(tmp));
+                            RedisReply& r1 = ctx.reply.AddMember();
+                            r1.type = REDIS_REPLY_STRING;
+                            iter.Score()->GetDecodeString(r1.str);
                         }
                     }
                 }
-                iter.Next();
+                if (!reverse)
+                {
+                    iter.Next();
+                }
+                else
+                {
+                    iter.Prev();
+                }
             }
         }
         if (op == OP_DELETE)

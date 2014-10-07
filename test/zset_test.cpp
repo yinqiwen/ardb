@@ -60,6 +60,16 @@ void test_zsets_zrangebyrank(Context& ctx, Ardb& db)
     RedisCommandFrame del;
     del.SetFullCommand("del myzset");
     db.Call(ctx, del, 0);
+    //issue #104
+    RedisCommandFrame zadd;
+    zadd.SetFullCommand("zadd myzset 1 one 2 two 3 three");
+    db.Call(ctx, zadd, 0);
+    RedisCommandFrame zrevrange;
+    zrevrange.SetFullCommand("zrevrange myzset 0 1");
+    db.Call(ctx, zrevrange, 0);
+    CHECK_FATAL(ctx.reply.MemberAt(0).str != "three", "zrevrange myzset failed");
+    CHECK_FATAL(ctx.reply.MemberAt(1).str != "two", "zrevrange myzset failed");
+    db.Call(ctx, del, 0);
 
     for (uint32 i = 0; i < 10; i++)
     {
@@ -75,15 +85,14 @@ void test_zsets_zrangebyrank(Context& ctx, Ardb& db)
     db.Call(ctx, zrange, 0);
     CHECK_FATAL(ctx.reply.MemberSize() != 10, "zrange myzset failed");
 
-    RedisCommandFrame zrevrange;
     zrevrange.SetFullCommand("zrevrange myzset -5 -1");
     db.Call(ctx, zrevrange, 0);
     CHECK_FATAL(ctx.reply.MemberSize() != 5, "zrevrange myzset failed");
-    CHECK_FATAL(ctx.reply.MemberAt(0).str != "field9", "zrevrange myzset failed");
+    CHECK_FATAL(ctx.reply.MemberAt(0).str != "field4", "zrevrange myzset failed");
     zrevrange.SetFullCommand("zrevrange myzset -5 -1 WITHSCORES");
     db.Call(ctx, zrevrange, 0);
     CHECK_FATAL(ctx.reply.MemberSize() != 10, "zrevrange myzset failed");
-    CHECK_FATAL(ctx.reply.MemberAt(1).str != "9", "zrevrange myzset failed");
+    CHECK_FATAL(ctx.reply.MemberAt(1).str != "4", "zrevrange myzset failed");
 
     RedisCommandFrame zremrange;
     zremrange.SetFullCommand("ZREMRANGEBYRANK myzset -5 -1");
@@ -110,16 +119,17 @@ void test_zsets_zrangebyrank(Context& ctx, Ardb& db)
     zrevrange.SetFullCommand("zrevrange myzset -10 -1");
     db.Call(ctx, zrevrange, 0);
     CHECK_FATAL(ctx.reply.MemberSize() != 10, "zrevrange myzset failed");
-    CHECK_FATAL(ctx.reply.MemberAt(1).str != "zfield18", "zrevrange myzset failed");
+    CHECK_FATAL(ctx.reply.MemberAt(1).str != "zfield3", "zrevrange myzset failed");
     zrevrange.SetFullCommand("zrevrange myzset -10 -1 WITHSCORES");
     db.Call(ctx, zrevrange, 0);
     CHECK_FATAL(ctx.reply.MemberSize() != 20, "zrevrange myzset failed");
-    CHECK_FATAL(ctx.reply.MemberAt(3).str != "118", "zrevrange myzset failed");
+    CHECK_FATAL(ctx.reply.MemberAt(3).str != "103", "zrevrange myzset failed");
 
     db.Call(ctx, zremrange, 0);
     CHECK_FATAL(ctx.reply.integer != 5, "zremrange myzset failed");
     db.Call(ctx, zcard, 0);
     CHECK_FATAL(ctx.reply.integer != 20, "zcard myzset failed");
+
 }
 
 void test_zsets_zrangebyscore(Context& ctx, Ardb& db)

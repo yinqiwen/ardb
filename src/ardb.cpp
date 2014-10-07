@@ -327,7 +327,7 @@ OP_NAMESPACE_BEGIN
             std::string content = tmp;
             file_write_content(m_cfg.pidfile, content);
         }
-
+        make_dir(m_cfg.home);
         if (0 != chdir(m_cfg.home.c_str()))
         {
             ERROR_LOG("Faild to change dir to home:%s", m_cfg.home.c_str());

@@ -117,42 +117,42 @@ void test_keys_expire(Context& ctx, Ardb& db)
     RedisCommandFrame ttl;
     ttl.SetFullCommand("ttl mystring");
     db.Call(ctx, ttl, 0);
-    CHECK_FATAL(ctx.reply.integer > 4 && ctx.reply.integer <= 5, "ttl failed");
+    CHECK_FATAL(ctx.reply.integer < 4 || ctx.reply.integer > 5, "ttl failed");
     ttl.SetFullCommand("ttl mylist");
     db.Call(ctx, ttl, 0);
-    CHECK_FATAL(ctx.reply.integer > 4 && ctx.reply.integer <= 5, "ttl failed");
+    CHECK_FATAL(ctx.reply.integer < 4 || ctx.reply.integer > 5, "ttl failed");
     ttl.SetFullCommand("ttl myhash");
     db.Call(ctx, ttl, 0);
-    CHECK_FATAL(ctx.reply.integer > 4 && ctx.reply.integer <= 5, "ttl failed");
+    CHECK_FATAL(ctx.reply.integer < 4 || ctx.reply.integer > 5, "ttl failed");
     ttl.SetFullCommand("ttl myset");
     db.Call(ctx, ttl, 0);
-    CHECK_FATAL(ctx.reply.integer > 4 && ctx.reply.integer <= 5, "ttl failed");
+    CHECK_FATAL(ctx.reply.integer < 4 || ctx.reply.integer > 5, "ttl failed");
     ttl.SetFullCommand("ttl myzset");
     db.Call(ctx, ttl, 0);
-    CHECK_FATAL(ctx.reply.integer > 4 && ctx.reply.integer <= 5, "ttl failed");
+    CHECK_FATAL(ctx.reply.integer < 4 || ctx.reply.integer > 5, "ttl failed");
     ttl.SetFullCommand("ttl mybitset");
     db.Call(ctx, ttl, 0);
-    CHECK_FATAL(ctx.reply.integer > 4 && ctx.reply.integer <= 5, "ttl failed");
+    CHECK_FATAL(ctx.reply.integer < 4 || ctx.reply.integer > 5, "ttl failed");
 
     RedisCommandFrame pttl;
     pttl.SetFullCommand("pttl mystring");
     db.Call(ctx, pttl, 0);
-    CHECK_FATAL(ctx.reply.integer > 4000 && ctx.reply.integer <= 5000, "ttl failed");
+    CHECK_FATAL(ctx.reply.integer < 4000 || ctx.reply.integer > 5000, "ttl failed");
     pttl.SetFullCommand("pttl mylist");
     db.Call(ctx, pttl, 0);
-    CHECK_FATAL(ctx.reply.integer > 4000 && ctx.reply.integer <= 5000, "ttl failed");
+    CHECK_FATAL(ctx.reply.integer < 4000 || ctx.reply.integer > 5000, "ttl failed");
     pttl.SetFullCommand("pttl myhash");
-    db.Call(ctx, ttl, 0);
-    CHECK_FATAL(ctx.reply.integer > 4000 && ctx.reply.integer <= 5000, "ttl failed");
+    db.Call(ctx, pttl, 0);
+    CHECK_FATAL(ctx.reply.integer < 4000 || ctx.reply.integer > 5000, "ttl failed");
     pttl.SetFullCommand("pttl myset");
     db.Call(ctx, pttl, 0);
-    CHECK_FATAL(ctx.reply.integer > 4000 && ctx.reply.integer <= 5000, "ttl failed");
+    CHECK_FATAL(ctx.reply.integer < 4000 || ctx.reply.integer > 5000, "ttl failed");
     pttl.SetFullCommand("pttl myzset");
     db.Call(ctx, pttl, 0);
-    CHECK_FATAL(ctx.reply.integer > 4000 && ctx.reply.integer <= 5000, "ttl failed");
+    CHECK_FATAL(ctx.reply.integer < 4000 || ctx.reply.integer > 5000, "ttl failed");
     pttl.SetFullCommand("pttl mybitset");
     db.Call(ctx, pttl, 0);
-    CHECK_FATAL(ctx.reply.integer > 4000 && ctx.reply.integer <= 5000, "ttl failed");
+    CHECK_FATAL(ctx.reply.integer < 4000 || ctx.reply.integer > 5000, "ttl failed");
 }
 
 void test_keys_rename(Context& ctx, Ardb& db)
