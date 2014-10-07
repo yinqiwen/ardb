@@ -77,8 +77,9 @@ OP_NAMESPACE_BEGIN
         ValueObject meta;
         int err = GetMetaValue(ctx, cmd.GetArguments()[0], LIST_META, meta);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
-        if (err == ERR_NOT_EXIST)
+        if (0 != err)
         {
+            ctx.reply.type = REDIS_REPLY_NIL;
             return 0;
         }
         if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
