@@ -610,8 +610,8 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::Expire(Context& ctx, RedisCommandFrame& cmd)
     {
-        uint32 v = 0;
-        if (!check_uint32_arg(ctx.reply, cmd.GetArguments()[1], v))
+        uint64 v = 0;
+        if (!check_uint64_arg(ctx.reply, cmd.GetArguments()[1], v))
         {
             return 0;
         }
@@ -622,8 +622,8 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::Expireat(Context& ctx, RedisCommandFrame& cmd)
     {
-        uint32 v = 0;
-        if (!check_uint32_arg(ctx.reply, cmd.GetArguments()[1], v))
+        uint64 v = 0;
+        if (!check_uint64_arg(ctx.reply, cmd.GetArguments()[1], v))
         {
             return 0;
         }
