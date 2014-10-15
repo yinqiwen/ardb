@@ -200,7 +200,7 @@ namespace ardb
         bool split_south = false;
         if (max_lon > area.longitude.max)
         {
-            geohash_get_neighbor(hash, GEOHASH_NORTH, &(neighbors.east));
+            geohash_get_neighbor(hash, GEOHASH_EAST, &(neighbors.east));
             if (area.longitude.max + range_lon > max_lon)
             {
                 results.insert(geohash_next_leftbottom(neighbors.east));
@@ -228,7 +228,7 @@ namespace ardb
         }
         if (max_lat > area.latitude.max)
         {
-            geohash_get_neighbor(hash, GEOHASH_EAST, &neighbors.north);
+            geohash_get_neighbor(hash, GEOHASH_NORTH, &neighbors.north);
             if (area.latitude.max + range_lat > max_lat)
             {
                 results.insert(geohash_next_rightbottom(neighbors.north));
