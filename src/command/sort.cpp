@@ -67,7 +67,7 @@ namespace ardb
             }
             int Compare(const SortValue& other) const
             {
-                if (cmp.encoding == STRING_ECODING_NIL && other.cmp.encoding == STRING_ECODING_NIL)
+                if (cmp.encoding == STRING_ENCODING_NIL && other.cmp.encoding == STRING_ENCODING_NIL)
                 {
                     return value->Compare(*other.value);
                 }
@@ -446,7 +446,7 @@ namespace ardb
             list_meta.key.type = KEY_META;
             list_meta.key.db = ctx.currentDB;
             list_meta.type = LIST_META;
-            list_meta.meta.SetEncoding(COLLECTION_ECODING_ZIPLIST);
+            list_meta.meta.SetEncoding(COLLECTION_ENCODING_ZIPLIST);
 
             BatchWriteGuard guard(GetKeyValueEngine());
             DataArray::iterator it = values.begin();

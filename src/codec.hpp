@@ -37,16 +37,16 @@
 #include "slice.hpp"
 #include <deque>
 
-#define STRING_ECODING_NIL    0
-#define STRING_ECODING_INT64  1
-#define STRING_ECODING_DOUBLE 2
-#define STRING_ECODING_RAW    3
+#define STRING_ENCODING_NIL    0
+#define STRING_ENCODING_INT64  1
+#define STRING_ENCODING_DOUBLE 2
+#define STRING_ENCODING_RAW    3
 
-#define COLLECTION_ECODING_RAW      0
-#define COLLECTION_ECODING_ZIPLIST  1
-#define COLLECTION_ECODING_ZIPMAP   2
-#define COLLECTION_ECODING_ZIPSET   3
-#define COLLECTION_ECODING_ZIPZSET  4
+#define COLLECTION_ENCODING_RAW      0
+#define COLLECTION_ENCODING_ZIPLIST  1
+#define COLLECTION_ENCODING_ZIPMAP   2
+#define COLLECTION_ENCODING_ZIPSET   3
+#define COLLECTION_ENCODING_ZIPZSET  4
 
 #define COLLECTION_FLAG_NORMAL      0
 #define COLLECTION_FLAG_SEQLIST     1   //indicate that list is only sequentially pushed/poped at head/tail
@@ -113,12 +113,12 @@ OP_NAMESPACE_BEGIN
             void SetDouble(double v);
             bool GetInt64(int64& v) const
             {
-                if (encoding == STRING_ECODING_INT64)
+                if (encoding == STRING_ENCODING_INT64)
                 {
                     v = value.iv;
                     return true;
                 }
-                else if (encoding == STRING_ECODING_NIL)
+                else if (encoding == STRING_ENCODING_NIL)
                 {
                     v = 0;
                     return true;
@@ -161,23 +161,23 @@ OP_NAMESPACE_BEGIN
             bool IsNumber() const;
             bool IsNil() const
             {
-                return encoding == STRING_ECODING_NIL;
+                return encoding == STRING_ENCODING_NIL;
             }
 
             uint32 StringLength() const;
 
             void Clear()
             {
-                if (encoding == STRING_ECODING_RAW && NULL != value.sv)
+                if (encoding == STRING_ENCODING_RAW && NULL != value.sv)
                 {
                     sdsfree(value.sv);
                 }
                 value.iv = 0;
-                encoding = STRING_ECODING_NIL;
+                encoding = STRING_ENCODING_NIL;
             }
             sds RawString()
             {
-                if (encoding == STRING_ECODING_RAW)
+                if (encoding == STRING_ENCODING_RAW)
                 {
                     return value.sv;
                 }

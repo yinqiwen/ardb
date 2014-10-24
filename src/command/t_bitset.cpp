@@ -163,7 +163,7 @@ OP_NAMESPACE_BEGIN
         bool element_changed = false;
         GetKeyValue(ctx, bitvalue.key, &bitvalue);
 
-        bitvalue.element.encoding = STRING_ECODING_RAW;
+        bitvalue.element.encoding = STRING_ENCODING_RAW;
         if (bitvalue.element.StringLength() < (byte + 1))
         {
             //bitvalue.element.str.resize(byte + 1);

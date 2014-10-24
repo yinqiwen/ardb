@@ -61,21 +61,21 @@ OP_NAMESPACE_BEGIN
         buf.WriteByte((char) encoding);
         switch (encoding)
         {
-            case STRING_ECODING_NIL:
+            case STRING_ENCODING_NIL:
             {
                 break;
             }
-            case STRING_ECODING_INT64:
+            case STRING_ENCODING_INT64:
             {
                 BufferHelper::WriteVarInt64(buf, value.iv);
                 break;
             }
-            case STRING_ECODING_DOUBLE:
+            case STRING_ENCODING_DOUBLE:
             {
                 BufferHelper::WriteFixDouble(buf, value.dv);
                 break;
             }
-            case STRING_ECODING_RAW:
+            case STRING_ENCODING_RAW:
             {
                 size_t len = sdslen(value.sv);
                 BufferHelper::WriteVarInt64(buf, len);
@@ -103,19 +103,19 @@ OP_NAMESPACE_BEGIN
         encoding = (uint8) tmp;
         switch (encoding)
         {
-            case STRING_ECODING_NIL:
+            case STRING_ENCODING_NIL:
             {
                 break;
             }
-            case STRING_ECODING_INT64:
+            case STRING_ENCODING_INT64:
             {
                 return BufferHelper::ReadVarInt64(buf, value.iv);
             }
-            case STRING_ECODING_DOUBLE:
+            case STRING_ENCODING_DOUBLE:
             {
                 return BufferHelper::ReadFixDouble(buf, value.dv);
             }
-            case STRING_ECODING_RAW:
+            case STRING_ENCODING_RAW:
             {
                 int64 len = 0;
                 if (!BufferHelper::ReadVarInt64(buf, len))
@@ -148,21 +148,21 @@ OP_NAMESPACE_BEGIN
         encoding = data.encoding;
         switch (data.encoding)
         {
-            case STRING_ECODING_NIL:
+            case STRING_ENCODING_NIL:
             {
                 break;
             }
-            case STRING_ECODING_INT64:
+            case STRING_ENCODING_INT64:
             {
                 value.iv = data.value.iv;
                 break;
             }
-            case STRING_ECODING_DOUBLE:
+            case STRING_ENCODING_DOUBLE:
             {
                 value.dv = data.value.dv;
                 break;
             }
-            case STRING_ECODING_RAW:
+            case STRING_ENCODING_RAW:
             {
                 if (NULL != data.value.sv)
                 {
@@ -180,40 +180,40 @@ OP_NAMESPACE_BEGIN
 
     void Data::SetString(const Slice& str, bool try_int_encoding)
     {
-        if (encoding == STRING_ECODING_RAW && NULL != value.sv)
+        if (encoding == STRING_ENCODING_RAW && NULL != value.sv)
         {
             sdsfree(value.sv);
         }
         if (str.size() == 0)
         {
-            encoding = STRING_ECODING_NIL;
+            encoding = STRING_ENCODING_NIL;
             return;
         }
         if (try_int_encoding)
         {
             if (string2ll(str.data(), str.size(), &(value.iv)) > 0)
             {
-                encoding = STRING_ECODING_INT64;
+                encoding = STRING_ENCODING_INT64;
                 return;
             }
         }
-        encoding = STRING_ECODING_RAW;
+        encoding = STRING_ENCODING_RAW;
         value.sv = sdsnewlen(str.data(), str.size());
     }
     bool Data::SetNumber(const std::string& str)
     {
-        if (encoding == STRING_ECODING_RAW && NULL != value.sv)
+        if (encoding == STRING_ENCODING_RAW && NULL != value.sv)
         {
             sdsfree(value.sv);
         }
         if (string2ll(str.data(), str.size(), &(value.iv)) > 0)
         {
-            encoding = STRING_ECODING_INT64;
+            encoding = STRING_ENCODING_INT64;
             return true;
         }
         if (string_todouble(str, value.dv))
         {
-            encoding = STRING_ECODING_DOUBLE;
+            encoding = STRING_ENCODING_DOUBLE;
             return true;
         }
         return false;
@@ -226,12 +226,12 @@ OP_NAMESPACE_BEGIN
     }
     void Data::SetInt64(int64 v)
     {
-        encoding = STRING_ECODING_INT64;
+        encoding = STRING_ENCODING_INT64;
         value.iv = v;
     }
     void Data::SetDouble(double v)
     {
-        encoding = STRING_ECODING_DOUBLE;
+        encoding = STRING_ENCODING_DOUBLE;
         value.dv = v;
     }
 
@@ -239,22 +239,22 @@ OP_NAMESPACE_BEGIN
     {
         switch (encoding)
         {
-            case STRING_ECODING_INT64:
+            case STRING_ENCODING_INT64:
             {
                 v = value.iv;
                 return true;
             }
-            case STRING_ECODING_DOUBLE:
+            case STRING_ENCODING_DOUBLE:
             {
                 v = value.dv;
                 return true;
             }
-            case STRING_ECODING_NIL:
+            case STRING_ENCODING_NIL:
             {
                 v = 0;
                 return true;
             }
-            case STRING_ECODING_RAW:
+            case STRING_ENCODING_RAW:
             {
                 if (str_todouble(value.sv, v))
                 {
@@ -273,20 +273,20 @@ OP_NAMESPACE_BEGIN
     {
         switch (v.encoding)
         {
-            case STRING_ECODING_INT64:
+            case STRING_ENCODING_INT64:
             {
                 return IncrBy(v.value.iv);
             }
-            case STRING_ECODING_DOUBLE:
+            case STRING_ENCODING_DOUBLE:
             {
-                if (encoding == STRING_ECODING_NIL)
+                if (encoding == STRING_ENCODING_NIL)
                 {
-                    encoding = STRING_ECODING_DOUBLE;
+                    encoding = STRING_ENCODING_DOUBLE;
                     value.dv = 0;
                 }
-                if (encoding == STRING_ECODING_DOUBLE || encoding == STRING_ECODING_INT64)
+                if (encoding == STRING_ENCODING_DOUBLE || encoding == STRING_ENCODING_INT64)
                 {
-                    encoding = STRING_ECODING_DOUBLE;
+                    encoding = STRING_ENCODING_DOUBLE;
                 }
                 value.dv = NumberValue() + v.value.dv;
                 break;
@@ -303,19 +303,19 @@ OP_NAMESPACE_BEGIN
     {
         switch (encoding)
         {
-            case STRING_ECODING_NIL:
+            case STRING_ENCODING_NIL:
             {
-                encoding = STRING_ECODING_INT64;
+                encoding = STRING_ENCODING_INT64;
                 value.iv = 0;
                 value.iv += v;
                 break;
             }
-            case STRING_ECODING_INT64:
+            case STRING_ENCODING_INT64:
             {
                 value.iv += v;
                 break;
             }
-            case STRING_ECODING_DOUBLE:
+            case STRING_ENCODING_DOUBLE:
             {
                 value.dv += v;
                 break;
@@ -330,12 +330,12 @@ OP_NAMESPACE_BEGIN
 
     bool Data::IsNumber() const
     {
-        return encoding == STRING_ECODING_INT64 || encoding == STRING_ECODING_DOUBLE;
+        return encoding == STRING_ENCODING_INT64 || encoding == STRING_ENCODING_DOUBLE;
     }
 
     int Data::Compare(const Data& other) const
     {
-        if (encoding == STRING_ECODING_NIL || other.encoding == STRING_ECODING_NIL)
+        if (encoding == STRING_ENCODING_NIL || other.encoding == STRING_ENCODING_NIL)
         {
             if (encoding != other.encoding)
             {
@@ -365,8 +365,8 @@ OP_NAMESPACE_BEGIN
     {
         switch (encoding)
         {
-            case STRING_ECODING_INT64:
-            case STRING_ECODING_DOUBLE:
+            case STRING_ENCODING_INT64:
+            case STRING_ENCODING_DOUBLE:
             {
                 return 0;
             }
@@ -385,17 +385,17 @@ OP_NAMESPACE_BEGIN
     {
         switch (encoding)
         {
-            case STRING_ECODING_NIL:
+            case STRING_ENCODING_NIL:
             {
                 str.clear();
                 break;
             }
-            case STRING_ECODING_INT64:
+            case STRING_ENCODING_INT64:
             {
                 str = stringfromll(value.iv);
                 break;
             }
-            case STRING_ECODING_DOUBLE:
+            case STRING_ENCODING_DOUBLE:
             {
                 if (std::isinf(value.dv))
                 {
@@ -433,12 +433,12 @@ OP_NAMESPACE_BEGIN
     {
         switch (encoding)
         {
-            case STRING_ECODING_INT64:
+            case STRING_ENCODING_INT64:
             {
                 value.sv = sdscatprintf(NULL, "%" PRId64, value.iv);
                 break;
             }
-            case STRING_ECODING_DOUBLE:
+            case STRING_ENCODING_DOUBLE:
             {
                 if (std::isinf(value.dv))
                 {
@@ -464,7 +464,7 @@ OP_NAMESPACE_BEGIN
                 break;
             }
         }
-        encoding = STRING_ECODING_RAW;
+        encoding = STRING_ENCODING_RAW;
         return value.sv;
     }
 
@@ -575,16 +575,16 @@ OP_NAMESPACE_BEGIN
     {
         switch (Encoding())
         {
-            case COLLECTION_ECODING_ZIPLIST:
+            case COLLECTION_ENCODING_ZIPLIST:
             {
                 return ziplist.size();
             }
-            case COLLECTION_ECODING_ZIPMAP:
-            case COLLECTION_ECODING_ZIPZSET:
+            case COLLECTION_ENCODING_ZIPMAP:
+            case COLLECTION_ENCODING_ZIPZSET:
             {
                 return zipmap.size();
             }
-            case COLLECTION_ECODING_ZIPSET:
+            case COLLECTION_ENCODING_ZIPSET:
             {
                 return zipset.size();
             }
@@ -608,7 +608,7 @@ OP_NAMESPACE_BEGIN
             case HASH_META:
             {
                 buf.WriteByte((char) attribute);
-                if (Encoding() == COLLECTION_ECODING_ZIPMAP)
+                if (Encoding() == COLLECTION_ENCODING_ZIPMAP)
                 {
                     encode_arg(buf, zipmap);
                 }
@@ -621,7 +621,7 @@ OP_NAMESPACE_BEGIN
             case SET_META:
             {
                 buf.WriteByte((char) attribute);
-                if (Encoding() == COLLECTION_ECODING_ZIPSET)
+                if (Encoding() == COLLECTION_ENCODING_ZIPSET)
                 {
                     encode_arg(buf, zipset);
                 }
@@ -636,7 +636,7 @@ OP_NAMESPACE_BEGIN
             case LIST_META:
             {
                 buf.WriteByte((char) attribute);
-                if (Encoding() == COLLECTION_ECODING_ZIPLIST)
+                if (Encoding() == COLLECTION_ENCODING_ZIPLIST)
                 {
                     encode_arg(buf, ziplist);
                 }
@@ -652,7 +652,7 @@ OP_NAMESPACE_BEGIN
             case ZSET_META:
             {
                 buf.WriteByte((char) attribute);
-                if (Encoding() == COLLECTION_ECODING_ZIPZSET)
+                if (Encoding() == COLLECTION_ENCODING_ZIPZSET)
                 {
                     encode_arg(buf, zipmap);
                 }
@@ -704,7 +704,7 @@ OP_NAMESPACE_BEGIN
                     return false;
                 }
                 attribute = (uint8) tmp;
-                if (Encoding() == COLLECTION_ECODING_ZIPMAP)
+                if (Encoding() == COLLECTION_ENCODING_ZIPMAP)
                 {
                     if (!decode_arg(buf, zipmap))
                     {
@@ -728,7 +728,7 @@ OP_NAMESPACE_BEGIN
                     return false;
                 }
                 attribute = (uint8) tmp;
-                if (Encoding() == COLLECTION_ECODING_ZIPSET)
+                if (Encoding() == COLLECTION_ENCODING_ZIPSET)
                 {
                     if (!decode_arg(buf, zipset))
                     {
@@ -752,7 +752,7 @@ OP_NAMESPACE_BEGIN
                     return false;
                 }
                 attribute = (uint8) tmp;
-                if (Encoding() == COLLECTION_ECODING_ZIPLIST)
+                if (Encoding() == COLLECTION_ENCODING_ZIPLIST)
                 {
                     if (!decode_arg(buf, ziplist))
                     {
@@ -777,7 +777,7 @@ OP_NAMESPACE_BEGIN
                     return false;
                 }
                 attribute = (uint8) tmp;
-                if (Encoding() == COLLECTION_ECODING_ZIPZSET)
+                if (Encoding() == COLLECTION_ENCODING_ZIPZSET)
                 {
                     if (!decode_arg(buf, zipmap))
                     {

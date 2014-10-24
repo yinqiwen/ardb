@@ -53,7 +53,7 @@ OP_NAMESPACE_BEGIN
     }
     Data* ListIterator::Element()
     {
-        if (m_meta->meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
+        if (m_meta->meta.Encoding() == COLLECTION_ENCODING_ZIPLIST)
         {
             return &(m_meta->meta.ziplist[m_zip_cursor]);
         }
@@ -65,7 +65,7 @@ OP_NAMESPACE_BEGIN
     }
     Data* ListIterator::Score()
     {
-        if (m_meta->meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
+        if (m_meta->meta.Encoding() == COLLECTION_ENCODING_ZIPLIST)
         {
             static Data default_score;
             default_score.SetInt64(0);
@@ -78,7 +78,7 @@ OP_NAMESPACE_BEGIN
     }
     bool ListIterator::Prev()
     {
-        if (m_meta->meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
+        if (m_meta->meta.Encoding() == COLLECTION_ENCODING_ZIPLIST)
         {
             m_zip_cursor--;
         }
@@ -91,7 +91,7 @@ OP_NAMESPACE_BEGIN
     }
     bool ListIterator::Next()
     {
-        if (m_meta->meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
+        if (m_meta->meta.Encoding() == COLLECTION_ENCODING_ZIPLIST)
         {
             m_zip_cursor++;
         }
@@ -103,7 +103,7 @@ OP_NAMESPACE_BEGIN
     }
     bool ListIterator::Valid()
     {
-        if (m_meta->meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
+        if (m_meta->meta.Encoding() == COLLECTION_ENCODING_ZIPLIST)
         {
             if (m_zip_cursor >= m_meta->meta.ziplist.size())
             {
@@ -130,7 +130,7 @@ OP_NAMESPACE_BEGIN
     int Ardb::ListIter(Context& ctx, ValueObject& meta, ListIterator& iter, bool reverse)
     {
         iter.SetMeta(&meta);
-        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPLIST)
         {
             iter.m_zip_cursor = reverse ? meta.meta.ziplist.size() - 1 : 0;
             return 0;
@@ -154,7 +154,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::SequencialListIter(Context& ctx, ValueObject& meta, ListIterator& iter, int64 index)
     {
-        if (!meta.meta.IsSequentialList() || meta.meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
+        if (!meta.meta.IsSequentialList() || meta.meta.Encoding() == COLLECTION_ENCODING_ZIPLIST)
         {
             ERROR_LOG("Can NOT create sequence list iterator.");
             return -1;
@@ -179,7 +179,7 @@ OP_NAMESPACE_BEGIN
 
     const Data* HashIterator::Field()
     {
-        if (m_meta->meta.Encoding() == COLLECTION_ECODING_ZIPMAP)
+        if (m_meta->meta.Encoding() == COLLECTION_ENCODING_ZIPMAP)
         {
             return &(m_zip_iter->first);
         }
@@ -190,7 +190,7 @@ OP_NAMESPACE_BEGIN
     }
     Data* HashIterator::Value()
     {
-        if (m_meta->meta.Encoding() == COLLECTION_ECODING_ZIPMAP)
+        if (m_meta->meta.Encoding() == COLLECTION_ENCODING_ZIPMAP)
         {
             return &(m_zip_iter->second);
         }
@@ -201,7 +201,7 @@ OP_NAMESPACE_BEGIN
     }
     bool HashIterator::Next()
     {
-        if (m_meta->meta.Encoding() == COLLECTION_ECODING_ZIPMAP)
+        if (m_meta->meta.Encoding() == COLLECTION_ENCODING_ZIPMAP)
         {
             m_zip_iter++;
         }
@@ -213,7 +213,7 @@ OP_NAMESPACE_BEGIN
     }
     bool HashIterator::Valid()
     {
-        if (m_meta->meta.Encoding() == COLLECTION_ECODING_ZIPMAP)
+        if (m_meta->meta.Encoding() == COLLECTION_ENCODING_ZIPMAP)
         {
             if (m_zip_iter == m_meta->meta.zipmap.end())
             {
@@ -240,7 +240,7 @@ OP_NAMESPACE_BEGIN
     int Ardb::HashIter(Context& ctx, ValueObject& meta, const std::string& from, HashIterator& iter, bool readonly)
     {
         iter.SetMeta(&meta);
-        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPMAP)
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPMAP)
         {
             if (from == "")
             {
@@ -266,7 +266,7 @@ OP_NAMESPACE_BEGIN
 
     Data* SetIterator::Element()
     {
-        if (m_meta->meta.Encoding() == COLLECTION_ECODING_ZIPSET)
+        if (m_meta->meta.Encoding() == COLLECTION_ENCODING_ZIPSET)
         {
             return &(*m_zip_iter);
         }
@@ -277,7 +277,7 @@ OP_NAMESPACE_BEGIN
     }
     bool SetIterator::Next()
     {
-        if (m_meta->meta.Encoding() == COLLECTION_ECODING_ZIPSET)
+        if (m_meta->meta.Encoding() == COLLECTION_ENCODING_ZIPSET)
         {
             m_zip_iter++;
         }
@@ -289,7 +289,7 @@ OP_NAMESPACE_BEGIN
     }
     bool SetIterator::Valid()
     {
-        if (m_meta->meta.Encoding() == COLLECTION_ECODING_ZIPSET)
+        if (m_meta->meta.Encoding() == COLLECTION_ENCODING_ZIPSET)
         {
             if (m_zip_iter == m_meta->meta.zipset.end())
             {
@@ -315,7 +315,7 @@ OP_NAMESPACE_BEGIN
     int Ardb::SetIter(Context& ctx, ValueObject& meta, Data& from, SetIterator& iter, bool readonly)
     {
         iter.SetMeta(&meta);
-        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPSET)
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPSET)
         {
             if (from.IsNil())
             {
@@ -341,7 +341,7 @@ OP_NAMESPACE_BEGIN
 
     const Data* ZSetIterator::Element()
     {
-        if (m_meta->meta.Encoding() == COLLECTION_ECODING_ZIPZSET)
+        if (m_meta->meta.Encoding() == COLLECTION_ENCODING_ZIPZSET)
         {
             if (m_iter_by_value)
             {
@@ -367,7 +367,7 @@ OP_NAMESPACE_BEGIN
     }
     const Data* ZSetIterator::Score()
     {
-        if (m_meta->meta.Encoding() == COLLECTION_ECODING_ZIPZSET)
+        if (m_meta->meta.Encoding() == COLLECTION_ENCODING_ZIPZSET)
         {
             if (m_iter_by_value)
             {
@@ -415,7 +415,7 @@ OP_NAMESPACE_BEGIN
     }
     bool ZSetIterator::Next()
     {
-        if (m_meta->meta.Encoding() == COLLECTION_ECODING_ZIPZSET)
+        if (m_meta->meta.Encoding() == COLLECTION_ENCODING_ZIPZSET)
         {
             if (m_iter_by_value)
             {
@@ -441,7 +441,7 @@ OP_NAMESPACE_BEGIN
     }
     bool ZSetIterator::Prev()
     {
-        if (m_meta->meta.Encoding() == COLLECTION_ECODING_ZIPZSET)
+        if (m_meta->meta.Encoding() == COLLECTION_ENCODING_ZIPZSET)
         {
             if (m_iter_by_value)
             {
@@ -501,7 +501,7 @@ OP_NAMESPACE_BEGIN
     }
     bool ZSetIterator::Valid()
     {
-        if (m_meta->meta.Encoding() == COLLECTION_ECODING_ZIPZSET)
+        if (m_meta->meta.Encoding() == COLLECTION_ENCODING_ZIPZSET)
         {
             if (m_iter_by_value)
             {
@@ -564,7 +564,7 @@ OP_NAMESPACE_BEGIN
     {
         iter.SetMeta(&meta);
         iter.m_iter_by_value = false;
-        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPZSET)
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPZSET)
         {
             iter.m_ziparray.assign(meta.meta.zipmap.begin(), meta.meta.zipmap.end());
             std::sort(iter.m_ziparray.begin(), iter.m_ziparray.end(), less_by_zset_score);
@@ -622,7 +622,7 @@ OP_NAMESPACE_BEGIN
     {
         iter.SetMeta(&meta);
         iter.m_iter_by_value = true;
-        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPZSET)
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPZSET)
         {
             if (!readonly)
             {

@@ -33,7 +33,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::GetSetMinMax(Context& ctx, ValueObject& meta, Data& min, Data& max)
     {
-        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPSET)
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPSET)
         {
             if (meta.meta.zipset.size() > 0)
             {
@@ -53,7 +53,7 @@ OP_NAMESPACE_BEGIN
     {
         meta_change = false;
         uint32 count = 0;
-        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPSET)
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPSET)
         {
             Data element;
             element.SetString(value, true);
@@ -67,7 +67,7 @@ OP_NAMESPACE_BEGIN
                     && (meta.meta.zipset.size() > m_cfg.set_max_ziplist_entries
                             || element.StringLength() >= m_cfg.set_max_ziplist_value) && meta.meta.zipset.size() > 1)
             {
-                meta.meta.SetEncoding(COLLECTION_ECODING_RAW);
+                meta.meta.SetEncoding(COLLECTION_ENCODING_RAW);
                 DataSet::iterator it = meta.meta.zipset.begin();
                 BatchWriteGuard guard(GetKeyValueEngine());
                 while (it != meta.meta.zipset.end())
@@ -123,7 +123,7 @@ OP_NAMESPACE_BEGIN
         meta.key.key = cmd.GetArguments()[0];
         meta.key.type = KEY_META;
         meta.type = SET_META;
-        meta.meta.SetEncoding(COLLECTION_ECODING_ZIPSET);
+        meta.meta.SetEncoding(COLLECTION_ENCODING_ZIPSET);
         bool meta_change = false;
         meta.attach.force_zipsave = true;
         int64 count = 0;
@@ -210,7 +210,7 @@ OP_NAMESPACE_BEGIN
     bool Ardb::SetIsMember(Context& ctx, ValueObject& meta, Data& element)
     {
         bool exist = false;
-        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPSET)
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPSET)
         {
             exist = meta.meta.zipset.count(element) > 0;
         }
@@ -315,7 +315,7 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         KeyLockerGuard keylock(m_key_lock, ctx.currentDB, cmd.GetArguments()[0]);
-        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPSET)
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPSET)
         {
             Data& front = *(meta.meta.zipset.begin());
             std::string tmp;
@@ -383,7 +383,7 @@ OP_NAMESPACE_BEGIN
         {
             return 0;
         }
-        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPSET)
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPSET)
         {
             DataSet::iterator it = meta.meta.zipset.begin();
             it.increment_by(random_between_int32(0, meta.meta.zipset.size()));
@@ -409,14 +409,14 @@ OP_NAMESPACE_BEGIN
         int err = GetMetaValue(ctx, cmd.GetArguments()[0], SET_META, meta);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
         int64 count = 0;
-        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.Encoding() != COLLECTION_ECODING_ZIPSET);
+        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.Encoding() != COLLECTION_ENCODING_ZIPSET);
         KeyLockerGuard keylock(m_key_lock, ctx.currentDB, cmd.GetArguments()[0]);
         bool meta_change = false;
         for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
         {
             Data element;
             element.SetString(cmd.GetArguments()[i], true);
-            if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPSET)
+            if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPSET)
             {
                 count += meta.meta.zipset.erase(element);
                 if (count > 0)
@@ -483,7 +483,7 @@ OP_NAMESPACE_BEGIN
                 DeleteKey(ctx, *store);
             }
             dest_meta.Clear();
-            dest_meta.meta.SetEncoding(COLLECTION_ECODING_ZIPSET);
+            dest_meta.meta.SetEncoding(COLLECTION_ENCODING_ZIPSET);
             dest_meta.meta.len = 0;
         }
         BatchWriteGuard guard(GetKeyValueEngine(), NULL != store);
@@ -598,7 +598,7 @@ OP_NAMESPACE_BEGIN
                 DeleteKey(ctx, *store);
             }
             dest_meta.Clear();
-            dest_meta.meta.SetEncoding(COLLECTION_ECODING_ZIPSET);
+            dest_meta.meta.SetEncoding(COLLECTION_ENCODING_ZIPSET);
             dest_meta.meta.len = 0;
         }
         if (NULL == store && NULL == count)
@@ -785,7 +785,7 @@ OP_NAMESPACE_BEGIN
             {
                 DeleteKey(ctx, *store);
                 dest_meta.Clear();
-                dest_meta.meta.SetEncoding(COLLECTION_ECODING_ZIPSET);
+                dest_meta.meta.SetEncoding(COLLECTION_ENCODING_ZIPSET);
                 dest_meta.meta.len = 0;
             }
         }
@@ -986,8 +986,8 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::SClear(Context& ctx, ValueObject& meta)
     {
-        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.Encoding() != COLLECTION_ECODING_ZIPSET);
-        if (meta.meta.Encoding() != COLLECTION_ECODING_ZIPSET)
+        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.Encoding() != COLLECTION_ENCODING_ZIPSET);
+        if (meta.meta.Encoding() != COLLECTION_ENCODING_ZIPSET)
         {
             SetIterator iter;
             SetIter(ctx, meta, meta.meta.min_index, iter, false);
@@ -1013,7 +1013,7 @@ OP_NAMESPACE_BEGIN
             fill_error_reply(ctx.reply, "no such key or some error");
             return 0;
         }
-        if (v.meta.Encoding() == COLLECTION_ECODING_ZIPSET)
+        if (v.meta.Encoding() == COLLECTION_ENCODING_ZIPSET)
         {
             DelKeyValue(tmpctx, v.key);
             v.key.encode_buf.Clear();
@@ -1031,7 +1031,7 @@ OP_NAMESPACE_BEGIN
             dstmeta.key.type = KEY_META;
             dstmeta.key.key = dstkey;
             dstmeta.type = SET_META;
-            dstmeta.meta.SetEncoding(COLLECTION_ECODING_ZIPSET);
+            dstmeta.meta.SetEncoding(COLLECTION_ENCODING_ZIPSET);
             BatchWriteGuard guard(GetKeyValueEngine());
             while (iter.Valid())
             {

@@ -151,14 +151,14 @@ OP_NAMESPACE_BEGIN
     {
         uint32 count = 0;
         int64 oldlen = meta.meta.Length();
-        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPZSET)
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPZSET)
         {
             meta.meta.zipmap[element] = score;
             if (meta.meta.zipmap.size() > 1
                     && (meta.meta.zipmap.size() > m_cfg.zset_max_ziplist_entries
                             || element.StringLength() >= m_cfg.zset_max_ziplist_value))
             {
-                meta.meta.SetEncoding(COLLECTION_ECODING_RAW);
+                meta.meta.SetEncoding(COLLECTION_ENCODING_RAW);
                 DataMap::iterator it = meta.meta.zipmap.begin();
                 BatchWriteGuard guard(GetKeyValueEngine());
                 while (it != meta.meta.zipmap.end())
@@ -265,7 +265,7 @@ OP_NAMESPACE_BEGIN
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
         uint32 count = 0;
         BatchWriteGuard guard(GetKeyValueEngine(),
-                meta.meta.Encoding() != COLLECTION_ECODING_RAW || cmd.GetArguments().size() > 3);
+                meta.meta.Encoding() != COLLECTION_ENCODING_RAW || cmd.GetArguments().size() > 3);
         for (uint32 i = 1; i < cmd.GetArguments().size(); i += 2)
         {
             Data score;
@@ -367,7 +367,7 @@ OP_NAMESPACE_BEGIN
             fill_int_reply(ctx.reply, meta.meta.Length());
             return 0;
         }
-        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPZSET)
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPZSET)
         {
             uint32 count = 0;
             DataMap::iterator it = meta.meta.zipmap.begin();
@@ -408,7 +408,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::ZSetScore(Context& ctx, ValueObject& meta, const Data& value, Data& score, Location* loc)
     {
-        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPZSET)
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPZSET)
         {
             DataMap::iterator found = meta.meta.zipmap.find(value);
             if (found == meta.meta.zipmap.end())
@@ -527,7 +527,7 @@ OP_NAMESPACE_BEGIN
             end = meta.meta.Length() - 1;
         uint32 count = 0;
         BatchWriteGuard guard(GetKeyValueEngine(), op == OP_DELETE);
-        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPZSET)
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPZSET)
         {
             ZSetElementArray array(meta.meta.zipmap.begin(), meta.meta.zipmap.end());
             std::sort(array.begin(), array.end(), reverse ? greate_by_zset_score : less_by_zset_score);
@@ -643,7 +643,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::ZSetDeleteElement(Context& ctx, ValueObject& meta, const Data& element, const Data& score)
     {
-        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPZSET)
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPZSET)
         {
             return 0;
         }
@@ -667,8 +667,8 @@ OP_NAMESPACE_BEGIN
     int Ardb::ZSetRangeByScore(Context& ctx, ValueObject& meta, const ZRangeSpec& range,
             ZSetRangeByScoreOptions& options, ZSetIterator*& iter)
     {
-        uint32 count = 0, retrived = 0;
-        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPZSET)
+        uint32 count = 0, cursor = 0,retrived = 0;
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPZSET)
         {
             ZSetElementArray array(meta.meta.zipmap.begin(), meta.meta.zipmap.end());
             std::sort(array.begin(), array.end(), options.reverse ? greate_by_zset_score : less_by_zset_score);
@@ -678,7 +678,7 @@ OP_NAMESPACE_BEGIN
                 {
                     if (OP_GET == options.op)
                     {
-                        if (count >= options.limit_option.offset)
+                        if (cursor >= options.limit_option.offset)
                         {
                             if (options.fill_reply)
                             {
@@ -715,8 +715,9 @@ OP_NAMESPACE_BEGIN
                     else if (OP_DELETE == options.op)
                     {
                         meta.meta.zipmap.erase(array[i].first);
+                        count++;
                     }
-                    count++;
+                    cursor++;
                 }
             }
         }
@@ -735,7 +736,6 @@ OP_NAMESPACE_BEGIN
             {
                 iter->SeekScore(options.reverse ? range.max : range.min);
             }
-            uint32 cursor = 0;
             while (iter->Valid())
             {
                 if (range.InRange(*(iter->Score())))
@@ -909,7 +909,7 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         uint32 rank = 0;
-        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPZSET)
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPZSET)
         {
             DataMap::iterator it = meta.meta.zipmap.begin();
             while (it != meta.meta.zipmap.end())
@@ -952,7 +952,7 @@ OP_NAMESPACE_BEGIN
     {
         Data element;
         element.SetString(value, true);
-        if (COLLECTION_ECODING_ZIPZSET == meta.meta.Encoding())
+        if (COLLECTION_ENCODING_ZIPZSET == meta.meta.Encoding())
         {
             return meta.meta.zipmap.erase(element);
         }
@@ -982,7 +982,7 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         uint32 count = 0;
-        BatchWriteGuard guard(GetKeyValueEngine(), COLLECTION_ECODING_ZIPZSET != meta.meta.Encoding());
+        BatchWriteGuard guard(GetKeyValueEngine(), COLLECTION_ENCODING_ZIPZSET != meta.meta.Encoding());
         for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
         {
             count += ZSetRem(ctx, meta, cmd.GetArguments()[i]);
@@ -1030,7 +1030,7 @@ OP_NAMESPACE_BEGIN
         meta.key.db = ctx.currentDB;
         meta.key.type = KEY_META;
         meta.key.key = cmd.GetArguments()[0];
-        meta.meta.SetEncoding(COLLECTION_ECODING_ZIPZSET);
+        meta.meta.SetEncoding(COLLECTION_ENCODING_ZIPZSET);
 
         fill_int_reply(ctx.reply, 0); //default reply value
 
@@ -1129,7 +1129,7 @@ OP_NAMESPACE_BEGIN
         DeleteKey(ctx, cmd.GetArguments()[0]);
         ValueObject meta;
         meta.type = ZSET_META;
-        meta.meta.SetEncoding(COLLECTION_ECODING_ZIPZSET);
+        meta.meta.SetEncoding(COLLECTION_ENCODING_ZIPZSET);
         meta.key.db = ctx.currentDB;
         meta.key.type = KEY_META;
         meta.key.key = cmd.GetArguments()[0];
@@ -1338,8 +1338,8 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::ZClear(Context& ctx, ValueObject& meta)
     {
-        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.Encoding() != COLLECTION_ECODING_ZIPZSET);
-        if (meta.meta.Encoding() != COLLECTION_ECODING_ZIPZSET)
+        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.Encoding() != COLLECTION_ENCODING_ZIPZSET);
+        if (meta.meta.Encoding() != COLLECTION_ENCODING_ZIPZSET)
         {
             ZSetIterator iter;
             meta.meta.len = 0;
@@ -1503,7 +1503,7 @@ OP_NAMESPACE_BEGIN
             fill_error_reply(ctx.reply, "no such key or some error");
             return 0;
         }
-        if (v.meta.Encoding() == COLLECTION_ECODING_ZIPZSET)
+        if (v.meta.Encoding() == COLLECTION_ENCODING_ZIPZSET)
         {
             DelKeyValue(tmpctx, v.key);
             v.key.encode_buf.Clear();
@@ -1522,7 +1522,7 @@ OP_NAMESPACE_BEGIN
             dstmeta.key.type = KEY_META;
             dstmeta.key.key = dstkey;
             dstmeta.type = ZSET_META;
-            dstmeta.meta.SetEncoding(COLLECTION_ECODING_ZIPZSET);
+            dstmeta.meta.SetEncoding(COLLECTION_ENCODING_ZIPZSET);
             BatchWriteGuard guard(GetKeyValueEngine());
             while (iter.Valid())
             {

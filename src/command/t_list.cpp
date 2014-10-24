@@ -48,7 +48,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::ZipListConvert(Context& ctx, ValueObject& meta)
     {
-        meta.meta.SetEncoding(COLLECTION_ECODING_RAW);
+        meta.meta.SetEncoding(COLLECTION_ENCODING_RAW);
         meta.meta.SetFlag(COLLECTION_FLAG_SEQLIST);
         meta.meta.min_index.SetInt64(0);
         meta.meta.max_index.SetInt64(meta.meta.ziplist.size() - 1);
@@ -82,7 +82,7 @@ OP_NAMESPACE_BEGIN
             ctx.reply.type = REDIS_REPLY_NIL;
             return 0;
         }
-        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPLIST)
         {
             Data* entry = GetZipEntry(meta.meta.ziplist, index);
             if (NULL != entry)
@@ -168,8 +168,8 @@ OP_NAMESPACE_BEGIN
             ctx.reply.type = REDIS_REPLY_NIL;
             return 0;
         }
-        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.Encoding() != COLLECTION_ECODING_ZIPLIST);
-        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
+        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.Encoding() != COLLECTION_ENCODING_ZIPLIST);
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPLIST)
         {
             if (!meta.meta.ziplist.empty())
             {
@@ -303,7 +303,7 @@ OP_NAMESPACE_BEGIN
         }
         if (NULL != match)
         {
-            if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
+            if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPLIST)
             {
                 Data element;
                 element.SetString(value, true);
@@ -427,7 +427,7 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-            if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
+            if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPLIST)
             {
                 Data element;
                 element.SetString(value, true);
@@ -569,7 +569,7 @@ OP_NAMESPACE_BEGIN
         ValueObject meta;
         int err = GetMetaValue(ctx, key, LIST_META, meta);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
-        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.Encoding() != COLLECTION_ECODING_ZIPLIST);
+        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.Encoding() != COLLECTION_ENCODING_ZIPLIST);
         if (0 != err && abort_nonexist)
         {
             fill_int_reply(ctx.reply, 0);
@@ -640,7 +640,7 @@ OP_NAMESPACE_BEGIN
         if (end >= meta.meta.Length())
             end = meta.meta.Length() - 1;
         int64 rangelen = (end - start) + 1;
-        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPLIST)
         {
             uint32 i = start;
             while (rangelen--)
@@ -734,7 +734,7 @@ OP_NAMESPACE_BEGIN
         Data element;
         element.SetString(cmd.GetArguments()[2], true);
         KeyLockerGuard lock(m_key_lock, ctx.currentDB, cmd.GetArguments()[0]);
-        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPLIST)
         {
             uint32 oldlen = meta.meta.ziplist.size();
             int64 removed = 0;
@@ -832,7 +832,7 @@ OP_NAMESPACE_BEGIN
             fill_error_reply(ctx.reply, "no such key");
             return 0;
         }
-        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPLIST)
         {
             Data* entry = GetZipEntry(meta.meta.ziplist, index);
             if (NULL == entry)
@@ -955,7 +955,7 @@ OP_NAMESPACE_BEGIN
             DeleteKey(ctx, cmd.GetArguments()[0]);
             return 0;
         }
-        if (meta.meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPLIST)
         {
             DataArray newzip;
             for (int64 i = start; i <= end; i++)
@@ -1189,8 +1189,8 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::LClear(Context& ctx, ValueObject& meta)
     {
-        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.Encoding() != COLLECTION_ECODING_ZIPLIST);
-        if (meta.meta.Encoding() != COLLECTION_ECODING_ZIPLIST)
+        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.Encoding() != COLLECTION_ENCODING_ZIPLIST);
+        if (meta.meta.Encoding() != COLLECTION_ENCODING_ZIPLIST)
         {
             ListIterator iter;
             meta.meta.len = 0;
@@ -1222,7 +1222,7 @@ OP_NAMESPACE_BEGIN
             fill_error_reply(ctx.reply, "no such key or some error");
             return 0;
         }
-        if (v.meta.Encoding() == COLLECTION_ECODING_ZIPLIST)
+        if (v.meta.Encoding() == COLLECTION_ENCODING_ZIPLIST)
         {
             DelKeyValue(tmpctx, v.key);
             v.key.encode_buf.Clear();
@@ -1241,7 +1241,7 @@ OP_NAMESPACE_BEGIN
             dstmeta.key.key = dstkey;
             dstmeta.type = LIST_META;
             dstmeta.meta.SetFlag(COLLECTION_FLAG_SEQLIST);
-            dstmeta.meta.SetEncoding(COLLECTION_ECODING_ZIPLIST);
+            dstmeta.meta.SetEncoding(COLLECTION_ENCODING_ZIPLIST);
             BatchWriteGuard guard(GetKeyValueEngine());
             while (iter.Valid())
             {
