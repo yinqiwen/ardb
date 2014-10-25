@@ -125,7 +125,7 @@ OP_NAMESPACE_BEGIN
             int cmd_setting_flags;
             uint8 identity;
 
-            int64& sequence;  //recv command sequence in the server, start from 1
+            int64 sequence;  //recv command sequence in the server, start from 1
             Context() :
                     transc(NULL), pubsub(NULL), lua(NULL), block(NULL), client(
                     NULL), currentDB(0), authenticated(true), data_change(false), current_cmd(NULL), current_cmd_type(
