@@ -68,10 +68,10 @@ OP_NAMESPACE_BEGIN
         ServerStatistics& stat = m_server_stats[server];
         atomic_add_uint64(&stat.refused_connections, 1);
     }
-    int Statistics::IncRecvCommands(const std::string& server)
+    int Statistics::IncRecvCommands(const std::string& server, int64& seq)
     {
         ServerStatistics& stat = m_server_stats[server];
-        atomic_add_uint64(&stat.stat_numcommands, 1);
+        seq = atomic_add_uint64(&stat.stat_numcommands, 1);
         atomic_add_uint64(&stat.instantaneous_ops, 1);
         if (stat.ops_limit > 0 && stat.instantaneous_ops >= stat.ops_limit)
         {

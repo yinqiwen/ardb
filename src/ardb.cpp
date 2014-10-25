@@ -798,6 +798,7 @@ OP_NAMESPACE_BEGIN
         atomic_add_uint64(&(setting.calls), 1);
         atomic_add_uint64(&(setting.microseconds), stop_time - start_time);
         TryPushSlowCommand(args, stop_time - start_time);
+        DEBUG_LOG("Process recved cmd[%lld] cost %lluus", ctx.sequence, stop_time - start_time);
         return ret;
     }
 
@@ -842,9 +843,9 @@ OP_NAMESPACE_BEGIN
             fill_error_reply(ctx.reply, "unknown command '%s'", args.GetCommand().c_str());
             return 0;
         }
-        DEBUG_LOG("Process recved cmd:%s with flags:%d", args.ToString().c_str(), flags);
         ctx.ClearState();
-        int err = m_stat.IncRecvCommands(ctx.server_address);
+        int err = m_stat.IncRecvCommands(ctx.server_address, ctx.sequence);
+        DEBUG_LOG("Process recved cmd[%lld]:%s with flags:%d", ctx.sequence, args.ToString().c_str(), flags);
         if (err == ERR_OVERLOAD)
         {
             /*

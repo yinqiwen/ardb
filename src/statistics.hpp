@@ -158,7 +158,7 @@ OP_NAMESPACE_BEGIN
             int StatSeekLatency(uint64 latency);
             void IncAcceptedClient(const std::string& server, int v);
             void IncRefusedConnection(const std::string& server);
-            int IncRecvCommands(const std::string& server);
+            int IncRecvCommands(const std::string& server, int64& seq);
             void TrackOperationsPerSecond();
             DBLatencyStatistics& GetLatencyStat()
             {

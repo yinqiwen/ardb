@@ -194,7 +194,7 @@ namespace ardb
         {
             m_options.compression = leveldb::kSnappyCompression;
         }
-        if(cfg.logenable)
+        if (cfg.logenable)
         {
             m_options.info_log = new LevelDBLogger;
         }
@@ -254,7 +254,12 @@ namespace ardb
     {
         leveldb::Status s = m_db->Write(leveldb::WriteOptions(), &holder.batch);
         holder.Clear();
-        return s.ok() ? 0 : -1;
+        if (!s.ok())
+        {
+            WARN_LOG("Failed to write batch data for reason:%s", s.ToString().c_str());
+            return -1;
+        }
+        return 0;
     }
 
     void LevelDBEngine::CompactRange(const Slice& begin, const Slice& end)
@@ -287,7 +292,7 @@ namespace ardb
             holder.Put(key, value);
             if (holder.count >= (uint32) m_cfg.batch_commit_watermark)
             {
-                FlushWriteBatch(holder);
+                ret = FlushWriteBatch(holder);
             }
         }
         else
@@ -325,6 +330,10 @@ namespace ardb
         else
         {
             s = m_db->Delete(leveldb::WriteOptions(), LEVELDB_SLICE(key));
+            if (!s.ok())
+            {
+                WARN_LOG("Failed to delete data for reason:%s", s.ToString().c_str());
+            }
         }
         return s.ok() ? 0 : -1;
     }

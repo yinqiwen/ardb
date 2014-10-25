@@ -293,7 +293,12 @@ namespace ardb
         options.disableWAL = m_cfg.disableWAL;
         rocksdb::Status s = m_db->Write(options, &holder.batch);
         holder.Clear();
-        return s.ok() ? 0 : -1;
+        if (!s.ok())
+        {
+            WARN_LOG("Failed to write batch data for reason:%s", s.ToString().c_str());
+            return -1;
+        }
+        return 0;
     }
 
     void RocksDBEngine::CompactRange(const Slice& begin, const Slice& end)
@@ -333,6 +338,10 @@ namespace ardb
             rocksdb::WriteOptions options;
             options.disableWAL = m_cfg.disableWAL;
             s = m_db->Put(options, ROCKSDB_SLICE(key), ROCKSDB_SLICE(value));
+            if (!s.ok())
+            {
+                WARN_LOG("Failed to write data for reason:%s", s.ToString().c_str());
+            }
         }
         return s.ok() ? 0 : -1;
     }
@@ -355,12 +364,16 @@ namespace ardb
             holder.Del(key);
             if (holder.count >= (uint32) m_cfg.batch_commit_watermark)
             {
-                FlushWriteBatch(holder);
+                return FlushWriteBatch(holder);
             }
         }
         else
         {
             s = m_db->Delete(rocksdb::WriteOptions(), ROCKSDB_SLICE(key));
+            if (!s.ok())
+            {
+                WARN_LOG("Failed to delete data for reason:%s", s.ToString().c_str());
+            }
         }
         return s.ok() ? 0 : -1;
     }
