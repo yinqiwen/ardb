@@ -1316,10 +1316,10 @@ OP_NAMESPACE_BEGIN
     {
         ValueObject meta;
         int err = GetMetaValue(ctx, cmd.GetArguments()[0], ZSET_META, meta);
+        ctx.reply.type = REDIS_REPLY_NIL;
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
         if (err != 0)
         {
-            fill_int_reply(ctx.reply, 0);
             return 0;
         }
         Data element, score;
@@ -1328,10 +1328,6 @@ OP_NAMESPACE_BEGIN
         if (0 == err)
         {
             fill_value_reply(ctx.reply, score);
-        }
-        else
-        {
-            ctx.reply.type = REDIS_REPLY_NIL;
         }
         return 0;
     }
