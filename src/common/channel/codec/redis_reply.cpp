@@ -160,6 +160,7 @@ namespace ardb
         }
         RedisReply::~RedisReply()
         {
+            DELETE(elements);
             if (self_pool)
             {
                 DELETE(pool);
