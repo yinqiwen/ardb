@@ -134,3 +134,7 @@ In basho's fork of leveldb [project](https://github.com/basho/leveldb), they giv
      + (size in NewLRUCache initialization)  
  
 If you want to limit the total memory usage, you should tweak configuration options whoose names start with `leveldb.` in ardb.conf.
+
+## Community
+
+  - Join the [mailing list](https://groups.google.com/forum/#!forum/ardb-nosql)(Subscribe via [email](mailto:ardb-nosql+subscribe@googlegroups.com))
