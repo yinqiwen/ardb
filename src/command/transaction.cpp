@@ -81,6 +81,7 @@ namespace ardb
             RedisCommandHandlerSetting* setting = FindRedisCommandHandlerSetting(*it);
             if(NULL != setting)
             {
+                transc_ctx.reply.Clear();
                 DoCall(transc_ctx, *setting, *it);
                 r.Clone(transc_ctx.reply);
             }
