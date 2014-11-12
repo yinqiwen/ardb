@@ -144,6 +144,8 @@ OP_NAMESPACE_BEGIN
             std::string conf_path;
             Properties conf_props;
 
+            int64 max_string_bitset_value;
+
             ArdbConfig() :
                     daemonize(false), unixsocketperm(755), max_clients(10000), tcp_keepalive(0), timeout(0), slowlog_log_slower_than(
                             10000), slowlog_max_len(128), repl_data_dir("./repl"), backup_dir("./backup"), backup_redis_format(
@@ -151,17 +153,18 @@ OP_NAMESPACE_BEGIN
                             1), repl_backlog_time_limit(3600), slave_cleardb_before_fullresync(true), slave_readonly(
                             true), slave_serve_stale_data(true), slave_priority(100), lua_time_limit(0), master_port(0), loglevel(
                             "INFO"), hash_max_ziplist_entries(128), hash_max_ziplist_value(256), list_max_ziplist_entries(
-                            128), list_max_ziplist_value(256), zset_max_ziplist_entries(128), zset_max_ziplist_value(256), set_max_ziplist_entries(
-                            128), set_max_ziplist_value(256), L1_zset_max_cache_size(0), L1_set_max_cache_size(0), L1_list_max_cache_size(
-                            0), L1_hash_max_cache_size(0), L1_string_max_cache_size(0), L1_zset_read_fill_cache(false), L1_zset_seek_load_cache(
-                            false), L1_set_read_fill_cache(false), L1_set_seek_load_cache(false), L1_hash_read_fill_cache(
-                            false), L1_hash_seek_load_cache(false), L1_list_read_fill_cache(false), L1_list_seek_load_cache(
-                            false), L1_string_read_fill_cache(false), check_type_before_set_string(false), hll_sparse_max_bytes(
-                            3000), compact_min_interval(1200), compact_max_interval(7200), compact_trigger_write_count(
+                            128), list_max_ziplist_value(256), zset_max_ziplist_entries(128), zset_max_ziplist_value(
+                            256), set_max_ziplist_entries(128), set_max_ziplist_value(256), L1_zset_max_cache_size(0), L1_set_max_cache_size(
+                            0), L1_list_max_cache_size(0), L1_hash_max_cache_size(0), L1_string_max_cache_size(0), L1_zset_read_fill_cache(
+                            false), L1_zset_seek_load_cache(false), L1_set_read_fill_cache(false), L1_set_seek_load_cache(
+                            false), L1_hash_read_fill_cache(false), L1_hash_seek_load_cache(false), L1_list_read_fill_cache(
+                            false), L1_list_seek_load_cache(false), L1_string_read_fill_cache(false), check_type_before_set_string(
+                            false), hll_sparse_max_bytes(3000), compact_min_interval(1200), compact_max_interval(7200), compact_trigger_write_count(
                             10000), compact_enable(true), replace_for_multi_sadd(false), replace_for_hmset(false), reply_pool_size(
                             5000), primary_port(0), slave_client_output_buffer_limit(256 * 1024 * 1024), pubsub_client_output_buffer_limit(
                             32 * 1024 * 1024), slave_ignore_expire(false), slave_ignore_del(false), repl_disable_tcp_nodelay(
-                            false), scan_redis_compatible(true), scan_cursor_expire_after(60)
+                            false), scan_redis_compatible(true), scan_cursor_expire_after(60), max_string_bitset_value(
+                            1024 * 1024)
             {
             }
             bool Parse(const Properties& props);

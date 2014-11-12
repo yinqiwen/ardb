@@ -317,6 +317,8 @@ OP_NAMESPACE_BEGIN
             int BitsetIter(Context& ctx, ValueObject& meta, int64 index, BitsetIterator& iter);
             int BitOP(Context& ctx, const std::string& op, const SliceArray& keys, const std::string* targetkey);
             int BitsAnd(Context& ctx, const SliceArray& keys);
+            int String2BitSet(Context& ctx, ValueObject& meta);
+            int StringBitSetOP(Context& ctx, uint32 op, ValueObjectArray& metas, const std::string* targetkey);
 
             int HyperloglogAdd(Context& ctx, const std::string& key, const SliceArray& members);
             int HyperloglogCountKey(Context& ctx, const std::string& key, uint64& v);

@@ -107,6 +107,76 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
+    int Ardb::String2BitSet(Context& ctx, ValueObject& meta)
+    {
+        meta.meta.str_value.ToString();
+        int len = sdslen(meta.meta.str_value.value.sv);
+        BatchWriteGuard guard(GetKeyValueEngine());
+        const char* str = meta.meta.str_value.value.sv;
+        int count = len / BIT_SUBSET_BYTES_SIZE;
+        if (len % BIT_SUBSET_BYTES_SIZE > 0)
+        {
+            count++;
+        }
+        int64 total_bit_count = 0;
+        for (int i = 0; i < count; i++)
+        {
+            ValueObject bitvalue;
+            bitvalue.key.type = BITSET_ELEMENT;
+            bitvalue.key.db = ctx.currentDB;
+            bitvalue.key.key = meta.key.key;
+            bitvalue.key.score.SetInt64(i + 1);
+            bitvalue.type = BITSET_ELEMENT;
+            int str_len = BIT_SUBSET_BYTES_SIZE;
+            if (i == count - 1)
+            {
+                str_len = len - (count - 1) * BIT_SUBSET_BYTES_SIZE;
+            }
+            Slice ss(str + i * BIT_SUBSET_BYTES_SIZE, str_len);
+            bitvalue.element.SetString(ss, false);
+            int bit_count = popcount(str + i * BIT_SUBSET_BYTES_SIZE, str_len);
+            bitvalue.score.SetInt64(bit_count);
+            SetKeyValue(ctx, bitvalue);
+            total_bit_count += bit_count;
+        }
+        meta.type = BITSET_META;
+        meta.meta.len = total_bit_count;
+        meta.meta.min_index.SetInt64(1);
+        meta.meta.max_index.SetInt64(count);
+        SetKeyValue(ctx, meta);
+        return 0;
+    }
+
+    static inline int SetStringBit(sds* str, uint64 offset, uint8 on)
+    {
+        int byte, bit;
+        int byteval, bitval;
+        byte = offset >> 3;
+        if (sdslen(*str) < (byte + 1))
+        {
+            //bitvalue.element.str.resize(byte + 1);
+            (*str) = sdsgrowzero(*str, byte + 1);
+        }
+        byteval = ((const uint8*) (*str))[byte];
+        bit = 7 - (offset & 0x7);
+        bitval = byteval & (1 << bit);
+
+        if (bitval == on)
+        {
+            return bitval;
+        }
+
+        int tmp = byteval;
+
+        byteval &= ~(1 << bit);
+        byteval |= ((on & 0x1) << bit);
+        if (byteval != tmp)
+        {
+            ((uint8_t*) (*str))[byte] = byteval;
+        }
+        return bitval == 0 ? 0 : 1;
+    }
+
     int Ardb::SetBit(Context& ctx, RedisCommandFrame& cmd)
     {
         uint64 offset;
@@ -131,109 +201,157 @@ OP_NAMESPACE_BEGIN
             return -1;
         }
         bool set_changed = false;
+        bool store_as_string = false;
         ValueObject meta;
-        int err = GetMetaValue(ctx, cmd.GetArguments()[0], BITSET_META, meta);
+        int err = GetMetaValue(ctx, cmd.GetArguments()[0], KEY_END, meta);
+        if (0 == err && meta.type != BITSET_META && meta.type != STRING_META)
+        {
+            err = ERR_INVALID_TYPE;
+        }
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
-        if (0 != err)
+
+        if (meta.type == STRING_META)
         {
-            set_changed = true;
-        }
-        uint64 index = (offset / BIT_SUBSET_SIZE) + 1;
-        if (meta.meta.min_index.IsNil() || meta.meta.min_index.value.iv > index)
-        {
-            meta.meta.min_index.SetInt64(index);
-            set_changed = true;
-        }
-        if (meta.meta.max_index.IsNil() || meta.meta.max_index.value.iv < index)
-        {
-            meta.meta.max_index.SetInt64(index);
-            set_changed = true;
-        }
-
-        offset = offset % BIT_SUBSET_SIZE;
-        byte = offset >> 3;
-
-        ValueObject bitvalue;
-        bitvalue.key.type = BITSET_ELEMENT;
-        bitvalue.key.db = ctx.currentDB;
-        bitvalue.key.key = cmd.GetArguments()[0];
-        bitvalue.key.score.SetInt64(index);
-        bitvalue.type = BITSET_ELEMENT;
-
-        bool element_changed = false;
-        GetKeyValue(ctx, bitvalue.key, &bitvalue);
-
-        bitvalue.element.encoding = STRING_ENCODING_RAW;
-        if (bitvalue.element.StringLength() < (byte + 1))
-        {
-            //bitvalue.element.str.resize(byte + 1);
-            bitvalue.element.value.sv = sdsgrowzero(bitvalue.element.value.sv, byte + 1);
-        }
-
-        /* Get current values */
-        byteval = ((const uint8*) bitvalue.element.value.sv)[byte];
-        bit = 7 - (offset & 0x7);
-        bitval = byteval & (1 << bit);
-
-        int tmp = byteval;
-
-        BatchWriteGuard guard(GetKeyValueEngine());
-        /* Update byte with new bit value and return original value */
-        byteval &= ~(1 << bit);
-        byteval |= ((on & 0x1) << bit);
-        if (byteval != tmp)
-        {
-            ((uint8_t*) bitvalue.element.value.sv)[byte] = byteval;
-            if (on == 1)
+            if (offset < m_cfg.max_string_bitset_value)
             {
-                bitvalue.score.IncrBy(1);
-                meta.meta.len++;
+                store_as_string = true;
             }
             else
             {
-                bitvalue.score.IncrBy(-1);
-                meta.meta.len--;
+                store_as_string = false;
+                String2BitSet(ctx, meta);
             }
-            set_changed = true;
-            element_changed = true;
         }
-        if (set_changed)
+        else if (meta.type == BITSET_META)
         {
+            store_as_string = false;
+        }
+        else if (0 != err)
+        {
+            if (offset < m_cfg.max_string_bitset_value)
+            {
+                store_as_string = true;
+            }
+            else
+            {
+                store_as_string = false;
+                set_changed = true;
+            }
+        }
+
+        if (!store_as_string)
+        {
+            meta.type = BITSET_META;
+            meta.key.type = BITSET_META;
+            uint64 index = (offset / BIT_SUBSET_SIZE) + 1;
+            if (meta.meta.min_index.IsNil() || meta.meta.min_index.value.iv > index)
+            {
+                meta.meta.min_index.SetInt64(index);
+                set_changed = true;
+            }
+            if (meta.meta.max_index.IsNil() || meta.meta.max_index.value.iv < index)
+            {
+                meta.meta.max_index.SetInt64(index);
+                set_changed = true;
+            }
+
+            offset = offset % BIT_SUBSET_SIZE;
+
+            ValueObject bitvalue;
+            bitvalue.key.type = BITSET_ELEMENT;
+            bitvalue.key.db = ctx.currentDB;
+            bitvalue.key.key = cmd.GetArguments()[0];
+            bitvalue.key.score.SetInt64(index);
+            bitvalue.type = BITSET_ELEMENT;
+
+            bool element_changed = false;
+            GetKeyValue(ctx, bitvalue.key, &bitvalue);
+
+            bitvalue.element.encoding = STRING_ENCODING_RAW;
+            int old_bit = SetStringBit(&(bitvalue.element.value.sv), offset, on);
+            if (old_bit != on)
+            {
+                if (on == 1)
+                {
+                    bitvalue.score.IncrBy(1);
+                    meta.meta.len++;
+                }
+                else
+                {
+                    bitvalue.score.IncrBy(-1);
+                    meta.meta.len--;
+                }
+                set_changed = true;
+                element_changed = true;
+            }
+            BatchWriteGuard guard(GetKeyValueEngine());
+            if (set_changed)
+            {
+                SetKeyValue(ctx, meta);
+            }
+            if (element_changed)
+            {
+                SetKeyValue(ctx, bitvalue);
+            }
+        }
+        else
+        {
+            meta.type = STRING_META;
+            meta.key.type = STRING_META;
+            meta.meta.str_value.ToString();
+            bitval = SetStringBit(&(meta.meta.str_value.value.sv), offset, on);
             SetKeyValue(ctx, meta);
         }
-        if (element_changed)
-        {
-            SetKeyValue(ctx, bitvalue);
-        }
+
         fill_int_reply(ctx.reply, bitval != 0 ? 1 : 0);
         return 0;
     }
 
     int Ardb::BitGet(Context& ctx, const std::string& key, uint64 bitoffset)
     {
-        uint64 index = (bitoffset / BIT_SUBSET_SIZE) + 1;
-
-        KeyObject k;
-        k.type = BITSET_ELEMENT;
-        k.db = ctx.currentDB;
-        k.key = key;
-        k.score.SetInt64(index);
-
-        ValueObject bitvalue;
-        if (-1 == GetKeyValue(ctx, k, &bitvalue))
+        std::string val;
+        ValueObject meta;
+        int err = GetMetaValue(ctx, key, KEY_END, meta);
+        fill_int_reply(ctx.reply, 0);
+        if (0 != err)
         {
             return 0;
         }
+        if (meta.type == BITSET_META)
+        {
+            uint64 index = (bitoffset / BIT_SUBSET_SIZE) + 1;
+            KeyObject k;
+            k.type = BITSET_ELEMENT;
+            k.db = ctx.currentDB;
+            k.key = key;
+            k.score.SetInt64(index);
+            ValueObject bitvalue;
+            if (-1 == GetKeyValue(ctx, k, &bitvalue))
+            {
+                return 0;
+            }
+            bitvalue.element.GetDecodeString(val);
+            bitoffset = bitoffset % BIT_SUBSET_SIZE;
+        }
+        else if (meta.type == STRING_META)
+        {
+            meta.meta.str_value.GetDecodeString(val);
+        }
+        else
+        {
+            err = ERR_INVALID_TYPE;
+            CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
+        }
+
         size_t byte, bit;
         size_t bitval = 0;
 
-        bitoffset = bitoffset % BIT_SUBSET_SIZE;
         byte = bitoffset >> 3;
-        if (byte >= bitvalue.element.StringLength())
+        if (byte >= val.size())
         {
             return 0;
         }
-        int byteval = ((const uint8_t*) bitvalue.element.value.sv)[byte];
+        int byteval = ((const uint8_t*) (&val[0]))[byte];
         bit = 7 - (bitoffset & 0x7);
         bitval = byteval & (1 << bit);
         fill_int_reply(ctx.reply, bitval != 0 ? 1 : 0);
@@ -271,6 +389,97 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
+    int Ardb::StringBitSetOP(Context& ctx, uint32 op, ValueObjectArray& metas, const std::string* targetkey)
+    {
+        uint32 maxlen = 0;
+        for (uint32 j = 0; j < metas.size(); j++)
+        {
+            metas[j].meta.str_value.ToString();
+            if (op == BITOP_AND)
+            {
+                if (metas[j].meta.str_value.StringLength() < maxlen || maxlen == 0)
+                {
+                    maxlen = metas[j].meta.str_value.StringLength();
+                }
+            }
+            else
+            {
+                if (metas[j].meta.str_value.StringLength() > maxlen)
+                {
+                    maxlen = metas[j].meta.str_value.StringLength();
+                }
+            }
+        }
+        while (maxlen % 8 != 0)
+        {
+            maxlen++;
+        }
+        if (metas[0].meta.str_value.StringLength() < maxlen)
+        {
+            metas[0].meta.str_value.value.sv = sdsgrowzero(metas[0].meta.str_value.value.sv, maxlen);
+        }
+        uint64* lres = (uint64*) (metas[0].meta.str_value.value.sv);
+        uint32 k = 1;
+        if (op == BITOP_NOT)
+        {
+            k = 0;
+        }
+        for (; k < metas.size(); k++)
+        {
+            if (metas[k].meta.str_value.StringLength() < maxlen)
+            {
+                metas[k].meta.str_value.value.sv = sdsgrowzero(metas[k].meta.str_value.value.sv, maxlen);
+            }
+            const uint64* lp = (const uint64*) (metas[k].meta.str_value.value.sv);
+            uint32 xst = 0;
+            uint32 xet = (maxlen / 8);
+            while (xst < xet)
+            {
+                switch (op)
+                {
+                    case BITOP_AND:
+                    {
+                        lres[xst] &= lp[xst];
+                        break;
+                    }
+                    case BITOP_OR:
+                    {
+                        lres[xst] |= lp[xst];
+                        break;
+                    }
+                    case BITOP_XOR:
+                    {
+                        lres[xst] ^= lp[xst];
+                        break;
+                    }
+                    case BITOP_NOT:
+                    {
+                        lres[xst] = ~lres[xst];
+                        break;
+                    }
+                    default:
+                    {
+                        break;
+                    }
+                }
+                xst++;
+            }
+        }
+        int64 count = popcount(metas[0].meta.str_value.value.sv, maxlen);
+        if (NULL != targetkey)
+        {
+            ValueObject meta;
+            meta.key.type = KEY_META;
+            meta.key.key = *targetkey;
+            meta.key.db = ctx.currentDB;
+            meta.type = STRING_META;
+            meta.meta.str_value = metas[0].meta.str_value;
+            SetKeyValue(ctx, meta);
+        }
+        fill_int_reply(ctx.reply, count);
+        return 0;
+    }
+
     int Ardb::BitOP(Context& ctx, const std::string& opname, const SliceArray& keys, const std::string* targetkey)
     {
         /* Parse the operation name. */
@@ -294,17 +503,19 @@ OP_NAMESPACE_BEGIN
             fill_error_reply(ctx.reply, "BITOP NOT must be called with a single source key.");
             return 0;
         }
-        if (NULL != targetkey)
-        {
-            DeleteKey(ctx, *targetkey);
-        }
+
         /* Lookup keys, and store pointers to the string objects into an array. */
         int64 start_index = 0, end_index = 0;
         ValueObjectArray metas;
+        metas.resize(keys.size());
+        uint8 all_type = KEY_END;
         for (uint32 j = 0; j < keys.size(); j++)
         {
-            ValueObject meta;
-            int err = GetMetaValue(ctx, keys[j], BITSET_META, meta);
+            int err = GetMetaValue(ctx, keys[j], KEY_END, metas[j]);
+            if (0 == err && metas[j].type != BITSET_META && metas[j].type != STRING_META)
+            {
+                err = ERR_INVALID_TYPE;
+            }
             CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
             if (0 != err)
             {
@@ -312,26 +523,45 @@ OP_NAMESPACE_BEGIN
                 {
                     return 0;
                 }
-                else
+            }
+            else
+            {
+                if (all_type == KEY_END)
                 {
-                    meta.type = BITSET_META;
+                    all_type = metas[j].type;
+                }
+                else if (all_type != metas[j].type)
+                {
+                    fill_error_reply(ctx.reply, "Operation against a key holding the wrong kind of value.");
+                    return 0;
                 }
             }
-            if (start_index == 0 || start_index > meta.meta.min_index.value.iv)
+            if (all_type == BITSET_META)
             {
-                start_index = meta.meta.min_index.value.iv;
+                if (start_index == 0 || start_index > metas[j].meta.min_index.value.iv)
+                {
+                    start_index = metas[j].meta.min_index.value.iv;
+                }
+                if (end_index == 0 || end_index > metas[j].meta.max_index.value.iv)
+                {
+                    end_index = metas[j].meta.max_index.value.iv;
+                }
             }
-            if (end_index == 0 || end_index > meta.meta.max_index.value.iv)
-            {
-                end_index = meta.meta.max_index.value.iv;
-            }
-            metas.push_back(meta);
+        }
+        if (NULL != targetkey)
+        {
+            DeleteKey(ctx, *targetkey);
         }
         if (start_index > end_index)
         {
             return 0;
         }
         BatchWriteGuard guard(GetKeyValueEngine(), targetkey != NULL);
+        if (all_type == STRING_META)
+        {
+            StringBitSetOP(ctx, op, metas, targetkey);
+            return 0;
+        }
         int64 total_count = 0;
         int64 min_idx = -1;
         int64 max_idx = -1;
@@ -386,7 +616,7 @@ OP_NAMESPACE_BEGIN
             }
             max_idx = i;
             std::string res = strs[0];
-            while(maxlen % 8 != 0)
+            while (maxlen % 8 != 0)
             {
                 maxlen++;
             }
@@ -403,7 +633,7 @@ OP_NAMESPACE_BEGIN
 
                 const uint64* lp = (const uint64*) (strs[k].data());
                 uint32 xst = 0;
-                uint32 xet = (maxlen/8);
+                uint32 xet = (maxlen / 8);
                 while (xst < xet)
                 {
                     switch (op)
@@ -497,7 +727,11 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         ValueObject meta;
-        int err = GetMetaValue(ctx, cmd.GetArguments()[0], BITSET_META, meta);
+        int err = GetMetaValue(ctx, cmd.GetArguments()[0], KEY_END, meta);
+        if (err == 0 && meta.type != BITSET_META && meta.type != STRING_META)
+        {
+            err = ERR_INVALID_TYPE;
+        }
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
         fill_int_reply(ctx.reply, 0);  //default value
         if (0 != err)
@@ -518,7 +752,17 @@ OP_NAMESPACE_BEGIN
                 return 0;
             }
         }
-        uint64 total_len = meta.meta.max_index.value.iv * BIT_SUBSET_SIZE;
+
+        uint64 total_len = 0;
+        if (meta.type == STRING_META)
+        {
+            meta.meta.str_value.ToString();
+            total_len = meta.meta.str_value.StringLength();
+        }
+        else
+        {
+            total_len = meta.meta.max_index.value.iv * BIT_SUBSET_BYTES_SIZE;
+        }
         if (start < 0)
             start = total_len + start;
         if (end < 0)
@@ -530,7 +774,7 @@ OP_NAMESPACE_BEGIN
         if (end >= total_len)
             end = total_len - 1;
 
-        if (start == 0 && end >= (int64) (meta.meta.max_index.value.iv * BIT_SUBSET_SIZE))
+        if (start == 0 && end >= (int64) (total_len))
         {
             fill_int_reply(ctx.reply, meta.meta.len);
             return 0;
@@ -540,10 +784,18 @@ OP_NAMESPACE_BEGIN
         {
             return 0;
         }
-        uint64 startIndex = (start / BIT_SUBSET_SIZE) + 1;
-        uint64 endIndex = (end / BIT_SUBSET_SIZE) + 1;
-        uint32 so = start % BIT_SUBSET_SIZE;
-        uint32 eo = end % BIT_SUBSET_SIZE;
+
+        if(meta.type == STRING_META)
+        {
+            count = popcount(meta.meta.str_value.value.sv + start, end - start + 1);
+            fill_int_reply(ctx.reply, count);
+            return 0;
+        }
+
+        uint64 startIndex = (start / BIT_SUBSET_BYTES_SIZE) + 1;
+        uint64 endIndex = (end / BIT_SUBSET_BYTES_SIZE) + 1;
+        uint32 so = start % BIT_SUBSET_BYTES_SIZE;
+        uint32 eo = end % BIT_SUBSET_BYTES_SIZE;
 
         BitsetIterator iter;
         BitsetIter(ctx, meta, startIndex, iter);

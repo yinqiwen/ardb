@@ -12,7 +12,7 @@ using namespace ardb;
 void test_bitset_common(Context& ctx, Ardb& db)
 {
     RedisCommandFrame del;
-    del.SetFullCommand("del mybitset");
+    del.SetFullCommand("del mybitset mykey");
     db.Call(ctx, del, 0);
 
     RedisCommandFrame setbit;
@@ -39,7 +39,28 @@ void test_bitset_common(Context& ctx, Ardb& db)
     bitcount.SetFullCommand("bitcount mybitset 0 -1");
     db.Call(ctx, bitcount, 0);
     CHECK_FATAL(ctx.reply.integer != 11, "bitcount myzset failed");
-    bitcount.SetFullCommand("bitcount mybitset 0 50000");
+    bitcount.SetFullCommand("bitcount mybitset 0 6250");
+    db.Call(ctx, bitcount, 0);
+    CHECK_FATAL(ctx.reply.integer != 6, "bitcount myzset failed");
+
+    setbit.SetFullCommand("setbit mybitset %u 1", 1024 * 1024 * 9);
+    db.Call(ctx, setbit, 0);
+    db.Call(ctx, bitcount, 0);
+    CHECK_FATAL(ctx.reply.integer != 6, "bitcount myzset failed");
+    bitcount.SetFullCommand("bitcount mybitset 0 -1");
+    db.Call(ctx, bitcount, 0);
+    CHECK_FATAL(ctx.reply.integer != 12, "bitcount myzset failed");
+
+    RedisCommandFrame set;
+    set.SetFullCommand("set mykey foobar");
+    db.Call(ctx, set, 0);
+    bitcount.SetFullCommand("bitcount mykey");
+    db.Call(ctx, bitcount, 0);
+    CHECK_FATAL(ctx.reply.integer != 26, "bitcount myzset failed");
+    bitcount.SetFullCommand("bitcount mykey 0 0");
+    db.Call(ctx, bitcount, 0);
+    CHECK_FATAL(ctx.reply.integer != 4, "bitcount myzset failed");
+    bitcount.SetFullCommand("bitcount mykey 1 1");
     db.Call(ctx, bitcount, 0);
     CHECK_FATAL(ctx.reply.integer != 6, "bitcount myzset failed");
 }
