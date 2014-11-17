@@ -188,7 +188,7 @@ OP_NAMESPACE_BEGIN
             }
             iter->Next();
         }
-        if (reachend || !iter->Valid())
+        if (NULL == iter || reachend || !iter->Valid())
         {
             fill_str_reply(r1, "0");
         }
