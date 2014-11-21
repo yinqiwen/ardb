@@ -117,6 +117,7 @@ OP_NAMESPACE_BEGIN
         std::string pattern;
         uint32 limit = 10000; //return max 10000 keys one time
         uint32 scan_count = 0;
+        uint32 scan_count_limit = 10000;
         if (cmd.GetArguments().size() > 1)
         {
             for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
@@ -177,7 +178,7 @@ OP_NAMESPACE_BEGIN
             }
             tmpkey.clear();
             tmpkey.assign(kk.key.data(), kk.key.size());
-            if (scan_count >= limit)
+            if (r2.MemberSize() >= limit || scan_count >= scan_count_limit)
             {
                 break;
             }
