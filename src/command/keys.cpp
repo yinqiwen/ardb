@@ -116,6 +116,7 @@ OP_NAMESPACE_BEGIN
         StringArray keys;
         std::string pattern;
         uint32 limit = 10000; //return max 10000 keys one time
+        uint32 scan_count = 0;
         if (cmd.GetArguments().size() > 1)
         {
             for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
@@ -176,7 +177,7 @@ OP_NAMESPACE_BEGIN
             }
             tmpkey.clear();
             tmpkey.assign(kk.key.data(), kk.key.size());
-            if (r2.MemberSize() >= limit)
+            if (scan_count >= limit)
             {
                 break;
             }
@@ -187,6 +188,7 @@ OP_NAMESPACE_BEGIN
                 fill_str_reply(rr1, tmpkey);
             }
             iter->Next();
+            scan_count++;
         }
         if (NULL == iter || reachend || !iter->Valid())
         {
