@@ -75,9 +75,11 @@ namespace ardb
     void fill_value_reply(RedisReply& reply, const Data& v)
     {
         reply.type = REDIS_REPLY_STRING;
-        std::string str;
-        v.GetDecodeString(str);
-        reply.str = str;
+        v.GetDecodeString(reply.str);
+    }
+    void fill_value_reply(RedisReply& reply, const Data* v)
+    {
+        return fill_value_reply(reply, *v);
     }
 
     bool check_uint32_arg(RedisReply& reply, const std::string& arg, uint32& v)

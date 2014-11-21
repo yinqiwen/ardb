@@ -643,7 +643,7 @@ OP_NAMESPACE_BEGIN
         if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPLIST)
         {
             uint32 i = start;
-            while (rangelen--)
+            while (rangelen-- && i < meta.meta.ziplist.size())
             {
                 RedisReply& r = ctx.reply.AddMember();
                 fill_value_reply(r, meta.meta.ziplist[i++]);
@@ -659,7 +659,7 @@ OP_NAMESPACE_BEGIN
                 while (iter.Valid() && count < rangelen)
                 {
                     RedisReply& r = ctx.reply.AddMember();
-                    fill_str_reply(r, iter.Element()->ToString());
+                    fill_value_reply(r, iter.Element());
                     count++;
                     iter.Next();
                 }
@@ -679,7 +679,7 @@ OP_NAMESPACE_BEGIN
                     if (cursor >= start && cursor <= end)
                     {
                         RedisReply& r = ctx.reply.AddMember();
-                        fill_str_reply(r, iter.Element()->ToString());
+                        fill_value_reply(r, iter.Element());
                     }
                     if (start < 0)
                     {
