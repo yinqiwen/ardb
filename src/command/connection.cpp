@@ -47,9 +47,9 @@ OP_NAMESPACE_BEGIN
     int Ardb::Select(Context& ctx, RedisCommandFrame& cmd)
     {
         uint32 newdb = 0;
-        if (!string_touint32(cmd.GetArguments()[0], newdb) || newdb > 0xFFFFFF)
+        if (!string_touint32(cmd.GetArguments()[0], newdb) || newdb >= m_cfg.maxdb)
         {
-            fill_error_reply(ctx.reply, "value is not an integer or out of range");
+            fill_error_reply(ctx.reply, "invalid DB index");
             return 0;
         }
         ctx.currentDB = newdb;

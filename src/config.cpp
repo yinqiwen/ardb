@@ -45,6 +45,11 @@ OP_NAMESPACE_BEGIN
             ERROR_LOG("[Config]Password is longer than %u", ARDB_AUTHPASS_MAX_LEN);
             return false;
         }
+        if (cfg.maxdb > 0xFFFFFF)
+        {
+            ERROR_LOG("[Config]databases is greater than %u", 0xFFFFFF);
+            return false;
+        }
         return true;
     }
     bool ArdbConfig::Parse(const Properties& props)
@@ -272,6 +277,8 @@ OP_NAMESPACE_BEGIN
         conf_get_int64(props, "scan-cursor-expire-after", scan_cursor_expire_after);
 
         conf_get_int64(props, "max-string-bitset-value", max_string_bitset_value);
+
+        conf_get_int64(props, "databases", maxdb);
 
         trusted_ip.clear();
         Properties::const_iterator ip_it = props.find("trusted-ip");

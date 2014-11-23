@@ -115,9 +115,8 @@ OP_NAMESPACE_BEGIN
     {
         StringArray keys;
         std::string pattern;
-        uint32 limit = 10000; //return max 10000 keys one time
-        uint32 scan_count = 0;
-        uint32 scan_count_limit = 10000;
+        uint32 limit = 1000; //return max 1000 keys one time
+
         if (cmd.GetArguments().size() > 1)
         {
             for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
@@ -148,6 +147,8 @@ OP_NAMESPACE_BEGIN
                 }
             }
         }
+        uint32 scan_count_limit = limit * 10;
+        uint32 scan_count = 0;
         RedisReply& r1 = ctx.reply.AddMember();
         RedisReply& r2 = ctx.reply.AddMember();
         r2.type = REDIS_REPLY_ARRAY;
