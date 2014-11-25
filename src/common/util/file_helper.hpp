@@ -55,7 +55,7 @@ namespace ardb
 
     int sha1sum_file(const std::string& file, std::string& hash);
 
-    std::string real_path(const std::string& path);
+    int real_path(const std::string& path, std::string& real_path);
 
     bool is_valid_fd(int fd);
 }

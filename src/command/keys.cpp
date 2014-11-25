@@ -56,7 +56,7 @@ OP_NAMESPACE_BEGIN
 
         std::string min_key, max_key, randkey;
         Iterator* iter = IteratorKeyValue(from, false);
-        if (iter->Valid())
+        if (NULL != iter && iter->Valid())
         {
             KeyObject kk;
             if (!decode_key(iter->Key(), kk) || kk.db != ctx.currentDB || kk.type != KEY_META)

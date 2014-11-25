@@ -347,12 +347,16 @@ namespace ardb
         return 0;
     }
 
-    std::string real_path(const std::string& path)
+    int real_path(const std::string& path, std::string& real_path)
     {
         char* tmp = realpath(path.c_str(), NULL);
-        std::string newpath(tmp);
-        free(tmp);
-        return newpath;
+        if(NULL != tmp)
+        {
+            real_path.assign(tmp);
+            free(tmp);
+            return 0;
+        }
+        return errno;
     }
 
     bool is_valid_fd(int fd)

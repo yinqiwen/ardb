@@ -61,7 +61,19 @@ OP_NAMESPACE_BEGIN
             home = "../ardb";
         }
         make_dir(home);
-        home = real_path(home);
+        int err = real_path(home, home);
+        if (0 != err)
+        {
+            ERROR_LOG("Invalid 'home' config:%s for reason:%s", home.c_str(), strerror(err));
+            return false;
+        }
+        err = access(home.c_str(), R_OK | W_OK);
+        if (0 != err)
+        {
+            err = errno;
+            ERROR_LOG("Invalid 'home' config:%s for reason:%s", home.c_str(), strerror(err));
+            return false;
+        }
 
         setenv("ARDB_HOME", home.c_str(), 1);
         replace_env_var(const_cast<Properties&>(props));
@@ -137,7 +149,13 @@ OP_NAMESPACE_BEGIN
         conf_get_string(props, "repl-dir", repl_data_dir);
         make_dir(repl_data_dir);
         make_dir(backup_dir);
-        repl_data_dir = real_path(repl_data_dir);
+
+        err = real_path(repl_data_dir, repl_data_dir);
+        if (0 != err)
+        {
+            ERROR_LOG("Invalid 'repl-dir' config:%s for reason:%s", repl_data_dir.c_str(), strerror(err));
+            return false;
+        }
 
         std::string backup_file_format;
         conf_get_string(props, "backup-file-format", backup_file_format);
@@ -233,8 +251,12 @@ OP_NAMESPACE_BEGIN
             data_base_path = ".";
         }
         make_dir(data_base_path);
-        data_base_path = real_path(data_base_path);
-
+        err = real_path(data_base_path, data_base_path);
+        if (0 != err)
+        {
+            ERROR_LOG("Invalid 'data-dir' config:%s for reason:%s", data_base_path.c_str(), strerror(err));
+            return false;
+        }
         conf_get_string(props, "additional-misc-info", additional_misc_info);
 
         conf_get_string(props, "requirepass", requirepass);
