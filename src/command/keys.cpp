@@ -654,6 +654,7 @@ OP_NAMESPACE_BEGIN
         {
             return 0;
         }
+        meta.key.meta_type = meta.type;
         switch (meta.type)
         {
             case SET_META:
