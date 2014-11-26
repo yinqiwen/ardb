@@ -973,7 +973,7 @@ namespace ardb
             }
             default:
             {
-                ERROR_LOG("Unknown object type");
+                ERROR_LOG("Unknown object type:%d", rdbtype);
                 abort();
             }
         }
