@@ -1,5 +1,5 @@
 /*
- *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
+ *Copyright (c) 2013-2014, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
  *Redistribution and use in source and binary forms, with or without
@@ -26,32 +26,30 @@
  *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF 
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
+#ifndef WIREDTIGER_ENGINE_HPP_
+#define WIREDTIGER_ENGINE_HPP_
 
-#ifndef LMDB_ENGINE_HPP_
-#define LMDB_ENGINE_HPP_
-
-#include "lmdb.h"
 #include "engine.hpp"
-#include "channel/all_includes.hpp"
+#include "operation.hpp"
 #include "util/config_helper.hpp"
+#include "thread/thread.hpp"
 #include "thread/thread_local.hpp"
 #include "thread/thread_mutex_lock.hpp"
 #include "thread/event_condition.hpp"
 #include "util/concurrent_queue.hpp"
-#include "operation.hpp"
 #include <stack>
+#include <wiredtiger.h>
 
 namespace ardb
 {
-    class LMDBEngine;
-    class LMDBIterator: public Iterator
+    class WiredTigerEngine;
+    class WiredTigerIterator: public Iterator
     {
         private:
-            LMDBEngine *m_engine;
-            MDB_cursor * m_cursor;
-            MDB_val m_key;
-            MDB_val m_value;
-            bool m_valid;
+            WiredTigerEngine* m_engine;
+            WT_CURSOR* m_iter;
+            WT_ITEM m_key_item, m_value_item;
+            int m_iter_ret;
             void Next();
             void Prev();
             Slice Key() const;
@@ -60,99 +58,105 @@ namespace ardb
             void SeekToFirst();
             void SeekToLast();
             void Seek(const Slice& target);
-            friend class LMDBEngine;
         public:
-            LMDBIterator(LMDBEngine * e, MDB_cursor* iter, bool valid = true) :
-                    m_engine(e), m_cursor(iter), m_valid(valid)
+            WiredTigerIterator(WiredTigerEngine* engine, WT_CURSOR* iter) :
+                    m_engine(engine), m_iter(iter), m_iter_ret(0)
             {
-                if (valid)
-                {
-                    int rc = mdb_cursor_get(m_cursor, &m_key, &m_value, MDB_GET_CURRENT);
-                    m_valid = rc == 0;
-                }
+
             }
-            ~LMDBIterator();
+            ~WiredTigerIterator();
     };
 
-    struct LMDBConfig
+    struct WiredTigerConfig
     {
             std::string path;
-            int64 max_db_size;
             int64 batch_commit_watermark;
-            bool readahead;
-            LMDBConfig() :
-                    max_db_size(10 * 1024 * 1024 * 1024LL), batch_commit_watermark(1024),readahead(false)
+            std::string init_options;
+            std::string init_table_options;
+            bool logenable;
+            WiredTigerConfig() :
+                    batch_commit_watermark(1024), logenable(false)
             {
             }
     };
-
-
-    class LMDBEngineFactory;
-    class LMDBEngine: public KeyValueEngine, public Runnable
+    class WiredTigerEngineFactory;
+    class WiredTigerEngine: public KeyValueEngine
     {
         private:
-            MDB_env *m_env;
-            MDB_dbi m_dbi;
-            struct LMDBContext
+            WT_CONNECTION* m_db;
+            struct ContextHolder
             {
-                    MDB_txn *readonly_txn;
-                    uint32 batch_write;
-                    uint32 readonly_txn_ref;
+                    uint32 trasc_ref;
+                    uint32 batch_ref;
+                    bool readonly_transc;
+                    WT_SESSION* session;
+                    WT_CURSOR* batch;
+                    uint32 batch_write_count;
                     EventCondition cond;
-                    LMDBContext() :
-                            readonly_txn(NULL),batch_write(0),readonly_txn_ref(0)
+                    WiredTigerEngine* engine;
+                    void ReleaseTranscRef();
+                    void AddTranscRef();
+                    void AddBatchRef();
+                    void ReleaseBatchRef();
+                    void IncBatchWriteCount();
+                    void RestartBatchWrite();
+                    bool EmptyBatchRef()
+                    {
+                        return batch_ref == 0;
+                    }
+                    ContextHolder() :
+                            trasc_ref(0), batch_ref(0), readonly_transc(true),session(NULL), batch(NULL), batch_write_count(0),engine(NULL)
                     {
                     }
             };
-            ThreadLocal<LMDBContext> m_ctx_local;
+            ThreadLocal<ContextHolder> m_context;
             std::string m_db_path;
 
-            LMDBConfig m_cfg;
+            WiredTigerConfig m_cfg;
 
-            MPSCQueue<WriteOperation*> m_write_queue;
-            ThreadMutexLock m_queue_cond;
-            volatile bool m_running;
-            Thread* m_background;
-            friend class LMDBIterator;
-            void Run();
-            void CloseTransaction();
-            void NotifyBackgroundThread();
+            //MPSCQueue<WriteOperation*> m_write_queue;
+            //ThreadMutexLock m_queue_cond;
+            //volatile bool m_running;
+            //Thread* m_background;
+
+            friend class WiredTigerEngineFactory;
+            friend class WiredTigerIterator;
+
+            //void Run();
+            //void NotifyBackgroundThread();
+            //void WaitWriteComplete(ContextHolder& holder);
+            ContextHolder& GetContextHolder();
+            void Close();
         public:
-            LMDBEngine();
-            ~LMDBEngine();
-            int Init(const LMDBConfig& cfg, MDB_env *env, const std::string& name);
+            WiredTigerEngine();
+            ~WiredTigerEngine();
+            int Init(const WiredTigerConfig& cfg);
             int Put(const Slice& key, const Slice& value, const Options& options);
             int Get(const Slice& key, std::string* value, const Options& options);
             int Del(const Slice& key, const Options& options);
             int BeginBatchWrite();
             int CommitBatchWrite();
             int DiscardBatchWrite();
-            const std::string Stats();
             Iterator* Find(const Slice& findkey, const Options& options);
-            void Close();
-            void Clear();
+            const std::string Stats();
+            void CompactRange(const Slice& begin, const Slice& end);
             int MaxOpenFiles();
-
     };
 
-    class LMDBEngineFactory: public KeyValueEngineFactory
+    class WiredTigerEngineFactory: public KeyValueEngineFactory
     {
         private:
-            LMDBConfig m_cfg;
-            MDB_env *m_env;
-            bool m_env_opened;
-            static void ParseConfig(const Properties& props, LMDBConfig& cfg);
+            WiredTigerConfig m_cfg;
+            static void ParseConfig(const Properties& props, WiredTigerConfig& cfg);
         public:
-            LMDBEngineFactory(const Properties& cfg);
+            WiredTigerEngineFactory(const Properties& cfg);
             KeyValueEngine* CreateDB(const std::string& name);
             void DestroyDB(KeyValueEngine* engine);
             void CloseDB(KeyValueEngine* engine);
             const std::string GetName()
             {
-                return "LMDB";
+                return "WiredTiger";
             }
-            ~LMDBEngineFactory();
     };
 }
-
-#endif /* LMDB_ENGINE_HPP_ */
+#endif

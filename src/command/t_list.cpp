@@ -135,6 +135,7 @@ OP_NAMESPACE_BEGIN
                     {
                         iter.Prev();
                     }
+                    INFO_LOG("####%s", iter.Element()->ToString());
                 }
             }
             ctx.reply.type = REDIS_REPLY_NIL;
@@ -787,11 +788,6 @@ OP_NAMESPACE_BEGIN
             {
                 meta.meta.len--;
                 meta.meta.SetFlag(COLLECTION_FLAG_NORMAL);
-                KeyObject k;
-                k.db = meta.key.db;
-                k.key = meta.key.key;
-                k.type = LIST_ELEMENT;
-                k.score = *(iter.Score());
                 DelRaw(ctx, iter.CurrentRawKey());
                 //DelKeyValue(ctx, k);
                 remove++;

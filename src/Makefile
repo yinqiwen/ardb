@@ -64,6 +64,11 @@ ROCKSDB_PATH=${LIB_PATH}/${ROCKSDB_VER}
 ROCKSDB_FILE=${ROCKSDB_PATH}.tar.gz
 ROCKSDB_LIBA=${ROCKSDB_PATH}/librocksdb.a
 
+WIREDTIGER_VER=wiredtiger-2.4.1
+WIREDTIGER_PATH=${LIB_PATH}/${WIREDTIGER_VER}
+WIREDTIGER_FILE=${WIREDTIGER_PATH}.tar.bz2
+WIREDTIGER_LIBA=${WIREDTIGER_PATH}/.libs/libwiredtiger.a
+
 ZOOKEEPER_VER=zookeeper-3.4.5
 ZOOKEEPER_PATH=${LIB_PATH}/${ZOOKEEPER_VER}
 ZOOKEEPER_FILE=${ZOOKEEPER_PATH}.tar.gz
@@ -144,7 +149,8 @@ CORE_OBJECTS := ardb.o codec.o comparator.o config.o cron.o logger.o iterator.o 
 
 LEVELDB_ENGINE :=  engine/leveldb_engine.o    
 ROCKSDB_ENGINE :=  engine/rocksdb_engine.o        
-LMDB_ENGINE :=  engine/lmdb_engine.o     
+LMDB_ENGINE :=  engine/lmdb_engine.o   
+WIREDTIGER_ENGINE :=  engine/wiredtiger_engine.o   
 TESTOBJ := ../test/test_suite.o
 SERVEROBJ := main.o
 
@@ -176,9 +182,18 @@ ifeq ($(storage_engine), rocksdb)
   LIBS:= ${ROCKSDB_LIBA} ${SNAPPY_LIBA} ${LIBS} -lz -lbz2 -lrt
   CXXFLAGS+=-D__USE_ROCKSDB__ -std=c++11
 else
+ifeq ($(storage_engine), wiredtiger)
+  STORAGE_ENGINE_OBJ=${WIREDTIGER_ENGINE}
+  STORAGE_ENGINE=$(WIREDTIGER_LIBA)
+  STORAGE_ENGINE_PATH=$(WIREDTIGER_PATH)
+  INCS+=-I${WIREDTIGER_PATH}
+  LIBS:= ${WIREDTIGER_LIBA} ${SNAPPY_LIBA} ${LIBS} -lrt -ldl
+  CXXFLAGS+=-D__USE_WIREDTIGER__
+else
   $(error Only leveldb/lmdb/rocksdb supported as env storage_engine value)
 endif
 endif 
+endif
 endif
 
 
@@ -280,6 +295,21 @@ $(ROCKSDB_PATH):
 	cd ${LIB_PATH} && \
 	tar zxf ${ROCKSDB_FILE} && \
 	echo "<<<<< Done unpacking LEVELDB"
+	
+.PHONY: wiredtiger
+wiredtiger: $(WIREDTIGER_LIBA)
+$(WIREDTIGER_LIBA): $(SNAPPY_LIBA) $(WIREDTIGER_PATH)
+	echo ">>>>> Building WiredTiger" && \
+	cd ${WIREDTIGER_PATH} && \
+	env CPPFLAGS="-I${SNAPPY_PATH}" LDFLAGS="-L${SNAPPY_PATH}/.libs" ./configure --enable-snappy && \
+	make libwiredtiger.la && \
+	echo "<<<<< Done building WiredTiger"
+
+$(WIREDTIGER_PATH):
+	echo ">>>>> Unpacking WiredTiger" && \
+	cd ${LIB_PATH} && \
+	tar jxf ${WIREDTIGER_FILE} && \
+	echo "<<<<< Done unpacking WiredTiger"
 
 .PHONY: lua
 lua: $(LUA_LIBA)

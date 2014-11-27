@@ -34,6 +34,9 @@ typedef ardb::LMDBEngineFactory SelectedDBEngineFactory;
 #elif defined __USE_ROCKSDB__
 #include "engine/rocksdb_engine.hpp"
 typedef ardb::RocksDBEngineFactory SelectedDBEngineFactory;
+#elif defined __USE_WIREDTIGER__
+#include "engine/wiredtiger_engine.hpp"
+typedef ardb::WiredTigerEngineFactory SelectedDBEngineFactory;
 #else
 #include "engine/leveldb_engine.hpp"
 typedef ardb::LevelDBEngineFactory SelectedDBEngineFactory;

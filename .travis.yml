@@ -10,7 +10,7 @@ before_install:
  - sudo apt-get install -y -qq gcc-4.8 g++-4.8 
  - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 50
  - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.8 50
-script: make && ./src/ardb-test && storage_engine=leveldb make && ./src/ardb-test && storage_engine=lmdb make && ./src/ardb-test
+script: make && ./src/ardb-test && storage_engine=leveldb make && ./src/ardb-test && storage_engine=lmdb make && ./src/ardb-test && storage_engine=wiredtiger make && ./src/ardb-test
 branches:
   only:
     - master

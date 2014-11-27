@@ -6,10 +6,11 @@ Ardb is a BSD licensed, redis-protocol compatible persistent nosql, it support m
 ## Compile
 Rocksdb is the default storage engine, to compile with rocksdb, just type `make` to compile server & lib & tests.
 
-To use LMDB or LevelDB as storage engine, you should set env `storage_engine` first.
+To use LMDB or LevelDB or WiredTiger as storage engine, you should set env `storage_engine` first.
 	
 	storage_engine=lmdb make
 	storage_engine=leveldb make
+    storage_engine=wiredtiger make
 
 It should compile to several executables in `src` directory, such as ardb-server, ardb-test etc.
 	
