@@ -13,6 +13,9 @@ typedef ardb::LMDBEngineFactory SelectedDBEngineFactory;
 #define _DB_PATH "RocksDB"
 #include "engine/rocksdb_engine.hpp"
 typedef ardb::RocksDBEngineFactory SelectedDBEngineFactory;
+#elif defined __USE_WIREDTIGER__
+#include "engine/wiredtiger_engine.hpp"
+typedef ardb::WiredTigerEngineFactory SelectedDBEngineFactory;
 #else
 #include "engine/leveldb_engine.hpp"
 typedef ardb::LevelDBEngineFactory SelectedDBEngineFactory;
@@ -38,6 +41,7 @@ int main(int argc, char** argv)
 	Properties cfg;
 	std::string path = "/tmp/ardb/";
 	conf_set(cfg, "data-dir", "/tmp/ardb/");
+	conf_set(cfg, "wiredtiger.init_options", "create,cache_size=500M,statistics=(fast)");
 	ArdbConfig ccfg;
 	ccfg.home = path;
 	ArdbLogger::SetLogLevel("INFO");
