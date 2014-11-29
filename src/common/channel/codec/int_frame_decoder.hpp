@@ -63,7 +63,7 @@ namespace ardb
 					buffer.Read(&msg, sizeof(uint64));
 					if (m_header_network_order)
 					{
-						msg = ntohll(msg);
+						msg = ntoh_u64(msg);
 					}
 					return true;
 				}

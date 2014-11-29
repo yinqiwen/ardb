@@ -221,7 +221,7 @@ namespace ardb
         return get_host_address(inetaddr);
     }
 
-    uint64 htonll(uint64 v)
+    uint64 hton_u64(uint64 v)
     {
         int num = 42;
         //big or little
@@ -238,9 +238,9 @@ namespace ardb
 
     }
 
-    uint64 ntohll(uint64 v)
+    uint64 ntoh_u64(uint64 v)
     {
-        return htonll(v);
+        return hton_u64(v);
     }
 
     int get_ip_by_nic_name(const std::string& ifName, std::string& ip)
