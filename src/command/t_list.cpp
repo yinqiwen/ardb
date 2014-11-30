@@ -135,7 +135,6 @@ OP_NAMESPACE_BEGIN
                     {
                         iter.Prev();
                     }
-                    INFO_LOG("####%s", iter.Element()->ToString());
                 }
             }
             ctx.reply.type = REDIS_REPLY_NIL;
