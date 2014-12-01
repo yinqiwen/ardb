@@ -67,7 +67,7 @@ ROCKSDB_LIBA=${ROCKSDB_PATH}/librocksdb.a
 WIREDTIGER_VER=wiredtiger-2.4.1
 WIREDTIGER_PATH=${LIB_PATH}/${WIREDTIGER_VER}
 WIREDTIGER_FILE=${WIREDTIGER_PATH}.tar.bz2
-WIREDTIGER_LIBA=${WIREDTIGER_PATH}/.libs/libwiredtiger.a
+WIREDTIGER_LIBA=${WIREDTIGER_PATH}/build_dist/lib/libwiredtiger.a
 
 ZOOKEEPER_VER=zookeeper-3.4.5
 ZOOKEEPER_PATH=${LIB_PATH}/${ZOOKEEPER_VER}
@@ -301,8 +301,8 @@ wiredtiger: $(WIREDTIGER_LIBA)
 $(WIREDTIGER_LIBA): $(SNAPPY_LIBA) $(WIREDTIGER_PATH)
 	echo ">>>>> Building WiredTiger" && \
 	cd ${WIREDTIGER_PATH} && \
-	env CPPFLAGS="-I${SNAPPY_PATH}" LDFLAGS="-L${SNAPPY_PATH}/.libs" ./configure --enable-snappy && \
-	make libwiredtiger.la && \
+	CPPFLAGS="-I${SNAPPY_PATH}" LDFLAGS="-L${SNAPPY_PATH}/.libs" ./configure --enable-snappy --prefix=${WIREDTIGER_PATH}/build_dist && \
+	make && make install && \
 	echo "<<<<< Done building WiredTiger"
 
 $(WIREDTIGER_PATH):
