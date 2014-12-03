@@ -69,7 +69,7 @@ OP_NAMESPACE_BEGIN
             {
                 meta.meta.SetEncoding(COLLECTION_ENCODING_RAW);
                 DataSet::iterator it = meta.meta.zipset.begin();
-                BatchWriteGuard guard(GetKeyValueEngine());
+                BatchWriteGuard guard(ctx);
                 while (it != meta.meta.zipset.end())
                 {
                     ValueObject v;
@@ -110,7 +110,8 @@ OP_NAMESPACE_BEGIN
                 meta.meta.len = -1;
                 meta_change = true;
             }
-            SetKeyValue(ctx, v);
+            int err = SetKeyValue(ctx, v);
+            CHECK_WRITE_RETURN_VALUE(ctx, err);
             count++;
         }
         return count;
@@ -138,7 +139,8 @@ OP_NAMESPACE_BEGIN
         }
         if (meta_change)
         {
-            SetKeyValue(ctx, meta);
+            int err = SetKeyValue(ctx, meta);
+            CHECK_WRITE_RETURN_VALUE(ctx, err);
         }
         fill_int_reply(ctx.reply, count);
         return 0;
@@ -151,7 +153,7 @@ OP_NAMESPACE_BEGIN
             SReplace(ctx, cmd);
             return 0;
         }
-        BatchWriteGuard guard(GetKeyValueEngine());
+        BatchWriteGuard guard(ctx);
         KeyLockerGuard keylock(m_key_lock, ctx.currentDB, cmd.GetArguments()[0]);
         ValueObject meta;
         int err = GetMetaValue(ctx, cmd.GetArguments()[0], SET_META, meta);
@@ -195,7 +197,8 @@ OP_NAMESPACE_BEGIN
                 iter.Next();
             }
             meta.meta.len = count;
-            SetKeyValue(ctx, meta);
+            err = SetKeyValue(ctx, meta);
+            CHECK_WRITE_RETURN_VALUE(ctx, err);
             fill_int_reply(ctx.reply, meta.meta.Length());
         }
         return 0;
@@ -269,7 +272,8 @@ OP_NAMESPACE_BEGIN
         if (meta.meta.len == -1)
         {
             meta.meta.len = count;
-            SetKeyValue(ctx, meta);
+            err = SetKeyValue(ctx, meta);
+            CHECK_WRITE_RETURN_VALUE(ctx, err);
         }
         return 0;
     }
@@ -322,7 +326,8 @@ OP_NAMESPACE_BEGIN
             fill_str_reply(ctx.reply, front.GetDecodeString(tmp));
             meta.meta.zipset.erase(meta.meta.zipset.begin());
             meta.meta.len = meta.meta.zipset.size();
-            SetKeyValue(ctx, meta);
+            err = SetKeyValue(ctx, meta);
+            CHECK_WRITE_RETURN_VALUE(ctx, err);
         }
         else
         {
@@ -330,7 +335,7 @@ OP_NAMESPACE_BEGIN
             SetIter(ctx, meta, meta.meta.min_index, iter, false);
             uint32 count = 0;
             bool min_changed = false;
-            BatchWriteGuard guard(GetKeyValueEngine());
+            BatchWriteGuard guard(ctx);
             while (iter.Valid())
             {
                 if (count == 0)
@@ -409,7 +414,7 @@ OP_NAMESPACE_BEGIN
         int err = GetMetaValue(ctx, cmd.GetArguments()[0], SET_META, meta);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
         int64 count = 0;
-        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.Encoding() != COLLECTION_ENCODING_ZIPSET);
+        BatchWriteGuard guard(ctx, meta.meta.Encoding() != COLLECTION_ENCODING_ZIPSET);
         KeyLockerGuard keylock(m_key_lock, ctx.currentDB, cmd.GetArguments()[0]);
         bool meta_change = false;
         for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
@@ -442,7 +447,8 @@ OP_NAMESPACE_BEGIN
         }
         if (meta_change)
         {
-            SetKeyValue(ctx, meta);
+            err = SetKeyValue(ctx, meta);
+            CHECK_WRITE_RETURN_VALUE(ctx, err);
         }
         fill_int_reply(ctx.reply, count);
         return 0;
@@ -486,7 +492,7 @@ OP_NAMESPACE_BEGIN
             dest_meta.meta.SetEncoding(COLLECTION_ENCODING_ZIPSET);
             dest_meta.meta.len = 0;
         }
-        BatchWriteGuard guard(GetKeyValueEngine(), NULL != store);
+        BatchWriteGuard guard(ctx, NULL != store);
         ValueObjectArray diff_metas;
         StringSet::iterator sit = keys.begin();
         while (sit != keys.end())
@@ -631,7 +637,7 @@ OP_NAMESPACE_BEGIN
         {
             return 0;
         }
-        BatchWriteGuard guard(GetKeyValueEngine(), NULL != store);
+        BatchWriteGuard guard(ctx, NULL != store);
         Data max_min, min_max;
         for (uint32 i = 0; i < metas.size(); i++)
         {
@@ -802,7 +808,7 @@ OP_NAMESPACE_BEGIN
             }
             sit++;
         }
-        BatchWriteGuard guard(GetKeyValueEngine(), NULL != store);
+        BatchWriteGuard guard(ctx, NULL != store);
         DataSet tmpset;
         for (uint32 i = 0; i < metas.size(); i++)
         {
@@ -986,7 +992,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::SClear(Context& ctx, ValueObject& meta)
     {
-        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.Encoding() != COLLECTION_ENCODING_ZIPSET);
+        BatchWriteGuard guard(ctx, meta.meta.Encoding() != COLLECTION_ENCODING_ZIPSET);
         if (meta.meta.Encoding() != COLLECTION_ENCODING_ZIPSET)
         {
             SetIterator iter;
@@ -997,7 +1003,8 @@ OP_NAMESPACE_BEGIN
                 iter.Next();
             }
         }
-        DelKeyValue(ctx, meta.key);
+        int err = DelKeyValue(ctx, meta.key);
+        CHECK_WRITE_RETURN_VALUE(ctx, err);
         return 0;
     }
 
@@ -1015,12 +1022,14 @@ OP_NAMESPACE_BEGIN
         }
         if (v.meta.Encoding() == COLLECTION_ENCODING_ZIPSET)
         {
-            DelKeyValue(tmpctx, v.key);
+            err = DelKeyValue(tmpctx, v.key);
+            CHECK_WRITE_RETURN_VALUE(ctx, err);
             v.key.encode_buf.Clear();
             v.key.db = dstdb;
             v.key.key = dstkey;
             v.meta.expireat = 0;
-            SetKeyValue(ctx, v);
+            err = SetKeyValue(ctx, v);
+            CHECK_WRITE_RETURN_VALUE(ctx, err);
         }
         else
         {
@@ -1032,7 +1041,7 @@ OP_NAMESPACE_BEGIN
             dstmeta.key.key = dstkey;
             dstmeta.type = SET_META;
             dstmeta.meta.SetEncoding(COLLECTION_ENCODING_ZIPSET);
-            BatchWriteGuard guard(GetKeyValueEngine());
+            BatchWriteGuard guard(ctx);
             while (iter.Valid())
             {
                 bool tmp;

@@ -773,7 +773,7 @@ namespace ardb
     {
         Context& tmpctx = *m_dump_ctx;
         tmpctx.currentDB = m_current_db;
-        BatchWriteGuard guard(m_db->GetKeyValueEngine());
+        BatchWriteGuard guard(tmpctx);
         switch (rdbtype)
         {
             case REDIS_RDB_TYPE_STRING:
@@ -1012,7 +1012,8 @@ namespace ardb
         std::string key;
 
         m_current_db = 0;
-        BatchWriteGuard guard(m_db->GetKeyValueEngine());
+        Context& tmpctx = *m_dump_ctx;
+        BatchWriteGuard guard(tmpctx);
         if (!Read(buf, 9, true))
             goto eoferr;
         buf[9] = '\0';
@@ -1450,7 +1451,7 @@ namespace ardb
         k.db = 0;
         k.type = KEY_META;
         Context& tmpctx = *m_dump_ctx;
-        BatchWriteGuard guard(m_db->GetKeyValueEngine());
+        BatchWriteGuard guard(tmpctx);
         Iterator* iter = m_db->IteratorKeyValue(k, false);
         uint32 cursor = 0;
         int err = 0;
@@ -1755,7 +1756,7 @@ namespace ardb
         KeyObject k;
         k.db = 0;
         k.type = KEY_META;
-        BatchWriteGuard guard(m_db->GetKeyValueEngine());
+        BatchWriteGuard guard(*m_dump_ctx);
         Iterator* iter = m_db->IteratorKeyValue(k, false);
         if (NULL != iter)
         {
@@ -1822,7 +1823,7 @@ namespace ardb
         uint32 len = 0;
         uint32 rawlen, compressedlen;
         std::string origin;
-        BatchWriteGuard guard(m_db->GetKeyValueEngine());
+        BatchWriteGuard guard(*m_dump_ctx);
         if (!Read(buf, 8, true))
             goto eoferr;
         buf[9] = '\0';

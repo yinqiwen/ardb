@@ -32,8 +32,36 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#define ARDB_STORAGE_CODEC_VER  1
+#define ARDB_STORAGE_CONFIG_BUFFER_LEN 512
+
 OP_NAMESPACE_BEGIN
     Ardb* g_db = NULL;
+
+    BatchWriteGuard::BatchWriteGuard(Context& ctx, bool enable) :
+            m_ctx(ctx), m_success(true), m_enable(enable)
+    {
+        if (m_enable)
+        {
+            g_db->GetKeyValueEngine().BeginBatchWrite();
+        }
+    }
+    BatchWriteGuard::~BatchWriteGuard()
+    {
+        if (m_enable)
+        {
+            if (m_success)
+            {
+                int ret = g_db->GetKeyValueEngine().CommitBatchWrite();
+                m_ctx.write_success = ret == 0;
+            }
+            else
+            {
+                g_db->GetKeyValueEngine().DiscardBatchWrite();
+            }
+        }
+    }
+
     Ardb::Ardb(KeyValueEngineFactory& factory) :
             m_service(NULL), m_engine_factory(factory), m_engine(NULL), m_cache(m_cfg), m_watched_ctx(NULL), m_slave(
                     this), m_starttime(0), m_compacting(false), m_last_compact_start_time(0), m_last_compact_duration(0)
@@ -313,6 +341,54 @@ OP_NAMESPACE_BEGIN
         }
     }
 
+    bool Ardb::IsEmpty()
+    {
+        KeyObject from;
+        Iterator* iter = IteratorKeyValue(from, false);
+        bool empty = true;
+        if (NULL != iter && iter->Valid())
+        {
+            empty = false;
+        }
+        DELETE(iter);
+        return empty;
+    }
+
+    int Ardb::CheckStorageCodecVersion()
+    {
+        m_storage_config.codec_ver = ARDB_STORAGE_CODEC_VER;
+        std::string storage_cfg_path = m_cfg.data_base_path + "/.storage.cfg";
+        if (!is_file_exist(storage_cfg_path))
+        {
+            char buffer[ARDB_STORAGE_CONFIG_BUFFER_LEN];
+            memset(buffer, 0, sizeof(buffer));
+            StorageConfig* scfg = (StorageConfig*) buffer;
+            scfg->codec_ver = ARDB_STORAGE_CODEC_VER;
+            std::string content;
+            content.assign(buffer, ARDB_STORAGE_CONFIG_BUFFER_LEN);
+            file_write_content(storage_cfg_path, content);
+            m_storage_config = *scfg;
+        }
+        else
+        {
+            Buffer buffer;
+            file_read_full(storage_cfg_path, buffer);
+            if (buffer.ReadableBytes() != ARDB_STORAGE_CONFIG_BUFFER_LEN)
+            {
+                ERROR_LOG("Invalid content read from %s", storage_cfg_path.c_str());
+                return -1;
+            }
+            StorageConfig* scfg = (StorageConfig*) (buffer.GetRawBuffer());
+            m_storage_config = *scfg;
+        }
+        return 0;
+    }
+
+    int Ardb::InternalCodecVersion()
+    {
+        return m_storage_config.codec_ver;
+    }
+
     int Ardb::Init(const ArdbConfig& cfg)
     {
         m_cfg = cfg;
@@ -336,7 +412,7 @@ OP_NAMESPACE_BEGIN
 
         INFO_LOG("Start init storage engine.");
         m_engine = m_engine_factory.CreateDB(m_engine_factory.GetName().c_str());
-        if (NULL == m_engine)
+        if (NULL == m_engine || CheckStorageCodecVersion() != 0)
         {
             ERROR_LOG("Faild to open db:%s", m_cfg.home.c_str());
             return -1;
@@ -344,7 +420,6 @@ OP_NAMESPACE_BEGIN
         RenameCommand();
 
         m_stat.Init();
-
         return 0;
     }
 
@@ -948,6 +1023,12 @@ OP_NAMESPACE_BEGIN
             }
         }
 
+        if(ctx.data_change && !ctx.write_success)
+        {
+            ctx.data_change = false;
+            fill_error_reply(ctx.reply, "Storage engine internal error.");
+        }
+
         /*
          * Feed commands which modified data
          */
@@ -982,6 +1063,7 @@ OP_NAMESPACE_BEGIN
                 }
             }
         }
+
 
         if (args.GetType() == REDIS_CMD_EXEC)
         {

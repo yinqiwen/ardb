@@ -113,6 +113,7 @@ OP_NAMESPACE_BEGIN
             bool authenticated;
 
             bool data_change;
+            bool write_success;
             RedisCommandFrame* current_cmd;
             RedisCommandType current_cmd_type;
             int64 born_time;
@@ -128,7 +129,7 @@ OP_NAMESPACE_BEGIN
             int64 sequence;  //recv command sequence in the server, start from 1
             Context() :
                     transc(NULL), pubsub(NULL), lua(NULL), block(NULL), client(
-                    NULL), currentDB(0), authenticated(true), data_change(false), current_cmd(NULL), current_cmd_type(
+                    NULL), currentDB(0), authenticated(true), data_change(false), write_success(true),current_cmd(NULL), current_cmd_type(
                             REDIS_CMD_INVALID), born_time(0), last_interaction_ustime(0), processing(false), close_after_processed(
                             false), cmd_setting_flags(0), identity(CONTEXT_NORMAL_CONNECTION),sequence(0)
             {
@@ -201,6 +202,7 @@ OP_NAMESPACE_BEGIN
             {
                 reply.Clear();
                 data_change = false;
+                write_success = true;
                 current_cmd = NULL;
             }
             ~Context()

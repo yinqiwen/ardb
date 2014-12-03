@@ -107,7 +107,7 @@ OP_NAMESPACE_BEGIN
             v.meta.str_value.SetString(append, false);
         }
         err = SetKeyValue(ctx, v);
-        CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
+        CHECK_WRITE_RETURN_VALUE(ctx, err);
         fill_int_reply(ctx.reply, sdslen(v.meta.str_value.RawString()));
         return 0;
     }
@@ -164,9 +164,9 @@ OP_NAMESPACE_BEGIN
         v.key.db = ctx.currentDB;
         v.meta.str_value.SetString(value, true);
         v.meta.expireat = expire_mills;
-        BatchWriteGuard guard(GetKeyValueEngine(), options.with_expire);
+        BatchWriteGuard guard(ctx, options.with_expire);
         int err = SetKeyValue(dbctx, v);
-        CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
+        CHECK_WRITE_RETURN_VALUE(ctx, err);
         if (options.with_expire)
         {
             ValueObject expire_key(KEY_EXPIRATION_ELEMENT);
@@ -218,7 +218,7 @@ OP_NAMESPACE_BEGIN
         {
             options.with_nx = true;
         }
-        BatchWriteGuard guard(GetKeyValueEngine());
+        BatchWriteGuard guard(ctx);
         for (uint32 i = 0; i < cmd.GetArguments().size(); i += 2)
         {
             int err = GenericSet(ctx, cmd.GetArguments()[i], cmd.GetArguments()[i + 1], options);
@@ -268,7 +268,8 @@ OP_NAMESPACE_BEGIN
         tmp.assign(v.meta.str_value.RawString(), sdslen(v.meta.str_value.RawString()));
         fast_dtoa(val, 10, tmp);
         v.meta.str_value.SetString(tmp, false);
-        SetKeyValue(ctx, v);
+        int err = SetKeyValue(ctx, v);
+        CHECK_WRITE_RETURN_VALUE(ctx, err);
         fill_double_reply(ctx.reply, val);
 
         RedisCommandFrame rewrite("set");
@@ -305,7 +306,8 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         val.meta.str_value.SetInt64(oldvalue + incr);
-        SetKeyValue(ctx, val);
+        int err = SetKeyValue(ctx, val);
+        CHECK_WRITE_RETURN_VALUE(ctx, err);
         fill_int_reply(ctx.reply, oldvalue + incr);
         return 0;
     }
@@ -350,7 +352,8 @@ OP_NAMESPACE_BEGIN
             GenericSetOptions set_options;
             set_options.fill_reply = false;
             val.meta.str_value.SetString(cmd.GetArguments()[1], true);
-            SetKeyValue(ctx, val);
+            int err = SetKeyValue(ctx, val);
+            CHECK_WRITE_RETURN_VALUE(ctx, err);
         }
         return 0;
     }
@@ -521,7 +524,8 @@ OP_NAMESPACE_BEGIN
             char* start = ss + offset;
             memcpy(start, value.data(), value.size());
             val.meta.str_value.value.sv = ss;
-            SetKeyValue(ctx, val);
+            int err = SetKeyValue(ctx, val);
+            CHECK_WRITE_RETURN_VALUE(ctx, err);
         }
         fill_int_reply(ctx.reply, val.meta.str_value.StringLength());
         return 0;
@@ -551,7 +555,8 @@ OP_NAMESPACE_BEGIN
         v.key.encode_buf.Clear();
         v.key.db = dstdb;
         v.meta.expireat = 0;
-        SetKeyValue(ctx, v);
+        err = SetKeyValue(ctx, v);
+        CHECK_WRITE_RETURN_VALUE(ctx, err);
         return 0;
     }
 

@@ -34,7 +34,7 @@
 CXX=g++
 CC=gcc
 
-ARDB_VERSION=0.8.3
+ARDB_VERSION=0.8.5
 
 uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 
@@ -59,7 +59,7 @@ LEVELDB_PATH=${LIB_PATH}/${LEVELDB_VER}
 LEVELDB_FILE=${LEVELDB_PATH}.tar.gz
 LEVELDB_LIBA=${LEVELDB_PATH}/libleveldb.a
 
-ROCKSDB_VER=rocksdb-rocksdb-3.6.1
+ROCKSDB_VER=rocksdb-rocksdb-3.8.1
 ROCKSDB_PATH=${LIB_PATH}/${ROCKSDB_VER}
 ROCKSDB_FILE=${ROCKSDB_PATH}.tar.gz
 ROCKSDB_LIBA=${ROCKSDB_PATH}/librocksdb.a

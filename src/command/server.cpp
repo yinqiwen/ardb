@@ -676,7 +676,6 @@ namespace ardb
         KeyObject k;
         k.db = 0;
         k.type = KEY_META;
-        BatchWriteGuard guard(GetKeyValueEngine());
         Iterator* iter = IteratorKeyValue(k, false);
         if (NULL != iter)
         {
@@ -707,7 +706,7 @@ namespace ardb
         KeyObject k;
         k.db = 0;
         k.type = KEY_META;
-        BatchWriteGuard guard(GetKeyValueEngine());
+        BatchWriteGuard guard(ctx);
         Iterator* iter = IteratorKeyValue(k, false);
         if (NULL != iter)
         {
@@ -725,7 +724,7 @@ namespace ardb
         KeyObject k;
         k.db = ctx.currentDB;
         k.type = KEY_META;
-        BatchWriteGuard guard(GetKeyValueEngine());
+        BatchWriteGuard guard(ctx);
         Iterator* iter = IteratorKeyValue(k, false);
         if (NULL != iter)
         {

@@ -37,6 +37,15 @@
 
 OP_NAMESPACE_BEGIN
 
+    struct StorageConfig
+    {
+            int codec_ver;
+            StorageConfig() :
+                    codec_ver(0)
+            {
+            }
+    };
+
     struct ArdbConfig
     {
             bool daemonize;

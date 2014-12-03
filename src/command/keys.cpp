@@ -521,7 +521,7 @@ OP_NAMESPACE_BEGIN
         {
             return err;
         }
-        BatchWriteGuard guard(GetKeyValueEngine());
+        BatchWriteGuard guard(ctx);
         if (meta.meta.expireat != ms && meta.meta.expireat > 0)
         {
             KeyObject expire;
@@ -692,6 +692,10 @@ OP_NAMESPACE_BEGIN
                 return 0;
             }
         }
+        if(ctx.reply.type == REDIS_REPLY_ERROR)
+        {
+            return 0;
+        }
         if (meta.meta.expireat > 0)
         {
             KeyObject expire;
@@ -710,7 +714,7 @@ OP_NAMESPACE_BEGIN
         {
             return 0;
         }
-        BatchWriteGuard guard(GetKeyValueEngine());
+        BatchWriteGuard guard(ctx);
         int count = 0;
         for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
         {

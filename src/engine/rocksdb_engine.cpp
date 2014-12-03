@@ -330,7 +330,7 @@ namespace ardb
             holder.Put(key, value);
             if (holder.count >= (uint32) m_cfg.batch_commit_watermark)
             {
-                FlushWriteBatch(holder);
+                return FlushWriteBatch(holder);
             }
         }
         else

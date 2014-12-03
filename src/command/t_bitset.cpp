@@ -111,7 +111,7 @@ OP_NAMESPACE_BEGIN
     {
         meta.meta.str_value.ToString();
         int len = sdslen(meta.meta.str_value.value.sv);
-        BatchWriteGuard guard(GetKeyValueEngine());
+        BatchWriteGuard guard(ctx);
         const char* str = meta.meta.str_value.value.sv;
         int count = len / BIT_SUBSET_BYTES_SIZE;
         if (len % BIT_SUBSET_BYTES_SIZE > 0)
@@ -284,7 +284,7 @@ OP_NAMESPACE_BEGIN
                 set_changed = true;
                 element_changed = true;
             }
-            BatchWriteGuard guard(GetKeyValueEngine());
+            BatchWriteGuard guard(ctx);
             if (set_changed)
             {
                 SetKeyValue(ctx, meta);
@@ -300,7 +300,8 @@ OP_NAMESPACE_BEGIN
             meta.key.type = STRING_META;
             meta.meta.str_value.ToString();
             bitval = SetStringBit(&(meta.meta.str_value.value.sv), offset, on);
-            SetKeyValue(ctx, meta);
+            err = SetKeyValue(ctx, meta);
+            CHECK_WRITE_RETURN_VALUE(ctx, err);
         }
 
         fill_int_reply(ctx.reply, bitval != 0 ? 1 : 0);
@@ -372,6 +373,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::BitClear(Context& ctx, ValueObject& meta)
     {
+        BatchWriteGuard guard(ctx);
         BitsetIterator iter;
         BitsetIter(ctx, meta, meta.meta.min_index.value.iv, iter);
         while (iter.Valid())
@@ -556,7 +558,7 @@ OP_NAMESPACE_BEGIN
         {
             return 0;
         }
-        BatchWriteGuard guard(GetKeyValueEngine(), targetkey != NULL);
+        BatchWriteGuard guard(ctx, targetkey != NULL);
         if (all_type == STRING_META)
         {
             StringBitSetOP(ctx, op, metas, targetkey);
@@ -855,7 +857,7 @@ OP_NAMESPACE_BEGIN
         dstmeta.key.type = KEY_META;
         dstmeta.key.key = dstkey;
         dstmeta.type = BITSET_META;
-        BatchWriteGuard guard(GetKeyValueEngine());
+        BatchWriteGuard guard(ctx);
         while (iter.Valid())
         {
             ValueObject bv;

@@ -33,6 +33,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::HashMultiSet(Context& ctx, ValueObject& meta, DataMap& fs)
     {
+        int err = 0;
         if (meta.meta.Encoding() != COLLECTION_ENCODING_ZIPMAP)
         {
             bool multi_write = fs.size() > 1;
@@ -42,7 +43,7 @@ OP_NAMESPACE_BEGIN
             {
                 multi_write = true;
             }
-            BatchWriteGuard guard(GetKeyValueEngine(), multi_write);
+            BatchWriteGuard guard(ctx, multi_write);
             DataMap::iterator it = fs.begin();
             while (it != fs.end())
             {
@@ -52,13 +53,14 @@ OP_NAMESPACE_BEGIN
                 v.key.db = meta.key.db;
                 v.key.key = meta.key.key;
                 v.key.element = it->first;
-                SetKeyValue(ctx, v);
+                err = SetKeyValue(ctx, v);
+                CHECK_WRITE_RETURN_VALUE(ctx, err);
                 it++;
             }
             if (set_meta)
             {
                 meta.meta.len = -1;
-                SetKeyValue(ctx, meta);
+                err = SetKeyValue(ctx, meta);
             }
             fill_int_reply(ctx.reply, fs.size());
         }
@@ -84,7 +86,7 @@ OP_NAMESPACE_BEGIN
             {
                 zipsave = false;
             }
-            BatchWriteGuard guard(GetKeyValueEngine(), !zipsave);
+            BatchWriteGuard guard(ctx, !zipsave);
             if (!zipsave)
             {
                 /*
@@ -99,14 +101,16 @@ OP_NAMESPACE_BEGIN
                     v.key.db = meta.key.db;
                     v.key.key = meta.key.key;
                     v.key.element = fit->first;
-                    SetKeyValue(ctx, v);
+                    err = SetKeyValue(ctx, v);
+                    CHECK_WRITE_RETURN_VALUE(ctx, err);
                     fit++;
                 }
                 meta.meta.len = meta.meta.zipmap.size();
                 meta.meta.zipmap.clear();
                 meta.meta.SetEncoding(COLLECTION_ENCODING_RAW);
             }
-            SetKeyValue(ctx, meta);
+            err = SetKeyValue(ctx, meta);
+            CHECK_WRITE_RETURN_VALUE(ctx, err);
             fill_int_reply(ctx.reply, meta.meta.Length() - oldlen);
         }
 
@@ -626,7 +630,7 @@ OP_NAMESPACE_BEGIN
         int count = 0;
         if (err == 0)
         {
-            BatchWriteGuard guard(GetKeyValueEngine());
+            BatchWriteGuard guard(ctx);
             for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
             {
                 Data field(cmd.GetArguments()[i]);
@@ -672,7 +676,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::HClear(Context& ctx, ValueObject& meta)
     {
-        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.Encoding() != COLLECTION_ENCODING_ZIPMAP);
+        BatchWriteGuard guard(ctx, meta.meta.Encoding() != COLLECTION_ENCODING_ZIPMAP);
         if (meta.meta.Encoding() != COLLECTION_ENCODING_ZIPMAP)
         {
             HashIterator iter;
@@ -683,7 +687,8 @@ OP_NAMESPACE_BEGIN
                 iter.Next();
             }
         }
-        DelKeyValue(ctx, meta.key);
+        int err = DelKeyValue(ctx, meta.key);
+        CHECK_WRITE_RETURN_VALUE(ctx, err);
         return 0;
     }
 
@@ -701,12 +706,14 @@ OP_NAMESPACE_BEGIN
         }
         if (v.meta.Encoding() == COLLECTION_ENCODING_ZIPMAP)
         {
-            DelKeyValue(tmpctx, v.key);
+            err = DelKeyValue(tmpctx, v.key);
+            CHECK_WRITE_RETURN_VALUE(ctx, err);
             v.key.encode_buf.Clear();
             v.key.db = dstdb;
             v.key.key = dstkey;
             v.meta.expireat = 0;
-            SetKeyValue(ctx, v);
+            err = SetKeyValue(ctx, v);
+            CHECK_WRITE_RETURN_VALUE(ctx, err);
         }
         else
         {
@@ -718,7 +725,7 @@ OP_NAMESPACE_BEGIN
             dstmeta.key.key = dstkey;
             dstmeta.type = HASH_META;
             dstmeta.meta.SetEncoding(COLLECTION_ENCODING_ZIPMAP);
-            BatchWriteGuard guard(GetKeyValueEngine());
+            BatchWriteGuard guard(ctx);
             while (iter.Valid())
             {
                 HashSet(tmpctx, dstmeta, *(iter.Field()), *(iter.Value()));

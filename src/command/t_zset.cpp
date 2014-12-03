@@ -160,7 +160,7 @@ OP_NAMESPACE_BEGIN
             {
                 meta.meta.SetEncoding(COLLECTION_ENCODING_RAW);
                 DataMap::iterator it = meta.meta.zipmap.begin();
-                BatchWriteGuard guard(GetKeyValueEngine());
+                BatchWriteGuard guard(ctx);
                 while (it != meta.meta.zipmap.end())
                 {
                     if (meta.meta.min_index.IsNil() || meta.meta.min_index > it->second)
@@ -224,7 +224,6 @@ OP_NAMESPACE_BEGIN
                 score_key.element = v.key.element;
                 score_key.score = v.score;
                 DelKeyValue(ctx, score_key);
-                //ZSetUpdateScoreRangeTable(ctx, meta, old_score, OP_DELETE);
             }
             else
             {
@@ -264,7 +263,7 @@ OP_NAMESPACE_BEGIN
         int err = GetMetaValue(ctx, cmd.GetArguments()[0], ZSET_META, meta);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
         uint32 count = 0;
-        BatchWriteGuard guard(GetKeyValueEngine(),
+        BatchWriteGuard guard(ctx,
                 meta.meta.Encoding() != COLLECTION_ENCODING_RAW || cmd.GetArguments().size() > 3);
         for (uint32 i = 1; i < cmd.GetArguments().size(); i += 2)
         {
@@ -279,7 +278,8 @@ OP_NAMESPACE_BEGIN
             element.SetString(cmd.GetArguments()[i + 1], true);
             count += ZSetAdd(ctx, meta, element, score, NULL);
         }
-        SetKeyValue(ctx, meta);
+        err = SetKeyValue(ctx, meta);
+        CHECK_WRITE_RETURN_VALUE(ctx, err);
         fill_int_reply(ctx.reply, count);
         return 0;
     }
@@ -462,7 +462,8 @@ OP_NAMESPACE_BEGIN
         Data newscore = oldscore;
         newscore.IncrBy(incr);
         ZSetAdd(ctx, meta, element, newscore, ret == 0 ? (&oldscore) : NULL);
-        SetKeyValue(ctx, meta);
+        err = SetKeyValue(ctx, meta);
+        CHECK_WRITE_RETURN_VALUE(ctx, err);
         fill_value_reply(ctx.reply, newscore);
         return 0;
     }
@@ -526,7 +527,7 @@ OP_NAMESPACE_BEGIN
         if (end >= meta.meta.Length())
             end = meta.meta.Length() - 1;
         uint32 count = 0;
-        BatchWriteGuard guard(GetKeyValueEngine(), op == OP_DELETE);
+        BatchWriteGuard guard(ctx, op == OP_DELETE);
         if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPZSET)
         {
             ZSetElementArray array(meta.meta.zipmap.begin(), meta.meta.zipmap.end());
@@ -604,12 +605,13 @@ OP_NAMESPACE_BEGIN
         {
             if (meta.meta.Length() <= 0)
             {
-                DelKeyValue(ctx, meta.key);
+                err = DelKeyValue(ctx, meta.key);
             }
             else
             {
-                SetKeyValue(ctx, meta);
+                err = SetKeyValue(ctx, meta);
             }
+            CHECK_WRITE_RETURN_VALUE(ctx, err);
             fill_int_reply(ctx.reply, count);
         }
         return 0;
@@ -813,14 +815,16 @@ OP_NAMESPACE_BEGIN
         }
         if (options.op == OP_DELETE)
         {
+            int err = 0;
             if (meta.meta.Length() <= 0)
             {
-                DelKeyValue(ctx, meta.key);
+                err = DelKeyValue(ctx, meta.key);
             }
             else
             {
-                SetKeyValue(ctx, meta);
+                err = SetKeyValue(ctx, meta);
             }
+            CHECK_WRITE_RETURN_VALUE(ctx, err);
             fill_int_reply(ctx.reply, count);
         }
         else if (options.op == OP_COUNT)
@@ -982,19 +986,20 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         uint32 count = 0;
-        BatchWriteGuard guard(GetKeyValueEngine(), COLLECTION_ENCODING_ZIPZSET != meta.meta.Encoding());
+        BatchWriteGuard guard(ctx, COLLECTION_ENCODING_ZIPZSET != meta.meta.Encoding());
         for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
         {
             count += ZSetRem(ctx, meta, cmd.GetArguments()[i]);
         }
         if (meta.meta.Length() == 0)
         {
-            DelKeyValue((ctx), meta.key);
+            err = DelKeyValue((ctx), meta.key);
         }
         else
         {
-            SetKeyValue((ctx), meta);
+            err = SetKeyValue((ctx), meta);
         }
+        CHECK_WRITE_RETURN_VALUE(ctx, err);
         fill_int_reply(ctx.reply, count);
         return 0;
     }
@@ -1112,7 +1117,8 @@ OP_NAMESPACE_BEGIN
         }
         if (meta.meta.Length() > 0)
         {
-            SetKeyValue(ctx, meta);
+            int err = SetKeyValue(ctx, meta);
+            CHECK_WRITE_RETURN_VALUE(ctx, err);
         }
         fill_int_reply(ctx.reply, meta.meta.Length());
         return 0;
@@ -1126,7 +1132,8 @@ OP_NAMESPACE_BEGIN
             fill_error_reply(ctx.reply, "Invalid argument");
             return 0;
         }
-        DeleteKey(ctx, cmd.GetArguments()[0]);
+        int err = DeleteKey(ctx, cmd.GetArguments()[0]);
+        CHECK_WRITE_RETURN_VALUE(ctx, err);
         ValueObject meta;
         meta.type = ZSET_META;
         meta.meta.SetEncoding(COLLECTION_ENCODING_ZIPZSET);
@@ -1197,7 +1204,7 @@ OP_NAMESPACE_BEGIN
                 iter.Next();
             }
         }
-        BatchWriteGuard guard(GetKeyValueEngine());
+        BatchWriteGuard guard(ctx);
         DataMap::iterator tit = tmpmap.begin();
         while (tit != tmpmap.end())
         {
@@ -1334,7 +1341,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::ZClear(Context& ctx, ValueObject& meta)
     {
-        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.Encoding() != COLLECTION_ENCODING_ZIPZSET);
+        BatchWriteGuard guard(ctx, meta.meta.Encoding() != COLLECTION_ENCODING_ZIPZSET);
         if (meta.meta.Encoding() != COLLECTION_ENCODING_ZIPZSET)
         {
             ZSetIterator iter;
@@ -1359,7 +1366,8 @@ OP_NAMESPACE_BEGIN
                 iter.Next();
             }
         }
-        DelKeyValue((ctx), meta.key);
+        int err = DelKeyValue((ctx), meta.key);
+        CHECK_WRITE_RETURN_VALUE(ctx, err);
         return 0;
     }
 
@@ -1395,7 +1403,7 @@ OP_NAMESPACE_BEGIN
         from.SetString(options.range_option.min, false);
         ZSetIterator iter;
         ZSetValueIter(ctx, meta, from, iter, op != OP_DELETE);
-        BatchWriteGuard guard(GetKeyValueEngine(), op == OP_DELETE);
+        BatchWriteGuard guard(ctx, op == OP_DELETE);
         uint32 cursor = 0;
         while (iter.Valid())
         {
@@ -1446,7 +1454,8 @@ OP_NAMESPACE_BEGIN
         }
         if (op == OP_DELETE)
         {
-            SetKeyValue(ctx, meta);
+            err = SetKeyValue(ctx, meta);
+            CHECK_WRITE_RETURN_VALUE(ctx, err);
         }
         return 0;
     }
@@ -1501,12 +1510,14 @@ OP_NAMESPACE_BEGIN
         }
         if (v.meta.Encoding() == COLLECTION_ENCODING_ZIPZSET)
         {
-            DelKeyValue(tmpctx, v.key);
+            err = DelKeyValue(tmpctx, v.key);
+            CHECK_WRITE_RETURN_VALUE(ctx, err);
             v.key.encode_buf.Clear();
             v.key.db = dstdb;
             v.key.key = dstkey;
             v.meta.expireat = 0;
-            SetKeyValue(ctx, v);
+            err = SetKeyValue(ctx, v);
+            CHECK_WRITE_RETURN_VALUE(ctx, err);
         }
         else
         {
@@ -1519,7 +1530,7 @@ OP_NAMESPACE_BEGIN
             dstmeta.key.key = dstkey;
             dstmeta.type = ZSET_META;
             dstmeta.meta.SetEncoding(COLLECTION_ENCODING_ZIPZSET);
-            BatchWriteGuard guard(GetKeyValueEngine());
+            BatchWriteGuard guard(ctx);
             while (iter.Valid())
             {
                 ZSetAdd(tmpctx, dstmeta, *(iter.Element()), *(iter.Score()), NULL);

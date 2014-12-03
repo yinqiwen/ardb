@@ -28,6 +28,7 @@
  */
 #include "engine/engine.hpp"
 #include "codec.hpp"
+#include "ardb.hpp"
 #include "buffer/buffer_helper.hpp"
 
 namespace ardb

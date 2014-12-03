@@ -57,7 +57,7 @@ namespace ardb
 
         RedisCommandFrame zadd("zadd");
         zadd.AddArg(cmd.GetArguments()[0]);
-        BatchWriteGuard guard(GetKeyValueEngine());
+        BatchWriteGuard guard(ctx);
         GeoPointArray::iterator git = options.points.begin();
         uint32 count = 0;
         while (git != options.points.end())

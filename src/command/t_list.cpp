@@ -168,7 +168,7 @@ OP_NAMESPACE_BEGIN
             ctx.reply.type = REDIS_REPLY_NIL;
             return 0;
         }
-        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.Encoding() != COLLECTION_ENCODING_ZIPLIST);
+        BatchWriteGuard guard(ctx, meta.meta.Encoding() != COLLECTION_ENCODING_ZIPLIST);
         if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPLIST)
         {
             if (!meta.meta.ziplist.empty())
@@ -187,12 +187,13 @@ OP_NAMESPACE_BEGIN
                 }
                 if (meta.meta.ziplist.empty())
                 {
-                    DelKeyValue(ctx, meta.key);
+                    err = DelKeyValue(ctx, meta.key);
                 }
                 else
                 {
-                    SetKeyValue(ctx, meta);
+                    err = SetKeyValue(ctx, meta);
                 }
+                CHECK_WRITE_RETURN_VALUE(ctx, err);
             }
             else
             {
@@ -420,7 +421,8 @@ OP_NAMESPACE_BEGIN
                 v.key.key = meta.key.key;
                 v.key.type = LIST_ELEMENT;
                 v.key.score = score;
-                SetKeyValue(ctx, v);
+                int err = SetKeyValue(ctx, v);
+                CHECK_WRITE_RETURN_VALUE(ctx, err);
             }
             fill_int_reply(ctx.reply, meta.meta.Length());
             return 0;
@@ -464,7 +466,8 @@ OP_NAMESPACE_BEGIN
                 {
                     v.key.score = meta.meta.max_index.IncrBy(1);
                 }
-                SetKeyValue(ctx, v);
+                int err = SetKeyValue(ctx, v);
+                CHECK_WRITE_RETURN_VALUE(ctx, err);
             }
             fill_int_reply(ctx.reply, meta.meta.Length());
             return 0;
@@ -569,14 +572,15 @@ OP_NAMESPACE_BEGIN
         ValueObject meta;
         int err = GetMetaValue(ctx, key, LIST_META, meta);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
-        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.Encoding() != COLLECTION_ENCODING_ZIPLIST);
+        BatchWriteGuard guard(ctx, meta.meta.Encoding() != COLLECTION_ENCODING_ZIPLIST);
         if (0 != err && abort_nonexist)
         {
             fill_int_reply(ctx.reply, 0);
             return 0;
         }
         ListInsert(ctx, meta, match, value, head, abort_nonexist);
-        SetKeyValue(ctx, meta);
+        err = SetKeyValue(ctx, meta);
+        CHECK_WRITE_RETURN_VALUE(ctx, err);
         return 0;
     }
 
@@ -604,12 +608,13 @@ OP_NAMESPACE_BEGIN
         int err = GetMetaValue(ctx, cmd.GetArguments()[0], LIST_META, meta);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
         KeyLockerGuard lock(m_key_lock, ctx.currentDB, cmd.GetArguments()[0]);
-        BatchWriteGuard guard(GetKeyValueEngine(), cmd.GetArguments().size() > 2);
+        BatchWriteGuard guard(ctx, cmd.GetArguments().size() > 2);
         for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
         {
             ListInsert(ctx, meta, NULL, cmd.GetArguments()[i], true, false);
         }
-        SetKeyValue(ctx, meta);
+        err = SetKeyValue(ctx, meta);
+        CHECK_WRITE_RETURN_VALUE(ctx, err);
         return 0;
     }
     int Ardb::LPushx(Context& ctx, RedisCommandFrame& cmd)
@@ -777,7 +782,7 @@ OP_NAMESPACE_BEGIN
             fill_int_reply(ctx.reply, removed);
             return 0;
         }
-        BatchWriteGuard guard(GetKeyValueEngine());
+        BatchWriteGuard guard(ctx);
         ListIterator iter;
         ListIter(ctx, meta, iter, count < 0);
         int64 remove = 0;
@@ -838,7 +843,8 @@ OP_NAMESPACE_BEGIN
             else
             {
                 entry->SetString(cmd.GetArguments()[2], true);
-                SetKeyValue(ctx, meta);
+                int err = SetKeyValue(ctx, meta);
+                CHECK_WRITE_RETURN_VALUE(ctx, err);
                 fill_status_reply(ctx.reply, "OK");
                 return 0;
             }
@@ -869,7 +875,8 @@ OP_NAMESPACE_BEGIN
                 if (0 == GetKeyValue(ctx, list_element.key, &list_element))
                 {
                     list_element.element.SetString(cmd.GetArguments()[2], true);
-                    SetKeyValue(ctx, list_element);
+                    int err = SetKeyValue(ctx, list_element);
+                    CHECK_WRITE_RETURN_VALUE(ctx, err);
                     fill_status_reply(ctx.reply, "OK");
                     return 0;
                 }
@@ -890,7 +897,8 @@ OP_NAMESPACE_BEGIN
                         v.key.score = *(iter.Score());
                         v.type = LIST_ELEMENT;
                         v.element.SetString(cmd.GetArguments()[2], true);
-                        SetKeyValue(ctx, v);
+                        int err = SetKeyValue(ctx, v);
+                        CHECK_WRITE_RETURN_VALUE(ctx, err);
                         fill_status_reply(ctx.reply, "OK");
                         return 0;
                     }
@@ -958,11 +966,12 @@ OP_NAMESPACE_BEGIN
                 newzip.push_back(meta.meta.ziplist[i]);
             }
             meta.meta.ziplist = newzip;
-            SetKeyValue(ctx, meta);
+            err = SetKeyValue(ctx, meta);
+            CHECK_WRITE_RETURN_VALUE(ctx, err);
         }
         else
         {
-            BatchWriteGuard guard(GetKeyValueEngine());
+            BatchWriteGuard guard(ctx);
             if (meta.meta.IsSequentialList())
             {
                 int64 listlen = meta.meta.Length();
@@ -1024,12 +1033,13 @@ OP_NAMESPACE_BEGIN
         int err = GetMetaValue(ctx, cmd.GetArguments()[0], LIST_META, meta);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
         KeyLockerGuard lock(m_key_lock, ctx.currentDB, cmd.GetArguments()[0]);
-        BatchWriteGuard guard(GetKeyValueEngine(), cmd.GetArguments().size() > 2);
+        BatchWriteGuard guard(ctx, cmd.GetArguments().size() > 2);
         for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
         {
             ListInsert(ctx, meta, NULL, cmd.GetArguments()[i], false, false);
         }
-        SetKeyValue(ctx, meta);
+        err = SetKeyValue(ctx, meta);
+        CHECK_WRITE_RETURN_VALUE(ctx, err);
         return 0;
     }
     int Ardb::RPushx(Context& ctx, RedisCommandFrame& cmd)
@@ -1184,7 +1194,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::LClear(Context& ctx, ValueObject& meta)
     {
-        BatchWriteGuard guard(GetKeyValueEngine(), meta.meta.Encoding() != COLLECTION_ENCODING_ZIPLIST);
+        BatchWriteGuard guard(ctx, meta.meta.Encoding() != COLLECTION_ENCODING_ZIPLIST);
         if (meta.meta.Encoding() != COLLECTION_ENCODING_ZIPLIST)
         {
             ListIterator iter;
@@ -1201,7 +1211,8 @@ OP_NAMESPACE_BEGIN
                 iter.Next();
             }
         }
-        DelKeyValue((ctx), meta.key);
+        int err = DelKeyValue((ctx), meta.key);
+        CHECK_WRITE_RETURN_VALUE(ctx, err);
         return 0;
     }
 
@@ -1219,12 +1230,14 @@ OP_NAMESPACE_BEGIN
         }
         if (v.meta.Encoding() == COLLECTION_ENCODING_ZIPLIST)
         {
-            DelKeyValue(tmpctx, v.key);
+            err = DelKeyValue(tmpctx, v.key);
+            CHECK_WRITE_RETURN_VALUE(ctx, err);
             v.key.encode_buf.Clear();
             v.key.db = dstdb;
             v.key.key = dstkey;
             v.meta.expireat = 0;
-            SetKeyValue(ctx, v);
+            err = SetKeyValue(ctx, v);
+            CHECK_WRITE_RETURN_VALUE(ctx, err);
         }
         else
         {
@@ -1237,7 +1250,7 @@ OP_NAMESPACE_BEGIN
             dstmeta.type = LIST_META;
             dstmeta.meta.SetFlag(COLLECTION_FLAG_SEQLIST);
             dstmeta.meta.SetEncoding(COLLECTION_ENCODING_ZIPLIST);
-            BatchWriteGuard guard(GetKeyValueEngine());
+            BatchWriteGuard guard(ctx);
             while (iter.Valid())
             {
                 std::string tmpstr;

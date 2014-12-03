@@ -105,23 +105,23 @@ using namespace ardb::codec;
     }\
 }while(0)
 
+#define CHECK_WRITE_RETURN_VALUE(ctx, ret) do{\
+    if(ret < 0){\
+        ctx.write_success = false;\
+        return 0;\
+    }\
+}while(0)
+
 OP_NAMESPACE_BEGIN
 
     class BatchWriteGuard
     {
         private:
-            KeyValueEngine& m_engine;
+            Context& m_ctx;
             bool m_success;
             bool m_enable;
         public:
-            BatchWriteGuard(KeyValueEngine& engine, bool enable = true) :
-                    m_engine(engine), m_success(true), m_enable(enable)
-            {
-                if (m_enable)
-                {
-                    m_engine.BeginBatchWrite();
-                }
-            }
+            BatchWriteGuard(Context& ctx, bool enable = true);
             void MarkFailed()
             {
                 m_success = false;
@@ -130,20 +130,7 @@ OP_NAMESPACE_BEGIN
             {
                 return m_success;
             }
-            ~BatchWriteGuard()
-            {
-                if (m_enable)
-                {
-                    if (m_success)
-                    {
-                        m_engine.CommitBatchWrite();
-                    }
-                    else
-                    {
-                        m_engine.DiscardBatchWrite();
-                    }
-                }
-            }
+            ~BatchWriteGuard();
     };
 
     class RedisRequestHandler;
@@ -210,7 +197,6 @@ OP_NAMESPACE_BEGIN
             void AddBlockKey(Context& ctx, const std::string& key);
             void ClearBlockKeys(Context& ctx);
 
-
             void TryPushSlowCommand(const RedisCommandFrame& cmd, uint64 micros);
             void GetSlowlog(Context& ctx, uint32 len);
 
@@ -232,18 +218,19 @@ OP_NAMESPACE_BEGIN
             SpinMutexLock m_redis_cursor_lock;
             RedisCursorTable m_redis_cursor_table;
 
+            StorageConfig m_storage_config;
+
             DataDumpFile& GetDataDumpFile();
             void FillInfoResponse(const std::string& section, std::string& info);
 
             int SubscribeChannel(Context& ctx, const std::string& channel, bool notify);
             int UnsubscribeChannel(Context& ctx, const std::string& channel, bool notify);
-            int UnsubscribeAll(Context& ctx,  bool notify);
+            int UnsubscribeAll(Context& ctx, bool notify);
             int PSubscribeChannel(Context& ctx, const std::string& pattern, bool notify);
             int PUnsubscribeChannel(Context& ctx, const std::string& pattern, bool notify);
-            int PUnsubscribeAll(Context& ctx,  bool notify);
+            int PUnsubscribeAll(Context& ctx, bool notify);
             int PublishMessage(Context& ctx, const std::string& channel, const std::string& message);
 
-            KeyValueEngine& GetKeyValueEngine();
             int SetRaw(Context& ctx, const Slice& key, const Slice& value);
             int GetRaw(Context& ctx, const Slice& key, std::string& value);
             int DelRaw(Context& ctx, const Slice& key);
@@ -284,7 +271,6 @@ OP_NAMESPACE_BEGIN
             int ListRange(Context& ctx, const Slice& key, int64 start, int64 end);
             bool WakeBlockList(Context& ctx, const Slice& key, const std::string& value);
 
-
             int SetLen(Context& ctx, const Slice& key);
             int SetMembers(Context& ctx, const Slice& key);
             int SetIter(Context& ctx, ValueObject& meta, Data& from, SetIterator& iter, bool readonly);
@@ -296,7 +282,7 @@ OP_NAMESPACE_BEGIN
             bool SetIsMember(Context& ctx, ValueObject& meta, Data& element);
             int GetSetMinMax(Context& ctx, ValueObject& meta, Data& min, Data& max);
 
-            int ZSetDeleteElement(Context& ctx, ValueObject& meta, const Data& element,const Data& score);
+            int ZSetDeleteElement(Context& ctx, ValueObject& meta, const Data& element, const Data& score);
             int ZSetScoreIter(Context& ctx, ValueObject& meta, const Data& from, ZSetIterator& iter, bool readonly);
             int ZSetValueIter(Context& ctx, ValueObject& meta, Data& from, ZSetIterator& iter, bool readonly);
             int ZSetAdd(Context& ctx, ValueObject& meta, const Data& element, const Data& score, Data* old_score);
@@ -335,7 +321,8 @@ OP_NAMESPACE_BEGIN
 
             int MatchValueByPattern(Context& ctx, const Slice& key_pattern, const Slice& value_pattern, Data& subst,
                     Data& value);
-            int GetValueByPattern(Context& ctx, const Slice& pattern, Data& subst, Data& value, ValueObjectMap* meta_cache = NULL);
+            int GetValueByPattern(Context& ctx, const Slice& pattern, Data& subst, Data& value,
+                    ValueObjectMap* meta_cache = NULL);
             int SortCommand(Context& ctx, const Slice& key, SortOptions& options, DataArray& values);
 
             int GetType(Context& ctx, const Slice& key, KeyType& type);
@@ -346,12 +333,14 @@ OP_NAMESPACE_BEGIN
             int GenericTTL(Context& ctx, const Slice& key, uint64& ms);
             int KeysOperation(Context& ctx, const KeysOptions& options);
 
-            int RenameString(Context& ctx, DBID srcdb, const std::string& srckey, DBID dstdb, const std::string& dstkey);
+            int RenameString(Context& ctx, DBID srcdb, const std::string& srckey, DBID dstdb,
+                    const std::string& dstkey);
             int RenameSet(Context& ctx, DBID srcdb, const std::string& srckey, DBID dstdb, const std::string& dstkey);
             int RenameList(Context& ctx, DBID srcdb, const std::string& srckey, DBID dstdb, const std::string& dstkey);
             int RenameHash(Context& ctx, DBID srcdb, const std::string& srckey, DBID dstdb, const std::string& dstkey);
             int RenameZSet(Context& ctx, DBID srcdb, const std::string& srckey, DBID dstdb, const std::string& dstkey);
-            int RenameBitset(Context& ctx, DBID srcdb, const std::string& srckey, DBID dstdb, const std::string& dstkey);
+            int RenameBitset(Context& ctx, DBID srcdb, const std::string& srckey, DBID dstdb,
+                    const std::string& dstkey);
 
             int GeoSearchByOptions(Context& ctx, ValueObject& meta, GeoSearchOptions& options);
 
@@ -557,6 +546,8 @@ OP_NAMESPACE_BEGIN
             uint64 GetNewRedisCursor(const std::string& element);
             int FindElementByRedisCursor(const std::string& cursor, std::string& element);
             void ClearExpireRedisCursor();
+            int CheckStorageCodecVersion();
+            bool IsEmpty();
 
             friend class RedisRequestHandler;
             friend class LUAInterpreter;
@@ -591,6 +582,8 @@ OP_NAMESPACE_BEGIN
             {
                 return m_stat;
             }
+            KeyValueEngine& GetKeyValueEngine();
+            int InternalCodecVersion();
             int Call(Context& ctx, RedisCommandFrame& cmd, int flags);
             static void WakeBlockedConnCallback(Channel* ch, void * data);
             ~Ardb();

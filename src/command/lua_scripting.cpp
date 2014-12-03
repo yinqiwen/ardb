@@ -1040,7 +1040,7 @@ namespace ardb
         start.type = SCRIPT;
         start.db = ARDB_GLOBAL_DB;
         Iterator* iter = IteratorKeyValue(start, true);
-        BatchWriteGuard guard(GetKeyValueEngine());
+        BatchWriteGuard guard(ctx);
         while (NULL != iter && iter->Valid())
         {
             KeyObject kk;

@@ -175,7 +175,7 @@ namespace ardb
         {
             return -1;
         }
-        fwrite(content.c_str(), 1, content.size(), fp);
+        fwrite(content.c_str(), content.size(), 1, fp);
         fclose(fp);
         return 0;
     }

@@ -448,7 +448,7 @@ namespace ardb
             list_meta.type = LIST_META;
             list_meta.meta.SetEncoding(COLLECTION_ENCODING_ZIPLIST);
 
-            BatchWriteGuard guard(GetKeyValueEngine());
+            BatchWriteGuard guard(ctx);
             DataArray::iterator it = values.begin();
             while (it != values.end())
             {
