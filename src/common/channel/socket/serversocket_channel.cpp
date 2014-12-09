@@ -48,30 +48,6 @@ bool ServerSocketChannel::DoConfigure(const ChannelOptions& options)
     {
         return false;
     }
-    int flag = 1;
-    if (options.reuse_address)
-    {
-        int ret = setsockopt(m_fd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(flag));
-        if (ret != 0)
-        {
-            //ERR_LOG("Failed to set send buf size(%u) for socket.", options.send_buffer_size);
-            return false;
-        }
-    }
-    //#ifdef HAVE_TCP_DEFER_ACCEPT
-    //    /* linux only */
-    //    if(options.post_accept_timeout > 0)
-    //    {
-    //        int timeout = options.post_accept_timeout;
-    //        if (setsockopt(m_fd, IPPROTO_TCP, TCP_DEFER_ACCEPT,
-    //                        &timeout, sizeof(int)) ==-1)
-    //        {
-    //            WARN_LOG("failed setsockopt TCP_DEFER_ACCEPT %s\n",
-    //                    strerror(errno));
-    //            /* continue since this is not critical */
-    //        }
-    //    }
-    //#endif
     return true;
 }
 
@@ -142,10 +118,16 @@ bool ServerSocketChannel::DoBind(Address* local)
     {
         struct sockaddr_un* pun = (struct sockaddr_un*) &(addr.GetRawSockAddr());
         DEBUG_LOG("Bind on %s", pun->sun_path);
-//		int nZero = 0;
-//		setsockopt(fd, SOL_SOCKET, SO_SNDBUF, (char *) &nZero, sizeof(nZero));
-//		setsockopt(fd, SOL_SOCKET, SO_RCVBUF, (char *) &nZero, sizeof(int));
+    }
 
+    int flag = 1;
+    if (m_options.reuse_address)
+    {
+        int ret = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(flag));
+        if (ret != 0)
+        {
+            WARN_LOG("Failed to set SO_REUSEADDR for socket.");
+        }
     }
     //setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (void*) &on, sizeof(on));
     if (::bind(fd, (struct sockaddr*) &(addr.GetRawSockAddr()), addr.GetRawSockAddrSize()) == -1)

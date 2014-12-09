@@ -314,6 +314,15 @@ int SocketChannel::GetSocketFD(int domain)
             ::close(fd);
             return -1;
         }
+        int flag = 1;
+        if (m_options.reuse_address)
+        {
+            int ret = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(flag));
+            if (ret != 0)
+            {
+                WARN_LOG("Failed to set SO_REUSEADDR for socket.");
+            }
+        }
         if (aeCreateFileEvent(GetService().GetRawEventLoop(), fd,
         AE_READABLE | AE_WRITABLE, Channel::IOEventCallback, this) == AE_ERR)
         {
