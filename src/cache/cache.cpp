@@ -94,19 +94,29 @@ OP_NAMESPACE_BEGIN
     {
         WriteLockGuard<SpinRWLock> guard(lock);
         ZSetDataMap::iterator fit = scores.find(&element);
+        int data_erased = 0;
+        int score_erased = 0;
         if (fit != scores.end())
         {
             ZSetData* entry = fit->second;
-            data.erase(entry);
+            data_erased = data.erase(entry);
             scores.erase(fit);
+            score_erased = 1;
             DELETE(entry);
         }
-
+        if (data.size() != scores.size())
+        {
+            ERROR_LOG("Data size:%u, while score size:%u for erase counter %d:%d", data.size(), scores.size(),data_erased,score_erased);
+            abort();
+        }
         ZSetData* entry = new ZSetData;
         entry->value = element;
         entry->score = score;
-        data.insert(entry);
-        ZSetDataMap::iterator sit = scores.insert(ZSetDataMap::value_type(&(entry->value), entry)).first;
+        bool data_intersetd = data.insert(entry).second;
+        std::pair<ZSetDataMap::iterator, bool> score_intert = scores.insert(
+                ZSetDataMap::value_type(&(entry->value), entry));
+        ZSetDataMap::iterator sit = score_intert.first;
+        bool score_intersetd = data.insert(entry).second;
         if (decode_loc)
         {
             entry->loc = new Location;
@@ -114,6 +124,7 @@ OP_NAMESPACE_BEGIN
         }
         if (data.size() != scores.size())
         {
+            ERROR_LOG("Data size:%u, while score size:%u with insert flag %d:%d", data.size(), scores.size(), data_intersetd, score_intersetd);
             abort();
         }
     }
@@ -140,6 +151,7 @@ OP_NAMESPACE_BEGIN
             it++;
         }
         scores.clear();
+        data.clear();
     }
 
     void SetDataCache::Add(const Data& element)
@@ -1013,6 +1025,43 @@ OP_NAMESPACE_BEGIN
             //use another thread to delete cache entry
             m_serv.AsyncIO(0, EvictCache, item);
         }
+        return 0;
+    }
+
+    void L1Cache::ClearLRUCache(CommonLRUCache& cache, DBID dbid, bool withdb_limit)
+    {
+        LockGuard<SpinMutexLock> guard(cache.lock);
+        CacheTable::CacheList& cachelist = cache.cache.GetCacheList();
+        CacheTable::CacheList::iterator it = cachelist.begin();
+        while (it != cachelist.end())
+        {
+            if (NULL != it->second)
+            {
+                if (!withdb_limit || (withdb_limit && it->first.db == dbid))
+                {
+                    it->second->Clear();
+                }
+            }
+            it++;
+        }
+    }
+
+    int L1Cache::EvictDB(DBID db)
+    {
+        ClearLRUCache(m_string_cache, db, true);
+        ClearLRUCache(m_hash_cache, db, true);
+        ClearLRUCache(m_set_cache, db, true);
+        ClearLRUCache(m_list_cache, db, true);
+        ClearLRUCache(m_zset_cache, db, true);
+        return 0;
+    }
+    int L1Cache::EvictAll()
+    {
+        ClearLRUCache(m_string_cache, 0, false);
+        ClearLRUCache(m_hash_cache, 0, false);
+        ClearLRUCache(m_set_cache, 0, false);
+        ClearLRUCache(m_list_cache, 0, false);
+        ClearLRUCache(m_zset_cache, 0, false);
         return 0;
     }
 

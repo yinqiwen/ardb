@@ -267,6 +267,7 @@ OP_NAMESPACE_BEGIN
             uint64 m_estimate_memory_size;
 
             CommonLRUCache& GetCacheByType(uint8 type);
+            void ClearLRUCache(CommonLRUCache& cache, DBID dbid, bool withdb_limit);
 
             CacheResult GetCacheData(uint8 type, DBItemKey& key, const CacheGetOptions& options);
 
@@ -281,6 +282,8 @@ OP_NAMESPACE_BEGIN
             int Put(KeyObject& key, ValueObject& v, const CacheSetOptions& opt);
             int Del(KeyObject& key, uint8 type);
             int Evict(DBID db, const std::string& key);
+            int EvictDB(DBID db);
+            int EvictAll();
             std::string Status(DBID db, const std::string& key);
             int Load(DBID db, const std::string& key, uint8 type, const CacheLoadOptions& options);
             CacheData* GetReadCache(DBID db, const std::string& key, uint8 type);
