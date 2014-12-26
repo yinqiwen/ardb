@@ -1446,7 +1446,7 @@ namespace ardb
     {
         WriteMagicHeader();
 
-#define DUMP_CHECK_WRITE(x)  if((err = (x)) != 0) break
+#define DUMP_CHECK_WRITE(x)  if((err = (x)) < 0) break
         KeyObject k;
         k.db = 0;
         k.type = KEY_META;
@@ -1642,7 +1642,7 @@ namespace ardb
             }
             DELETE(iter);
         }
-        if (err != 0)
+        if (err < 0)
         {
             ERROR_LOG("Failed to write dump file for reason code:%d", err);
             Close();
