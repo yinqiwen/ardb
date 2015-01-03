@@ -386,6 +386,7 @@ OP_NAMESPACE_BEGIN
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
         if (0 != err || meta.meta.len == 0)
         {
+            ctx.reply.type = REDIS_REPLY_NIL;
             return 0;
         }
         if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPSET)
