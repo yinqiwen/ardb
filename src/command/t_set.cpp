@@ -384,7 +384,7 @@ OP_NAMESPACE_BEGIN
         ValueObject meta;
         int err = GetMetaValue(ctx, cmd.GetArguments()[0], SET_META, meta);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
-        if (0 != err || meta.meta.len == 0)
+        if (0 != err || meta.meta.Length() == 0)
         {
             ctx.reply.type = REDIS_REPLY_NIL;
             return 0;
@@ -392,7 +392,12 @@ OP_NAMESPACE_BEGIN
         if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPSET)
         {
             DataSet::iterator it = meta.meta.zipset.begin();
-            it.increment_by(random_between_int32(0, meta.meta.zipset.size()));
+            int rand = random_between_int32(0, meta.meta.zipset.size());
+            if(rand == meta.meta.zipset.size())
+            {
+                rand--;
+            }
+            it.increment_by(rand);
             std::string tmp;
             fill_str_reply(ctx.reply, it->GetDecodeString(tmp));
         }
@@ -404,6 +409,10 @@ OP_NAMESPACE_BEGIN
             {
                 std::string tmp;
                 fill_str_reply(ctx.reply, iter.Element()->GetDecodeString(tmp));
+            }
+            else
+            {
+                ctx.reply.type = REDIS_REPLY_NIL;
             }
         }
         return 0;
