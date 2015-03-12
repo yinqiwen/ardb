@@ -34,14 +34,14 @@
 CXX=g++
 CC=gcc
 
-ARDB_VERSION=0.8.5
+ARDB_VERSION=0.8.6
 
 uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 
 LIB_PATH=$(PWD)/../deps
 
 LMDB_PATH=${LIB_PATH}/mdb-mdb/libraries/liblmdb
-LMDB_FILE=${LIB_PATH}/LMDB_0.9.13.tar.gz
+LMDB_FILE=${LIB_PATH}/LMDB_0.9.14.tar.gz
 LMDB_LIBA=${LMDB_PATH}/liblmdb.a
 
 JEMALLOC_VER=jemalloc-3.6.0
@@ -64,7 +64,7 @@ ROCKSDB_PATH=${LIB_PATH}/${ROCKSDB_VER}
 ROCKSDB_FILE=${ROCKSDB_PATH}.tar.gz
 ROCKSDB_LIBA=${ROCKSDB_PATH}/librocksdb.a
 
-WIREDTIGER_VER=wiredtiger-2.4.1
+WIREDTIGER_VER=wiredtiger-2.5.1
 WIREDTIGER_PATH=${LIB_PATH}/${WIREDTIGER_VER}
 WIREDTIGER_FILE=${WIREDTIGER_PATH}.tar.bz2
 WIREDTIGER_LIBA=${WIREDTIGER_PATH}/build_dist/lib/libwiredtiger.a

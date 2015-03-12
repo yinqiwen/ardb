@@ -389,11 +389,20 @@ OP_NAMESPACE_BEGIN
             ctx.reply.type = REDIS_REPLY_NIL;
             return 0;
         }
+        int64 count = 1;
+        if (cmd.GetArguments().size() > 1)
+        {
+            if (!GetInt64Value(ctx, cmd.GetArguments()[1], count))
+            {
+                return 0;
+            }
+        }
+
         if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPSET)
         {
             DataSet::iterator it = meta.meta.zipset.begin();
             int rand = random_between_int32(0, meta.meta.zipset.size());
-            if(rand == meta.meta.zipset.size())
+            if (rand == meta.meta.zipset.size())
             {
                 rand--;
             }

@@ -275,7 +275,7 @@ OP_NAMESPACE_BEGIN
                 return 0;
             }
             Data element;
-            element.SetString(cmd.GetArguments()[i + 1], true);
+            element.SetString(cmd.GetArguments()[i + 1], false);
             count += ZSetAdd(ctx, meta, element, score, NULL);
         }
         err = SetKeyValue(ctx, meta);
