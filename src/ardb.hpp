@@ -281,6 +281,7 @@ OP_NAMESPACE_BEGIN
             int SetUnion(Context& ctx, StringSet& keys, const std::string* store, int64* count);
             bool SetIsMember(Context& ctx, ValueObject& meta, Data& element);
             int GetSetMinMax(Context& ctx, ValueObject& meta, Data& min, Data& max);
+            int SetRandMember(Context& ctx, ValueObject& meta, DataSet& exclude, Data& member);
 
             int ZSetDeleteElement(Context& ctx, ValueObject& meta, const Data& element, const Data& score);
             int ZSetScoreIter(Context& ctx, ValueObject& meta, const Data& from, ZSetIterator& iter, bool readonly);

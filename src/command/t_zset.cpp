@@ -275,7 +275,7 @@ OP_NAMESPACE_BEGIN
                 return 0;
             }
             Data element;
-            element.SetString(cmd.GetArguments()[i + 1], false);
+            element.SetString(cmd.GetArguments()[i + 1], true);
             count += ZSetAdd(ctx, meta, element, score, NULL);
         }
         err = SetKeyValue(ctx, meta);
@@ -967,7 +967,7 @@ OP_NAMESPACE_BEGIN
             vv.key.db = ctx.currentDB;
             vv.key.type = ZSET_ELEMENT_VALUE;
             vv.key.key = meta.key.key;
-            if (0 == GetKeyValue((ctx), vv.key, &vv))
+            if (0 == GetKeyValue(ctx, vv.key, &vv))
             {
                 ZSetDeleteElement(ctx, meta, element, vv.score);
                 return 1;
@@ -993,11 +993,11 @@ OP_NAMESPACE_BEGIN
         }
         if (meta.meta.Length() == 0)
         {
-            err = DelKeyValue((ctx), meta.key);
+            err = DelKeyValue(ctx, meta.key);
         }
         else
         {
-            err = SetKeyValue((ctx), meta);
+            err = SetKeyValue(ctx, meta);
         }
         CHECK_WRITE_RETURN_VALUE(ctx, err);
         fill_int_reply(ctx.reply, count);
@@ -1400,7 +1400,7 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         Data from;
-        from.SetString(options.range_option.min, false);
+        from.SetString(options.range_option.min, true);
         ZSetIterator iter;
         ZSetValueIter(ctx, meta, from, iter, op != OP_DELETE);
         BatchWriteGuard guard(ctx, op == OP_DELETE);

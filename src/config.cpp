@@ -302,6 +302,8 @@ OP_NAMESPACE_BEGIN
 
         conf_get_int64(props, "databases", maxdb);
 
+        conf_get_bool(props, "lua-exec-atomic", lua_exec_atomic);
+
         trusted_ip.clear();
         Properties::const_iterator ip_it = props.find("trusted-ip");
         if (ip_it != props.end())

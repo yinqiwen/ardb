@@ -30,6 +30,7 @@
 #include "lua_scripting.hpp"
 #include "logger.hpp"
 #include "util/rand.h"
+#include "thread/thread_mutex.hpp"
 #include <string.h>
 #include <limits>
 #include <math.h>
@@ -44,6 +45,8 @@ namespace ardb
         int (luaopen_struct)(lua_State *L);
         int (luaopen_cmsgpack)(lua_State *L);
     }
+
+    static ThreadMutex g_lua_mutex;
 
     /* Take a Redis reply in the Redis protocol format and convert it into a
      * Lua type. Thanks to this function, and the introduction of not connected
@@ -889,6 +892,8 @@ namespace ardb
         ctx.GetLua().lua_time_start = get_current_epoch_millis();
         ctx.GetLua().lua_executing_func = funcname.c_str() + 2;
         ctx.GetLua().lua_kill = false;
+
+        LockGuard<ThreadMutex> guard(g_lua_mutex, g_db->GetConfig().lua_exec_atomic); //only one transc allowed exec at the same time in multi threads
         int errid = lua_pcall(m_lua, 0, 1, -2);
         ctx.GetLua().lua_executing_func = NULL;
         if (delhook)

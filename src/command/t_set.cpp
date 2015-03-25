@@ -379,6 +379,60 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
+    int Ardb::SetRandMember(Context& ctx, ValueObject& meta, DataSet& excludes, Data& member)
+    {
+        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPSET)
+        {
+            DataSet::iterator it = meta.meta.zipset.begin();
+            int loop_count = 0;
+            while (loop_count < meta.meta.zipset.size())
+            {
+                int rand = random_between_int32(0, meta.meta.zipset.size());
+                if (rand == meta.meta.zipset.size())
+                {
+                    rand--;
+                }
+                it.increment_by(rand);
+                if (!excludes.count(*it))
+                {
+                    member = *it;
+                    return 0;
+                }
+                loop_count++;
+                it = meta.meta.zipset.begin();
+            }
+
+            it = meta.meta.zipset.begin();
+            while (it != meta.meta.zipset.end())
+            {
+                if (!excludes.count(*it))
+                {
+                    member = *it;
+                    return 0;
+                }
+                it++;
+            }
+        }
+        else
+        {
+            SetIterator iter;
+            SetIter(ctx, meta, meta.meta.min_index, iter, false);
+            while (iter.Valid())
+            {
+                if (excludes.count(*(iter.Element())))
+                {
+                    iter.Next();
+                }
+                else
+                {
+                    member = *(iter.Element());
+                    return 0;
+                }
+            }
+        }
+        return -1;
+    }
+
     int Ardb::SRandMember(Context& ctx, RedisCommandFrame& cmd)
     {
         ValueObject meta;
@@ -397,31 +451,39 @@ OP_NAMESPACE_BEGIN
                 return 0;
             }
         }
-
-        if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPSET)
+        bool allow_duplicate = count < 0;
+        count = abs(count);
+        if (count > 1)
         {
-            DataSet::iterator it = meta.meta.zipset.begin();
-            int rand = random_between_int32(0, meta.meta.zipset.size());
-            if (rand == meta.meta.zipset.size())
-            {
-                rand--;
-            }
-            it.increment_by(rand);
-            std::string tmp;
-            fill_str_reply(ctx.reply, it->GetDecodeString(tmp));
+            ctx.reply.type = REDIS_REPLY_ARRAY;
         }
         else
         {
-            SetIterator iter;
-            SetIter(ctx, meta, meta.meta.min_index, iter, false);
-            if (iter.Valid())
+            ctx.reply.type = REDIS_REPLY_NIL;
+        }
+        DataSet excludes;
+        for (int64 i = 0; i < count; i++)
+        {
+            Data member;
+            if (0 == SetRandMember(ctx, meta, excludes, member))
             {
-                std::string tmp;
-                fill_str_reply(ctx.reply, iter.Element()->GetDecodeString(tmp));
+                if (!allow_duplicate)
+                {
+                    excludes.insert(member);
+                }
+                if (count == 1)
+                {
+                    fill_value_reply(ctx.reply, member);
+                }
+                else
+                {
+                    RedisReply& r = ctx.reply.AddMember();
+                    fill_value_reply(r, member);
+                }
             }
             else
             {
-                ctx.reply.type = REDIS_REPLY_NIL;
+                break;
             }
         }
         return 0;

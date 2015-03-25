@@ -106,7 +106,8 @@ OP_NAMESPACE_BEGIN
         }
         if (data.size() != scores.size())
         {
-            ERROR_LOG("Data size:%u, while score size:%u for erase counter %d:%d", data.size(), scores.size(),data_erased,score_erased);
+            ERROR_LOG("Data size:%u, while score size:%u for erase counter %d:%d", data.size(), scores.size(),
+                    data_erased, score_erased);
             abort();
         }
         ZSetData* entry = new ZSetData;
@@ -124,21 +125,31 @@ OP_NAMESPACE_BEGIN
         }
         if (data.size() != scores.size())
         {
-            ERROR_LOG("Data size:%u, while score size:%u with insert flag %d:%d", data.size(), scores.size(), data_intersetd, score_intersetd);
+            ERROR_LOG("Data size:%u, while score size:%u with insert flag %d:%d", data.size(), scores.size(),
+                    data_intersetd, score_intersetd);
             abort();
         }
     }
 
     void ZSetDataCache::Del(const Data& element)
     {
+
         WriteLockGuard<SpinRWLock> guard(lock);
         ZSetDataMap::iterator fit = scores.find(&element);
         if (fit != scores.end())
         {
             ZSetData* entry = fit->second;
-            data.erase(entry);
+            if (data.erase(entry) != 1)
+            {
+                ERROR_LOG("Can NOT erase entry from zset cache.");
+                //abort();
+            }
             scores.erase(fit);
             DELETE(entry);
+        }
+        else
+        {
+            //INFO_LOG("No cache entry found in zset cache.");
         }
     }
 
@@ -860,6 +871,9 @@ OP_NAMESPACE_BEGIN
         if (key.type == KEY_META)
         {
             type = key.meta_type;
+        }else
+        {
+            type = key.type;
         }
         if (!IsCacheEnable(type))
         {
@@ -912,6 +926,7 @@ OP_NAMESPACE_BEGIN
                 CacheData* meta = result.data;
                 if (NULL == meta)
                 {
+                    //INFO_LOG("###No meta found for delete cache");
                     return -1;
                 }
                 ZSetDataCache* sc = (ZSetDataCache*) meta;

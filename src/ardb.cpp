@@ -445,6 +445,7 @@ OP_NAMESPACE_BEGIN
 
         ChannelOptions ops;
         ops.tcp_nodelay = true;
+        ops.reuse_address = true;
         if (m_cfg.tcp_keepalive > 0)
         {
             ops.keep_alive = m_cfg.tcp_keepalive;
@@ -700,6 +701,9 @@ OP_NAMESPACE_BEGIN
         if (0 == ret)
         {
             m_cache.Del(key, key.meta_type);
+        }else
+        {
+
         }
         return ret;
     }

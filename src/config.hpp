@@ -157,6 +157,7 @@ OP_NAMESPACE_BEGIN
 
             int64 maxdb;
 
+            bool lua_exec_atomic;
 
             ArdbConfig() :
                     daemonize(false), unixsocketperm(755), max_clients(10000), tcp_keepalive(0), timeout(0), slowlog_log_slower_than(
@@ -176,7 +177,7 @@ OP_NAMESPACE_BEGIN
                             5000), primary_port(0), slave_client_output_buffer_limit(256 * 1024 * 1024), pubsub_client_output_buffer_limit(
                             32 * 1024 * 1024), slave_ignore_expire(false), slave_ignore_del(false), repl_disable_tcp_nodelay(
                             false), scan_redis_compatible(true), scan_cursor_expire_after(60), max_string_bitset_value(
-                            1024 * 1024), maxdb(16)
+                            1024 * 1024), maxdb(16),lua_exec_atomic(true)
             {
             }
             bool Parse(const Properties& props);
