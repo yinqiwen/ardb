@@ -75,8 +75,9 @@ namespace ardb
     {
             EventCondition& cond;
             bool execed;
+            bool success;
             CheckPointOperation(EventCondition& c) :
-                    WriteOperation(CKP_OP), cond(c), execed(false)
+                    WriteOperation(CKP_OP), cond(c), execed(false),success(true)
             {
             }
             void Notify()

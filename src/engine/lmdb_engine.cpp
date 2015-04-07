@@ -33,6 +33,14 @@
 #include <string.h>
 #include <unistd.h>
 
+#define CHECK_OP(expr)  do{\
+    int __rc__ = expr; \
+    if (MDB_SUCCESS != __rc__)\
+    {           \
+       ERROR_LOG("LMDB operation:%s error:%s", #expr,  mdb_strerror(__rc__)); \
+    }\
+}while(0)
+
 namespace ardb
 {
     static int LMDBCompareFunc(const MDB_val *a, const MDB_val *b)
@@ -75,8 +83,8 @@ namespace ardb
             sprintf(tmp, "%s/%s", m_cfg.path.c_str(), name.c_str());
             m_cfg.path = tmp;
             make_dir(m_cfg.path);
-            int env_opt = MDB_NOSYNC | MDB_NOMETASYNC | MDB_WRITEMAP | MDB_MAPASYNC ;
-            if(!m_cfg.readahead)
+            int env_opt = MDB_NOSYNC | MDB_NOMETASYNC | MDB_WRITEMAP | MDB_MAPASYNC;
+            if (!m_cfg.readahead)
             {
                 env_opt |= MDB_NORDAHEAD;
             }
@@ -115,7 +123,7 @@ namespace ardb
     }
 
     LMDBEngine::LMDBEngine() :
-            m_env(NULL), m_dbi(0),m_running(false),m_background(NULL)
+            m_env(NULL), m_dbi(0), m_running(false), m_background(NULL)
     {
     }
 
@@ -175,11 +183,7 @@ namespace ardb
                         k.mv_size = pop->key.size();
                         v.mv_data = const_cast<char*>(pop->value.data());
                         v.mv_size = pop->value.size();
-                        int rc = mdb_put(txn, m_dbi, &k, &v, 0);
-                        if(0 != rc)
-                        {
-                            ERROR_LOG("Write error:%s", mdb_strerror(rc));
-                        }
+                        CHECK_OP(mdb_put(txn, m_dbi, &k, &v, 0));
                         DELETE(op);
                         break;
                     }
@@ -189,15 +193,15 @@ namespace ardb
                         MDB_val k;
                         k.mv_data = const_cast<char*>(pop->key.data());
                         k.mv_size = pop->key.size();
-                        mdb_del(txn, m_dbi, &k, NULL);
+                        CHECK_OP(mdb_del(txn, m_dbi, &k, NULL));
                         DELETE(op);
                         break;
                     }
                     case CKP_OP:
                     {
-                        mdb_txn_commit(txn);
-                        txn = NULL;
                         CheckPointOperation* cop = (CheckPointOperation*) op;
+                        CHECK_OP(mdb_txn_commit(txn));
+                        txn = NULL;
                         cop->Notify();
                         break;
                     }
@@ -214,7 +218,11 @@ namespace ardb
             }
             if (NULL != txn)
             {
-                mdb_txn_commit(txn);
+                int rc = mdb_txn_commit(txn);
+                if (0 != rc)
+                {
+                    ERROR_LOG("Transaction commit error:%s", mdb_strerror(rc));
+                }
             }
             if (count == 0)
             {
@@ -238,7 +246,7 @@ namespace ardb
             mdb_drop(txn, m_dbi, 1);
             if (NULL == holder.readonly_txn)
             {
-                mdb_txn_commit(txn);
+                CHECK_OP(mdb_txn_commit(txn));
             }
         }
     }
@@ -336,9 +344,9 @@ namespace ardb
             k.mv_size = key.size();
             v.mv_data = const_cast<char*>(value.data());
             v.mv_size = value.size();
-            mdb_txn_begin(m_env, NULL, 0, &txn);
-            mdb_put(txn, m_dbi, &k, &v, 0);
-            mdb_txn_commit(txn);
+            CHECK_OP(mdb_txn_begin(m_env, NULL, 0, &txn));
+            CHECK_OP(mdb_put(txn, m_dbi, &k, &v, 0));
+            CHECK_OP(mdb_txn_commit(txn));
             return 0;
         }
         PutOperation* op = new PutOperation;
@@ -373,10 +381,10 @@ namespace ardb
                 return -1;
             }
         }
-        rc = mdb_get(txn, m_dbi, &k, &v);
+        CHECK_OP((rc = mdb_get(txn, m_dbi, &k, &v)));
         if (NULL == holder.readonly_txn)
         {
-            mdb_txn_commit(txn);
+            CHECK_OP(mdb_txn_commit(txn));
         }
         if (0 == rc && NULL != value && NULL != v.mv_data)
         {
@@ -393,9 +401,9 @@ namespace ardb
             MDB_val k;
             k.mv_data = const_cast<char*>(key.data());
             k.mv_size = key.size();
-            mdb_txn_begin(m_env, NULL, 0, &txn);
-            mdb_del(txn, m_dbi, &k, NULL);
-            mdb_txn_commit(txn);
+            CHECK_OP(mdb_txn_begin(m_env, NULL, 0, &txn));
+            CHECK_OP(mdb_del(txn, m_dbi, &k, NULL));
+            CHECK_OP(mdb_txn_commit(txn));
             return 0;
         }
         DelOperation* op = new DelOperation;
@@ -452,11 +460,13 @@ namespace ardb
     void LMDBIterator::SeekToFirst()
     {
         int rc = mdb_cursor_get(m_cursor, &m_key, &m_value, MDB_FIRST);
+        CHECK_OP(rc);
         m_valid = rc == 0;
     }
     void LMDBIterator::SeekToLast()
     {
         int rc = mdb_cursor_get(m_cursor, &m_key, &m_value, MDB_LAST);
+        CHECK_OP(rc);
         m_valid = rc == 0;
     }
     void LMDBIterator::Seek(const Slice& target)
@@ -464,6 +474,7 @@ namespace ardb
         m_key.mv_data = const_cast<char*>(target.data());
         m_key.mv_size = target.size();
         int rc = mdb_cursor_get(m_cursor, &m_key, &m_value, MDB_SET_RANGE);
+        CHECK_OP(rc);
         m_valid = rc == 0;
     }
 
@@ -471,11 +482,13 @@ namespace ardb
     {
         int rc;
         rc = mdb_cursor_get(m_cursor, &m_key, &m_value, MDB_NEXT);
+        CHECK_OP(rc);
         m_valid = rc == 0;
     }
     void LMDBIterator::Prev()
     {
         int rc = mdb_cursor_get(m_cursor, &m_key, &m_value, MDB_PREV);
+        CHECK_OP(rc);
         m_valid = rc == 0;
     }
     Slice LMDBIterator::Key() const
