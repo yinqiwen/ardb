@@ -381,7 +381,7 @@ namespace ardb
                 return -1;
             }
         }
-        CHECK_OP((rc = mdb_get(txn, m_dbi, &k, &v)));
+        rc = mdb_get(txn, m_dbi, &k, &v);
         if (NULL == holder.readonly_txn)
         {
             CHECK_OP(mdb_txn_commit(txn));
