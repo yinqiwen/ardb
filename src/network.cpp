@@ -62,6 +62,7 @@ OP_NAMESPACE_BEGIN
         uint32 channel_id = ctx.GetChannel()->GetID();
         m_ctx.processing = true;
         m_ctx.reply.pool->Clear();
+        m_ctx.current_cmd = NULL;
         int ret = m_db->Call(m_ctx, *cmd, 0);
         if (ret >= 0 && m_ctx.reply.type != 0)
         {

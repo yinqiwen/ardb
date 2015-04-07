@@ -1,10 +1,10 @@
 /*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
- * 
+ *
  *Redistribution and use in source and binary forms, with or without
  *modification, are permitted provided that the following conditions are met:
- * 
+ *
  *  * Redistributions of source code must retain the above copyright notice,
  *    this list of conditions and the following disclaimer.
  *  * Redistributions in binary form must reproduce the above copyright
@@ -13,17 +13,17 @@
  *  * Neither the name of Redis nor the names of its contributors may be used
  *    to endorse or promote products derived from this software without
  *    specific prior written permission.
- * 
+ *
  *THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- *ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS 
+ *ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
  *BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
  *CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
  *SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
  *INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
  *CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF 
+ *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
@@ -85,99 +85,107 @@ int RedisCommandDecoder::ProcessInlineBuffer(Buffer& buffer, RedisCommandFrame& 
     return 1;
 }
 
-int RedisCommandDecoder::ProcessMultibulkBuffer(Channel* channel, Buffer& buffer, RedisCommandFrame& frame)
+static inline int readBulkLen(Buffer& buffer, int& len)
 {
-    int index = buffer.IndexOf(kCRLF, 2);
-    if (-1 == index)
+    char *eptr = NULL;
+    const char* raw = buffer.GetRawReadBuffer();
+    int tmp = strtol(raw, &eptr, 10);
+    if ((eptr - raw) > (buffer.ReadableBytes() - 2))
     {
         return 0;
     }
-    char *eptr = NULL;
-    const char* raw = buffer.GetRawReadBuffer();
-    int32 multibulklen = strtol(raw, &eptr, 10);
-    if (multibulklen <= 0)
+    if (*eptr != '\r' || *(eptr + 1) != '\n')
     {
-        buffer.SetReadIndex(index + 2);
-        return 1;
-    }
-    else if (multibulklen > 512 * 1024 * 1024)
-    {
-        if(NULL != channel)
-        {
-            APIException ex("Protocol error: invalid multibulk length");
-            fire_exception_caught(channel, ex);
-        }
         return -1;
     }
-    buffer.SetReadIndex(index + 2);
-    while (multibulklen > 0)
+    len = tmp;
+    buffer.AdvanceReadIndex(eptr - raw + 2);
+    return 1;
+}
+
+#define THROW_DECODE_EX(str)  do{\
+        if (NULL != channel)\
+        {\
+              APIException ex(str);\
+              fire_exception_caught(channel, ex);\
+              ERROR_LOG("Exception:%s occured.", str);\
+        }\
+}while(0)
+
+int RedisCommandDecoder::ProcessMultibulkBuffer(Channel* channel, Buffer& buffer, RedisCommandFrame& frame)
+{
+    if (buffer.ReadableBytes() < 3)  //at least  '0\r\n'
     {
-        int newline_index = buffer.IndexOf(kCRLF, 2);
-        if (-1 == newline_index)
+        return 0;
+    }
+    int multibulklen = 0;
+    int read_len_ret = readBulkLen(buffer, multibulklen);
+    if (read_len_ret == 0)
+    {
+        return 0;
+    }
+    else if (read_len_ret < 0)
+    {
+        THROW_DECODE_EX("Protocol error: expected CRLF at bulk length end");
+        return -1;
+    }
+    if (multibulklen > 512 * 1024 * 1024)
+    {
+        THROW_DECODE_EX("Protocol error: invalid multibulk length");
+        return -1;
+    }
+    int parsed_args = 0;
+    while (parsed_args < multibulklen)
+    {
+        if (buffer.ReadableBytes() < 4)  //at least '$0\r\n'
         {
             return 0;
         }
-        char ch;
-        if (!buffer.ReadByte(ch))
+        char expected = 0;
+        buffer.ReadByte(expected);
+        if (expected != '$')
         {
-            return 0;
-        }
-        if (ch != '$')
-        {
-            if(NULL != channel)
+            if (NULL != channel)
             {
                 char temp[100];
-                sprintf(temp, "Protocol error: expected '$', , got '%c'", ch);
-                APIException ex(temp);
-                fire_exception_caught(channel, ex);
+                sprintf(temp, "Protocol error: expected '$', , got '%c'", buffer.GetRawReadBuffer()[0]);
+                THROW_DECODE_EX(temp);
             }
             return -1;
         }
-        if (!buffer.Readable())
+        int arglen = 0;
+        read_len_ret = readBulkLen(buffer, arglen);
+        if (read_len_ret == 0)
         {
             return 0;
         }
-        const char* raw = buffer.GetRawReadBuffer();
-        int32 arglen = (uint32) strtol(raw, &eptr, 10);
-        if (eptr[0] != '\r' || arglen < 0 || arglen > 512 * 1024 * 1024)
+        else if (read_len_ret < 0)
         {
-            if(NULL != channel)
-            {
-                APIException ex("Protocol error: invalid bulk length");
-                fire_exception_caught(channel, ex);
-            }
+            THROW_DECODE_EX("Protocol error: expected CRLF at bulk length end");
             return -1;
         }
-        buffer.SetReadIndex(newline_index + 2);
-        if (!buffer.Readable())
+        if (arglen > 512 * 1024 * 1024)
+        {
+            THROW_DECODE_EX("Protocol error: invalid bulk length");
+            return -1;
+        }
+        if (buffer.ReadableBytes() < (arglen + 2))
         {
             return 0;
         }
-        if (buffer.ReadableBytes() < (uint32) (arglen + 2))
+        if (buffer.GetRawReadBuffer()[arglen] != '\r' || buffer.GetRawReadBuffer()[arglen + 1] != '\n')
         {
-            return 0;
+            THROW_DECODE_EX("Protocol error: expected CRLF at bulk end.");
+            return -1;
         }
         frame.FillNextArgument(buffer, arglen);
-        //Buffer* arg = frame.GetNextArgument(arglen);
-        //buffer.Read(arg, arglen);
-        char tempchs[2];
-        buffer.Read(tempchs, 2);
-        if (tempchs[0] != '\r' || tempchs[1] != '\n')
-        {
-            if(NULL != channel)
-            {
-                APIException ex("CRLF expected after argument.");
-                fire_exception_caught(channel, ex);
-            }
-            return -1;
-        }
-        //buffer.AdvanceReadIndex(arglen + 2);
-        multibulklen--;
+        buffer.AdvanceReadIndex(2);
+        parsed_args++;
     }
     return 1;
 }
 
-bool RedisCommandDecoder::Decode(Channel* channel,Buffer& buffer, RedisCommandFrame& msg)
+bool RedisCommandDecoder::Decode(Channel* channel, Buffer& buffer, RedisCommandFrame& msg)
 {
     while (buffer.GetRawReadBuffer()[0] == '\r' || buffer.GetRawReadBuffer()[0] == '\n')
     {

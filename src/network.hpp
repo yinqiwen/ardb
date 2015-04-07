@@ -42,12 +42,13 @@ OP_NAMESPACE_BEGIN
             Ardb* m_db;
             Context m_ctx;
             bool m_delete_after_processing;
+            //void ExceptionCaught(ChannelHandlerContext& ctx, ExceptionEvent& e);
             void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e);
             void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e);
             void ChannelConnected(ChannelHandlerContext& ctx, ChannelStateEvent& e);
         public:
             RedisRequestHandler(Ardb* s) :
-                m_db(s), m_delete_after_processing(false)
+                    m_db(s), m_delete_after_processing(false)
             {
             }
             static void PipelineInit(ChannelPipeline* pipeline, void* data);

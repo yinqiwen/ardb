@@ -917,9 +917,10 @@ OP_NAMESPACE_BEGIN
         RedisCommandHandlerSetting* found = FindRedisCommandHandlerSetting(args);
         if (NULL == found)
         {
-            ERROR_LOG("No handler found for:%s with size:%u", args.GetCommand().c_str(), args.GetCommand().size());
+            ERROR_LOG("No handler found for:%s with size:%u in connection:%u", args.GetCommand().c_str(), args.GetCommand().size(), ctx.client->GetID());
             ERROR_LOG("Invalid command's ascii codes:%s", ascii_codes(args.GetCommand()).c_str());
             fill_error_reply(ctx.reply, "unknown command '%s'", args.GetCommand().c_str());
+            ctx.close_after_processed = true;
             return 0;
         }
         ctx.ClearState();
