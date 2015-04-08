@@ -34,11 +34,13 @@
 #include "rocksdb/comparator.h"
 #include "rocksdb/cache.h"
 #include "rocksdb/filter_policy.h"
+#include "rocksdb/statistics.h"
 
 #include "engine.hpp"
 #include "util/config_helper.hpp"
 #include "thread/thread_local.hpp"
 #include <stack>
+#include <memory>
 
 namespace ardb
 {
@@ -116,17 +118,20 @@ namespace ardb
             int64 batch_commit_watermark;
             std::string compression;
             bool logenable;
-            bool skip_log_error_on_recovery;
             double hard_rate_limit;
             int64 flush_compact_rate_bytes_per_sec;
             bool disableWAL;
             int64 max_manifest_file_size;
             std::string compacton_style;
+            bool disable_auto_compactions;
+            bool statistics_enable;
+            bool use_bulk_load_options;
             RocksDBConfig() :
                     block_cache_size(0), block_cache_compressed_size(0), write_buffer_size(0), max_open_files(10240), block_size(
                             0), block_restart_interval(0), bloom_bits(10), batch_commit_watermark(1024), compression(
-                            "snappy"), logenable(false), skip_log_error_on_recovery(false), hard_rate_limit(2.0), flush_compact_rate_bytes_per_sec(
-                            0), disableWAL(false),max_manifest_file_size(0),compacton_style("level")
+                            "snappy"), logenable(false), hard_rate_limit(2.0), flush_compact_rate_bytes_per_sec(0), disableWAL(
+                            false), max_manifest_file_size(0), compacton_style("level"), disable_auto_compactions(
+                            false), statistics_enable(true),use_bulk_load_options(false)
             {
             }
     };
@@ -174,8 +179,10 @@ namespace ardb
 
             RocksDBConfig m_cfg;
             rocksdb::Options m_options;
+            std::shared_ptr<rocksdb::Statistics> m_stat;
             friend class RocksDBEngineFactory;
             int FlushWriteBatch(ContextHolder& holder);
+
         public:
             RocksDBEngine();
             ~RocksDBEngine();

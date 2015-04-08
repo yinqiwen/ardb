@@ -87,12 +87,14 @@ namespace ardb
         conf_get_int64(props, "rocksdb.batch_commit_watermark", cfg.batch_commit_watermark);
         conf_get_string(props, "rocksdb.compression", cfg.compression);
         conf_get_bool(props, "rocksdb.logenable", cfg.logenable);
-        conf_get_bool(props, "rocksdb.skip_log_error_on_recovery", cfg.skip_log_error_on_recovery);
         conf_get_int64(props, "rocksdb.flush_compact_rate_bytes_per_sec", cfg.flush_compact_rate_bytes_per_sec);
         conf_get_double(props, "rocksdb.hard_rate_limit", cfg.hard_rate_limit);
         conf_get_bool(props, "rocksdb.disableWAL", cfg.disableWAL);
         conf_get_int64(props, "rocksdb.max_manifest_file_size", cfg.max_manifest_file_size);
         conf_get_string(props, "rocksdb.compacton_style", cfg.compacton_style);
+        conf_get_bool(props, "rocksdb.disable_auto_compactions", cfg.disable_auto_compactions);
+        conf_get_bool(props, "rocksdb.statistics_enable", cfg.statistics_enable);
+        conf_get_bool(props, "rocksdb.use_bulk_load_options", cfg.use_bulk_load_options);
     }
 
     KeyValueEngine* RocksDBEngineFactory::CreateDB(const std::string& name)
@@ -157,7 +159,7 @@ namespace ardb
     }
 
     RocksDBEngine::RocksDBEngine() :
-            m_db(NULL)
+            m_db(NULL), m_stat(NULL)
     {
 
     }
@@ -165,76 +167,95 @@ namespace ardb
     {
         DELETE(m_db);
     }
+
     int RocksDBEngine::Init(const RocksDBConfig& cfg)
     {
         m_cfg = cfg;
+
+        if (m_cfg.use_bulk_load_options)
+        {
+            m_options.PrepareForBulkLoad();
+        }
+        else
+        {
+            rocksdb::BlockBasedTableOptions block_options;
+            if (cfg.block_cache_size > 0)
+            {
+                block_options.block_cache = rocksdb::NewLRUCache(cfg.block_cache_size);
+                //m_options.block_cache_compressed = rocksdb::NewLRUCache(cfg.block_cache_compressed_size);
+            }
+            else if (cfg.block_cache_size < 0)
+            {
+                block_options.no_block_cache = true;
+                //m_options.no_block_cache = true;
+            }
+            if (cfg.block_size > 0)
+            {
+                block_options.block_size = cfg.block_size;
+                //m_options.block_size = cfg.block_size;
+            }
+            if (cfg.block_restart_interval > 0)
+            {
+                block_options.block_restart_interval = cfg.block_restart_interval;
+                //m_options.block_restart_interval = cfg.block_restart_interval;
+            }
+            if (cfg.bloom_bits > 0)
+            {
+                block_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(cfg.bloom_bits));
+                //m_options.filter_policy = rocksdb::NewBloomFilterPolicy(cfg.bloom_bits);
+            }
+            m_options.table_factory.reset(rocksdb::NewBlockBasedTableFactory(block_options));
+
+            if (cfg.write_buffer_size > 0)
+            {
+                m_options.write_buffer_size = cfg.write_buffer_size;
+            }
+
+            m_options.disable_auto_compactions = cfg.disable_auto_compactions;
+
+            if (!strcasecmp(cfg.compression.c_str(), "none"))
+            {
+                m_options.compression = rocksdb::kNoCompression;
+            }
+            else
+            {
+                m_options.compression = rocksdb::kSnappyCompression;
+            }
+            if (cfg.flush_compact_rate_bytes_per_sec > 0)
+            {
+                m_options.rate_limiter.reset(rocksdb::NewGenericRateLimiter(cfg.flush_compact_rate_bytes_per_sec));
+            }
+            m_options.hard_rate_limit = cfg.hard_rate_limit;
+            if (m_cfg.max_manifest_file_size > 0)
+            {
+                m_options.max_manifest_file_size = m_cfg.max_manifest_file_size;
+            }
+            if (!strcasecmp(m_cfg.compacton_style.c_str(), "universal"))
+            {
+                m_options.OptimizeUniversalStyleCompaction();
+            }
+            else
+            {
+                m_options.OptimizeLevelStyleCompaction();
+            }
+            m_options.IncreaseParallelism();
+        }
+
         m_options.create_if_missing = true;
         m_options.comparator = &m_comparator;
-        rocksdb::BlockBasedTableOptions block_options;
-        if (cfg.block_cache_size > 0)
-        {
-            block_options.block_cache = rocksdb::NewLRUCache(cfg.block_cache_size);
-            //m_options.block_cache_compressed = rocksdb::NewLRUCache(cfg.block_cache_compressed_size);
-        }
-        else if (cfg.block_cache_size < 0)
-        {
-            block_options.no_block_cache = true;
-            //m_options.no_block_cache = true;
-        }
-        if (cfg.block_size > 0)
-        {
-            block_options.block_size = cfg.block_size;
-            //m_options.block_size = cfg.block_size;
-        }
-        if (cfg.block_restart_interval > 0)
-        {
-            block_options.block_restart_interval = cfg.block_restart_interval;
-            //m_options.block_restart_interval = cfg.block_restart_interval;
-        }
-        if (cfg.bloom_bits > 0)
-        {
-            block_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(cfg.bloom_bits));
-            //m_options.filter_policy = rocksdb::NewBloomFilterPolicy(cfg.bloom_bits);
-        }
-        m_options.table_factory.reset(rocksdb::NewBlockBasedTableFactory(block_options));
-
-        if (cfg.write_buffer_size > 0)
-        {
-            m_options.write_buffer_size = cfg.write_buffer_size;
-        }
         m_options.max_open_files = cfg.max_open_files;
-
-        if (!strcasecmp(cfg.compression.c_str(), "none"))
+        if (cfg.statistics_enable)
         {
-            m_options.compression = rocksdb::kNoCompression;
+            m_stat = rocksdb::CreateDBStatistics();
+            m_options.statistics = m_stat;
         }
-        else
-        {
-            m_options.compression = rocksdb::kSnappyCompression;
-        }
-        if (cfg.flush_compact_rate_bytes_per_sec > 0)
-        {
-            m_options.rate_limiter.reset(rocksdb::NewGenericRateLimiter(cfg.flush_compact_rate_bytes_per_sec));
-        }
-        m_options.hard_rate_limit = cfg.hard_rate_limit;
-        if (m_cfg.max_manifest_file_size > 0)
-        {
-            m_options.max_manifest_file_size = m_cfg.max_manifest_file_size;
-        }
-        if (!strcasecmp(m_cfg.compacton_style.c_str(), "universal"))
-        {
-            m_options.OptimizeUniversalStyleCompaction();
-        }
-        else
-        {
-            m_options.OptimizeLevelStyleCompaction();
-        }
-        m_options.IncreaseParallelism();
 
         if (cfg.logenable)
         {
             m_options.info_log.reset(new RocksDBLogger);
+            m_options.info_log_level = rocksdb::INFO_LEVEL;
         }
+
         make_dir(cfg.path);
         m_db_path = cfg.path;
         rocksdb::Status status = rocksdb::DB::Open(m_options, cfg.path.c_str(), &m_db);
@@ -449,6 +470,10 @@ namespace ardb
         }
         m_db->GetProperty("rocksdb.stats", &str);
         all.append(str);
+        if (m_stat)
+        {
+            all.append(m_stat->ToString());
+        }
         return all;
     }
 
