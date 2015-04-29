@@ -956,6 +956,7 @@ OP_NAMESPACE_BEGIN
         {
             /* Out of range start or start > end result in empty list */
             DeleteKey(ctx, cmd.GetArguments()[0]);
+            fill_status_reply(ctx.reply, "OK");
             return 0;
         }
         if (meta.meta.Encoding() == COLLECTION_ENCODING_ZIPLIST)
@@ -1020,6 +1021,7 @@ OP_NAMESPACE_BEGIN
             }
             SetKeyValue(ctx, meta);
         }
+        fill_status_reply(ctx.reply, "OK");
         return 0;
     }
 
