@@ -1410,6 +1410,10 @@ namespace ardb
             {
                 hllvalue.assign(value.meta.str_value.RawString(), sdslen(value.meta.str_value.RawString()));
             }
+            else if (ctx.reply.type == REDIS_REPLY_NIL)
+            {
+                return 0;
+            }
             if (!isHLLObjectOrReply(hllvalue))
             {
                 return ERR_INVALID_HLL_TYPE;
@@ -1530,7 +1534,7 @@ namespace ardb
          * We we the maximum into the max array of registers. We'll write
          * it to the target variable later. */
         memset(max, 0, sizeof(max));
-        for ( j = 0; j < srckeys.size(); j++)
+        for (j = 0; j < srckeys.size(); j++)
         {
             ValueObject hll;
             StringGet(ctx, srckeys[j], hll);
