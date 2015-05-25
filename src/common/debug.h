@@ -76,5 +76,5 @@
 	}\
 }while(0)
 
-
+#define ARDB_NOTUSED(V) ((void) V)
 #endif /* DEBUG_H_ */
