@@ -50,7 +50,7 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-            DELETE(handler);
+            DELETE(rhandler);
         }
     }
 
