@@ -835,7 +835,7 @@ namespace ardb
             if (func.size() != 40)
             {
                 reply.type = REDIS_REPLY_ERROR;
-                reply.str = "-NOSCRIPT No matching script. Please use EVAL.";
+                reply.str = "NOSCRIPT No matching script. Please use EVAL.";
                 return -1;
             }
             funcname.append(func);
@@ -863,7 +863,7 @@ namespace ardb
                     lua_pop(m_lua, 1);
                     /* remove the error handler from the stack. */
                     reply.type = REDIS_REPLY_ERROR;
-                    reply.str = "-NOSCRIPT No matching script. Please use EVAL.";
+                    reply.str = "NOSCRIPT No matching script. Please use EVAL.";
                     return -1;
                 }
                 funptr = &cachedfunc;
