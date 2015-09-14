@@ -29,16 +29,6 @@
 #include "ardb.hpp"
 
 OP_NAMESPACE_BEGIN
-    int Ardb::RawSet(Context& ctx, RedisCommandFrame& cmd)
-    {
-        SetRaw(ctx, cmd.GetArguments()[0], cmd.GetArguments()[1]);
-        return 0;
-    }
-    int Ardb::RawDel(Context& ctx, RedisCommandFrame& cmd)
-    {
-        DelRaw(ctx, cmd.GetArguments()[0]);
-        return 0;
-    }
     int Ardb::KeysCount(Context& ctx, RedisCommandFrame& cmd)
     {
         KeysOptions opt;
@@ -49,335 +39,28 @@ OP_NAMESPACE_BEGIN
     }
     int Ardb::Randomkey(Context& ctx, RedisCommandFrame& cmd)
     {
-        ctx.reply.type = REDIS_REPLY_NIL;
-        KeyObject from;
-        from.db = ctx.currentDB;
-        from.type = KEY_META;
-
-        std::string min_key, max_key, randkey;
-        Iterator* iter = IteratorKeyValue(from, false);
-        if (NULL != iter && iter->Valid())
-        {
-            KeyObject kk;
-            if (!decode_key(iter->Key(), kk) || kk.db != ctx.currentDB || kk.type != KEY_META)
-            {
-                goto _end;
-            }
-            min_key.assign(kk.key.data(), kk.key.size());
-            max_key = min_key;
-            from.type = SET_ELEMENT;    //Refer comparator.cpp
-
-            from.encode_buf.Clear();
-            IteratorSeek(iter, from);
-            if (!iter->Valid())
-            {
-                iter->SeekToLast();
-            }
-            if (iter->Valid())
-            {
-                iter->Prev();
-                if (iter->Valid())
-                {
-                    if (decode_key(iter->Key(), kk) && kk.db == ctx.currentDB && kk.type == KEY_META)
-                    {
-                        max_key.assign(kk.key.data(), kk.key.size());
-                    }
-                }
-            }
-            randkey = min_key;
-            if (min_key < max_key)
-            {
-                randkey = random_between_string(min_key, max_key);
-                from.type = KEY_META;
-                from.db = ctx.currentDB;
-                from.key = randkey;
-                IteratorSeek(iter, from);
-                if (iter->Valid())
-                {
-                    KeyObject kk;
-                    if (!decode_key(iter->Key(), kk) || kk.db != ctx.currentDB || kk.type != KEY_META)
-                    {
-                        goto _end;
-                    }
-                    randkey.assign(kk.key.data(), kk.key.size());
-                }
-            }
-        }
-        if (!randkey.empty())
-        {
-            fill_str_reply(ctx.reply, randkey);
-        }
-        _end:
-        DELETE(iter);
         return 0;
     }
     int Ardb::Scan(Context& ctx, RedisCommandFrame& cmd)
     {
-        StringArray keys;
-        std::string pattern;
-        uint32 limit = 1000; //return max 1000 keys one time
-
-        if (cmd.GetArguments().size() > 1)
-        {
-            for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
-            {
-                if (!strcasecmp(cmd.GetArguments()[i].c_str(), "count"))
-                {
-                    if (i + 1 >= cmd.GetArguments().size() || !string_touint32(cmd.GetArguments()[i + 1], limit))
-                    {
-                        fill_error_reply(ctx.reply, "value is not an integer or out of range");
-                        return 0;
-                    }
-                    i++;
-                }
-                else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "match"))
-                {
-                    if (i + 1 >= cmd.GetArguments().size())
-                    {
-                        fill_error_reply(ctx.reply, "'MATCH' need one args followed");
-                        return 0;
-                    }
-                    pattern = cmd.GetArguments()[i + 1];
-                    i++;
-                }
-                else
-                {
-                    fill_error_reply(ctx.reply, "Syntax error, try scan 0 ");
-                    return 0;
-                }
-            }
-        }
-        uint32 scan_count_limit = limit * 10;
-        uint32 scan_count = 0;
-        RedisReply& r1 = ctx.reply.AddMember();
-        RedisReply& r2 = ctx.reply.AddMember();
-        r2.type = REDIS_REPLY_ARRAY;
-
-        KeyObject from;
-        from.db = ctx.currentDB;
-        from.type = KEY_META;
-        const std::string& cursor = cmd.GetArguments()[0];
-        std::string scan_start_cursor;
-        if (cmd.GetArguments()[0] != "0")
-        {
-            if (m_cfg.scan_redis_compatible)
-            {
-                FindElementByRedisCursor(cursor, scan_start_cursor);
-            }
-            from.key = scan_start_cursor;
-        }
-        Iterator* iter = IteratorKeyValue(from, false);
-        bool reachend = false;
-        std::string tmpkey;
-        while (NULL != iter && iter->Valid())
-        {
-            KeyObject kk;
-            if (!decode_key(iter->Key(), kk) || kk.db != ctx.currentDB || kk.type != KEY_META)
-            {
-                reachend = true;
-                break;
-            }
-            tmpkey.clear();
-            tmpkey.assign(kk.key.data(), kk.key.size());
-            if (r2.MemberSize() >= limit || scan_count >= scan_count_limit)
-            {
-                break;
-            }
-            if ((pattern.empty()
-                    || stringmatchlen(pattern.c_str(), pattern.size(), tmpkey.c_str(), tmpkey.size(), 0) == 1))
-            {
-                RedisReply& rr1 = r2.AddMember();
-                fill_str_reply(rr1, tmpkey);
-            }
-            iter->Next();
-            scan_count++;
-        }
-        if (NULL == iter || reachend || !iter->Valid())
-        {
-            fill_str_reply(r1, "0");
-        }
-        else
-        {
-            if (m_cfg.scan_redis_compatible)
-            {
-                uint64 newcursor = GetNewRedisCursor(tmpkey);
-                fill_str_reply(r1, stringfromll(newcursor));
-            }
-            else
-            {
-                fill_str_reply(r1, tmpkey);
-            }
-        }
-        DELETE(iter);
         return 0;
     }
 
     int Ardb::KeysOperation(Context& ctx, const KeysOptions& options)
     {
-        KeyObject from;
-        from.db = ctx.currentDB;
-        from.type = KEY_META;
 
-        std::string::size_type cursor = options.pattern.find("*");
-        if (cursor == std::string::npos)
-        {
-            from.key = options.pattern;
-        }
-        else
-        {
-            if (options.pattern != "*" && cursor > 0)
-            {
-                from.key = options.pattern.substr(0, cursor);
-            }
-        }
-        Iterator* iter = IteratorKeyValue(from, false);
-        std::string tmpkey;
-        uint32 count = 0;
-        while (NULL != iter && iter->Valid())
-        {
-            KeyObject kk;
-            if (!decode_key(iter->Key(), kk) || kk.db != ctx.currentDB || kk.type != KEY_META)
-            {
-                break;
-            }
-            tmpkey.clear();
-            tmpkey.assign(kk.key.data(), kk.key.size());
-            if ((options.pattern == "*"
-                    || stringmatchlen(options.pattern.c_str(), options.pattern.size(), tmpkey.data(), tmpkey.size(), 0)
-                            == 1))
-            {
-                if (options.op == OP_GET)
-                {
-                    RedisReply& r = ctx.reply.AddMember();
-                    fill_str_reply(r, tmpkey);
-                }
-                else
-                {
-                    count++;
-                }
-            }
-            else
-            {
-                /*
-                 * If the '*' is the last char, we can break iteration now
-                 */
-                if (cursor == options.pattern.size() - 1)
-                {
-                    break;
-                }
-            }
-            iter->Next();
-        }
-        DELETE(iter);
-        if (options.op == OP_GET)
-        {
-            ctx.reply.type = REDIS_REPLY_ARRAY;
-        }
-        else
-        {
-            fill_int_reply(ctx.reply, count);
-        }
         return 0;
     }
 
     int Ardb::Keys(Context& ctx, RedisCommandFrame& cmd)
     {
-        KeysOptions opt;
-        opt.op = OP_GET;
-        opt.pattern = cmd.GetArguments()[0];
-        uint32 limit = 100000; //return max 100000 keys one time
-        if (cmd.GetArguments().size() > 1)
-        {
-            for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
-            {
-                if (!strcasecmp(cmd.GetArguments()[i].c_str(), "limit"))
-                {
-                    if (i + 1 >= cmd.GetArguments().size() || !string_touint32(cmd.GetArguments()[i + 1], limit))
-                    {
-                        fill_error_reply(ctx.reply, "value is not an integer or out of range");
-                        return 0;
-                    }
-                    i++;
-                }
-                else
-                {
-                    fill_error_reply(ctx.reply, "Syntax error, try KEYS ");
-                    return 0;
-                }
-            }
-        }
-        opt.limit = limit;
-        KeysOperation(ctx, opt);
+
         return 0;
     }
 
     int Ardb::Rename(Context& ctx, RedisCommandFrame& cmd)
     {
-        bool withnx = cmd.GetType() == REDIS_CMD_RENAMENX;
-        if (withnx)
-        {
-            RedisCommandFrame exists("Exists");
-            exists.AddArg(cmd.GetArguments()[1]);
-            Exists(ctx, exists);
-            if (ctx.reply.integer == 1)
-            {
-                fill_int_reply(ctx.reply, 0);
-                return 0;
-            }
-        }
-        else
-        {
-            DeleteKey(ctx, cmd.GetArguments()[1]);
-        }
 
-        KeyType type = KEY_END;
-        GetType(ctx, cmd.GetArguments()[0], type);
-        switch (type)
-        {
-            case SET_META:
-            {
-                RenameSet(ctx, ctx.currentDB, cmd.GetArguments()[0], ctx.currentDB, cmd.GetArguments()[1]);
-                break;
-            }
-            case LIST_META:
-            {
-                RenameList(ctx, ctx.currentDB, cmd.GetArguments()[0], ctx.currentDB, cmd.GetArguments()[1]);
-                break;
-            }
-            case ZSET_META:
-            {
-                RenameZSet(ctx, ctx.currentDB, cmd.GetArguments()[0], ctx.currentDB, cmd.GetArguments()[1]);
-                break;
-            }
-            case HASH_META:
-            {
-                RenameHash(ctx, ctx.currentDB, cmd.GetArguments()[0], ctx.currentDB, cmd.GetArguments()[1]);
-                break;
-            }
-            case STRING_META:
-            {
-                RenameString(ctx, ctx.currentDB, cmd.GetArguments()[0], ctx.currentDB, cmd.GetArguments()[1]);
-                break;
-            }
-            case BITSET_META:
-            {
-                RenameBitset(ctx, ctx.currentDB, cmd.GetArguments()[0], ctx.currentDB, cmd.GetArguments()[1]);
-                break;
-            }
-            default:
-            {
-                fill_error_reply(ctx.reply, "Invalid type to rename");
-                break;
-            }
-        }
-        if (withnx)
-        {
-            fill_int_reply(ctx.reply, 1);
-        }
-        else
-        {
-            fill_status_reply(ctx.reply, "OK");
-        }
         return 0;
     }
 
@@ -724,52 +407,6 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    /*
-     * CACHE LOAD|EVICT|STATUS key
-     */
-    int Ardb::Cache(Context& ctx, RedisCommandFrame& cmd)
-    {
-        int ret = 0;
-        if (!strcasecmp(cmd.GetArguments()[0].c_str(), "load"))
-        {
-            KeyType type = KEY_END;
-            GetType(ctx, cmd.GetArguments()[1], type);
-            if (type != KEY_END)
-            {
-                CacheLoadOptions options;
-                options.deocode_geo = true;
-                ret = m_cache.Load(ctx.currentDB, cmd.GetArguments()[1], type, options);
-            }
-            else
-            {
-                ret = ERR_INVALID_TYPE;
-            }
-        }
-        else if (!strcasecmp(cmd.GetArguments()[0].c_str(), "evict"))
-        {
-            ret = m_cache.Evict(ctx.currentDB, cmd.GetArguments()[1]);
-        }
-        else if (!strcasecmp(cmd.GetArguments()[0].c_str(), "status"))
-        {
-            std::string status = m_cache.Status(ctx.currentDB, cmd.GetArguments()[1]);
-            fill_str_reply(ctx.reply, status);
-            return 0;
-        }
-        else
-        {
-            fill_error_reply(ctx.reply, "Syntax error, try CACHE (LOAD | EVICT | STATUS) key");
-            return 0;
-        }
-        if (ret == 0)
-        {
-            fill_status_reply(ctx.reply, "OK");
-        }
-        else
-        {
-            fill_error_reply(ctx.reply, "Failed to cache load/evict/status key:%s", cmd.GetArguments()[1].c_str());
-        }
-        return 0;
-    }
 
 OP_NAMESPACE_END
 

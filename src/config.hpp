@@ -36,16 +36,6 @@
 #include "codec.hpp"
 
 OP_NAMESPACE_BEGIN
-
-    struct StorageConfig
-    {
-            int codec_ver;
-            StorageConfig() :
-                    codec_ver(0)
-            {
-            }
-    };
-
     struct ArdbConfig
     {
             bool daemonize;
@@ -159,6 +149,8 @@ OP_NAMESPACE_BEGIN
 
             bool lua_exec_atomic;
 
+            std::string masterauth;
+
             ArdbConfig() :
                     daemonize(false), unixsocketperm(755), max_clients(10000), tcp_keepalive(0), timeout(0), slowlog_log_slower_than(
                             10000), slowlog_max_len(128), repl_data_dir("./repl"), backup_dir("./backup"), backup_redis_format(
@@ -182,7 +174,6 @@ OP_NAMESPACE_BEGIN
             }
             bool Parse(const Properties& props);
             uint32 PrimayPort();
-
     };
 
 OP_NAMESPACE_END

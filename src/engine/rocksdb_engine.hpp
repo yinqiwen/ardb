@@ -42,6 +42,7 @@
 #include <stack>
 #include <memory>
 
+#ifdef xx
 namespace ardb
 {
     class RocksDBEngine;
@@ -216,4 +217,5 @@ namespace ardb
             }
     };
 }
+#endif
 #endif

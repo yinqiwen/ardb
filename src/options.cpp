@@ -56,6 +56,7 @@ OP_NAMESPACE_BEGIN
             {
                 return -1;
             }
+
         }
         return 0;
     }
@@ -73,6 +74,7 @@ OP_NAMESPACE_BEGIN
         }
         min.SetDouble(min_d);
         max.SetDouble(max_d);
+
         return ret == 0;
     }
 

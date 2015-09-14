@@ -354,41 +354,6 @@ OP_NAMESPACE_BEGIN
         return empty;
     }
 
-    int Ardb::CheckStorageCodecVersion()
-    {
-        m_storage_config.codec_ver = ARDB_STORAGE_CODEC_VER;
-        std::string storage_cfg_path = m_cfg.data_base_path + "/.storage.cfg";
-        if (!is_file_exist(storage_cfg_path))
-        {
-            char buffer[ARDB_STORAGE_CONFIG_BUFFER_LEN];
-            memset(buffer, 0, sizeof(buffer));
-            StorageConfig* scfg = (StorageConfig*) buffer;
-            scfg->codec_ver = ARDB_STORAGE_CODEC_VER;
-            std::string content;
-            content.assign(buffer, ARDB_STORAGE_CONFIG_BUFFER_LEN);
-            file_write_content(storage_cfg_path, content);
-            m_storage_config = *scfg;
-        }
-        else
-        {
-            Buffer buffer;
-            file_read_full(storage_cfg_path, buffer);
-            if (buffer.ReadableBytes() != ARDB_STORAGE_CONFIG_BUFFER_LEN)
-            {
-                ERROR_LOG("Invalid content read from %s", storage_cfg_path.c_str());
-                return -1;
-            }
-            StorageConfig* scfg = (StorageConfig*) (buffer.GetRawBuffer());
-            m_storage_config = *scfg;
-        }
-        return 0;
-    }
-
-    int Ardb::InternalCodecVersion()
-    {
-        return m_storage_config.codec_ver;
-    }
-
     int Ardb::Init(const ArdbConfig& cfg)
     {
         m_cfg = cfg;
@@ -518,8 +483,6 @@ OP_NAMESPACE_BEGIN
         m_service->RegisterUserEventCallback(ServerEventCallback, this);
 
         m_cron.Start();
-        m_cache.Init();
-        m_cache.Start();
 
         INFO_LOG("Server started, Ardb version %s", ARDB_VERSION);
         INFO_LOG("The server is now ready to accept connections on  %s",
@@ -529,7 +492,6 @@ OP_NAMESPACE_BEGIN
         m_service->Start();
         sexit: m_master.Stop();
         m_cron.StopSelf();
-        m_cache.StopSelf();
         DELETE(m_service);
         DELETE(m_engine);
         ArdbLogger::DestroyDefaultLogger();

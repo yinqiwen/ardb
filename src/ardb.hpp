@@ -36,7 +36,6 @@
 #include "engine/engine.hpp"
 #include "channel/all_includes.hpp"
 #include "command/lua_scripting.hpp"
-#include "cache/cache.hpp"
 #include "concurrent.hpp"
 #include "options.hpp"
 #include "iterator.hpp"
@@ -51,21 +50,6 @@
 #include "replication/slave.hpp"
 #include "util/redis_helper.hpp"
 
-#define ARDB_OK 0
-#define ERR_INVALID_ARGS -3
-#define ERR_INVALID_OPERATION -4
-#define ERR_INVALID_STR -5
-#define ERR_DB_NOT_EXIST -6
-#define ERR_KEY_EXIST -7
-#define ERR_INVALID_TYPE -8
-#define ERR_OUTOFRANGE -9
-#define ERR_NOT_EXIST -10
-#define ERR_TOO_LARGE_RESPONSE -11
-#define ERR_INVALID_HLL_TYPE -12
-#define ERR_CORRUPTED_HLL_VALUE -13
-#define ERR_STORAGE_ENGINE_INTERNAL -14
-#define ERR_OVERLOAD -15
-#define ERR_NOT_EXIST_IN_CACHE -16
 
 /* Command flags. Please check the command table defined in the redis.c file
  * for more information about the meaning of every flag. */
@@ -83,34 +67,7 @@
 //#define ARDB_CMD_SKIP_MONITOR 2048         /* "M" flag */
 //#define ARDB_CMD_ASKING 4096               /* "k" flag */
 
-#define ARDB_PROCESS_WITHOUT_REPLICATION 1
-#define ARDB_PROCESS_REPL_WRITE 2
-#define ARDB_PROCESS_FORCE_REPLICATION 4
-#define ARDB_PROCESS_FEED_REPLICATION_ONLY 8
-#define ARDB_PROCESS_TRANSC 16
-
-#define SCRIPT_KILL_EVENT 1
-#define SCRIPT_FLUSH_EVENT 2
-
 using namespace ardb::codec;
-
-#define CHECK_ARDB_RETURN_VALUE(reply, ret) do{\
-    switch(ret){\
-        case ERR_INVALID_ARGS: ardb::fill_error_reply(reply, "Invalid arguments."); return 0;\
-        case ERR_INVALID_TYPE: ardb::fill_error_reply(reply, "Operation against a key holding the wrong kind of value."); return 0;\
-        case ERR_INVALID_HLL_TYPE: ardb::fill_fix_error_reply(reply, "WRONGTYPE Key is not a valid HyperLogLog string value."); return 0;\
-        case ERR_CORRUPTED_HLL_VALUE: ardb::fill_error_reply(reply, "INVALIDOBJ Corrupted HLL object detected."); return 0;\
-        case ERR_STORAGE_ENGINE_INTERNAL: ardb::fill_error_reply(reply, "Storage engine internal error."); return 0;\
-        default:break; \
-    }\
-}while(0)
-
-#define CHECK_WRITE_RETURN_VALUE(ctx, ret) do{\
-    if(ret < 0){\
-        ctx.write_success = false;\
-        return 0;\
-    }\
-}while(0)
 
 OP_NAMESPACE_BEGIN
 
@@ -138,7 +95,7 @@ OP_NAMESPACE_BEGIN
     class ConnectionTimeout;
     class CompactTask;
     class RedisCursorClearTask;
-    class Ardb
+    class Ardb: public rocksdb::AssociativeMergeOperator
     {
         public:
             typedef int (Ardb::*RedisCommandHandler)(Context&, RedisCommandFrame&);
@@ -156,8 +113,7 @@ OP_NAMESPACE_BEGIN
             };
         private:
             ChannelService* m_service;
-            KeyValueEngineFactory& m_engine_factory;
-            KeyValueEngine* m_engine;
+            RocksDBEngine m_engine;
 
             KeyLocker m_key_lock;
 
@@ -165,7 +121,6 @@ OP_NAMESPACE_BEGIN
             Properties m_cfg_props;
             SpinRWLock m_cfg_lock;
 
-            L1Cache m_cache;
             CronManager m_cron;
             Statistics m_stat;
 
@@ -218,7 +173,8 @@ OP_NAMESPACE_BEGIN
             SpinMutexLock m_redis_cursor_lock;
             RedisCursorTable m_redis_cursor_table;
 
-            StorageConfig m_storage_config;
+
+            bool FillErrorReply(Context& ctx, int err);
 
             DataDumpFile& GetDataDumpFile();
             void FillInfoResponse(const std::string& section, std::string& info);
@@ -334,14 +290,6 @@ OP_NAMESPACE_BEGIN
             int GenericTTL(Context& ctx, const Slice& key, uint64& ms);
             int KeysOperation(Context& ctx, const KeysOptions& options);
 
-            int RenameString(Context& ctx, DBID srcdb, const std::string& srckey, DBID dstdb,
-                    const std::string& dstkey);
-            int RenameSet(Context& ctx, DBID srcdb, const std::string& srckey, DBID dstdb, const std::string& dstkey);
-            int RenameList(Context& ctx, DBID srcdb, const std::string& srckey, DBID dstdb, const std::string& dstkey);
-            int RenameHash(Context& ctx, DBID srcdb, const std::string& srckey, DBID dstdb, const std::string& dstkey);
-            int RenameZSet(Context& ctx, DBID srcdb, const std::string& srckey, DBID dstdb, const std::string& dstkey);
-            int RenameBitset(Context& ctx, DBID srcdb, const std::string& srckey, DBID dstdb,
-                    const std::string& dstkey);
 
             int GeoSearchByOptions(Context& ctx, ValueObject& meta, GeoSearchOptions& options);
 
@@ -528,7 +476,6 @@ OP_NAMESPACE_BEGIN
             int GeoAdd(Context& ctx, RedisCommandFrame& cmd);
             int GeoSearch(Context& ctx, RedisCommandFrame& cmd);
 
-            int Cache(Context& ctx, RedisCommandFrame& cmd);
             int Auth(Context& ctx, RedisCommandFrame& cmd);
 
             int PFAdd(Context& ctx, RedisCommandFrame& cmd);
@@ -547,7 +494,6 @@ OP_NAMESPACE_BEGIN
             uint64 GetNewRedisCursor(const std::string& element);
             int FindElementByRedisCursor(const std::string& cursor, std::string& element);
             void ClearExpireRedisCursor();
-            int CheckStorageCodecVersion();
             bool IsEmpty();
 
             friend class RedisRequestHandler;
@@ -562,7 +508,6 @@ OP_NAMESPACE_BEGIN
             friend class ConnectionTimeout;
             friend class CompactTask;
             friend class RedisCursorClearTask;
-            friend class L1Cache;
         public:
             Ardb(KeyValueEngineFactory& factory);
             int Init(const ArdbConfig& cfg);
@@ -583,8 +528,6 @@ OP_NAMESPACE_BEGIN
             {
                 return m_stat;
             }
-            KeyValueEngine& GetKeyValueEngine();
-            int InternalCodecVersion();
             int Call(Context& ctx, RedisCommandFrame& cmd, int flags);
             static void WakeBlockedConnCallback(Channel* ch, void * data);
             ~Ardb();

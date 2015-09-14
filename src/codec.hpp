@@ -37,42 +37,17 @@
 #include "slice.hpp"
 #include <deque>
 
-#define STRING_ENCODING_NIL    0
-#define STRING_ENCODING_INT64  1
-#define STRING_ENCODING_DOUBLE 2
-#define STRING_ENCODING_RAW    3
-
-#define COLLECTION_ENCODING_RAW      0
-#define COLLECTION_ENCODING_ZIPLIST  1
-#define COLLECTION_ENCODING_ZIPMAP   2
-#define COLLECTION_ENCODING_ZIPSET   3
-#define COLLECTION_ENCODING_ZIPZSET  4
-
-#define COLLECTION_FLAG_NORMAL      0
-#define COLLECTION_FLAG_SEQLIST     1   //indicate that list is only sequentially pushed/poped at head/tail
-
-#define ARDB_GLOBAL_DB 0xFFFFFF
-
 OP_NAMESPACE_BEGIN
 
     enum KeyType
     {
-        KEY_META = 0, STRING_META = 1, BITSET_META = 2, SET_META = 3, ZSET_META = 4, HASH_META = 5, LIST_META = 6,
+        KEY_META = 0, V_STRING = 1, V_HASH = 2, V_LIST = 3, V_SET = 4, V_ZSET = 5,
         /*
          * Reserver 20 types
          */
 
-        SET_ELEMENT = 20,
 
-        ZSET_ELEMENT_SCORE = 30, ZSET_ELEMENT_VALUE = 31,
-
-        HASH_FIELD = 40,
-
-        LIST_ELEMENT = 50,
-
-        BITSET_ELEMENT = 70,
-
-        KEY_EXPIRATION_ELEMENT = 100, SCRIPT = 102,
+        V_TTL = 100,
 
         KEY_END = 255, /* max value for 1byte */
     };
@@ -84,54 +59,27 @@ OP_NAMESPACE_BEGIN
 
     struct Data
     {
-            union
-            {
-                    int64 iv;
-                    double dv;
-                    sds sv;
-            } value;
-            //std::string str;
-            uint8 encoding;
+            char data[8];
+            unsigned encoding :3;
+            unsigned len :29;
 
             Data();
-            Data(const Slice& v, bool try_int_encoding = true);
+            Data(const std::string& v, bool try_int_encoding);
             Data(const Data& data);
-            Data& operator=(const Data& data)
-            {
-                Clone(data);
-                return *this;
-            }
+            Data& operator=(const Data& data);
             ~Data();
 
             bool Encode(Buffer& buf) const;
             bool Decode(Buffer& buf);
 
-            void SetString(const Slice& str, bool try_int_encoding);
-            bool SetNumber(const std::string& str);
+            void SetString(const std::string& str, bool try_int_encoding);
             double NumberValue() const;
             void SetInt64(int64 v);
             void SetDouble(double v);
-            bool GetInt64(int64& v) const
-            {
-                if (encoding == STRING_ENCODING_INT64)
-                {
-                    v = value.iv;
-                    return true;
-                }
-                else if (encoding == STRING_ENCODING_NIL)
-                {
-                    v = 0;
-                    return true;
-                }
-                return false;
-            }
+            bool GetInt64(int64& v) const;
             bool GetDouble(double& v) const;
 
             void Clone(const Data& data);
-
-            Data& IncrBy(int64 v);
-            Data& IncrBy(const Data& v);
-
             int Compare(const Data& other) const;
             bool operator <(const Data& other) const
             {
@@ -157,97 +105,53 @@ OP_NAMESPACE_BEGIN
             {
                 return Compare(other) != 0;
             }
-
-            bool IsNumber() const;
-            bool IsNil() const
-            {
-                return encoding == STRING_ENCODING_NIL;
-            }
-
+            bool IsInteger() const;
             uint32 StringLength() const;
-
-            void Clear()
-            {
-                if (encoding == STRING_ENCODING_RAW && NULL != value.sv)
-                {
-                    sdsfree(value.sv);
-                }
-                value.iv = 0;
-                encoding = STRING_ENCODING_NIL;
-            }
-            sds RawString()
-            {
-                if (encoding == STRING_ENCODING_RAW)
-                {
-                    return value.sv;
-                }
-                return NULL;
-            }
-
-            const std::string& GetDecodeString(std::string& str) const;
-            const sds ToString();
+            void Clear();
+            const std::string& ToString(std::string& str)const;
     };
-    typedef std::deque<Data> DataArray;
+    typedef std::vector<Data> DataArray;
     typedef TreeMap<Data, Data>::Type DataMap;
     typedef TreeSet<Data>::Type DataSet;
-
-    struct Location
-    {
-            double x, y;
-            Location() :
-                    x(0), y(0)
-            {
-            }
-    };
-    typedef std::deque<Location> LocationDeque;
 
     struct KeyObject
     {
         public:
-            Buffer encode_buf;
-
             DBID db;
             uint8 type;
-            Slice key;
-            Data element;
-            Data score;
+            DataArray elements;
 
-            uint8 meta_type;
-            KeyObject() :
-                    db(0), type(0), meta_type(0)
+            KeyObject(DBID id = 0, uint8 t = V_STRING, const Data& data = "") :
+                    db(0), type(t)
             {
+                elements.push_back(data);
             }
-            void Encode();
+            void Encode(Buffer& buf);
             bool Decode(Buffer& buf);
+            bool Decode(Slice& slice);
 
             void Clear()
             {
                 db = 0;
                 type = 0;
-                meta_type = 0;
-                element.Clear();
-                score.Clear();
+                elements.clear();
             }
 
-            KeyObject(const KeyObject& other) :
-                    db(0), type(0), meta_type(0)
-            {
-                db = other.db;
-                type = other.type;
-                key = other.key;
-                element = other.element;
-                score = other.score;
-            }
-            KeyObject& operator=(const KeyObject& other)
-            {
-                Clear();
-                db = other.db;
-                type = other.type;
-                key = other.key;
-                element = other.element;
-                score = other.score;
-                return *this;
-            }
+//            KeyObject(const KeyObject& other) :
+//                    db(0), type(0)
+//            {
+//                db = other.db;
+//                type = other.type;
+//                elements = other.elements;
+//            }
+//            KeyObject& operator=(const KeyObject& other)
+//            {
+//                Clear();
+//                db = other.db;
+//                type = other.type;
+//                elements = other.elements;
+//                return *this;
+//            }
 
             ~KeyObject()
             {
@@ -256,137 +160,25 @@ OP_NAMESPACE_BEGIN
 
     };
 
-    typedef TreeMap<double, uint32>::Type ScoreRanges;
-    struct MetaValue
+    enum MergeOpType
     {
-            uint64 expireat;
-            uint8 attribute;
-            Data str_value;
-            int64 len; //-1 means unknown
-
-            DataArray ziplist;
-            DataMap zipmap;
-            DataSet zipset;
-
-            Data min_index;  //min index value in collection(list/set)
-            Data max_index;  //max index value in collection(list/set)
-
-
-            MetaValue() :
-                    expireat(0), attribute(0), len(0)
-            {
-            }
-            uint8 Encoding()
-            {
-                return attribute & 0xF;
-            }
-            uint8 Flag()
-            {
-                return attribute >> 4;
-            }
-            void SetEncoding(uint8 enc)
-            {
-                attribute = ((attribute & 0xF0) | enc);
-            }
-            void SetFlag(uint8 f)
-            {
-                attribute = ((f << 4) | (attribute & 0x0F));
-            }
-            bool IsSequentialList()
-            {
-                return Flag()  == COLLECTION_FLAG_SEQLIST;
-            }
-
-            int64 Length();
-            void Encode(Buffer& buf, uint8 type);
-            bool Decode(Buffer& buf, uint8 type);
-            void Clear()
-            {
-                ziplist.clear();
-                zipmap.clear();
-                zipset.clear();
-                min_index.Clear();
-                max_index.Clear();
-                str_value.Clear();
-            }
-            ~MetaValue()
-            {
-                Clear();
-            }
+        M_INCR = 1, M_INCRFLOAT = 2, M_APPEND = 3, M_HINCR = 4,
     };
 
-    struct AttachOptions
+    struct MergeOp
     {
-            Location loc;  //decoded location
-            bool fetch_loc;
-            bool force_zipsave;
-            AttachOptions() :
-                    fetch_loc(false),force_zipsave(false)
-            {
-            }
-    };
-
-    struct ValueObject
-    {
-            KeyObject key;
-            Buffer encode_buf;
-
-            uint8 type;
-            MetaValue meta;
-            Data element;
-            Data score;
-
-            AttachOptions attach;
-
-            ValueObject(uint8 t = KEY_END) :
-                    type(t)
-            {
-            }
-            ValueObject(const ValueObject& other)
-            {
-                type = other.type;
-                meta = other.meta;
-                element = other.element;
-                score = other.score;
-                key = other.key;
-            }
-            const ValueObject& operator=(const ValueObject& other)
-            {
-                type = other.type;
-                meta = other.meta;
-                element = other.element;
-                score = other.score;
-                key = other.key;
-                return *this;
-            }
-            void Encode();
-            bool Decode(Buffer& buf);
-            void Clear()
-            {
-                element.Clear();
-                score.Clear();
-                meta.Clear();
-            }
-            ~ValueObject()
-            {
-                Clear();
-            }
+            uint8 op;
+            Data val;
+            void Encode(Buffer& buf);
     };
 
     typedef std::vector<int64> Int64Array;
     typedef std::vector<double> DoubleArray;
     typedef std::vector<std::string> StringArray;
-    typedef std::vector<ValueObject> ValueObjectArray;
     typedef TreeSet<std::string>::Type StringSet;
-    typedef TreeMap<std::string, ValueObject>::Type ValueObjectMap;
-
-    typedef std::pair<Data, Data> ZSetElement;
-    typedef std::vector<ZSetElement> ZSetElementArray;
 
     typedef std::vector<Slice> SliceArray;
-
-    bool decode_key(const Slice& kbuf, KeyObject& key);
-    bool decode_value(const Slice& kbuf, ValueObject& value);
+    typedef std::vector<KeyObject> KeyObjectArray;
 
 OP_NAMESPACE_END
 

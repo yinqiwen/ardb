@@ -50,8 +50,6 @@ OP_NAMESPACE_BEGIN
         AGGREGATE_AVG = 5,
     };
 
-
-
     struct GenericSetOptions
     {
             bool with_expire;
