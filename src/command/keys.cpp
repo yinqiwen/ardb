@@ -263,6 +263,12 @@ OP_NAMESPACE_BEGIN
                     break;
                 }
             }
+            /*
+             * If there was no '*' present in pattern, we can break iteration
+             */
+            if (cursor < 0) {
+                break;
+            }
             iter->Next();
         }
         DELETE(iter);
