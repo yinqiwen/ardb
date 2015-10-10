@@ -232,8 +232,8 @@ OP_NAMESPACE_BEGIN
         }
         Iterator* iter = IteratorKeyValue(from, false);
         std::string tmpkey;
-        uint32 count = 0;
-        while (NULL != iter && iter->Valid())
+        int32 count = 0;
+        while (NULL != iter && iter->Valid() && count < options.limit)
         {
             KeyObject kk;
             if (!decode_key(iter->Key(), kk) || kk.db != ctx.currentDB || kk.type != KEY_META)
@@ -251,10 +251,7 @@ OP_NAMESPACE_BEGIN
                     RedisReply& r = ctx.reply.AddMember();
                     fill_str_reply(r, tmpkey);
                 }
-                else
-                {
-                    count++;
-                }
+                count++;
             }
             else
             {
@@ -265,6 +262,12 @@ OP_NAMESPACE_BEGIN
                 {
                     break;
                 }
+            }
+            /*
+             * If there was no '*' present in pattern, we can break iteration
+             */
+            if (cursor < 0) {
+                break;
             }
             iter->Next();
         }
