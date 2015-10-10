@@ -180,7 +180,7 @@ ifeq ($(storage_engine), rocksdb)
   STORAGE_ENGINE_PATH=$(ROCKSDB_PATH)
   INCS+=-I${ROCKSDB_PATH}/include
   LIBS:= ${ROCKSDB_LIBA} ${SNAPPY_LIBA} ${LIBS} -lz -lbz2 -lrt
-  CXXFLAGS+=-D__USE_ROCKSDB__ -std=c++11
+  CXXFLAGS+=-D__USE_ROCKSDB__ 
 else
 ifeq ($(storage_engine), wiredtiger)
   STORAGE_ENGINE_OBJ=${WIREDTIGER_ENGINE}
