@@ -46,18 +46,6 @@ OP_NAMESPACE_BEGIN
     }
     int Ardb::Select(Context& ctx, RedisCommandFrame& cmd)
     {
-        uint32 newdb = 0;
-        if (!string_touint32(cmd.GetArguments()[0], newdb) || newdb >= m_cfg.maxdb)
-        {
-            fill_error_reply(ctx.reply, "invalid DB index");
-            return 0;
-        }
-        ctx.currentDB = newdb;
-        fill_status_reply(ctx.reply, "OK");
-        DBIDSet ids;
-        GetAllDBIDSet(ids);
-        LockGuard<SpinMutexLock> guard(m_cached_dbids_lock);
-        m_cached_dbids.insert(newdb);
         return 0;
     }
 

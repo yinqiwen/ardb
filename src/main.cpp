@@ -28,22 +28,6 @@
  */
 
 #include "ardb.hpp"
-//#if defined __USE_LMDB__
-//#include "engine/lmdb_engine.hpp"
-//typedef ardb::LMDBEngineFactory SelectedDBEngineFactory;
-//#elif defined __USE_ROCKSDB__
-//#include "engine/rocksdb_engine.hpp"
-//typedef ardb::RocksDBEngineFactory SelectedDBEngineFactory;
-//#elif defined __USE_WIREDTIGER__
-//#include "engine/wiredtiger_engine.hpp"
-//typedef ardb::WiredTigerEngineFactory SelectedDBEngineFactory;
-//#elif defined __USE_FORESTDB__
-//#include "engine/forestdb_engine.hpp"
-//typedef ardb::ForestDBEngineFactory SelectedDBEngineFactory;
-//#else
-//#include "engine/leveldb_engine.hpp"
-//typedef ardb::LevelDBEngineFactory SelectedDBEngineFactory;
-//#endif
 
 #include <signal.h>
 #include <limits.h>

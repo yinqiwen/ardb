@@ -41,18 +41,17 @@ OP_NAMESPACE_BEGIN
 
     enum KeyType
     {
-        KEY_META = 0, V_STRING = 1, V_HASH = 2, V_LIST = 3, V_SET = 4, V_ZSET = 5,
+        KEY_UNKNOWN, KEY_META = 1, KEY_STRING = 2, KEY_HASH = 3, KEY_LIST = 4, KEY_SET = 5, KEY_ZSET_DATA = 6, KEY_ZSET_SCORE = 7,
         /*
          * Reserver 20 types
          */
 
-
-        V_TTL = 100,
+        KEY_TTL_DATA = 100, KEY_TTL_SORT = 101,
 
         KEY_END = 255, /* max value for 1byte */
     };
 
-    typedef uint32 DBID;
+    typedef uint16 DBID;
 
     typedef std::vector<DBID> DBIDArray;
     typedef TreeSet<DBID>::Type DBIDSet;
@@ -69,18 +68,17 @@ OP_NAMESPACE_BEGIN
             Data& operator=(const Data& data);
             ~Data();
 
-            bool Encode(Buffer& buf) const;
+            void Encode(Buffer& buf) const;
             bool Decode(Buffer& buf);
 
             void SetString(const std::string& str, bool try_int_encoding);
-            double NumberValue() const;
             void SetInt64(int64 v);
             void SetDouble(double v);
-            bool GetInt64(int64& v) const;
+            int64 GetInt64() const;
             bool GetDouble(double& v) const;
 
             void Clone(const Data& data);
-            int Compare(const Data& other) const;
+            int Compare(const Data& other, bool alpha_cmp = false) const;
             bool operator <(const Data& other) const
             {
                 return Compare(other) < 0;
@@ -108,7 +106,8 @@ OP_NAMESPACE_BEGIN
             bool IsInteger() const;
             uint32 StringLength() const;
             void Clear();
-            const std::string& ToString(std::string& str)const;
+            const char* CStr() const;
+            const std::string& ToString(std::string& str) const;
     };
     typedef std::vector<Data> DataArray;
     typedef TreeMap<Data, Data>::Type DataMap;
@@ -117,42 +116,28 @@ OP_NAMESPACE_BEGIN
     struct KeyObject
     {
         public:
-            DBID db;
+            const char* ns; //namespace
+            uint32 db;
             uint8 type;
-            DataArray elements;
+            Data elements[3];
 
-            KeyObject(DBID id = 0, uint8 t = V_STRING, const Data& data = "") :
-                    db(0), type(t)
+            KeyObject(uint32 dbid = 0, uint8 t = KEY_STRING, const std::string& data = "") :
+                    ns(NULL), db(dbid), type(t)
             {
-                elements.push_back(data);
+                elements[0].SetString(data, false);
             }
-            void Encode(Buffer& buf);
+            void Encode(Buffer& buf) const;
             bool Decode(Buffer& buf);
-            bool Decode(Slice& slice);
 
             void Clear()
             {
+                ns = NULL;
                 db = 0;
                 type = 0;
-                elements.clear();
+                elements[0].Clear();
+                elements[1].Clear();
+                elements[2].Clear();
             }
-
-//            KeyObject(const KeyObject& other) :
-//                    db(0), type(0)
-//            {
-//                db = other.db;
-//                type = other.type;
-//                elements = other.elements;
-//            }
-//            KeyObject& operator=(const KeyObject& other)
-//            {
-//                Clear();
-//                db = other.db;
-//                type = other.type;
-//                elements = other.elements;
-//                return *this;
-//            }
-
             ~KeyObject()
             {
                 Clear();
@@ -160,25 +145,25 @@ OP_NAMESPACE_BEGIN
 
     };
 
-    enum MergeOpType
+    struct ValueObject
     {
-        M_INCR = 1, M_INCRFLOAT = 2, M_APPEND = 3, M_HINCR = 4,
-    };
-
-    struct MergeOp
-    {
-            uint8 op;
-            Data val;
-            void Encode(Buffer& buf);
+            Data value;
+            ValueObject()
+            {
+            }
+            void Encode(Buffer& buf) const;
+            bool Decode(Buffer& buf);
     };
 
     typedef std::vector<int64> Int64Array;
+    typedef std::vector<int> IntArray;
     typedef std::vector<double> DoubleArray;
     typedef std::vector<std::string> StringArray;
     typedef TreeSet<std::string>::Type StringSet;
 
     typedef std::vector<Slice> SliceArray;
     typedef std::vector<KeyObject> KeyObjectArray;
+    typedef std::vector<ValueObject> ValueObjectArray;
 
 OP_NAMESPACE_END
 

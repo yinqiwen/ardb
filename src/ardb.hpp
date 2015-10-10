@@ -38,18 +38,14 @@
 #include "command/lua_scripting.hpp"
 #include "concurrent.hpp"
 #include "options.hpp"
-#include "iterator.hpp"
-#include "engine/engine.hpp"
 #include "codec.hpp"
 #include "statistics.hpp"
 #include "context.hpp"
 #include "cron.hpp"
 #include "config.hpp"
 #include "logger.hpp"
-#include "replication/master.hpp"
-#include "replication/slave.hpp"
-#include "util/redis_helper.hpp"
 
+#include "util/redis_helper.hpp"
 
 /* Command flags. Please check the command table defined in the redis.c file
  * for more information about the meaning of every flag. */
@@ -70,25 +66,6 @@
 using namespace ardb::codec;
 
 OP_NAMESPACE_BEGIN
-
-    class BatchWriteGuard
-    {
-        private:
-            Context& m_ctx;
-            bool m_success;
-            bool m_enable;
-        public:
-            BatchWriteGuard(Context& ctx, bool enable = true);
-            void MarkFailed()
-            {
-                m_success = false;
-            }
-            bool Success()
-            {
-                return m_success;
-            }
-            ~BatchWriteGuard();
-    };
 
     class RedisRequestHandler;
     class ExpireCheck;
@@ -155,13 +132,6 @@ OP_NAMESPACE_BEGIN
             void TryPushSlowCommand(const RedisCommandFrame& cmd, uint64 micros);
             void GetSlowlog(Context& ctx, uint32 len);
 
-            RedisDumpFile m_redis_dump;
-            ArdbDumpFile m_ardb_dump;
-
-            ReplBacklog m_repl_backlog;
-            Master m_master;
-            Slave m_slave;
-
             time_t m_starttime;
             bool m_compacting;
             time_t m_last_compact_start_time;
@@ -173,10 +143,7 @@ OP_NAMESPACE_BEGIN
             SpinMutexLock m_redis_cursor_lock;
             RedisCursorTable m_redis_cursor_table;
 
-
             bool FillErrorReply(Context& ctx, int err);
-
-            DataDumpFile& GetDataDumpFile();
             void FillInfoResponse(const std::string& section, std::string& info);
 
             int SubscribeChannel(Context& ctx, const std::string& channel, bool notify);
@@ -187,86 +154,12 @@ OP_NAMESPACE_BEGIN
             int PUnsubscribeAll(Context& ctx, bool notify);
             int PublishMessage(Context& ctx, const std::string& channel, const std::string& message);
 
-            int SetRaw(Context& ctx, const Slice& key, const Slice& value);
-            int GetRaw(Context& ctx, const Slice& key, std::string& value);
-            int DelRaw(Context& ctx, const Slice& key);
-            int SetKeyValue(Context& ctx, ValueObject& value);
-            int GetKeyValue(Context& ctx, KeyObject& key, ValueObject* kv);
-            int DelKeyValue(Context& ctx, KeyObject& key);
-            int DeleteKey(Context& ctx, const Slice& key);
-            Iterator* IteratorKeyValue(KeyObject& from, bool match_key);
-            void IteratorSeek(Iterator* iter, KeyObject& target);
-
             void RewriteClientCommand(Context& ctx, RedisCommandFrame& cmd);
 
-            bool GetDoubleValue(Context& ctx, const std::string& str, double& v);
+            bool GetDoubleValue(Context& ctx, const std::string& str, long double& v);
             bool GetInt64Value(Context& ctx, const std::string& str, int64& v);
 
-            int IncrDecrCommand(Context& ctx, const Slice& key, int64 v);
-            int StringGet(Context& ctx, const std::string& key, ValueObject& value);
-
-            int GetMetaValue(Context& ctx, const Slice& key, KeyType expected_type, ValueObject& v);
-
-            int HashSet(Context& ctx, ValueObject& meta, const Data& field, Data& value);
-            int HashMultiSet(Context& ctx, ValueObject& meta, DataMap& fs);
-            int HashGet(Context& ctx, ValueObject& meta, Data& field, Data& value);
-            int HashGet(Context& ctx, const std::string& key, const std::string& field, Data& v);
-            int HashIter(Context& ctx, ValueObject& meta, const std::string& from, HashIterator& iter, bool readonly);
-            int HashLen(Context& ctx, const Slice& key);
-            int HashGetAll(Context& ctx, const Slice& key, RedisReply& r);
-
-            int ZipListConvert(Context& ctx, ValueObject& meta);
-            int ListIter(Context& ctx, ValueObject& meta, ListIterator& iter, bool reverse);
-            int SequencialListIter(Context& ctx, ValueObject& meta, ListIterator& iter, int64 index);
-            int ListPop(Context& ctx, const std::string& key, bool lpop);
-            int ListInsert(Context& ctx, const std::string& key, const std::string* match, const std::string& value,
-                    bool head, bool abort_nonexist);
-            int ListInsert(Context& ctx, ValueObject& meta, const std::string* match, const std::string& value,
-                    bool head, bool abort_nonexist);
-            int ListLen(Context& ctx, const Slice& key);
-            int ListRange(Context& ctx, const Slice& key, int64 start, int64 end);
-            bool WakeBlockList(Context& ctx, const Slice& key, const std::string& value);
-
-            int SetLen(Context& ctx, const Slice& key);
-            int SetMembers(Context& ctx, const Slice& key);
-            int SetIter(Context& ctx, ValueObject& meta, Data& from, SetIterator& iter, bool readonly);
-            int SetAdd(Context& ctx, ValueObject& meta, const std::string& value, bool& meta_change);
-            int SetDiff(Context& ctx, const std::string& first, StringSet& keys, const std::string* store,
-                    int64* count);
-            int SetInter(Context& ctx, StringSet& keys, const std::string* store, int64* count);
-            int SetUnion(Context& ctx, StringSet& keys, const std::string* store, int64* count);
-            bool SetIsMember(Context& ctx, ValueObject& meta, Data& element);
-            int GetSetMinMax(Context& ctx, ValueObject& meta, Data& min, Data& max);
-            int SetRandMember(Context& ctx, ValueObject& meta, DataSet& exclude, Data& member);
-
-            int ZSetDeleteElement(Context& ctx, ValueObject& meta, const Data& element, const Data& score);
-            int ZSetScoreIter(Context& ctx, ValueObject& meta, const Data& from, ZSetIterator& iter, bool readonly);
-            int ZSetValueIter(Context& ctx, ValueObject& meta, Data& from, ZSetIterator& iter, bool readonly);
-            int ZSetAdd(Context& ctx, ValueObject& meta, const Data& element, const Data& score, Data* old_score);
-            int ZSetScore(Context& ctx, ValueObject& meta, const Data& value, Data& score, Location* loc = NULL);
-            int ZSetRankByScore(Context& ctx, ValueObject& meta, Data& score, uint32& rank);
-            int ZSetRange(Context& ctx, const Slice& key, int64 start, int64 stop, bool withscores, bool reverse,
-                    DataOperation op);
-            int ZSetRangeByLex(Context& ctx, const std::string& key, const ZSetRangeByLexOptions& options,
-                    DataOperation op);
-            int ZSetRangeByScore(Context& ctx, ValueObject& meta, const ZRangeSpec& range,
-                    ZSetRangeByScoreOptions& options, ZSetIterator*& iter);
-            int ZSetRank(Context& ctx, const std::string& key, const std::string& value, bool reverse);
-            int ZSetRangeByScore(Context& ctx, RedisCommandFrame& cmd);
-            int ZSetRem(Context& ctx, ValueObject& meta, const std::string& value);
-            int ZSetLen(Context& ctx, const Slice& key);
-
-            int BitGet(Context& ctx, const std::string& key, uint64 offset);
-            int BitsetIter(Context& ctx, ValueObject& meta, int64 index, BitsetIterator& iter);
-            int BitOP(Context& ctx, const std::string& op, const SliceArray& keys, const std::string* targetkey);
-            int BitsAnd(Context& ctx, const SliceArray& keys);
-            int String2BitSet(Context& ctx, ValueObject& meta);
-            int StringBitSetOP(Context& ctx, uint32 op, ValueObjectArray& metas, const std::string* targetkey);
-
-            int HyperloglogAdd(Context& ctx, const std::string& key, const SliceArray& members);
-            int HyperloglogCountKey(Context& ctx, const std::string& key, uint64& v);
-            int HyperloglogCount(Context& ctx, const StringArray& keys, uint64& card);
-            int HyperloglogMerge(Context& ctx, const std::string& destkey, const StringArray& srckeys);
+            int StringSet(Context& ctx, const std::string& key, const std::string& value, int32_t ex = -1, int64_t px = -1, int8_t nx_xx = -1);
 
             int GetScript(const std::string& funacname, std::string& funcbody);
             int SaveScript(const std::string& funacname, const std::string& funcbody);
@@ -276,29 +169,10 @@ OP_NAMESPACE_BEGIN
             int UnwatchKeys(Context& ctx);
             int AbortWatchKey(Context& ctx, const std::string& key);
 
-            int MatchValueByPattern(Context& ctx, const Slice& key_pattern, const Slice& value_pattern, Data& subst,
-                    Data& value);
-            int GetValueByPattern(Context& ctx, const Slice& pattern, Data& subst, Data& value,
-                    ValueObjectMap* meta_cache = NULL);
-            int SortCommand(Context& ctx, const Slice& key, SortOptions& options, DataArray& values);
+            int GenericExpire(Context& ctx, const KeyObject& key, uint64 ms);
+            int IncrDecrCommand(Context& ctx, const std::string& key, int64 incr);
 
-            int GetType(Context& ctx, const Slice& key, KeyType& type);
-
-            int GenericGet(Context& ctx, const Slice& key, ValueObject& str, GenericGetOptions& options);
-            int GenericSet(Context& ctx, const Slice& key, const Slice& value, GenericSetOptions& options);
-            int GenericExpire(Context& ctx, const Slice& key, uint64 ms);
-            int GenericTTL(Context& ctx, const Slice& key, uint64& ms);
-            int KeysOperation(Context& ctx, const KeysOptions& options);
-
-
-            int GeoSearchByOptions(Context& ctx, ValueObject& meta, GeoSearchOptions& options);
-
-            int DoCompact(Context& ctx, DBID db, bool sync);
-            int DoCompact(const std::string& start, const std::string& end);
-
-            int FlushAllData(Context& ctx);
-            int FlushDBData(Context& ctx);
-            void GetAllDBIDSet(DBIDSet& ids);
+            int FireKeyChangedEvent(Context& ctx, const KeyObject& key);
 
             int Time(Context& ctx, RedisCommandFrame& cmd);
             int FlushDB(Context& ctx, RedisCommandFrame& cmd);
@@ -356,7 +230,7 @@ OP_NAMESPACE_BEGIN
             int Decr(Context& ctx, RedisCommandFrame& cmd);
             int Decrby(Context& ctx, RedisCommandFrame& cmd);
             int Get(Context& ctx, RedisCommandFrame& cmd);
-
+            int StrDel(Context& ctx, RedisCommandFrame& cmd);
             int GetRange(Context& ctx, RedisCommandFrame& cmd);
             int GetSet(Context& ctx, RedisCommandFrame& cmd);
             int Incr(Context& ctx, RedisCommandFrame& cmd);
@@ -485,16 +359,14 @@ OP_NAMESPACE_BEGIN
             int Cluster(Context& ctx, RedisCommandFrame& cmd);
 
             int DoCall(Context& ctx, RedisCommandHandlerSetting& setting, RedisCommandFrame& cmd);
-            RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(RedisCommandFrame& cmd);
-            bool ParseConfig(const Properties& props);
+            RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(RedisCommandFrame& cmd);bool ParseConfig(const Properties& props);
             void RenameCommand();
             void FreeClientContext(Context& ctx);
             void AddClientContext(Context& ctx);
             RedisReplyPool& GetRedisReplyPool();
             uint64 GetNewRedisCursor(const std::string& element);
             int FindElementByRedisCursor(const std::string& cursor, std::string& element);
-            void ClearExpireRedisCursor();
-            bool IsEmpty();
+            void ClearExpireRedisCursor();bool IsEmpty();
 
             friend class RedisRequestHandler;
             friend class LUAInterpreter;

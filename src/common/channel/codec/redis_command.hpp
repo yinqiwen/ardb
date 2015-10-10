@@ -212,8 +212,8 @@ namespace ardb
             REDIS_CMD_ZREVRANGEBYLEX = 173,
             REDIS_CMD_ZREMRANGEBYLEX = 174,
 
-            REDIS_CMD_HREPLACE = 175,
-            REDIS_CMD_SREPLACE = 176,
+            REDIS_CMD_SETXX = 175,
+            REDIS_CMD_STRING_DEL = 176,
 
             REDIS_CMD_CLUSTER = 177,  //used in cluster mode
         };

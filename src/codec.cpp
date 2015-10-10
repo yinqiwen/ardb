@@ -36,11 +36,11 @@ OP_NAMESPACE_BEGIN
 
     enum DataEncoding
     {
-        E_INT64 = 1, E_FLOAT64 = 2, E_CSTR = 3, E_SDS = 4
+        E_INT64 = 1, E_FLOAT64 = 2, E_CSTR = 3, E_SDS = 4,
     };
 
     Data::Data() :
-            encoding(0),len(0)
+            encoding(0), len(0)
     {
         //value.iv = 0;
     }
@@ -65,23 +65,105 @@ OP_NAMESPACE_BEGIN
         return *this;
     }
 
-    bool Data::Encode(Buffer& buf) const;
-    bool Data::Decode(Buffer& buf);
+    void Data::Encode(Buffer& buf) const
+    {
+        uint32 header = len;
+        header = (header << 3) + encoding;
+        buf.Write(&header, sizeof(header));
+        switch (encoding)
+        {
+            case E_INT64:
+            {
+                BufferHelper::WriteVarInt64(buf, GetInt64());
+                return;
+            }
+            case E_CSTR:
+            case E_SDS:
+            {
+                const char* ptr = CStr();
+                buf.Write(ptr, StringLength());
+                return;
+            }
+            default:
+            {
+                return;
+            }
+        }
+    }
+    bool Data::Decode(Buffer& buf)
+    {
+        uint32 header = 0;
+        if (buf.Read(&header, sizeof(header)) != sizeof(header))
+        {
+            return false;
+        }
+        uint8 tmp_encoding = header & 0x7;
+        uint32 tmp_len = header >> 3;
+        header = (header << 29) + encoding;
+        buf.Write(&header, sizeof(header));
+        switch (tmp_encoding)
+        {
+            case E_INT64:
+            {
+                int64 v;
+                if (!BufferHelper::ReadVarInt64(buf, v))
+                {
+                    return false;
+                }
+                SetInt64(v);
+                return true;
+            }
+            case E_CSTR:
+            case E_SDS:
+            {
+                if (buf.ReadableBytes() < tmp_len)
+                {
+                    return false;
+                }
+                const char* ss = buf.GetRawBuffer();
+                Clear();
+                *(void**) data = ss;
+                len = tmp_len;
+                encoding = E_CSTR;
+                return true;
+            }
+            default:
+            {
+                return false;
+            }
+        }
+    }
 
     void Data::SetString(const std::string& str, bool try_int_encoding)
     {
-
+        long long int_val;
+        if (str.size() <= 21 && string2ll(str.data(), str.size(), &int_val))
+        {
+            SetInt64((int64) int_val);
+            return;
+        }
+        Clear();
+        *(void**) data = str.data();
+        len = str.size();
+        encoding = E_CSTR;
     }
-    double Data::NumberValue() const;
     void Data::SetInt64(int64 v)
     {
         Clear();
+        encoding = E_INT64;
+        memcpy(data, &v, sizeof(int64));
+        len = digits10(std::abs(v));
+        if (v < 0)
+            len++;
     }
-    void Data::SetDouble(double v);
-    bool Data::GetInt64(int64& v) const;
-    bool GetDouble(double& v) const
+    int64 Data::GetInt64() const
     {
-        //if()
+        int64 v = 0;
+        if (IsInteger())
+        {
+            memcpy(&v, data, sizeof(int64));
+        }
+        return v;
     }
 
     void Data::Clone(const Data& other)
@@ -90,16 +172,57 @@ OP_NAMESPACE_BEGIN
         encoding = other.encoding;
         len = other.len;
         memcpy(data, other.data, sizeof(data));
-        if(encoding == E_SDS)
+        if (encoding == E_SDS)
         {
             void* s = malloc(other.len);
-            memcpy(s, (char*)other.data, other.len);
+            memcpy(s, (char*) other.data, other.len);
             *(void**) data = s;
         }
     }
-    int Data::Compare(const Data& other) const
+    int Data::Compare(const Data& right, bool alpha_cmp = false) const
     {
-
+        assert(type == V_TYPE_STRING && right.type == V_TYPE_STRING);
+        if (!alpha_cmp)
+        {
+            if (IsInteger() && right.IsInteger())
+            {
+                return GetInt64() - right.GetInt64();
+            }
+            //integer is always less than text value in non alpha comparator
+            if (IsInteger())
+            {
+                return -1;
+            }
+            if (right.IsInteger())
+            {
+                return 1;
+            }
+        }
+        size_t min_len = len < right.len ? len : right.len;
+        const char* other_raw_data = right.CStr();
+        const char* raw_data = CStr();
+        if (encoding == E_INT64)
+        {
+            char* data_buf = (char*) alloca(len);
+            ll2string(data_buf, len, GetInt64());
+            raw_data = data_buf;
+        }
+        if (right.encoding == E_INT64)
+        {
+            char* data_buf = (char*) alloca(right.len);
+            ll2string(data_buf, right.len, right.GetInt64());
+            other_raw_data = data_buf;
+        }
+        int ret = memcmp(raw_data, other_raw_data, min_len);
+        if (ret < 0)
+        {
+            return -1;
+        }
+        else if (ret > 0)
+        {
+            return 1;
+        }
+        return len - right.len;
     }
 
     bool Data::IsInteger() const
@@ -112,17 +235,143 @@ OP_NAMESPACE_BEGIN
     }
     void Data::Clear()
     {
-        if(encoding == E_SDS)
+        if (encoding == E_SDS)
         {
-            free((char*)data);
+            free((char*) data);
         }
         encoding = 0;
+        len = 0;
     }
-    const std::string& Data::ToString(std::string& str)const
+    const char* Data::CStr() const
     {
-
+        switch (encoding)
+        {
+            case E_INT64:
+            {
+                return NULL;
+            }
+            case E_CSTR:
+            case E_SDS:
+            {
+                void* ptr = *(void**) data;
+                return (const char*) ptr;
+            }
+            default:
+            {
+                return NULL;
+            }
+        }
+    }
+    const std::string& Data::ToString(std::string& str) const
+    {
+        switch (encoding)
+        {
+            case E_INT64:
+            {
+                str.resize(len);
+                ll2string(&(str[0]), len, *((long long*) data));
+                break;
+            }
+            case E_CSTR:
+            case E_SDS:
+            {
+                str.assign(CStr(), len);
+                break;
+            }
+            default:
+            {
+                break;
+            }
+        }
+        return str;
     }
 
+    void KeyObject::Encode(Buffer& buf) const
+    {
+        uint32 header = db;
+        header = (header << 8) + type;
+        buf.Write(&header, sizeof(header));
+        switch (type)
+        {
+            case KEY_STRING:
+            {
+                elements[0].Encode(buf);
+                break;
+            }
+            case KEY_HASH:
+            case KEY_LIST:
+            case KEY_SET:
+            case KEY_ZSET_DATA:
+            case KEY_ZSET_SCORE:
+            case KEY_TTL_DATA:
+            {
+                elements[0].Encode(buf);
+                elements[1].Encode(buf);
+                break;
+            }
+            case KEY_TTL_SORT:
+            {
+                elements[0].Encode(buf);
+                elements[1].Encode(buf);
+                elements[2].Encode(buf);
+                break;
+            }
+            default:
+            {
+                break;
+            }
+        }
+
+    }
+    bool KeyObject::Decode(Buffer& buf)
+    {
+        uint32 header = 0;
+        if (buf.Read(&header, sizeof(header)) != sizeof(header))
+        {
+            return false;
+        }
+        uint8 tmp_type = header & 0xFF;
+        uint32 tmp_id = header >> 8;
+        switch (type)
+        {
+            case KEY_STRING:
+            {
+                if (!elements[0].Decode(buf))
+                {
+                    return false;
+                }
+                break;
+            }
+            case KEY_HASH:
+            case KEY_LIST:
+            case KEY_SET:
+            case KEY_ZSET_DATA:
+            case KEY_ZSET_SCORE:
+            case KEY_TTL_DATA:
+            {
+                if (!elements[0].Decode(buf) || !elements[1].Decode(buf))
+                {
+                    return false;
+                }
+                break;
+            }
+            case KEY_TTL_SORT:
+            {
+                if (!elements[0].Decode(buf) || !elements[1].Decode(buf) || !elements[2].Decode(buf))
+                {
+                    return false;
+                }
+                break;
+            }
+            default:
+            {
+                return false;
+            }
+        }
+        type = tmp_type;
+        db = tmp_id;
+        return true;
+    }
 
 OP_NAMESPACE_END
 

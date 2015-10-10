@@ -223,7 +223,6 @@ OP_NAMESPACE_BEGIN
             LimitOptions limit_option;
 
             DataArray results;
-            LocationDeque locs;
 
             ZSetRangeByScoreOptions() :
                     op(OP_GET), withscores(false), reverse(false), fill_reply(true), fetch_geo_location(false)

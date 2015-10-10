@@ -75,7 +75,7 @@ namespace ardb
     void fill_value_reply(RedisReply& reply, const Data& v)
     {
         reply.type = REDIS_REPLY_STRING;
-        v.GetDecodeString(reply.str);
+        v.ToString(reply.str);
     }
     void fill_value_reply(RedisReply& reply, const Data* v)
     {

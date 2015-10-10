@@ -30,6 +30,7 @@
 #ifndef CONTEXT_HPP_
 #define CONTEXT_HPP_
 #include "common/common.hpp"
+#include "rocksdb_engine.hpp"
 #include "thread/thread_local.hpp"
 #include "channel/all_includes.hpp"
 #include "concurrent.hpp"
@@ -65,8 +66,7 @@ OP_NAMESPACE_BEGIN
     };
     struct TranscContext
     {
-            bool in_transc;
-            bool abort;
+            bool in_transc;bool abort;
             RedisCommandFrameArray cached_cmds;
             WatchKeySet watched_keys;
             TranscContext() :
@@ -87,9 +87,7 @@ OP_NAMESPACE_BEGIN
 
     struct LUAContext
     {
-            uint64 lua_time_start;
-            bool lua_timeout;
-            bool lua_kill;
+            uint64 lua_time_start;bool lua_timeout;bool lua_kill;
             const char* lua_executing_func;
 
             LUAContext() :
@@ -98,8 +96,14 @@ OP_NAMESPACE_BEGIN
             }
     };
 
+    struct CallFlags
+    {
+            unsigned no_wal :1;
+    };
+
     struct Context
     {
+            CallFlags flags;
             TranscContext* transc;
             PubSubContext* pubsub;
             LUAContext* lua;
@@ -113,7 +117,7 @@ OP_NAMESPACE_BEGIN
             bool authenticated;
 
             bool data_change;
-            bool write_success;
+            int write_err;
             RedisCommandFrame* current_cmd;
             RedisCommandType current_cmd_type;
             int64 born_time;
@@ -127,11 +131,12 @@ OP_NAMESPACE_BEGIN
             uint8 identity;
 
             int64 sequence;  //recv command sequence in the server, start from 1
+            rocksdb::ColumnFamilyHandle* cf;
             Context() :
                     transc(NULL), pubsub(NULL), lua(NULL), block(NULL), client(
-                    NULL), currentDB(0), authenticated(true), data_change(false), write_success(true),current_cmd(NULL), current_cmd_type(
+                    NULL), currentDB(0),  authenticated(true), data_change(false), write_err(true), current_cmd(NULL), current_cmd_type(
                             REDIS_CMD_INVALID), born_time(0), last_interaction_ustime(0), processing(false), close_after_processed(
-                            false), cmd_setting_flags(0), identity(CONTEXT_NORMAL_CONNECTION),sequence(0)
+                    false), cmd_setting_flags(0), identity(CONTEXT_NORMAL_CONNECTION), sequence(0), cf(NULL)
             {
             }
             TranscContext& GetTransc()
@@ -166,14 +171,6 @@ OP_NAMESPACE_BEGIN
                 }
                 return *block;
             }
-            bool IsSlave()
-            {
-                return identity == CONTEXT_SLAVE_CONNECTION;
-            }
-            bool IsDumpFile()
-            {
-                return identity == CONTEXT_DUMP_SYNC_LOADING;
-            }
             bool InTransc()
             {
                 return NULL != transc && transc->in_transc;
@@ -202,8 +199,12 @@ OP_NAMESPACE_BEGIN
             {
                 reply.Clear();
                 data_change = false;
-                write_success = true;
+                write_err = 0;
                 current_cmd = NULL;
+            }
+            bool WriteSuccess()
+            {
+                return write_err == 0;
             }
             ~Context()
             {

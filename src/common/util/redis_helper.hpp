@@ -43,6 +43,17 @@ namespace ardb
     void fill_error_reply(RedisReply& reply, const char* fmt, ...);
     void fill_fix_error_reply(RedisReply& reply, const std::string& err);
 
+    inline void fill_ok_reply(RedisReply& reply)
+    {
+        reply.type = REDIS_REPLY_STATUS;
+        reply.integer = REDIS_REPLY_STATUS_OK;
+    }
+    inline void fill_pong_reply(RedisReply& reply)
+    {
+        reply.type = REDIS_REPLY_STATUS;
+        reply.integer = REDIS_REPLY_STATUS_PONG;
+    }
+
     void fill_status_reply(RedisReply& reply, const char* s);
 
     void fill_int_reply(RedisReply& reply, int64 v);

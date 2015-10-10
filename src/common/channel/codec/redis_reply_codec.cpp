@@ -100,7 +100,24 @@ bool RedisReplyEncoder::Encode(Buffer& buf, RedisReply& reply)
         }
         case REDIS_REPLY_STATUS:
         {
-            buf.Printf("+%s\r\n", reply.str.c_str());
+            switch (reply.integer)
+            {
+                case REDIS_REPLY_STATUS_OK:
+                {
+                    buf.Printf("+OK\r\n");
+                    break;
+                }
+                case REDIS_REPLY_STATUS_PONG:
+                {
+                    buf.Printf("+PONG\r\n");
+                    break;
+                }
+                default:
+                {
+                    buf.Printf("+%s\r\n", reply.str.c_str());
+                    break;
+                }
+            }
             break;
         }
         default:
@@ -238,8 +255,7 @@ bool RedisReplyDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel, Buf
     return ret > 0;
 }
 
-bool RedisDumpFileChunkDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer,
-        RedisDumpFileChunk& msg)
+bool RedisDumpFileChunkDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, RedisDumpFileChunk& msg)
 {
     if (m_waiting_chunk_len == 0)
     {

@@ -46,111 +46,99 @@ namespace ardb
         return 0;
     }
 
-    DataDumpFile& Ardb::GetDataDumpFile()
-    {
-        if (m_cfg.backup_redis_format)
-        {
-            return m_redis_dump;
-        }
-        else
-        {
-            return m_ardb_dump;
-        }
-    }
-
     int Ardb::Save(Context& ctx, RedisCommandFrame& cmd)
     {
-        char tmp[1024];
-        uint32 now = time(NULL);
-        ChannelService& serv = ctx.client->GetService();
-        uint32 conn_id = ctx.client->GetID();
-        if (m_cfg.backup_redis_format)
-        {
-            sprintf(tmp, "%s/dump-%u.rdb", m_cfg.backup_dir.c_str(), now);
-        }
-        else
-        {
-            sprintf(tmp, "%s/dump-%u.ardb", m_cfg.backup_dir.c_str(), now);
-        }
-        int ret = GetDataDumpFile().Save(tmp, RDBSaveLoadRoutine, &serv);
-        if (serv.GetChannel(conn_id) != NULL)
-        {
-            if (ret == 0)
-            {
-                fill_status_reply(ctx.reply, "OK");
-            }
-            else
-            {
-                fill_error_reply(ctx.reply, "Save error");
-            }
-            return 0;
-        }
+//        char tmp[1024];
+//        uint32 now = time(NULL);
+//        ChannelService& serv = ctx.client->GetService();
+//        uint32 conn_id = ctx.client->GetID();
+//        if (m_cfg.backup_redis_format)
+//        {
+//            sprintf(tmp, "%s/dump-%u.rdb", m_cfg.backup_dir.c_str(), now);
+//        }
+//        else
+//        {
+//            sprintf(tmp, "%s/dump-%u.ardb", m_cfg.backup_dir.c_str(), now);
+//        }
+//        int ret = GetDataDumpFile().Save(tmp, RDBSaveLoadRoutine, &serv);
+//        if (serv.GetChannel(conn_id) != NULL)
+//        {
+//            if (ret == 0)
+//            {
+//                fill_status_reply(ctx.reply, "OK");
+//            }
+//            else
+//            {
+//                fill_error_reply(ctx.reply, "Save error");
+//            }
+//            return 0;
+//        }
         return -1;
     }
 
     int Ardb::LastSave(Context& ctx, RedisCommandFrame& cmd)
     {
-        int ret = GetDataDumpFile().LastSave();
-        fill_int_reply(ctx.reply, ret);
+//        int ret = GetDataDumpFile().LastSave();
+//        fill_int_reply(ctx.reply, ret);
         return 0;
     }
 
     int Ardb::BGSave(Context& ctx, RedisCommandFrame& cmd)
     {
-        char tmp[1024];
-        uint32 now = time(NULL);
-        if (m_cfg.backup_redis_format)
-        {
-            sprintf(tmp, "%s/dump-%u.rdb", m_cfg.backup_dir.c_str(), now);
-        }
-        else
-        {
-            sprintf(tmp, "%s/dump-%u.ardb", m_cfg.backup_dir.c_str(), now);
-        }
-        int ret = GetDataDumpFile().BGSave(tmp);
-        if (ret == 0)
-        {
-            fill_status_reply(ctx.reply, "OK");
-        }
-        else
-        {
-            fill_error_reply(ctx.reply, "save error");
-        }
+//        char tmp[1024];
+//        uint32 now = time(NULL);
+//        if (m_cfg.backup_redis_format)
+//        {
+//            sprintf(tmp, "%s/dump-%u.rdb", m_cfg.backup_dir.c_str(), now);
+//        }
+//        else
+//        {
+//            sprintf(tmp, "%s/dump-%u.ardb", m_cfg.backup_dir.c_str(), now);
+//        }
+//        int ret = GetDataDumpFile().BGSave(tmp);
+//        if (ret == 0)
+//        {
+//            fill_status_reply(ctx.reply, "OK");
+//        }
+//        else
+//        {
+//            fill_error_reply(ctx.reply, "save error");
+//        }
         return 0;
     }
 
     int Ardb::Import(Context& ctx, RedisCommandFrame& cmd)
     {
-        std::string file = m_cfg.backup_dir + "/dump.ardb";
-        if (cmd.GetArguments().size() == 1)
-        {
-            file = cmd.GetArguments()[0];
-        }
-        int ret = 0;
-        ChannelService& serv = ctx.client->GetService();
-        uint32 conn_id = ctx.client->GetID();
-        if (RedisDumpFile::IsRedisDumpFile(file) == 1)
-        {
-            RedisDumpFile rdb;
-            rdb.Init(this);
-            ret = rdb.Load(ctx.identity, file, RDBSaveLoadRoutine, &(ctx.client->GetService()));
-        }
-        else
-        {
-            ret = m_ardb_dump.Load(ctx.identity, file, RDBSaveLoadRoutine, &(ctx.client->GetService()));
-        }
-        if (serv.GetChannel(conn_id) != NULL)
-        {
-            if (ret == 0)
-            {
-                fill_status_reply(ctx.reply, "OK");
-            }
-            else
-            {
-                fill_error_reply(ctx.reply, "Import error");
-            }
-            return 0;
-        }
+//        std::string file = m_cfg.backup_dir + "/dump.ardb";
+//        if (cmd.GetArguments().size() == 1)
+//        {
+//            file = cmd.GetArguments()[0];
+//        }
+//        int ret = 0;
+//        ChannelService& serv = ctx.client->GetService();
+//        uint32 conn_id = ctx.client->GetID();
+//        if (RedisDumpFile::IsRedisDumpFile(file) == 1)
+//        {
+//            RedisDumpFile rdb;
+//            rdb.Init(this);
+//            ret = rdb.Load(ctx.identity, file, RDBSaveLoadRoutine, &(ctx.client->GetService()));
+//        }
+//        else
+//        {
+//            ret = m_ardb_dump.Load(ctx.identity, file, RDBSaveLoadRoutine, &(ctx.client->GetService()));
+//        }
+//        if (serv.GetChannel(conn_id) != NULL)
+//        {
+//            if (ret == 0)
+//            {
+//                fill_status_reply(ctx.reply, "OK");
+//            }
+//            else
+//            {
+//                fill_error_reply(ctx.reply, "Import error");
+//            }
+//            return 0;
+//        }
         return -1;
     }
 
@@ -163,7 +151,6 @@ namespace ardb
             info.append("# Server\r\n");
             info.append("ardb_version:").append(ARDB_VERSION).append("\r\n");
             info.append("ardb_home:").append(m_cfg.home).append("\r\n");
-            info.append("engine:").append(m_engine_factory.GetName()).append("\r\n");
             info.append("os:").append(name.sysname).append(" ").append(name.release).append(" ").append(name.machine).append(
                     "\r\n");
             char tmp[256];
@@ -327,7 +314,7 @@ namespace ardb
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "keyspace"))
         {
             DBIDSet ids;
-            GetAllDBIDSet(ids);
+            //GetAllDBIDSet(ids);
             if (!ids.empty())
             {
                 info.append("# Keyspace\r\n");
@@ -342,15 +329,6 @@ namespace ardb
                 }
                 info.append("\r\n");
             }
-        }
-
-        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "cache"))
-        {
-            info.append("# Cache\r\n");
-            std::string tmp;
-            m_cache.PrintStat(tmp);
-            info.append(tmp);
-            info.append("\r\n");
         }
 
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "compact"))
@@ -662,110 +640,21 @@ namespace ardb
         return 0;
     }
 
-    void Ardb::GetAllDBIDSet(DBIDSet& ids)
-    {
-        {
-            LockGuard<SpinMutexLock> guard(m_cached_dbids_lock);
-            if (!m_cached_dbids.empty())
-            {
-                ids = m_cached_dbids;
-                return;
-            }
-        }
-
-        KeyObject k;
-        k.db = 0;
-        k.type = KEY_META;
-        Iterator* iter = IteratorKeyValue(k, false);
-        if (NULL != iter)
-        {
-            while (iter->Valid())
-            {
-                KeyObject kk;
-                if (decode_key(iter->Key(), kk) && kk.db != ARDB_GLOBAL_DB)
-                {
-                    ids.insert(kk.db);
-                    KeyObject next;
-                    next.db = kk.db + 1;
-                    next.type = KEY_META;
-                    IteratorSeek(iter, next);
-                }
-                else
-                {
-                    break;
-                }
-            }
-            DELETE(iter);
-        }
-        LockGuard<SpinMutexLock> lockguard(m_cached_dbids_lock);
-        m_cached_dbids = ids;
-    }
-
-    int Ardb::FlushAllData(Context& ctx)
-    {
-        KeyObject k;
-        k.db = 0;
-        k.type = KEY_META;
-
-        m_cache.EvictAll();
-        BatchWriteGuard guard(ctx);
-        Iterator* iter = IteratorKeyValue(k, false);
-        if (NULL != iter)
-        {
-            while (iter->Valid())
-            {
-                DelRaw(ctx, iter->Key());
-                iter->Next();
-            }
-            DELETE(iter);
-        }
-        return 0;
-    }
-    int Ardb::FlushDBData(Context& ctx)
-    {
-        KeyObject k;
-        k.db = ctx.currentDB;
-        k.type = KEY_META;
-
-        m_cache.EvictDB(ctx.currentDB);
-
-        BatchWriteGuard guard(ctx);
-        Iterator* iter = IteratorKeyValue(k, false);
-        if (NULL != iter)
-        {
-            while (iter->Valid())
-            {
-                KeyObject kk;
-                if (decode_key(iter->Key(), kk))
-                {
-                    if (kk.db != ctx.currentDB)
-                    {
-                        break;
-                    }
-                    DelRaw(ctx, iter->Key());
-                }
-                iter->Next();
-            }
-            DELETE(iter);
-        }
-        return 0;
-    }
-
     int Ardb::FlushDB(Context& ctx, RedisCommandFrame& cmd)
     {
-        FlushDBData(ctx);
-        fill_status_reply(ctx.reply, "OK");
-
-        DBIDSet ids;
-        GetAllDBIDSet(ids);
-        LockGuard<SpinMutexLock> guard(m_cached_dbids_lock);
-        m_cached_dbids.erase(ctx.currentDB);
+//        FlushDBData(ctx);
+//        fill_status_reply(ctx.reply, "OK");
+//
+//        DBIDSet ids;
+//        GetAllDBIDSet(ids);
+//        LockGuard<SpinMutexLock> guard(m_cached_dbids_lock);
+//        m_cached_dbids.erase(ctx.currentDB);
         return 0;
     }
 
     int Ardb::FlushAll(Context& ctx, RedisCommandFrame& cmd)
     {
-        FlushAllData(ctx);
+        //FlushAllData(ctx);
         fill_status_reply(ctx.reply, "OK");
         LockGuard<SpinMutexLock> guard(m_cached_dbids_lock);
         m_cached_dbids.clear();
@@ -778,71 +667,6 @@ namespace ardb
         return -1;
     }
 
-    int Ardb::DoCompact(const std::string& start, const std::string& end)
-    {
-        if (m_compacting)
-        {
-            return 0;
-        }
-        m_compacting = true;
-        m_last_compact_start_time = time(NULL);
-        uint64 compact_start = get_current_epoch_millis();
-        GetKeyValueEngine().CompactRange(start, end);
-        uint64 compact_end = get_current_epoch_millis();
-        m_last_compact_duration = compact_end - compact_start;
-        m_compacting = false;
-        return 0;
-    }
-
-    int Ardb::DoCompact(Context& ctx, DBID db, bool sync)
-    {
-        if (m_compacting)
-        {
-            return 0;
-        }
-        std::string raw_start, raw_end;
-        if (db != ARDB_GLOBAL_DB)
-        {
-            KeyObject start;
-            start.type = KEY_META;
-            start.db = db;
-            KeyObject end;
-            end.type = KEY_META;
-            end.db = db + 1;
-            start.Encode();
-            end.Encode();
-            raw_start = start.encode_buf.AsString();
-            raw_end = end.encode_buf.AsString();
-        }
-        struct CompactTask: public Thread
-        {
-                Ardb* adb;
-                std::string start, end;
-                CompactTask(Ardb* db, const std::string& s, const std::string& e) :
-                        adb(db), start(s), end(e)
-                {
-                }
-                void Run()
-                {
-                    adb->DoCompact(start, end);
-                    delete this;
-                }
-        };
-        if (sync)
-        {
-            DoCompact(raw_start, raw_end);
-        }
-        else
-        {
-            /*
-             * Start a background thread to compact kvs
-             */
-            Thread* t = new CompactTask(this, raw_start, raw_end);
-            t->Start();
-        }
-        return 0;
-    }
-
     int Ardb::CompactDB(Context& ctx, RedisCommandFrame& cmd)
     {
         if (m_compacting)
@@ -850,7 +674,6 @@ namespace ardb
             fill_error_reply(ctx.reply, "Server is compacting");
             return 0;
         }
-        DoCompact(ctx, ctx.currentDB, false);
         fill_status_reply(ctx.reply, "OK");
         return 0;
     }
@@ -862,7 +685,6 @@ namespace ardb
             fill_error_reply(ctx.reply, "Server is compacting");
             return 0;
         }
-        DoCompact(ctx, ARDB_GLOBAL_DB, false);
         fill_status_reply(ctx.reply, "OK");
         return 0;
     }
@@ -877,39 +699,25 @@ namespace ardb
             fill_error_reply(ctx.reply, "not enough arguments for slaveof.");
             return 0;
         }
-        const std::string& host = cmd.GetArguments()[0];
-        uint32 port = 0;
-        if (!string_touint32(cmd.GetArguments()[1], port))
-        {
-            if (!strcasecmp(cmd.GetArguments()[0].c_str(), "no") && !strcasecmp(cmd.GetArguments()[1].c_str(), "one"))
-            {
-                fill_status_reply(ctx.reply, "OK");
-                m_slave.Stop();
-                m_cfg.master_host = "";
-                m_cfg.master_port = 0;
-                return 0;
-            }
-            fill_error_reply(ctx.reply, "value is not an integer or out of range");
-            return 0;
-        }
-        for (uint32 i = 2; i < cmd.GetArguments().size(); i += 2)
-        {
-            if (cmd.GetArguments()[i] == "include")
-            {
-                DBIDArray ids;
-                split_uint32_array(cmd.GetArguments()[i + 1], "|", ids);
-                m_slave.SetIncludeDBs(ids);
-            }
-            else if (cmd.GetArguments()[i] == "exclude")
-            {
-                DBIDArray ids;
-                split_uint32_array(cmd.GetArguments()[i + 1], "|", ids);
-                m_slave.SetExcludeDBs(ids);
-            }
-        }
-        m_cfg.master_host = host;
-        m_cfg.master_port = port;
-        m_slave.ConnectMaster(host, port);
+//        const std::string& host = cmd.GetArguments()[0];
+//        uint32 port = 0;
+//        if (!string_touint32(cmd.GetArguments()[1], port))
+//        {
+//            if (!strcasecmp(cmd.GetArguments()[0].c_str(), "no") && !strcasecmp(cmd.GetArguments()[1].c_str(), "one"))
+//            {
+//                fill_status_reply(ctx.reply, "OK");
+//                m_slave.Stop();
+//                m_cfg.master_host = "";
+//                m_cfg.master_port = 0;
+//                return 0;
+//            }
+//            fill_error_reply(ctx.reply, "value is not an integer or out of range");
+//            return 0;
+//        }
+//
+//        m_cfg.master_host = host;
+//        m_cfg.master_port = port;
+//        m_slave.ConnectMaster(host, port);
         fill_status_reply(ctx.reply, "OK");
         return 0;
     }
@@ -926,22 +734,22 @@ namespace ardb
         {
             if (!strcasecmp(cmd.GetArguments()[i].c_str(), "listening-port"))
             {
-                uint32 port = 0;
-                string_touint32(cmd.GetArguments()[i + 1], port);
-                Address* addr = const_cast<Address*>(ctx.client->GetRemoteAddress());
-                if (InstanceOf<SocketHostAddress>(addr).OK)
-                {
-                    SocketHostAddress* tmp = (SocketHostAddress*) addr;
-                    const SocketHostAddress& master_addr = m_slave.GetMasterAddress();
-                    if (master_addr.GetHost() == tmp->GetHost() && master_addr.GetPort() == port)
-                    {
-                        ERROR_LOG("Can NOT accept this slave connection from master[%s:%u]",
-                                master_addr.GetHost().c_str(), master_addr.GetPort());
-                        fill_error_reply(ctx.reply, "Reject connection as slave from master instance.");
-                        return -1;
-                    }
-                }
-                m_master.AddSlavePort(ctx.client, port);
+//                uint32 port = 0;
+//                string_touint32(cmd.GetArguments()[i + 1], port);
+//                Address* addr = const_cast<Address*>(ctx.client->GetRemoteAddress());
+//                if (InstanceOf<SocketHostAddress>(addr).OK)
+//                {
+//                    SocketHostAddress* tmp = (SocketHostAddress*) addr;
+//                    const SocketHostAddress& master_addr = m_slave.GetMasterAddress();
+//                    if (master_addr.GetHost() == tmp->GetHost() && master_addr.GetPort() == port)
+//                    {
+//                        ERROR_LOG("Can NOT accept this slave connection from master[%s:%u]",
+//                                master_addr.GetHost().c_str(), master_addr.GetPort());
+//                        fill_error_reply(ctx.reply, "Reject connection as slave from master instance.");
+//                        return -1;
+//                    }
+//                }
+//                m_master.AddSlavePort(ctx.client, port);
             }
             else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "ack"))
             {
@@ -954,35 +762,12 @@ namespace ardb
 
     int Ardb::Sync(Context& ctx, RedisCommandFrame& cmd)
     {
-        if (!m_repl_backlog.IsInited())
-        {
-            fill_error_reply(ctx.reply, "Ardb instance's replication log not enabled, can NOT serve as master.");
-            return -1;
-        }
-        if (!m_cfg.master_host.empty() && !m_slave.IsSynced())
-        {
-            fill_error_reply(ctx.reply, "Server is not synced with remote master, can NOT serv as master.");
-            return -1;
-        }
-        m_master.AddSlave(ctx.client, cmd);
-        FreeClientContext(ctx);
         return 0;
     }
 
     int Ardb::PSync(Context& ctx, RedisCommandFrame& cmd)
     {
-        if (!m_repl_backlog.IsInited())
-        {
-            fill_error_reply(ctx.reply, "Ardb instance's replication backlog not enabled, can NOT serve as master.");
-            return 0;
-        }
-        if (!m_cfg.master_host.empty() && !m_slave.IsSynced())
-        {
-            fill_error_reply(ctx.reply, "Server is not synced with remote master, can NOT serv as master.");
-            return 0;
-        }
-        m_master.AddSlave(ctx.client, cmd);
-        FreeClientContext(ctx);
+
         return 0;
     }
 }
