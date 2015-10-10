@@ -1,16 +1,18 @@
+sudo: false
 language: cpp
-
-matrix:
-  include:
-    - os: linux
-      compiler: clang
-      env: COMPILER=clang++-3.6
-      addons:
-         apt:
-            sources: ['ubuntu-toolchain-r-test', 'llvm-toolchain-precise-3.6']
-            packages: ['clang-3.6', 'clang-format-3.6', 'zlib1g-dev', 'libbz2-dev', 'libsnappy-dev', 'curl']
-    - os: osx
-      compiler: clang
+compiler:
+  - gcc
+  - clang
+install:
+- if [ "$CXX" = "g++" ]; then export CXX="g++-4.8" CC="gcc-4.8"; fi
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - gcc-4.8
+    - g++-4.8
+    - clang
 
 script: make && ./src/ardb-test && storage_engine=leveldb make && ./src/ardb-test && storage_engine=lmdb make && ./src/ardb-test && storage_engine=wiredtiger make && ./src/ardb-test
 branches:
@@ -22,3 +24,6 @@ notifications:
   email:
     on_success: change
     on_failure: always
+os:
+  - linux
+  - osx
