@@ -1125,11 +1125,15 @@ OP_NAMESPACE_BEGIN
         if (NULL != ctx.client)
         {
             ctx.client->DetachFD();
+            if (timeout > 0)
+            {
+                ctx.block->blocking_timer_task_id = ctx.client->GetService().GetTimer().ScheduleHeapTask(
+                        new BlockConnectionTimeout(&ctx), timeout, -1, SECONDS);
+            }
         }
-        if (timeout > 0)
+        if (ctx.reply.type == REDIS_REPLY_NIL)
         {
-            ctx.block->blocking_timer_task_id = ctx.client->GetService().GetTimer().ScheduleHeapTask(
-                    new BlockConnectionTimeout(&ctx), timeout, -1, SECONDS);
+            ctx.reply.type = 0;
         }
         return 0;
     }
@@ -1164,6 +1168,10 @@ OP_NAMESPACE_BEGIN
                 ctx.block->blocking_timer_task_id = ctx.client->GetService().GetTimer().ScheduleHeapTask(
                         new BlockConnectionTimeout(&ctx), timeout, -1, SECONDS);
             }
+        }
+        if (ctx.reply.type == REDIS_REPLY_NIL)
+        {
+            ctx.reply.type = 0;
         }
         return 0;
     }
