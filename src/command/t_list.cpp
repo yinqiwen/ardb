@@ -1086,6 +1086,7 @@ OP_NAMESPACE_BEGIN
                         m_block_context_table.erase(fit);
                     }
                 }
+                it++;
             }
             ctx.ClearBlockContext();
         }
