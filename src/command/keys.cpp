@@ -499,7 +499,8 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::Persist(Context& ctx, RedisCommandFrame& cmd)
     {
-        GenericExpire(ctx, cmd.GetArguments()[0], 0);
+        int err = GenericExpire(ctx, cmd.GetArguments()[0], 0);
+        fill_int_reply(ctx.reply, err == 0 ? 1 : 0);
         return 0;
     }
 
