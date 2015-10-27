@@ -534,7 +534,8 @@ OP_NAMESPACE_BEGIN
             }
             ch->Write(ctx->reply);
             g_db->ClearBlockKeys(*ctx);
-            ch->AttachFD();
+            // We do not detach fd anymore
+            // ch->AttachFD();
         }
     }
 
@@ -1125,7 +1126,8 @@ OP_NAMESPACE_BEGIN
         }
         if (NULL != ctx.client)
         {
-            ctx.client->DetachFD();
+            // Do not detach fd, otherwise connection is not cleared when client disconnects
+            // ctx.client->DetachFD();
             if (timeout > 0)
             {
                 ctx.block->blocking_timer_task_id = ctx.client->GetService().GetTimer().ScheduleHeapTask(
@@ -1163,7 +1165,8 @@ OP_NAMESPACE_BEGIN
         }
         if (NULL != ctx.client)
         {
-            ctx.client->DetachFD();
+            // Do not detach fd, otherwise connection is not cleared when client disconnects
+            // ctx.client->DetachFD();
             if (timeout > 0)
             {
                 ctx.block->blocking_timer_task_id = ctx.client->GetService().GetTimer().ScheduleHeapTask(
@@ -1187,11 +1190,11 @@ OP_NAMESPACE_BEGIN
         RPopLPush(ctx, cmd);
         if (ctx.reply.type == REDIS_REPLY_NIL)
         {
-            //block;
             AddBlockKey(ctx, cmd.GetArguments()[0]);
             if (NULL != ctx.client)
             {
-                ctx.client->DetachFD();
+                // Do not detach fd, otherwise connection is not cleared when client disconnects
+                // ctx.client->DetachFD();
                 if (timeout > 0)
                 {
                     ctx.block->blocking_timer_task_id = ctx.client->GetService().GetTimer().ScheduleHeapTask(

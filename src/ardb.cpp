@@ -914,6 +914,14 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::Call(Context& ctx, RedisCommandFrame& args, int flags)
     {
+        /*
+         * Ignore commands from blocked connection
+         */
+        if (NULL != ctx.block)
+        {
+            ctx.reply.type = 0;
+            return 0;
+        }
         RedisCommandHandlerSetting* found = FindRedisCommandHandlerSetting(args);
         if (NULL == found)
         {
