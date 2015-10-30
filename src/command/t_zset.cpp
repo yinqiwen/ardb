@@ -839,7 +839,14 @@ OP_NAMESPACE_BEGIN
         ValueObject meta;
         int err = GetMetaValue(ctx, cmd.GetArguments()[0], ZSET_META, meta);
         CHECK_ARDB_RETURN_VALUE(ctx.reply, err);
-        ctx.reply.type = REDIS_REPLY_ARRAY;
+        if (cmd.GetType() == REDIS_CMD_ZREMRANGEBYSCORE)
+        {
+            ctx.reply.type = REDIS_REPLY_INTEGER;
+        }
+        else
+        {
+            ctx.reply.type = REDIS_REPLY_ARRAY;
+        }
         if (0 != err)
         {
             return 0;
