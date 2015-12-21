@@ -1,5 +1,5 @@
 /*
- *Copyright (c) 2013-2014, yinqiwen <yinqiwen@gmail.com>
+ *Copyright (c) 2013-2015, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  *
  *Redistribution and use in source and binary forms, with or without
@@ -26,53 +26,58 @@
  *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include "ardb.hpp"
+#include "db/db.hpp"
 
 OP_NAMESPACE_BEGIN
 
     int Ardb::Get(Context& ctx, RedisCommandFrame& cmd)
     {
-        const std::string& key = cmd.GetArguments()[0];
-        KeyObject k(ctx.currentDB, KEY_STRING, key);
+        RedisReply& reply = ctx.GetReply();
+        KeyObject k(ctx.ns, KEY_STRING, cmd.GetArguments()[0]);
         ValueObject v;
-        ctx.reply.type = REDIS_REPLY_STRING;
         int err = m_engine.Get(ctx, k, v);
         if (err == ERR_ENTRY_NOT_EXIST)
         {
-            ctx.reply.type = REDIS_REPLY_NIL;
+            reply.Clear();
         }
         else if (err < 0)
         {
-            FillErrorReply(ctx, err);
+            reply.SetErrCode(err);
         }
         else
         {
-            v.value.ToString(ctx.reply.str);
+            reply.SetString(v.GetStringValue());
         }
         return 0;
     }
     int Ardb::MGet(Context& ctx, RedisCommandFrame& cmd)
     {
-        ctx.reply.type = REDIS_REPLY_ARRAY;
+        RedisReply& reply = ctx.GetReply();
+        reply.type = REDIS_REPLY_ARRAY;
         KeyObjectArray ks;
         for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
         {
-            KeyObject k(ctx.currentDB, KEY_STRING, cmd.GetArguments()[i]);
+            KeyObject k(ctx.ns, KEY_STRING, cmd.GetArguments()[i]);
             ks.push_back(k);
         }
         ValueObjectArray vs;
-        std::vector<int> errs;
-        m_engine.MultiGet(ctx, ks, vs, &errs);
+        ErrCodeArray errs;
+        int err = m_engine.MultiGet(ctx, ks, vs, errs);
+        if(0 != err)
+        {
+            reply.SetErrCode(err);
+            return 0;
+        }
         for (size_t i = 0; i < ks.size(); i++)
         {
-            RedisReply& r = ctx.reply.AddMember();
+            RedisReply& r = reply.AddMember();
             if (errs[i] != 0)
             {
-                r.type = REDIS_REPLY_NIL;
+                r.Clear();
             }
             else
             {
-                fill_value_reply(ctx.reply, vs[i].value);
+                r.SetString(vs[i].GetStringValue());
             }
         }
         return 0;
@@ -81,65 +86,68 @@ OP_NAMESPACE_BEGIN
     int Ardb::Append(Context& ctx, RedisCommandFrame& cmd)
     {
         const std::string& append = cmd.GetArguments()[1];
-        KeyObject key(ctx.currentDB, KEY_STRING, cmd.GetArguments()[0]);
-        ValueObject val;
-        val.value = cmd.GetArguments()[1];
-        int err = m_engine.Merge(ctx, key, cmd.GetType(), val);
+        KeyObject key(ctx.ns, KEY_STRING, cmd.GetArguments()[0]);
+        MergeOperation merge;
+        merge.op = REDIS_CMD_APPEND;
+        Data& merge_data = merge.Add();
+        merge_data.SetString(cmd.GetArguments()[1], true);
+        RedisReply& reply = ctx.GetReply();
+        int err = m_engine.Merge(ctx, key, merge);
         if (err < 0)
         {
-            FillErrorReply(ctx, err);
+            reply.SetErrCode(err);
         }
         else
         {
             /*
              * just return appended value size
              */
-            fill_int_reply(ctx.reply, cmd.GetArguments()[1].size());
-            FireKeyChangedEvent(ctx, key);
+            reply.SetInteger(cmd.GetArguments()[1].size());
         }
         return 0;
     }
 
     int Ardb::PSetEX(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
         uint32 mills;
-        KeyObject key(ctx.currentDB, KEY_STRING, cmd.GetArguments()[0]);
         if (!string_touint32(cmd.GetArguments()[1], mills))
         {
-            fill_error_reply(ctx.reply, "value is not an integer or out of range");
+            reply.SetErrCode(ERR_OUTOFRANGE);
             return 0;
         }
-        ValueObject val;
-        val.value.SetString(cmd.GetArguments()[1], true);
+        KeyObject key(ctx.ns, KEY_STRING, cmd.GetArguments()[0]);
+        ValueObject val(KEY_STRING);
+        val.SetStringValue(cmd.GetArguments()[1]);
         {
-            BatchWriteGuard guard(ctx);
+            TransactionGuard guard(ctx, m_engine);
             GenericExpire(ctx, key, mills);
             m_engine.Put(ctx, key, val);
         }
-        if (ctx.WriteSuccess())
+        if (ctx.transc_err != 0)
         {
-            FillErrorReply(ctx, ctx.write_err);
+            reply.SetErrCode(ctx.transc_err);
         }
         else
         {
-            fill_ok_reply(ctx.reply);
-            FireKeyChangedEvent(ctx, key);
+            reply.SetStatusCode(STATUS_OK);
         }
         return 0;
     }
 
     int Ardb::MSet(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
         if (cmd.GetArguments().size() % 2 != 0)
         {
-            fill_error_reply(ctx.reply, "wrong number of arguments for MSET");
+            reply.SetErrCode(ERR_INVALID_ARGS);
             return 0;
         }
         {
-            BatchWriteGuard guard(ctx);
+            TransactionGuard guard(ctx, m_engine);
             for (uint32 i = 0; i < cmd.GetArguments().size(); i += 2)
             {
-                KeyObject key(ctx.currentDB, KEY_STRING, cmd.GetArguments()[i]);
+                KeyObject key(ctx.ns, KEY_STRING, cmd.GetArguments()[i]);
                 if (cmd.GetType() == REDIS_CMD_MSETNX)
                 {
                     if (m_engine.Exists(ctx, key))
@@ -148,18 +156,18 @@ OP_NAMESPACE_BEGIN
                         break;
                     }
                 }
-                ValueObject value;
-                value.value.SetString(cmd.GetArguments()[i + 1], true);
+                ValueObject value(KEY_STRING);
+                value.SetStringValue(cmd.GetArguments()[i + 1]);
                 m_engine.Put(ctx, key, value);
             }
         }
         if (cmd.GetType() == REDIS_CMD_MSETNX)
         {
-            fill_int_reply(ctx.reply, ctx.WriteSuccess() ? 1 : 0);
+            reply.SetInteger(ctx.transc_err == 0 ? 1 : 0);
         }
         else
         {
-            fill_ok_reply(ctx.reply);
+            reply.SetStatusCode(STATUS_OK);
         }
         return 0;
     }
@@ -171,53 +179,59 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::IncrbyFloat(Context& ctx, RedisCommandFrame& cmd)
     {
-        long double increment;
-        if (!GetDoubleValue(ctx, cmd.GetArguments()[1], increment))
+        RedisReply& reply = ctx.GetReply();
+        double increment;
+        if (!string_todouble(cmd.GetArguments()[1], increment))
         {
+            reply.SetErrCode(ERR_INVALID_FLOAT_ARGS);
             return 0;
         }
-        KeyObject key(ctx.currentDB, KEY_STRING, cmd.GetArguments()[0]);
-        ValueObject value;
-        value.value.SetString(cmd.GetArguments()[1], true);
-        int err = m_engine.Merge(ctx, key, REDIS_CMD_INCRBYFLOAT, value);
+        KeyObject key(ctx.ns, KEY_STRING, cmd.GetArguments()[0]);
+        MergeOperation merge;
+        merge.op = REDIS_CMD_INCRBYFLOAT;
+        merge.Add().SetString(cmd.GetArguments()[1], true);
+        int err = m_engine.Merge(ctx, key, merge);
         if (err == 0)
         {
-            fill_double_reply(ctx.reply, increment);
-            FireKeyChangedEvent(ctx, key);
+            reply.SetDouble(increment);
         }
         else
         {
-            FillErrorReply(ctx, err);
+            reply.SetErrCode(err);
         }
         return 0;
     }
 
     int Ardb::IncrDecrCommand(Context& ctx, const std::string& key, int64 incr)
     {
-        KeyObject keyobj(ctx.currentDB, KEY_STRING, key);
-        ValueObject value;
-        value.value.SetInt64(incr);
-        int err = m_engine.Merge(ctx, keyobj, REDIS_CMD_INCRBY, value);
+        RedisReply& reply = ctx.GetReply();
+        KeyObject keyobj(ctx.ns, KEY_STRING, key);
+        MergeOperation merge;
+        merge.op = REDIS_CMD_INCRBYFLOAT;
+        Data& merge_data = merge.Add();
+        merge_data.SetInt64(incr);
+        int err = m_engine.Merge(ctx, keyobj, merge);
         if (0 == err)
         {
-            fill_int_reply(ctx.reply, incr);
-            FireKeyChangedEvent(ctx, keyobj);
+            reply.SetInteger(merge_data.GetInt64());
         }
         else
         {
-            FillErrorReply(ctx, err);
+            reply.SetErrCode(err);
         }
         return 0;
     }
 
     int Ardb::Incrby(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
         int64 increment;
-        if (!GetInt64Value(ctx, cmd.GetArguments()[1], increment))
+        if (!string_toint64(cmd.GetArguments()[1], increment))
         {
+            reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
             return 0;
         }
-        return IncrDecrCommand(ctx, cmd.GetArguments()[0], increment);
+        return IncrDecrCommand(ctx, cmd.GetArguments()[0], cmd.GetType() == REDIS_CMD_INCRBY ? increment : -increment);
     }
 
     int Ardb::Incr(Context& ctx, RedisCommandFrame& cmd)
@@ -227,12 +241,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::Decrby(Context& ctx, RedisCommandFrame& cmd)
     {
-        int64 increment;
-        if (!GetInt64Value(ctx, cmd.GetArguments()[1], increment))
-        {
-            return 0;
-        }
-        return IncrDecrCommand(ctx, cmd.GetArguments()[0], -increment);
+        return Incrby(ctx, cmd);
     }
 
     int Ardb::Decr(Context& ctx, RedisCommandFrame& cmd)
@@ -242,32 +251,22 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::GetSet(Context& ctx, RedisCommandFrame& cmd)
     {
-        KeyObject keyobj(ctx.currentDB, KEY_STRING, cmd.GetArguments()[0]);
+        RedisReply& reply = ctx.GetReply();
+        KeyObject keyobj(ctx.ns, KEY_STRING, cmd.GetArguments()[0]);
         ValueObject value;
         int err = m_engine.Get(ctx, keyobj, value);
         if (err < 0 && err != ERR_ENTRY_NOT_EXIST)
         {
-            FillErrorReply(ctx, err);
+            reply.SetErrCode(err);
         }
-        else
+        else if (0 == err)
         {
-            if (err == ERR_ENTRY_NOT_EXIST)
-            {
-                ctx.reply.type = REDIS_REPLY_NIL;
-            }
-            else
-            {
-                fill_value_reply(ctx.reply, value.value);
-            }
-            value.value.SetString(cmd.GetArguments()[1], true);
+            reply.SetString(value.GetStringValue());
+            value.SetStringValue(cmd.GetArguments()[1]);
             err = m_engine.Put(ctx, keyobj, value);
             if (0 != err)
             {
-                FillErrorReply(ctx, err);
-            }
-            else
-            {
-                FireKeyChangedEvent(ctx, keyobj);
+                reply.SetErrCode(err);
             }
         }
         return 0;
@@ -275,30 +274,56 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::GetRange(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
         int64 start, end;
-        if (!GetInt64Value(ctx, cmd.GetArguments()[1], start) || !GetInt64Value(ctx, cmd.GetArguments()[2], end))
+        if (!string_toint64(cmd.GetArguments()[1], start) || !string_toint64(cmd.GetArguments()[1], end))
         {
+            reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
             return 0;
         }
-        KeyObject keyobj(ctx.currentDB, KEY_STRING, cmd.GetArguments()[0]);
+        KeyObject keyobj(ctx.ns, KEY_STRING, cmd.GetArguments()[0]);
         ValueObject value;
         int err = m_engine.Get(ctx, keyobj, value);
         if (0 != err)
         {
-            FillErrorReply(ctx, err);
+            reply.SetErrCode(err);
         }
         else
         {
-            fill_value_reply(ctx.reply, value.value);
+            std::string str;
+            value.GetStringValue().ToString(str);
+            size_t strlen = str.size();
+            /* Convert negative indexes */
+            if (start < 0)
+                start = strlen + start;
+            if (end < 0)
+                end = strlen + end;
+            if (start < 0)
+                start = 0;
+            if (end < 0)
+                end = 0;
+            if ((unsigned long long) end >= strlen)
+                end = strlen - 1;
+
+            /* Precondition: end >= 0 && end < strlen, so the only condition where
+             * nothing can be returned is: start > end. */
+            if (start > end || strlen == 0)
+            {
+                str.clear();
+            }
+            else
+            {
+                str = str.substr(start, end - start + 1);
+            }
+            reply.SetString(str);
         }
         return 0;
     }
 
     int Ardb::StringSet(Context& ctx, const std::string& key, const std::string& value, int32_t ex, int64_t px, int8_t nx_xx)
     {
-        KeyObject keyobj(ctx.currentDB, KEY_STRING, key);
-        ValueObject valueobj;
-        valueobj.value.SetString(value, true);
+        int err = 0;
+        KeyObject keyobj(ctx.ns, KEY_STRING, key);
         uint64_t ttl = 0;
         if (ex > 0)
         {
@@ -311,22 +336,31 @@ OP_NAMESPACE_BEGIN
         }
         if (nx_xx != -1)  // only set key when key not exist
         {
-            m_engine.Merge(ctx, keyobj, nx_xx == 0 ? REDIS_CMD_SETNX : REDIS_CMD_SETXX, valueobj);
+            MergeOperation merge;
+            merge.op = nx_xx == 0 ? REDIS_CMD_SETNX : REDIS_CMD_SETXX;
+            merge.Add().SetString(value, true);
+            err = m_engine.Merge(ctx, keyobj, merge);
         }
         else
         {
-            m_engine.Put(ctx, keyobj, valueobj);
+            ValueObject valueobj(KEY_STRING);
+            valueobj.SetStringValue(value);
+            err = m_engine.Put(ctx, keyobj, valueobj);
+        }
+        if (0 != err)
+        {
+            return err;
         }
         if (ttl > 0)
         {
-            GenericExpire(ctx, keyobj, ttl);
+            err = GenericExpire(ctx, keyobj, ttl);
         }
-        FireKeyChangedEvent(ctx, keyobj);
-        return 0;
+        return err;
     }
 
     int Ardb::Set(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
         const std::string& key = cmd.GetArguments()[0];
         const std::string& value = cmd.GetArguments()[1];
         int32_t ex = -1;
@@ -335,7 +369,6 @@ OP_NAMESPACE_BEGIN
         if (cmd.GetArguments().size() > 2)
         {
             uint32 i = 0;
-            bool syntaxerror = false;
             for (i = 2; i < cmd.GetArguments().size(); i++)
             {
                 const std::string& arg = cmd.GetArguments()[i];
@@ -344,7 +377,7 @@ OP_NAMESPACE_BEGIN
                     int64_t iv;
                     if (!raw_toint64(cmd.GetArguments()[i + 1].c_str(), cmd.GetArguments()[i + 1].size(), iv) || iv < 0)
                     {
-                        fill_error_reply(ctx.reply, "value is not an integer or out of range");
+                        reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
                         return 0;
                     }
                     if (!strcasecmp(arg.c_str(), "px"))
@@ -367,107 +400,102 @@ OP_NAMESPACE_BEGIN
                 }
                 else
                 {
-                    syntaxerror = true;
-                    break;
+                    reply.SetErrCode(ERR_INVALID_SYNTAX);
+                    return 0;
                 }
-            }
-            if (syntaxerror)
-            {
-                fill_error_reply(ctx.reply, "syntax error");
-                return 0;
             }
         }
         int err = StringSet(ctx, key, value, ex, px, nx_xx);
         if (0 != err)
         {
-            FillErrorReply(ctx, err);
+            reply.SetErrCode(err);
         }
         else
         {
-            fill_ok_reply(ctx.reply);
+            reply.SetStatusCode(STATUS_OK);
         }
         return 0;
     }
 
     int Ardb::SetEX(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
         int64 secs;
-        if (!GetInt64Value(ctx, cmd.GetArguments()[1], secs))
+        if (!string_toint64(cmd.GetArguments()[1], secs))
         {
+            reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
             return 0;
         }
         const std::string& key = cmd.GetArguments()[0];
         int err = StringSet(ctx, key, cmd.GetArguments()[2], secs, -1, -1);
         if (0 != err)
         {
-            FillErrorReply(ctx, err);
+            reply.SetErrCode(err);
         }
         else
         {
-            fill_ok_reply(ctx.reply);
+            reply.SetStatusCode(STATUS_OK);
         }
         return 0;
     }
     int Ardb::SetNX(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
+
         const std::string& key = cmd.GetArguments()[0];
-        KeyObject keyobj(ctx.currentDB, KEY_STRING, key);
+        KeyObject keyobj(ctx.ns, KEY_STRING, key);
         ValueObject valueobj;
         valueobj.value.SetString(cmd.GetArguments()[1], true);
-        int err = m_engine.Merge(ctx, keyobj, REDIS_CMD_SETNX, valueobj);
+        int err = StringSet(ctx, cmd.GetArguments()[0], cmd.GetArguments()[1], -1, -1, 0);
         if (0 != err)
         {
-            FillErrorReply(ctx, err);
+            reply.SetErrCode(err);
         }
         else
         {
-            fill_int_reply(ctx.reply, 1);
+            reply.SetInteger(1);
         }
         return 0;
     }
     int Ardb::SetRange(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
+        int64 offset;
+        if (!string_toint64(cmd.GetArguments()[1], offset))
+        {
+            reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
+            return 0;
+        }
         const std::string& key = cmd.GetArguments()[0];
-        KeyObject keyobj(ctx.currentDB, KEY_STRING, key);
-        ValueObject valueobj;
-        valueobj.value.SetString(cmd.GetArguments()[1], true);
-        int err = m_engine.Merge(ctx, keyobj, REDIS_CMD_SETEANGE, valueobj);
+        KeyObject keyobj(ctx.ns, KEY_STRING, key);
+        MergeOperation merge;
+        merge.op = REDIS_CMD_SETEANGE;
+        merge.Add().SetInt64(offset);
+        merge.Add().SetString(cmd.GetArguments()[2], false);
+        int err = m_engine.Merge(ctx, keyobj, merge);
         if (0 != err)
         {
-            FillErrorReply(ctx, err);
+            reply.SetErrCode(err);
         }
         else
         {
-            fill_int_reply(ctx.reply, 1);
+            reply.SetInteger(1);
         }
         return 0;
     }
     int Ardb::Strlen(Context& ctx, RedisCommandFrame& cmd)
     {
-        KeyObject keyobj(ctx.currentDB, KEY_STRING, cmd.GetArguments()[0]);
+        RedisReply& reply = ctx.GetReply();
+        KeyObject keyobj(ctx.ns, KEY_STRING, cmd.GetArguments()[0]);
         ValueObject value;
         int err = m_engine.Get(ctx, keyobj, value);
         if (0 != err)
         {
-            FillErrorReply(ctx, err);
+            reply.SetErrCode(err);
         }
         else
         {
-            fill_int_reply(ctx.reply, value.value.StringLength());
-        }
-        return 0;
-    }
-    int Ardb::StrDel(Context& ctx, RedisCommandFrame& cmd)
-    {
-        KeyObject keyobj(ctx.currentDB, KEY_STRING, cmd.GetArguments()[0]);
-        int err = m_engine.Del(ctx, keyobj);
-        if (0 != err)
-        {
-            FillErrorReply(ctx, err);
-        }
-        else
-        {
-            fill_ok_reply(ctx.reply);
+            reply.SetInteger(value.GetStringValue().StringLength());
         }
         return 0;
     }

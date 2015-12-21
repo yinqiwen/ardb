@@ -42,10 +42,8 @@ extern "C"
 
 using namespace ardb::codec;
 
-
 namespace ardb
 {
-    class ArdbServer;
     class LUAInterpreter
     {
         private:

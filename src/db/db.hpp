@@ -33,19 +33,16 @@
 #include "thread/thread_local.hpp"
 #include "thread/spin_rwlock.hpp"
 #include "thread/spin_mutex_lock.hpp"
-#include "engine/engine.hpp"
 #include "channel/all_includes.hpp"
 #include "command/lua_scripting.hpp"
 #include "concurrent.hpp"
-#include "options.hpp"
-#include "codec.hpp"
+#include "db/engine.hpp"
 #include "statistics.hpp"
 #include "context.hpp"
-#include "cron.hpp"
 #include "config.hpp"
 #include "logger.hpp"
 
-#include "util/redis_helper.hpp"
+#include <sparsehash/dense_hash_map>
 
 /* Command flags. Please check the command table defined in the redis.c file
  * for more information about the meaning of every flag. */
@@ -67,12 +64,7 @@ using namespace ardb::codec;
 
 OP_NAMESPACE_BEGIN
 
-    class RedisRequestHandler;
-    class ExpireCheck;
-    class ConnectionTimeout;
-    class CompactTask;
-    class RedisCursorClearTask;
-    class Ardb: public rocksdb::AssociativeMergeOperator
+    class Ardb
     {
         public:
             typedef int (Ardb::*RedisCommandHandler)(Context&, RedisCommandFrame&);
@@ -88,62 +80,25 @@ OP_NAMESPACE_BEGIN
                     volatile uint64 microseconds;
                     volatile uint64 calls;
             };
+            struct RedisCommandHash
+            {
+                    size_t operator()(const std::string& t) const;
+            };
+            struct RedisCommandEqual
+            {
+                    bool operator()(const std::string& s1, const std::string& s2) const;
+            };
         private:
-            ChannelService* m_service;
-            RocksDBEngine m_engine;
+            Engine& m_engine;
+            ArdbConfig& m_config;
 
-            KeyLocker m_key_lock;
-
-            ArdbConfig m_cfg;
-            Properties m_cfg_props;
-            SpinRWLock m_cfg_lock;
-
-            CronManager m_cron;
-            Statistics m_stat;
-
-            typedef TreeMap<std::string, RedisCommandHandlerSetting>::Type RedisCommandHandlerSettingTable;
+            typedef google::dense_hash_map<std::string, RedisCommandHandlerSetting, RedisCommandHash, RedisCommandEqual> RedisCommandHandlerSettingTable;
             RedisCommandHandlerSettingTable m_settings;
-
-            ThreadLocal<LUAInterpreter> m_lua;
-
-            ThreadLocal<RedisReplyPool> m_reply_pool;
-            /*
-             * Transction watched keys
-             */
-            typedef TreeMap<DBItemKey, ContextSet>::Type WatchedContextTable;
-            WatchedContextTable* m_watched_ctx;
-            SpinRWLock m_watched_keys_lock;
-
-            typedef TreeMap<std::string, ContextSet>::Type PubsubContextTable;
-            PubsubContextTable m_pubsub_channels;
-            PubsubContextTable m_pubsub_patterns;
-            SpinRWLock m_pubsub_ctx_lock;
-
-            typedef TreeMap<DBItemKey, ContextDeque>::Type BlockContextTable;
-            BlockContextTable m_block_context_table;
-            SpinRWLock m_block_ctx_lock;
-
-            ContextTable m_clients;
-            SpinMutexLock m_clients_lock;
-
-            void AddBlockKey(Context& ctx, const std::string& key);
-            void ClearBlockKeys(Context& ctx);
 
             void TryPushSlowCommand(const RedisCommandFrame& cmd, uint64 micros);
             void GetSlowlog(Context& ctx, uint32 len);
 
-            time_t m_starttime;
-            bool m_compacting;
-            time_t m_last_compact_start_time;
-            uint64 m_last_compact_duration;
 
-            SpinMutexLock m_cached_dbids_lock;
-            DBIDSet m_cached_dbids;
-
-            SpinMutexLock m_redis_cursor_lock;
-            RedisCursorTable m_redis_cursor_table;
-
-            bool FillErrorReply(Context& ctx, int err);
             void FillInfoResponse(const std::string& section, std::string& info);
 
             int SubscribeChannel(Context& ctx, const std::string& channel, bool notify);
@@ -154,10 +109,6 @@ OP_NAMESPACE_BEGIN
             int PUnsubscribeAll(Context& ctx, bool notify);
             int PublishMessage(Context& ctx, const std::string& channel, const std::string& message);
 
-            void RewriteClientCommand(Context& ctx, RedisCommandFrame& cmd);
-
-            bool GetDoubleValue(Context& ctx, const std::string& str, long double& v);
-            bool GetInt64Value(Context& ctx, const std::string& str, int64& v);
 
             int StringSet(Context& ctx, const std::string& key, const std::string& value, int32_t ex = -1, int64_t px = -1, int8_t nx_xx = -1);
 
@@ -230,7 +181,6 @@ OP_NAMESPACE_BEGIN
             int Decr(Context& ctx, RedisCommandFrame& cmd);
             int Decrby(Context& ctx, RedisCommandFrame& cmd);
             int Get(Context& ctx, RedisCommandFrame& cmd);
-            int StrDel(Context& ctx, RedisCommandFrame& cmd);
             int GetRange(Context& ctx, RedisCommandFrame& cmd);
             int GetSet(Context& ctx, RedisCommandFrame& cmd);
             int Incr(Context& ctx, RedisCommandFrame& cmd);
@@ -245,6 +195,7 @@ OP_NAMESPACE_BEGIN
             int SetRange(Context& ctx, RedisCommandFrame& cmd);
             int Strlen(Context& ctx, RedisCommandFrame& cmd);
             int Set(Context& ctx, RedisCommandFrame& cmd);
+
             int Del(Context& ctx, RedisCommandFrame& cmd);
             int Exists(Context& ctx, RedisCommandFrame& cmd);
             int Expire(Context& ctx, RedisCommandFrame& cmd);
@@ -276,7 +227,6 @@ OP_NAMESPACE_BEGIN
             int HSetNX(Context& ctx, RedisCommandFrame& cmd);
             int HVals(Context& ctx, RedisCommandFrame& cmd);
             int HScan(Context& ctx, RedisCommandFrame& cmd);
-            int HReplace(Context& ctx, RedisCommandFrame& cmd);
 
             int SAdd(Context& ctx, RedisCommandFrame& cmd);
             int SCard(Context& ctx, RedisCommandFrame& cmd);
@@ -296,7 +246,6 @@ OP_NAMESPACE_BEGIN
             int SInterCount(Context& ctx, RedisCommandFrame& cmd);
             int SDiffCount(Context& ctx, RedisCommandFrame& cmd);
             int SScan(Context& ctx, RedisCommandFrame& cmd);
-            int SReplace(Context& ctx, RedisCommandFrame& cmd);
 
             int ZAdd(Context& ctx, RedisCommandFrame& cmd);
             int ZCard(Context& ctx, RedisCommandFrame& cmd);
@@ -356,54 +305,13 @@ OP_NAMESPACE_BEGIN
             int PFCount(Context& ctx, RedisCommandFrame& cmd);
             int PFMerge(Context& ctx, RedisCommandFrame& cmd);
 
-            int Cluster(Context& ctx, RedisCommandFrame& cmd);
-
             int DoCall(Context& ctx, RedisCommandHandlerSetting& setting, RedisCommandFrame& cmd);
-            RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(RedisCommandFrame& cmd);bool ParseConfig(const Properties& props);
+            RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(RedisCommandFrame& cmd);
             void RenameCommand();
-            void FreeClientContext(Context& ctx);
-            void AddClientContext(Context& ctx);
-            RedisReplyPool& GetRedisReplyPool();
-            uint64 GetNewRedisCursor(const std::string& element);
-            int FindElementByRedisCursor(const std::string& cursor, std::string& element);
-            void ClearExpireRedisCursor();bool IsEmpty();
-
-            friend class RedisRequestHandler;
-            friend class LUAInterpreter;
-            friend class Slave;
-            friend class Master;
-            friend class ReplBacklog;
-            friend class RedisDumpFile;
-            friend class ArdbDumpFile;
-            friend class ZSetIterator;
-            friend class ExpireCheck;
-            friend class ConnectionTimeout;
-            friend class CompactTask;
-            friend class RedisCursorClearTask;
         public:
-            Ardb(KeyValueEngineFactory& factory);
-            int Init(const ArdbConfig& cfg);
-            void Start();
-            ArdbConfig& GetConfig()
-            {
-                return m_cfg;
-            }
-            ChannelService& GetChannelService()
-            {
-                return *m_service;
-            }
-            Timer& GetTimer()
-            {
-                return m_service->GetTimer();
-            }
-            Statistics& GetStatistics()
-            {
-                return m_stat;
-            }
-            int Call(Context& ctx, RedisCommandFrame& cmd, int flags);
-            static void WakeBlockedConnCallback(Channel* ch, void * data);
+            Ardb(ArdbConfig& conf, Engine& engine);
+            int Call(Context& ctx, RedisCommandFrame& cmd);
             ~Ardb();
-
     };
     extern Ardb* g_db;
 OP_NAMESPACE_END

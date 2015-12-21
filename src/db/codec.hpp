@@ -41,20 +41,15 @@ OP_NAMESPACE_BEGIN
 
     enum KeyType
     {
-        KEY_UNKNOWN, KEY_META = 1, KEY_STRING = 2, KEY_HASH = 3, KEY_LIST = 4, KEY_SET = 5, KEY_ZSET_DATA = 6, KEY_ZSET_SCORE = 7,
+        KEY_UNKNOWN, KEY_STRING = 2, KEY_HASH = 4, KEY_LIST_META = 5, KEY_LIST = 6, KEY_SET = 8, KEY_ZSET_SORT = 9, KEY_ZSET_SCORE = 10,
         /*
          * Reserver 20 types
          */
 
-        KEY_TTL_DATA = 100, KEY_TTL_SORT = 101,
+        KEY_TTL_SORT = 33, KEY_TTL_VALUE = 34,
 
         KEY_END = 255, /* max value for 1byte */
     };
-
-    typedef uint16 DBID;
-
-    typedef std::vector<DBID> DBIDArray;
-    typedef TreeSet<DBID>::Type DBIDSet;
 
     struct Data
     {
@@ -69,7 +64,7 @@ OP_NAMESPACE_BEGIN
             ~Data();
 
             void Encode(Buffer& buf) const;
-            bool Decode(Buffer& buf);
+            bool Decode(Buffer& buf, bool clone_str);
 
             void SetString(const std::string& str, bool try_int_encoding);
             void SetInt64(int64 v);
@@ -109,61 +104,126 @@ OP_NAMESPACE_BEGIN
             const char* CStr() const;
             const std::string& ToString(std::string& str) const;
     };
-    typedef std::vector<Data> DataArray;
-    typedef TreeMap<Data, Data>::Type DataMap;
-    typedef TreeSet<Data>::Type DataSet;
 
     struct KeyObject
     {
-        public:
-            const char* ns; //namespace
-            uint32 db;
+        private:
+            Data ns; //namespace
             uint8 type;
-            Data elements[3];
+            Data key;
+            Data element;
+            double score;
+            uint8 ttl_key_type;
 
-            KeyObject(uint32 dbid = 0, uint8 t = KEY_STRING, const std::string& data = "") :
-                    ns(NULL), db(dbid), type(t)
+            Buffer encode_buffer;
+            inline void clearEncodeBuffer()
             {
-                elements[0].SetString(data, false);
+                encode_buffer.Clear();
             }
-            void Encode(Buffer& buf) const;
-            bool Decode(Buffer& buf);
+            void setElement(const Data& data)
+            {
+                element = data;
+            }
+        public:
+            KeyObject(const Data& nns, uint8 t = KEY_STRING, const std::string& data = "") :
+                    ns(nns), type(t), score(0), ttl_key_type(0)
+            {
+                key.SetString(data, false);
+            }
+            KeyObject(const Data& nns, uint8 t = KEY_STRING, const Data& key_data) :
+                    ns(nns), type(t), key(key_data), score(0), ttl_key_type(0)
+            {
+            }
+            const Data& GetStringKey() const
+            {
+                return key;
+            }
+            KeyType GetKeyType() const
+            {
+                return (KeyType) type;
+            }
 
-            void Clear()
+            void SetHashField(const Data& v)
             {
-                ns = NULL;
-                db = 0;
-                type = 0;
-                elements[0].Clear();
-                elements[1].Clear();
-                elements[2].Clear();
+                setElement(v);
             }
+            void SetListIndex(double idx)
+            {
+                this->score = idx;
+            }
+            void SetSetMember(const Data& v)
+            {
+                setElement(v);
+            }
+            void SetZSetMember(const Data& v)
+            {
+                setElement(v);
+            }
+            void SetZSetScore(double score)
+            {
+                this->score = score;
+            }
+            void SetTTLKeyType(KeyType t)
+            {
+                ttl_key_type = t;
+            }
+            int Compare(const KeyObject& other);
+
+            Buffer& Encode();
+            bool Decode(Buffer& buffer);
+
+            void Clear();
             ~KeyObject()
             {
-                Clear();
             }
-
     };
 
-    struct ValueObject
+    struct ListMeta
     {
+            int64_t min_idx;
+            int64_t max_idx;
+            size_t size;
+            bool sequencial;
+    };
+
+    class ValueObject
+    {
+        private:
             Data value;
-            ValueObject()
+            ListMeta list_meta;
+            double score;
+            uint8 key_type;
+        public:
+            ValueObject(uint8 ktype = 0) :
+                    score(0), key_type(ktype)
             {
             }
-            void Encode(Buffer& buf) const;
-            bool Decode(Buffer& buf);
+            Data& GetStringValue();
+            void SetStringValue(const std::string& str);
+            Data& GetHashValue();
+            Data& GetListElement();
+            double GetZSetScore();
+            ListMeta& GetListMeta();
     };
 
-    typedef std::vector<int64> Int64Array;
-    typedef std::vector<int> IntArray;
-    typedef std::vector<double> DoubleArray;
-    typedef std::vector<std::string> StringArray;
-    typedef TreeSet<std::string>::Type StringSet;
+    typedef std::vector<Data> DataArray;
+    struct MergeOperation
+    {
+            uint16 op;
+            DataArray values;
+            Data& Add()
+            {
+                values.resize(values.size() + 1);
+                return values[values.size() - 1];
+            }
+            bool Decode(Buffer& buffer);
+            void Encode(Buffer& buffer);
+    };
 
-    typedef std::vector<Slice> SliceArray;
     typedef std::vector<KeyObject> KeyObjectArray;
     typedef std::vector<ValueObject> ValueObjectArray;
+
+    typedef std::vector<int> ErrCodeArray;
 
 OP_NAMESPACE_END
 

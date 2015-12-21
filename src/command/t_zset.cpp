@@ -26,7 +26,7 @@
  *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include "ardb.hpp"
+#include "db/db.hpp"
 #include <float.h>
 #include "geo/geohash_helper.hpp"
 
@@ -53,11 +53,6 @@ OP_NAMESPACE_BEGIN
     int Ardb::ZIncrby(Context& ctx, RedisCommandFrame& cmd)
     {
 
-        return 0;
-    }
-
-    int Ardb::ZSetRange(Context& ctx, const Slice& key, int64 start, int64 end, bool withscores, bool reverse, DataOperation op)
-    {
         return 0;
     }
 

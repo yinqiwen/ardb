@@ -88,18 +88,7 @@ namespace ardb
             if (NULL != p)
             {
                 pool = p;
-                self_pool = false;
             }
-        }
-
-        RedisReplyPool& RedisReply::GetPool()
-        {
-            if (NULL == pool)
-            {
-                pool = new RedisReplyPool;
-                self_pool = true;
-            }
-            return *pool;
         }
 
         RedisReply& RedisReply::AddMember(bool tail)
@@ -109,29 +98,30 @@ namespace ardb
             {
                 elements = new std::deque<RedisReply*>;
             }
-            RedisReply& reply = GetPool().Allocate();
-            if (tail)
+            RedisReply* reply = NULL;
+            if (NULL == pool)
             {
-                elements->push_back(&reply);
+                NEW(reply, RedisReply);
             }
             else
             {
-                elements->push_front(&reply);
+                reply = &(pool->Allocate());
+            }
+            if (tail)
+            {
+                elements->push_back(reply);
+            }
+            else
+            {
+                elements->push_front(reply);
             }
             return reply;
         }
         void RedisReply::ReserveMember(size_t num)
         {
-            type = REDIS_REPLY_ARRAY;
-            if (NULL == elements)
+            for (size_t i = 0; i < num; i++)
             {
-                elements = new std::deque<RedisReply*>;
-            }
-            for (uint32 i = elements->size(); i < num; i++)
-            {
-                RedisReply& reply = GetPool().Allocate();
-                reply.type = REDIS_REPLY_NIL;
-                elements->push_back(&reply);
+                AddMember();
             }
         }
         size_t RedisReply::MemberSize()
@@ -148,23 +138,21 @@ namespace ardb
         }
         void RedisReply::Clear()
         {
-            type = 0;
+            type = REDIS_REPLY_NIL;
             integer = 0;
-            double_value = 0;
             str.clear();
-            DELETE(elements);
-            if (self_pool && NULL != pool)
+            if (NULL == pool && NULL != elements)
             {
-                pool->Clear();
+                for (int i = 0; i < elements->size(); i++)
+                {
+                    DELETE(elements->at(i));
+                }
             }
+            DELETE(elements);
         }
         RedisReply::~RedisReply()
         {
             DELETE(elements);
-            if (self_pool)
-            {
-                DELETE(pool);
-            }
         }
     }
 }

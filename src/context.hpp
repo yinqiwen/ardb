@@ -36,200 +36,58 @@
 #include "concurrent.hpp"
 #include "codec.hpp"
 
-#define BLOCK_STATE_BLOCKED 0
-#define BLOCK_STATE_WAKING 1
-#define BLOCK_STATE_WAKED 2
-
-#define CONTEXT_NORMAL_CONNECTION 1
-#define CONTEXT_SLAVE_CONNECTION  2
-#define CONTEXT_DUMP_SYNC_LOADING 3
-#define CONTEXT_UNIT_TEST         4
-#define CONTEXT_LIBRARY           5
-
 using namespace ardb::codec;
 OP_NAMESPACE_BEGIN
-
-    typedef TreeSet<DBItemKey>::Type WatchKeySet;
-
-    struct ListBlockContext
-    {
-            WatchKeySet keys;
-            std::string dest_key;
-            int32 blocking_timer_task_id;
-            DBItemKey waked_key;
-            std::string waked_value;
-            uint8 block_state;
-            ListBlockContext() :
-                    blocking_timer_task_id(-1), block_state(BLOCK_STATE_BLOCKED)
-            {
-            }
-    };
-    struct TranscContext
-    {
-            bool in_transc;bool abort;
-            RedisCommandFrameArray cached_cmds;
-            WatchKeySet watched_keys;
-            TranscContext() :
-                    in_transc(true), abort(false)
-            {
-            }
-            void AddRedisCommand(const RedisCommandFrame& cmd)
-            {
-                cached_cmds.push_back(cmd);
-            }
-    };
-
-    struct PubSubContext
-    {
-            StringSet pubsub_channels;
-            StringSet pubsub_patterns;
-    };
-
-    struct LUAContext
-    {
-            uint64 lua_time_start;bool lua_timeout;bool lua_kill;
-            const char* lua_executing_func;
-
-            LUAContext() :
-                    lua_time_start(0), lua_timeout(false), lua_kill(false), lua_executing_func(NULL)
-            {
-            }
-    };
-
     struct CallFlags
     {
             unsigned no_wal :1;
+            unsigned no_fill_reply :1;
+            unsigned create_if_notexist :1;
+            unsigned fuzzy_check :1;
+    };
+
+    struct ClientContext
+    {
+            std::string name;
+            Channel* client;
+            int64 uptime;
+            int64 last_interaction_ustime;
+            bool authenticated;
+            bool processing;
+    };
+
+    struct TransactionContext
+    {
+
     };
 
     struct Context
     {
             CallFlags flags;
-            TranscContext* transc;
-            PubSubContext* pubsub;
-            LUAContext* lua;
-            ListBlockContext* block;
-
-            Channel* client;
-            DBID currentDB;
+            Data ns;
             RedisReply reply;
 
-            std::string server_address;
-            bool authenticated;
+            ClientContext* client;
+            TransactionContext* transc;
+            int dirty;
 
-            bool data_change;
-            int write_err;
-            RedisCommandFrame* current_cmd;
-            RedisCommandType current_cmd_type;
-            int64 born_time;
-            int64 last_interaction_ustime;
-
-            std::string name;
-
-            bool processing;
-            bool close_after_processed;
-            int cmd_setting_flags;
-            uint8 identity;
-
+            int transc_err;
             int64 sequence;  //recv command sequence in the server, start from 1
-            rocksdb::ColumnFamilyHandle* cf;
             Context() :
-                    transc(NULL), pubsub(NULL), lua(NULL), block(NULL), client(
-                    NULL), currentDB(0),  authenticated(true), data_change(false), write_err(true), current_cmd(NULL), current_cmd_type(
-                            REDIS_CMD_INVALID), born_time(0), last_interaction_ustime(0), processing(false), close_after_processed(
-                    false), cmd_setting_flags(0), identity(CONTEXT_NORMAL_CONNECTION), sequence(0), cf(NULL)
+                    client(NULL), transc(NULL), dirty(0), transc_err(0), sequence(0)
             {
+                ns.SetInt64(0);
             }
-            TranscContext& GetTransc()
+            void RewriteClientCommand(const RedisCommandFrame& cmd)
             {
-                if (NULL == transc)
-                {
-                    transc = new TranscContext;
-                }
-                return *transc;
+
             }
-            PubSubContext& GetPubsub()
-            {
-                if (NULL == pubsub)
-                {
-                    pubsub = new PubSubContext;
-                }
-                return *pubsub;
-            }
-            LUAContext& GetLua()
-            {
-                if (NULL == lua)
-                {
-                    lua = new LUAContext;
-                }
-                return *lua;
-            }
-            ListBlockContext& GetBlockContext()
-            {
-                if (NULL == block)
-                {
-                    block = new ListBlockContext;
-                }
-                return *block;
-            }
-            bool InTransc()
-            {
-                return NULL != transc && transc->in_transc;
-            }
-            bool IsSubscribedConn()
-            {
-                return NULL != pubsub;
-            }
-            void ClearTransc()
-            {
-                DELETE(transc);
-            }
-            void ClearPubsub()
-            {
-                DELETE(pubsub);
-            }
-            void ClearLua()
-            {
-                DELETE(lua);
-            }
-            void ClearBlockContext()
-            {
-                DELETE(block);
-            }
-            void ClearState()
-            {
-                reply.Clear();
-                data_change = false;
-                write_err = 0;
-                current_cmd = NULL;
-            }
-            bool WriteSuccess()
-            {
-                return write_err == 0;
-            }
+            RedisReply& GetReply();
             ~Context()
             {
-                ClearTransc();
-                ClearPubsub();
-                ClearLua();
-                ClearBlockContext();
+                //DELETE(client);
             }
     };
-
-    typedef TreeSet<Context*>::Type ContextSet;
-    typedef std::deque<Context*> ContextDeque;
-    typedef TreeMap<uint32, Context*>::Type ContextTable;
-
-    struct RedisCursor
-    {
-            std::string element;
-            time_t ts;
-            uint64 cursor;
-            RedisCursor() :
-                    ts(0), cursor(0)
-            {
-            }
-    };
-    typedef TreeMap<uint64, RedisCursor>::Type RedisCursorTable;
 
 OP_NAMESPACE_END
 

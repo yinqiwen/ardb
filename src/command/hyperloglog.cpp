@@ -29,21 +29,19 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "ardb.hpp"
+#include "db/db.hpp"
 #include "util/sds.h"
 
 #include <stdint.h>
 #include <math.h>
 
 OP_NAMESPACE_BEGIN
-/* PFADD var ele ele ele ... ele => :0 or :1 */
     int Ardb::PFAdd(Context& ctx, RedisCommandFrame& cmd)
     {
 
         return 0;
 
     }
-    /* PFCOUNT var -> approximated cardinality of set. */
     int Ardb::PFCount(Context& ctx, RedisCommandFrame& cmd)
     {
 

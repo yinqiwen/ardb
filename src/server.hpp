@@ -27,44 +27,26 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef DB_HELPERS_HPP_
-#define DB_HELPERS_HPP_
-#include <stdint.h>
-#include <float.h>
-#include <map>
-#include <vector>
-#include <list>
-#include <string>
-#include <deque>
-#include "common.hpp"
+#ifndef NETWORK_HPP_
+#define NETWORK_HPP_
+#include "common/common.hpp"
 #include "channel/all_includes.hpp"
-#include "thread/thread.hpp"
-namespace ardb
-{
-    struct CronThread: public Thread
-    {
-            ChannelService serv;
-            void Run()
-            {
-                serv.Start();
-            }
-            void StopSelf()
-            {
-                serv.Stop();
-                serv.Wakeup();
-            }
-    };
+#include "context.hpp"
+#include "db/db.hpp"
+using namespace ardb::codec;
 
-    class CronManager
+OP_NAMESPACE_BEGIN
+
+    class Server
     {
         private:
-            CronThread m_db_cron;
-            CronThread m_misc_cron;
+            ChannelService* m_service;
+            ArdbConfig& m_config;
+            Ardb* m_db;
+            time_t m_uptime;
         public:
-            CronManager();
-            void Start();
-            void StopSelf();
+            Server(ArdbConfig& conf, Ardb* db);
+            int Start();
     };
-}
-
-#endif /* DB_HELPERS_HPP_ */
+OP_NAMESPACE_END
+#endif /* NETWORK_HPP_ */

@@ -27,7 +27,7 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "ardb.hpp"
+#include "db/db.hpp"
 
 namespace ardb
 {
@@ -49,12 +49,12 @@ namespace ardb
 
     void Ardb::TryPushSlowCommand(const RedisCommandFrame& cmd, uint64 micros)
     {
-        if (micros < m_cfg.slowlog_log_slower_than)
+        if (micros < m_config.slowlog_log_slower_than)
         {
             return;
         }
         LockGuard<SpinMutexLock> guard(g_slowlog_queue_mutex);
-        while (m_cfg.slowlog_max_len > 0 && g_slowlog_queue.size() >= (uint32) m_cfg.slowlog_max_len)
+        while (m_config.slowlog_max_len > 0 && g_slowlog_queue.size() >= (uint32) m_config.slowlog_max_len)
         {
             g_slowlog_queue.pop_front();
         }
@@ -77,19 +77,19 @@ namespace ardb
             RedisReply& rr1 = r.AddMember();
             RedisReply& rr2 = r.AddMember();
             RedisReply& rr3 = r.AddMember();
-            fill_int_reply(rr1, log.id);
-            fill_int_reply(rr2, log.ts);
-            fill_int_reply(rr3, log.costs);
+            rr1.SetInteger(log.id);
+            rr2.SetInteger(log.ts);
+            rr3.SetInteger(log.costs);
 
             RedisReply& cmdreply = r.AddMember();
 
             cmdreply.type = REDIS_REPLY_ARRAY;
             RedisReply& cmdname = cmdreply.AddMember();
-            fill_str_reply(cmdname, log.cmd.GetCommand());
+            cmdname.SetString(log.cmd.GetCommand());
             for (uint32 j = 0; j < log.cmd.GetArguments().size(); j++)
             {
                 RedisReply& arg = cmdreply.AddMember();
-                fill_str_reply(arg, *(log.cmd.GetArgument(j)));
+                arg.SetString(*(log.cmd.GetArgument(j)));
             }
         }
     }
@@ -97,13 +97,14 @@ namespace ardb
     int Ardb::SlowLog(Context& ctx, RedisCommandFrame& cmd)
     {
         std::string subcmd = string_tolower(cmd.GetArguments()[0]);
+        RedisReply& reply =  ctx.GetReply();
         if (subcmd == "len")
         {
-            fill_int_reply(ctx.reply, g_slowlog_queue.size());
+            reply.SetInteger(g_slowlog_queue.size());
         }
         else if (subcmd == "reset")
         {
-            fill_status_reply(ctx.reply, "OK");
+            reply.SetStatusCode(STATUS_OK);
             LockGuard<SpinMutexLock> guard(g_slowlog_queue_mutex);
             g_slowlog_queue.clear();
         }
@@ -111,19 +112,19 @@ namespace ardb
         {
             if (cmd.GetArguments().size() != 2)
             {
-                fill_error_reply(ctx.reply, "wrong number of arguments for SLOWLOG GET");
+                reply.SetErrorReason("wrong number of arguments for SLOWLOG GET");
             }
             uint32 len = 0;
             if (!string_touint32(cmd.GetArguments()[1], len))
             {
-                fill_error_reply(ctx.reply, "value is not an integer or out of range.");
+                reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
                 return 0;
             }
             GetSlowlog(ctx, len);
         }
         else
         {
-            fill_error_reply(ctx.reply, "SLOWLOG subcommand must be one of GET, LEN, RESET");
+            reply.SetErrorReason("SLOWLOG subcommand must be one of GET, LEN, RESET");
         }
         return 0;
     }

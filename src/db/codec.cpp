@@ -67,9 +67,7 @@ OP_NAMESPACE_BEGIN
 
     void Data::Encode(Buffer& buf) const
     {
-        uint32 header = len;
-        header = (header << 3) + encoding;
-        buf.Write(&header, sizeof(header));
+        buf.WriteByte((char) encoding);
         switch (encoding)
         {
             case E_INT64:
@@ -80,6 +78,7 @@ OP_NAMESPACE_BEGIN
             case E_CSTR:
             case E_SDS:
             {
+                BufferHelper::WriteVarUInt32(buf, StringLength());
                 const char* ptr = CStr();
                 buf.Write(ptr, StringLength());
                 return;
@@ -90,22 +89,19 @@ OP_NAMESPACE_BEGIN
             }
         }
     }
-    bool Data::Decode(Buffer& buf)
+    bool Data::Decode(Buffer& buf, bool clone_str)
     {
-        uint32 header = 0;
-        if (buf.Read(&header, sizeof(header)) != sizeof(header))
+        char header = 0;
+        if (!buf.ReadByte(header))
         {
             return false;
         }
-        uint8 tmp_encoding = header & 0x7;
-        uint32 tmp_len = header >> 3;
-        header = (header << 29) + encoding;
-        buf.Write(&header, sizeof(header));
-        switch (tmp_encoding)
+        encoding = (uint8) header;
+        switch (encoding)
         {
             case E_INT64:
             {
-                int64 v;
+                int64_t v;
                 if (!BufferHelper::ReadVarInt64(buf, v))
                 {
                     return false;
@@ -116,15 +112,26 @@ OP_NAMESPACE_BEGIN
             case E_CSTR:
             case E_SDS:
             {
-                if (buf.ReadableBytes() < tmp_len)
+                uint32_t strlen = 0;
+                if (!BufferHelper::ReadVarUInt32(buf, strlen))
                 {
                     return false;
                 }
-                const char* ss = buf.GetRawBuffer();
+                const char* ss = buf.GetRawReadBuffer();
                 Clear();
-                *(void**) data = ss;
-                len = tmp_len;
-                encoding = E_CSTR;
+                len = strlen;
+                if (clone_str)
+                {
+                    void* s = malloc(strlen);
+                    memcpy(s, (char*) ss, strlen);
+                    *(void**) data = s;
+                    encoding = E_SDS;
+                }
+                else
+                {
+                    *(void**) data = ss;
+                    encoding = E_CSTR;
+                }
                 return true;
             }
             default:
@@ -284,93 +291,6 @@ OP_NAMESPACE_BEGIN
             }
         }
         return str;
-    }
-
-    void KeyObject::Encode(Buffer& buf) const
-    {
-        uint32 header = db;
-        header = (header << 8) + type;
-        buf.Write(&header, sizeof(header));
-        switch (type)
-        {
-            case KEY_STRING:
-            {
-                elements[0].Encode(buf);
-                break;
-            }
-            case KEY_HASH:
-            case KEY_LIST:
-            case KEY_SET:
-            case KEY_ZSET_DATA:
-            case KEY_ZSET_SCORE:
-            case KEY_TTL_DATA:
-            {
-                elements[0].Encode(buf);
-                elements[1].Encode(buf);
-                break;
-            }
-            case KEY_TTL_SORT:
-            {
-                elements[0].Encode(buf);
-                elements[1].Encode(buf);
-                elements[2].Encode(buf);
-                break;
-            }
-            default:
-            {
-                break;
-            }
-        }
-
-    }
-    bool KeyObject::Decode(Buffer& buf)
-    {
-        uint32 header = 0;
-        if (buf.Read(&header, sizeof(header)) != sizeof(header))
-        {
-            return false;
-        }
-        uint8 tmp_type = header & 0xFF;
-        uint32 tmp_id = header >> 8;
-        switch (type)
-        {
-            case KEY_STRING:
-            {
-                if (!elements[0].Decode(buf))
-                {
-                    return false;
-                }
-                break;
-            }
-            case KEY_HASH:
-            case KEY_LIST:
-            case KEY_SET:
-            case KEY_ZSET_DATA:
-            case KEY_ZSET_SCORE:
-            case KEY_TTL_DATA:
-            {
-                if (!elements[0].Decode(buf) || !elements[1].Decode(buf))
-                {
-                    return false;
-                }
-                break;
-            }
-            case KEY_TTL_SORT:
-            {
-                if (!elements[0].Decode(buf) || !elements[1].Decode(buf) || !elements[2].Decode(buf))
-                {
-                    return false;
-                }
-                break;
-            }
-            default:
-            {
-                return false;
-            }
-        }
-        type = tmp_type;
-        db = tmp_id;
-        return true;
     }
 
 OP_NAMESPACE_END

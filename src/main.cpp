@@ -27,16 +27,17 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "ardb.hpp"
-
+#include "server.hpp"
 #include <signal.h>
 #include <limits.h>
 #include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 void version()
 {
-    printf("Ardb server v=%s bits=%d \n", ARDB_VERSION,
-                    sizeof(long) == 4 ? 32 : 64);
+    printf("Ardb server v=%s bits=%d \n", ARDB_VERSION, sizeof(long) == 4 ? 32 : 64);
     exit(0);
 }
 
@@ -46,8 +47,7 @@ void usage()
     fprintf(stderr, "       ./ardb-server -v or --version\n");
     fprintf(stderr, "       ./ardb-server -h or --help\n");
     fprintf(stderr, "Examples:\n");
-    fprintf(stderr,
-                    "       ./ardb-server (run the server with default conf)\n");
+    fprintf(stderr, "       ./ardb-server (run the server with default conf)\n");
     fprintf(stderr, "       ./ardb-server /etc/ardb/16379.conf\n");
     fprintf(stderr, "       ./ardb-server /etc/myardb.conf \n\n");
     exit(1);
@@ -57,6 +57,28 @@ int signal_setting()
 {
     signal(SIGPIPE, SIG_IGN);
     return 0;
+}
+
+static void daemonize(void)
+{
+    int fd;
+
+    if (fork() != 0)
+    {
+        exit(0); /* parent exits */
+    }
+    setsid(); /* create a new session */
+
+    if ((fd = open("/dev/null", O_RDWR, 0)) != -1)
+    {
+        dup2(fd, STDIN_FILENO);
+        dup2(fd, STDOUT_FILENO);
+        dup2(fd, STDERR_FILENO);
+        if (fd > STDERR_FILENO)
+        {
+            close(fd);
+        }
+    }
 }
 
 int main(int argc, char** argv)
@@ -69,8 +91,10 @@ int main(int argc, char** argv)
         char *configfile = NULL;
 
         /* Handle special options --help and --version */
-        if (strcmp(argv[1], "-v") == 0 || strcmp(argv[1], "--version") == 0) version();
-        if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) usage();
+        if (strcmp(argv[1], "-v") == 0 || strcmp(argv[1], "--version") == 0)
+            version();
+        if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0)
+            usage();
 
         /* First argument is the config file name? */
         if (argv[j][0] != '-' || argv[j][1] != '-')
@@ -82,7 +106,7 @@ int main(int argc, char** argv)
                 return -1;
             }
             char readpath_buf[4096];
-            if(NULL != realpath(configfile, readpath_buf))
+            if (NULL != realpath(configfile, readpath_buf))
             {
                 confpath = readpath_buf;
             }
@@ -90,24 +114,28 @@ int main(int argc, char** argv)
     }
     else
     {
-        printf(
-                        "Warning: no config file specified, using the default config. In order to specify a config file use %s /path/to/ardb.conf\n",
-                        argv[0]);
+        printf("Warning: no config file specified, using the default config. In order to specify a config file use %s /path/to/ardb.conf\n", argv[0]);
     }
-    signal_setting();
     ArdbConfig cfg;
     if (!cfg.Parse(props))
     {
         printf("Failed to parse config file.\n");
         return -1;
     }
-    SelectedDBEngineFactory engine(props);
-    Ardb server(engine);
-    if(0 == server.Init(cfg))
+    if (cfg.daemonize)
     {
-        server.GetConfig().conf_path = confpath;
-        server.Start();
+        daemonize();
     }
+    signal_setting();
+    if (!cfg.pidfile.empty())
+    {
+        char tmp[200];
+        sprintf(tmp, "%d", getpid());
+        std::string content = tmp;
+        file_write_content(cfg.pidfile, content);
+    }
+    ArdbLogger::InitDefaultLogger(cfg.loglevel, cfg.logfile);
+    ArdbLogger::DestroyDefaultLogger();
     return 0;
 }
 

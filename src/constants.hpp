@@ -12,10 +12,13 @@
 
 #define ARDB_MAX_DBID 0xFFFFFF
 OP_NAMESPACE_BEGIN
-    enum ErrCode
+    enum ErrorCode
     {
-        ERR_OK = 0,
+        //STATUS_OK = 0,
         ERR_ENTRY_NOT_EXIST = -1000,
+        ERR_INVALID_INTEGER_ARGS = -1001,
+        ERR_INVALID_FLOAT_ARGS = -1002,
+        ERR_INVALID_SYNTAX = -1003,
         ERR_INVALID_ARGS = -3,
         ERR_INVALID_OPERATION = -4,
         ERR_INVALID_STR = -5,
@@ -29,7 +32,12 @@ OP_NAMESPACE_BEGIN
         ERR_STORAGE_ENGINE_INTERNAL = -14,
         ERR_OVERLOAD = -15,
         ERR_NOT_EXIST_IN_CACHE = -16,
+    };
 
+    enum StatusCode
+    {
+        STATUS_OK = 1000,
+        STATUS_PONG = 1001
     };
 
 OP_NAMESPACE_END

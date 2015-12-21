@@ -27,7 +27,7 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "ardb.hpp"
+#include "db/db.hpp"
 #include <float.h>
 #include <cmath>
 
@@ -56,11 +56,6 @@ OP_NAMESPACE_BEGIN
     }
     int Ardb::LPushx(Context& ctx, RedisCommandFrame& cmd)
     {
-    }
-
-    int Ardb::ListRange(Context& ctx, const Slice& key, int64 start, int64 end)
-    {
-        return 0;
     }
 
     int Ardb::LRange(Context& ctx, RedisCommandFrame& cmd)

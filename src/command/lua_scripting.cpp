@@ -26,7 +26,7 @@
  *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include "ardb.hpp"
+#include "db/db.hpp"
 #include "lua_scripting.hpp"
 #include "logger.hpp"
 #include "util/rand.h"

@@ -27,7 +27,7 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "ardb.hpp"
+#include "db/db.hpp"
 
 OP_NAMESPACE_BEGIN
     static const unsigned long BITOP_AND = 0;
@@ -117,11 +117,6 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::BitGet(Context& ctx, const std::string& key, uint64 bitoffset)
-    {
-
-        return 0;
-    }
 
     int Ardb::GetBit(Context& ctx, RedisCommandFrame& cmd)
     {

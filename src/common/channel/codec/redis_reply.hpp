@@ -76,6 +76,7 @@ namespace ardb
         class RedisReplyPool;
         struct RedisReply
         {
+            private:
 
             public:
                 int type;
@@ -86,29 +87,66 @@ namespace ardb
                  * the integer value also used to identify chunk state.
                  */
                 int64_t integer;
-                double double_value;
                 std::deque<RedisReply*>* elements;
 
                 RedisReplyPool* pool;  //use object pool if reply is array with hundreds of elements
-                bool self_pool;
                 RedisReply() :
-                        type(0), integer(0), double_value(0), elements(NULL),pool(NULL),self_pool(false)
+                        type(REDIS_REPLY_NIL), integer(0), elements(NULL), pool(NULL)
                 {
                 }
                 RedisReply(uint64 v) :
-                        type(REDIS_REPLY_INTEGER), integer(v), double_value(0), elements(NULL),pool(NULL),self_pool(false)
+                        type(REDIS_REPLY_INTEGER), integer(v), elements(NULL), pool(NULL)
                 {
                 }
                 RedisReply(double v) :
-                        type(REDIS_REPLY_DOUBLE), integer(0), double_value(v), elements(NULL),pool(NULL),self_pool(false)
+                        type(REDIS_REPLY_DOUBLE), integer(0), elements(NULL), pool(NULL)
                 {
                 }
                 RedisReply(const std::string& v) :
-                        type(REDIS_REPLY_STRING), str(v), integer(0), double_value(0), elements(NULL),pool(NULL),self_pool(false)
+                        type(REDIS_REPLY_STRING), str(v), integer(0), elements(NULL), pool(NULL)
                 {
                 }
+
+                void SetInteger(int64_t v)
+                {
+                    type = REDIS_REPLY_INTEGER;
+                    integer = v;
+                }
+                void SetDouble(double v)
+                {
+
+                }
+
+                template<typename T>
+                void SetString(const T& v)
+                {
+                    type = REDIS_REPLY_STRING;
+                    v.ToString(str);
+                }
+
+                template<>
+                void SetString(const std::string& v)
+                {
+                    type = REDIS_REPLY_STRING;
+                    str = v;
+                }
+
+                void SetErrCode(int err)
+                {
+                    type = REDIS_REPLY_ERROR;
+                    integer = err;
+                }
+                void SetErrorReason(const std::string& reason)
+                {
+                    type = REDIS_REPLY_ERROR;
+                    str = reason;
+                }
+                void SetStatusCode(int status)
+                {
+                    type = REDIS_REPLY_STATUS;
+                    integer = status;
+                }
                 void SetPool(RedisReplyPool* pool);
-                RedisReplyPool& GetPool();
                 RedisReply& AddMember(bool tail = true);
                 void ReserveMember(size_t num);
                 size_t MemberSize();
@@ -119,7 +157,6 @@ namespace ardb
                     type = r.type;
                     integer = r.integer;
                     str = r.str;
-                    double_value = r.double_value;
                     if (r.elements != NULL && !r.elements->empty())
                     {
                         for (uint32 i = 0; i < r.elements->size(); i++)
@@ -130,15 +167,6 @@ namespace ardb
                     }
                 }
                 ~RedisReply();
-//            private:
-//                RedisReply(const RedisReply& r) :
-//                        type(0), integer(0), double_value(0), elements(NULL),pool(NULL),self_pool(false)
-//                {
-//                }
-//                RedisReply& operator=(const RedisReply& r)
-//                {
-//                    return *this;
-//                }
         };
 
         class RedisReplyPool
@@ -149,7 +177,7 @@ namespace ardb
                 std::vector<RedisReply> elements;
                 std::deque<RedisReply> pending;
             public:
-                RedisReplyPool(uint32 size= 5);
+                RedisReplyPool(uint32 size = 5);
                 void SetMaxSize(uint32 size);
                 RedisReply& Allocate();
                 void Clear();

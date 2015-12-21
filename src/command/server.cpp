@@ -27,7 +27,7 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "ardb.hpp"
+#include "db/db.hpp"
 #include "util/socket_address.hpp"
 #include "util/lru.hpp"
 #include "util/system_helper.hpp"
@@ -404,7 +404,7 @@ namespace ardb
 
     int Ardb::DBSize(Context& ctx, RedisCommandFrame& cmd)
     {
-        fill_int_reply(ctx.reply, file_size(m_cfg.data_base_path));
+        //fill_int_reply(ctx.reply, file_size(m_cfg.data_base_path));
         return 0;
     }
 
@@ -654,38 +654,22 @@ namespace ardb
 
     int Ardb::FlushAll(Context& ctx, RedisCommandFrame& cmd)
     {
-        //FlushAllData(ctx);
-        fill_status_reply(ctx.reply, "OK");
-        LockGuard<SpinMutexLock> guard(m_cached_dbids_lock);
-        m_cached_dbids.clear();
         return 0;
     }
 
     int Ardb::Shutdown(Context& ctx, RedisCommandFrame& cmd)
     {
-        m_service->Stop();
+//        m_service->Stop();
         return -1;
     }
 
     int Ardb::CompactDB(Context& ctx, RedisCommandFrame& cmd)
     {
-        if (m_compacting)
-        {
-            fill_error_reply(ctx.reply, "Server is compacting");
-            return 0;
-        }
-        fill_status_reply(ctx.reply, "OK");
         return 0;
     }
 
     int Ardb::CompactAll(Context& ctx, RedisCommandFrame& cmd)
     {
-        if (m_compacting)
-        {
-            fill_error_reply(ctx.reply, "Server is compacting");
-            return 0;
-        }
-        fill_status_reply(ctx.reply, "OK");
         return 0;
     }
     /*
@@ -767,7 +751,6 @@ namespace ardb
 
     int Ardb::PSync(Context& ctx, RedisCommandFrame& cmd)
     {
-
         return 0;
     }
 }

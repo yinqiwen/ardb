@@ -27,16 +27,18 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "ardb.hpp"
+#include "db/db.hpp"
 
 OP_NAMESPACE_BEGIN
     int Ardb::HMSet(Context& ctx, RedisCommandFrame& cmd)
     {
-
         return 0;
     }
     int Ardb::HSet(Context& ctx, RedisCommandFrame& cmd)
     {
+        KeyObject key(ctx.ns, KEY_HASH, cmd.GetArguments()[0]);
+        ValueObject value(KEY_HASH);
+        value.SetStringValue(cmd.GetArguments()[0]);
 
         return 0;
     }

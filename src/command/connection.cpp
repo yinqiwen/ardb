@@ -26,45 +26,46 @@
  *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include "ardb.hpp"
+#include "db/db.hpp"
 
 OP_NAMESPACE_BEGIN
     int Ardb::Quit(Context& ctx, RedisCommandFrame& cmd)
     {
-        fill_status_reply(ctx.reply, "OK");
+        ctx.GetReply().SetStatusCode(STATUS_OK);
         return -1;
     }
     int Ardb::Ping(Context& ctx, RedisCommandFrame& cmd)
     {
-        fill_status_reply(ctx.reply, "PONG");
+        ctx.GetReply().SetStatusCode(STATUS_PONG);
         return 0;
     }
     int Ardb::Echo(Context& ctx, RedisCommandFrame& cmd)
     {
-        fill_str_reply(ctx.reply, cmd.GetArguments()[0]);
+        ctx.GetReply().SetString(cmd.GetArguments()[0]);
         return 0;
     }
     int Ardb::Select(Context& ctx, RedisCommandFrame& cmd)
     {
+        ctx.ns.SetString(cmd.GetArguments()[0], false);
         return 0;
     }
 
     int Ardb::Auth(Context& ctx, RedisCommandFrame& cmd)
     {
-        if (m_cfg.requirepass.empty())
-        {
-            fill_error_reply(ctx.reply, "Client sent AUTH, but no password is set");
-        }
-        else if (m_cfg.requirepass != cmd.GetArguments()[0])
-        {
-            ctx.authenticated = false;
-            fill_error_reply(ctx.reply, "invalid password");
-        }
-        else
-        {
-            ctx.authenticated = true;
-            fill_status_reply(ctx.reply, "OK");
-        }
+//        if (m_cfg.requirepass.empty())
+//        {
+//            fill_error_reply(ctx.reply, "Client sent AUTH, but no password is set");
+//        }
+//        else if (m_cfg.requirepass != cmd.GetArguments()[0])
+//        {
+//            ctx.authenticated = false;
+//            fill_error_reply(ctx.reply, "invalid password");
+//        }
+//        else
+//        {
+//            ctx.authenticated = true;
+//            fill_status_reply(ctx.reply, "OK");
+//        }
         return 0;
     }
 

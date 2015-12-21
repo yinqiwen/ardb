@@ -28,6 +28,7 @@
  */
 #include "config.hpp"
 #include "util/config_helper.hpp"
+#include <errno.h>
 
 #define ARDB_AUTHPASS_MAX_LEN 512
 
@@ -178,30 +179,6 @@ OP_NAMESPACE_BEGIN
         conf_get_bool(props, "repl-disable-tcp-nodelay", repl_disable_tcp_nodelay);
         conf_get_int64(props, "lua-time-limit", lua_time_limit);
 
-        conf_get_int64(props, "hash-max-ziplist-entries", hash_max_ziplist_entries);
-        conf_get_int64(props, "hash_max-ziplist-value", hash_max_ziplist_value);
-        conf_get_int64(props, "set-max-ziplist-entries", set_max_ziplist_entries);
-        conf_get_int64(props, "set-max-ziplist-value", set_max_ziplist_value);
-        conf_get_int64(props, "list-max-ziplist-entries", list_max_ziplist_entries);
-        conf_get_int64(props, "list-max-ziplist-value", list_max_ziplist_value);
-        conf_get_int64(props, "zset-max-ziplist-entries", zset_max_ziplist_entries);
-        conf_get_int64(props, "zset_max_ziplist_value", zset_max_ziplist_value);
-
-        conf_get_int64(props, "L1-zset-max-cache-size", L1_zset_max_cache_size);
-        conf_get_int64(props, "L1-set-max-cache-size", L1_set_max_cache_size);
-        conf_get_int64(props, "L1-hash-max-cache-size", L1_hash_max_cache_size);
-        conf_get_int64(props, "L1-list-max-cache-size", L1_list_max_cache_size);
-        conf_get_int64(props, "L1-string-max-cache-size", L1_string_max_cache_size);
-
-        conf_get_bool(props, "L1-zset-read-fill-cache", L1_zset_read_fill_cache);
-        conf_get_bool(props, "L1-zset-seek-load-cache", L1_zset_seek_load_cache);
-        conf_get_bool(props, "L1-set-read-fill-cache", L1_set_read_fill_cache);
-        conf_get_bool(props, "L1-set-seek-load-cache", L1_set_seek_load_cache);
-        conf_get_bool(props, "L1-hash-read-fill-cache", L1_hash_read_fill_cache);
-        conf_get_bool(props, "L1-hash-seek-load-cache", L1_hash_seek_load_cache);
-        conf_get_bool(props, "L1-list-read-fill-cache", L1_list_read_fill_cache);
-        conf_get_bool(props, "L1-list-seek-load-cache", L1_list_seek_load_cache);
-        conf_get_bool(props, "L1-string-read-fill-cache", L1_string_read_fill_cache);
 
         conf_get_int64(props, "hll-sparse-max-bytes", hll_sparse_max_bytes);
 
@@ -232,21 +209,6 @@ OP_NAMESPACE_BEGIN
             }
         }
 
-        std::string include_dbs, exclude_dbs;
-        repl_includes.clear();
-        repl_excludes.clear();
-        conf_get_string(props, "replicate-include-db", include_dbs);
-        conf_get_string(props, "replicate-exclude-db", exclude_dbs);
-        if (0 != split_uint32_array(include_dbs, "|", repl_includes))
-        {
-            ERROR_LOG("Invalid 'replicate-include-db' config.");
-            repl_includes.clear();
-        }
-        if (0 != split_uint32_array(exclude_dbs, "|", repl_excludes))
-        {
-            ERROR_LOG("Invalid 'replicate-exclude-db' config.");
-            repl_excludes.clear();
-        }
 
         if (data_base_path.empty())
         {
@@ -285,14 +247,8 @@ OP_NAMESPACE_BEGIN
             }
         }
 
-        conf_get_int64(props, "compact-min-interval", compact_min_interval);
-        conf_get_int64(props, "compact-max-interval", compact_max_interval);
-        conf_get_int64(props, "compact-after-write", compact_trigger_write_count);
-        conf_get_bool(props, "compact-enable", compact_enable);
-
         conf_get_int64(props, "reply-pool-size", reply_pool_size);
-        conf_get_bool(props, "replace-all-for-multi-sadd", replace_for_multi_sadd);
-        conf_get_bool(props, "replace-all-for-hmset", replace_for_hmset);
+
 
         conf_get_int64(props, "slave-client-output-buffer-limit", slave_client_output_buffer_limit);
         conf_get_int64(props, "pubsub-client-output-buffer-limit", pubsub_client_output_buffer_limit);
@@ -306,14 +262,14 @@ OP_NAMESPACE_BEGIN
 
         conf_get_bool(props, "lua-exec-atomic", lua_exec_atomic);
 
-        trusted_ip.clear();
+        //trusted_ip.clear();
         Properties::const_iterator ip_it = props.find("trusted-ip");
         if (ip_it != props.end())
         {
             const ConfItemsArray& cs = ip_it->second;
             for (uint32 i = 0; i < cs.size(); i++)
             {
-                trusted_ip.insert(cs[i][0]);
+                //trusted_ip.insert(cs[i][0]);
             }
         }
         if (!verify_config(*this))

@@ -26,7 +26,7 @@
  *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include "ardb.hpp"
+#include "db/db.hpp"
 
 OP_NAMESPACE_BEGIN
     int Ardb::KeysCount(Context& ctx, RedisCommandFrame& cmd)
@@ -44,13 +44,11 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::Keys(Context& ctx, RedisCommandFrame& cmd)
     {
-
         return 0;
     }
 
     int Ardb::Rename(Context& ctx, RedisCommandFrame& cmd)
     {
-
         return 0;
     }
 
@@ -68,32 +66,24 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::Type(Context& ctx, RedisCommandFrame& cmd)
     {
-
         return 0;
     }
 
     int Ardb::Persist(Context& ctx, RedisCommandFrame& cmd)
     {
-
         return 0;
     }
 
     int Ardb::GenericExpire(Context& ctx, const KeyObject& key, uint64 ms)
     {
         int64 ttl = ms + get_current_epoch_millis();
-        KeyObject ttl_data_key(key.db, KEY_TTL_DATA);
-        ttl_data_key.elements[0].SetInt64(key.type);
-        ttl_data_key.elements[1] = key.elements[0];
-        KeyObject ttl_sort_key(key.db, KEY_TTL_SORT);
-        ttl_sort_key.elements[0].SetInt64(ttl);
-        ttl_sort_key.elements[1].SetInt64(key.type);
-        ttl_sort_key.elements[2] = key.elements[0];
+        KeyObject ttl_key(ctx.ns, key.GetStringKey(), KEY_TTL_VALUE);
 
-        ValueObject ttl_data_value;
-        ttl_data_value.value.SetInt64(ttl);
-        m_engine.Put(ctx, ttl_data_key, ttl_data_value);
-        m_engine.Put(ctx, ttl_sort_key, ValueObject());
-        return 0;
+        MergeOperation op;
+        op.op = REDIS_CMD_PEXPIREAT;
+        op.Add().SetInt64(key.GetKeyType());
+        op.Add().SetInt64(ms);
+        return m_engine.Merge(ctx, ttl_key, op);
     }
 
     int Ardb::PExpire(Context& ctx, RedisCommandFrame& cmd)
@@ -110,32 +100,26 @@ OP_NAMESPACE_BEGIN
     }
     int Ardb::TTL(Context& ctx, RedisCommandFrame& cmd)
     {
-        fill_error_reply(ctx.reply, "Use StrTTL/HTTL/STTL/ZTTL/LTTL instead.");
         return 0;
     }
 
     int Ardb::Expire(Context& ctx, RedisCommandFrame& cmd)
     {
-        fill_error_reply(ctx.reply, "Use StrExpire/HExpire/SExpire/ZExpire/LExpire instead.");
         return 0;
     }
 
     int Ardb::Expireat(Context& ctx, RedisCommandFrame& cmd)
     {
-        fill_error_reply(ctx.reply, "Use StrExpireat/HExpireat/SExpireat/ZExpireat/LExpireat instead.");
         return 0;
     }
 
     int Ardb::Exists(Context& ctx, RedisCommandFrame& cmd)
     {
-
-        //fill_error_reply(ctx.reply, "Use StrExists/HExists/SExists/ZExists/LExists instead.");
         return 0;
     }
 
     int Ardb::Del(Context& ctx, RedisCommandFrame& cmd)
     {
-        fill_error_reply(ctx.reply, "Use StrDel/HClear/SClear/ZClear/LClear instead.");
         return 0;
     }
 

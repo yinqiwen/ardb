@@ -27,7 +27,7 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "ardb.hpp"
+#include "db/db.hpp"
 #include "geo/geohash_helper.hpp"
 #include <algorithm>
 #include <math.h>
@@ -43,15 +43,15 @@ namespace ardb
         return 0;
     }
 
-    static bool less_by_distance(const GeoPoint& v1, const GeoPoint& v2)
-    {
-        return v1.distance < v2.distance;
-    }
-
-    static bool great_by_distance(const GeoPoint& v1, const GeoPoint& v2)
-    {
-        return v1.distance > v2.distance;
-    }
+//    static bool less_by_distance(const GeoPoint& v1, const GeoPoint& v2)
+//    {
+//        return v1.distance < v2.distance;
+//    }
+//
+//    static bool great_by_distance(const GeoPoint& v1, const GeoPoint& v2)
+//    {
+//        return v1.distance > v2.distance;
+//    }
 
     /*
      *  GEOSEARCH key MERCATOR|WGS84 x y  <GeoOptions>
