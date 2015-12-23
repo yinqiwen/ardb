@@ -12,7 +12,6 @@
 
 OP_NAMESPACE_BEGIN
 
-
     class Engine
     {
         public:
@@ -37,10 +36,10 @@ OP_NAMESPACE_BEGIN
             Engine* engine;
             int err;
             TransactionGuard(Context& c, Engine* e) :
-                ctx(c),engine(NULL),err(0)
+                    ctx(c), engine(NULL), err(0)
             {
                 int err = e->BeginTransaction();
-                if(0 == err)
+                if (0 == err)
                 {
                     engine = e;
                 }
@@ -51,12 +50,13 @@ OP_NAMESPACE_BEGIN
             }
             ~TransactionGuard()
             {
-                if(NULL != engine)
+                if (NULL != engine)
                 {
-                    if(0 == err)
+                    if (0 == err)
                     {
                         err = engine->CommitTransaction();
-                    }else
+                    }
+                    else
                     {
                         engine->DiscardTransaction();
                     }

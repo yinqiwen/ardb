@@ -34,6 +34,8 @@
 
 OP_NAMESPACE_BEGIN
 
+    ArdbConfig* g_config = NULL;
+
     static bool verify_config(const ArdbConfig& cfg)
     {
         if (!cfg.master_host.empty() && cfg.repl_backlog_size <= 0)
@@ -44,11 +46,6 @@ OP_NAMESPACE_BEGIN
         if (cfg.requirepass.size() > ARDB_AUTHPASS_MAX_LEN)
         {
             ERROR_LOG("[Config]Password is longer than %u", ARDB_AUTHPASS_MAX_LEN);
-            return false;
-        }
-        if (cfg.maxdb > 0xFFFFFF)
-        {
-            ERROR_LOG("[Config]databases is greater than %u", 0xFFFFFF);
             return false;
         }
         return true;
@@ -86,7 +83,7 @@ OP_NAMESPACE_BEGIN
         conf_get_int64(props, "unixsocketperm", unixsocketperm);
         conf_get_int64(props, "slowlog-log-slower-than", slowlog_log_slower_than);
         conf_get_int64(props, "slowlog-max-len", slowlog_max_len);
-        conf_get_int64(props, "maxclients", max_clients);
+        conf_get_int64(props, "maxfiles", max_open_files);
         Properties::const_iterator listen_it = props.find("listen");
         if (listen_it != props.end())
         {
@@ -179,7 +176,6 @@ OP_NAMESPACE_BEGIN
         conf_get_bool(props, "repl-disable-tcp-nodelay", repl_disable_tcp_nodelay);
         conf_get_int64(props, "lua-time-limit", lua_time_limit);
 
-
         conf_get_int64(props, "hll-sparse-max-bytes", hll_sparse_max_bytes);
 
         conf_get_bool(props, "slave-read-only", slave_readonly);
@@ -209,7 +205,6 @@ OP_NAMESPACE_BEGIN
             }
         }
 
-
         if (data_base_path.empty())
         {
             data_base_path = ".";
@@ -221,7 +216,6 @@ OP_NAMESPACE_BEGIN
             ERROR_LOG("Invalid 'data-dir' config:%s for reason:%s", data_base_path.c_str(), strerror(err));
             return false;
         }
-        conf_get_string(props, "additional-misc-info", additional_misc_info);
 
         conf_get_string(props, "requirepass", requirepass);
 
@@ -229,19 +223,17 @@ OP_NAMESPACE_BEGIN
         if (fit != props.end())
         {
             rename_commands.clear();
-            StringSet newcmdset;
             const ConfItemsArray& cs = fit->second;
             ConfItemsArray::const_iterator cit = cs.begin();
             while (cit != cs.end())
             {
-                if (cit->size() != 2 || newcmdset.count(cit->at(1)) > 0)
+                if (cit->size() != 2)
                 {
                     ERROR_LOG("Invalid 'rename-command' config.");
                 }
                 else
                 {
                     rename_commands[cit->at(0)] = cit->at(1);
-                    newcmdset.insert(cit->at(1));
                 }
                 cit++;
             }
@@ -249,16 +241,8 @@ OP_NAMESPACE_BEGIN
 
         conf_get_int64(props, "reply-pool-size", reply_pool_size);
 
-
         conf_get_int64(props, "slave-client-output-buffer-limit", slave_client_output_buffer_limit);
         conf_get_int64(props, "pubsub-client-output-buffer-limit", pubsub_client_output_buffer_limit);
-
-        conf_get_bool(props, "scan-redis-compatible", scan_redis_compatible);
-        conf_get_int64(props, "scan-cursor-expire-after", scan_cursor_expire_after);
-
-        conf_get_int64(props, "max-string-bitset-value", max_string_bitset_value);
-
-        conf_get_int64(props, "databases", maxdb);
 
         conf_get_bool(props, "lua-exec-atomic", lua_exec_atomic);
 

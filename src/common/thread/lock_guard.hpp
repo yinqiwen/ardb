@@ -40,9 +40,9 @@ namespace ardb
             bool m_check;
         public:
             inline LockGuard(T& lock, bool check = true) :
-                    m_lock_impl(lock),m_check(check)
+                    m_lock_impl(lock), m_check(check)
             {
-                if(m_check)
+                if (m_check)
                 {
                     m_lock_impl.Lock();
                 }
@@ -50,10 +50,29 @@ namespace ardb
             }
             ~LockGuard()
             {
-                if(m_check)
+                if (m_check)
                 {
                     m_lock_impl.Unlock();
                 }
+            }
+    };
+
+    template<typename T>
+    class RWLockGuard
+    {
+        private:
+            T& m_lock_impl;
+            bool m_readonly;
+        public:
+            inline RWLockGuard(T& lock, bool readonly) :
+                    m_lock_impl(lock), m_readonly(readonly)
+            {
+                m_lock_impl.Lock(m_readonly ? READ_LOCK : WRITE_LOCK);
+
+            }
+            ~RWLockGuard()
+            {
+                m_lock_impl.Unlock(m_readonly ? READ_LOCK : WRITE_LOCK);
             }
     };
 
@@ -65,9 +84,9 @@ namespace ardb
             bool m_check;
         public:
             ReadLockGuard(T& lock, bool check = true) :
-                    m_lock_impl(lock),m_check(check)
+                    m_lock_impl(lock), m_check(check)
             {
-                if(m_check)
+                if (m_check)
                 {
                     m_lock_impl.Lock(READ_LOCK);
                 }
@@ -75,7 +94,7 @@ namespace ardb
             }
             ~ReadLockGuard()
             {
-                if(m_check)
+                if (m_check)
                 {
                     m_lock_impl.Unlock(READ_LOCK);
                 }
@@ -90,9 +109,9 @@ namespace ardb
             bool m_check;
         public:
             WriteLockGuard(T& lock, bool check = true) :
-                    m_lock_impl(lock),m_check(check)
+                    m_lock_impl(lock), m_check(check)
             {
-                if(m_check)
+                if (m_check)
                 {
                     m_lock_impl.Lock(WRITE_LOCK);
                 }
@@ -100,7 +119,7 @@ namespace ardb
             }
             ~WriteLockGuard()
             {
-                if(m_check)
+                if (m_check)
                 {
                     m_lock_impl.Unlock(WRITE_LOCK);
                 }

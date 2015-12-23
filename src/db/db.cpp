@@ -29,8 +29,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <sstream>
 #include "db.hpp"
-
 
 OP_NAMESPACE_BEGIN
     Ardb* g_db = NULL;
@@ -49,8 +49,8 @@ OP_NAMESPACE_BEGIN
         return strcasecmp(s1.c_str(), s2.c_str()) == 0 ? true : false;
     }
 
-    Ardb::Ardb(ArdbConfig& conf,Engine& engine) :
-            m_config(conf),m_engine(engine)
+    Ardb::Ardb(Engine& engine) :
+            m_engine(engine)
     {
         g_db = this;
         m_settings.set_empty_key("");
@@ -257,14 +257,12 @@ OP_NAMESPACE_BEGIN
 
     Ardb::~Ardb()
     {
-        DELETE(m_engine);
     }
-
 
     void Ardb::RenameCommand()
     {
-        StringStringMap::iterator it = m_cfg.rename_commands.begin();
-        while (it != m_cfg.rename_commands.end())
+        StringStringMap::iterator it = g_config->rename_commands.begin();
+        while (it != g_config->rename_commands.end())
         {
             std::string cmd = string_tolower(it->first);
             RedisCommandHandlerSettingTable::iterator found = m_settings.find(cmd);
@@ -278,15 +276,11 @@ OP_NAMESPACE_BEGIN
         }
     }
 
-
     int Ardb::DoCall(Context& ctx, RedisCommandHandlerSetting& setting, RedisCommandFrame& args)
     {
         uint64 start_time = get_current_epoch_micros();
-        ctx.last_interaction_ustime = start_time;
-        ctx.cmd_setting_flags = setting.flags;
         int ret = (this->*(setting.handler))(ctx, args);
         uint64 stop_time = get_current_epoch_micros();
-        ctx.last_interaction_ustime = stop_time;
         atomic_add_uint64(&(setting.calls), 1);
         atomic_add_uint64(&(setting.microseconds), stop_time - start_time);
         TryPushSlowCommand(args, stop_time - start_time);
@@ -327,41 +321,44 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::Call(Context& ctx, RedisCommandFrame& args)
     {
+        RedisReply& reply = ctx.GetReply();
         RedisCommandHandlerSetting* found = FindRedisCommandHandlerSetting(args);
         if (NULL == found)
         {
-            ERROR_LOG("No handler found for:%s with size:%u in connection:%u", args.GetCommand().c_str(), args.GetCommand().size(), ctx.client->GetID());
-            fill_error_reply(ctx.reply, "unknown command '%s'", args.GetCommand().c_str());
+            reply.SetErrorReason("unknown command:" + args.GetCommand());
             return -1;
         }
-        ctx.ClearState();
-        int err = m_stat.IncRecvCommands(ctx.server_address, ctx.sequence);
+
+        //ctx.ClearState();
+
         DEBUG_LOG("Process recved cmd[%lld]:%s", ctx.sequence, args.ToString().c_str());
-        if (err == ERR_OVERLOAD)
-        {
-            /*
-             * block overloaded connection
-             */
-            if (NULL != ctx.client && !ctx.client->IsDetached())
-            {
-                ctx.client->DetachFD();
-                uint64 now = get_current_epoch_millis();
-                uint64 next = 1000 - (now % 1000);
-                ChannelService& serv = ctx.client->GetService();
-                ctx.client->GetService().GetTimer().ScheduleHeapTask(new ResumeOverloadConnection(serv, ctx.client->GetID()), next == 0 ? 1 : next, -1, MILLIS);
-            }
-        }
+//        if (err == ERR_OVERLOAD)
+//        {
+//            /*
+//             * block overloaded connection
+//             */
+//            if (NULL != ctx.client && !ctx.client->IsDetached())
+//            {
+//                ctx.client->DetachFD();
+//                uint64 now = get_current_epoch_millis();
+//                uint64 next = 1000 - (now % 1000);
+//                ChannelService& serv = ctx.client->GetService();
+//                ctx.client->GetService().GetTimer().ScheduleHeapTask(new ResumeOverloadConnection(serv, ctx.client->GetID()), next == 0 ? 1 : next, -1, MILLIS);
+//            }
+//        }
         ctx.current_cmd = &args;
         RedisCommandHandlerSetting& setting = *found;
         int ret = 0;
 
-//Check if the user is authenticated
+        /*
+         * Check if the connection is authenticated
+         */
         if (!ctx.authenticated && setting.type != REDIS_CMD_AUTH && setting.type != REDIS_CMD_QUIT)
         {
-            fill_fix_error_reply(ctx.reply, "NOAUTH Authentication required");
+            reply.SetErrCode(ERR_AUTH_FAILED);
+            //fill_fix_error_reply(ctx.reply, "NOAUTH Authentication required");
             return ret;
         }
-
         bool valid_cmd = true;
         if (setting.min_arity > 0)
         {
@@ -374,31 +371,27 @@ OP_NAMESPACE_BEGIN
 
         if (!valid_cmd)
         {
-            fill_error_reply(ctx.reply, "wrong number of arguments for '%s' command", args.GetCommand().c_str());
+            reply.SetErrorReason("wrong number of arguments for command:" + args.GetCommand());
+            return 0;
         }
-        else
+        if (ctx.InTransaction())
         {
-            if (ctx.InTransc()
-                    && (args.GetCommand() != "multi" && args.GetCommand() != "exec" && args.GetCommand() != "discard" && args.GetCommand() != "quit"))
+            if(setting.type != REDIS_CMD_MULTI && setting.type != REDIS_CMD_EXEC && setting.type != REDIS_CMD_DISCARD && setting.type != REDIS_CMD_QUIT)
             {
-                ctx.GetTransc().cached_cmds.push_back(args);
-                fill_status_reply(ctx.reply, "QUEUED");
-            }
-            else if (ctx.IsSubscribedConn()
-                    && (args.GetCommand() != "subscribe" && args.GetCommand() != "psubscribe" && args.GetCommand() != "unsubscribe"
-                            && args.GetCommand() != "punsubscribe" && args.GetCommand() != "quit"))
-            {
-                fill_error_reply(ctx.reply, "only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context");
-            }
-            else
-            {
-                if (!(flags & ARDB_PROCESS_FEED_REPLICATION_ONLY))
-                {
-                    ret = DoCall(ctx, setting, args);
-                }
+                reply.SetStatusCode(STATUS_QUEUED);
+                ctx.GetTransaction().cached_cmds.push_back(args);
+                return 0;
             }
         }
-
+        else if (ctx.IsSubscribed())
+        {
+            if(setting.type != REDIS_CMD_SUBSCRIBE && setting.type != REDIS_CMD_PSUBSCRIBE && setting.type != REDIS_CMD_PUNSUBSCRIBE && setting.type != REDIS_CMD_UNSUBSCRIBE && setting.type != REDIS_CMD_QUIT)
+            {
+                reply.SetErrorReason("only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context");
+                return 0;
+            }
+        }
+        ret = DoCall(ctx, setting, args);
         return ret;
     }
 

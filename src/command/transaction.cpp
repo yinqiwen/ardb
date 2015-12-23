@@ -36,25 +36,27 @@ namespace ardb
 
     int Ardb::Multi(Context& ctx, RedisCommandFrame& cmd)
     {
-//        if (ctx.InTransc())
-//        {
-//            fill_error_reply(ctx.reply, "MULTI calls can not be nested");
-//            return 0;
-//        }
-//        ctx.GetTransc().in_transc = true;
-//        fill_status_reply(ctx.reply, "OK");
+        RedisReply& reply = ctx.GetReply();
+        if (ctx.InTransaction())
+        {
+            reply.SetErrorReason("MULTI calls can not be nested");
+            return 0;
+        }
+        ctx.GetTransaction();
+        reply.SetStatusCode(STATUS_OK);
         return 0;
     }
 
     int Ardb::Discard(Context& ctx, RedisCommandFrame& cmd)
     {
-//        if (!ctx.InTransc())
-//        {
-//            fill_error_reply(ctx.reply, "DISCARD without MULTI");
-//            return 0;
-//        }
-//        ctx.ClearTransc();
-//        fill_status_reply(ctx.reply, "OK");
+        RedisReply& reply = ctx.GetReply();
+        if (!ctx.InTransaction())
+        {
+            reply.SetErrorReason("DISCARD without MULTI");
+            return 0;
+        }
+        ctx.ClearTransaction();
+        reply.SetStatusCode(STATUS_OK);
         return 0;
     }
 

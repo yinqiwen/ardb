@@ -28,8 +28,23 @@
  */
 #include "statistics.hpp"
 OP_NAMESPACE_BEGIN
+    static Statistics* g_singleton = NULL;
     Statistics::Statistics()
     {
+    }
+
+    Statistics& Statistics::GetSingleton()
+    {
+        if (NULL == g_singleton)
+        {
+            g_singleton = new Statistics;
+        }
+        return *g_singleton;
+    }
+    int Statistics::AddTrack(Track* track)
+    {
+        m_tracks[track->Name] = track;
+        return 0;
     }
 
 OP_NAMESPACE_END

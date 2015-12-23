@@ -36,7 +36,6 @@ extern "C"
 #include <lauxlib.h>
 #include <lualib.h>
 }
-#include "channel/all_includes.hpp"
 #include "concurrent.hpp"
 #include "context.hpp"
 
@@ -56,8 +55,7 @@ namespace ardb
             static int Call(lua_State *lua);
             static int Log(lua_State *lua);
             static int SHA1Hex(lua_State *lua);
-            static int ReturnSingleFieldTable(lua_State *lua,
-                            const std::string& field);
+            static int ReturnSingleFieldTable(lua_State *lua, const std::string& field);
             static int ErrorReplyCommand(lua_State *lua);
             static int StatusReplyCommand(lua_State *lua);
             static int MathRandom(lua_State *lua);
@@ -65,22 +63,19 @@ namespace ardb
             static void MaskCountHook(lua_State *lua, lua_Debug *ar);
             int LoadLibs();
             int RemoveUnsupportedFunctions();
-            int CreateLuaFunction(const std::string& funcname,
-                            const std::string& body, std::string& err);
+            int CreateLuaFunction(const std::string& funcname, const std::string& body, std::string& err);
             int Init();
             void Reset();
         public:
             LUAInterpreter();
-            int Eval(Context& ctx, const std::string& func, SliceArray& keys,
-                            SliceArray& args, bool isSHA1Func,
-                            RedisReply& reply);
+            int Eval(Context& ctx, const std::string& func, const StringArray& keys, const StringArray& args, bool isSHA1Func);
+
             bool Exists(const std::string& sha);
             int Load(const std::string& func, std::string& ret);
             int Flush(Context& ctx);
             int Kill(Context& ctx, const std::string& funcname);
 
-            static void ScriptEventCallback(ChannelService* serv, uint32 ev,
-                            void* data);
+            static void ScriptEventCallback(ChannelService* serv, uint32 ev, void* data);
             ~LUAInterpreter();
     };
 }

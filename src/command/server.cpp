@@ -150,9 +150,8 @@ namespace ardb
             uname(&name);
             info.append("# Server\r\n");
             info.append("ardb_version:").append(ARDB_VERSION).append("\r\n");
-            info.append("ardb_home:").append(m_cfg.home).append("\r\n");
-            info.append("os:").append(name.sysname).append(" ").append(name.release).append(" ").append(name.machine).append(
-                    "\r\n");
+            info.append("ardb_home:").append(g_config->home).append("\r\n");
+            info.append("os:").append(name.sysname).append(" ").append(name.release).append(" ").append(name.machine).append("\r\n");
             char tmp[256];
             sprintf(tmp, "%d.%d.%d",
 #ifdef __GNUC__
@@ -164,35 +163,35 @@ namespace ardb
             info.append("gcc_version:").append(tmp).append("\r\n");
             info.append("process_id:").append(stringfromll(getpid())).append("\r\n");
 
-            if (NULL != m_repl_backlog.GetServerKey())
-            {
-                info.append("run_id:").append(m_repl_backlog.GetServerKey()).append("\r\n");
-            }
-            info.append("tcp_port:").append(stringfromll(m_cfg.PrimayPort())).append("\r\n");
-            info.append("listen:").append(string_join_container(m_cfg.listen_addresses, ",")).append("\r\n");
-            time_t uptime = time(NULL) - m_starttime;
-            info.append("uptime_in_seconds:").append(stringfromll(uptime)).append("\r\n");
-            info.append("uptime_in_days:").append(stringfromll(uptime / (3600 * 24))).append("\r\n");
+//            if (NULL != m_repl_backlog.GetServerKey())
+//            {
+//                info.append("run_id:").append(m_repl_backlog.GetServerKey()).append("\r\n");
+//            }
+//            info.append("tcp_port:").append(stringfromll(m_cfg.PrimayPort())).append("\r\n");
+//            info.append("listen:").append(string_join_container(m_cfg.listen_addresses, ",")).append("\r\n");
+//            time_t uptime = time(NULL) - m_starttime;
+//            info.append("uptime_in_seconds:").append(stringfromll(uptime)).append("\r\n");
+//            info.append("uptime_in_days:").append(stringfromll(uptime / (3600 * 24))).append("\r\n");
             info.append("\r\n");
         }
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "clients"))
         {
             info.append("# Clients\r\n");
-            {
-                LockGuard<SpinMutexLock> guard(m_clients_lock);
-                info.append("connected_clients:").append(stringfromll(m_clients.size())).append("\r\n");
-            }
-            {
-                WriteLockGuard<SpinRWLock> guard(m_block_ctx_lock);
-                info.append("blocked_clients:").append(stringfromll(m_block_context_table.size())).append("\r\n");
-            }
+//            {
+//                LockGuard<SpinMutexLock> guard(m_clients_lock);
+//                info.append("connected_clients:").append(stringfromll(m_clients.size())).append("\r\n");
+//            }
+//            {
+//                WriteLockGuard<SpinRWLock> guard(m_block_ctx_lock);
+//                info.append("blocked_clients:").append(stringfromll(m_block_context_table.size())).append("\r\n");
+//            }
             info.append("\r\n");
         }
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "databases"))
         {
             info.append("# Databases\r\n");
-            info.append("data_dir:").append(m_cfg.data_base_path).append("\r\n");
-            info.append(GetKeyValueEngine().Stats()).append("\r\n");
+//            info.append("data_dir:").append(m_cfg.data_base_path).append("\r\n");
+//            info.append(GetKeyValueEngine().Stats()).append("\r\n");
             info.append("\r\n");
         }
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "cpu"))
@@ -211,7 +210,7 @@ namespace ardb
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "disk"))
         {
             info.append("# Disk\r\n");
-            int64 filesize = file_size(m_cfg.data_base_path);
+            int64 filesize = file_size(g_config->data_base_path);
             char tmp[256];
             sprintf(tmp, "%" PRId64, filesize);
             info.append("db_used_space:").append(tmp).append("\r\n");
@@ -220,75 +219,75 @@ namespace ardb
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "replication"))
         {
             info.append("# Replication\r\n");
-            if (m_cfg.repl_backlog_size > 0)
-            {
-                if (m_slave.GetMasterAddress().GetHost().empty())
-                {
-                    info.append("role:master\r\n");
-                }
-                else
-                {
-                    info.append("role:slave\r\n");
-                }
-                info.append("repl_dir: ").append(m_cfg.repl_data_dir).append("\r\n");
-            }
-            else
-            {
-                info.append("role: singleton\r\n");
-            }
-
-            if (m_repl_backlog.IsInited())
-            {
-                if (!m_cfg.master_host.empty())
-                {
-                    info.append("master_host:").append(m_cfg.master_host).append("\r\n");
-                    info.append("master_port:").append(stringfromll(m_cfg.master_port)).append("\r\n");
-                    info.append("master_link_status:").append(m_slave.IsConnected() ? "up" : "down").append("\r\n");
-                    if (m_slave.IsConnected())
-                    {
-                        info.append("master_last_io_seconds_ago:").append(
-                                stringfromll(time(NULL) - m_slave.GetMasterLastinteractionTime())).append("\r\n");
-                    }
-                    else
-                    {
-                        info.append("master_last_io_seconds_ago:").append("-1").append("\r\n");
-                    }
-                    info.append("master_sync_in_progress:").append(m_slave.IsSyncing() ? "1" : "0").append("\r\n");
-                    if (m_slave.GetState() == SLAVE_STATE_SYNING_DUMP_DATA)
-                    {
-                        info.append("master_sync_left_bytes:").append(stringfromll(m_slave.SyncLeftBytes())).append(
-                                "\r\n");
-                    }
-                    if (m_slave.GetState() == SLAVE_STATE_LOADING_DUMP_DATA)
-                    {
-                        info.append("slave_loading_left_bytes:").append(stringfromll(m_slave.LoadingLeftBytes())).append(
-                                "\r\n");
-                    }
-                    info.append("slave_repl_offset:").append(stringfromll(m_repl_backlog.GetReplEndOffset())).append(
-                            "\r\n");
-                    if (!m_slave.IsConnected())
-                    {
-                        info.append("master_link_down_since_seconds:").append(
-                                stringfromll(time(NULL) - m_slave.GetMasterLinkDownTime())).append("\r\n");
-                    }
-                    info.append("slave_priority:").append(stringfromll(m_cfg.slave_priority)).append("\r\n");
-                }
-
-                info.append("connected_slaves: ").append(stringfromll(m_master.ConnectedSlaves())).append("\r\n");
-                m_master.PrintSlaves(info);
-                info.append("master_repl_offset: ").append(stringfromll(m_repl_backlog.GetReplEndOffset())).append(
-                        "\r\n");
-                info.append("repl_backlog_size: ").append(stringfromll(m_repl_backlog.GetBacklogSize())).append("\r\n");
-                info.append("repl_backlog_first_byte_offset: ").append(
-                        stringfromll(m_repl_backlog.GetReplStartOffset())).append("\r\n");
-                info.append("repl_backlog_histlen: ").append(stringfromll(m_repl_backlog.GetHistLen())).append("\r\n");
-                info.append("repl_backlog_cksm: ").append(base16_stringfromllu(m_repl_backlog.GetChecksum())).append(
-                        "\r\n");
-            }
-            else
-            {
-                info.append("repl_backlog_size: 0").append("\r\n");
-            }
+//            if (m_cfg.repl_backlog_size > 0)
+//            {
+//                if (m_slave.GetMasterAddress().GetHost().empty())
+//                {
+//                    info.append("role:master\r\n");
+//                }
+//                else
+//                {
+//                    info.append("role:slave\r\n");
+//                }
+//                info.append("repl_dir: ").append(m_cfg.repl_data_dir).append("\r\n");
+//            }
+//            else
+//            {
+//                info.append("role: singleton\r\n");
+//            }
+//
+//            if (m_repl_backlog.IsInited())
+//            {
+//                if (!m_cfg.master_host.empty())
+//                {
+//                    info.append("master_host:").append(m_cfg.master_host).append("\r\n");
+//                    info.append("master_port:").append(stringfromll(m_cfg.master_port)).append("\r\n");
+//                    info.append("master_link_status:").append(m_slave.IsConnected() ? "up" : "down").append("\r\n");
+//                    if (m_slave.IsConnected())
+//                    {
+//                        info.append("master_last_io_seconds_ago:").append(
+//                                stringfromll(time(NULL) - m_slave.GetMasterLastinteractionTime())).append("\r\n");
+//                    }
+//                    else
+//                    {
+//                        info.append("master_last_io_seconds_ago:").append("-1").append("\r\n");
+//                    }
+//                    info.append("master_sync_in_progress:").append(m_slave.IsSyncing() ? "1" : "0").append("\r\n");
+//                    if (m_slave.GetState() == SLAVE_STATE_SYNING_DUMP_DATA)
+//                    {
+//                        info.append("master_sync_left_bytes:").append(stringfromll(m_slave.SyncLeftBytes())).append(
+//                                "\r\n");
+//                    }
+//                    if (m_slave.GetState() == SLAVE_STATE_LOADING_DUMP_DATA)
+//                    {
+//                        info.append("slave_loading_left_bytes:").append(stringfromll(m_slave.LoadingLeftBytes())).append(
+//                                "\r\n");
+//                    }
+//                    info.append("slave_repl_offset:").append(stringfromll(m_repl_backlog.GetReplEndOffset())).append(
+//                            "\r\n");
+//                    if (!m_slave.IsConnected())
+//                    {
+//                        info.append("master_link_down_since_seconds:").append(
+//                                stringfromll(time(NULL) - m_slave.GetMasterLinkDownTime())).append("\r\n");
+//                    }
+//                    info.append("slave_priority:").append(stringfromll(m_cfg.slave_priority)).append("\r\n");
+//                }
+//
+//                info.append("connected_slaves: ").append(stringfromll(m_master.ConnectedSlaves())).append("\r\n");
+//                m_master.PrintSlaves(info);
+//                info.append("master_repl_offset: ").append(stringfromll(m_repl_backlog.GetReplEndOffset())).append(
+//                        "\r\n");
+//                info.append("repl_backlog_size: ").append(stringfromll(m_repl_backlog.GetBacklogSize())).append("\r\n");
+//                info.append("repl_backlog_first_byte_offset: ").append(
+//                        stringfromll(m_repl_backlog.GetReplStartOffset())).append("\r\n");
+//                info.append("repl_backlog_histlen: ").append(stringfromll(m_repl_backlog.GetHistLen())).append("\r\n");
+//                info.append("repl_backlog_cksm: ").append(base16_stringfromllu(m_repl_backlog.GetChecksum())).append(
+//                        "\r\n");
+//            }
+//            else
+//            {
+//                info.append("repl_backlog_size: 0").append("\r\n");
+//            }
             info.append("\r\n");
         }
 
@@ -303,54 +302,54 @@ namespace ardb
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "stats"))
         {
             info.append("# Stats\r\n");
-            std::string tmp;
-            info.append(m_stat.PrintStat(tmp));
-            WriteLockGuard<SpinRWLock> guard(m_pubsub_ctx_lock);
-            info.append("pubsub_channels:").append(stringfromll(m_pubsub_channels.size())).append("\r\n");
-            info.append("pubsub_patterns:").append(stringfromll(m_pubsub_patterns.size())).append("\r\n");
+//            std::string tmp;
+//            info.append(m_stat.PrintStat(tmp));
+//            WriteLockGuard<SpinRWLock> guard(m_pubsub_ctx_lock);
+//            info.append("pubsub_channels:").append(stringfromll(m_pubsub_channels.size())).append("\r\n");
+//            info.append("pubsub_patterns:").append(stringfromll(m_pubsub_patterns.size())).append("\r\n");
             info.append("\r\n");
         }
 
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "keyspace"))
         {
-            DBIDSet ids;
-            //GetAllDBIDSet(ids);
-            if (!ids.empty())
-            {
-                info.append("# Keyspace\r\n");
-                DBIDSet::iterator it = ids.begin();
-                while (it != ids.end())
-                {
-                    /*
-                     * Can NOT tell how many keys now
-                     */
-                    info.append("db").append(stringfromll(*it)).append(":").append("keys=-1").append("\r\n");
-                    it++;
-                }
-                info.append("\r\n");
-            }
+//            DBIDSet ids;
+//            //GetAllDBIDSet(ids);
+//            if (!ids.empty())
+//            {
+//                info.append("# Keyspace\r\n");
+//                DBIDSet::iterator it = ids.begin();
+//                while (it != ids.end())
+//                {
+//                    /*
+//                     * Can NOT tell how many keys now
+//                     */
+//                    info.append("db").append(stringfromll(*it)).append(":").append("keys=-1").append("\r\n");
+//                    it++;
+//                }
+//                info.append("\r\n");
+//            }
         }
 
-        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "compact"))
-        {
-            info.append("# Compact\r\n");
-            info.append("compacting:").append(m_compacting ? "yes" : "no").append("\r\n");
-            info.append("write_count_since_last_compact:").append(
-                    stringfromll(m_stat.GetLatencyStat().write_count_since_last_compact)).append("\r\n");
-            if (m_last_compact_start_time > 0)
-            {
-                struct tm tt;
-                if (NULL != localtime_r(&m_last_compact_start_time, &tt))
-                {
-                    char tmp[1024];
-                    strftime(tmp, sizeof(tmp), "%F %T", &tt);
-                    info.append("last_compact_start_time:").append(tmp).append("\r\n");
-                    info.append("last_compact_duration:").append(stringfromll(m_last_compact_duration)).append(
-                            "ms\r\n");
-                }
-            }
-            info.append("\r\n");
-        }
+//        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "compact"))
+//        {
+//            info.append("# Compact\r\n");
+//            info.append("compacting:").append(m_compacting ? "yes" : "no").append("\r\n");
+//            info.append("write_count_since_last_compact:").append(
+//                    stringfromll(m_stat.GetLatencyStat().write_count_since_last_compact)).append("\r\n");
+//            if (m_last_compact_start_time > 0)
+//            {
+//                struct tm tt;
+//                if (NULL != localtime_r(&m_last_compact_start_time, &tt))
+//                {
+//                    char tmp[1024];
+//                    strftime(tmp, sizeof(tmp), "%F %T", &tt);
+//                    info.append("last_compact_start_time:").append(tmp).append("\r\n");
+//                    info.append("last_compact_duration:").append(stringfromll(m_last_compact_duration)).append(
+//                            "ms\r\n");
+//                }
+//            }
+//            info.append("\r\n");
+//        }
 
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "commandstats"))
         {
@@ -361,9 +360,9 @@ namespace ardb
                 RedisCommandHandlerSetting& setting = cit->second;
                 if (setting.calls > 0)
                 {
-                    info.append("cmdstat_").append(setting.name).append(":").append("calls=").append(
-                            stringfromll(setting.calls)).append(",usec=").append(stringfromll(setting.microseconds)).append(
-                            ",usecpercall=").append(stringfromll(setting.microseconds / setting.calls)).append("\r\n");
+                    info.append("cmdstat_").append(setting.name).append(":").append("calls=").append(stringfromll(setting.calls)).append(",usec=").append(
+                            stringfromll(setting.microseconds)).append(",usecpercall=").append(stringfromll(setting.microseconds / setting.calls)).append(
+                            "\r\n");
                 }
 
                 cit++;
@@ -374,17 +373,17 @@ namespace ardb
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "misc"))
         {
             info.append("# Misc\r\n");
-            if (!m_cfg.additional_misc_info.empty())
-            {
-                string_replace(m_cfg.additional_misc_info, "\\n", "\r\n");
-                info.append(m_cfg.additional_misc_info).append("\r\n");
-            }
-            if (m_cfg.scan_redis_compatible)
-            {
-                LockGuard<SpinMutexLock> guard(m_redis_cursor_lock);
-                info.append("redis_scan_cursor_cache_size:").append(stringfromll(m_redis_cursor_table.size())).append(
-                        "\r\n");
-            }
+//            if (!m_cfg.additional_misc_info.empty())
+//            {
+//                string_replace(m_cfg.additional_misc_info, "\\n", "\r\n");
+//                info.append(m_cfg.additional_misc_info).append("\r\n");
+//            }
+//            if (m_cfg.scan_redis_compatible)
+//            {
+//                LockGuard<SpinMutexLock> guard(m_redis_cursor_lock);
+//                info.append("redis_scan_cursor_cache_size:").append(stringfromll(m_redis_cursor_table.size())).append(
+//                        "\r\n");
+//            }
             info.append("\r\n");
         }
     }
@@ -398,7 +397,7 @@ namespace ardb
             section = cmd.GetArguments()[0];
         }
         FillInfoResponse(section, info);
-        fill_str_reply(ctx.reply, info);
+        ctx.GetReply().SetString(info);
         return 0;
     }
 
@@ -418,225 +417,229 @@ namespace ardb
 
     int Ardb::Client(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
+        if(NULL == ctx.client)
+        {
+            reply.SetErrCode(ERR_AUTH_FAILED);
+            return 0;
+        }
         std::string subcmd = string_tolower(cmd.GetArguments()[0]);
         if (subcmd == "setname")
         {
             if (cmd.GetArguments().size() != 2)
             {
-                fill_error_reply(ctx.reply,
-                        "Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | PAUSE timeout)");
+                reply.SetErrorReason("Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | PAUSE timeout)");
                 return 0;
             }
-            ctx.name = cmd.GetArguments()[1];
-            fill_status_reply(ctx.reply, "OK");
+            ctx.client->name = cmd.GetArguments()[1];
+            reply.SetStatusCode(STATUS_OK);
         }
         else if (subcmd == "getname")
         {
             if (cmd.GetArguments().size() != 1)
             {
-                fill_error_reply(ctx.reply,
-                        "Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | PAUSE timeout)");
+                reply.SetErrorReason("Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | PAUSE timeout)");
                 return 0;
             }
-            fill_str_reply(ctx.reply, ctx.name);
+            reply.SetString(ctx.client->name);
         }
         else if (subcmd == "pause")
         {
             //pause all clients
             //todo
-            fill_error_reply(ctx.reply, "NOT supported now");
+            reply.SetErrorReason("NOT supported now");
         }
         else if (subcmd == "kill")
         {
             if (cmd.GetArguments().size() != 2)
             {
-                fill_error_reply(ctx.reply,
-                        "Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | PAUSE timeout)");
+                reply.SetErrorReason("Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | PAUSE timeout)");
                 return 0;
             }
-            LockGuard<SpinMutexLock> guard(m_clients_lock);
-            ContextTable::iterator it = m_clients.begin();
-            while (it != m_clients.end())
-            {
-                SocketChannel* conn = (SocketChannel*) (it->second->client);
-                if (conn->GetRemoteStringAddress() == cmd.GetArguments()[1])
-                {
-                    if (it->second->processing)
-                    {
-                        it->second->close_after_processed = true;
-                    }
-                    else
-                    {
-                        conn->GetService().AsyncIO(conn->GetID(), ChannelCloseCallback, NULL);
-                    }
-                    break;
-                }
-                it++;
-            }
-            fill_status_reply(ctx.reply, "OK");
+//            LockGuard<SpinMutexLock> guard(m_clients_lock);
+//            ContextTable::iterator it = m_clients.begin();
+//            while (it != m_clients.end())
+//            {
+//                SocketChannel* conn = (SocketChannel*) (it->second->client);
+//                if (conn->GetRemoteStringAddress() == cmd.GetArguments()[1])
+//                {
+//                    if (it->second->processing)
+//                    {
+//                        it->second->close_after_processed = true;
+//                    }
+//                    else
+//                    {
+//                        conn->GetService().AsyncIO(conn->GetID(), ChannelCloseCallback, NULL);
+//                    }
+//                    break;
+//                }
+//                it++;
+//            }
+//            fill_status_reply(ctx.reply, "OK");
         }
         else if (subcmd == "list")
         {
-            std::string& info = ctx.reply.str;
-            LockGuard<SpinMutexLock> guard(m_clients_lock);
-            ContextTable::iterator it = m_clients.begin();
-            uint64 now = get_current_epoch_micros();
-            while (it != m_clients.end())
-            {
-                SocketChannel* conn = (SocketChannel*) (it->second->client);
-                info.append("id=").append(stringfromll(it->first)).append(" ");
-                info.append("addr=").append(conn->GetRemoteStringAddress()).append(" ");
-                info.append("fd=").append(stringfromll(it->second->client->GetReadFD())).append(" ");
-                info.append("name=").append(it->second->name).append(" ");
-                uint64 borntime = it->second->born_time;
-                uint64 elpased = (now <= borntime ? 0 : now - borntime) / 1000000;
-                info.append("age=").append(stringfromll(elpased)).append(" ");
-                uint64 activetime = it->second->last_interaction_ustime;
-                elpased = (now <= activetime ? 0 : now - activetime) / 1000000;
-                info.append("idle=").append(stringfromll(elpased)).append(" ");
-                info.append("db=").append(stringfromll(it->second->currentDB)).append(" ");
-                std::string cmd;
-                RedisCommandHandlerSettingTable::iterator cit = m_settings.begin();
-                while (cit != m_settings.end())
-                {
-                    if (cit->second.type == it->second->current_cmd_type)
-                    {
-                        cmd = cit->first;
-                        break;
-                    }
-                    cit++;
-                }
-                info.append("cmd=").append(cmd).append(" ");
-                info.append("\n");
-                it++;
-            }
-            ctx.reply.type = REDIS_REPLY_STRING;
+//            std::string& info = ctx.reply.str;
+//            LockGuard<SpinMutexLock> guard(m_clients_lock);
+//            ContextTable::iterator it = m_clients.begin();
+//            uint64 now = get_current_epoch_micros();
+//            while (it != m_clients.end())
+//            {
+//                SocketChannel* conn = (SocketChannel*) (it->second->client);
+//                info.append("id=").append(stringfromll(it->first)).append(" ");
+//                info.append("addr=").append(conn->GetRemoteStringAddress()).append(" ");
+//                info.append("fd=").append(stringfromll(it->second->client->GetReadFD())).append(" ");
+//                info.append("name=").append(it->second->name).append(" ");
+//                uint64 borntime = it->second->born_time;
+//                uint64 elpased = (now <= borntime ? 0 : now - borntime) / 1000000;
+//                info.append("age=").append(stringfromll(elpased)).append(" ");
+//                uint64 activetime = it->second->last_interaction_ustime;
+//                elpased = (now <= activetime ? 0 : now - activetime) / 1000000;
+//                info.append("idle=").append(stringfromll(elpased)).append(" ");
+//                info.append("db=").append(stringfromll(it->second->currentDB)).append(" ");
+//                std::string cmd;
+//                RedisCommandHandlerSettingTable::iterator cit = m_settings.begin();
+//                while (cit != m_settings.end())
+//                {
+//                    if (cit->second.type == it->second->current_cmd_type)
+//                    {
+//                        cmd = cit->first;
+//                        break;
+//                    }
+//                    cit++;
+//                }
+//                info.append("cmd=").append(cmd).append(" ");
+//                info.append("\n");
+//                it++;
+//            }
+//            ctx.reply.type = REDIS_REPLY_STRING;
         }
         else
         {
-            fill_error_reply(ctx.reply, "CLIENT subcommand must be one of LIST, GETNAME, SETNAME, KILL, PAUSE");
+            reply.SetErrorReason("CLIENT subcommand must be one of LIST, GETNAME, SETNAME, KILL, PAUSE");
         }
         return 0;
     }
 
     int Ardb::Config(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
         std::string arg0 = string_tolower(cmd.GetArguments()[0]);
         if (arg0 != "get" && arg0 != "set" && arg0 != "resetstat" && arg0 != "add" && arg0 != "del" && arg0 != "reload")
         {
-            fill_error_reply(ctx.reply, "CONFIG subcommand must be one of GET, SET, RESETSTAT, ADD, DEL");
+            reply.SetErrorReason("CONFIG subcommand must be one of GET, SET, RESETSTAT, ADD, DEL");
             return 0;
         }
         if (arg0 == "resetstat")
         {
             if (cmd.GetArguments().size() != 1)
             {
-                fill_error_reply(ctx.reply, "Wrong number of arguments for CONFIG RESETSTAT");
+                reply.SetErrorReason("Wrong number of arguments for CONFIG RESETSTAT");
                 return 0;
             }
-            fill_error_reply(ctx.reply, "Not supported now");
+            reply.SetErrorReason("Not supported now");
         }
         else if (arg0 == "get")
         {
             if (cmd.GetArguments().size() != 2)
             {
-                fill_error_reply(ctx.reply, "Wrong number of arguments for CONFIG GET");
+                reply.SetErrorReason("Wrong number of arguments for CONFIG GET");
                 return 0;
             }
-            ctx.reply.type = REDIS_REPLY_ARRAY;
-            Properties::iterator it = m_cfg.conf_props.begin();
-            while (it != m_cfg.conf_props.end())
-            {
-                if (stringmatchlen(cmd.GetArguments()[1].c_str(), cmd.GetArguments()[1].size(), it->first.c_str(),
-                        it->first.size(), 0) == 1)
-                {
-                    RedisReply& r = ctx.reply.AddMember();
-                    fill_str_reply(r, it->first);
-
-                    std::string buf;
-                    ConfItemsArray::iterator cit = it->second.begin();
-                    while (cit != it->second.end())
-                    {
-                        ConfItems::iterator ccit = cit->begin();
-                        while (ccit != cit->end())
-                        {
-                            buf.append(*ccit).append(" ");
-                            ccit++;
-                        }
-                        cit++;
-                    }
-                    RedisReply& r1 = ctx.reply.AddMember();
-                    fill_str_reply(r1, trim_string(buf, " "));
-                }
-                it++;
-            }
+//            ctx.reply.type = REDIS_REPLY_ARRAY;
+//            Properties::iterator it = m_cfg.conf_props.begin();
+//            while (it != m_cfg.conf_props.end())
+//            {
+//                if (stringmatchlen(cmd.GetArguments()[1].c_str(), cmd.GetArguments()[1].size(), it->first.c_str(), it->first.size(), 0) == 1)
+//                {
+//                    RedisReply& r = ctx.reply.AddMember();
+//                    fill_str_reply(r, it->first);
+//
+//                    std::string buf;
+//                    ConfItemsArray::iterator cit = it->second.begin();
+//                    while (cit != it->second.end())
+//                    {
+//                        ConfItems::iterator ccit = cit->begin();
+//                        while (ccit != cit->end())
+//                        {
+//                            buf.append(*ccit).append(" ");
+//                            ccit++;
+//                        }
+//                        cit++;
+//                    }
+//                    RedisReply& r1 = ctx.reply.AddMember();
+//                    fill_str_reply(r1, trim_string(buf, " "));
+//                }
+//                it++;
+//            }
         }
         else if (arg0 == "set")
         {
-            if (cmd.GetArguments().size() != 3)
-            {
-                fill_error_reply(ctx.reply, "Wrong number of arguments for CONFIG SET");
-                return 0;
-            }
-            conf_set(m_cfg.conf_props, cmd.GetArguments()[1], cmd.GetArguments()[2]);
-            WriteLockGuard<SpinRWLock> guard(m_cfg_lock);
-            m_cfg.Parse(m_cfg.conf_props);
-            fill_status_reply(ctx.reply, "OK");
+//            if (cmd.GetArguments().size() != 3)
+//            {
+//                fill_error_reply(ctx.reply, "Wrong number of arguments for CONFIG SET");
+//                return 0;
+//            }
+//            conf_set(m_cfg.conf_props, cmd.GetArguments()[1], cmd.GetArguments()[2]);
+//            WriteLockGuard<SpinRWLock> guard(m_cfg_lock);
+//            m_cfg.Parse(m_cfg.conf_props);
+//            fill_status_reply(ctx.reply, "OK");
         }
         else if (arg0 == "add")
         {
-            if (cmd.GetArguments().size() != 3)
-            {
-                fill_error_reply(ctx.reply, "Wrong number of arguments for CONFIG ADD");
-                return 0;
-            }
-            conf_set(m_cfg.conf_props, cmd.GetArguments()[1], cmd.GetArguments()[2], false);
-            WriteLockGuard<SpinRWLock> guard(m_cfg_lock);
-            m_cfg.Parse(m_cfg.conf_props);
-            fill_status_reply(ctx.reply, "OK");
+//            if (cmd.GetArguments().size() != 3)
+//            {
+//                fill_error_reply(ctx.reply, "Wrong number of arguments for CONFIG ADD");
+//                return 0;
+//            }
+//            conf_set(m_cfg.conf_props, cmd.GetArguments()[1], cmd.GetArguments()[2], false);
+//            WriteLockGuard<SpinRWLock> guard(m_cfg_lock);
+//            m_cfg.Parse(m_cfg.conf_props);
+//            fill_status_reply(ctx.reply, "OK");
         }
         else if (arg0 == "del")
         {
-            if (cmd.GetArguments().size() != 3)
-            {
-                fill_error_reply(ctx.reply, "Wrong number of arguments for CONFIG DEL");
-                return 0;
-            }
-            conf_del(m_cfg.conf_props, cmd.GetArguments()[1], cmd.GetArguments()[2]);
-            WriteLockGuard<SpinRWLock> guard(m_cfg_lock);
-            m_cfg.Parse(m_cfg.conf_props);
-            fill_status_reply(ctx.reply, "OK");
+//            if (cmd.GetArguments().size() != 3)
+//            {
+//                fill_error_reply(ctx.reply, "Wrong number of arguments for CONFIG DEL");
+//                return 0;
+//            }
+//            conf_del(m_cfg.conf_props, cmd.GetArguments()[1], cmd.GetArguments()[2]);
+//            WriteLockGuard<SpinRWLock> guard(m_cfg_lock);
+//            m_cfg.Parse(m_cfg.conf_props);
+//            fill_status_reply(ctx.reply, "OK");
         }
         else if (arg0 == "reload")
         {
-            if (!m_cfg.conf_path.empty())
-            {
-                Properties props;
-                if (parse_conf_file(m_cfg.conf_path, props, " ") && m_cfg.Parse(props))
-                {
-                    m_cfg.conf_props = props;
-                    m_stat.Init();
-                    fill_status_reply(ctx.reply, "OK");
-                    return 0;
-                }
-            }
-            fill_error_reply(ctx.reply, "Failed to reload config");
+//            if (!m_cfg.conf_path.empty())
+//            {
+//                Properties props;
+//                if (parse_conf_file(m_cfg.conf_path, props, " ") && m_cfg.Parse(props))
+//                {
+//                    m_cfg.conf_props = props;
+//                    m_stat.Init();
+//                    fill_status_reply(ctx.reply, "OK");
+//                    return 0;
+//                }
+//            }
+//            fill_error_reply(ctx.reply, "Failed to reload config");
         }
         else
         {
             //just return error
-            fill_error_reply(ctx.reply, "Not supported now");
+//            fill_error_reply(ctx.reply, "Not supported now");
         }
         return 0;
     }
 
     int Ardb::Time(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
         uint64 micros = get_current_epoch_micros();
-        RedisReply& r1 = ctx.reply.AddMember();
-        RedisReply& r2 = ctx.reply.AddMember();
-        fill_int_reply(r1, micros / 1000000);
-        fill_int_reply(r2, micros % 1000000);
+        RedisReply& r1 = reply.AddMember();
+        RedisReply& r2 = reply.AddMember();
+        r1.SetInteger(micros / 1000000);
+        r2.SetInteger(micros % 1000000);
         return 0;
     }
 
@@ -678,9 +681,10 @@ namespace ardb
      */
     int Ardb::Slaveof(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
         if (cmd.GetArguments().size() % 2 != 0)
         {
-            fill_error_reply(ctx.reply, "not enough arguments for slaveof.");
+            reply.SetErrorReason("not enough arguments for slaveof.");
             return 0;
         }
 //        const std::string& host = cmd.GetArguments()[0];
@@ -702,16 +706,16 @@ namespace ardb
 //        m_cfg.master_host = host;
 //        m_cfg.master_port = port;
 //        m_slave.ConnectMaster(host, port);
-        fill_status_reply(ctx.reply, "OK");
+        reply.SetStatusCode(STATUS_OK);
         return 0;
     }
 
     int Ardb::ReplConf(Context& ctx, RedisCommandFrame& cmd)
     {
-        //DEBUG_LOG("%s %s", cmd.GetArguments()[0].c_str(), cmd.GetArguments()[1].c_str());
+        RedisReply& reply = ctx.GetReply();
         if (cmd.GetArguments().size() % 2 != 0)
         {
-            fill_error_reply(ctx.reply, "ERR wrong number of arguments for ReplConf");
+            reply.SetErrorReason("ERR wrong number of arguments for ReplConf");
             return 0;
         }
         for (uint32 i = 0; i < cmd.GetArguments().size(); i += 2)
@@ -740,7 +744,7 @@ namespace ardb
                 //do nothing
             }
         }
-        fill_status_reply(ctx.reply, "OK");
+        reply.SetStatusCode(STATUS_OK);
         return 0;
     }
 

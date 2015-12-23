@@ -127,6 +127,10 @@ int main(int argc, char** argv)
         daemonize();
     }
     signal_setting();
+
+    /*
+     * save pid into file
+     */
     if (!cfg.pidfile.empty())
     {
         char tmp[200];
@@ -135,6 +139,24 @@ int main(int argc, char** argv)
         file_write_content(cfg.pidfile, content);
     }
     ArdbLogger::InitDefaultLogger(cfg.loglevel, cfg.logfile);
+    g_config = &cfg;
+    Engine* engine = NULL;
+    if (1)
+    {
+        //RocksDBEngine* rocksdb = new RocksDBEngine;
+        //engine = rocksdb;
+    }
+
+    Ardb db(*engine);
+    if (db.Init() == 0)
+    {
+        Server server(db);
+        server.Start();
+    }
+    else
+    {
+    }
+    DELETE(engine);
     ArdbLogger::DestroyDefaultLogger();
     return 0;
 }

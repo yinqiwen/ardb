@@ -67,11 +67,6 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::ZSetRangeByScore(Context& ctx, RedisCommandFrame& cmd)
-    {
-
-        return 0;
-    }
 
     int Ardb::ZRangeByScore(Context& ctx, RedisCommandFrame& cmd)
     {

@@ -32,14 +32,30 @@
 
 #include "common/common.hpp"
 #include "util/config_helper.hpp"
+#include "thread/spin_rwlock.hpp"
+#include "types.hpp"
 
 OP_NAMESPACE_BEGIN
+    struct ListenPoint
+    {
+            std::string address;
+            int32_t thread_pool_size;
+            int32_t qps_limit;
+            ListenPoint() :
+                    thread_pool_size(1), qps_limit(0)
+            {
+            }
+    };
+    typedef std::vector<ListenPoint> ListenPointArray;
     struct ArdbConfig
     {
+            SpinRWLock lock;
             bool daemonize;
 
+            ListenPointArray listens;
+
             int64 unixsocketperm;
-            int64 max_clients;
+            int64 max_open_files;
             int64 tcp_keepalive;
             int64 timeout;
             std::string home;
@@ -61,20 +77,21 @@ OP_NAMESPACE_BEGIN
             bool slave_serve_stale_data;
             int64 slave_priority;
 
+            StringSet trusted_ip;
+
             int64 lua_time_limit;
 
             std::string master_host;
             uint32 master_port;
 
-            //int64 worker_count;
+            StringStringMap rename_commands;
+
             std::string loglevel;
             std::string logfile;
 
             std::string pidfile;
 
             std::string zookeeper_servers;
-
-            std::string additional_misc_info;
 
             std::string requirepass;
 
@@ -97,32 +114,25 @@ OP_NAMESPACE_BEGIN
             std::string conf_path;
             Properties conf_props;
 
-            int64 max_string_bitset_value;
-
-            int64 maxdb;
-
             bool lua_exec_atomic;
 
             std::string masterauth;
 
-            std::string hash_indicator_prefix;
-            std::string list_indicator_prefix;
-            std::string set_indicator_prefix;
-            std::string zset_indicator_prefix;
-
             ArdbConfig() :
-                    daemonize(false), unixsocketperm(755), max_clients(10000), tcp_keepalive(0), timeout(0), slowlog_log_slower_than(10000), slowlog_max_len(
+                    daemonize(false), unixsocketperm(755), max_open_files(100000), tcp_keepalive(0), timeout(0), slowlog_log_slower_than(10000), slowlog_max_len(
                             128), repl_data_dir("./repl"), backup_dir("./backup"), backup_redis_format(false), repl_ping_slave_period(10), repl_timeout(60), repl_backlog_size(
                             100 * 1024 * 1024), repl_state_persist_period(1), repl_backlog_time_limit(3600), slave_cleardb_before_fullresync(true), slave_readonly(
                             true), slave_serve_stale_data(true), slave_priority(100), lua_time_limit(0), master_port(0), loglevel("INFO"), hll_sparse_max_bytes(
                             3000), reply_pool_size(5000), primary_port(0), slave_client_output_buffer_limit(256 * 1024 * 1024), pubsub_client_output_buffer_limit(
                             32 * 1024 * 1024), slave_ignore_expire(false), slave_ignore_del(false), repl_disable_tcp_nodelay(false), scan_redis_compatible(
-                            true), scan_cursor_expire_after(60), max_string_bitset_value(1024 * 1024), maxdb(16), lua_exec_atomic(true)
+                            true), scan_cursor_expire_after(60), lua_exec_atomic(true)
             {
             }
             bool Parse(const Properties& props);
             uint32 PrimayPort();
     };
+
+    extern ArdbConfig* g_config = NULL;
 
 OP_NAMESPACE_END
 

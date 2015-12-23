@@ -188,7 +188,6 @@ OP_NAMESPACE_BEGIN
     }
     int Data::Compare(const Data& right, bool alpha_cmp = false) const
     {
-        assert(type == V_TYPE_STRING && right.type == V_TYPE_STRING);
         if (!alpha_cmp)
         {
             if (IsInteger() && right.IsInteger())
@@ -291,6 +290,20 @@ OP_NAMESPACE_BEGIN
             }
         }
         return str;
+    }
+
+    size_t DataHash::operator()(const Data& t) const
+    {
+        if(t.IsInteger())
+        {
+            return (size_t)t.GetInt64();
+        }
+
+    }
+
+    bool DataEqual::operator()(const Data& s1, const Data& s2) const
+    {
+        return s1.Compare(s2, false) == 0;
     }
 
 OP_NAMESPACE_END

@@ -49,12 +49,12 @@ namespace ardb
 
     void Ardb::TryPushSlowCommand(const RedisCommandFrame& cmd, uint64 micros)
     {
-        if (micros < m_config.slowlog_log_slower_than)
+        if (micros < g_config->slowlog_log_slower_than)
         {
             return;
         }
         LockGuard<SpinMutexLock> guard(g_slowlog_queue_mutex);
-        while (m_config.slowlog_max_len > 0 && g_slowlog_queue.size() >= (uint32) m_config.slowlog_max_len)
+        while (g_config->slowlog_max_len > 0 && g_slowlog_queue.size() >= (uint32) g_config->slowlog_max_len)
         {
             g_slowlog_queue.pop_front();
         }
@@ -68,12 +68,13 @@ namespace ardb
 
     void Ardb::GetSlowlog(Context& ctx, uint32 len)
     {
-        ctx.reply.type = REDIS_REPLY_ARRAY;
+        RedisReply& reply = ctx.GetReply();
+        reply.type = REDIS_REPLY_ARRAY;
         LockGuard<SpinMutexLock> guard(g_slowlog_queue_mutex);
         for (uint32 i = 0; i < len && i < g_slowlog_queue.size(); i++)
         {
             SlowLogRecord& log = g_slowlog_queue[i];
-            RedisReply& r = ctx.reply.AddMember();
+            RedisReply& r = reply.AddMember();
             RedisReply& rr1 = r.AddMember();
             RedisReply& rr2 = r.AddMember();
             RedisReply& rr3 = r.AddMember();

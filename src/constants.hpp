@@ -19,6 +19,7 @@ OP_NAMESPACE_BEGIN
         ERR_INVALID_INTEGER_ARGS = -1001,
         ERR_INVALID_FLOAT_ARGS = -1002,
         ERR_INVALID_SYNTAX = -1003,
+        ERR_AUTH_FAILED = -1004,
         ERR_INVALID_ARGS = -3,
         ERR_INVALID_OPERATION = -4,
         ERR_INVALID_STR = -5,
@@ -37,7 +38,8 @@ OP_NAMESPACE_BEGIN
     enum StatusCode
     {
         STATUS_OK = 1000,
-        STATUS_PONG = 1001
+        STATUS_PONG = 1001,
+        STATUS_QUEUED = 1002,
     };
 
 OP_NAMESPACE_END

@@ -79,6 +79,7 @@ OP_NAMESPACE_BEGIN
                     int flags;
                     volatile uint64 microseconds;
                     volatile uint64 calls;
+                    //CostTrack
             };
             struct RedisCommandHash
             {
@@ -90,7 +91,7 @@ OP_NAMESPACE_BEGIN
             };
         private:
             Engine& m_engine;
-            ArdbConfig& m_config;
+            LUAInterpreter m_lua;
 
             typedef google::dense_hash_map<std::string, RedisCommandHandlerSetting, RedisCommandHash, RedisCommandEqual> RedisCommandHandlerSettingTable;
             RedisCommandHandlerSettingTable m_settings;
@@ -112,9 +113,9 @@ OP_NAMESPACE_BEGIN
 
             int StringSet(Context& ctx, const std::string& key, const std::string& value, int32_t ex = -1, int64_t px = -1, int8_t nx_xx = -1);
 
-            int GetScript(const std::string& funacname, std::string& funcbody);
-            int SaveScript(const std::string& funacname, const std::string& funcbody);
-            int FlushScripts(Context& ctx);
+//            int GetScript(const std::string& funacname, std::string& funcbody);
+//            int SaveScript(const std::string& funacname, const std::string& funcbody);
+//            int FlushScripts(Context& ctx);
 
             int WatchForKey(Context& ctx, const std::string& key);
             int UnwatchKeys(Context& ctx);
@@ -309,7 +310,8 @@ OP_NAMESPACE_BEGIN
             RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(RedisCommandFrame& cmd);
             void RenameCommand();
         public:
-            Ardb(ArdbConfig& conf, Engine& engine);
+            Ardb(Engine& engine);
+            int Init();
             int Call(Context& ctx, RedisCommandFrame& cmd);
             ~Ardb();
     };

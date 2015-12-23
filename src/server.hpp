@@ -41,11 +41,11 @@ OP_NAMESPACE_BEGIN
     {
         private:
             ChannelService* m_service;
-            ArdbConfig& m_config;
             Ardb* m_db;
             time_t m_uptime;
+            void StartCrons();
         public:
-            Server(ArdbConfig& conf, Ardb* db);
+            Server(Ardb* db);
             int Start();
     };
 OP_NAMESPACE_END

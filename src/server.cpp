@@ -27,48 +27,62 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include "server.hpp"
+#include "thread/thread_local.hpp"
 
 OP_NAMESPACE_BEGIN
+    struct ServerHandlerData
+    {
+            ListenPoint listen;
+            QPSTrack qps;
+            ServerHandlerData()
+            {
+            }
+    };
+    typedef std::vector<ServerHandlerData> ServerHandlerDataArray;
+    static ThreadLocal<RedisReplyPool> g_reply_pool;
+    static QPSTrack g_total_qps;
 
     class RedisRequestHandler: public ChannelUpstreamHandler<RedisCommandFrame>
     {
         private:
-            Ardb* m_db;
+            ServerHandlerData* data;
             ClientContext m_client_ctx;
-            Context m_ctx;
-            bool m_delete_after_processing;
+            Context m_ctx;bool m_delete_after_processing;
+            RedisReplyPool& pool;
 
             void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e)
             {
+                m_client_ctx.last_interaction_ustime = get_current_epoch_micros();
                 m_client_ctx.client = ctx.GetChannel();
                 RedisCommandFrame* cmd = e.GetMessage();
                 ChannelService& serv = m_client_ctx.client->GetService();
                 uint32 channel_id = ctx.GetChannel()->GetID();
                 m_client_ctx.processing = true;
-                m_ctx.reply.pool->Clear();
-                //m_ctx.current_cmd = NULL;
-                int ret = m_db->Call(m_ctx, *cmd);
-                if (ret >= 0 && m_ctx.reply.type != 0)
-                {
-                    m_client_ctx.client->Write(m_ctx.reply);
-                }
+                pool.Clear();
+                m_ctx.SetReply(&pool.Allocate());
+                RedisReply& reply = m_ctx.GetReply();
+                int ret = g_db->Call(m_ctx, *cmd);
+                data->qps.IncMsgCount(1);
+                g_total_qps.IncMsgCount(1);
                 if (m_delete_after_processing)
                 {
                     delete this;
                     return;
                 }
-                if (ret < 0 && serv.GetChannel(channel_id) != NULL)
+                if (ret >= 0)
                 {
-                    m_client_ctx.client->Close();
+                    if (reply.type != 0)
+                    {
+                        m_client_ctx.client->Write(reply);
+                    }
                 }
                 else
                 {
-                    m_client_ctx.processing = false;
-                    if (m_client_ctx.close_after_processed)
-                    {
-                        m_client_ctx.client->Close();
-                    }
+                    m_client_ctx.client->Close();
                 }
+                m_client_ctx.processing = false;
+                m_client_ctx.last_interaction_ustime = get_current_epoch_micros();
+                m_ctx.ClearState();
             }
             void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e)
             {
@@ -79,22 +93,14 @@ OP_NAMESPACE_BEGIN
                 m_client_ctx.uptime = get_current_epoch_micros();
                 m_client_ctx.last_interaction_ustime = get_current_epoch_micros();
                 m_ctx.client = ctx.GetChannel();
-                RedisReplyPool& reply_pool = m_db->GetRedisReplyPool();
-                reply_pool.SetMaxSize((uint32) (m_db->GetConfig().reply_pool_size));
-                m_ctx.reply.SetPool(&reply_pool);
-                if (!m_db->GetConfig().requirepass.empty())
+                if (!g_config->requirepass.empty())
                 {
                     m_ctx.authenticated = false;
                 }
-                uint32 parent_id = ctx.GetChannel()->GetParentID();
-                ServerSocketChannel* server_socket = (ServerSocketChannel*) m_db->GetChannelService().GetChannel(parent_id);
-                m_ctx.server_address = server_socket->GetStringAddress();
-                //m_db->GetStatistics().IncAcceptedClient(m_ctx.server_address, 1);
-                m_db->AddClientContext(m_ctx);
 
                 //client ip white list
-                ReadLockGuard<SpinRWLock> guard(m_db->m_cfg_lock);
-                if (!m_db->GetConfig().trusted_ip.empty())
+                ReadLockGuard<SpinRWLock> guard(g_config->lock);
+                if (!g_config->trusted_ip.empty())
                 {
                     const Address* remote = ctx.GetChannel()->GetRemoteAddress();
                     if (InstanceOf<SocketHostAddress>(remote).OK)
@@ -103,8 +109,8 @@ OP_NAMESPACE_BEGIN
                         const std::string& ip = addr->GetHost();
                         if (ip != "127.0.0.1") //allways trust 127.0.0.1
                         {
-                            StringSet::iterator sit = m_db->GetConfig().trusted_ip.begin();
-                            while (sit != m_db->GetConfig().trusted_ip.end())
+                            StringSet::iterator sit = g_config->trusted_ip.begin();
+                            while (sit != g_config->trusted_ip.end())
                             {
                                 if (stringmatchlen(sit->c_str(), sit->size(), ip.c_str(), ip.size(), 0) == 1)
                                 {
@@ -118,18 +124,19 @@ OP_NAMESPACE_BEGIN
                 }
             }
         public:
-            RedisRequestHandler(Ardb* s) :
-                    m_db(s), m_delete_after_processing(false)
+            RedisRequestHandler(ServerHandlerData* init_data) :
+                    data(init_data), m_delete_after_processing(false), pool(g_reply_pool.GetValue())
             {
                 m_ctx.client = &m_client_ctx;
+                pool.SetMaxSize(g_config->reply_pool_size);
             }
     };
     static void pipelineInit(ChannelPipeline* pipeline, void* data)
     {
-        Ardb* db = (Ardb*) data;
+        ServerHandlerData* init_data = (ServerHandlerData*) data;
         pipeline->AddLast("decoder", new RedisCommandDecoder);
         pipeline->AddLast("encoder", new RedisReplyEncoder);
-        pipeline->AddLast("handler", new RedisRequestHandler(db));
+        pipeline->AddLast("handler", new RedisRequestHandler(init_data));
     }
     static void pipelineDestroy(ChannelPipeline* pipeline, void* data)
     {
@@ -148,39 +155,39 @@ OP_NAMESPACE_BEGIN
         }
     }
 
-    Server::Server(ArdbConfig& conf, Ardb* db) :
-            m_service(NULL), m_config(conf), m_db(db), m_uptime(0)
+    Server::Server(Ardb* db) :
+            m_service(NULL), m_db(db), m_uptime(0)
     {
 
     }
     int Server::Start()
     {
         uint32 worker_count = 0;
-        for (uint32 i = 0; i < m_config.thread_pool_sizes.size(); i++)
+        for (uint32 i = 0; i < g_config->listens.size(); i++)
         {
-            if (m_config.thread_pool_sizes[i] == 0)
+            if (g_config->listens[i].thread_pool_size <= 0)
             {
-                m_config.thread_pool_sizes[i] = 1;
+                g_config->listens[i].thread_pool_size = available_processors();
             }
-            else if (m_config.thread_pool_sizes[i] < 0)
-            {
-                m_config.thread_pool_sizes[i] = available_processors();
-            }
-            worker_count += m_config.thread_pool_sizes[i];
+            worker_count += g_config->listens[i].thread_pool_size;
         }
-        m_service = new ChannelService(m_config.max_clients + 32 + GetKeyValueEngine().MaxOpenFiles());
+        m_service = new ChannelService(g_config->max_open_files);
         m_service->SetThreadPoolSize(worker_count);
 
         ChannelOptions ops;
         ops.tcp_nodelay = true;
         ops.reuse_address = true;
-        if (m_config.tcp_keepalive > 0)
+        if (g_config->tcp_keepalive > 0)
         {
-            ops.keep_alive = m_config.tcp_keepalive;
+            ops.keep_alive = g_config->tcp_keepalive;
         }
-        for (uint32 i = 0; i < m_config.listen_addresses.size(); i++)
+        g_total_qps.Name = "total_msg";
+        Statistics::GetSingleton().AddTrack(&g_total_qps);
+
+        ServerHandlerDataArray handler_datas(g_config->listens.size());
+        for (uint32 i = 0; i < g_config->listens.size(); i++)
         {
-            const std::string& address = m_config.listen_addresses[i];
+            const std::string& address = g_config->listens[i].address;
             ServerSocketChannel* server = NULL;
             if (address.find(":") == std::string::npos)
             {
@@ -191,7 +198,7 @@ OP_NAMESPACE_BEGIN
                     ERROR_LOG("Failed to bind on %s", address.c_str());
                     goto sexit;
                 }
-                chmod(address.c_str(), m_config.unixsocketperm);
+                chmod(address.c_str(), g_config->unixsocketperm);
             }
             else
             {
@@ -209,29 +216,29 @@ OP_NAMESPACE_BEGIN
                     ERROR_LOG("Failed to bind on %s", address.c_str());
                     goto sexit;
                 }
-                if (m_cfg.primary_port == 0)
-                {
-                    m_cfg.primary_port = port;
-                }
             }
             server->Configure(ops);
-            server->SetChannelPipelineInitializor(pipelineInit, m_db);
+            handler_datas[i].listen = g_config->listens[i];
+            handler_datas[i].qps.Name = g_config->listens[i].address;
+            Statistics::GetSingleton().AddTrack(&handler_datas[i].qps);
+            server->SetChannelPipelineInitializor(pipelineInit, &handler_datas[i]);
             server->SetChannelPipelineFinalizer(pipelineDestroy, NULL);
             uint32 min = 0;
             for (uint32 j = 0; j < i; j++)
             {
-                min += min + m_cfg.thread_pool_sizes[j];
+                min += min + g_config->listens[j].thread_pool_size;
             }
-            server->BindThreadPool(min, min + m_cfg.thread_pool_sizes[i]);
+            server->BindThreadPool(min, min + g_config->listens[i].thread_pool_size);
+            INFO_LOG("Ardb will accept connections on %s", address.c_str());
         }
+        StartCrons();
 
-        INFO_LOG("Server started, Ardb version %s", ARDB_VERSION);
-        INFO_LOG("The server is now ready to accept connections on  %s", string_join_container(m_cfg.listen_addresses, ",").c_str());
-
+        INFO_LOG("Ardb started with version %s", ARDB_VERSION);
         m_service->Start();
 
         sexit:
         DELETE(m_service);
+        return 0;
     }
 OP_NAMESPACE_END
 

@@ -44,48 +44,126 @@ OP_NAMESPACE_BEGIN
             unsigned no_fill_reply :1;
             unsigned create_if_notexist :1;
             unsigned fuzzy_check :1;
+            CallFlags() :
+                    no_wal(0), no_fill_reply(0), create_if_notexist(0), fuzzy_check(0)
+            {
+            }
     };
 
     struct ClientContext
     {
+            bool processing;
             std::string name;
             Channel* client;
             int64 uptime;
             int64 last_interaction_ustime;
-            bool authenticated;
-            bool processing;
+            ClientContext() :
+                    processing(false), client(NULL), uptime(0), last_interaction_ustime(0)
+            {
+            }
     };
 
     struct TransactionContext
     {
+            bool abort;
+            RedisCommandFrameArray cached_cmds;
 
+            TransactionContext() :
+                    abort(false)
+            {
+            }
+    };
+    struct PubSubContext
+    {
+            StringSet pubsub_channels;
+            StringSet pubsub_patterns;
     };
 
-    struct Context
+    class Context
     {
+        private:
+            RedisReply *reply;
+        public:
+            bool authenticated;
             CallFlags flags;
             Data ns;
-            RedisReply reply;
 
+            RedisCommandFrame* current_cmd;
             ClientContext* client;
             TransactionContext* transc;
+            PubSubContext* pubsub;
             int dirty;
 
             int transc_err;
             int64 sequence;  //recv command sequence in the server, start from 1
             Context() :
-                    client(NULL), transc(NULL), dirty(0), transc_err(0), sequence(0)
+                    authenticated(true), reply(NULL), current_cmd(NULL), client(NULL), transc(NULL), pubsub(NULL), dirty(0), transc_err(0), sequence(0)
             {
                 ns.SetInt64(0);
             }
             void RewriteClientCommand(const RedisCommandFrame& cmd)
             {
-
+                if (NULL != current_cmd)
+                {
+                    *current_cmd = cmd;
+                }
             }
-            RedisReply& GetReply();
+            void SetReply(RedisReply* r)
+            {
+                if (NULL != reply && !reply->IsPooled())
+                {
+                    DELETE(reply);
+                }
+                reply = r;
+            }
+            RedisReply& GetReply()
+            {
+                if (NULL == reply)
+                {
+                    NEW(reply, RedisReply);
+                }
+                return *reply;
+            }
+            void ClearState()
+            {
+                SetReply(NULL);
+                current_cmd = NULL;
+            }
+            void ClearTransaction()
+            {
+                DELETE(transc);
+            }
+            void ClearPubsub()
+            {
+                DELETE(pubsub);
+            }
+            bool InTransaction()
+            {
+                return transc != NULL;
+            }
+            bool IsSubscribed()
+            {
+                return pubsub != NULL;
+            }
+            TransactionContext& GetTransaction()
+            {
+                if (NULL == transc)
+                {
+                    NEW(transc, TransactionContext);
+                }
+                return *transc;
+            }
+            PubSubContext& GetPubsub()
+            {
+                if (NULL == pubsub)
+                {
+                    NEW(pubsub, PubSubContext);
+                }
+                return *pubsub;
+            }
             ~Context()
             {
-                //DELETE(client);
+                SetReply(NULL);
             }
     };
 

@@ -105,6 +105,15 @@ OP_NAMESPACE_BEGIN
             const std::string& ToString(std::string& str) const;
     };
 
+    struct DataHash
+    {
+            size_t operator()(const Data& t) const;
+    };
+    struct DataEqual
+    {
+            bool operator()(const Data& s1, const Data& s2) const;
+    };
+
     struct KeyObject
     {
         private:

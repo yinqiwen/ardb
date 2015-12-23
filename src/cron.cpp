@@ -26,19 +26,12 @@
  *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
+#include "server.hpp"
 
-#ifndef ARDB_TYPES_HPP_
-#define ARDB_TYPES_HPP_
-
-#include "common/common.hpp"
-#include <vector>
-#include <string>
-#include <map>
 OP_NAMESPACE_BEGIN
+    void Server::StartCrons()
+    {
 
-    typedef std::vector<std::string> StringArray;
-    typedef TreeMap<std::string, std::string>::Type StringStringMap;
-    typedef TreeSet<std::string>::Type StringSet;
+    }
 OP_NAMESPACE_END
 
-#endif /* SRC_TYPES_HPP_ */

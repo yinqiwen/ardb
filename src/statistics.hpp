@@ -76,28 +76,47 @@ OP_NAMESPACE_BEGIN
 
     struct QPSTrack: public Track
     {
-            int64_t qpsSamples[16];
+            uint64_t qpsSamples[16];
             int qpsSampleIdx;
-            int64_t lastMsgCount;
-            uint32_t lastSampleTime;
-            int64_t msgCount;
+            uint64_t lastMsgCount;
+            uint64_t lastSampleTime;
+            uint64_t msgCount;
             QPSTrack() :
                     qpsSampleIdx(0), lastMsgCount(0), lastSampleTime(0), msgCount(0)
             {
+                memset(qpsSamples, 0, sizeof(qpsSamples));
             }
             void trackQPSPerSecond()
             {
-
+                uint64_t now = get_current_epoch_millis();
+                uint64_t qps = 0;
+                if (lastSampleTime == 0)
+                {
+                    lastSampleTime = now;
+                }
+                if (now > lastSampleTime)
+                {
+                    qps = ((msgCount - lastMsgCount) * 1000) / (now - lastSampleTime);
+                }
+                qpsSamples[qpsSampleIdx] = qps;
+                qpsSampleIdx = (qpsSampleIdx + 1) % arraysize(qpsSamples);
+                lastMsgCount = msgCount;
+                lastSampleTime = now;
             }
-
-            double QPS()
+            uint64_t QPS()
             {
-
+                uint64_t sum = 0;
+                for (int i = 0; i < arraysize(qpsSamples); i++)
+                {
+                    sum += qpsSamples[i];
+                }
+                return sum / arraysize(qpsSamples);
             }
-            void IncMsgCount(int64_t inc)
+            void IncMsgCount(uint64_t inc)
             {
-
+                atomic_add_uint64(&msgCount, inc);
             }
+            void Dump(std::string& str);
     };
 
     struct CostTrack: public Track
@@ -108,12 +127,14 @@ OP_NAMESPACE_BEGIN
     class Statistics
     {
         private:
+            typedef TreeMap<std::string, Track*> TrackTable;
+            TrackTable m_tracks;
             Statistics();
         public:
             int AddTrack(Track* track);
+            static Statistics& GetSingleton();
 
     };
-
 
 OP_NAMESPACE_END
 

@@ -147,6 +147,10 @@ namespace ardb
                     integer = status;
                 }
                 void SetPool(RedisReplyPool* pool);
+                bool IsPooled()
+                {
+                    return pool != NULL;
+                }
                 RedisReply& AddMember(bool tail = true);
                 void ReserveMember(size_t num);
                 size_t MemberSize();
