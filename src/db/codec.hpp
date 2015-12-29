@@ -53,7 +53,7 @@ OP_NAMESPACE_BEGIN
 
     struct Data
     {
-            char data[8];
+            int64_t data;
             unsigned encoding :3;
             unsigned len :29;
 

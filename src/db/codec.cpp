@@ -40,12 +40,12 @@ OP_NAMESPACE_BEGIN
     };
 
     Data::Data() :
-            encoding(0), len(0)
+        data(0),encoding(0), len(0)
     {
         //value.iv = 0;
     }
     Data::Data(const std::string& v, bool try_int_encoding) :
-            encoding(0)
+        data(0),encoding(0)
     {
         SetString(v, try_int_encoding);
     }
@@ -123,13 +123,14 @@ OP_NAMESPACE_BEGIN
                 if (clone_str)
                 {
                     void* s = malloc(strlen);
-                    memcpy(s, (char*) ss, strlen);
-                    *(void**) data = s;
+                    data = (int64_t)s;
+                    //memcpy(s, (char*) ss, strlen);
+                    //*(void**) (&data) = s;
                     encoding = E_SDS;
                 }
                 else
                 {
-                    *(void**) data = ss;
+                    *(void**) (&data) = ss;
                     encoding = E_CSTR;
                 }
                 return true;
@@ -150,7 +151,8 @@ OP_NAMESPACE_BEGIN
             return;
         }
         Clear();
-        *(void**) data = str.data();
+        data = (int64_t)str.data();
+        //*(void**) (&data) = str.data();
         len = str.size();
         encoding = E_CSTR;
     }
@@ -158,19 +160,18 @@ OP_NAMESPACE_BEGIN
     {
         Clear();
         encoding = E_INT64;
-        memcpy(data, &v, sizeof(int64));
+        data = v;
         len = digits10(std::abs(v));
         if (v < 0)
             len++;
     }
     int64 Data::GetInt64() const
     {
-        int64 v = 0;
         if (IsInteger())
         {
-            memcpy(&v, data, sizeof(int64));
+            return data;
         }
-        return v;
+        return 0;
     }
 
     void Data::Clone(const Data& other)
@@ -178,12 +179,15 @@ OP_NAMESPACE_BEGIN
         Clear();
         encoding = other.encoding;
         len = other.len;
-        memcpy(data, other.data, sizeof(data));
         if (encoding == E_SDS)
         {
             void* s = malloc(other.len);
-            memcpy(s, (char*) other.data, other.len);
-            *(void**) data = s;
+            data = (int64_t)s;
+//            memcpy(s, (char*) (&other.data), other.len);
+//            *(void**) (&data) = s;
+        }else
+        {
+            memcpy(&data, &other.data, sizeof(data));
         }
     }
     int Data::Compare(const Data& right, bool alpha_cmp = false) const
@@ -243,7 +247,7 @@ OP_NAMESPACE_BEGIN
     {
         if (encoding == E_SDS)
         {
-            free((char*) data);
+            free((char*) (data));
         }
         encoding = 0;
         len = 0;
@@ -259,7 +263,7 @@ OP_NAMESPACE_BEGIN
             case E_CSTR:
             case E_SDS:
             {
-                void* ptr = *(void**) data;
+                void* ptr = (void*) data;
                 return (const char*) ptr;
             }
             default:
@@ -275,7 +279,7 @@ OP_NAMESPACE_BEGIN
             case E_INT64:
             {
                 str.resize(len);
-                ll2string(&(str[0]), len, *((long long*) data));
+                ll2string(&(str[0]), len, data);
                 break;
             }
             case E_CSTR:
