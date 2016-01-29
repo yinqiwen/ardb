@@ -13,7 +13,16 @@ To use LMDB or LevelDB or WiredTiger as storage engine, you should set env `stor
     storage_engine=wiredtiger make
 
 It should compile to several executables in `src` directory, such as ardb-server, ardb-test etc.
-	
+
+### Compile on Ubuntu 12.04
+```
+$ sudo apt-get install software-properties-common
+$ sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+$ sudo apt-get update
+$ sudo apt-get install gcc-4.9 g++-4.9
+$ sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.9 60 --slave /usr/bin/g++ g++ /usr/bin/g++-4.9
+$ sudo apt-get install libbz2-dev libz-dev liblz4-dev
+```
 
 ## Features
 - Full redis-protocol compatibility
