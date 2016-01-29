@@ -183,10 +183,10 @@ namespace ardb
 
         int steps = estimate_geohash_steps_by_radius(radius_meters);
         GeoHashBits hash;
-        geohash_fast_encode(lat_range, lat_range, latitude, longitude, steps, &hash);
+        geohash_fast_encode(lat_range, lon_range, latitude, longitude, steps, &hash);
 
         GeoHashArea area;
-        geohash_fast_decode(lat_range, lat_range, hash, &area);
+        geohash_fast_decode(lat_range, lon_range, hash, &area);
         results.insert(hash);
 
         double range_lon = (area.longitude.max - area.longitude.min) / 2;
@@ -368,10 +368,10 @@ namespace ardb
 
         int steps = estimate_geohash_steps_by_radius(radius_meters);
         GeoHashBits hash;
-        geohash_fast_encode(lat_range, lat_range, latitude, longitude, steps, &hash);
+        geohash_fast_encode(lat_range, lon_range, latitude, longitude, steps, &hash);
 
         GeoHashArea area;
-        geohash_fast_decode(lat_range, lat_range, hash, &area);
+        geohash_fast_decode(lat_range, lon_range, hash, &area);
         results.insert(hash);
 
         GeoHashNeighbors neighbors;
