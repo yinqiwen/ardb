@@ -88,8 +88,8 @@ LUA_LIBA=${LUA_PATH}/src/liblua.a
 OPTIMIZATION?=-O2
 OPT=$(OPTIMIZATION)
 
-CXXFLAGS=-Wall -g ${OPT} -fPIC -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"' 
-CCFLAGS=-Wall -std=gnu99 ${OPT} -fPIC -pedantic -g -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"'
+CXXFLAGS=-std=c++11 -Wall -g ${OPT} -fPIC -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"' 
+CCFLAGS=-std=c++11 -Wall -std=gnu99 ${OPT} -fPIC -pedantic -g -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"'
 LDFLAGS=-g 
 
 SNAPPY_CXXFLAGS=-g $(OPT)
@@ -179,7 +179,7 @@ ifeq ($(storage_engine), rocksdb)
   STORAGE_ENGINE=$(ROCKSDB_LIBA)
   STORAGE_ENGINE_PATH=$(ROCKSDB_PATH)
   INCS+=-I${ROCKSDB_PATH}/include
-  LIBS:= ${ROCKSDB_LIBA} ${SNAPPY_LIBA} ${LIBS} -lz -lbz2 -lrt
+  LIBS:= ${ROCKSDB_LIBA} ${SNAPPY_LIBA} ${LIBS} -lz -lbz2 -lrt -llz4
   CXXFLAGS+=-D__USE_ROCKSDB__ 
 else
 ifeq ($(storage_engine), wiredtiger)
