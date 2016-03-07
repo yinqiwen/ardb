@@ -29,285 +29,271 @@
 
 #include "codec.hpp"
 #include "buffer/buffer_helper.hpp"
-#include "buffer/struct_codec_macros.hpp"
+#include "util/murmur3.h"
 #include <cmath>
 
 OP_NAMESPACE_BEGIN
 
-    enum DataEncoding
-    {
-        E_INT64 = 1, E_FLOAT64 = 2, E_CSTR = 3, E_SDS = 4,
-    };
 
-    Data::Data() :
-        data(0),encoding(0), len(0)
+
+    bool KeyObject::DecodeNS(Buffer& buffer, bool clone_str)
     {
-        //value.iv = 0;
-    }
-    Data::Data(const std::string& v, bool try_int_encoding) :
-        data(0),encoding(0)
-    {
-        SetString(v, try_int_encoding);
-    }
-    Data::~Data()
-    {
-        Clear();
+        return ns.Decode(buffer, clone_str);
     }
 
-    Data::Data(const Data& other) :
-            encoding(other.encoding), len(other.len)
+    bool KeyObject::DecodeType(Buffer& buffer)
     {
-        Clone(other);
-    }
-
-    Data& Data::operator=(const Data& data)
-    {
-        return *this;
-    }
-
-    void Data::Encode(Buffer& buf) const
-    {
-        buf.WriteByte((char) encoding);
-        switch (encoding)
-        {
-            case E_INT64:
-            {
-                BufferHelper::WriteVarInt64(buf, GetInt64());
-                return;
-            }
-            case E_CSTR:
-            case E_SDS:
-            {
-                BufferHelper::WriteVarUInt32(buf, StringLength());
-                const char* ptr = CStr();
-                buf.Write(ptr, StringLength());
-                return;
-            }
-            default:
-            {
-                return;
-            }
-        }
-    }
-    bool Data::Decode(Buffer& buf, bool clone_str)
-    {
-        char header = 0;
-        if (!buf.ReadByte(header))
+        char tmp;
+        if (!buffer.ReadByte(tmp))
         {
             return false;
         }
-        encoding = (uint8) header;
-        switch (encoding)
+        return true;
+    }
+    bool KeyObject::DecodeKey(Buffer& buffer, bool clone_str)
+    {
+        return key.Decode(buffer, clone_str);
+    }
+    int KeyObject::DecodeElementLength(Buffer& buffer)
+    {
+        char len;
+        if (!buffer.ReadByte(len))
         {
-            case E_INT64:
+            return -1;
+        }
+        if (len < 0 || len > 127)
+        {
+            return -1;
+        }
+        if (len > 0)
+        {
+            elements.resize(len);
+        }
+        return (int) len;
+    }
+    bool KeyObject::DecodeElement(Buffer& buffer, bool clone_str, int idx)
+    {
+        if (elements.size() <= idx)
+        {
+            elements.resize(idx + 1);
+        }
+        return elements[idx].Decode(buffer, clone_str);
+    }
+    bool KeyObject::Decode(Buffer& buffer, bool clone_str)
+    {
+        if (!DecodeType(buffer))
+        {
+            return false;
+        }
+        if (!DecodeKey(buffer, clone_str))
+        {
+            return false;
+        }
+        int elen1 = DecodeElementLength(buffer);
+        if (elen1 > 0)
+        {
+            for (int i = 0; i < elen1; i++)
             {
-                int64_t v;
-                if (!BufferHelper::ReadVarInt64(buf, v))
+                if (!DecodeElement(buffer, false, i))
                 {
                     return false;
                 }
-                SetInt64(v);
-                return true;
             }
-            case E_CSTR:
-            case E_SDS:
+        }
+        return true;
+    }
+
+    Slice KeyObject::Encode()
+    {
+        if (!encode_buffer.Readable())
+        {
+            encode_buffer.WriteByte((char) type);
+            key.Encode(encode_buffer);
+            assert(elements.size() < 128);
+            encode_buffer.WriteByte((char) elements.size());
+            for (size_t i = 0; i < elements.size(); i++)
             {
-                uint32_t strlen = 0;
-                if (!BufferHelper::ReadVarUInt32(buf, strlen))
-                {
-                    return false;
-                }
-                const char* ss = buf.GetRawReadBuffer();
-                Clear();
-                len = strlen;
-                if (clone_str)
-                {
-                    void* s = malloc(strlen);
-                    data = (int64_t)s;
-                    //memcpy(s, (char*) ss, strlen);
-                    //*(void**) (&data) = s;
-                    encoding = E_SDS;
-                }
-                else
-                {
-                    *(void**) (&data) = ss;
-                    encoding = E_CSTR;
-                }
-                return true;
+                elements[i].Encode(encode_buffer);
+            }
+        }
+        return Slice(encode_buffer.GetRawReadBuffer(), encode_buffer.ReadableBytes());
+    }
+
+    Meta& ValueObject::GetMeta()
+    {
+        Data& meta = getElement(0);
+        size_t reserved_size = sizeof(Meta);
+        switch(type)
+        {
+            case KEY_LIST:
+            {
+                reserved_size = sizeof(ListMeta);
+                break;
+            }
+            case KEY_HASH:
+            case KEY_SET:
+            case KEY_ZSET:
+            {
+                reserved_size = sizeof(MKeyMeta);
+                break;
+            }
+            case KEY_STRING:
+            {
+                break;
             }
             default:
             {
-                return false;
+                abort();
             }
         }
+        return *(Meta*)meta.ReserveStringSpace(reserved_size);
     }
 
-    void Data::SetString(const std::string& str, bool try_int_encoding)
+    MKeyMeta& ValueObject::GetMKeyMeta()
     {
-        long long int_val;
-        if (str.size() <= 21 && string2ll(str.data(), str.size(), &int_val))
+        return (MKeyMeta&)GetMeta();
+    }
+    ListMeta& ValueObject::GetListMeta()    {
+        return (ListMeta&)GetMeta();
+    }
+    HashMeta& ValueObject::GetHashMeta()    {
+        return GetMKeyMeta();
+    }
+    SetMeta& ValueObject::GetSetMeta()    {
+        return GetMKeyMeta();
+    }
+    ZSetMeta& ValueObject::GetZSetMeta()
+    {
+        return GetMKeyMeta();
+    }
+
+    int64_t ValueObject::GetTTL()
+    {
+        assert(type != 0);
+        return GetMeta().ttl;
+    }
+    void ValueObject::SetTTL(int64_t v)
+    {
+        assert(type != 0);
+        GetMeta().ttl = v;
+    }
+
+    bool ValueObject::SetMinMaxData(const Data& v)
+    {
+        bool replaced = false;
+        if(vals.size() < 3)
         {
-            SetInt64((int64) int_val);
-            return;
+            vals.resize(3);
+            replaced = true;
         }
-        Clear();
-        data = (int64_t)str.data();
-        //*(void**) (&data) = str.data();
-        len = str.size();
-        encoding = E_CSTR;
-    }
-    void Data::SetInt64(int64 v)
-    {
-        Clear();
-        encoding = E_INT64;
-        data = v;
-        len = digits10(std::abs(v));
-        if (v < 0)
-            len++;
-    }
-    int64 Data::GetInt64() const
-    {
-        if (IsInteger())
+        if(vals[1] > v || vals[1].IsNil())
         {
-            return data;
+            vals[1] = v;
+            replaced = true;
+        }
+        if(vals[2] < v || vals[2].IsNil())
+        {
+            vals[2] = v;
+            replaced = true;
+        }
+        return replaced;
+    }
+
+    Slice ValueObject::Encode(Buffer& encode_buffer) const
+    {
+        if(0 == type)
+        {
+            return Slice();
+        }
+        encode_buffer.WriteByte((char) type);
+        assert(elements.size() < 256);
+        encode_buffer.WriteByte((char) vals.size());
+        for (size_t i = 0; i < vals.size(); i++)
+        {
+            vals[i].Encode(encode_buffer);
+        }
+        return Slice(encode_buffer.GetRawReadBuffer(), encode_buffer.ReadableBytes());
+    }
+    bool ValueObject::Decode(Buffer& buffer, bool clone_str)
+    {
+        char tmp;
+        if (!buffer.ReadByte(tmp))
+        {
+            return false;
+        }
+        type = (uint8) tmp;
+        char lench;
+        if (!buffer.ReadByte(lench))
+        {
+            return -1;
+        }
+        uint8 len = (uint8) lench;
+        if (len > 0)
+        {
+            vals.resize(len);
+            for (uint8 i = 0; i < len; i++)
+            {
+                if (!vals[i].Decode(buffer, clone_str))
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    int encode_merge_operation(Buffer& buffer, uint16_t op, const DataArray& args)
+    {
+        BufferHelper::WriteFixUInt32(buffer, op);
+        buffer.WriteByte((char) args.size());
+        for (size_t i = 0; i < args.size(); i++)
+        {
+            args[i].Encode(buffer);
         }
         return 0;
     }
 
-    void Data::Clone(const Data& other)
+    int decode_merge_operation(Buffer& buffer, uint16_t& op, DataArray& args)
     {
-        Clear();
-        encoding = other.encoding;
-        len = other.len;
-        if (encoding == E_SDS)
+        assert(BufferHelper::ReadFixUInt32(buffer, op, false));
+        char len;
+        assert(buffer.ReadByte(len));
+        if (len > 0)
         {
-            void* s = malloc(other.len);
-            data = (int64_t)s;
-//            memcpy(s, (char*) (&other.data), other.len);
-//            *(void**) (&data) = s;
-        }else
-        {
-            memcpy(&data, &other.data, sizeof(data));
-        }
-    }
-    int Data::Compare(const Data& right, bool alpha_cmp = false) const
-    {
-        if (!alpha_cmp)
-        {
-            if (IsInteger() && right.IsInteger())
+            args.resize(len);
+            for (int i = 0; i < len; i++)
             {
-                return GetInt64() - right.GetInt64();
-            }
-            //integer is always less than text value in non alpha comparator
-            if (IsInteger())
-            {
-                return -1;
-            }
-            if (right.IsInteger())
-            {
-                return 1;
+                assert(args[i].Decode(buffer, false));
             }
         }
-        size_t min_len = len < right.len ? len : right.len;
-        const char* other_raw_data = right.CStr();
-        const char* raw_data = CStr();
-        if (encoding == E_INT64)
-        {
-            char* data_buf = (char*) alloca(len);
-            ll2string(data_buf, len, GetInt64());
-            raw_data = data_buf;
-        }
-        if (right.encoding == E_INT64)
-        {
-            char* data_buf = (char*) alloca(right.len);
-            ll2string(data_buf, right.len, right.GetInt64());
-            other_raw_data = data_buf;
-        }
-        int ret = memcmp(raw_data, other_raw_data, min_len);
-        if (ret < 0)
-        {
-            return -1;
-        }
-        else if (ret > 0)
-        {
-            return 1;
-        }
-        return len - right.len;
+        return 0;
     }
 
-    bool Data::IsInteger() const
+    KeyType element_type(KeyType type)
     {
-        return encoding == E_INT64;
-    }
-    uint32 Data::StringLength() const
-    {
-        return len;
-    }
-    void Data::Clear()
-    {
-        if (encoding == E_SDS)
+        switch (type)
         {
-            free((char*) (data));
-        }
-        encoding = 0;
-        len = 0;
-    }
-    const char* Data::CStr() const
-    {
-        switch (encoding)
-        {
-            case E_INT64:
+            case KEY_HASH:
             {
-                return NULL;
+                return KEY_HASH_FIELD;
             }
-            case E_CSTR:
-            case E_SDS:
+            case KEY_LIST:
             {
-                void* ptr = (void*) data;
-                return (const char*) ptr;
+                return KEY_LIST_ELEMENT;
+            }
+            case KEY_SET:
+            {
+                return KEY_SET_MEMBER;
+            }
+            case KEY_ZSET:
+            {
+                return KEY_ZSET_SCORE;
             }
             default:
             {
-                return NULL;
+                abort();
             }
         }
-    }
-    const std::string& Data::ToString(std::string& str) const
-    {
-        switch (encoding)
-        {
-            case E_INT64:
-            {
-                str.resize(len);
-                ll2string(&(str[0]), len, data);
-                break;
-            }
-            case E_CSTR:
-            case E_SDS:
-            {
-                str.assign(CStr(), len);
-                break;
-            }
-            default:
-            {
-                break;
-            }
-        }
-        return str;
-    }
-
-    size_t DataHash::operator()(const Data& t) const
-    {
-        if(t.IsInteger())
-        {
-            return (size_t)t.GetInt64();
-        }
-
-    }
-
-    bool DataEqual::operator()(const Data& s1, const Data& s2) const
-    {
-        return s1.Compare(s2, false) == 0;
     }
 
 OP_NAMESPACE_END

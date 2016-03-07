@@ -91,6 +91,20 @@ namespace ardb
             }
         }
 
+        long double RedisReply::GetDouble()
+        {
+            if (type == REDIS_REPLY_DOUBLE)
+            {
+                return *(long double*) (&integer);
+            }
+            return 0;
+        }
+        void RedisReply::SetDouble(long double v)
+        {
+            type = REDIS_REPLY_DOUBLE;
+            *(long double*) (&integer) = v;
+        }
+
         RedisReply& RedisReply::AddMember(bool tail)
         {
             type = REDIS_REPLY_ARRAY;
@@ -115,10 +129,11 @@ namespace ardb
             {
                 elements->push_front(reply);
             }
-            return reply;
+            return *reply;
         }
         void RedisReply::ReserveMember(size_t num)
         {
+            type = REDIS_REPLY_ARRAY;
             for (size_t i = 0; i < num; i++)
             {
                 AddMember();

@@ -180,7 +180,7 @@ namespace ardb
         return 0;
     }
 
-    int file_read_full(const std::string& path, Buffer& content)
+    int file_read_full(const std::string& path, std::string& content)
     {
         FILE *fp;
         if ((fp = fopen(path.c_str(), "rb")) == NULL)
@@ -193,7 +193,7 @@ namespace ardb
         rewind(fp);
         char* buffer = (char*) malloc(fsize);
         size_t len = fread(buffer, 1, fsize, fp);
-        content.Write(buffer, len);
+        content.assign(buffer, len);
         free(buffer);
         fclose(fp);
         return 0;

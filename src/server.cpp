@@ -28,6 +28,8 @@
  */
 #include "server.hpp"
 #include "thread/thread_local.hpp"
+#include <sys/types.h>
+#include <sys/stat.h>
 
 OP_NAMESPACE_BEGIN
     struct ServerHandlerData
@@ -47,7 +49,8 @@ OP_NAMESPACE_BEGIN
         private:
             ServerHandlerData* data;
             ClientContext m_client_ctx;
-            Context m_ctx;bool m_delete_after_processing;
+            Context m_ctx;
+            bool m_delete_after_processing;
             RedisReplyPool& pool;
 
             void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e)
@@ -92,7 +95,7 @@ OP_NAMESPACE_BEGIN
             {
                 m_client_ctx.uptime = get_current_epoch_micros();
                 m_client_ctx.last_interaction_ustime = get_current_epoch_micros();
-                m_ctx.client = ctx.GetChannel();
+                m_client_ctx.client = ctx.GetChannel();
                 if (!g_config->requirepass.empty())
                 {
                     m_ctx.authenticated = false;
@@ -130,6 +133,14 @@ OP_NAMESPACE_BEGIN
                 m_ctx.client = &m_client_ctx;
                 pool.SetMaxSize(g_config->reply_pool_size);
             }
+            bool IsProcessing()
+            {
+                return m_client_ctx.processing;
+            }
+            void EnableSelfDeleteAfterProcessing()
+            {
+                m_delete_after_processing = true;
+            }
     };
     static void pipelineInit(ChannelPipeline* pipeline, void* data)
     {
@@ -145,9 +156,9 @@ OP_NAMESPACE_BEGIN
         handler = pipeline->Get("encoder");
         DELETE(handler);
         RedisRequestHandler* rhandler = (RedisRequestHandler*) pipeline->Get("handler");
-        if (NULL != rhandler && rhandler->m_client_ctx.processing)
+        if (NULL != rhandler && rhandler->IsProcessing())
         {
-            rhandler->m_delete_after_processing = true;
+            rhandler->EnableSelfDeleteAfterProcessing();
         }
         else
         {
@@ -155,21 +166,21 @@ OP_NAMESPACE_BEGIN
         }
     }
 
-    Server::Server(Ardb* db) :
-            m_service(NULL), m_db(db), m_uptime(0)
+    Server::Server() :
+            m_service(NULL), m_uptime(0)
     {
 
     }
     int Server::Start()
     {
         uint32 worker_count = 0;
-        for (uint32 i = 0; i < g_config->listens.size(); i++)
+        for (uint32 i = 0; i < g_config->servers.size(); i++)
         {
-            if (g_config->listens[i].thread_pool_size <= 0)
+            if (g_config->servers[i].thread_pool_size <= 0)
             {
-                g_config->listens[i].thread_pool_size = available_processors();
+                g_config->servers[i].thread_pool_size = available_processors();
             }
-            worker_count += g_config->listens[i].thread_pool_size;
+            worker_count += g_config->servers[i].thread_pool_size;
         }
         m_service = new ChannelService(g_config->max_open_files);
         m_service->SetThreadPoolSize(worker_count);
@@ -184,10 +195,10 @@ OP_NAMESPACE_BEGIN
         g_total_qps.Name = "total_msg";
         Statistics::GetSingleton().AddTrack(&g_total_qps);
 
-        ServerHandlerDataArray handler_datas(g_config->listens.size());
-        for (uint32 i = 0; i < g_config->listens.size(); i++)
+        ServerHandlerDataArray handler_datas(g_config->servers.size());
+        for (uint32 i = 0; i < g_config->servers.size(); i++)
         {
-            const std::string& address = g_config->listens[i].address;
+            const std::string& address = g_config->servers[i].address;
             ServerSocketChannel* server = NULL;
             if (address.find(":") == std::string::npos)
             {
@@ -198,7 +209,7 @@ OP_NAMESPACE_BEGIN
                     ERROR_LOG("Failed to bind on %s", address.c_str());
                     goto sexit;
                 }
-                chmod(address.c_str(), g_config->unixsocketperm);
+                chmod(address.c_str(), g_config->servers[i].unixsocketperm);
             }
             else
             {
@@ -218,17 +229,17 @@ OP_NAMESPACE_BEGIN
                 }
             }
             server->Configure(ops);
-            handler_datas[i].listen = g_config->listens[i];
-            handler_datas[i].qps.Name = g_config->listens[i].address;
+            handler_datas[i].listen = g_config->servers[i];
+            handler_datas[i].qps.Name = g_config->servers[i].address;
             Statistics::GetSingleton().AddTrack(&handler_datas[i].qps);
             server->SetChannelPipelineInitializor(pipelineInit, &handler_datas[i]);
             server->SetChannelPipelineFinalizer(pipelineDestroy, NULL);
             uint32 min = 0;
             for (uint32 j = 0; j < i; j++)
             {
-                min += min + g_config->listens[j].thread_pool_size;
+                min += min + g_config->servers[j].thread_pool_size;
             }
-            server->BindThreadPool(min, min + g_config->listens[i].thread_pool_size);
+            server->BindThreadPool(min, min + g_config->servers[i].thread_pool_size);
             INFO_LOG("Ardb will accept connections on %s", address.c_str());
         }
         StartCrons();

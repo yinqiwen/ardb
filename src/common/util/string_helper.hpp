@@ -134,6 +134,7 @@ namespace ardb
 
     int string2ll(const char *s, size_t slen, int64_t *value);
     int ll2string(char *s, size_t len, long long value);
+    int lf2string(char* s, size_t len, long double value);
 
     std::string stringfromll(int64 v);
     std::string base16_stringfromllu(uint64 v);

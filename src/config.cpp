@@ -28,6 +28,8 @@
  */
 #include "config.hpp"
 #include "util/config_helper.hpp"
+#include "util/file_helper.hpp"
+#include "util/string_helper.hpp"
 #include <errno.h>
 
 #define ARDB_AUTHPASS_MAX_LEN 512
@@ -80,68 +82,36 @@ OP_NAMESPACE_BEGIN
 
         conf_get_int64(props, "tcp-keepalive", tcp_keepalive);
         conf_get_int64(props, "timeout", timeout);
-        conf_get_int64(props, "unixsocketperm", unixsocketperm);
+        //conf_get_int64(props, "unixsocketperm", unixsocketperm);
         conf_get_int64(props, "slowlog-log-slower-than", slowlog_log_slower_than);
         conf_get_int64(props, "slowlog-max-len", slowlog_max_len);
         conf_get_int64(props, "maxfiles", max_open_files);
-        Properties::const_iterator listen_it = props.find("listen");
-        if (listen_it != props.end())
-        {
-            const ConfItemsArray& cs = listen_it->second;
-            for (uint32 i = 0; i < cs.size(); i++)
-            {
-                if (cs[i].size() != 1)
-                {
-                    WARN_LOG("Invalid config 'listen'");
-                }
-                else
-                {
-                    const std::string& str = cs[i][0];
-                    listen_addresses.push_back(str);
-                }
-            }
-        }
-        if (listen_addresses.empty())
-        {
-            listen_addresses.push_back("0.0.0.0:16379");
-        }
-        Properties::const_iterator tp_it = props.find("thread-pool-size");
-        if (tp_it != props.end())
-        {
-            const ConfItemsArray& cs = tp_it->second;
-            for (uint32 i = 0; i < cs.size(); i++)
-            {
-                uint32 size = 0;
-                if (cs[i].size() != 1 || !string_touint32(cs[i][0], size))
-                {
-                    WARN_LOG("Invalid config 'thread-pool-size'");
-                }
-                else
-                {
-                    thread_pool_sizes.push_back((int64) size);
-                }
-            }
-        }
-        Properties::const_iterator qp_it = props.find("qps-limit");
-        if (qp_it != props.end())
-        {
-            const ConfItemsArray& cs = qp_it->second;
-            for (uint32 i = 0; i < cs.size(); i++)
-            {
-                uint32 limit = 0;
-                if (cs[i].size() != 1 || !string_touint32(cs[i][0], limit))
-                {
-                    WARN_LOG("Invalid config 'qps-limit'");
-                }
-                else
-                {
-                    qps_limits.push_back((int64) limit);
-                }
-            }
-        }
-        thread_pool_sizes.resize(listen_addresses.size());
-        qps_limits.resize(listen_addresses.size());
 
+        for (int i = 0;; i++)
+        {
+            char config_key[256];
+            sprintf(config_key, "server[%d].listen", i);
+            ListenPoint lp;
+            if (!conf_get_string(props, config_key, lp.address))
+            {
+                break;
+            }
+            sprintf(config_key, "server[%d].thread-pool-size", i);
+            conf_get_int64(props, config_key, lp.thread_pool_size);
+            sprintf(config_key, "server[%d].qps-limit", i);
+            conf_get_int64(props, config_key, lp.qps_limit);
+            sprintf(config_key, "server[%d].unixsocketperm", i);
+            conf_get_int64(props, config_key, lp.qps_limit);
+            servers.push_back(lp);
+        }
+
+        if (servers.empty())
+        {
+            ListenPoint lp;
+            lp.address = "0.0.0.0:16379";
+            servers.push_back(lp);
+        }
+        conf_get_string(props, "engine", engine);
         conf_get_string(props, "data-dir", data_base_path);
         conf_get_string(props, "backup-dir", backup_dir);
         conf_get_string(props, "repl-dir", repl_data_dir);

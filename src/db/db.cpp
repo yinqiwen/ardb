@@ -31,6 +31,7 @@
 #include <fcntl.h>
 #include <sstream>
 #include "db.hpp"
+#include "rocksdb_engine.hpp"
 
 OP_NAMESPACE_BEGIN
     Ardb* g_db = NULL;
@@ -49,8 +50,19 @@ OP_NAMESPACE_BEGIN
         return strcasecmp(s1.c_str(), s2.c_str()) == 0 ? true : false;
     }
 
-    Ardb::Ardb(Engine& engine) :
-            m_engine(engine)
+    Ardb::KeyLockGuard::KeyLockGuard(KeyObject& key) :
+            k(key)
+    {
+        g_db->LockKey(k);
+    }
+
+    Ardb::KeyLockGuard::~KeyLockGuard()
+    {
+        g_db->UnlockKey(k);
+    }
+
+    Ardb::Ardb() :
+            m_engine(NULL)
     {
         g_db = this;
         m_settings.set_empty_key("");
@@ -130,7 +142,6 @@ OP_NAMESPACE_BEGIN
         { "hget", REDIS_CMD_HGET, &Ardb::HGet, 2, 2, "r", 0, 0, 0 },
         { "hgetall", REDIS_CMD_HGETALL, &Ardb::HGetAll, 1, 1, "r", 0, 0, 0 },
         { "hincrby", REDIS_CMD_HINCR, &Ardb::HIncrby, 3, 3, "w", 0, 0, 0 },
-        { "hmincrby", REDIS_CMD_HMINCRBY, &Ardb::HMIncrby, 3, -1, "w", 0, 0, 0 },
         { "hincrbyfloat", REDIS_CMD_HINCRBYFLOAT, &Ardb::HIncrbyFloat, 3, 3, "w", 0, 0, 0 },
         { "hkeys", REDIS_CMD_HKEYS, &Ardb::HKeys, 1, 1, "r", 0, 0, 0 },
         { "hlen", REDIS_CMD_HLEN, &Ardb::HLen, 1, 1, "r", 0, 0, 0 },
@@ -257,6 +268,26 @@ OP_NAMESPACE_BEGIN
 
     Ardb::~Ardb()
     {
+        DELETE(m_engine);
+    }
+
+    int Ardb::Init()
+    {
+        if(g_config->engine == "rocksdb")
+        {
+            RocksDBEngine* rocks = NULL;
+            NEW(rocks, RocksDBEngine);
+            if(0 != rocks->Init(g_config->data_base_path, ""))
+            {
+                ERROR_LOG("Failed to init rocksdb.");
+                DELETE(rocks);
+                return -1;
+            }
+            m_engine = rocks;
+            return 0;
+        }
+        ERROR_LOG("Unsupported storage engine:%s", g_config->engine.c_str());
+        return -1;
     }
 
     void Ardb::RenameCommand()
@@ -274,6 +305,111 @@ OP_NAMESPACE_BEGIN
             }
             it++;
         }
+    }
+
+    void Ardb::LockKey(KeyObject& key)
+    {
+        KeyPrefix lk;
+        while (true)
+        {
+            ThreadMutexLock* lock = NULL;
+            {
+                LockGuard<SpinMutexLock> guard(m_locking_keys_lock);
+                std::pair<LockTable::iterator, bool> ret = m_locking_keys.insert(LockTable::value_type(lk, NULL));
+                if (!ret.second && NULL != ret.first->second)
+                {
+                    /*
+                     * already locked by other thread, wait until unlocked
+                     */
+                    lock = ret.first->second;
+                }
+                else
+                {
+                    /*
+                     * no other thread lock on the key
+                     */
+                    if (!m_lock_pool.empty())
+                    {
+                        lock = m_lock_pool.top();
+                        m_lock_pool.pop();
+                    }
+                    else
+                    {
+                        NEW(lock, ThreadMutexLock);
+                    }
+                    ret.first->second = lock;
+                    return;
+                }
+            }
+
+            if (NULL != lock)
+            {
+                LockGuard<ThreadMutexLock> guard(*lock);
+                lock->Wait(1, MILLIS);
+            }
+        }
+    }
+    void Ardb::UnlockKey(KeyObject& key)
+    {
+        KeyPrefix lk;
+        {
+            LockGuard<SpinMutexLock> guard(m_locking_keys_lock);
+            LockTable::iterator ret = m_locking_keys.find(lk);
+            if (ret != m_locking_keys.end() && ret->second != NULL)
+            {
+                ThreadMutexLock* lock = ret->second;
+                m_locking_keys.erase(ret);
+                m_lock_pool.push(lock);
+                LockGuard<ThreadMutexLock> guard(*lock);
+                lock->Notify();
+            }
+        }
+    }
+
+    bool Ardb::CheckMeta(Context& ctx, const std::string& key, KeyType expected)
+    {
+        ValueObject meta_value;
+        return CheckMeta(ctx, key, expected, meta_value);
+    }
+
+    bool Ardb::CheckMeta(Context& ctx, const std::string& key, KeyType expected, ValueObject& meta_value)
+    {
+        RedisReply& reply = ctx.GetReply();
+        KeyObject meta_key(ctx.ns, KEY_META, key);
+        int err = m_engine->Get(ctx, meta_key, meta_value);
+        if (err != 0 && err != ERR_ENTRY_NOT_EXIST)
+        {
+            reply.SetErrCode(err);
+            return false;
+        }
+        if (meta_value.GetType() > 0 && meta_value.GetType() != expected)
+        {
+            reply.SetErrCode(ERR_INVALID_TYPE);
+            return false;
+        }
+        return true;
+    }
+
+    int Ardb::MergeOperation(KeyObject& key, ValueObject& val, uint16_t op, const DataArray& args)
+    {
+        int err = 0;
+        switch (op)
+        {
+            case REDIS_CMD_HMSET:
+            case REDIS_CMD_HMSET2:
+            {
+                for (size_t i = 0; i < args.size(); i += 2)
+                {
+                    err = MergeHSet(key, val, args[i], args[i + 1], false, false);
+                    if (0 != err)
+                    {
+                        return err;
+                    }
+                }
+                break;
+            }
+        }
+        return 0;
     }
 
     int Ardb::DoCall(Context& ctx, RedisCommandHandlerSetting& setting, RedisCommandFrame& args)
@@ -376,7 +512,7 @@ OP_NAMESPACE_BEGIN
         }
         if (ctx.InTransaction())
         {
-            if(setting.type != REDIS_CMD_MULTI && setting.type != REDIS_CMD_EXEC && setting.type != REDIS_CMD_DISCARD && setting.type != REDIS_CMD_QUIT)
+            if (setting.type != REDIS_CMD_MULTI && setting.type != REDIS_CMD_EXEC && setting.type != REDIS_CMD_DISCARD && setting.type != REDIS_CMD_QUIT)
             {
                 reply.SetStatusCode(STATUS_QUEUED);
                 ctx.GetTransaction().cached_cmds.push_back(args);
@@ -385,7 +521,8 @@ OP_NAMESPACE_BEGIN
         }
         else if (ctx.IsSubscribed())
         {
-            if(setting.type != REDIS_CMD_SUBSCRIBE && setting.type != REDIS_CMD_PSUBSCRIBE && setting.type != REDIS_CMD_PUNSUBSCRIBE && setting.type != REDIS_CMD_UNSUBSCRIBE && setting.type != REDIS_CMD_QUIT)
+            if (setting.type != REDIS_CMD_SUBSCRIBE && setting.type != REDIS_CMD_PSUBSCRIBE && setting.type != REDIS_CMD_PUNSUBSCRIBE
+                    && setting.type != REDIS_CMD_UNSUBSCRIBE && setting.type != REDIS_CMD_QUIT)
             {
                 reply.SetErrorReason("only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context");
                 return 0;

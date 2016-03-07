@@ -69,7 +69,7 @@ namespace ardb
     static const uint64 P08 = 10000L * 10000L;
     static const uint64 P07 = 10000L * 1000L;
     static const uint64 P06 = 1000L * 1000L;
-    uint32 digits10(uint64 v)
+    static uint32 lludigits10(uint64 v)
     {
         if (v < 10)
             return 1;
@@ -96,5 +96,13 @@ namespace ardb
             return 11 + (v >= P11);
         }
         return 12 + digits10(v / P12);
+    }
+
+    uint32 digits10(int64 v)
+    {
+        uint32 len = lludigits10(std::abs(v));
+        if (v < 0)
+            len++;
+        return len;
     }
 }

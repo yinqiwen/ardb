@@ -1,5 +1,5 @@
 #-------------------------------------------------------------------------------
-# Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
+# Copyright (c) 2013-2016, yinqiwen <yinqiwen@gmail.com>
 # All rights reserved.
 #  
 # Redistribution and use in source and binary forms, with or without
@@ -54,26 +54,21 @@ SNAPPY_PATH=${LIB_PATH}/${SNAPPY_VER}
 SNAPPY_FILE=${SNAPPY_PATH}.tar.gz
 SNAPPY_LIBA=${SNAPPY_PATH}/.libs/libsnappy.a
 
-LEVELDB_VER=leveldb-1.18
-LEVELDB_PATH=${LIB_PATH}/${LEVELDB_VER}
-LEVELDB_FILE=${LEVELDB_PATH}.tar.gz
-LEVELDB_LIBA=${LEVELDB_PATH}/libleveldb.a
-
-ROCKSDB_VER=rocksdb-3.10
+ROCKSDB_VER=rocksdb-4.2
 ROCKSDB_PATH=${LIB_PATH}/${ROCKSDB_VER}
 ROCKSDB_FILE=${ROCKSDB_PATH}.tar.gz
 ROCKSDB_LIBA=${ROCKSDB_PATH}/librocksdb.a
-
-WIREDTIGER_VER=wiredtiger-2.5.1
-WIREDTIGER_PATH=${LIB_PATH}/${WIREDTIGER_VER}
-WIREDTIGER_FILE=${WIREDTIGER_PATH}.tar.bz2
-WIREDTIGER_LIBA=${WIREDTIGER_PATH}/build_dist/lib/libwiredtiger.a
 
 ZOOKEEPER_VER=zookeeper-3.4.5
 ZOOKEEPER_PATH=${LIB_PATH}/${ZOOKEEPER_VER}
 ZOOKEEPER_FILE=${ZOOKEEPER_PATH}.tar.gz
 ZOOKEEPER_LIBA=${ZOOKEEPER_PATH}/.libs/libzkst.a
 ZOOKEEPER_LIBHTA=${ZOOKEEPER_PATH}/.libs/libhashtable.a
+
+SPARSEHASH_VER=sparsehash-2.0.2
+SPARSEHASH_PATH=${LIB_PATH}/${SPARSEHASH_VER}
+SPARSEHASH_FILE=${SPARSEHASH_PATH}.tar.gz
+SPARSEHASH_CONFIG=${SPARSEHASH_PATH}/src/config.h
 
 # Cross compiling variables
 XC_HOST=
@@ -98,7 +93,7 @@ LEVELDB_OPT=-g $(OPT)
 LUA_CFLAGS+= $(OPT) -Wall -DLUA_ANSI $(CCFLAGS)
 LUA_LDFLAGS+= $(LDFLAGS)
 
-INCS=-I./ -I./common -I${LIB_PATH}/cpp-btree -I${LUA_PATH}/src -I${SNAPPY_PATH} 
+INCS=-I./ -I./common -I${LIB_PATH}/cpp-btree -I${LUA_PATH}/src -I${SNAPPY_PATH} -I${SPARSEHASH_PATH}/src
 
 # Default allocator
 ifeq ($(uname_S),Linux)
@@ -124,13 +119,8 @@ LIBS= ${LUA_LIBA} ${MALLOC_LIBA} ${SNAPPY_LIBA} -lpthread
 	${CC} -c ${CCFLAGS} ${INCS} $< -o $@
 
 
-CHANNEL_CPP_VPATH=common/channel common/channel/socket common/channel/fifo common/channel/codec common/channel/timer common/channel/signal
-CHANNEL_C_VPATH=common/channel/redis 
-CHANNEL_CPPFILES := $(foreach dir, $(CHANNEL_CPP_VPATH), $(wildcard $(dir)/*.cpp))
-CHANNEL_CFILES := $(foreach dir, $(CHANNEL_C_VPATH), $(wildcard $(dir)/*.c))
-CHANNEL_OBJECTS := $(patsubst %.cpp, %.o, $(CHANNEL_CPPFILES)) $(patsubst %.c, %.o, $(CHANNEL_CFILES))
-
-COMMON_VPATH=common/util common/util/exception  common/thread  common/redis common/buffer common/geo
+COMMON_VPATH=common/channel common/channel/socket common/channel/fifo common/channel/codec common/channel/timer common/channel/signal \
+             common/util common/util/exception  common/thread  common/redis common/buffer common/geo common/channel/redis
 COMMON_CPPFILES := $(foreach dir, $(COMMON_VPATH), $(wildcard $(dir)/*.cpp))
 COMMON_CFILES := $(foreach dir, $(COMMON_VPATH), $(wildcard $(dir)/*.c))
 COMMON_OBJECTS := $(patsubst %.cpp, %.o, $(COMMON_CPPFILES)) $(patsubst %.c, %.o, $(COMMON_CFILES))
@@ -139,18 +129,14 @@ COMMAND_VPATH=command
 COMMAND_CPPFILES := $(foreach dir, $(COMMAND_VPATH), $(wildcard $(dir)/*.cpp))
 COMMAND_OBJECTS := $(patsubst %.cpp, %.o, $(COMMAND_CPPFILES))
 
-REPL_VPATH=replication
-REPL_CPPFILES := $(foreach dir, $(REPL_VPATH), $(wildcard $(dir)/*.cpp))
-REPL_OBJECTS := $(patsubst %.cpp, %.o, $(REPL_CPPFILES))
+DB_VPATH=db
+DB_CPPFILES := $(foreach dir, $(DB_VPATH), $(wildcard $(dir)/*.cpp))
+DB_OBJECTS := $(patsubst %.cpp, %.o, $(DB_CPPFILES))
 
-CORE_OBJECTS := ardb.o codec.o comparator.o config.o cron.o logger.o iterator.o \
-                network.o options.o statistics.o cache/cache.o \
-                $(COMMON_OBJECTS) $(CHANNEL_OBJECTS) $(COMMAND_OBJECTS) $(REPL_OBJECTS) 
-
-LEVELDB_ENGINE :=  engine/leveldb_engine.o    
-ROCKSDB_ENGINE :=  engine/rocksdb_engine.o        
-LMDB_ENGINE :=  engine/lmdb_engine.o   
-WIREDTIGER_ENGINE :=  engine/wiredtiger_engine.o   
+CORE_OBJECTS := main.o config.o cron.o logger.o server.o statistics.o\
+                $(COMMON_OBJECTS)  $(COMMAND_OBJECTS) $(DB_OBJECTS) 
+  
+ROCKSDB_ENGINE :=  engine/rocksdb_engine.o          
 TESTOBJ := ../test/test_suite.o
 SERVEROBJ := main.o
 
@@ -208,7 +194,7 @@ endif
 
 #$(CORE_OBJECTS) $(SERVEROBJ) $(TESTOBJ): | $(ZOOKEEPER_PATH) $(STORAGE_ENGINE_PATH)
 
-all: ${PREBUILD} test server 
+all: ${PREBUILD}  test server 
 
 $(STORAGE_ENGINE_OBJ): $(STORAGE_ENGINE)
 
@@ -218,7 +204,7 @@ $(DIST_LIB): $(CORE_OBJECTS)
 $(DIST_LIBA):$(CORE_OBJECTS)
 	ar rcs $@ $^
 
-lib: $(DEP_LIBS) lua snappy $(storage_engine) $(DIST_LIBA)
+lib: $(DEP_LIBS) lua snappy sparsehash $(storage_engine) $(DIST_LIBA)
 
 server: ${STORAGE_ENGINE_OBJ} lib $(CORE_OBJECTS) ${SERVEROBJ}
 	${CXX} -o ardb-server $(SERVEROBJ)  $(CORE_OBJECTS) ${STORAGE_ENGINE_OBJ} $(LIBS)
@@ -233,9 +219,7 @@ $(JEMALLOC_LIBA):
 	cd ${LIB_PATH} && \
 	tar jxf ${JEMALLOC_FILE} && \
 	cd ${JEMALLOC_PATH} && \
-	patch < ../../jemalloc.patch && \
-	autoconf configure.ac > configure 2> autoconf.out && \
-	./configure ${XC_BUILD} ${XC_HOST} ${XC_TGT} > configure.out && \
+	./configure  && \
 	$(MAKE) build_lib_static && \
 	echo "<<<<< Done building JEMALLOC"
 
@@ -287,7 +271,7 @@ rocksdb: $(ROCKSDB_LIBA)
 $(ROCKSDB_LIBA): $(SNAPPY_LIBA) $(ROCKSDB_PATH)
 	echo ">>>>> Building ROCKSDB" && \
 	cd ${ROCKSDB_PATH} && \
-	CXXFLAGS="-I${SNAPPY_PATH} -O2 -DNDEBUG" CFLAGS="-I${SNAPPY_PATH}" LDFLAGS="${SNAPPY_PATH}/.libs" $(MAKE) librocksdb.a && \
+	CXXFLAGS="-I${SNAPPY_PATH} -O2 -DNDEBUG" CFLAGS="-I${SNAPPY_PATH}" LDFLAGS="${SNAPPY_PATH}/.libs" $(MAKE) static_lib && \
 	echo "<<<<< Done building ROCKSDB"
 
 $(ROCKSDB_PATH):
@@ -295,21 +279,6 @@ $(ROCKSDB_PATH):
 	cd ${LIB_PATH} && \
 	tar zxf ${ROCKSDB_FILE} && \
 	echo "<<<<< Done unpacking LEVELDB"
-	
-.PHONY: wiredtiger
-wiredtiger: $(WIREDTIGER_LIBA)
-$(WIREDTIGER_LIBA): $(SNAPPY_LIBA) $(WIREDTIGER_PATH)
-	echo ">>>>> Building WiredTiger" && \
-	cd ${WIREDTIGER_PATH} && \
-	CPPFLAGS="-I${SNAPPY_PATH}" LDFLAGS="-L${SNAPPY_PATH}/.libs" ./configure --enable-snappy --prefix=${WIREDTIGER_PATH}/build_dist && \
-	make && make install && \
-	echo "<<<<< Done building WiredTiger"
-
-$(WIREDTIGER_PATH):
-	echo ">>>>> Unpacking WiredTiger" && \
-	cd ${LIB_PATH} && \
-	tar jxf ${WIREDTIGER_FILE} && \
-	echo "<<<<< Done unpacking WiredTiger"
 
 .PHONY: lua
 lua: $(LUA_LIBA)
@@ -338,6 +307,15 @@ $(ZOOKEEPER_PATH):
 	patch < ../patch/zookeeper.configure.ac.patch && \
 	autoconf configure.ac > configure 2> autoconf.out && \
 	echo "<<<<<< Done unpacking ZOOKEEPER"
+
+.PHONY: sparsehash
+sparsehash: $(SPARSEHASH_CONFIG)
+$(SPARSEHASH_CONFIG):
+	echo ">>>>> Building sparsehash" && \
+	cd ${LIB_PATH}; tar zxvf ${SPARSEHASH_FILE};\
+	cd ${SPARSEHASH_PATH}; ./configure; \
+	${MAKE} src/sparsehash/internal/sparseconfig.h && \
+	echo ">>>>> Done building sparsehash"
 
 clean_launch_obj:
 	rm -f main.o

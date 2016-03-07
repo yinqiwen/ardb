@@ -33,15 +33,15 @@
 #include "thread/thread_local.hpp"
 #include "thread/spin_rwlock.hpp"
 #include "thread/spin_mutex_lock.hpp"
+#include "thread/thread_mutex_lock.hpp"
 #include "channel/all_includes.hpp"
 #include "command/lua_scripting.hpp"
-#include "concurrent.hpp"
 #include "db/engine.hpp"
 #include "statistics.hpp"
 #include "context.hpp"
 #include "config.hpp"
 #include "logger.hpp"
-
+#include <stack>
 #include <sparsehash/dense_hash_map>
 
 /* Command flags. Please check the command table defined in the redis.c file
@@ -89,16 +89,51 @@ OP_NAMESPACE_BEGIN
             {
                     bool operator()(const std::string& s1, const std::string& s2) const;
             };
+
+            struct KeyPrefix
+            {
+                    Data ns;
+                    Data key;
+                    bool operator<(const KeyPrefix& other) const
+                    {
+                        int cmp = ns.Compare(other.ns);
+                        if (cmp < 0)
+                        {
+                            return true;
+                        }
+                        if (cmp > 0)
+                        {
+                            return false;
+                        }
+                        return key < other.key;
+                    }
+            };
+
+            struct KeyLockGuard
+            {
+                    KeyObject& k;
+                    KeyLockGuard(KeyObject& key);
+                    ~KeyLockGuard();
+            };
+
         private:
-            Engine& m_engine;
-            LUAInterpreter m_lua;
+            Engine* m_engine;
+            ThreadLocal<LUAInterpreter> m_lua;
 
             typedef google::dense_hash_map<std::string, RedisCommandHandlerSetting, RedisCommandHash, RedisCommandEqual> RedisCommandHandlerSettingTable;
             RedisCommandHandlerSettingTable m_settings;
+            typedef TreeMap<KeyPrefix, ThreadMutexLock*>::Type LockTable;
+            typedef std::stack<ThreadMutexLock*> LockPool;
+            SpinMutexLock m_locking_keys_lock;
+            LockTable m_locking_keys;
+            LockPool m_lock_pool;
+
+            void LockKey(KeyObject& key);
+            void UnlockKey(KeyObject& key);
 
             void TryPushSlowCommand(const RedisCommandFrame& cmd, uint64 micros);
             void GetSlowlog(Context& ctx, uint32 len);
-
+            int ObjectLen(Context& ctx, KeyType type, const std::string& key);
 
             void FillInfoResponse(const std::string& section, std::string& info);
 
@@ -110,8 +145,29 @@ OP_NAMESPACE_BEGIN
             int PUnsubscribeAll(Context& ctx, bool notify);
             int PublishMessage(Context& ctx, const std::string& channel, const std::string& message);
 
+            int StringSet(Context& ctx, const std::string& key, const std::string& value, bool redis_compatible, int64_t px = -1, int8_t nx_xx = -1);
 
-            int StringSet(Context& ctx, const std::string& key, const std::string& value, int32_t ex = -1, int64_t px = -1, int8_t nx_xx = -1);
+            int ListPop(Context& ctx, RedisCommandFrame& cmd);
+            int ListPush(Context& ctx, RedisCommandFrame& cmd);
+
+            int MergeAppend(KeyObject& key, ValueObject& val, const std::string& append);
+            int MergeIncrBy(KeyObject& key, ValueObject& val, int64_t inc);
+            int MergeIncrByFloat(KeyObject& key, ValueObject& val, double inc);
+            int MergeSet(KeyObject& key, ValueObject& val, uint16_t op, const Data& data, int64_t ttl);
+            int MergeSetRange(KeyObject& key, ValueObject& val, int64_t offset, const std::string& range);
+            int MergeHSet(KeyObject& key, ValueObject& meta_value, const Data& field, const Data& value, bool inc_size, bool nx);
+            int MergeHDel(KeyObject& key, ValueObject& meta_value, const DataArray& fields);
+            int MergeHIncrby(KeyObject& key, ValueObject& value, uint16_t op, const Data& v);
+            int MergeHCreateMeta(KeyObject& key, ValueObject& value, const Data& v);
+            int MergeListPop(KeyObject& key, ValueObject& value, uint16_t op, Data& element);
+            int MergeListPush(KeyObject& key, ValueObject& value, uint16_t op, const DataArray& args);
+            int MergeSAdd(KeyObject& key, ValueObject& value, const DataArray& ms);
+            int MergeSRem(KeyObject& key, ValueObject& value, const DataArray& ms);
+            int MergeDel(KeyObject& key, ValueObject& value);
+            int MergeExpire(Context& ctx, const KeyObject& key, ValueObject& meta, int64 ms);
+
+            bool CheckMeta(Context& ctx, const std::string& key, KeyType expected);
+            bool CheckMeta(Context& ctx, const std::string& key, KeyType expected, ValueObject& meta);
 
 //            int GetScript(const std::string& funacname, std::string& funcbody);
 //            int SaveScript(const std::string& funacname, const std::string& funcbody);
@@ -121,8 +177,7 @@ OP_NAMESPACE_BEGIN
             int UnwatchKeys(Context& ctx);
             int AbortWatchKey(Context& ctx, const std::string& key);
 
-            int GenericExpire(Context& ctx, const KeyObject& key, uint64 ms);
-            int IncrDecrCommand(Context& ctx, const std::string& key, int64 incr);
+            int IncrDecrCommand(Context& ctx, RedisCommandFrame& cmd);
 
             int FireKeyChangedEvent(Context& ctx, const KeyObject& key);
 
@@ -218,7 +273,6 @@ OP_NAMESPACE_BEGIN
             int HGet(Context& ctx, RedisCommandFrame& cmd);
             int HGetAll(Context& ctx, RedisCommandFrame& cmd);
             int HIncrby(Context& ctx, RedisCommandFrame& cmd);
-            int HMIncrby(Context& ctx, RedisCommandFrame& cmd);
             int HIncrbyFloat(Context& ctx, RedisCommandFrame& cmd);
             int HKeys(Context& ctx, RedisCommandFrame& cmd);
             int HLen(Context& ctx, RedisCommandFrame& cmd);
@@ -309,10 +363,13 @@ OP_NAMESPACE_BEGIN
             int DoCall(Context& ctx, RedisCommandHandlerSetting& setting, RedisCommandFrame& cmd);
             RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(RedisCommandFrame& cmd);
             void RenameCommand();
+
+            friend class LUAInterpreter;
         public:
-            Ardb(Engine& engine);
+            Ardb();
             int Init();
             int Call(Context& ctx, RedisCommandFrame& cmd);
+            int MergeOperation(KeyObject& key, ValueObject& val, uint16_t op, const DataArray& args);
             ~Ardb();
     };
     extern Ardb* g_db;

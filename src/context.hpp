@@ -30,11 +30,9 @@
 #ifndef CONTEXT_HPP_
 #define CONTEXT_HPP_
 #include "common/common.hpp"
-#include "rocksdb_engine.hpp"
 #include "thread/thread_local.hpp"
 #include "channel/all_includes.hpp"
-#include "concurrent.hpp"
-#include "codec.hpp"
+#include "types.hpp"
 
 using namespace ardb::codec;
 OP_NAMESPACE_BEGIN
@@ -97,7 +95,7 @@ OP_NAMESPACE_BEGIN
             int transc_err;
             int64 sequence;  //recv command sequence in the server, start from 1
             Context() :
-                    authenticated(true), reply(NULL), current_cmd(NULL), client(NULL), transc(NULL), pubsub(NULL), dirty(0), transc_err(0), sequence(0)
+                    reply(NULL), authenticated(true), current_cmd(NULL), client(NULL), transc(NULL), pubsub(NULL), dirty(0), transc_err(0), sequence(0)
             {
                 ns.SetInt64(0);
             }

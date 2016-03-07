@@ -38,19 +38,16 @@
 OP_NAMESPACE_BEGIN
     int Ardb::PFAdd(Context& ctx, RedisCommandFrame& cmd)
     {
-
         return 0;
 
     }
     int Ardb::PFCount(Context& ctx, RedisCommandFrame& cmd)
     {
-
         return 0;
     }
 
     int Ardb::PFMerge(Context& ctx, RedisCommandFrame& cmd)
     {
-
         return 0;
     }
 

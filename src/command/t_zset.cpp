@@ -28,20 +28,17 @@
  */
 #include "db/db.hpp"
 #include <float.h>
-#include "geo/geohash_helper.hpp"
 
 OP_NAMESPACE_BEGIN
 
     int Ardb::ZAdd(Context& ctx, RedisCommandFrame& cmd)
     {
-
         return 0;
     }
 
     int Ardb::ZCard(Context& ctx, RedisCommandFrame& cmd)
     {
-
-        return 0;
+        return ObjectLen(ctx, KEY_ZSET, cmd.GetArguments()[0]);
     }
 
     int Ardb::ZCount(Context& ctx, RedisCommandFrame& cmd)

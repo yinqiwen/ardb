@@ -52,20 +52,17 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::Auth(Context& ctx, RedisCommandFrame& cmd)
     {
-//        if (m_cfg.requirepass.empty())
-//        {
-//            fill_error_reply(ctx.reply, "Client sent AUTH, but no password is set");
-//        }
-//        else if (m_cfg.requirepass != cmd.GetArguments()[0])
-//        {
-//            ctx.authenticated = false;
-//            fill_error_reply(ctx.reply, "invalid password");
-//        }
-//        else
-//        {
-//            ctx.authenticated = true;
-//            fill_status_reply(ctx.reply, "OK");
-//        }
+        RedisReply& reply = ctx.GetReply();
+        if (g_config->requirepass != cmd.GetArguments()[0])
+        {
+            ctx.authenticated = false;
+            reply.SetErrCode(ERR_AUTH_FAILED);
+        }
+        else
+        {
+            ctx.authenticated = true;
+            reply.SetStatusCode(STATUS_OK);
+        }
         return 0;
     }
 

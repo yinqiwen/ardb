@@ -30,7 +30,7 @@
 #ifndef NOVA_BufferHELPER_HPP_
 #define NOVA_BufferHELPER_HPP_
 #include "buffer.hpp"
-#include "slice.hpp"
+#include "types.hpp"
 #include <string>
 using std::string;
 #define MAX_BYTEARRAY_BUFFER_SIZE 4096

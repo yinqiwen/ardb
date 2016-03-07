@@ -30,7 +30,10 @@
 #include "lua_scripting.hpp"
 #include "logger.hpp"
 #include "util/rand.h"
-#include "thread/thread_mutex.hpp"
+#include "thread/lock_guard.hpp"
+#include "thread/spin_rwlock.hpp"
+#include "thread/spin_mutex_lock.hpp"
+#include "thread/thread_mutex_lock.hpp"
 #include <string.h>
 #include <limits>
 #include <math.h>
@@ -46,7 +49,20 @@ namespace ardb
         int (luaopen_cmsgpack)(lua_State *L);
     }
 
-    static ThreadMutex g_lua_mutex;
+    struct LuaExecContext
+    {
+            int64_t lua_time_start;
+            const char* lua_executing_func;
+            bool lua_timeout;
+            bool lua_kill;
+            Context* exec;
+            LuaExecContext() :
+                    lua_time_start(0), lua_executing_func(NULL), lua_timeout(false), lua_kill(false), exec(NULL)
+            {
+            }
+    };
+
+    //static ThreadMutex g_lua_mutex;
 
     /* Take a Redis reply in the Redis protocol format and convert it into a
      * Lua type. Thanks to this function, and the introduction of not connected
@@ -292,14 +308,70 @@ namespace ardb
         return 0;
     }
 
-
-
-    std::string LUAInterpreter::m_killing_func;
+    typedef TreeMap<std::string, std::string>::Type ScriptCache;
+    typedef TreeSet<LuaExecContext*>::Type ExecContextSet;
+    static SpinMutexLock g_lua_lock;
+    static ScriptCache g_script_cache;
+    static ExecContextSet g_script_ctxs;
 
     LUAInterpreter::LUAInterpreter() :
             m_lua(NULL)
     {
         Init();
+    }
+
+    static std::string* get_script_from_cache(const std::string& funcname)
+    {
+        LockGuard<SpinMutexLock> guard(g_lua_lock);
+        ScriptCache::iterator found = g_script_cache.find(funcname);
+        if (found == g_script_cache.end())
+        {
+            return NULL;
+        }
+        return &(found->second);
+    }
+
+    static void save_script_to_cache(const std::string& funcname, const std::string& body)
+    {
+        LockGuard<SpinMutexLock> guard(g_lua_lock);
+        if(body == "")
+        {
+            g_script_cache.erase(funcname);
+        }else
+        {
+            g_script_cache[funcname] = body;
+        }
+    }
+
+    static void clear_script_cache()
+    {
+        LockGuard<SpinMutexLock> guard(g_lua_lock);
+        g_script_cache.clear();
+    }
+
+    static void save_exec_ctx(LuaExecContext* ctx)
+    {
+        LockGuard<SpinMutexLock> guard(g_lua_lock);
+        g_script_ctxs.insert(ctx);
+    }
+    static void erase_exec_ctx(LuaExecContext* ctx)
+    {
+        LockGuard<SpinMutexLock> guard(g_lua_lock);
+        g_script_ctxs.erase(ctx);
+    }
+    static void kill_luafunc(const std::string& func)
+    {
+        LockGuard<SpinMutexLock> guard(g_lua_lock);
+        ExecContextSet::iterator it = g_script_ctxs.begin();
+        while (it != g_script_ctxs.end())
+        {
+            LuaExecContext* ctx = *it;
+            if (!strcmp(func.c_str(), ctx->lua_executing_func) || func == "")
+            {
+                ctx->lua_kill = true;
+            }
+            it++;
+        }
     }
 
     /* Define a lua function with the specified function name and body.
@@ -335,7 +407,7 @@ namespace ardb
         /* We also save a SHA1 -> Original script map in a dictionary
          * so that we can replicate / write in the AOF all the
          * EVALSHA commands as EVAL using the original script. */
-        //g_db->SaveScript(funcname, body);
+        save_script_to_cache(funcname, body);
         return 0;
     }
 
@@ -361,6 +433,20 @@ namespace ardb
     }
 
     static ThreadLocal<Context*> g_local_ctx;
+    static ThreadLocal<LuaExecContext*> g_lua_exec_ctx;
+
+    struct LuaExecContextGuard
+    {
+            LuaExecContext ctx;
+            LuaExecContextGuard()
+            {
+                g_lua_exec_ctx.SetValue(&ctx);
+            }
+            ~LuaExecContextGuard()
+            {
+                g_lua_exec_ctx.SetValue(NULL);
+            }
+    };
 
     int LUAInterpreter::CallArdb(lua_State *lua, bool raise_error)
     {
@@ -396,7 +482,6 @@ namespace ardb
         /* Setup our fake client for command execution */
 
         RedisCommandFrame cmd(cmdargs);
-        lower_string(cmd.GetMutableCommand());
         Ardb::RedisCommandHandlerSetting* setting = g_db->FindRedisCommandHandlerSetting(cmd);
         /* Command lookup */
         if (NULL == setting)
@@ -413,27 +498,25 @@ namespace ardb
         }
 
         //TODO consider forbid readonly slave to exec write cmd
+        LuaExecContext* ctx = g_lua_exec_ctx.GetValue();
+        Context* lua_ctx = ctx->exec;
+        RedisReply& reply = lua_ctx->GetReply();
+        g_db->DoCall(*lua_ctx, *setting, cmd);
+        if (raise_error && reply.type != REDIS_REPLY_ERROR)
+        {
+            raise_error = 0;
+        }
+        redisProtocolToLuaType(lua, reply);
 
-//        Context* ctx = g_local_ctx.GetValue();
-//        LUAInterpreter& interpreter = g_db->m_lua.GetValue();
-//        RedisReply& reply = ctx->reply;
-//        reply.Clear();
-//        g_db->DoCall(*ctx, *setting, cmd);
-//        if (raise_error && reply.type != REDIS_REPLY_ERROR)
-//        {
-//            raise_error = 0;
-//        }
-//        redisProtocolToLuaType(interpreter.m_lua, reply);
-//
-//        if (raise_error)
-//        {
-//            /* If we are here we should have an error in the stack, in the
-//             * form of a table with an "err" field. Extract the string to
-//             * return the plain error. */
-//            lua_pushstring(lua, "err");
-//            lua_gettable(lua, -2);
-//            return lua_error(lua);
-//        }
+        if (raise_error)
+        {
+            /* If we are here we should have an error in the stack, in the
+             * form of a table with an "err" field. Extract the string to
+             * return the plain error. */
+            lua_pushstring(lua, "err");
+            lua_gettable(lua, -2);
+            return lua_error(lua);
+        }
         return 1;
     }
 
@@ -572,25 +655,30 @@ namespace ardb
     {
         ARDB_NOTUSED(ar);
         ARDB_NOTUSED(lua);
-//        Context& ctx = *(g_local_ctx.GetValue());
-//        uint64 elapsed = get_current_epoch_millis() - ctx.GetLua().lua_time_start;
-//        if (elapsed >= (uint64) g_config->lua_time_limit && !ctx.GetLua().lua_timeout)
-//        {
-//            WARN_LOG(
-//                    "Lua slow script detected: %s still in execution after %llu milliseconds. You can try killing the script using the SCRIPT KILL command.",
-//                    ctx.GetLua().lua_executing_func, elapsed);
-//            ctx.GetLua().lua_timeout = true;
-//        }
-//        if (ctx.GetLua().lua_timeout && NULL != ctx.client)
-//        {
-//            ctx.client->GetService().Continue();
-//        }
-//        if (ctx.GetLua().lua_kill)
-//        {
-//            WARN_LOG("Lua script killed by user with SCRIPT KILL.");
-//            lua_pushstring(lua, "Script killed by user with SCRIPT KILL...");
-//            lua_error(lua);
-//        }
+        LuaExecContext* ctx = g_lua_exec_ctx.GetValue();
+        uint64 elapsed = get_current_epoch_millis() - ctx->lua_time_start;
+        if (elapsed >= (uint64) g_config->lua_time_limit && !ctx->lua_timeout)
+        {
+            WARN_LOG("Lua slow script detected: %s still in execution after %llu milliseconds. You can try killing the script using the SCRIPT KILL command.",
+                    ctx->lua_executing_func, elapsed);
+            ctx->lua_timeout = true;
+            if (NULL != ctx->exec->client)
+            {
+                Channel* client = ctx->exec->client->client;
+                client->DetachFD();
+            }
+        }
+        if (ctx->lua_timeout && NULL != ctx->exec->client)
+        {
+            Channel* client = ctx->exec->client->client;
+            client->GetService().Continue();
+        }
+        if (ctx->lua_kill)
+        {
+            WARN_LOG("Lua script killed by user with SCRIPT KILL.");
+            lua_pushstring(lua, "Script killed by user with SCRIPT KILL...");
+            lua_error(lua);
+        }
     }
 
     int LUAInterpreter::Init()
@@ -694,8 +782,10 @@ namespace ardb
 
     int LUAInterpreter::Eval(Context& ctx, const std::string& func, const StringArray& keys, const StringArray& args, bool isSHA1Func)
     {
-        DEBUG_LOG("Exec script:%s", func.c_str());
-        g_local_ctx.SetValue(&ctx);
+        RedisReply& reply = ctx.GetReply();
+        //DEBUG_LOG("Exec script:%s", func.c_str());
+        //g_local_ctx.SetValue(&ctx);
+        LuaExecContextGuard guard;
         redisSrand48(0);
         std::string err;
         std::string funcname = "f_";
@@ -704,9 +794,8 @@ namespace ardb
         {
             if (func.size() != 40)
             {
-//                reply.type = REDIS_REPLY_ERROR;
-//                reply.str = "-NOSCRIPT No matching script. Please use EVAL.";
-                return -1;
+                reply.SetErrCode(ERR_NOSCRIPT);
+                return 0;
             }
             funcname.append(func);
         }
@@ -725,24 +814,25 @@ namespace ardb
             /* Function not defined... let's define it if we have the
              * body of the function. If this is an EVALSHA call we can just
              * return an error. */
-            std::string cachedfunc;
             if (isSHA1Func)
             {
-//                if (g_db->GetScript(funcname, cachedfunc) != 0)
-//                {
-//                    lua_pop(m_lua, 1);
-//                    /* remove the error handler from the stack. */
-//                    reply.type = REDIS_REPLY_ERROR;
-//                    reply.str = "-NOSCRIPT No matching script. Please use EVAL.";
-//                    return -1;
-//                }
-                funptr = &cachedfunc;
+                funptr = get_script_from_cache(funcname);
+                if (NULL == funptr)
+                {
+                    lua_pop(m_lua, 1);
+                    /* remove the error handler from the stack. */
+                    reply.SetErrCode(ERR_NOSCRIPT);
+                    return 0;
+                }
+            }
+            else
+            {
+                save_script_to_cache(funcname, func);
             }
             if (CreateLuaFunction(funcname, *funptr, err))
             {
-//                reply.type = REDIS_REPLY_ERROR;
-//                reply.str = err;
-//                lua_pop(m_lua, 1);
+                reply.SetErrorReason(err);
+                lua_pop(m_lua, 1);
                 return -1;
             }
             lua_getglobal(m_lua, funcname.c_str());
@@ -759,49 +849,44 @@ namespace ardb
             lua_sethook(m_lua, MaskCountHook, LUA_MASKCOUNT, 100000);
             delhook = true;
         }
-//        ctx.GetLua().lua_time_start = get_current_epoch_millis();
-//        ctx.GetLua().lua_executing_func = funcname.c_str() + 2;
-//        ctx.GetLua().lua_kill = false;
+        guard.ctx.exec = &ctx;
+        guard.ctx.lua_time_start = get_current_epoch_millis();
+        guard.ctx.lua_executing_func = funcname.c_str() + 2;
+        guard.ctx.lua_kill = false;
+        save_exec_ctx(&guard.ctx);
 
 //        LockGuard<ThreadMutex> guard(g_lua_mutex, g_db->GetConfig().lua_exec_atomic); //only one transc allowed exec at the same time in multi threads
-//        int errid = lua_pcall(m_lua, 0, 1, -2);
-//        ctx.GetLua().lua_executing_func = NULL;
-//        if (delhook)
-//        {
-//            lua_sethook(m_lua, MaskCountHook, 0, 0); /* Disable hook */
-//        }
-//        if (ctx.GetLua().lua_timeout)
-//        {
-//            ctx.GetLua().lua_timeout = false;
-//        }
-//        lua_gc(m_lua, LUA_GCSTEP, 1);
-//
-//        if (errid)
-//        {
-//            reply.type = REDIS_REPLY_ERROR;
-//            char tmp[1024];
-//            snprintf(tmp, 1023, "Error running script (call to %s): %s\n", funcname.c_str(), lua_tostring(m_lua, -1));
-//            reply.str = tmp;
-//            lua_pop(m_lua, 2);
-//            /*  Consume the Lua reply and remove error handler. */
-//        }
-//        else
-//        {
-//            /* On success convert the Lua return value into Redis reply */
-//            reply.Clear();
-//            luaReplyToRedisReply(m_lua, reply);
-//            lua_pop(m_lua, 1); /* Remove the error handler. */
-//        }
-
+        int errid = lua_pcall(m_lua, 0, 1, -2);
+        erase_exec_ctx(&guard.ctx);
+        if (delhook)
+        {
+            lua_sethook(m_lua, MaskCountHook, 0, 0); /* Disable hook */
+        }
+        lua_gc(m_lua, LUA_GCSTEP, 1);
+        if (guard.ctx.lua_timeout)
+        {
+            if ( NULL != ctx.client)
+            {
+                Channel* client = ctx.client->client;
+                client->AttachFD();
+            }
+        }
+        if (errid)
+        {
+            char tmp[1024];
+            snprintf(tmp, 1023, "Error running script (call to %s): %s\n", funcname.c_str(), lua_tostring(m_lua, -1));
+            reply.SetErrorReason(tmp);
+            lua_pop(m_lua, 2);
+            /*  Consume the Lua reply and remove error handler. */
+        }
+        else
+        {
+            /* On success convert the Lua return value into Redis reply */
+            reply.Clear();
+            luaReplyToRedisReply(m_lua, reply);
+            lua_pop(m_lua, 1); /* Remove the error handler. */
+        }
         return 0;
-    }
-
-    bool LUAInterpreter::Exists(const std::string& sha)
-    {
-//        std::string funcname = "f_";
-//        funcname.append(sha);
-//        std::string funcbody;
-//        return g_db->GetScript(funcname, funcbody) == 0;
     }
 
     int LUAInterpreter::Load(const std::string& func, std::string& ret)
@@ -819,61 +904,6 @@ namespace ardb
         Init();
     }
 
-    int LUAInterpreter::Flush(Context& ctx)
-    {
-//        if (ctx.client != NULL)
-//        {
-//            ctx.client->GetService().FireUserEvent(SCRIPT_FLUSH_EVENT);
-//        }
-        //m_server->m_service->FireUserEvent(SCRIPT_FLUSH_EVENT);
-        return 0;
-    }
-
-    int LUAInterpreter::Kill(Context& ctx, const std::string& funcname)
-    {
-        m_killing_func = funcname;
-//        if (ctx.client != NULL)
-//        {
-//            ctx.client->GetService().FireUserEvent(SCRIPT_KILL_EVENT);
-//        }
-        return 0;
-    }
-
-    void LUAInterpreter::ScriptEventCallback(ChannelService* serv, uint32 ev, void* data)
-    {
-//        Context* ctx = g_local_ctx.GetValue();
-//        if (NULL == ctx)
-//        {
-//            //no connection
-//            return;
-//        }
-//        switch (ev)
-//        {
-//            case SCRIPT_FLUSH_EVENT:
-//            {
-//                LUAInterpreter& lua = g_db->m_lua.GetValue();
-//                lua.Reset();
-//                break;
-//            }
-//            case SCRIPT_KILL_EVENT:
-//            {
-//                if (ctx->GetLua().lua_executing_func != NULL)
-//                {
-//                    if (!strcasecmp(m_killing_func.c_str(), "all")
-//                            || !strcasecmp(m_killing_func.c_str(), ctx->GetLua().lua_executing_func))
-//                    {
-//                        ctx->GetLua().lua_kill = true;
-//                    }
-//                }
-//                break;
-//            }
-//            default:
-//            {
-//                break;
-//            }
-//        }
-    }
-
     LUAInterpreter::~LUAInterpreter()
     {
         lua_close(m_lua);
@@ -881,132 +911,118 @@ namespace ardb
 
     int Ardb::Eval(Context& ctx, RedisCommandFrame& cmd)
     {
-//        uint32 numkey = 0;
-//        if (!string_touint32(cmd.GetArguments()[1], numkey))
-//        {
-//            fill_error_reply(ctx.reply, "value is not an integer or out of range");
-//            return 0;
-//        }
-//        if (cmd.GetArguments().size() < numkey + 2)
-//        {
-//            fill_error_reply(ctx.reply, "Wrong number of arguments for Eval");
-//            return 0;
-//        }
-//        SliceArray keys, args;
-//        for (uint32 i = 2; i < numkey + 2; i++)
-//        {
-//            keys.push_back(cmd.GetArguments()[i]);
-//        }
-//        for (uint32 i = numkey + 2; i < cmd.GetArguments().size(); i++)
-//        {
-//            args.push_back(cmd.GetArguments()[i]);
-//        }
-//        LUAInterpreter& lua = m_lua.GetValue();
-//        lua.Eval(ctx, cmd.GetArguments()[0], keys, args, false, ctx.reply);
+        uint32 numkey = 0;
+        RedisReply& reply = ctx.GetReply();
+        if (!string_touint32(cmd.GetArguments()[1], numkey))
+        {
+            reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
+            //fill_error_reply(ctx.reply, "value is not an integer or out of range");
+            return 0;
+        }
+        if (cmd.GetArguments().size() < numkey + 2)
+        {
+            reply.SetErrCode(ERR_INVALID_SYNTAX);
+            //fill_error_reply(ctx.reply, "Wrong number of arguments for Eval");
+            return 0;
+        }
+        LUAInterpreter& interpreter = m_lua.GetValue();
+        StringArray keys, args;
+        for (uint32 i = 2; i < numkey + 2; i++)
+        {
+            keys.push_back(cmd.GetArguments()[i]);
+        }
+        for (uint32 i = numkey + 2; i < cmd.GetArguments().size(); i++)
+        {
+            args.push_back(cmd.GetArguments()[i]);
+        }
+        interpreter.Eval(ctx, cmd.GetArguments()[0], keys, args, cmd.GetType() == REDIS_CMD_EVALSHA);
         return 0;
     }
 
     int Ardb::EvalSHA(Context& ctx, RedisCommandFrame& cmd)
     {
-//        uint32 numkey = 0;
-//        if (!string_touint32(cmd.GetArguments()[1], numkey))
-//        {
-//            fill_error_reply(ctx.reply, "value is not an integer or out of range");
-//            return 0;
-//        }
-//        if (cmd.GetArguments().size() < numkey + 2)
-//        {
-//            fill_error_reply(ctx.reply, "Wrong number of arguments for Eval");
-//            return 0;
-//        }
-//        SliceArray keys, args;
-//        for (uint32 i = 2; i < numkey + 2; i++)
-//        {
-//            keys.push_back(cmd.GetArguments()[i]);
-//        }
-//        for (uint32 i = numkey + 2; i < cmd.GetArguments().size(); i++)
-//        {
-//            args.push_back(cmd.GetArguments()[i]);
-//        }
-//        LUAInterpreter& lua = m_lua.GetValue();
-//        lua.Eval(ctx, cmd.GetArguments()[0], keys, args, true, ctx.reply);
-        return 0;
+        return Eval(ctx, cmd);
     }
 
     int Ardb::Script(Context& ctx, RedisCommandFrame& cmd)
     {
-//        const std::string& subcommand = cmd.GetArguments()[0];
-//        if (!strcasecmp(subcommand.c_str(), "EXISTS"))
-//        {
-//            std::vector<int64> intarray;
-//            for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
-//            {
-//                bool exists = m_lua.GetValue().Exists(cmd.GetArguments()[i]);
-//                intarray.push_back(exists ? 1 : 0);
-//            }
-//            fill_int_array_reply(ctx.reply, intarray);
-//            return 0;
-//        }
-//        else if (!strcasecmp(subcommand.c_str(), "FLUSH"))
-//        {
-//            if (cmd.GetArguments().size() != 1)
-//            {
-//                fill_error_reply(ctx.reply, "wrong number of arguments for SCRIPT FLUSH");
-//            }
-//            else
-//            {
-//                m_lua.GetValue().Flush(ctx);
-//                FlushScripts(ctx);
-//                fill_status_reply(ctx.reply, "OK");
-//            }
-//        }
-//        /*
-//         * NOTE: 'SCRIPT KILL' may need func's sha1 as argument because ardb may run in multithreading mode,
-//         *       while more than ONE scripts may be running at the same time.
-//         *       Redis do NOT need the argument.
-//         */
-//        else if (!strcasecmp(subcommand.c_str(), "KILL"))
-//        {
-//            if (cmd.GetArguments().size() > 2)
-//            {
-//                fill_error_reply(ctx.reply, "wrong number of arguments for SCRIPT KILL");
-//            }
-//            else
-//            {
-//                if (cmd.GetArguments().size() == 2)
-//                {
-//                    m_lua.GetValue().Kill(ctx, cmd.GetArguments()[1]);
-//                }
-//                else
-//                {
-//                    m_lua.GetValue().Kill(ctx, "all");
-//                }
-//                fill_status_reply(ctx.reply, "OK");
-//            }
-//        }
-//        else if (!strcasecmp(subcommand.c_str(), "LOAD"))
-//        {
-//            if (cmd.GetArguments().size() != 2)
-//            {
-//                fill_error_reply(ctx.reply, "wrong number of arguments for SCRIPT LOAD");
-//            }
-//            else
-//            {
-//                std::string result;
-//                if (m_lua.GetValue().Load(cmd.GetArguments()[1], result))
-//                {
-//                    fill_str_reply(ctx.reply, result);
-//                }
-//                else
-//                {
-//                    fill_error_reply(ctx.reply, result.c_str());
-//                }
-//            }
-//        }
-//        else
-//        {
-//            fill_error_reply(ctx.reply, "Syntax error, try SCRIPT (EXISTS | FLUSH | KILL | LOAD)");
-//        }
+        RedisReply& reply = ctx.GetReply();
+        const std::string& subcommand = cmd.GetArguments()[0];
+        if (!strcasecmp(subcommand.c_str(), "EXISTS"))
+        {
+            reply.ReserveMember(0);
+            for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+            {
+                RedisReply& r = reply.AddMember();
+                std::string funcname = "f_";
+                funcname.append(cmd.GetArguments()[i]);
+                r.SetInteger(get_script_from_cache(funcname) != NULL ? 1 : 0);
+            }
+            return 0;
+        }
+        else if (!strcasecmp(subcommand.c_str(), "FLUSH"))
+        {
+            if (cmd.GetArguments().size() != 1)
+            {
+                reply.SetErrCode(ERR_INVALID_ARGS);
+                //fill_error_reply(ctx.reply, "wrong number of arguments for SCRIPT FLUSH");
+            }
+            else
+            {
+                clear_script_cache();
+                reply.SetStatusCode(STATUS_OK);
+            }
+        }
+        /*
+         * NOTE: 'SCRIPT KILL' may need func's sha1 as argument because ardb may run in multithreading mode,
+         *       while more than ONE scripts may be running at the same time.
+         *       Redis do NOT need the argument.
+         */
+        else if (!strcasecmp(subcommand.c_str(), "KILL"))
+        {
+            if (cmd.GetArguments().size() > 2)
+            {
+                //fill_error_reply(ctx.reply, "wrong number of arguments for SCRIPT KILL");
+                reply.SetErrCode(ERR_INVALID_ARGS);
+            }
+            else
+            {
+                if (cmd.GetArguments().size() == 2)
+                {
+                    kill_luafunc(cmd.GetArguments()[1]);
+                }
+                else
+                {
+                    kill_luafunc("");
+                }
+                reply.SetStatusCode(STATUS_OK);
+            }
+        }
+        else if (!strcasecmp(subcommand.c_str(), "LOAD"))
+        {
+            if (cmd.GetArguments().size() != 2)
+            {
+                reply.SetErrCode(ERR_INVALID_ARGS);
+                //fill_error_reply(ctx.reply, "wrong number of arguments for SCRIPT LOAD");
+            }
+            else
+            {
+                std::string result;
+                if (m_lua.GetValue().Load(cmd.GetArguments()[1], result))
+                {
+                    reply.SetString(result);
+                }
+                else
+                {
+                    reply.SetErrorReason(result);
+                }
+            }
+        }
+        else
+        {
+            reply.SetErrCode(ERR_INVALID_SYNTAX);
+            //fill_error_reply(ctx.reply, "Syntax error, try SCRIPT (EXISTS | FLUSH | KILL | LOAD)");
+        }
         return 0;
     }
 }

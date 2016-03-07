@@ -140,23 +140,13 @@ int main(int argc, char** argv)
     }
     ArdbLogger::InitDefaultLogger(cfg.loglevel, cfg.logfile);
     g_config = &cfg;
-    Engine* engine = NULL;
-    if (1)
-    {
-        //RocksDBEngine* rocksdb = new RocksDBEngine;
-        //engine = rocksdb;
-    }
 
-    Ardb db(*engine);
+    Ardb db;
     if (db.Init() == 0)
     {
-        Server server(db);
+        Server server;
         server.Start();
     }
-    else
-    {
-    }
-    DELETE(engine);
     ArdbLogger::DestroyDefaultLogger();
     return 0;
 }

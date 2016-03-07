@@ -36,8 +36,8 @@ extern "C"
 #include <lauxlib.h>
 #include <lualib.h>
 }
-#include "concurrent.hpp"
 #include "context.hpp"
+
 
 using namespace ardb::codec;
 
@@ -47,8 +47,6 @@ namespace ardb
     {
         private:
             lua_State *m_lua;
-
-            static std::string m_killing_func;
 
             static int CallArdb(lua_State *lua, bool raise_error);
             static int PCall(lua_State *lua);
@@ -69,13 +67,8 @@ namespace ardb
         public:
             LUAInterpreter();
             int Eval(Context& ctx, const std::string& func, const StringArray& keys, const StringArray& args, bool isSHA1Func);
-
-            bool Exists(const std::string& sha);
             int Load(const std::string& func, std::string& ret);
-            int Flush(Context& ctx);
-            int Kill(Context& ctx, const std::string& funcname);
 
-            static void ScriptEventCallback(ChannelService* serv, uint32 ev, void* data);
             ~LUAInterpreter();
     };
 }

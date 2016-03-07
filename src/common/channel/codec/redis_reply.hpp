@@ -31,6 +31,7 @@
 #define REDIS_REPLY_HPP_
 
 #include "common.hpp"
+#include "types.hpp"
 #include <deque>
 #include <vector>
 #include <string>
@@ -106,25 +107,19 @@ namespace ardb
                         type(REDIS_REPLY_STRING), str(v), integer(0), elements(NULL), pool(NULL)
                 {
                 }
-
+                long double GetDouble();
+                void SetDouble(long double v);
                 void SetInteger(int64_t v)
                 {
                     type = REDIS_REPLY_INTEGER;
                     integer = v;
                 }
-                void SetDouble(double v)
-                {
-
-                }
-
-                template<typename T>
-                void SetString(const T& v)
+                void SetString(const Data& v)
                 {
                     type = REDIS_REPLY_STRING;
                     v.ToString(str);
                 }
 
-                template<>
                 void SetString(const std::string& v)
                 {
                     type = REDIS_REPLY_STRING;

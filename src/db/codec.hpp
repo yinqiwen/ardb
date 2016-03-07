@@ -34,84 +34,34 @@
 #include "buffer/buffer.hpp"
 #include "util/sds.h"
 #include "util/string_helper.hpp"
-#include "slice.hpp"
+#include "types.hpp"
+#include <assert.h>
 #include <deque>
 
 OP_NAMESPACE_BEGIN
 
     enum KeyType
     {
-        KEY_UNKNOWN, KEY_STRING = 2, KEY_HASH = 4, KEY_LIST_META = 5, KEY_LIST = 6, KEY_SET = 8, KEY_ZSET_SORT = 9, KEY_ZSET_SCORE = 10,
+        KEY_UNKNOWN,
+
+        KEY_META = 1,
+
+        KEY_STRING = 2,
+
+        KEY_HASH = 3, KEY_HASH_FIELD = 4,
+
+        KEY_LIST = 5, KEY_LIST_ELEMENT = 6,
+
+        KEY_SET = 7, KEY_SET_MEMBER = 8,
+
+        KEY_ZSET = 9, KEY_ZSET_SORT = 10, KEY_ZSET_SCORE = 11,
         /*
          * Reserver 20 types
          */
 
-        KEY_TTL_SORT = 33, KEY_TTL_VALUE = 34,
+        KEY_TTL_SORT = 33,
 
         KEY_END = 255, /* max value for 1byte */
-    };
-
-    struct Data
-    {
-            int64_t data;
-            unsigned encoding :3;
-            unsigned len :29;
-
-            Data();
-            Data(const std::string& v, bool try_int_encoding);
-            Data(const Data& data);
-            Data& operator=(const Data& data);
-            ~Data();
-
-            void Encode(Buffer& buf) const;
-            bool Decode(Buffer& buf, bool clone_str);
-
-            void SetString(const std::string& str, bool try_int_encoding);
-            void SetInt64(int64 v);
-            void SetDouble(double v);
-            int64 GetInt64() const;
-            bool GetDouble(double& v) const;
-
-            void Clone(const Data& data);
-            int Compare(const Data& other, bool alpha_cmp = false) const;
-            bool operator <(const Data& other) const
-            {
-                return Compare(other) < 0;
-            }
-            bool operator <=(const Data& other) const
-            {
-                return Compare(other) <= 0;
-            }
-            bool operator ==(const Data& other) const
-            {
-                return Compare(other) == 0;
-            }
-            bool operator >=(const Data& other) const
-            {
-                return Compare(other) >= 0;
-            }
-            bool operator >(const Data& other) const
-            {
-                return Compare(other) > 0;
-            }
-            bool operator !=(const Data& other) const
-            {
-                return Compare(other) != 0;
-            }
-            bool IsInteger() const;
-            uint32 StringLength() const;
-            void Clear();
-            const char* CStr() const;
-            const std::string& ToString(std::string& str) const;
-    };
-
-    struct DataHash
-    {
-            size_t operator()(const Data& t) const;
-    };
-    struct DataEqual
-    {
-            bool operator()(const Data& s1, const Data& s2) const;
     };
 
     struct KeyObject
@@ -120,114 +70,284 @@ OP_NAMESPACE_BEGIN
             Data ns; //namespace
             uint8 type;
             Data key;
-            Data element;
-            double score;
-            uint8 ttl_key_type;
+            DataArray elements;
 
             Buffer encode_buffer;
             inline void clearEncodeBuffer()
             {
                 encode_buffer.Clear();
             }
-            void setElement(const Data& data)
+
+            Data& getElement(uint32_t idx)
             {
-                element = data;
+                clearEncodeBuffer();
+                if (elements.size() <= idx)
+                {
+                    elements.resize(idx + 1);
+                }
+                return elements[idx];
+            }
+            void setElement(const Data& data, uint32_t idx)
+            {
+                getElement(idx).Clone(data);
             }
         public:
-            KeyObject(const Data& nns, uint8 t = KEY_STRING, const std::string& data = "") :
-                    ns(nns), type(t), score(0), ttl_key_type(0)
+            KeyObject():type(0)
+            {
+            }
+            KeyObject(const Data& nns, uint8 t, const std::string& data) :
+                    ns(nns), type(t)
             {
                 key.SetString(data, false);
             }
-            KeyObject(const Data& nns, uint8 t = KEY_STRING, const Data& key_data) :
-                    ns(nns), type(t), key(key_data), score(0), ttl_key_type(0)
+            KeyObject(const Data& nns, uint8 t, const Data& key_data) :
+                    ns(nns), type(t), key(key_data)
             {
             }
-            const Data& GetStringKey() const
+            const Data& GetNameSpace() const
+            {
+                return ns;
+            }
+            const Data& GetElement(int idx) const
+            {
+                return elements.at(idx);
+            }
+            const Data& GetKey() const
             {
                 return key;
             }
-            KeyType GetKeyType() const
+            KeyType GetType() const
             {
                 return (KeyType) type;
             }
-
+            void SetHashField(const std::string& v)
+            {
+                getElement(0).SetString(v, true);
+            }
             void SetHashField(const Data& v)
             {
-                setElement(v);
+                getElement(0).Clone(v);
+                //setElement(v, 0);
             }
-            void SetListIndex(double idx)
+            const Data& GetHashField() const
             {
-                this->score = idx;
+                return GetElement(0);
+            }
+            const Data& GetSetMember() const
+            {
+                return GetElement(0);
+            }
+            void SetListIndex(long double idx)
+            {
+                setElement(idx, 0);
+            }
+            long double GetListIndex()
+            {
+                return GetElement(0).GetFloat64();
             }
             void SetSetMember(const Data& v)
             {
-                setElement(v);
+                setElement(v, 0);
+            }
+            void SetSetMember(const std::string& v)
+            {
+                getElement(0).SetString(v, true);
             }
             void SetZSetMember(const Data& v)
             {
-                setElement(v);
+                if (type == KEY_ZSET_SCORE)
+                {
+                    setElement(v, 0);
+                }
+                else
+                {
+                    setElement(v, 1);
+                }
             }
-            void SetZSetScore(double score)
+            void SetZSetScore(long double score)
             {
-                this->score = score;
+                setElement(score, 0);
             }
-            void SetTTLKeyType(KeyType t)
+
+            void SetTTL(int64_t ms)
             {
-                ttl_key_type = t;
+                assert(type == KEY_TTL_SORT);
+                key.SetInt64(ms);
             }
-            int Compare(const KeyObject& other);
+            void SetTTLKey(const Data& k)
+            {
+                if (type == KEY_TTL_SORT)
+                {
+                    setElement(k, 0);
+                }
+                else
+                {
+                    key = k;
+                }
+            }
+            //int Compare(const KeyObject& other);
 
-            Buffer& Encode();
-            bool Decode(Buffer& buffer);
+            Slice Encode();
+            bool DecodeNS(Buffer& buffer, bool clone_str);
+            bool DecodeType(Buffer& buffer);
+            bool DecodeKey(Buffer& buffer, bool clone_str);
+            int DecodeElementLength(Buffer& buffer);
+            bool DecodeElement(Buffer& buffer, bool clone_str, int idx);
+            bool Decode(Buffer& buffer, bool clone_str);
 
-            void Clear();
             ~KeyObject()
             {
             }
     };
 
-    struct ListMeta
+    struct Meta
     {
-            int64_t min_idx;
-            int64_t max_idx;
-            size_t size;
+            int64_t ttl;
+            char reserved[8];
+            Meta() :
+                    ttl(0)
+            {
+            }
+    };
+
+    typedef Meta StringMeta;
+
+    struct MKeyMeta: public Meta
+    {
+            int64_t size;
+            MKeyMeta() :
+                    size(-1)
+            {
+            }
+    };
+    typedef MKeyMeta HashMeta;
+    typedef MKeyMeta SetMeta;
+    typedef MKeyMeta ZSetMeta;
+
+    struct ListMeta: public MKeyMeta
+    {
             bool sequencial;
+            ListMeta() :
+                    sequencial(true)
+            {
+            }
     };
 
     class ValueObject
     {
         private:
-            Data value;
-            ListMeta list_meta;
-            double score;
-            uint8 key_type;
+            uint8 type;
+            DataArray vals;
+            Data& getElement(uint32_t idx)
+            {
+                if (vals.size() <= idx)
+                {
+                    vals.resize(idx + 1);
+                }
+                return vals[idx];
+            }
         public:
-            ValueObject(uint8 ktype = 0) :
-                    score(0), key_type(ktype)
+            ValueObject() :
+                    type(0)
             {
             }
-            Data& GetStringValue();
-            void SetStringValue(const std::string& str);
-            Data& GetHashValue();
-            Data& GetListElement();
-            double GetZSetScore();
+            void Clear()
+            {
+                type = 0;
+                vals.clear();
+            }
+            uint8 GetType()
+            {
+                return type;
+            }
+            void SetType(uint8 t)
+            {
+                type = t;
+            }
+            Meta& GetMeta();
+            MKeyMeta& GetMKeyMeta();
             ListMeta& GetListMeta();
+            HashMeta& GetHashMeta();
+            SetMeta& GetSetMeta();
+            ZSetMeta& GetZSetMeta();
+            int64 GetObjectLen()
+            {
+                return GetMKeyMeta().size;
+            }
+            void SetObjectLen(int64 v)
+            {
+                GetMKeyMeta().size = v;
+            }
+            Data& GetStringValue()
+            {
+                return getElement(1);
+            }
+            void SetHashValue(const Data& v)
+            {
+                getElement(0).Clone(v);
+            }
+            void SetHashValue(const std::string& v)
+            {
+                getElement(0).SetString(v, true);
+            }
+            void SetListElement(const std::string& v)
+            {
+                getElement(0).SetString(v, true);
+            }
+            void SetListElement(const Data& v)
+            {
+                getElement(0).Clone(v);
+            }
+            bool SetMinMaxData(const Data& v);
+            Data& GetMin()
+            {
+                return getElement(1);
+            }
+            Data& GetMax()
+            {
+                return getElement(2);
+            }
+            int64 GetListMinIdx()
+            {
+                return GetMin().GetInt64();
+            }
+            int64 GetListMaxIdx()
+            {
+                return GetMax().GetInt64();
+            }
+            void SetListMaxIdx(int64 v)
+            {
+                GetMin().SetInt64(v);
+            }
+            void SetListMinIdx(int64 v)
+            {
+                GetMax().SetInt64(v);
+            }
+            Data& GetHashValue()
+            {
+                return getElement(0);
+            }
+            Data& GetListElement()
+            {
+                return getElement(0);
+            }
+            int64_t GetTTL();
+            void SetTTL(int64_t v);
+            double GetZSetScore()
+            {
+                return getElement(0).GetFloat64();
+            }
+            void SetZSetScore(double s)
+            {
+                getElement(0).SetFloat64(s);
+            }
+            Slice Encode(Buffer& buffer) const;
+            bool Decode(Buffer& buffer, bool clone_str);
     };
 
-    typedef std::vector<Data> DataArray;
-    struct MergeOperation
-    {
-            uint16 op;
-            DataArray values;
-            Data& Add()
-            {
-                values.resize(values.size() + 1);
-                return values[values.size() - 1];
-            }
-            bool Decode(Buffer& buffer);
-            void Encode(Buffer& buffer);
-    };
+    int encode_merge_operation(Buffer& buffer, uint16_t op, const DataArray& args);
+    int decode_merge_operation(Buffer& buffer, uint16_t& op, DataArray& args);
+    KeyType element_type(KeyType type);
 
     typedef std::vector<KeyObject> KeyObjectArray;
     typedef std::vector<ValueObject> ValueObjectArray;

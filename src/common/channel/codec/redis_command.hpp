@@ -111,7 +111,6 @@ namespace ardb
             REDIS_CMD_HGET = 68,
             REDIS_CMD_HGETALL = 69,
             REDIS_CMD_HINCR = 70,
-            REDIS_CMD_HMINCRBY = 71,
             REDIS_CMD_HINCRBYFLOAT = 72,
             REDIS_CMD_HKEYS = 73,
             REDIS_CMD_HLEN = 74,
@@ -213,9 +212,37 @@ namespace ardb
             REDIS_CMD_ZREMRANGEBYLEX = 174,
 
             REDIS_CMD_SETXX = 175,
-            REDIS_CMD_STRING_DEL = 176,
 
             REDIS_CMD_CLUSTER = 177,  //used in cluster mode
+
+            REDIS_CMD_MERGE_BEGIN = 1000,
+            REDIS_CMD_APPEND2 = 1001,
+            REDIS_CMD_INCRBY2 = 1002,
+            REDIS_CMD_INCRBYFLOAT2 = 1003,
+            REDIS_CMD_INCR2 = 1004,
+            REDIS_CMD_DECR2 = 1005,
+            REDIS_CMD_DECRBY2 = 1006,
+            REDIS_CMD_SETNX2 = 1007,
+            REDIS_CMD_SET2 = 1008,
+            REDIS_CMD_SETEANGE2 = 1009,
+            REDIS_CMD_HSET2 = 1010,
+            REDIS_CMD_HSETNX2 = 1011,
+            REDIS_CMD_HMSET2 = 1012,
+            REDIS_CMD_HINCR2 = 1013,
+            REDIS_CMD_HMETA_CREATE = 1014, // not a real command, just a internal merge operation indicator
+            REDIS_CMD_LPUSH2 = 1015,
+            REDIS_CMD_LPUSHX2 = 1016,
+            REDIS_CMD_RPUSH2 = 1017,
+            REDIS_CMD_RPUSHX2 = 1018,
+            REDIS_CMD_SREM2 = 1019,
+            REDIS_CMD_SADD2 = 1020,
+            REDIS_CMD_DEL2 = 1021,
+            REDIS_CMD_MSET2 = 1022,
+            REDIS_CMD_MSETNX2 = 1023,
+            REDIS_CMD_PEXPIREAT2 = 1024,
+            REDIS_CMD_EXPIREAT2 = 1025,
+            REDIS_CMD_EXPIRE2 = 1026,
+            REDIS_CMD_PEXPIRE2 = 1027,
         };
 
         class RedisCommandDecoder;
@@ -274,9 +301,9 @@ namespace ardb
                     {
                         if (!merge_str.empty())
                         {
-                            if(pch[strlen(pch) -1] == '"')
+                            if (pch[strlen(pch) - 1] == '"')
                             {
-                                merge_str.append(" ").append(pch, strlen(pch) -1);
+                                merge_str.append(" ").append(pch, strlen(pch) - 1);
                                 m_args.push_back(merge_str);
                                 merge_str.clear();
                             }
@@ -290,7 +317,8 @@ namespace ardb
                             if (pch[0] == '"')
                             {
                                 merge_str = pch + 1;
-                            }else
+                            }
+                            else
                             {
                                 m_args.push_back(std::string(pch));
                             }

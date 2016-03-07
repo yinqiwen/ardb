@@ -74,7 +74,7 @@ bool RedisReplyEncoder::Encode(Buffer& buf, RedisReply& reply)
         case REDIS_REPLY_DOUBLE:
         {
             std::string doubleStrValue;
-            fast_dtoa(reply.double_value, 9, doubleStrValue);
+            fast_dtoa(reply.GetDouble(), 9, doubleStrValue);
             buf.Printf("$%d\r\n", doubleStrValue.size());
             buf.Printf("%s\r\n", doubleStrValue.c_str());
             break;

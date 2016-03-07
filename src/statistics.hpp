@@ -31,6 +31,7 @@
 
 #include "common/common.hpp"
 #include "util/atomic.hpp"
+#include "util/time_helper.hpp"
 #include "thread/spin_mutex_lock.hpp"
 #include "thread/lock_guard.hpp"
 #include "util/string_helper.hpp"
@@ -127,7 +128,7 @@ OP_NAMESPACE_BEGIN
     class Statistics
     {
         private:
-            typedef TreeMap<std::string, Track*> TrackTable;
+            typedef TreeMap<std::string, Track*>::Type TrackTable;
             TrackTable m_tracks;
             Statistics();
         public:

@@ -29,6 +29,58 @@
 #include "db/db.hpp"
 
 OP_NAMESPACE_BEGIN
+    int Ardb::ObjectLen(Context& ctx, KeyType type, const std::string& keystr)
+    {
+        RedisReply& reply = ctx.GetReply();
+        KeyObject key(ctx.ns, KEY_META, keystr);
+        ValueObject meta;
+        int err = m_engine->Get(ctx, key, meta);
+        if (err != 0)
+        {
+            if (err != ERR_ENTRY_NOT_EXIST)
+            {
+                reply.SetErrCode(err);
+            }
+            else
+            {
+                reply.SetInteger(0);
+            }
+        }
+        else
+        {
+            if (meta.GetType() != type)
+            {
+                reply.SetErrCode(ERR_INVALID_TYPE);
+            }
+            else
+            {
+                if (meta.GetObjectLen() >= 0)
+                {
+                    reply.SetInteger(meta.GetObjectLen());
+                }
+                else
+                {
+                    KeyType ele_type = element_type(type);
+                    int64_t len = 0;
+                    KeyObject key(ctx.ns, ele_type, keystr);
+                    Iterator* iter = m_engine->Find(ctx, key);
+                    while (NULL != iter && iter->Valid())
+                    {
+                        KeyObject& field = iter->Key();
+                        if (field.GetType() != ele_type || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != field.GetKey())
+                        {
+                            break;
+                        }
+                        len++;
+                        iter->Next();
+                    }
+                    DELETE(iter);
+                    reply.SetInteger(len);
+                }
+            }
+        }
+        return 0;
+    }
     int Ardb::KeysCount(Context& ctx, RedisCommandFrame& cmd)
     {
         return 0;
@@ -60,12 +112,58 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::Move(Context& ctx, RedisCommandFrame& cmd)
     {
-
         return 0;
     }
 
     int Ardb::Type(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
+        KeyObject meta_key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
+        ValueObject meta_value;
+        int err = m_engine->Get(ctx, meta_key, meta_value);
+        if (err != 0 && err != ERR_ENTRY_NOT_EXIST)
+        {
+            reply.SetErrCode(err);
+            return false;
+        }
+        switch (meta_value.GetType())
+        {
+            case 0:
+            {
+                reply.SetString("none");
+                break;
+            }
+            case KEY_HASH:
+            {
+                reply.SetString("hash");
+                break;
+            }
+            case KEY_LIST:
+            {
+                reply.SetString("list");
+                break;
+            }
+            case KEY_SET:
+            {
+                reply.SetString("set");
+                break;
+            }
+            case KEY_ZSET:
+            {
+                reply.SetString("zset");
+                break;
+            }
+            case KEY_STRING:
+            {
+                reply.SetString("string");
+                break;
+            }
+            default:
+            {
+                reply.SetString("invalid");
+                break;
+            }
+        }
         return 0;
     }
 
@@ -74,52 +172,194 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::GenericExpire(Context& ctx, const KeyObject& key, uint64 ms)
+
+    int Ardb::MergeExpire(Context& ctx, const KeyObject& key, ValueObject& meta, int64 ms)
     {
+        if(meta.GetType() == 0)
+        {
+            return ERR_NOTPERFORMED;
+        }
         int64 ttl = ms + get_current_epoch_millis();
-        KeyObject ttl_key(ctx.ns, key.GetStringKey(), KEY_TTL_VALUE);
-
-        MergeOperation op;
-        op.op = REDIS_CMD_PEXPIREAT;
-        op.Add().SetInt64(key.GetKeyType());
-        op.Add().SetInt64(ms);
-        return m_engine.Merge(ctx, ttl_key, op);
-    }
-
-    int Ardb::PExpire(Context& ctx, RedisCommandFrame& cmd)
-    {
+        if (meta.GetTTL() == 0)
+        {
+            meta.SetTTL(ttl);
+        }
+        else
+        {
+            KeyObject ttl_sort(key.GetNameSpace(), KEY_TTL_SORT, meta.GetTTL());
+            ttl_sort.SetTTLKey(key.GetKey());
+            m_engine->Del(ctx, ttl_sort);
+        }
+        KeyObject ttl_sort(key.GetNameSpace(), KEY_TTL_SORT, ttl);
+        ValueObject empty;
+        m_engine->Put(ctx, ttl_sort, empty);
+        meta.SetTTL(ttl);
         return 0;
     }
     int Ardb::PExpireat(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
+        int64 mills;
+        if (!string_toint64(cmd.GetArguments()[1], mills) || mills <= 0)
+        {
+            reply.SetErrCode(ERR_OUTOFRANGE);
+            return 0;
+        }
+        switch(cmd.GetType())
+        {
+            case REDIS_CMD_PEXPIREAT:
+            case REDIS_CMD_PEXPIREAT2:
+            {
+                break;
+            }
+            case REDIS_CMD_EXPIREAT:
+            case REDIS_CMD_EXPIREAT2:
+            {
+                mills *= 1000;
+                break;
+            }
+            case REDIS_CMD_EXPIRE:
+            case REDIS_CMD_EXPIRE2:
+            {
+                mills *= 1000;
+                mills  += get_current_epoch_millis();
+                break;
+            }
+            case REDIS_CMD_PEXPIRE:
+            case REDIS_CMD_PEXPIRE2:
+            {
+                mills  += get_current_epoch_millis();
+                break;
+            }
+            default:
+            {
+                abort();
+            }
+        }
+        KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
+        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN && !g_config->redis_compatible)
+        {
+            Data merge_data;
+            merge_data.SetInt64(mills);
+            m_engine->Merge(ctx, key, REDIS_CMD_PEXPIREAT, merge_data);
+            reply.SetStatusCode(STATUS_OK);
+            return 0;
+        }
         return 0;
     }
-    int Ardb::PTTL(Context& ctx, RedisCommandFrame& cmd)
+    int Ardb::PExpire(Context& ctx, RedisCommandFrame& cmd)
     {
-        return 0;
+        return PExpireat(ctx, cmd);
     }
-    int Ardb::TTL(Context& ctx, RedisCommandFrame& cmd)
-    {
-        return 0;
-    }
-
     int Ardb::Expire(Context& ctx, RedisCommandFrame& cmd)
     {
-        return 0;
+        return PExpireat(ctx, cmd);
     }
 
     int Ardb::Expireat(Context& ctx, RedisCommandFrame& cmd)
     {
+        return PExpireat(ctx, cmd);
+    }
+
+    int Ardb::PTTL(Context& ctx, RedisCommandFrame& cmd)
+    {
+        RedisReply& reply = ctx.GetReply();
+        reply.SetInteger(0);  //default response
+        KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
+        ValueObject val;
+        int err = m_engine->Get(ctx, key, val);
+        if (0 != err)
+        {
+            if (err != ERR_ENTRY_NOT_EXIST)
+            {
+                reply.SetErrCode(err);
+            }
+            return 0;
+        }
+        if (cmd.GetType() == REDIS_CMD_PTTL)
+        {
+            reply.SetInteger(val.GetTTL());
+        }
+        else
+        {
+            reply.SetInteger(val.GetTTL() / 1000);
+        }
         return 0;
+    }
+    int Ardb::TTL(Context& ctx, RedisCommandFrame& cmd)
+    {
+        return PTTL(ctx, cmd);
     }
 
     int Ardb::Exists(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
+        const std::string& keystr = cmd.GetArguments()[0];
+        KeyObject key(ctx.ns, KEY_META, keystr);
+        bool existed = m_engine->Exists(ctx, key);
+        reply.SetInteger(existed ? 1 : 0);
+        return 0;
+    }
+
+    int Ardb::MergeDel(KeyObject& key, ValueObject& value)
+    {
+        if (value.GetType() == 0)
+        {
+            return ERR_NOTPERFORMED;
+        }
+        Context tmpctx;
+        switch (value.GetType())
+        {
+            case KEY_STRING:
+            {
+                break;
+            }
+            case KEY_HASH:
+            {
+                break;
+            }
+            case KEY_SET:
+            {
+                break;
+            }
+            case KEY_LIST:
+            {
+                break;
+            }
+            case KEY_ZSET:
+            {
+                break;
+            }
+            default:
+            {
+                abort();
+            }
+        }
+        m_engine->Del(tmpctx, key);
+        if (value.GetTTL() > 0)
+        {
+            KeyObject ttl_key(key.GetNameSpace(), KEY_TTL_SORT, value.GetTTL());
+            ttl_key.SetTTLKey(key.GetKey());
+            m_engine->Del(tmpctx, ttl_key);
+        }
         return 0;
     }
 
     int Ardb::Del(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
+        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN && !g_config->redis_compatible)
+        {
+            for (size_t i = 0; i < cmd.GetArguments().size(); i++)
+            {
+                KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[i]);
+                Data empty;
+                m_engine->Merge(ctx, key, cmd.GetType(), empty);
+            }
+            reply.SetStatusCode(STATUS_OK);
+            return 0;
+        }
+
         return 0;
     }
 
