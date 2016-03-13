@@ -121,6 +121,8 @@ OP_NAMESPACE_BEGIN
 
             std::string masterauth;
 
+            std::string rocksdb_options;
+
             ArdbConfig() :
                     daemonize(false), max_open_files(100000), tcp_keepalive(0), timeout(0), engine("rocksdb"), slowlog_log_slower_than(10000), slowlog_max_len(
                             128), repl_data_dir("./repl"), backup_dir("./backup"), backup_redis_format(false), repl_ping_slave_period(10), repl_timeout(60), repl_backlog_size(

@@ -21,8 +21,14 @@ OP_NAMESPACE_BEGIN
             /*
              * 1. compare namespace
              */
-            assert(key1.DecodeNS(kbuf1, false));
-            assert(key2.DecodeNS(kbuf2, false));
+            if(!key1.DecodeNS(kbuf1, false))
+            {
+                abort();
+            }
+            if(!key2.DecodeNS(kbuf2, false))
+            {
+                abort();
+            }
             ret = key1.GetNameSpace().Compare(key2.GetNameSpace(), false);
             if (ret != 0)
             {
@@ -33,8 +39,14 @@ OP_NAMESPACE_BEGIN
         /*
          * 2. compare type
          */
-        assert(key1.DecodeType(kbuf1));
-        assert(key2.DecodeType(kbuf2));
+        if(!key1.DecodeType(kbuf1))
+        {
+            abort();
+        }
+        if(!key2.DecodeType(kbuf2))
+        {
+            abort();
+        }
         ret = key1.GetType() - key2.GetType();
         if (ret != 0)
         {
@@ -44,8 +56,14 @@ OP_NAMESPACE_BEGIN
         /*
          * 3. compare key
          */
-        assert(key1.DecodeKey(kbuf1,false));
-        assert(key2.DecodeKey(kbuf2, false));
+        if(!key1.DecodeKey(kbuf1,false))
+        {
+            abort();
+        }
+        if(!key2.DecodeKey(kbuf2, false))
+        {
+            abort();
+        }
         ret = key1.GetKey().Compare(key2.GetKey(), false);
         if (ret != 0)
         {
@@ -67,8 +85,14 @@ OP_NAMESPACE_BEGIN
             }
             for (int i = 0; i < elen1; i++)
             {
-                assert(key1.DecodeElement(kbuf1, false, i));
-                assert(key2.DecodeElement(kbuf2, false, i));
+                if(!key1.DecodeElement(kbuf1, false, i))
+                {
+                    abort();
+                }
+                if(!key2.DecodeElement(kbuf2, false, i))
+                {
+                    abort();
+                }
                 ret = key1.GetElement(i).Compare(key2.GetElement(i), false);
                 if (ret != 0)
                 {

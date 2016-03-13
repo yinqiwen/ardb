@@ -169,6 +169,57 @@ namespace ardb
         {
             DELETE(elements);
         }
+
+        void reply_status_string(int code, std::string& str)
+        {
+            switch(code)
+            {
+                case STATUS_OK:
+                {
+                    str.assign("OK", 2);
+                    break;
+                }
+                case STATUS_PONG:
+                {
+                    str.assign("PONG", 4);
+                    break;
+                }
+                case STATUS_QUEUED:
+                {
+                    str.assign("QUEUED", 5);
+                    break;
+                }
+                default:
+                {
+                    abort();
+                }
+            }
+        }
+        void reply_error_string(int code, std::string& str)
+        {
+            switch(code)
+            {
+                case STATUS_OK:
+                {
+                    str.assign("OK", 2);
+                    break;
+                }
+                case STATUS_PONG:
+                {
+                    str.assign("PONG", 4);
+                    break;
+                }
+                case STATUS_QUEUED:
+                {
+                    str.assign("QUEUED", 5);
+                    break;
+                }
+                default:
+                {
+                    abort();
+                }
+            }
+        }
     }
 }
 

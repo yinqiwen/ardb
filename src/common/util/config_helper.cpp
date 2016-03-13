@@ -80,6 +80,8 @@ namespace ardb
             return false;
         }
         uint32 lineno = 1;
+        bool concat_last_line = false;
+        std::string last_line;
         while (fgets(buf, kConfigLineMax, fp) != NULL)
         {
             char* line = trim_str(buf, "\r\n\t ");
@@ -87,6 +89,19 @@ namespace ardb
             {
                 lineno++;
                 continue;
+            }
+            if(line[strlen(line)-1] == '\\')
+            {
+                concat_last_line = true;
+                line = trim_str(line, "\\\r\n\t ");
+                last_line.append(line);
+                continue;
+            }
+            if(concat_last_line)
+            {
+                last_line.append(line);
+                concat_last_line = false;
+                line = &last_line[0];
             }
             std::vector<char*> sp_ret = split_str(line, sep);
             if (sp_ret.size() < 2)
@@ -104,6 +119,10 @@ namespace ardb
             }
             result[key].push_back(values);
             lineno++;
+            if(!concat_last_line)
+            {
+                last_line.clear();
+            }
         }
         fclose(fp);
         return true;

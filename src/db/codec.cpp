@@ -48,6 +48,7 @@ OP_NAMESPACE_BEGIN
         {
             return false;
         }
+        type = (uint8)tmp;
         return true;
     }
     bool KeyObject::DecodeKey(Buffer& buffer, bool clone_str)
@@ -199,14 +200,29 @@ OP_NAMESPACE_BEGIN
         return replaced;
     }
 
-    Slice ValueObject::Encode(Buffer& encode_buffer) const
+    Slice ValueObject::Encode(Buffer& encode_buffer)
     {
         if(0 == type)
         {
             return Slice();
         }
+        switch (type)
+        {
+            case KEY_STRING:
+            case KEY_HASH:
+            case KEY_LIST:
+            case KEY_SET:
+            case KEY_ZSET:
+            {
+                GetMeta();
+                break;
+            }
+            default:
+            {
+               break;
+            }
+        }
         encode_buffer.WriteByte((char) type);
-        assert(elements.size() < 256);
         encode_buffer.WriteByte((char) vals.size());
         for (size_t i = 0; i < vals.size(); i++)
         {
@@ -225,7 +241,7 @@ OP_NAMESPACE_BEGIN
         char lench;
         if (!buffer.ReadByte(lench))
         {
-            return -1;
+            return false;
         }
         uint8 len = (uint8) lench;
         if (len > 0)
@@ -244,7 +260,7 @@ OP_NAMESPACE_BEGIN
 
     int encode_merge_operation(Buffer& buffer, uint16_t op, const DataArray& args)
     {
-        BufferHelper::WriteFixUInt32(buffer, op);
+        BufferHelper::WriteFixUInt16(buffer, op, true);
         buffer.WriteByte((char) args.size());
         for (size_t i = 0; i < args.size(); i++)
         {
@@ -255,15 +271,15 @@ OP_NAMESPACE_BEGIN
 
     int decode_merge_operation(Buffer& buffer, uint16_t& op, DataArray& args)
     {
-        assert(BufferHelper::ReadFixUInt32(buffer, op, false));
+        BufferHelper::ReadFixUInt16(buffer, op, true);
         char len;
-        assert(buffer.ReadByte(len));
+        buffer.ReadByte(len);
         if (len > 0)
         {
             args.resize(len);
             for (int i = 0; i < len; i++)
             {
-                assert(args[i].Decode(buffer, false));
+                args[i].Decode(buffer, false);
             }
         }
         return 0;

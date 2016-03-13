@@ -54,6 +54,7 @@ OP_NAMESPACE_BEGIN
                     count(0)
             {
             }
+            void Dump(std::string& str);
             uint64_t Add(uint64_t inc)
             {
                 return atomic_add_uint64(&count, inc);
@@ -73,6 +74,7 @@ OP_NAMESPACE_BEGIN
                     cb(callback), cbdata(data)
             {
             }
+            void Dump(std::string& str);
     };
 
     struct QPSTrack: public Track
@@ -122,7 +124,7 @@ OP_NAMESPACE_BEGIN
 
     struct CostTrack: public Track
     {
-
+            void Dump(std::string& str);
     };
 
     class Statistics

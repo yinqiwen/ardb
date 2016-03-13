@@ -133,11 +133,10 @@ DB_VPATH=db
 DB_CPPFILES := $(foreach dir, $(DB_VPATH), $(wildcard $(dir)/*.cpp))
 DB_OBJECTS := $(patsubst %.cpp, %.o, $(DB_CPPFILES))
 
-CORE_OBJECTS := main.o config.o cron.o logger.o server.o statistics.o\
+CORE_OBJECTS :=  config.o cron.o logger.o server.o types.o statistics.o\
                 $(COMMON_OBJECTS)  $(COMMAND_OBJECTS) $(DB_OBJECTS) 
-  
-ROCKSDB_ENGINE :=  engine/rocksdb_engine.o          
-TESTOBJ := ../test/test_suite.o
+        
+TESTOBJ := ../test/test_main.o
 SERVEROBJ := main.o
 
 #DIST_LIB = libardb.so
@@ -206,10 +205,10 @@ $(DIST_LIBA):$(CORE_OBJECTS)
 
 lib: $(DEP_LIBS) lua snappy sparsehash $(storage_engine) $(DIST_LIBA)
 
-server: ${STORAGE_ENGINE_OBJ} lib $(CORE_OBJECTS) ${SERVEROBJ}
+server: lib $(CORE_OBJECTS) ${SERVEROBJ}
 	${CXX} -o ardb-server $(SERVEROBJ)  $(CORE_OBJECTS) ${STORAGE_ENGINE_OBJ} $(LIBS)
 
-test: ${STORAGE_ENGINE_OBJ} lib ${TESTOBJ} $(CORE_OBJECTS)
+test: lib ${TESTOBJ} $(CORE_OBJECTS)
 	${CXX} -o ardb-test ${STORAGE_ENGINE_OBJ} ${TESTOBJ} $(CORE_OBJECTS) $(LIBS) 
 
 .PHONY: jemalloc

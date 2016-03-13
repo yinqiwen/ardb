@@ -107,6 +107,7 @@ OP_NAMESPACE_BEGIN
         { "append", REDIS_CMD_APPEND, &Ardb::Append, 2, 2, "w", 0, 0, 0 },
         { "get", REDIS_CMD_GET, &Ardb::Get, 1, 1, "r", 0, 0, 0 },
         { "set", REDIS_CMD_SET, &Ardb::Set, 2, 7, "w", 0, 0, 0 },
+        { "set2", REDIS_CMD_SET2, &Ardb::Set, 2, 7, "w", 0, 0, 0 },
         { "del", REDIS_CMD_DEL, &Ardb::Del, 1, -1, "w", 0, 0, 0 },
         { "exists", REDIS_CMD_EXISTS, &Ardb::Exists, 1, 1, "r", 0, 0, 0 },
         { "expire", REDIS_CMD_EXPIRE, &Ardb::Expire, 2, 2, "w", 0, 0, 0 },
@@ -131,7 +132,7 @@ OP_NAMESPACE_BEGIN
         { "mget", REDIS_CMD_MGET, &Ardb::MGet, 1, -1, "w", 0, 0, 0 },
         { "mset", REDIS_CMD_MSET, &Ardb::MSet, 2, -1, "w", 0, 0, 0 },
         { "msetnx", REDIS_CMD_MSETNX, &Ardb::MSetNX, 2, -1, "w", 0, 0, 0 },
-        { "psetex", REDIS_CMD_PSETEX, &Ardb::MSetNX, 3, 3, "w", 0, 0, 0 },
+        { "psetex", REDIS_CMD_PSETEX, &Ardb::PSetEX, 3, 3, "w", 0, 0, 0 },
         { "setbit", REDIS_CMD_SETBIT, &Ardb::SetBit, 3, 3, "w", 0, 0, 0 },
         { "setex", REDIS_CMD_SETEX, &Ardb::SetEX, 3, 3, "w", 0, 0, 0 },
         { "setnx", REDIS_CMD_SETNX, &Ardb::SetNX, 2, 2, "w", 0, 0, 0 },
@@ -277,7 +278,7 @@ OP_NAMESPACE_BEGIN
         {
             RocksDBEngine* rocks = NULL;
             NEW(rocks, RocksDBEngine);
-            if(0 != rocks->Init(g_config->data_base_path, ""))
+            if(0 != rocks->Init(g_config->data_base_path, g_config->rocksdb_options))
             {
                 ERROR_LOG("Failed to init rocksdb.");
                 DELETE(rocks);
@@ -406,6 +407,16 @@ OP_NAMESPACE_BEGIN
                         return err;
                     }
                 }
+                break;
+            }
+            case REDIS_CMD_SET:
+            case REDIS_CMD_SET2:
+            {
+                return MergeSet(key, val, op, args[0], 0);
+            }
+            default:
+            {
+                ERROR_LOG("Not supported merge operation:%u", op);
                 break;
             }
         }

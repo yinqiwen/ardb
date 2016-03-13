@@ -34,9 +34,11 @@
 #include "thread/spin_rwlock.hpp"
 #include "thread/spin_mutex_lock.hpp"
 #include "thread/thread_mutex_lock.hpp"
+#include "util/file_helper.hpp"
 #include <string.h>
 #include <limits>
 #include <math.h>
+#include <libgen.h>
 
 #define MAX_LUA_STR_SIZE 1024
 
@@ -48,16 +50,17 @@ namespace ardb
         int (luaopen_struct)(lua_State *L);
         int (luaopen_cmsgpack)(lua_State *L);
     }
-
+    static const char* g_lua_file = "";
     struct LuaExecContext
     {
             int64_t lua_time_start;
             const char* lua_executing_func;
             bool lua_timeout;
             bool lua_kill;
+            bool lua_abort;
             Context* exec;
             LuaExecContext() :
-                    lua_time_start(0), lua_executing_func(NULL), lua_timeout(false), lua_kill(false), exec(NULL)
+                    lua_time_start(0), lua_executing_func(NULL), lua_timeout(false), lua_kill(false), lua_abort(false), exec(NULL)
             {
             }
     };
@@ -106,6 +109,7 @@ namespace ardb
             {
                 lua_newtable(lua);
                 lua_pushstring(lua, "ok");
+                reply_status_string(reply.integer, reply.str);
                 lua_pushlstring(lua, reply.str.data(), reply.str.size());
                 lua_settable(lua, -3);
                 break;
@@ -114,6 +118,7 @@ namespace ardb
             {
                 lua_newtable(lua);
                 lua_pushstring(lua, "err");
+                reply_error_string(reply.integer, reply.str);
                 lua_pushlstring(lua, reply.str.data(), reply.str.size());
                 lua_settable(lua, -3);
                 break;
@@ -334,10 +339,11 @@ namespace ardb
     static void save_script_to_cache(const std::string& funcname, const std::string& body)
     {
         LockGuard<SpinMutexLock> guard(g_lua_lock);
-        if(body == "")
+        if (body == "")
         {
             g_script_cache.erase(funcname);
-        }else
+        }
+        else
         {
             g_script_cache[funcname] = body;
         }
@@ -501,6 +507,7 @@ namespace ardb
         LuaExecContext* ctx = g_lua_exec_ctx.GetValue();
         Context* lua_ctx = ctx->exec;
         RedisReply& reply = lua_ctx->GetReply();
+        reply.Clear();
         g_db->DoCall(*lua_ctx, *setting, cmd);
         if (raise_error && reply.type != REDIS_REPLY_ERROR)
         {
@@ -528,6 +535,100 @@ namespace ardb
     int LUAInterpreter::Call(lua_State *lua)
     {
         return CallArdb(lua, false);
+    }
+
+    static void print_lua_table(lua_State *L, int index, std::string& str)
+    {
+        // Push another reference to the table on top of the stack (so we know
+        // where it is, and this function can work for negative, positive and
+        // pseudo indices
+        str.append("{");
+        lua_pushvalue(L, index);
+        // stack now contains: -1 => table
+        lua_pushnil(L);
+        // stack now contains: -1 => nil; -2 => table
+        int count = 0;
+        while (lua_next(L, -2))
+        {
+            if (count > 0)
+            {
+                str.append(";");
+            }
+            // stack now contains: -1 => value; -2 => key; -3 => table
+            // copy the key so that lua_tostring does not modify the original
+            lua_pushvalue(L, -2);
+            // stack now contains: -1 => key; -2 => value; -3 => key; -4 => table
+            const char *key = lua_tostring(L, -1);
+            const char *value = lua_tostring(L, -2);
+            char tmp[1024];
+            sprintf(tmp, "%s => %s", key, value);
+            str.append(tmp);
+            //printf("%s => %s\n", key, value);
+            // pop value + copy of key, leaving original key
+            lua_pop(L, 2);
+            count++;
+            // stack now contains: -1 => key; -2 => table
+        }
+        // stack now contains: -1 => table (when lua_next returns 0 it pops the key
+        // but does not push anything.)
+        // Pop table
+        lua_pop(L, 1);
+        // Stack is now the same as it was on entry to this function
+        str.append("}");
+    }
+
+    int LUAInterpreter::Assert2(lua_State *lua)
+    {
+        lua_Debug ar;
+        lua_getstack(lua, 1, &ar);
+        lua_getinfo(lua, "nSl", &ar);
+        int lua_line = ar.currentline;
+
+        int argc = lua_gettop(lua);
+
+        /* Require at least one argument */
+        if (argc != 2)
+        {
+            luaPushError(lua, "Please specify 2 arguments for assert2()");
+            return -1;
+        }
+        if (!lua_isboolean(lua, 1))
+        {
+            luaPushError(lua, "Lua assert2() command argument[0] must be boolean");
+            return -1;
+        }
+
+        int b = lua_toboolean(lua, 1);
+        if (b)
+        {
+            fprintf(stdout, "\e[1;32m%-6s\e[m %s:%d\n", "[PASS]", g_lua_file, lua_line);
+        }
+        else
+        {
+            LuaExecContext* ctx = g_lua_exec_ctx.GetValue();
+            ctx->lua_abort = true;
+            const char* actual = NULL;
+            std::string tablestr;
+            int obj_type = lua_type(lua, 2);
+            if (lua_istable(lua, 2))
+            {
+                print_lua_table(lua, 2, tablestr);
+                actual = tablestr.c_str();
+            }
+            else if (lua_isboolean(lua, 2))
+            {
+                actual = lua_toboolean(lua, 2)?:"true", "false";
+            }
+            else
+            {
+                actual = lua_tolstring(lua, 2, NULL);
+            }
+            fprintf(stderr, "\e[1;35m%-6s\e[m %s:%d Actual value is %d:%s\n", "[FAIL]", g_lua_file, lua_line, obj_type, actual);
+            lua_pushstring(lua, "Assert2 failed...");
+            lua_error(lua);
+            return -1;
+        }
+        return 1;
     }
 
     int LUAInterpreter::Log(lua_State *lua)
@@ -679,6 +780,12 @@ namespace ardb
             lua_pushstring(lua, "Script killed by user with SCRIPT KILL...");
             lua_error(lua);
         }
+        else if (ctx->lua_abort)
+        {
+            WARN_LOG("Lua script:%s abort by assert2.", g_lua_file);
+            lua_pushstring(lua, "Script killed by user with SCRIPT KILL...");
+            lua_error(lua);
+        }
     }
 
     int LUAInterpreter::Init()
@@ -699,6 +806,11 @@ namespace ardb
         /* redis.pcall */
         lua_pushstring(m_lua, "pcall");
         lua_pushcfunction(m_lua, LUAInterpreter::PCall);
+        lua_settable(m_lua, -3);
+
+        /* redis.assert2 */
+        lua_pushstring(m_lua, "assert2");
+        lua_pushcfunction(m_lua, LUAInterpreter::Assert2);
         lua_settable(m_lua, -3);
 
         /* redis.log and log levels. */
@@ -775,7 +887,6 @@ namespace ardb
             luaL_loadbuffer(m_lua, errh_func, strlen(errh_func), "@err_handler_def");
             lua_pcall(m_lua, 0, 0, 0);
         }
-
         scriptingEnableGlobalsProtection(m_lua);
         return 0;
     }
@@ -862,7 +973,23 @@ namespace ardb
         {
             lua_sethook(m_lua, MaskCountHook, 0, 0); /* Disable hook */
         }
-        lua_gc(m_lua, LUA_GCSTEP, 1);
+        /* Call the Lua garbage collector from time to time to avoid a
+         * full cycle performed by Lua, which adds too latency.
+         *
+         * The call is performed every LUA_GC_CYCLE_PERIOD executed commands
+         * (and for LUA_GC_CYCLE_PERIOD collection steps) because calling it
+         * for every command uses too much CPU. */
+#define LUA_GC_CYCLE_PERIOD 50
+        {
+            static long gc_count = 0;
+
+            gc_count++;
+            if (gc_count == LUA_GC_CYCLE_PERIOD)
+            {
+                lua_gc(m_lua, LUA_GCSTEP, LUA_GC_CYCLE_PERIOD);
+                gc_count = 0;
+            }
+        }
         if (guard.ctx.lua_timeout)
         {
             if ( NULL != ctx.client)
@@ -896,6 +1023,19 @@ namespace ardb
         ret = sha1_sum(func);
         funcname.append(ret);
         return CreateLuaFunction(funcname, func, ret) == 0;
+    }
+
+    int LUAInterpreter::EvalFile(Context& ctx, const std::string& file)
+    {
+        std::string content;
+        file_read_full(file, content);
+        StringArray keys, args;
+        char *path2 = strdup(file.c_str());
+        g_lua_file = basename(path2);
+        int ret = Eval(ctx, content, keys, args, false);
+        g_lua_file = "";
+        free(path2);
+        return ret;
     }
 
     void LUAInterpreter::Reset()

@@ -52,6 +52,7 @@ namespace ardb
             static int PCall(lua_State *lua);
             static int Call(lua_State *lua);
             static int Log(lua_State *lua);
+            static int Assert2(lua_State *lua);
             static int SHA1Hex(lua_State *lua);
             static int ReturnSingleFieldTable(lua_State *lua, const std::string& field);
             static int ErrorReplyCommand(lua_State *lua);
@@ -67,6 +68,7 @@ namespace ardb
         public:
             LUAInterpreter();
             int Eval(Context& ctx, const std::string& func, const StringArray& keys, const StringArray& args, bool isSHA1Func);
+            int EvalFile(Context& ctx, const std::string& file);
             int Load(const std::string& func, std::string& ret);
 
             ~LUAInterpreter();

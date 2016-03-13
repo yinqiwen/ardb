@@ -100,24 +100,7 @@ bool RedisReplyEncoder::Encode(Buffer& buf, RedisReply& reply)
         }
         case REDIS_REPLY_STATUS:
         {
-            switch (reply.integer)
-            {
-                case REDIS_REPLY_STATUS_OK:
-                {
-                    buf.Printf("+OK\r\n");
-                    break;
-                }
-                case REDIS_REPLY_STATUS_PONG:
-                {
-                    buf.Printf("+PONG\r\n");
-                    break;
-                }
-                default:
-                {
-                    buf.Printf("+%s\r\n", reply.str.c_str());
-                    break;
-                }
-            }
+            buf.Printf("+%s\r\n", reply.str.c_str());
             break;
         }
         default:

@@ -11,7 +11,9 @@
 
 #define ROCKSDB_SLICE(slice) rocksdb::Slice(slice.data(), slice.size())
 #define ARDB_SLICE(slice) Slice(slice.data(), slice.size())
-#define ROCKSDB_ERR(err)  (0 == err.code()? 0: (0 -err.code()-2000))
+#define ROCKSDB_ERR(err)  (0 == err.code()? 0: (rocksdb::Status::kNotFound == err.code() ? ERR_ENTRY_NOT_EXIST:(0 -err.code()-2000)))
+
+//
 
 OP_NAMESPACE_BEGIN
 
@@ -66,6 +68,7 @@ OP_NAMESPACE_BEGIN
             // i.e., an implementation of this method that does nothing is correct.
             void FindShortSuccessor(std::string* key) const
             {
+
             }
     };
 
@@ -114,11 +117,11 @@ OP_NAMESPACE_BEGIN
     RocksDBEngine::RocksDBEngine() :
             m_db(NULL)
     {
-        Data deleted_ns, empty_ns;
-        deleted_ns.SetInt64(-1);
-        empty_ns.SetInt64(-2);
-        m_handlers.set_deleted_key(deleted_ns);
-        m_handlers.set_empty_key(empty_ns);
+    }
+
+    RocksDBEngine::~RocksDBEngine()
+    {
+        DELETE(m_db);
     }
 
     rocksdb::ColumnFamilyHandle* RocksDBEngine::GetColumnFamilyHandle(Context& ctx, const Data& ns)
@@ -138,7 +141,7 @@ OP_NAMESPACE_BEGIN
         ns.ToString(name);
         rocksdb::ColumnFamilyHandle* cfh = NULL;
         rocksdb::Status s = m_db->CreateColumnFamily(cf_options, name, &cfh);
-        if (s == rocksdb::Status::OK())
+        if (s.ok())
         {
             m_handlers[ns] = cfh;
             INFO_LOG("Create ColumnFamilyHandle with name:%s success.", name.c_str());
@@ -150,7 +153,7 @@ OP_NAMESPACE_BEGIN
 
     int RocksDBEngine::Init(const std::string& dir, const std::string& conf)
     {
-        rocksdb::Status s = rocksdb::GetDBOptionsFromString(m_options, conf, &m_options);
+        rocksdb::Status s = rocksdb::GetOptionsFromString(m_options, conf, &m_options);
         if (!s.ok())
         {
             ERROR_LOG("Invalid rocksdb's options:%s with error reson:%s", conf.c_str(), s.ToString().c_str());
@@ -161,29 +164,41 @@ OP_NAMESPACE_BEGIN
         m_options.merge_operator.reset(new MergeOperator(this));
         std::vector<std::string> column_families;
         s = rocksdb::DB::ListColumnFamilies(m_options, dir, &column_families);
-        if (s != rocksdb::Status::OK())
+//        if (s != rocksdb::Status::OK())
+//        {
+//            ERROR_LOG("No column families found by reason:%s", s.ToString().c_str());
+//            return -1;
+//        }
+        if (column_families.empty())
         {
-            ERROR_LOG("No column families found by reason:%s", s.ToString().c_str());
-            return -1;
+            s = rocksdb::DB::Open(m_options, dir, &m_db);
         }
-        std::vector<rocksdb::ColumnFamilyDescriptor> column_families_descs(column_families.size());
-        for (size_t i = 0; i < column_families.size(); i++)
+        else
         {
-            column_families_descs[i] = rocksdb::ColumnFamilyDescriptor(column_families[i], rocksdb::ColumnFamilyOptions(m_options));
+            std::vector<rocksdb::ColumnFamilyDescriptor> column_families_descs(column_families.size());
+            for (size_t i = 0; i < column_families.size(); i++)
+            {
+                column_families_descs[i] = rocksdb::ColumnFamilyDescriptor(column_families[i], rocksdb::ColumnFamilyOptions(m_options));
+            }
+            std::vector<rocksdb::ColumnFamilyHandle*> handlers;
+            s = rocksdb::DB::Open(m_options, dir, column_families_descs, &handlers, &m_db);
+            if (s.ok())
+            {
+                for (size_t i = 0; i < handlers.size(); i++)
+                {
+                    rocksdb::ColumnFamilyHandle* handler = handlers[i];
+                    Data ns;
+                    ns.SetString(column_families_descs[i].name, true);
+                    m_handlers[ns] = handler;
+                    INFO_LOG("RocksDB open column family:%s success.", column_families_descs[i].name.c_str());
+                }
+            }
         }
-        std::vector<rocksdb::ColumnFamilyHandle*> handlers;
-        s = rocksdb::DB::Open(m_options, dir, column_families_descs, &handlers, &m_db);
+
         if (s != rocksdb::Status::OK())
         {
             ERROR_LOG("Failed to open db:%s by reason:%s", dir.c_str(), s.ToString().c_str());
             return -1;
-        }
-        for (size_t i = 0; i < handlers.size(); i++)
-        {
-            rocksdb::ColumnFamilyHandle* handler = handlers[i];
-            Data ns;
-            ns.SetString(column_families_descs[i].name, true);
-            m_handlers[ns] = handler;
         }
         return 0;
     }
@@ -198,7 +213,7 @@ OP_NAMESPACE_BEGIN
         rocksdb::WriteOptions opt;
         rocksdb::Slice key_slice = ROCKSDB_SLICE(const_cast<KeyObject&>(key).Encode());
         Buffer value_buffer;
-        rocksdb::Slice value_slice = ROCKSDB_SLICE(value.Encode(value_buffer));
+        rocksdb::Slice value_slice = ROCKSDB_SLICE(const_cast<ValueObject&>(value).Encode(value_buffer));
         rocksdb::Status s;
         rocksdb::WriteBatch* batch = m_transc.GetValue().Ref();
         if (NULL != batch)
@@ -263,7 +278,7 @@ OP_NAMESPACE_BEGIN
             return err;
         }
         Buffer valBuffer(const_cast<char*>(valstr.data()), 0, valstr.size());
-        assert(value.Decode(valBuffer, true));
+        value.Decode(valBuffer, true);
         return 0;
     }
     int RocksDBEngine::Del(Context& ctx, const KeyObject& key)

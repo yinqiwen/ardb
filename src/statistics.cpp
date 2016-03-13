@@ -29,6 +29,27 @@
 #include "statistics.hpp"
 OP_NAMESPACE_BEGIN
     static Statistics* g_singleton = NULL;
+
+    void CostTrack::Dump(std::string& str)
+    {
+
+    }
+
+    void QPSTrack::Dump(std::string& str)
+    {
+
+    }
+
+    void CountRefTrack::Dump(std::string& str)
+    {
+
+    }
+
+    void CountTrack::Dump(std::string& str)
+    {
+
+    }
+
     Statistics::Statistics()
     {
     }

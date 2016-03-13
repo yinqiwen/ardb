@@ -256,7 +256,7 @@ OP_NAMESPACE_BEGIN
                 type = 0;
                 vals.clear();
             }
-            uint8 GetType()
+            uint8 GetType() const
             {
                 return type;
             }
@@ -341,7 +341,7 @@ OP_NAMESPACE_BEGIN
             {
                 getElement(0).SetFloat64(s);
             }
-            Slice Encode(Buffer& buffer) const;
+            Slice Encode(Buffer& buffer);
             bool Decode(Buffer& buffer, bool clone_str);
     };
 

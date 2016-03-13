@@ -102,7 +102,7 @@ OP_NAMESPACE_BEGIN
                     }
             };
 
-            typedef google::dense_hash_map<Data, rocksdb::ColumnFamilyHandle*, DataHash, DataEqual> ColumnFamilyHandleTable;
+            typedef TreeMap<Data, rocksdb::ColumnFamilyHandle*>::Type ColumnFamilyHandleTable;
             rocksdb::DB* m_db;
             rocksdb::Options m_options;
             ColumnFamilyHandleTable m_handlers;
@@ -117,6 +117,7 @@ OP_NAMESPACE_BEGIN
             friend class RocksDBIterator;
         public:
             RocksDBEngine();
+            ~RocksDBEngine();
             int Init(const std::string& dir, const std::string& conf);
             int Put(Context& ctx, const KeyObject& key, const ValueObject& value);
             int Get(Context& ctx, const KeyObject& key, ValueObject& value);

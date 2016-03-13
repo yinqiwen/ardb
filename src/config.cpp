@@ -226,6 +226,9 @@ OP_NAMESPACE_BEGIN
                 //trusted_ip.insert(cs[i][0]);
             }
         }
+
+        conf_get_string(props, "rocksdb.options", rocksdb_options);
+
         if (!verify_config(*this))
         {
             return false;

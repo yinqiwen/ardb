@@ -363,5 +363,14 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
+    int Ardb::RawSet(Context& ctx, RedisCommandFrame& cmd)
+    {
+        return 0;
+    }
+    int Ardb::RawDel(Context& ctx, RedisCommandFrame& cmd)
+    {
+        return 0;
+    }
+
 OP_NAMESPACE_END
 

@@ -1016,4 +1016,20 @@ namespace ardb
     {
         return stringmatchlen(pattern, strlen(pattern), string, strlen(string), nocase);
     }
+
+    int lf2string(char* s, size_t len, long double d)
+    {
+        double min = -4503599627370495LL; /* (2^52)-1 */
+        double max = 4503599627370496LL; /* -(2^52) */
+        int64 iv = (int64) d;
+        if (d > min && d < max && d == ((double) iv))
+        {
+            return snprintf(s, len - 1,"%" PRId64, iv);
+        }
+        else
+        {
+            //char tmp[256];
+            return snprintf(s, len - 1, "%.17g", d);
+        }
+    }
 }

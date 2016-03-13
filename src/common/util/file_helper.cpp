@@ -258,7 +258,7 @@ namespace ardb
                         std::string file_path = path;
                         file_path.append("/").append(ptr->d_name);
                         memset(&buf, 0, sizeof(buf));
-                        ret = stat(path.c_str(), &buf);
+                        ret = stat(file_path.c_str(), &buf);
                         if (ret == 0)
                         {
                             if (S_ISREG(buf.st_mode))

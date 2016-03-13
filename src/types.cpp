@@ -8,6 +8,8 @@
 #include "types.hpp"
 #include "buffer/buffer_helper.hpp"
 #include "util/murmur3.h"
+#include "util/string_helper.hpp"
+#include "util/math_helper.hpp"
 #include <cmath>
 
 OP_NAMESPACE_BEGIN
@@ -18,12 +20,12 @@ OP_NAMESPACE_BEGIN
     };
 
     Data::Data() :
-            encoding(0), len(0), data(0)
+            data(0), len(0), encoding(0)
     {
         //value.iv = 0;
     }
     Data::Data(const std::string& v, bool try_int_encoding) :
-            encoding(0), len(0), data(0)
+            data(0), len(0), encoding(0)
     {
         SetString(v, try_int_encoding);
     }
@@ -43,7 +45,7 @@ OP_NAMESPACE_BEGIN
     }
 
     Data::Data(const Data& other) :
-            encoding(other.encoding), len(other.len)
+            len(other.len), encoding(other.encoding)
     {
         Clone(other);
     }
@@ -139,13 +141,14 @@ OP_NAMESPACE_BEGIN
                 {
                     void* s = malloc(strlen);
                     data = (int64_t) s;
-                    //memcpy(s, (char*) ss, strlen);
+                    memcpy(s, (char*) ss, strlen);
                     //*(void**) (&data) = s;
                     encoding = E_SDS;
                 }
                 else
                 {
-                    *(void**) (&data) = ss;
+                    memcpy(&data, &ss, sizeof(const char*));
+                    //*(void**) (&data) = ss;
                     encoding = E_CSTR;
                 }
                 return true;
@@ -159,7 +162,7 @@ OP_NAMESPACE_BEGIN
 
     void Data::SetString(const std::string& str, bool try_int_encoding)
     {
-        long long int_val;
+        int64_t int_val;
         if (str.size() <= 21 && string2ll(str.data(), str.size(), &int_val))
         {
             SetInt64((int64) int_val);
@@ -223,7 +226,7 @@ OP_NAMESPACE_BEGIN
             memcpy(&data, &other.data, sizeof(data));
         }
     }
-    int Data::Compare(const Data& right, bool alpha_cmp = false) const
+    int Data::Compare(const Data& right, bool alpha_cmp) const
     {
         if (!alpha_cmp)
         {
@@ -351,21 +354,23 @@ OP_NAMESPACE_BEGIN
     }
     const std::string& Data::ToString(std::string& str) const
     {
+        uint32 slen = 0;
         switch (encoding)
         {
             case E_INT64:
             {
-                len = StringLength();
-                str.resize(len);
-                ll2string(&(str[0]), len, data);
+                slen = StringLength() + 1;
+                str.resize(slen);
+                slen = ll2string(&(str[0]), slen, data);
+                str.resize(slen);
                 break;
             }
             case E_FLOAT64:
             {
-                len = 256;
-                str.resize(len);
-                len = lf2string(&(str[0]), len, GetFloat64());
-                str.resize(len);
+                slen = 256;
+                str.resize(slen);
+                slen = lf2string(&(str[0]), slen - 1, GetFloat64());
+                str.resize(slen);
                 break;
             }
             case E_CSTR:
@@ -388,7 +393,7 @@ OP_NAMESPACE_BEGIN
         {
             return (size_t) t.GetInt64();
         }
-        //return 0;
+        return 0;
     }
 
     bool DataEqual::operator()(const Data& s1, const Data& s2) const

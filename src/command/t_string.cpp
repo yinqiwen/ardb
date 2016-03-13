@@ -52,7 +52,7 @@ OP_NAMESPACE_BEGIN
     int Ardb::MGet(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
-        reply.type = REDIS_REPLY_ARRAY;
+        reply.ReserveMember(0);
         KeyObjectArray ks;
         for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
         {
@@ -191,10 +191,9 @@ OP_NAMESPACE_BEGIN
                 else
                 {
                     ValueObject valueobj;
-                    int err = CheckMeta(ctx, cmd.GetArguments()[i], KEY_STRING, valueobj);
-                    if (err != 0)
+                    if (!CheckMeta(ctx, cmd.GetArguments()[i], KEY_STRING, valueobj))
                     {
-                        guard.MarkFailed(err);
+                        guard.MarkFailed(reply.integer);
                         break;
                     }
                     if (cmd.GetType() == REDIS_CMD_MSETNX)
@@ -510,6 +509,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::StringSet(Context& ctx, const std::string& key, const std::string& value, bool redis_compatible, int64_t px, int8_t nx_xx)
     {
+        ctx.flags.create_if_notexist = 1;
         int err = 0;
         KeyObject keyobj(ctx.ns, KEY_META, key);
         uint64_t ttl = 0;
@@ -528,12 +528,15 @@ OP_NAMESPACE_BEGIN
         if (redis_compatible)
         {
             ValueObject valueobj;
-            err = CheckMeta(ctx, key, KEY_STRING, valueobj);
-            if (err != 0)
+            if(!CheckMeta(ctx, key, KEY_STRING, valueobj))
             {
-                return err;
+                return (int)ctx.GetReply().integer;
             }
             err = MergeSet(keyobj, valueobj, op, merge, ttl);
+            if(0 == err)
+            {
+                err = m_engine->Put(ctx, keyobj, valueobj);
+            }
         }
         else
         {
@@ -598,7 +601,7 @@ OP_NAMESPACE_BEGIN
                 }
             }
         }
-        bool redis_compatible = cmd.GetType() < REDIS_CMD_MERGE_BEGIN && !g_config->redis_compatible;
+        bool redis_compatible = cmd.GetType() < REDIS_CMD_MERGE_BEGIN && g_config->redis_compatible;
         int err = StringSet(ctx, key, value, redis_compatible, ttl, nx_xx);
         if (0 != err)
         {
