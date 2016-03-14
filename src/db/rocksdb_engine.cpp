@@ -1,7 +1,7 @@
 /*
  * rocksdb_engine.cpp
  *
- *  Created on: 2015Äê9ÔÂ21ÈÕ
+ *  Created on: 2015ï¿½ï¿½9ï¿½ï¿½21ï¿½ï¿½
  *      Author: wangqiying
  */
 #include "rocksdb_engine.hpp"
@@ -90,11 +90,14 @@ OP_NAMESPACE_BEGIN
                 DataArray args;
 
                 Buffer keyBuffer(const_cast<char*>(key.data()), 0, key.size());
-                assert(key_obj.Decode(keyBuffer, false));
+                key_obj.Decode(keyBuffer, false);
                 if (NULL != existing_value)
                 {
                     Buffer valueBuffer(const_cast<char*>(existing_value->data()), 0, existing_value->size());
-                    assert(val_obj.Decode(valueBuffer, false));
+                    if(!val_obj.Decode(valueBuffer, false))
+                    {
+                    	abort();
+                    }
                 }
                 Buffer mergeBuffer(const_cast<char*>(value.data()), 0, value.size());
                 decode_merge_operation(mergeBuffer, op, args);
@@ -104,6 +107,12 @@ OP_NAMESPACE_BEGIN
                     Buffer encode_buffer;
                     Slice encode_slice = val_obj.Encode(encode_buffer);
                     new_value->assign(encode_slice.data(), encode_slice.size());
+                }else
+                {
+                	if (NULL != existing_value)
+                	{
+                		new_value->assign(existing_value->data(), existing_value->size());
+                	}
                 }
                 return true;        // always return true for this, since we treat all errors as "zero".
             }
@@ -164,11 +173,6 @@ OP_NAMESPACE_BEGIN
         m_options.merge_operator.reset(new MergeOperator(this));
         std::vector<std::string> column_families;
         s = rocksdb::DB::ListColumnFamilies(m_options, dir, &column_families);
-//        if (s != rocksdb::Status::OK())
-//        {
-//            ERROR_LOG("No column families found by reason:%s", s.ToString().c_str());
-//            return -1;
-//        }
         if (column_families.empty())
         {
             s = rocksdb::DB::Open(m_options, dir, &m_db);
@@ -298,7 +302,7 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-            s = m_db->Delete(opt, key_slice);
+            s = m_db->Delete(opt,cf, key_slice);
         }
         return ROCKSDB_ERR(s);
     }

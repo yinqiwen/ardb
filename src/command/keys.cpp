@@ -308,8 +308,26 @@ OP_NAMESPACE_BEGIN
             return ERR_NOTPERFORMED;
         }
         Context tmpctx;
+        DelKey(tmpctx, key, value);
+        if (value.GetTTL() > 0)
+        {
+            KeyObject ttl_key(key.GetNameSpace(), KEY_TTL_SORT, value.GetTTL());
+            ttl_key.SetTTLKey(key.GetKey());
+            m_engine->Del(tmpctx, ttl_key);
+        }
+        value.Clear();
+        return 0;
+    }
+
+    int Ardb::DelKey(Context& ctx,KeyObject& key, ValueObject& value)
+    {
+    	//todo
         switch (value.GetType())
         {
+            case 0:
+            {
+        	     break;
+            }
             case KEY_STRING:
             {
                 break;
@@ -335,20 +353,13 @@ OP_NAMESPACE_BEGIN
                 abort();
             }
         }
-        m_engine->Del(tmpctx, key);
-        if (value.GetTTL() > 0)
-        {
-            KeyObject ttl_key(key.GetNameSpace(), KEY_TTL_SORT, value.GetTTL());
-            ttl_key.SetTTLKey(key.GetKey());
-            m_engine->Del(tmpctx, ttl_key);
-        }
-        return 0;
+    	return 0;
     }
 
     int Ardb::Del(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
-        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN && !g_config->redis_compatible)
+        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !g_config->redis_compatible)
         {
             for (size_t i = 0; i < cmd.GetArguments().size(); i++)
             {
@@ -359,7 +370,31 @@ OP_NAMESPACE_BEGIN
             reply.SetStatusCode(STATUS_OK);
             return 0;
         }
-
+        KeyObjectArray ks;
+        for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
+        {
+             KeyObject k(ctx.ns, KEY_META, cmd.GetArguments()[i]);
+             ks.push_back(k);
+        }
+        ValueObjectArray vs;
+        ErrCodeArray errs;
+        int err = m_engine->MultiGet(ctx, ks, vs, errs);
+        if (0 != err)
+        {
+             reply.SetErrCode(err);
+             return 0;
+        }
+        int removed = 0;
+        for (size_t i = 0; i < ks.size(); i++)
+        {
+              if (errs[i] == 0)
+              {
+            	  DelKey(ctx, ks[i], vs[i]);
+            	  err = m_engine->Del(ctx, ks[i]);
+            	  removed++;
+              }
+        }
+        reply.SetInteger(removed);
         return 0;
     }
 

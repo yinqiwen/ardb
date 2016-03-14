@@ -169,6 +169,8 @@ OP_NAMESPACE_BEGIN
             bool CheckMeta(Context& ctx, const std::string& key, KeyType expected);
             bool CheckMeta(Context& ctx, const std::string& key, KeyType expected, ValueObject& meta);
 
+            int DelKey(Context& ctx,KeyObject& key, ValueObject& value);
+
 //            int GetScript(const std::string& funacname, std::string& funcbody);
 //            int SaveScript(const std::string& funacname, const std::string& funcbody);
 //            int FlushScripts(Context& ctx);

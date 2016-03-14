@@ -88,10 +88,11 @@ OP_NAMESPACE_BEGIN
         {
             return ERR_INVALID_TYPE;
         }
-        val.SetType(KEY_STRING);
+
         std::string str;
         val.GetStringValue().ToString(str);
         str.append(append);
+        val.SetType(KEY_STRING);
         val.GetStringValue().SetString(str, false);
         return 0;
     }
@@ -193,7 +194,7 @@ OP_NAMESPACE_BEGIN
                     ValueObject valueobj;
                     if (!CheckMeta(ctx, cmd.GetArguments()[i], KEY_STRING, valueobj))
                     {
-                        guard.MarkFailed(reply.integer);
+                        guard.MarkFailed(reply.ErrCode());
                         break;
                     }
                     if (cmd.GetType() == REDIS_CMD_MSETNX)
@@ -209,7 +210,6 @@ OP_NAMESPACE_BEGIN
                     value.GetStringValue().SetString(cmd.GetArguments()[i + 1], true);
                     m_engine->Put(ctx, key, value);
                 }
-
             }
         }
         if (cmd.GetType() == REDIS_CMD_MSETNX)
@@ -230,12 +230,14 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::MergeIncrByFloat(KeyObject& key, ValueObject& val, double inc)
     {
-        if (val.GetType() != KEY_STRING || !val.GetStringValue().IsNumber())
+        if (val.GetType() != 0 && (val.GetType() != KEY_STRING || !val.GetStringValue().IsNumber()))
         {
             return ERR_INVALID_TYPE;
         }
+        val.SetType(KEY_STRING);
         Data& data = val.GetStringValue();
         data.SetFloat64(data.GetFloat64() + inc);
+        printf("###$$$$%.2f\n", data.GetFloat64());
         return 0;
     }
 
@@ -257,7 +259,7 @@ OP_NAMESPACE_BEGIN
         {
             Data merge_data;
             merge_data.SetFloat64(increment);
-            err = m_engine->Merge(ctx, key, REDIS_CMD_INCRBYFLOAT, merge_data);
+            err = m_engine->Merge(ctx, key, cmd.GetType(), merge_data);
             if (err < 0)
             {
                 reply.SetErrCode(err);
@@ -278,13 +280,15 @@ OP_NAMESPACE_BEGIN
                 err = m_engine->Put(ctx, key, v);
             }
         }
-        if (err < 0)
+        if (err != 0)
         {
             reply.SetErrCode(err);
         }
         else
         {
+
             reply.SetDouble(v.GetStringValue().GetFloat64());
+        	printf("###%.2f, %.2f\n", reply.GetDouble(),v.GetStringValue().GetFloat64());
         }
         return 0;
     }
@@ -484,7 +488,7 @@ OP_NAMESPACE_BEGIN
             return ERR_INVALID_TYPE;
         }
         val.SetType(KEY_STRING);
-        if (op == REDIS_CMD_SETNX)
+        if (op == REDIS_CMD_SETNX || op == REDIS_CMD_SETNX2)
         {
             if (val_type != 0)
             {

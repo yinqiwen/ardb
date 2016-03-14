@@ -145,6 +145,18 @@ namespace ardb
                         type(REDIS_REPLY_STRING), str(v), integer(0), elements(NULL), pool(NULL)
                 {
                 }
+                bool IsErr() const
+                {
+                	return type == REDIS_REPLY_ERROR;
+                }
+                const std::string& Error() const
+                {
+                	return str;
+                }
+                int64_t ErrCode() const
+                {
+                	return integer;
+                }
                 long double GetDouble();
                 void SetDouble(long double v);
                 void SetInteger(int64_t v)

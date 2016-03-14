@@ -1,7 +1,7 @@
 /*
  * engine.hpp
  *
- *  Created on: 2015Äê12ÔÂ11ÈÕ
+ *  Created on: 2015ï¿½ï¿½12ï¿½ï¿½11ï¿½ï¿½
  *      Author: wangqiying
  */
 
@@ -80,6 +80,7 @@ OP_NAMESPACE_BEGIN
                     else
                     {
                         engine->DiscardTransaction();
+                        ctx.transc_err = err;
                     }
                 }
             }

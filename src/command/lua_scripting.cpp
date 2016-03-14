@@ -90,6 +90,11 @@ namespace ardb
     {
         switch (reply.type)
         {
+           case REDIS_REPLY_DOUBLE:
+           {
+        	   lua_pushnumber(lua, (lua_Number) reply.GetDouble());
+        	   break;
+           }
             case REDIS_REPLY_INTEGER:
             {
                 lua_pushnumber(lua, (lua_Number) reply.integer);
@@ -136,7 +141,7 @@ namespace ardb
             }
             default:
             {
-                break;
+                abort();
             }
         }
     }
@@ -617,7 +622,7 @@ namespace ardb
             }
             else if (lua_isboolean(lua, 2))
             {
-                actual = lua_toboolean(lua, 2)?:"true", "false";
+                actual = lua_toboolean(lua, 2) ?"true":"false";
             }
             else
             {

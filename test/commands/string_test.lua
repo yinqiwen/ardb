@@ -15,7 +15,28 @@ ardb.assert2(s["ok"] == "OK", s)
 v = ardb.call("get", "merge_k0")
 ardb.assert2(v == "1", v)
 
---[[  MGET/MSET test --]]
+--[[ Append/Append2 test --]]
+ardb.call("del", "mykey")
+v = ardb.call("get", "mykey")
+ardb.assert2( v == false, v)
+s = ardb.call("append", "mykey", "hello")
+ardb.assert2(s == 5, s)
+s = ardb.call("append", "mykey", " world")
+ardb.assert2(s == 11, s)
+v = ardb.call("get", "mykey")
+ardb.assert2( v == "hello world", v)
+ardb.call("del2", "mykey")
+s = ardb.call("append2", "mykey", "hello")
+ardb.assert2(s["ok"] == "OK", s)
+v = ardb.call("get", "mykey")
+ardb.assert2( v == "hello", v)
+s = ardb.call("append2", "mykey", " world")
+ardb.assert2(s["ok"] == "OK", s)
+v = ardb.call("get", "mykey")
+ardb.assert2( v == "hello world", v)
+
+
+--[[  MGET/MSET/MSETNX test --]]
 s = ardb.call("mset", "k2", "v2", "k3", "v3")
 ardb.assert2(s["ok"] == "OK", s)
 local vs = ardb.call("mget", "k2", "k3")
@@ -24,4 +45,33 @@ ardb.assert2(vs[2] == "v3", vs)
 vs = ardb.call("mget", "not_exist_key", "k3")
 ardb.assert2(vs[1] == false, vs)
 ardb.assert2(vs[2] == "v3", vs)
+ardb.call("del", "k2", "k3")
+s = ardb.call("msetnx", "k2", "v2", "k3", "v3")
+ardb.assert2(s == 1, s)
+s = ardb.call("msetnx", "k2", "v2", "k3", "v3")
+ardb.assert2(s == 0, s)
+
+--[[  MSET2/MSETNX2 test --]]
+ardb.call("del2", "k2", "k3")
+s = ardb.call("mset2", "k2", "v20", "k3", "v30")
+ardb.assert2(s["ok"] == "OK", s)
+local vs = ardb.call("mget", "k2", "k3")
+ardb.assert2(vs[1] == "v20", vs)
+ardb.assert2(vs[2] == "v30", vs)
+ardb.call("del2", "k2", "k3")
+s = ardb.call("msetnx2", "k2", "v21", "k3", "v31")
+ardb.assert2(s["ok"] == "OK", s)
+vs = ardb.call("mget", "k2", "k3")
+ardb.assert2(vs[1] == "v21", vs)
+ardb.assert2(vs[2] == "v31", vs)
+s = ardb.call("msetnx2", "k2", "v22", "k3", "v32")
+ardb.assert2(s["ok"] == "OK", s)
+vs = ardb.call("mget", "k2", "k3")
+ardb.assert2(vs[1] == "v21", vs)
+ardb.assert2(vs[2] == "v31", vs)
+
+--[[  incrbyloat test --]]
+ardb.call("del", "fkey")
+s = ardb.call("incrbyfloat", "fkey", "1.1")
+
 

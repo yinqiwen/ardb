@@ -105,10 +105,12 @@ OP_NAMESPACE_BEGIN
         { "apsync", REDIS_CMD_PSYNC, &Ardb::PSync, 2, -1, "ars", 0, 0, 0 },
         { "select", REDIS_CMD_SELECT, &Ardb::Select, 1, 1, "r", 0, 0, 0 },
         { "append", REDIS_CMD_APPEND, &Ardb::Append, 2, 2, "w", 0, 0, 0 },
+		{ "append2", REDIS_CMD_APPEND2, &Ardb::Append, 2, 2, "w", 0, 0, 0 },
         { "get", REDIS_CMD_GET, &Ardb::Get, 1, 1, "r", 0, 0, 0 },
         { "set", REDIS_CMD_SET, &Ardb::Set, 2, 7, "w", 0, 0, 0 },
         { "set2", REDIS_CMD_SET2, &Ardb::Set, 2, 7, "w", 0, 0, 0 },
         { "del", REDIS_CMD_DEL, &Ardb::Del, 1, -1, "w", 0, 0, 0 },
+		{ "del2", REDIS_CMD_DEL2, &Ardb::Del, 1, -1, "w", 0, 0, 0 },
         { "exists", REDIS_CMD_EXISTS, &Ardb::Exists, 1, 1, "r", 0, 0, 0 },
         { "expire", REDIS_CMD_EXPIRE, &Ardb::Expire, 2, 2, "w", 0, 0, 0 },
         { "pexpire", REDIS_CMD_PEXPIRE, &Ardb::PExpire, 2, 2, "w", 0, 0, 0 },
@@ -131,11 +133,14 @@ OP_NAMESPACE_BEGIN
         { "incrbyfloat", REDIS_CMD_INCRBYFLOAT, &Ardb::IncrbyFloat, 2, 2, "w", 0, 0, 0 },
         { "mget", REDIS_CMD_MGET, &Ardb::MGet, 1, -1, "w", 0, 0, 0 },
         { "mset", REDIS_CMD_MSET, &Ardb::MSet, 2, -1, "w", 0, 0, 0 },
+		{ "mset2", REDIS_CMD_MSET2, &Ardb::MSet, 2, -1, "w", 0, 0, 0 },
         { "msetnx", REDIS_CMD_MSETNX, &Ardb::MSetNX, 2, -1, "w", 0, 0, 0 },
+		{ "msetnx2", REDIS_CMD_MSETNX2, &Ardb::MSetNX, 2, -1, "w", 0, 0, 0 },
         { "psetex", REDIS_CMD_PSETEX, &Ardb::PSetEX, 3, 3, "w", 0, 0, 0 },
         { "setbit", REDIS_CMD_SETBIT, &Ardb::SetBit, 3, 3, "w", 0, 0, 0 },
         { "setex", REDIS_CMD_SETEX, &Ardb::SetEX, 3, 3, "w", 0, 0, 0 },
         { "setnx", REDIS_CMD_SETNX, &Ardb::SetNX, 2, 2, "w", 0, 0, 0 },
+		{ "setnx2", REDIS_CMD_SETNX2, &Ardb::SetNX, 2, 2, "w", 0, 0, 0 },
         { "setrange", REDIS_CMD_SETEANGE, &Ardb::SetRange, 3, 3, "w", 0, 0, 0 },
         { "strlen", REDIS_CMD_STRLEN, &Ardb::Strlen, 1, 1, "r", 0, 0, 0 },
         { "hdel", REDIS_CMD_HDEL, &Ardb::HDel, 2, -1, "w", 0, 0, 0 },
@@ -276,15 +281,13 @@ OP_NAMESPACE_BEGIN
     {
         if(g_config->engine == "rocksdb")
         {
-            RocksDBEngine* rocks = NULL;
-            NEW(rocks, RocksDBEngine);
-            if(0 != rocks->Init(g_config->data_base_path, g_config->rocksdb_options))
+            NEW(m_engine, RocksDBEngine);
+            if(0 != ((RocksDBEngine*)m_engine)->Init(g_config->data_base_path, g_config->rocksdb_options))
             {
                 ERROR_LOG("Failed to init rocksdb.");
-                DELETE(rocks);
+                DELETE(m_engine);
                 return -1;
             }
-            m_engine = rocks;
             return 0;
         }
         ERROR_LOG("Unsupported storage engine:%s", g_config->engine.c_str());
@@ -414,10 +417,27 @@ OP_NAMESPACE_BEGIN
             {
                 return MergeSet(key, val, op, args[0], 0);
             }
+            case REDIS_CMD_DEL:
+            case REDIS_CMD_DEL2:
+            {
+            	return MergeDel(key, val);
+            }
+            case REDIS_CMD_APPEND:
+            case REDIS_CMD_APPEND2:
+            {
+            	std::string ss;
+            	args[0].ToString(ss);
+            	return MergeAppend(key, val, ss);
+            }
+            case REDIS_CMD_SETNX:
+            case REDIS_CMD_SETNX2:
+            {
+            	return MergeSet(key,val, op, args[0], 0);
+            }
             default:
             {
                 ERROR_LOG("Not supported merge operation:%u", op);
-                break;
+                return -1;
             }
         }
         return 0;

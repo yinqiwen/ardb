@@ -1,7 +1,7 @@
 /*
  * command_test.cpp
  *
- *  Created on: 2016Äê3ÔÂ7ÈÕ
+ *  Created on: 2016ï¿½ï¿½3ï¿½ï¿½7ï¿½ï¿½
  *      Author: wangqiying
  */
 
@@ -45,6 +45,11 @@ int main()
     {
         Context tmpctx;
         interpreter.EvalFile(tmpctx, command_test_path + fs[i]);
+        RedisReply& r = tmpctx.GetReply();
+        if(r.IsErr())
+        {
+        	fprintf(stderr, "%s %s\n", fs[i].c_str(), r.Error().c_str());
+        }
     }
     return 0;
 }

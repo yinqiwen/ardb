@@ -1,7 +1,7 @@
 /*
  * redis_reply.cpp
  *
- *  Created on: 2014Äê8ÔÂ19ÈÕ
+ *  Created on: 2014ï¿½ï¿½8ï¿½ï¿½19ï¿½ï¿½
  *      Author: wangqiying
  */
 /*
@@ -167,7 +167,7 @@ namespace ardb
         }
         RedisReply::~RedisReply()
         {
-            DELETE(elements);
+        	Clear();
         }
 
         void reply_status_string(int code, std::string& str)
@@ -199,7 +199,7 @@ namespace ardb
         {
             switch(code)
             {
-                case STATUS_OK:
+                case ERR_KEY_EXIST:
                 {
                     str.assign("OK", 2);
                     break;

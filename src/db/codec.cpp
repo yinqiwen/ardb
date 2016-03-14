@@ -110,7 +110,6 @@ OP_NAMESPACE_BEGIN
         {
             encode_buffer.WriteByte((char) type);
             key.Encode(encode_buffer);
-            assert(elements.size() < 128);
             encode_buffer.WriteByte((char) elements.size());
             for (size_t i = 0; i < elements.size(); i++)
             {
@@ -232,6 +231,10 @@ OP_NAMESPACE_BEGIN
     }
     bool ValueObject::Decode(Buffer& buffer, bool clone_str)
     {
+    	if(buffer.ReadableBytes() == 0)
+    	{
+    		return true;
+    	}
         char tmp;
         if (!buffer.ReadByte(tmp))
         {

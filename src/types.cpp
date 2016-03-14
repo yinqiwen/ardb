@@ -1,7 +1,7 @@
 /*
  * types.cpp
  *
- *  Created on: 2016Äê3ÔÂ2ÈÕ
+ *  Created on: 2016-03-02
  *      Author: wangqiying
  */
 
@@ -44,8 +44,7 @@ OP_NAMESPACE_BEGIN
         Clear();
     }
 
-    Data::Data(const Data& other) :
-            len(other.len), encoding(other.encoding)
+    Data::Data(const Data& other)
     {
         Clone(other);
     }
@@ -169,10 +168,15 @@ OP_NAMESPACE_BEGIN
             return;
         }
         Clear();
-        data = (int64_t) str.data();
-        //*(void**) (&data) = str.data();
+//        void* s = malloc(str.size());
+//        data = (int64_t) s;
+//        len = str.size();
+//        encoding = E_CSTR;
+        void* s = malloc(str.size());
+        data = (int64_t) s;
+        memcpy(s, str.c_str(), str.size());
         len = str.size();
-        encoding = E_CSTR;
+        encoding = E_SDS;
     }
     void Data::SetInt64(int64 v)
     {
@@ -184,7 +188,7 @@ OP_NAMESPACE_BEGIN
     {
         Clear();
         encoding = E_FLOAT64;
-        *(long double*) (&data) = v;
+        memcpy(&data, &v, sizeof(data));
     }
     int64 Data::GetInt64() const
     {
@@ -200,7 +204,7 @@ OP_NAMESPACE_BEGIN
         long double v = 0;
         if (IsFloat())
         {
-            v = *(long double*) (&data);
+        	memcpy(&v, &data, sizeof(data));
         }
         else if (IsInteger())
         {
@@ -218,7 +222,7 @@ OP_NAMESPACE_BEGIN
         {
             void* s = malloc(other.len);
             data = (int64_t) s;
-//            memcpy(s, (char*) (&other.data), other.len);
+            memcpy(s, other.CStr(), other.StringLength());
 //            *(void**) (&data) = s;
         }
         else
