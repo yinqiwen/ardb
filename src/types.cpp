@@ -224,7 +224,6 @@ OP_NAMESPACE_BEGIN
             void* s = malloc(other.len);
             data = (int64_t) s;
             memcpy(s, other.CStr(), other.StringLength());
-//            *(void**) (&data) = s;
         }
         else
         {

@@ -403,6 +403,7 @@ OP_NAMESPACE_BEGIN
     int Ardb::GetSet(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
+        reply.Clear(); //deault nil response
         KeyObject keyobj(ctx.ns, KEY_META, cmd.GetArguments()[0]);
         ValueObject value;
         int err = m_engine->Get(ctx, keyobj, value);
@@ -495,7 +496,7 @@ OP_NAMESPACE_BEGIN
         {
             return ERR_INVALID_TYPE;
         }
-        val.SetType(KEY_STRING);
+
         if (op == REDIS_CMD_SETNX || op == REDIS_CMD_SETNX2)
         {
             if (val_type != 0)
@@ -505,11 +506,12 @@ OP_NAMESPACE_BEGIN
         }
         else if (op == REDIS_CMD_SETXX)
         {
-            if (val_type == 0)
+            if (0 == val_type)
             {
                 return ERR_NOTPERFORMED;
             }
         }
+        val.SetType(KEY_STRING);
         val.GetStringValue().Clone(data);
         if (ttl > 0)
         {
@@ -536,13 +538,12 @@ OP_NAMESPACE_BEGIN
         {
             op = nx_xx == 0 ? REDIS_CMD_SETNX : REDIS_CMD_SETXX;
         }
-
         if (redis_compatible)
         {
             ValueObject valueobj;
             if (!CheckMeta(ctx, key, KEY_STRING, valueobj))
             {
-                return (int) ctx.GetReply().integer;
+                return  ctx.GetReply().ErrCode();
             }
             err = MergeSet(keyobj, valueobj, op, merge, ttl);
             if (0 == err)
@@ -617,7 +618,7 @@ OP_NAMESPACE_BEGIN
         int err = StringSet(ctx, key, value, redis_compatible, ttl, nx_xx);
         if (0 != err)
         {
-            if (0 == ERR_NOTPERFORMED)
+            if (ERR_NOTPERFORMED == err)
             {
                 reply.Clear(); //return nil response
             }
@@ -641,7 +642,7 @@ OP_NAMESPACE_BEGIN
     {
         RedisReply& reply = ctx.GetReply();
         const std::string& key = cmd.GetArguments()[0];
-        bool redis_compatible = cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !g_config->redis_compatible;
+        bool redis_compatible = cmd.GetType() < REDIS_CMD_MERGE_BEGIN && g_config->redis_compatible;
         int err = StringSet(ctx, cmd.GetArguments()[0], cmd.GetArguments()[1], redis_compatible, -1, 0);
         if (0 != err)
         {
@@ -656,7 +657,13 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-            reply.SetInteger(1);
+        	if(!redis_compatible)
+        	{
+        		reply.SetStatusCode(STATUS_OK);
+        	}else
+        	{
+                reply.SetInteger(1);
+        	}
         }
         return 0;
     }
@@ -664,10 +671,14 @@ OP_NAMESPACE_BEGIN
     int Ardb::MergeSetRange(KeyObject& key, ValueObject& val, int64_t offset, const std::string& range)
     {
         uint8 val_type = val.GetType();
-        if (val_type != KEY_STRING)
+        if(val_type > 0)
         {
-            return ERR_INVALID_TYPE;
+            if (val_type != KEY_STRING)
+            {
+                return ERR_INVALID_TYPE;
+            }
         }
+        val.SetType(KEY_STRING);
         if (offset + range.size() > 512 * 1024 * 1024)
         {
             return ERR_STRING_EXCEED_LIMIT;
@@ -709,7 +720,7 @@ OP_NAMESPACE_BEGIN
             DataArray args(2);
             args[0].SetInt64(offset);
             args[1].SetString(cmd.GetArguments()[2], false);
-            err = m_engine->Merge(ctx, keyobj, REDIS_CMD_SETEANGE, args);
+            err = m_engine->Merge(ctx, keyobj, cmd.GetType(), args);
             if (0 != err)
             {
                 reply.SetErrCode(err);
@@ -734,6 +745,10 @@ OP_NAMESPACE_BEGIN
                 return 0;
             }
             err = MergeSetRange(keyobj, valueobj, offset, cmd.GetArguments()[2]);
+            if(0 == err)
+            {
+            	err = m_engine->Put(ctx, keyobj, valueobj);
+            }
             if (0 != err)
             {
                 reply.SetErrCode(err);
@@ -750,15 +765,11 @@ OP_NAMESPACE_BEGIN
         RedisReply& reply = ctx.GetReply();
         KeyObject keyobj(ctx.ns, KEY_META, cmd.GetArguments()[0]);
         ValueObject value;
-        int err = m_engine->Get(ctx, keyobj, value);
-        if (0 != err)
+        if (!CheckMeta(ctx, cmd.GetArguments()[0], KEY_STRING, value))
         {
-            reply.SetErrCode(err);
+            return 0;
         }
-        else
-        {
-            reply.SetInteger(value.GetStringValue().StringLength());
-        }
+        reply.SetInteger(value.GetStringValue().StringLength());
         return 0;
     }
 

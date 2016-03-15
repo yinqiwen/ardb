@@ -146,7 +146,8 @@ OP_NAMESPACE_BEGIN
         { "setex", REDIS_CMD_SETEX, &Ardb::SetEX, 3, 3, "w", 0, 0, 0 },
         { "setnx", REDIS_CMD_SETNX, &Ardb::SetNX, 2, 2, "w", 0, 0, 0 },
 		{ "setnx2", REDIS_CMD_SETNX2, &Ardb::SetNX, 2, 2, "w", 0, 0, 0 },
-        { "setrange", REDIS_CMD_SETEANGE, &Ardb::SetRange, 3, 3, "w", 0, 0, 0 },
+        { "setrange", REDIS_CMD_SETRANGE, &Ardb::SetRange, 3, 3, "w", 0, 0, 0 },
+		{ "setrange2", REDIS_CMD_SETRANGE2, &Ardb::SetRange, 3, 3, "w", 0, 0, 0 },
         { "strlen", REDIS_CMD_STRLEN, &Ardb::Strlen, 1, 1, "r", 0, 0, 0 },
         { "hdel", REDIS_CMD_HDEL, &Ardb::HDel, 2, -1, "w", 0, 0, 0 },
         { "hexists", REDIS_CMD_HEXISTS, &Ardb::HExists, 2, 2, "r", 0, 0, 0 },
@@ -419,6 +420,9 @@ OP_NAMESPACE_BEGIN
             }
             case REDIS_CMD_SET:
             case REDIS_CMD_SET2:
+            case REDIS_CMD_SETXX:
+            case REDIS_CMD_SETNX:
+            case REDIS_CMD_SETNX2:
             {
                 return MergeSet(key, val, op, args[0], 0);
             }
@@ -433,11 +437,6 @@ OP_NAMESPACE_BEGIN
             	std::string ss;
             	args[0].ToString(ss);
             	return MergeAppend(key, val, ss);
-            }
-            case REDIS_CMD_SETNX:
-            case REDIS_CMD_SETNX2:
-            {
-            	return MergeSet(key,val, op, args[0], 0);
             }
             case REDIS_CMD_INCR:
             case REDIS_CMD_INCR2:
@@ -454,6 +453,13 @@ OP_NAMESPACE_BEGIN
             case REDIS_CMD_INCRBYFLOAT2:
             {
                 return MergeIncrByFloat(key, val, args[0].GetFloat64());
+            }
+            case REDIS_CMD_SETRANGE:
+            case REDIS_CMD_SETRANGE2:
+            {
+            	std::string ss;
+            	args[1].ToString(ss);
+            	return MergeSetRange(key, val, args[0].GetInt64(), ss);
             }
             default:
             {
