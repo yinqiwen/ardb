@@ -91,18 +91,18 @@ namespace ardb
             }
         }
 
-        long double RedisReply::GetDouble()
+        double RedisReply::GetDouble()
         {
             if (type == REDIS_REPLY_DOUBLE)
             {
-                return *(long double*) (&integer);
+                return *(double*) (&integer);
             }
             return 0;
         }
-        void RedisReply::SetDouble(long double v)
+        void RedisReply::SetDouble(double v)
         {
             type = REDIS_REPLY_DOUBLE;
-            *(long double*) (&integer) = v;
+            *(double*) (&integer) = v;
         }
 
         RedisReply& RedisReply::AddMember(bool tail)
@@ -153,9 +153,6 @@ namespace ardb
         }
         void RedisReply::Clear()
         {
-            type = REDIS_REPLY_NIL;
-            integer = 0;
-            str.clear();
             if (NULL == pool && NULL != elements)
             {
                 for (int i = 0; i < elements->size(); i++)
@@ -164,6 +161,9 @@ namespace ardb
                 }
             }
             DELETE(elements);
+            type = REDIS_REPLY_NIL;
+            integer = 0;
+            str.clear();
         }
         RedisReply::~RedisReply()
         {

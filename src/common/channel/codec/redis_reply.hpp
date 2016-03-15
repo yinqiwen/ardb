@@ -157,8 +157,8 @@ namespace ardb
                 {
                 	return integer;
                 }
-                long double GetDouble();
-                void SetDouble(long double v);
+                double GetDouble();
+                void SetDouble(double v);
                 void SetInteger(int64_t v)
                 {
                     type = REDIS_REPLY_INTEGER;

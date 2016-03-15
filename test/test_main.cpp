@@ -43,12 +43,15 @@ int main()
 
     for (size_t i = 0; i < fs.size(); i++)
     {
-        Context tmpctx;
-        interpreter.EvalFile(tmpctx, command_test_path + fs[i]);
-        RedisReply& r = tmpctx.GetReply();
-        if(r.IsErr())
+        if(has_suffix(fs[i], ".lua"))
         {
-        	fprintf(stderr, "%s %s\n", fs[i].c_str(), r.Error().c_str());
+            Context tmpctx;
+            interpreter.EvalFile(tmpctx, command_test_path + fs[i]);
+            RedisReply& r = tmpctx.GetReply();
+            if(r.IsErr())
+            {
+                fprintf(stderr, "%s %s\n", fs[i].c_str(), r.Error().c_str());
+            }
         }
     }
     return 0;

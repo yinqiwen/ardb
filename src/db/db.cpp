@@ -124,13 +124,18 @@ OP_NAMESPACE_BEGIN
         { "bitop", REDIS_CMD_BITOP, &Ardb::Bitop, 3, -1, "w", 1, 0, 0 },
         { "bitopcount", REDIS_CMD_BITOPCUNT, &Ardb::BitopCount, 2, -1, "w", 0, 0, 0 },
         { "decr", REDIS_CMD_DECR, &Ardb::Decr, 1, 1, "w", 1, 0, 0 },
+        { "decr2", REDIS_CMD_DECR2, &Ardb::Decr, 1, 1, "w", 1, 0, 0 },
         { "decrby", REDIS_CMD_DECRBY, &Ardb::Decrby, 2, 2, "w", 1, 0, 0 },
+        { "decrby2", REDIS_CMD_DECRBY2, &Ardb::Decrby, 2, 2, "w", 1, 0, 0 },
         { "getbit", REDIS_CMD_GETBIT, &Ardb::GetBit, 2, 2, "r", 0, 0, 0 },
         { "getrange", REDIS_CMD_GETRANGE, &Ardb::GetRange, 3, 3, "r", 0, 0, 0 },
         { "getset", REDIS_CMD_GETSET, &Ardb::GetSet, 2, 2, "w", 1, 0, 0 },
         { "incr", REDIS_CMD_INCR, &Ardb::Incr, 1, 1, "w", 1, 0, 0 },
+        { "incr2", REDIS_CMD_INCR2, &Ardb::Incr, 1, 1, "w", 1, 0, 0 },
         { "incrby", REDIS_CMD_INCRBY, &Ardb::Incrby, 2, 2, "w", 1, 0, 0 },
+        { "incrby2", REDIS_CMD_INCRBY2, &Ardb::Incrby, 2, 2, "w", 1, 0, 0 },
         { "incrbyfloat", REDIS_CMD_INCRBYFLOAT, &Ardb::IncrbyFloat, 2, 2, "w", 0, 0, 0 },
+        { "incrbyfloat2", REDIS_CMD_INCRBYFLOAT2, &Ardb::IncrbyFloat, 2, 2, "w", 0, 0, 0 },
         { "mget", REDIS_CMD_MGET, &Ardb::MGet, 1, -1, "w", 0, 0, 0 },
         { "mset", REDIS_CMD_MSET, &Ardb::MSet, 2, -1, "w", 0, 0, 0 },
 		{ "mset2", REDIS_CMD_MSET2, &Ardb::MSet, 2, -1, "w", 0, 0, 0 },
@@ -433,6 +438,22 @@ OP_NAMESPACE_BEGIN
             case REDIS_CMD_SETNX2:
             {
             	return MergeSet(key,val, op, args[0], 0);
+            }
+            case REDIS_CMD_INCR:
+            case REDIS_CMD_INCR2:
+            case REDIS_CMD_INCRBY:
+            case REDIS_CMD_INCRBY2:
+            case REDIS_CMD_DECR:
+            case REDIS_CMD_DECR2:
+            case REDIS_CMD_DECRBY:
+            case REDIS_CMD_DECRBY2:
+            {
+                return MergeIncrBy(key,val,op,args[0].GetInt64());
+            }
+            case REDIS_CMD_INCRBYFLOAT:
+            case REDIS_CMD_INCRBYFLOAT2:
+            {
+                return MergeIncrByFloat(key, val, args[0].GetFloat64());
             }
             default:
             {

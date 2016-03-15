@@ -151,7 +151,7 @@ OP_NAMESPACE_BEGIN
             int ListPush(Context& ctx, RedisCommandFrame& cmd);
 
             int MergeAppend(KeyObject& key, ValueObject& val, const std::string& append);
-            int MergeIncrBy(KeyObject& key, ValueObject& val, int64_t inc);
+            int MergeIncrBy(KeyObject& key, ValueObject& val, uint16_t op, int64_t inc);
             int MergeIncrByFloat(KeyObject& key, ValueObject& val, double inc);
             int MergeSet(KeyObject& key, ValueObject& val, uint16_t op, const Data& data, int64_t ttl);
             int MergeSetRange(KeyObject& key, ValueObject& val, int64_t offset, const std::string& range);

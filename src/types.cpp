@@ -34,7 +34,7 @@ OP_NAMESPACE_BEGIN
             data(v), len(0), encoding(E_INT64)
     {
     }
-    Data::Data(long double v) :
+    Data::Data(double v) :
             len(0), encoding(E_FLOAT64)
     {
         memcpy(&data, &v, sizeof(data));
@@ -44,7 +44,8 @@ OP_NAMESPACE_BEGIN
         Clear();
     }
 
-    Data::Data(const Data& other)
+    Data::Data(const Data& other):
+                    data(0), len(0), encoding(0)
     {
         Clone(other);
     }
@@ -108,6 +109,7 @@ OP_NAMESPACE_BEGIN
         {
             return false;
         }
+        Clear();
         encoding = (uint8) header;
         switch (encoding)
         {
@@ -134,7 +136,6 @@ OP_NAMESPACE_BEGIN
                     return false;
                 }
                 const char* ss = buf.GetRawReadBuffer();
-                Clear();
                 len = strlen;
                 if (clone_str)
                 {
@@ -184,7 +185,7 @@ OP_NAMESPACE_BEGIN
         encoding = E_INT64;
         data = v;
     }
-    void Data::SetFloat64(long double v)
+    void Data::SetFloat64(double v)
     {
         Clear();
         encoding = E_FLOAT64;
@@ -199,9 +200,9 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    long double Data::GetFloat64() const
+    double Data::GetFloat64() const
     {
-        long double v = 0;
+        double v = 0;
         if (IsFloat())
         {
         	memcpy(&v, &data, sizeof(data));
@@ -240,7 +241,7 @@ OP_NAMESPACE_BEGIN
             }
             if (IsNumber() && right.IsNumber())
             {
-                long double v1, v2;
+                double v1, v2;
                 v1 = GetFloat64();
                 v2 = right.GetFloat64();
                 return v1 > v2 ? 1 : (v1 < v2 ? -1 : 0);
@@ -329,7 +330,8 @@ OP_NAMESPACE_BEGIN
     {
         if (encoding == E_SDS)
         {
-            free((char*) (data));
+            void* s = (void*)data;
+            free(s);
         }
         encoding = 0;
         len = 0;

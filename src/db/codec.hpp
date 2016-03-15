@@ -137,11 +137,11 @@ OP_NAMESPACE_BEGIN
             {
                 return GetElement(0);
             }
-            void SetListIndex(long double idx)
+            void SetListIndex(double idx)
             {
                 setElement(idx, 0);
             }
-            long double GetListIndex()
+            double GetListIndex()
             {
                 return GetElement(0).GetFloat64();
             }
@@ -164,7 +164,7 @@ OP_NAMESPACE_BEGIN
                     setElement(v, 1);
                 }
             }
-            void SetZSetScore(long double score)
+            void SetZSetScore(double score)
             {
                 setElement(score, 0);
             }

@@ -1017,7 +1017,7 @@ namespace ardb
         return stringmatchlen(pattern, strlen(pattern), string, strlen(string), nocase);
     }
 
-    int lf2string(char* s, size_t len, long double d)
+    int lf2string(char* s, size_t len, double d)
     {
         double min = -4503599627370495LL; /* (2^52)-1 */
         double max = 4503599627370496LL; /* -(2^52) */

@@ -266,7 +266,7 @@ OP_NAMESPACE_BEGIN
         Iterator* iter = m_engine->Find(ctx, elekey);
         bool found_match = false;
         bool insert_ele_idx_computed = false;
-        long double insert_ele_idx = 0;
+        double insert_ele_idx = 0;
         KeyObject insert(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
         while (NULL != iter && iter->Valid())
         {

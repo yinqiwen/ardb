@@ -231,7 +231,7 @@ OP_NAMESPACE_BEGIN
     }
     bool ValueObject::Decode(Buffer& buffer, bool clone_str)
     {
-    	if(buffer.ReadableBytes() == 0)
+    	if(!buffer.Readable())
     	{
     		return true;
     	}

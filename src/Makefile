@@ -44,7 +44,7 @@ LMDB_PATH=${LIB_PATH}/mdb-mdb/libraries/liblmdb
 LMDB_FILE=${LIB_PATH}/LMDB_0.9.14.tar.gz
 LMDB_LIBA=${LMDB_PATH}/liblmdb.a
 
-JEMALLOC_VER=jemalloc-3.6.0
+JEMALLOC_VER=jemalloc-4.1.0
 JEMALLOC_PATH=${LIB_PATH}/${JEMALLOC_VER}
 JEMALLOC_FILE=${JEMALLOC_PATH}.tar.bz2
 JEMALLOC_LIBA=${JEMALLOC_PATH}/lib/libjemalloc.a

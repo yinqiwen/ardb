@@ -92,7 +92,12 @@ namespace ardb
         {
            case REDIS_REPLY_DOUBLE:
            {
-        	   lua_pushnumber(lua, (lua_Number) reply.GetDouble());
+               int slen = 256;
+               reply.str.resize(slen);
+               slen = lf2string(&(reply.str[0]), slen - 1, reply.GetDouble());
+               reply.str.resize(slen);
+               lua_pushlstring(lua, reply.str.data(), reply.str.size());
+        	   //lua_pushnumber(lua, (lua_Number) reply.GetDouble());
         	   break;
            }
             case REDIS_REPLY_INTEGER:
@@ -512,7 +517,9 @@ namespace ardb
         LuaExecContext* ctx = g_lua_exec_ctx.GetValue();
         Context* lua_ctx = ctx->exec;
         RedisReply& reply = lua_ctx->GetReply();
+        printf("####before %p %d\n", reply.elements, reply.type);
         reply.Clear();
+        printf("####after %p %d\n", reply.elements, reply.type);
         g_db->DoCall(*lua_ctx, *setting, cmd);
         if (raise_error && reply.type != REDIS_REPLY_ERROR)
         {

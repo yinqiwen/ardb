@@ -179,7 +179,7 @@ OP_NAMESPACE_BEGIN
             Data(const std::string& v, bool try_int_encoding);
             Data(const Data& data);
             Data(int64_t v);
-            Data(long double v);
+            Data(double v);
             Data& operator=(const Data& data);
             ~Data();
 
@@ -189,9 +189,9 @@ OP_NAMESPACE_BEGIN
 
             void SetString(const std::string& str, bool try_int_encoding);
             void SetInt64(int64 v);
-            void SetFloat64(long double v);
+            void SetFloat64(double v);
             int64 GetInt64() const;
-            long double GetFloat64() const;
+            double GetFloat64() const;
 
             void Clone(const Data& data);
             int Compare(const Data& other, bool alpha_cmp = false) const;
