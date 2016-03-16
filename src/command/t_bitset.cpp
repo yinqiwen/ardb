@@ -35,8 +35,6 @@ OP_NAMESPACE_BEGIN
     static const unsigned long BITOP_XOR = 2;
     static const unsigned long BITOP_NOT = 3;
 
-    static const uint32 BIT_SUBSET_SIZE = 4096;
-    static const uint32 BIT_SUBSET_BYTES_SIZE = BIT_SUBSET_SIZE >> 3;
     //copy from redis
     static long popcount(const void *s, long count)
     {
@@ -361,7 +359,7 @@ OP_NAMESPACE_BEGIN
         if (!str.IsString())
         {
             str.ToString(strbuf);
-            p = &strbuf[0];
+            p = (const unsigned char*)(&strbuf[0]);
             strlen = strbuf.size();
         }
         else
@@ -525,11 +523,22 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
+    int Ardb::BitopCount(Context& ctx, RedisCommandFrame& cmd)
+    {
+    	return Bitop(ctx, cmd);
+    }
+
     int Ardb::Bitop(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
         const std::string& opname = cmd.GetArguments()[0];
-        const std::string& targetkey = cmd.GetArguments()[1];
+        std::string targetkey;
+        int destkey_count = 0;
+        if(cmd.GetType() == REDIS_CMD_BITOP)
+        {
+        	targetkey = cmd.GetArguments()[1];
+        	destkey_count = 1;
+        }
         unsigned long op;
         unsigned long maxlen = 0; /* Array of length of src strings,
          and max len. */
@@ -552,7 +561,7 @@ OP_NAMESPACE_BEGIN
         }
 
         /* Sanity check: NOT accepts only a single key argument. */
-        if (op == BITOP_NOT && cmd.GetArguments().size() != 4)
+        if (op == BITOP_NOT && cmd.GetArguments().size() != (2 + destkey_count))
         {
             reply.SetErrorReason("BITOP NOT must be called with a single source key.");
             return 0;
@@ -569,13 +578,17 @@ OP_NAMESPACE_BEGIN
             keys.push_back(k);
         }
         m_engine->MultiGet(ctx, keys, vals, errs);
-        if (vals[0].GetType() != 0 && vals[0].GetType() != KEY_STRING)
+        if(cmd.GetType() == REDIS_CMD_BITOP)
         {
-            reply.SetErrCode(ERR_INVALID_TYPE);
-            return 0;
+            if (vals[0].GetType() != 0 && vals[0].GetType() != KEY_STRING)
+            {
+                reply.SetErrCode(ERR_INVALID_TYPE);
+                return 0;
+            }
         }
-        size_t numkeys = keys.size() - 1;
-        for (size_t j = 1; j < keys.size(); j++)
+
+        size_t numkeys = keys.size() - destkey_count;
+        for (size_t j = destkey_count; j < keys.size(); j++)
         {
             /* Handle non-existing keys as empty strings. */
             if (vals[j].GetType() == 0)
@@ -616,9 +629,9 @@ OP_NAMESPACE_BEGIN
                 /* Note: sds pointer is always aligned to 8 byte boundary. */
                 for (size_t k = 0; k < numkeys; i++)
                 {
-                    lp[k] = (unsigned long*) (vals[k + 1].GetStringValue().CStr());
+                    lp[k] = (unsigned long*) (vals[k + destkey_count].GetStringValue().CStr());
                 }
-                memcpy(&res[0], vals[1].GetStringValue().CStr(), minlen);
+                memcpy(&res[0], vals[destkey_count].GetStringValue().CStr(), minlen);
 
                 /* Different branches per different operations for speed (sorry). */
                 if (op == BITOP_AND)
@@ -718,9 +731,15 @@ OP_NAMESPACE_BEGIN
         int err = 0;
         if (maxlen)
         {
-            vals[0].SetType(KEY_STRING);
-            vals[0].GetStringValue().SetString(res, false);
-            err = m_engine->Put(ctx, keys[0], vals[0]);
+        	if(cmd.GetType() == REDIS_CMD_BITOP)
+        	{
+                vals[0].SetType(KEY_STRING);
+                vals[0].GetStringValue().SetString(res, false);
+                err = m_engine->Put(ctx, keys[0], vals[0]);
+        	}
+        	else{
+        		maxlen = popcount(res.c_str(), res.size());
+        	}
         }
         else
         {

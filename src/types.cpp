@@ -68,10 +68,12 @@ OP_NAMESPACE_BEGIN
             if (IsString())
             {
                 memcpy(s, CStr(), StringLength());
+                memset((char*)s + StringLength(), 0, size - StringLength());
                 Clear();
             }
             data = (int64_t) s;
             encoding = E_SDS;
+            this->len = size;
         }
         return (void*) data;
     }
@@ -407,7 +409,7 @@ OP_NAMESPACE_BEGIN
             }
             case E_SDS:
             {
-                return CStr();
+                return const_cast<char*>(CStr());
             }
             default:
             {
@@ -416,22 +418,6 @@ OP_NAMESPACE_BEGIN
         }
     }
 
-    void Data::ReserveStringSpace(size_t nlen)
-    {
-        if (encoding == E_SDS)
-        {
-            if (StringLength() < nlen)
-            {
-                void* s = malloc(nlen);
-                memcpy(s, CStr(), len);
-                memset((char*)s + len, 0, nlen - len);
-                free((char*)data);
-                data = (int64_t)s;
-                this->len = nlen;
-                encoding = E_SDS;
-            }
-        }
-    }
 
     size_t DataHash::operator()(const Data& t) const
     {

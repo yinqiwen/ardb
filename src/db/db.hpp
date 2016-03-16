@@ -152,6 +152,7 @@ OP_NAMESPACE_BEGIN
             int ListPop(Context& ctx, RedisCommandFrame& cmd);
             int ListPush(Context& ctx, RedisCommandFrame& cmd);
 
+
             int MergeAppend(Context& ctx,KeyObject& key, ValueObject& val, const std::string& append);
             int MergeIncrBy(Context& ctx,KeyObject& key, ValueObject& val, uint16_t op, int64_t inc);
             int MergeIncrByFloat(Context& ctx,KeyObject& key, ValueObject& val, double inc);

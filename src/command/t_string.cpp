@@ -333,7 +333,7 @@ OP_NAMESPACE_BEGIN
         int64 incr = 1;
         if (cmd.GetArguments().size() > 1)
         {
-            if (!GetLongLongFromProtocol(ctx, cmd.GetArguments()[1], incr))
+            if (!GetLongFromProtocol(ctx, cmd.GetArguments()[1], incr))
             {
                 return 0;
             }
