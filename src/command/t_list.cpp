@@ -336,7 +336,7 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::MergeListPush(KeyObject& key, ValueObject& value, uint16_t op, const DataArray& args)
+    int Ardb::MergeListPush(Context& ctx,KeyObject& key, ValueObject& value, uint16_t op, const DataArray& args)
     {
         if (value.GetType() > 0 && value.GetType() != KEY_LIST)
         {
@@ -367,9 +367,8 @@ OP_NAMESPACE_BEGIN
             }
         }
 
-        Context tmpctx;
         {
-            TransactionGuard batch(tmpctx, m_engine);
+            TransactionGuard batch(ctx, m_engine);
             for (size_t i = 0; i < args.size(); i++)
             {
                 KeyObject ele_key(key.GetNameSpace(), KEY_LIST_ELEMENT, key.GetKey());
@@ -384,10 +383,10 @@ OP_NAMESPACE_BEGIN
                 ValueObject ele_value;
                 ele_value.SetType(KEY_LIST_ELEMENT);
                 ele_value.SetListElement(args[i]);
-                m_engine->Put(tmpctx, ele_key, ele_value);
+                m_engine->Put(ctx, ele_key, ele_value);
             }
         }
-        return tmpctx.transc_err;
+        return ctx.transc_err;
     }
 
     int Ardb::ListPush(Context& ctx, RedisCommandFrame& cmd)
@@ -428,7 +427,7 @@ OP_NAMESPACE_BEGIN
         }
         {
             TransactionGuard batch(ctx, m_engine);
-            err = MergeListPush(key, meta, cmd.GetType(), args);
+            err = MergeListPush(ctx, key, meta, cmd.GetType(), args);
             if (0 == err)
             {
                 m_engine->Put(ctx, key, meta);

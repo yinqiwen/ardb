@@ -44,8 +44,8 @@ OP_NAMESPACE_BEGIN
         Clear();
     }
 
-    Data::Data(const Data& other):
-                    data(0), len(0), encoding(0)
+    Data::Data(const Data& other) :
+            data(0), len(0), encoding(0)
     {
         Clone(other);
     }
@@ -205,7 +205,7 @@ OP_NAMESPACE_BEGIN
         double v = 0;
         if (IsFloat())
         {
-        	memcpy(&v, &data, sizeof(data));
+            memcpy(&v, &data, sizeof(data));
         }
         else if (IsInteger())
         {
@@ -329,7 +329,7 @@ OP_NAMESPACE_BEGIN
     {
         if (encoding == E_SDS)
         {
-            void* s = (void*)data;
+            void* s = (void*) data;
             free(s);
         }
         encoding = 0;
@@ -390,6 +390,47 @@ OP_NAMESPACE_BEGIN
             }
         }
         return str;
+    }
+
+    char* Data::ToMutableStr()
+    {
+        switch (encoding)
+        {
+            case E_INT64:
+            case E_FLOAT64:
+            case E_CSTR:
+            {
+                std::string ss;
+                ToString(ss);
+                SetString(ss, false);
+                return const_cast<char*>(CStr());
+            }
+            case E_SDS:
+            {
+                return CStr();
+            }
+            default:
+            {
+                return NULL;
+            }
+        }
+    }
+
+    void Data::ReserveStringSpace(size_t nlen)
+    {
+        if (encoding == E_SDS)
+        {
+            if (StringLength() < nlen)
+            {
+                void* s = malloc(nlen);
+                memcpy(s, CStr(), len);
+                memset((char*)s + len, 0, nlen - len);
+                free((char*)data);
+                data = (int64_t)s;
+                this->len = nlen;
+                encoding = E_SDS;
+            }
+        }
     }
 
     size_t DataHash::operator()(const Data& t) const

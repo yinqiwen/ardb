@@ -30,7 +30,7 @@
 #include "db/db.hpp"
 
 OP_NAMESPACE_BEGIN
-    int Ardb::MergeHSet(KeyObject& key, ValueObject& meta_value, const Data& field, const Data& value, bool inc_size, bool nx)
+    int Ardb::MergeHSet(Context& ctx,KeyObject& key, ValueObject& meta_value, const Data& field, const Data& value, bool inc_size, bool nx)
     {
         if (nx && meta_value.GetType() != 0)
         {
@@ -68,8 +68,7 @@ OP_NAMESPACE_BEGIN
         ValueObject value_obj;
         value_obj.SetType(KEY_HASH_FIELD);
         value_obj.SetHashValue(value);
-        Context tmpctx;
-        m_engine->Put(tmpctx, field_key, value_obj);
+        m_engine->Put(ctx, field_key, value_obj);
         return meta_changed ? 0 : ERR_NOTPERFORMED;
     }
 
@@ -182,7 +181,7 @@ OP_NAMESPACE_BEGIN
         }
 
         bool inserted = (errs[0] == ERR_ENTRY_NOT_EXIST || errs[1] == ERR_ENTRY_NOT_EXIST);
-        err = MergeHSet(key, vals[0], field.GetHashField(), vals[1].GetHashValue(), inserted, nx);
+        err = MergeHSet(ctx,key, vals[0], field.GetHashField(), vals[1].GetHashValue(), inserted, nx);
         if (0 != err)
         {
             reply.SetErrCode(err);
@@ -353,7 +352,7 @@ OP_NAMESPACE_BEGIN
         return ObjectLen(ctx, KEY_HASH, cmd.GetArguments()[0]);
     }
 
-    int Ardb::MergeHCreateMeta(KeyObject& key, ValueObject& value, const Data& v)
+    int Ardb::MergeHCreateMeta(Context& ctx,KeyObject& key, ValueObject& value, const Data& v)
     {
         if (value.GetType() != 0)
         {
@@ -372,7 +371,7 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::MergeHIncrby(KeyObject& key, ValueObject& value, uint16_t op, const Data& v)
+    int Ardb::MergeHIncrby(Context& ctx,KeyObject& key, ValueObject& value, uint16_t op, const Data& v)
     {
         if (value.GetType() == 0)
         {
@@ -452,7 +451,7 @@ OP_NAMESPACE_BEGIN
             else
             {
 
-                err = MergeHSet(meta_key, vals[0], key.GetHashField(), inc_data, false, false);
+                err = MergeHSet(ctx,meta_key, vals[0], key.GetHashField(), inc_data, false, false);
                 val = increment;
             }
         }
@@ -466,7 +465,7 @@ OP_NAMESPACE_BEGIN
                 }
                 else
                 {
-                    err = MergeHSet(meta_key, vals[0], key.GetHashField(), inc_data, false, false);
+                    err = MergeHSet(ctx,meta_key, vals[0], key.GetHashField(), inc_data, false, false);
                     val = increment;
                 }
             }
@@ -547,7 +546,7 @@ OP_NAMESPACE_BEGIN
             }
             else
             {
-                err = MergeHSet(meta_key, vals[0], key.GetHashField(), increment, false, false);
+                err = MergeHSet(ctx,meta_key, vals[0], key.GetHashField(), increment, false, false);
                 val = increment;
             }
         }
@@ -561,7 +560,7 @@ OP_NAMESPACE_BEGIN
                 }
                 else
                 {
-                    err = MergeHSet(meta_key, vals[0], key.GetHashField(), increment, false, false);
+                    err = MergeHSet(ctx,meta_key, vals[0], key.GetHashField(), increment, false, false);
                     val = increment;
                 }
             }
@@ -644,19 +643,18 @@ OP_NAMESPACE_BEGIN
         reply.SetInteger(existed ? 1 : 0);
         return 0;
     }
-    int Ardb::MergeHDel(KeyObject& key, ValueObject& meta_value, const DataArray& fields)
+    int Ardb::MergeHDel(Context& ctx,KeyObject& key, ValueObject& meta_value, const DataArray& fields)
     {
         if (meta_value.GetType() == 0 || meta_value.GetType() != KEY_HASH)
         {
             return ERR_NOTPERFORMED;
         }
-        Context tmpctx;
-        TransactionGuard batch(tmpctx, m_engine);
+        TransactionGuard batch(ctx, m_engine);
         for (size_t i = 1; i < fields.size(); i++)
         {
             KeyObject field(key.GetNameSpace(), KEY_HASH_FIELD, key.GetKey());
             field.SetHashField(fields[i]);
-            m_engine->Del(tmpctx, field);
+            m_engine->Del(ctx, field);
         }
         if (meta_value.GetObjectLen() >= 0)
         {

@@ -165,6 +165,22 @@ namespace ardb
             integer = 0;
             str.clear();
         }
+        const std::string& RedisReply::Error()
+        {
+            if(str.empty())
+            {
+                reply_error_string(integer, str);
+            }
+            return str;
+        }
+        const std::string& RedisReply::Status()
+        {
+            if(str.empty())
+            {
+                reply_status_string(integer, str);
+            }
+            return str;
+        }
         RedisReply::~RedisReply()
         {
         	Clear();
@@ -199,9 +215,19 @@ namespace ardb
         {
             switch(code)
             {
-                case ERR_KEY_EXIST:
+                case ERR_OUTOFRANGE:
                 {
-                    str.assign("OK", 2);
+                    str.assign("value is out of range");
+                    break;
+                }
+                case ERR_BIT_OFFSET_OUTRANGE:
+                {
+                    str.assign("bit offset is not an integer or out of range");
+                    break;
+                }
+                case ERR_BIT_OUTRANGE:
+                {
+                    str.assign("bit is not an integer or out of range");
                     break;
                 }
                 case STATUS_PONG:

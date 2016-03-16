@@ -82,7 +82,7 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::MergeAppend(KeyObject& key, ValueObject& val, const std::string& append)
+    int Ardb::MergeAppend(Context& ctx,KeyObject& key, ValueObject& val, const std::string& append)
     {
         if (val.GetType() != 0 && val.GetType() != KEY_STRING)
         {
@@ -126,7 +126,7 @@ OP_NAMESPACE_BEGIN
         {
             return 0;
         }
-        MergeAppend(key, v, append);
+        MergeAppend(ctx,key, v, append);
         err = m_engine->Put(ctx, key, v);
         if (err < 0)
         {
@@ -230,7 +230,7 @@ OP_NAMESPACE_BEGIN
         return MSet(ctx, cmd);
     }
 
-    int Ardb::MergeIncrByFloat(KeyObject& key, ValueObject& val, double inc)
+    int Ardb::MergeIncrByFloat(Context& ctx,KeyObject& key, ValueObject& val, double inc)
     {
         if (val.GetType() > 0)
         {
@@ -279,7 +279,7 @@ OP_NAMESPACE_BEGIN
         err = m_engine->Get(ctx, key, v);
         if (err == ERR_ENTRY_NOT_EXIST || 0 == err)
         {
-            err = MergeIncrByFloat(key, v, increment);
+            err = MergeIncrByFloat(ctx, key, v, increment);
             if (0 == err)
             {
                 err = m_engine->Put(ctx, key, v);
@@ -296,7 +296,7 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::MergeIncrBy(KeyObject& key, ValueObject& val, uint16_t op, int64_t incr)
+    int Ardb::MergeIncrBy(Context& ctx,KeyObject& key, ValueObject& val, uint16_t op, int64_t incr)
     {
         if (val.GetType() > 0)
         {
@@ -333,9 +333,8 @@ OP_NAMESPACE_BEGIN
         int64 incr = 1;
         if (cmd.GetArguments().size() > 1)
         {
-            if (!string_toint64(cmd.GetArguments()[1], incr))
+            if (!GetLongLongFromProtocol(ctx, cmd.GetArguments()[1], incr))
             {
-                reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
                 return 0;
             }
         }
@@ -363,7 +362,7 @@ OP_NAMESPACE_BEGIN
         err = m_engine->Get(ctx, key, v);
         if (err == ERR_ENTRY_NOT_EXIST || 0 == err)
         {
-            err = MergeIncrBy(key, v, cmd.GetType(), incr);
+            err = MergeIncrBy(ctx, key, v, cmd.GetType(), incr);
             if (0 == err)
             {
                 err = m_engine->Put(ctx, key, v);
@@ -433,9 +432,8 @@ OP_NAMESPACE_BEGIN
     {
         RedisReply& reply = ctx.GetReply();
         int64 start, end;
-        if (!string_toint64(cmd.GetArguments()[1], start) || !string_toint64(cmd.GetArguments()[1], end))
+        if (!GetLongFromProtocol(ctx, cmd.GetArguments()[1], start) || !GetLongFromProtocol(ctx, cmd.GetArguments()[1], end))
         {
-            reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
             return 0;
         }
         KeyObject keyobj(ctx.ns, KEY_META, cmd.GetArguments()[0]);
@@ -489,7 +487,7 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::MergeSet(KeyObject& key, ValueObject& val, uint16_t op, const Data& data, int64 ttl)
+    int Ardb::MergeSet(Context& ctx,KeyObject& key, ValueObject& val, uint16_t op, const Data& data, int64 ttl)
     {
         uint8 val_type = val.GetType();
         if (val_type > 0 && val_type != KEY_STRING)
@@ -515,8 +513,7 @@ OP_NAMESPACE_BEGIN
         val.GetStringValue().Clone(data);
         if (ttl > 0)
         {
-            Context tmpctx;
-            MergeExpire(tmpctx, key, val, ttl);
+            MergeExpire(ctx, key, val, ttl);
         }
         return 0;
     }
@@ -545,7 +542,7 @@ OP_NAMESPACE_BEGIN
             {
                 return  ctx.GetReply().ErrCode();
             }
-            err = MergeSet(keyobj, valueobj, op, merge, ttl);
+            err = MergeSet(ctx, keyobj, valueobj, op, merge, ttl);
             if (0 == err)
             {
                 err = m_engine->Put(ctx, keyobj, valueobj);
@@ -668,7 +665,7 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::MergeSetRange(KeyObject& key, ValueObject& val, int64_t offset, const std::string& range)
+    int Ardb::MergeSetRange(Context& ctx,KeyObject& key, ValueObject& val, int64_t offset, const std::string& range)
     {
         uint8 val_type = val.GetType();
         if(val_type > 0)
@@ -744,7 +741,7 @@ OP_NAMESPACE_BEGIN
                 reply.SetErrCode(err);
                 return 0;
             }
-            err = MergeSetRange(keyobj, valueobj, offset, cmd.GetArguments()[2]);
+            err = MergeSetRange(ctx, keyobj, valueobj, offset, cmd.GetArguments()[2]);
             if(0 == err)
             {
             	err = m_engine->Put(ctx, keyobj, valueobj);

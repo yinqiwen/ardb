@@ -126,6 +126,7 @@ OP_NAMESPACE_BEGIN
             {
                 SetReply(NULL);
                 current_cmd = NULL;
+                memset(&flags, 0, sizeof(flags));
             }
             void ClearTransaction()
             {

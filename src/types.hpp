@@ -231,6 +231,9 @@ OP_NAMESPACE_BEGIN
             void Clear();
             const char* CStr() const;
             const std::string& ToString(std::string& str) const;
+            char* ToMutableStr();
+            void ReserveStringSpace(size_t len);
+
     };
 
     struct DataHash

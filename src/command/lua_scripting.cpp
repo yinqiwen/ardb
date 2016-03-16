@@ -90,16 +90,16 @@ namespace ardb
     {
         switch (reply.type)
         {
-           case REDIS_REPLY_DOUBLE:
-           {
-               int slen = 256;
-               reply.str.resize(slen);
-               slen = lf2string(&(reply.str[0]), slen - 1, reply.GetDouble());
-               reply.str.resize(slen);
-               lua_pushlstring(lua, reply.str.data(), reply.str.size());
-        	   //lua_pushnumber(lua, (lua_Number) reply.GetDouble());
-        	   break;
-           }
+            case REDIS_REPLY_DOUBLE:
+            {
+                int slen = 256;
+                reply.str.resize(slen);
+                slen = lf2string(&(reply.str[0]), slen - 1, reply.GetDouble());
+                reply.str.resize(slen);
+                lua_pushlstring(lua, reply.str.data(), reply.str.size());
+                //lua_pushnumber(lua, (lua_Number) reply.GetDouble());
+                break;
+            }
             case REDIS_REPLY_INTEGER:
             {
                 lua_pushnumber(lua, (lua_Number) reply.integer);
@@ -119,8 +119,7 @@ namespace ardb
             {
                 lua_newtable(lua);
                 lua_pushstring(lua, "ok");
-                reply_status_string(reply.integer, reply.str);
-                lua_pushlstring(lua, reply.str.data(), reply.str.size());
+                lua_pushlstring(lua, reply.Status().data(), reply.Status().size());
                 lua_settable(lua, -3);
                 break;
             }
@@ -128,8 +127,7 @@ namespace ardb
             {
                 lua_newtable(lua);
                 lua_pushstring(lua, "err");
-                reply_error_string(reply.integer, reply.str);
-                lua_pushlstring(lua, reply.str.data(), reply.str.size());
+                lua_pushlstring(lua, reply.Error().data(), reply.Error().size());
                 lua_settable(lua, -3);
                 break;
             }
@@ -627,7 +625,7 @@ namespace ardb
             }
             else if (lua_isboolean(lua, 2))
             {
-                actual = lua_toboolean(lua, 2) ?"true":"false";
+                actual = lua_toboolean(lua, 2) ? "true" : "false";
             }
             else
             {

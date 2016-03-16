@@ -64,6 +64,8 @@ namespace ardb
             ERR_NOTPERFORMED = -1005,
             ERR_STRING_EXCEED_LIMIT = -1006,
             ERR_NOSCRIPT = -1007,
+            ERR_BIT_OFFSET_OUTRANGE = -1007,
+            ERR_BIT_OUTRANGE = -1008,
             ERR_INVALID_ARGS = -3,
             ERR_INVALID_OPERATION = -4,
             ERR_INVALID_STR = -5,
@@ -149,10 +151,8 @@ namespace ardb
                 {
                 	return type == REDIS_REPLY_ERROR;
                 }
-                const std::string& Error() const
-                {
-                	return str;
-                }
+                const std::string& Status();
+                const std::string& Error();
                 int64_t ErrCode() const
                 {
                 	return integer;
@@ -175,7 +175,6 @@ namespace ardb
                     type = REDIS_REPLY_STRING;
                     str = v;
                 }
-
                 void SetErrCode(int err)
                 {
                     type = REDIS_REPLY_ERROR;

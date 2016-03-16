@@ -301,25 +301,24 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::MergeDel(KeyObject& key, ValueObject& value)
+    int Ardb::MergeDel(Context& ctx,KeyObject& key, ValueObject& value)
     {
         if (value.GetType() == 0)
         {
             return ERR_NOTPERFORMED;
         }
-        Context tmpctx;
-        DelKey(tmpctx, key, value);
+        DelElements(ctx, key, value);
         if (value.GetTTL() > 0)
         {
             KeyObject ttl_key(key.GetNameSpace(), KEY_TTL_SORT, value.GetTTL());
             ttl_key.SetTTLKey(key.GetKey());
-            m_engine->Del(tmpctx, ttl_key);
+            m_engine->Del(ctx, ttl_key);
         }
         value.Clear();
         return 0;
     }
 
-    int Ardb::DelKey(Context& ctx,KeyObject& key, ValueObject& value)
+    int Ardb::DelElements(Context& ctx,KeyObject& key, ValueObject& value)
     {
     	//todo
         switch (value.GetType())
@@ -389,7 +388,7 @@ OP_NAMESPACE_BEGIN
         {
               if (errs[i] == 0)
               {
-            	  DelKey(ctx, ks[i], vs[i]);
+                  DelElements(ctx, ks[i], vs[i]);
             	  err = m_engine->Del(ctx, ks[i]);
             	  removed++;
               }

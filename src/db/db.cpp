@@ -105,12 +105,12 @@ OP_NAMESPACE_BEGIN
         { "apsync", REDIS_CMD_PSYNC, &Ardb::PSync, 2, -1, "ars", 0, 0, 0 },
         { "select", REDIS_CMD_SELECT, &Ardb::Select, 1, 1, "r", 0, 0, 0 },
         { "append", REDIS_CMD_APPEND, &Ardb::Append, 2, 2, "w", 0, 0, 0 },
-		{ "append2", REDIS_CMD_APPEND2, &Ardb::Append, 2, 2, "w", 0, 0, 0 },
+        { "append2", REDIS_CMD_APPEND2, &Ardb::Append, 2, 2, "w", 0, 0, 0 },
         { "get", REDIS_CMD_GET, &Ardb::Get, 1, 1, "r", 0, 0, 0 },
         { "set", REDIS_CMD_SET, &Ardb::Set, 2, 7, "w", 0, 0, 0 },
         { "set2", REDIS_CMD_SET2, &Ardb::Set, 2, 7, "w", 0, 0, 0 },
         { "del", REDIS_CMD_DEL, &Ardb::Del, 1, -1, "w", 0, 0, 0 },
-		{ "del2", REDIS_CMD_DEL2, &Ardb::Del, 1, -1, "w", 0, 0, 0 },
+        { "del2", REDIS_CMD_DEL2, &Ardb::Del, 1, -1, "w", 0, 0, 0 },
         { "exists", REDIS_CMD_EXISTS, &Ardb::Exists, 1, 1, "r", 0, 0, 0 },
         { "expire", REDIS_CMD_EXPIRE, &Ardb::Expire, 2, 2, "w", 0, 0, 0 },
         { "pexpire", REDIS_CMD_PEXPIRE, &Ardb::PExpire, 2, 2, "w", 0, 0, 0 },
@@ -138,16 +138,17 @@ OP_NAMESPACE_BEGIN
         { "incrbyfloat2", REDIS_CMD_INCRBYFLOAT2, &Ardb::IncrbyFloat, 2, 2, "w", 0, 0, 0 },
         { "mget", REDIS_CMD_MGET, &Ardb::MGet, 1, -1, "w", 0, 0, 0 },
         { "mset", REDIS_CMD_MSET, &Ardb::MSet, 2, -1, "w", 0, 0, 0 },
-		{ "mset2", REDIS_CMD_MSET2, &Ardb::MSet, 2, -1, "w", 0, 0, 0 },
+        { "mset2", REDIS_CMD_MSET2, &Ardb::MSet, 2, -1, "w", 0, 0, 0 },
         { "msetnx", REDIS_CMD_MSETNX, &Ardb::MSetNX, 2, -1, "w", 0, 0, 0 },
-		{ "msetnx2", REDIS_CMD_MSETNX2, &Ardb::MSetNX, 2, -1, "w", 0, 0, 0 },
+        { "msetnx2", REDIS_CMD_MSETNX2, &Ardb::MSetNX, 2, -1, "w", 0, 0, 0 },
         { "psetex", REDIS_CMD_PSETEX, &Ardb::PSetEX, 3, 3, "w", 0, 0, 0 },
         { "setbit", REDIS_CMD_SETBIT, &Ardb::SetBit, 3, 3, "w", 0, 0, 0 },
+        { "setbit2", REDIS_CMD_SETBIT2, &Ardb::SetBit, 3, 3, "w", 0, 0, 0 },
         { "setex", REDIS_CMD_SETEX, &Ardb::SetEX, 3, 3, "w", 0, 0, 0 },
         { "setnx", REDIS_CMD_SETNX, &Ardb::SetNX, 2, 2, "w", 0, 0, 0 },
-		{ "setnx2", REDIS_CMD_SETNX2, &Ardb::SetNX, 2, 2, "w", 0, 0, 0 },
+        { "setnx2", REDIS_CMD_SETNX2, &Ardb::SetNX, 2, 2, "w", 0, 0, 0 },
         { "setrange", REDIS_CMD_SETRANGE, &Ardb::SetRange, 3, 3, "w", 0, 0, 0 },
-		{ "setrange2", REDIS_CMD_SETRANGE2, &Ardb::SetRange, 3, 3, "w", 0, 0, 0 },
+        { "setrange2", REDIS_CMD_SETRANGE2, &Ardb::SetRange, 3, 3, "w", 0, 0, 0 },
         { "strlen", REDIS_CMD_STRLEN, &Ardb::Strlen, 1, 1, "r", 0, 0, 0 },
         { "hdel", REDIS_CMD_HDEL, &Ardb::HDel, 2, -1, "w", 0, 0, 0 },
         { "hexists", REDIS_CMD_HEXISTS, &Ardb::HExists, 2, 2, "r", 0, 0, 0 },
@@ -285,10 +286,10 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::Init()
     {
-        if(g_config->engine == "rocksdb")
+        if (g_config->engine == "rocksdb")
         {
             NEW(m_engine, RocksDBEngine);
-            if(0 != ((RocksDBEngine*)m_engine)->Init(g_config->data_base_path, g_config->rocksdb_options))
+            if (0 != ((RocksDBEngine*) m_engine)->Init(g_config->data_base_path, g_config->rocksdb_options))
             {
                 ERROR_LOG("Failed to init rocksdb.");
                 DELETE(m_engine);
@@ -376,6 +377,22 @@ OP_NAMESPACE_BEGIN
         }
     }
 
+    bool Ardb::GetLongFromProtocol(Context& ctx, const std::string& str, int64_t& v)
+    {
+        RedisReply& reply = ctx.GetReply();
+        if (!string_toint64(str, v))
+        {
+            reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
+            return false;
+        }
+        if (v < LONG_MIN || v > LONG_MAX)
+        {
+            reply.SetErrCode(ERR_OUTOFRANGE);
+            return false;
+        }
+        return true;
+    }
+
     bool Ardb::CheckMeta(Context& ctx, const std::string& key, KeyType expected)
     {
         ValueObject meta_value;
@@ -402,6 +419,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::MergeOperation(KeyObject& key, ValueObject& val, uint16_t op, const DataArray& args)
     {
+        Context merge_ctx;
         int err = 0;
         switch (op)
         {
@@ -410,7 +428,7 @@ OP_NAMESPACE_BEGIN
             {
                 for (size_t i = 0; i < args.size(); i += 2)
                 {
-                    err = MergeHSet(key, val, args[i], args[i + 1], false, false);
+                    err = MergeHSet(merge_ctx, key, val, args[i], args[i + 1], false, false);
                     if (0 != err)
                     {
                         return err;
@@ -424,19 +442,19 @@ OP_NAMESPACE_BEGIN
             case REDIS_CMD_SETNX:
             case REDIS_CMD_SETNX2:
             {
-                return MergeSet(key, val, op, args[0], 0);
+                return MergeSet(merge_ctx, key, val, op, args[0], 0);
             }
             case REDIS_CMD_DEL:
             case REDIS_CMD_DEL2:
             {
-            	return MergeDel(key, val);
+                return MergeDel(merge_ctx, key, val);
             }
             case REDIS_CMD_APPEND:
             case REDIS_CMD_APPEND2:
             {
-            	std::string ss;
-            	args[0].ToString(ss);
-            	return MergeAppend(key, val, ss);
+                std::string ss;
+                args[0].ToString(ss);
+                return MergeAppend(merge_ctx, key, val, ss);
             }
             case REDIS_CMD_INCR:
             case REDIS_CMD_INCR2:
@@ -447,19 +465,24 @@ OP_NAMESPACE_BEGIN
             case REDIS_CMD_DECRBY:
             case REDIS_CMD_DECRBY2:
             {
-                return MergeIncrBy(key,val,op,args[0].GetInt64());
+                return MergeIncrBy(merge_ctx, key, val, op, args[0].GetInt64());
             }
             case REDIS_CMD_INCRBYFLOAT:
             case REDIS_CMD_INCRBYFLOAT2:
             {
-                return MergeIncrByFloat(key, val, args[0].GetFloat64());
+                return MergeIncrByFloat(merge_ctx, key, val, args[0].GetFloat64());
             }
             case REDIS_CMD_SETRANGE:
             case REDIS_CMD_SETRANGE2:
             {
-            	std::string ss;
-            	args[1].ToString(ss);
-            	return MergeSetRange(key, val, args[0].GetInt64(), ss);
+                std::string ss;
+                args[1].ToString(ss);
+                return MergeSetRange(merge_ctx, key, val, args[0].GetInt64(), ss);
+            }
+            case REDIS_CMD_SETBIT:
+            case REDIS_CMD_SETBIT2:
+            {
+                return MergeSetBit(merge_ctx, key, val, args[0].GetInt64(), args[1].GetInt64(), NULL);
             }
             default:
             {

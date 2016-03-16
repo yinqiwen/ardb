@@ -243,6 +243,7 @@ namespace ardb
             REDIS_CMD_EXPIREAT2 = 1025,
             REDIS_CMD_EXPIRE2 = 1026,
             REDIS_CMD_PEXPIRE2 = 1027,
+            REDIS_CMD_SETBIT2 = 1028,
         };
 
         class RedisCommandDecoder;

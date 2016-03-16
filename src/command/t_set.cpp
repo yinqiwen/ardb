@@ -31,7 +31,7 @@
 
 OP_NAMESPACE_BEGIN
 
-    int Ardb::MergeSAdd(KeyObject& key, ValueObject& value, const DataArray& ms)
+    int Ardb::MergeSAdd(Context& ctx,KeyObject& key, ValueObject& value, const DataArray& ms)
     {
         if (value.GetType() > 0 && value.GetType() != KEY_SET)
         {
@@ -52,13 +52,12 @@ OP_NAMESPACE_BEGIN
                 meta_changed = true;
             }
         }
-        Context tmpctx;
         for (size_t i = 0; i < ms.size(); i++)
         {
             KeyObject field(key.GetNameSpace(), KEY_SET_MEMBER, ms[i]);
             field.SetSetMember(ms[i]);
             ValueObject empty;
-            m_engine->Put(tmpctx, field, empty);
+            m_engine->Put(ctx, field, empty);
             if(value.SetMinMaxData(ms[i]))
             {
                 meta_changed = true;
@@ -318,20 +317,19 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::MergeSRem(KeyObject& key, ValueObject& value, const DataArray& ms)
+    int Ardb::MergeSRem(Context& ctx,KeyObject& key, ValueObject& value, const DataArray& ms)
     {
         if (value.GetType() != KEY_SET)
         {
             return ERR_NOTPERFORMED;
         }
-        Context tmpctx;
         {
-            TransactionGuard batch(tmpctx, m_engine);
+            TransactionGuard batch(ctx, m_engine);
             for (size_t i = 0; i < ms.size(); i++)
             {
                 KeyObject field(key.GetNameSpace(), KEY_SET_MEMBER, key.GetKey());
                 field.SetSetMember(ms[i]);
-                m_engine->Del(tmpctx, field);
+                m_engine->Del(ctx, field);
             }
         }
         value.SetObjectLen(-1);

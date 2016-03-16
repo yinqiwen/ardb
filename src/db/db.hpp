@@ -131,6 +131,8 @@ OP_NAMESPACE_BEGIN
             void LockKey(KeyObject& key);
             void UnlockKey(KeyObject& key);
 
+            bool GetLongFromProtocol(Context& ctx, const std::string& str, int64_t& v);
+
             void TryPushSlowCommand(const RedisCommandFrame& cmd, uint64 micros);
             void GetSlowlog(Context& ctx, uint32 len);
             int ObjectLen(Context& ctx, KeyType type, const std::string& key);
@@ -150,26 +152,27 @@ OP_NAMESPACE_BEGIN
             int ListPop(Context& ctx, RedisCommandFrame& cmd);
             int ListPush(Context& ctx, RedisCommandFrame& cmd);
 
-            int MergeAppend(KeyObject& key, ValueObject& val, const std::string& append);
-            int MergeIncrBy(KeyObject& key, ValueObject& val, uint16_t op, int64_t inc);
-            int MergeIncrByFloat(KeyObject& key, ValueObject& val, double inc);
-            int MergeSet(KeyObject& key, ValueObject& val, uint16_t op, const Data& data, int64_t ttl);
-            int MergeSetRange(KeyObject& key, ValueObject& val, int64_t offset, const std::string& range);
-            int MergeHSet(KeyObject& key, ValueObject& meta_value, const Data& field, const Data& value, bool inc_size, bool nx);
-            int MergeHDel(KeyObject& key, ValueObject& meta_value, const DataArray& fields);
-            int MergeHIncrby(KeyObject& key, ValueObject& value, uint16_t op, const Data& v);
-            int MergeHCreateMeta(KeyObject& key, ValueObject& value, const Data& v);
-            int MergeListPop(KeyObject& key, ValueObject& value, uint16_t op, Data& element);
-            int MergeListPush(KeyObject& key, ValueObject& value, uint16_t op, const DataArray& args);
-            int MergeSAdd(KeyObject& key, ValueObject& value, const DataArray& ms);
-            int MergeSRem(KeyObject& key, ValueObject& value, const DataArray& ms);
-            int MergeDel(KeyObject& key, ValueObject& value);
+            int MergeAppend(Context& ctx,KeyObject& key, ValueObject& val, const std::string& append);
+            int MergeIncrBy(Context& ctx,KeyObject& key, ValueObject& val, uint16_t op, int64_t inc);
+            int MergeIncrByFloat(Context& ctx,KeyObject& key, ValueObject& val, double inc);
+            int MergeSet(Context& ctx,KeyObject& key, ValueObject& val, uint16_t op, const Data& data, int64_t ttl);
+            int MergeSetRange(Context& ctx,KeyObject& key, ValueObject& val, int64_t offset, const std::string& range);
+            int MergeHSet(Context& ctx,KeyObject& key, ValueObject& meta_value, const Data& field, const Data& value, bool inc_size, bool nx);
+            int MergeHDel(Context& ctx,KeyObject& key, ValueObject& meta_value, const DataArray& fields);
+            int MergeHIncrby(Context& ctx,KeyObject& key, ValueObject& value, uint16_t op, const Data& v);
+            int MergeHCreateMeta(Context& ctx,KeyObject& key, ValueObject& value, const Data& v);
+            int MergeListPop(Context& ctx,KeyObject& key, ValueObject& value, uint16_t op, Data& element);
+            int MergeListPush(Context& ctx,KeyObject& key, ValueObject& value, uint16_t op, const DataArray& args);
+            int MergeSAdd(Context& ctx,KeyObject& key, ValueObject& value, const DataArray& ms);
+            int MergeSRem(Context& ctx,KeyObject& key, ValueObject& value, const DataArray& ms);
+            int MergeDel(Context& ctx,KeyObject& key, ValueObject& value);
             int MergeExpire(Context& ctx, const KeyObject& key, ValueObject& meta, int64 ms);
+            int MergeSetBit(Context& ctx, const KeyObject& key, ValueObject& meta, int64 offset, uint8 bit, uint8* oldbit);
 
             bool CheckMeta(Context& ctx, const std::string& key, KeyType expected);
             bool CheckMeta(Context& ctx, const std::string& key, KeyType expected, ValueObject& meta);
 
-            int DelKey(Context& ctx,KeyObject& key, ValueObject& value);
+            int DelElements(Context& ctx,KeyObject& key, ValueObject& value);
 
 //            int GetScript(const std::string& funacname, std::string& funcbody);
 //            int SaveScript(const std::string& funacname, const std::string& funcbody);
@@ -266,6 +269,7 @@ OP_NAMESPACE_BEGIN
 
             int Bitcount(Context& ctx, RedisCommandFrame& cmd);
             int Bitop(Context& ctx, RedisCommandFrame& cmd);
+            int Bitpos(Context& ctx, RedisCommandFrame& cmd);
             int BitopCount(Context& ctx, RedisCommandFrame& cmd);
             int SetBit(Context& ctx, RedisCommandFrame& cmd);
             int GetBit(Context& ctx, RedisCommandFrame& cmd);
@@ -347,7 +351,6 @@ OP_NAMESPACE_BEGIN
             int SClear(Context& ctx, ValueObject& meta);
             int ZClear(Context& ctx, ValueObject& meta);
             int LClear(Context& ctx, ValueObject& meta);
-            int BitClear(Context& ctx, ValueObject& meta);
 
             int Eval(Context& ctx, RedisCommandFrame& cmd);
             int EvalSHA(Context& ctx, RedisCommandFrame& cmd);
