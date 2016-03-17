@@ -118,6 +118,7 @@ OP_NAMESPACE_BEGIN
 
         private:
             Engine* m_engine;
+            ArdbConfig m_conf;
             ThreadLocal<LUAInterpreter> m_lua;
 
             typedef google::dense_hash_map<std::string, RedisCommandHandlerSetting, RedisCommandHash, RedisCommandEqual> RedisCommandHandlerSettingTable;
@@ -373,9 +374,13 @@ OP_NAMESPACE_BEGIN
             friend class LUAInterpreter;
         public:
             Ardb();
-            int Init();
+            int Init(const std::string& conf_file);
             int Call(Context& ctx, RedisCommandFrame& cmd);
             int MergeOperation(KeyObject& key, ValueObject& val, uint16_t op, const DataArray& args);
+            const ArdbConfig& GetConf() const
+            {
+                return m_conf;
+            }
             ~Ardb();
     };
     extern Ardb* g_db;

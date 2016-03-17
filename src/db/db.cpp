@@ -28,6 +28,9 @@
  */
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <signal.h>
+#include <limits.h>
+#include <stdlib.h>
 #include <fcntl.h>
 #include <sstream>
 #include "db.hpp"
@@ -282,14 +285,71 @@ OP_NAMESPACE_BEGIN
     Ardb::~Ardb()
     {
         DELETE(m_engine);
+        ArdbLogger::DestroyDefaultLogger();
     }
 
-    int Ardb::Init()
+    static void daemonize(void)
     {
-        if (g_config->engine == "rocksdb")
+        int fd;
+
+        if (fork() != 0)
+        {
+            exit(0); /* parent exits */
+        }
+        setsid(); /* create a new session */
+
+        if ((fd = open("/dev/null", O_RDWR, 0)) != -1)
+        {
+            dup2(fd, STDIN_FILENO);
+            dup2(fd, STDOUT_FILENO);
+            dup2(fd, STDERR_FILENO);
+            if (fd > STDERR_FILENO)
+            {
+                close(fd);
+            }
+        }
+    }
+
+    static int signal_setting()
+    {
+        signal(SIGPIPE, SIG_IGN);
+        return 0;
+    }
+
+    int Ardb::Init(const std::string& conf_file)
+    {
+        Properties props;
+        if (!parse_conf_file(conf_file, props, " "))
+        {
+            printf("Error: Failed to parse conf file:%s\n", conf_file.c_str());
+            return -1;
+        }
+        if (!m_conf.Parse(props))
+        {
+            printf("Failed to parse config file:%s\n", conf_file.c_str());
+            return -1;
+        }
+        if (m_conf.daemonize && !m_conf.servers.empty())
+        {
+            daemonize();
+        }
+        signal_setting();
+        /*
+         * save pid into file
+         */
+        if (!m_conf.pidfile.empty())
+        {
+            char tmp[200];
+            sprintf(tmp, "%d", getpid());
+            std::string content = tmp;
+            file_write_content(m_conf.pidfile, content);
+        }
+        ArdbLogger::InitDefaultLogger(m_conf.loglevel, m_conf.logfile);
+
+        if (GetConf().engine == "rocksdb")
         {
             NEW(m_engine, RocksDBEngine);
-            if (0 != ((RocksDBEngine*) m_engine)->Init(g_config->data_base_path, g_config->rocksdb_options))
+            if (0 != ((RocksDBEngine*) m_engine)->Init(GetConf().data_base_path, GetConf().rocksdb_options))
             {
                 ERROR_LOG("Failed to init rocksdb.");
                 DELETE(m_engine);
@@ -297,14 +357,17 @@ OP_NAMESPACE_BEGIN
             }
             return 0;
         }
-        ERROR_LOG("Unsupported storage engine:%s", g_config->engine.c_str());
-        return -1;
+        else
+        {
+            ERROR_LOG("Unsupported storage engine:%s", GetConf().engine.c_str());
+            return -1;
+        }
     }
 
     void Ardb::RenameCommand()
     {
-        StringStringMap::iterator it = g_config->rename_commands.begin();
-        while (it != g_config->rename_commands.end())
+        StringStringMap::const_iterator it = GetConf().rename_commands.begin();
+        while (it != GetConf().rename_commands.end())
         {
             std::string cmd = string_tolower(it->first);
             RedisCommandHandlerSettingTable::iterator found = m_settings.find(cmd);

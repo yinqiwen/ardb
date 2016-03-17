@@ -83,7 +83,7 @@ OP_NAMESPACE_BEGIN
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_META, keystr);
         int err = 0;
-        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !g_config->redis_compatible)
+        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !GetConf().redis_compatible)
         {
             DataArray args(cmd.GetArguments().size() - 1);
             for (size_t i = 0; i < args.size(); i++)
@@ -139,7 +139,7 @@ OP_NAMESPACE_BEGIN
         KeyObject key(ctx.ns, KEY_META, keystr);
         ValueObject meta;
         int err = 0;
-        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !g_config->redis_compatible)
+        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !GetConf().redis_compatible)
         {
             DataArray args(2);
             args[0].SetString(cmd.GetArguments()[1], true);
@@ -414,7 +414,7 @@ OP_NAMESPACE_BEGIN
         KeyObject key(ctx.ns, KEY_HASH_FIELD, keystr);
         key.SetHashField(cmd.GetArguments()[1]);
         int err = 0;
-        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !g_config->redis_compatible)
+        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !GetConf().redis_compatible)
         {
             Data arg;
             arg.SetFloat64(increment);
@@ -511,7 +511,7 @@ OP_NAMESPACE_BEGIN
         KeyObject key(ctx.ns, KEY_HASH_FIELD, keystr);
         key.SetHashField(cmd.GetArguments()[1]);
         int err = 0;
-        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !g_config->redis_compatible)
+        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !GetConf().redis_compatible)
         {
             Data arg;
             arg.SetInt64(increment);
@@ -681,7 +681,7 @@ OP_NAMESPACE_BEGIN
         KeyObject key(ctx.ns, KEY_META, keystr);
         ValueObject meta;
         int err = 0;
-        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !g_config->redis_compatible)
+        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !GetConf().redis_compatible)
         {
             DataArray args(cmd.GetArguments().size() - 1);
             for (size_t i = 0; i < args.size(); i++)

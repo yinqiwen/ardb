@@ -28,6 +28,7 @@
  */
 #include "server.hpp"
 #include "thread/thread_local.hpp"
+#include "db/db.hpp"
 #include <sys/types.h>
 #include <sys/stat.h>
 
@@ -96,14 +97,14 @@ OP_NAMESPACE_BEGIN
                 m_client_ctx.uptime = get_current_epoch_micros();
                 m_client_ctx.last_interaction_ustime = get_current_epoch_micros();
                 m_client_ctx.client = ctx.GetChannel();
-                if (!g_config->requirepass.empty())
+                if (!g_db->GetConf().requirepass.empty())
                 {
                     m_ctx.authenticated = false;
                 }
 
                 //client ip white list
-                ReadLockGuard<SpinRWLock> guard(g_config->lock);
-                if (!g_config->trusted_ip.empty())
+                //ReadLockGuard<SpinRWLock> guard(const_cast<SpinRWLock>(g_db->GetConf().lock));
+                if (!g_db->GetConf().trusted_ip.empty())
                 {
                     const Address* remote = ctx.GetChannel()->GetRemoteAddress();
                     if (InstanceOf<SocketHostAddress>(remote).OK)
@@ -112,8 +113,8 @@ OP_NAMESPACE_BEGIN
                         const std::string& ip = addr->GetHost();
                         if (ip != "127.0.0.1") //allways trust 127.0.0.1
                         {
-                            StringSet::iterator sit = g_config->trusted_ip.begin();
-                            while (sit != g_config->trusted_ip.end())
+                            StringSet::const_iterator sit = g_db->GetConf().trusted_ip.begin();
+                            while (sit != g_db->GetConf().trusted_ip.end())
                             {
                                 if (stringmatchlen(sit->c_str(), sit->size(), ip.c_str(), ip.size(), 0) == 1)
                                 {
@@ -131,7 +132,7 @@ OP_NAMESPACE_BEGIN
                     data(init_data), m_delete_after_processing(false), pool(g_reply_pool.GetValue())
             {
                 m_ctx.client = &m_client_ctx;
-                pool.SetMaxSize(g_config->reply_pool_size);
+                pool.SetMaxSize(g_db->GetConf().reply_pool_size);
             }
             bool IsProcessing()
             {
@@ -174,31 +175,27 @@ OP_NAMESPACE_BEGIN
     int Server::Start()
     {
         uint32 worker_count = 0;
-        for (uint32 i = 0; i < g_config->servers.size(); i++)
+        for (uint32 i = 0; i < g_db->GetConf().servers.size(); i++)
         {
-            if (g_config->servers[i].thread_pool_size <= 0)
-            {
-                g_config->servers[i].thread_pool_size = available_processors();
-            }
-            worker_count += g_config->servers[i].thread_pool_size;
+            worker_count += g_db->GetConf().servers[i].GetThreadPoolSize();
         }
-        m_service = new ChannelService(g_config->max_open_files);
+        m_service = new ChannelService(g_db->GetConf().max_open_files);
         m_service->SetThreadPoolSize(worker_count);
 
         ChannelOptions ops;
         ops.tcp_nodelay = true;
         ops.reuse_address = true;
-        if (g_config->tcp_keepalive > 0)
+        if (g_db->GetConf().tcp_keepalive > 0)
         {
-            ops.keep_alive = g_config->tcp_keepalive;
+            ops.keep_alive = g_db->GetConf().tcp_keepalive;
         }
         g_total_qps.Name = "total_msg";
         Statistics::GetSingleton().AddTrack(&g_total_qps);
 
-        ServerHandlerDataArray handler_datas(g_config->servers.size());
-        for (uint32 i = 0; i < g_config->servers.size(); i++)
+        ServerHandlerDataArray handler_datas(g_db->GetConf().servers.size());
+        for (uint32 i = 0; i < g_db->GetConf().servers.size(); i++)
         {
-            const std::string& address = g_config->servers[i].address;
+            const std::string& address = g_db->GetConf().servers[i].address;
             ServerSocketChannel* server = NULL;
             if (address.find(":") == std::string::npos)
             {
@@ -209,7 +206,7 @@ OP_NAMESPACE_BEGIN
                     ERROR_LOG("Failed to bind on %s", address.c_str());
                     goto sexit;
                 }
-                chmod(address.c_str(), g_config->servers[i].unixsocketperm);
+                chmod(address.c_str(), g_db->GetConf().servers[i].unixsocketperm);
             }
             else
             {
@@ -229,17 +226,17 @@ OP_NAMESPACE_BEGIN
                 }
             }
             server->Configure(ops);
-            handler_datas[i].listen = g_config->servers[i];
-            handler_datas[i].qps.Name = g_config->servers[i].address;
+            handler_datas[i].listen = g_db->GetConf().servers[i];
+            handler_datas[i].qps.Name = g_db->GetConf().servers[i].address;
             Statistics::GetSingleton().AddTrack(&handler_datas[i].qps);
             server->SetChannelPipelineInitializor(pipelineInit, &handler_datas[i]);
             server->SetChannelPipelineFinalizer(pipelineDestroy, NULL);
             uint32 min = 0;
             for (uint32 j = 0; j < i; j++)
             {
-                min += min + g_config->servers[j].thread_pool_size;
+                min += min + g_db->GetConf().servers[j].GetThreadPoolSize();
             }
-            server->BindThreadPool(min, min + g_config->servers[i].thread_pool_size);
+            server->BindThreadPool(min, min + g_db->GetConf().servers[i].GetThreadPoolSize());
             INFO_LOG("Ardb will accept connections on %s", address.c_str());
         }
         StartCrons();

@@ -30,13 +30,12 @@
 #include "util/config_helper.hpp"
 #include "util/file_helper.hpp"
 #include "util/string_helper.hpp"
+#include "util/system_helper.hpp"
 #include <errno.h>
 
 #define ARDB_AUTHPASS_MAX_LEN 512
 
 OP_NAMESPACE_BEGIN
-
-    ArdbConfig* g_config = NULL;
 
     static bool verify_config(const ArdbConfig& cfg)
     {
@@ -51,6 +50,15 @@ OP_NAMESPACE_BEGIN
             return false;
         }
         return true;
+    }
+
+    int64 ListenPoint::GetThreadPoolSize() const
+    {
+        if(thread_pool_size > 0)
+        {
+            return thread_pool_size;
+        }
+        return available_processors();
     }
     bool ArdbConfig::Parse(const Properties& props)
     {

@@ -53,7 +53,7 @@ OP_NAMESPACE_BEGIN
     int Ardb::Auth(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
-        if (g_config->requirepass != cmd.GetArguments()[0])
+        if (GetConf().requirepass != cmd.GetArguments()[0])
         {
             ctx.authenticated = false;
             reply.SetErrCode(ERR_AUTH_FAILED);

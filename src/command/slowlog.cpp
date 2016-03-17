@@ -49,12 +49,12 @@ namespace ardb
 
     void Ardb::TryPushSlowCommand(const RedisCommandFrame& cmd, uint64 micros)
     {
-        if (micros < g_config->slowlog_log_slower_than)
+        if (micros < GetConf().slowlog_log_slower_than)
         {
             return;
         }
         LockGuard<SpinMutexLock> guard(g_slowlog_queue_mutex);
-        while (g_config->slowlog_max_len > 0 && g_slowlog_queue.size() >= (uint32) g_config->slowlog_max_len)
+        while (GetConf().slowlog_max_len > 0 && g_slowlog_queue.size() >= (uint32) GetConf().slowlog_max_len)
         {
             g_slowlog_queue.pop_front();
         }

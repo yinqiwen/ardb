@@ -46,6 +46,7 @@ OP_NAMESPACE_BEGIN
                     thread_pool_size(1), qps_limit(0), unixsocketperm(755)
             {
             }
+            int64 GetThreadPoolSize() const;
     };
     typedef std::vector<ListenPoint> ListenPointArray;
     struct ArdbConfig
@@ -136,8 +137,6 @@ OP_NAMESPACE_BEGIN
             bool Parse(const Properties& props);
             uint32 PrimayPort();
     };
-
-    extern ArdbConfig* g_config;
 
 OP_NAMESPACE_END
 

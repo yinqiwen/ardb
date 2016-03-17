@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include "util/file_helper.hpp"
 #include "util/config_helper.hpp"
+#include "util/time_helper.hpp"
 #include "command/lua_scripting.hpp"
 #include "db/db.hpp"
 #include "config.hpp"
@@ -16,22 +17,8 @@ using namespace ardb;
 
 int main()
 {
-    Properties props;
-    const char *configfile = "../test/ardb.conf";
-    if (!parse_conf_file(configfile, props, " "))
-    {
-        printf("Error: Failed to parse conf file:%s\n", configfile);
-        return -1;
-    }
-    ArdbConfig cfg;
-    if (!cfg.Parse(props))
-    {
-        printf("Failed to parse config file.\n");
-        return -1;
-    }
-    g_config = &cfg;
     Ardb db;
-    if (db.Init() != 0)
+    if (db.Init("../test/ardb.conf") != 0)
     {
         printf("Failed to init db.\n");
         return -1;
@@ -45,6 +32,8 @@ int main()
     {
         if(has_suffix(fs[i], ".lua"))
         {
+            printf("=======================%s Test Begin============================\n", fs[i].c_str());
+            uint64 start = get_current_epoch_millis();
             Context tmpctx;
             interpreter.EvalFile(tmpctx, command_test_path + fs[i]);
             RedisReply& r = tmpctx.GetReply();
@@ -52,6 +41,8 @@ int main()
             {
                 fprintf(stderr, "%s %s\n", fs[i].c_str(), r.Error().c_str());
             }
+            uint64 end = get_current_epoch_millis();
+            printf("=======================%s Test End(%llums)============================\n\n", fs[i].c_str(), (end - start));
         }
     }
     return 0;

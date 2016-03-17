@@ -32,7 +32,7 @@
 #include "common/common.hpp"
 #include "channel/all_includes.hpp"
 #include "context.hpp"
-#include "db/db.hpp"
+
 using namespace ardb::codec;
 
 OP_NAMESPACE_BEGIN

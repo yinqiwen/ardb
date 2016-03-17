@@ -237,7 +237,7 @@ OP_NAMESPACE_BEGIN
             }
         }
         KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
-        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN && !g_config->redis_compatible)
+        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN && !GetConf().redis_compatible)
         {
             Data merge_data;
             merge_data.SetInt64(mills);
@@ -358,7 +358,7 @@ OP_NAMESPACE_BEGIN
     int Ardb::Del(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
-        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !g_config->redis_compatible)
+        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !GetConf().redis_compatible)
         {
             for (size_t i = 0; i < cmd.GetArguments().size(); i++)
             {

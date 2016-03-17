@@ -28,6 +28,7 @@
  */
 
 #include "server.hpp"
+#include "db/db.hpp"
 #include <signal.h>
 #include <limits.h>
 #include <stdlib.h>
@@ -53,37 +54,8 @@ void usage()
     exit(1);
 }
 
-int signal_setting()
-{
-    signal(SIGPIPE, SIG_IGN);
-    return 0;
-}
-
-static void daemonize(void)
-{
-    int fd;
-
-    if (fork() != 0)
-    {
-        exit(0); /* parent exits */
-    }
-    setsid(); /* create a new session */
-
-    if ((fd = open("/dev/null", O_RDWR, 0)) != -1)
-    {
-        dup2(fd, STDIN_FILENO);
-        dup2(fd, STDOUT_FILENO);
-        dup2(fd, STDERR_FILENO);
-        if (fd > STDERR_FILENO)
-        {
-            close(fd);
-        }
-    }
-}
-
 int main(int argc, char** argv)
 {
-    Properties props;
     std::string confpath;
     if (argc >= 2)
     {
@@ -100,54 +72,19 @@ int main(int argc, char** argv)
         if (argv[j][0] != '-' || argv[j][1] != '-')
         {
             configfile = argv[j++];
-            if (!parse_conf_file(configfile, props, " "))
-            {
-                printf("Error: Failed to parse conf file:%s\n", configfile);
-                return -1;
-            }
-            char readpath_buf[4096];
-            if (NULL != realpath(configfile, readpath_buf))
-            {
-                confpath = readpath_buf;
-            }
+            confpath = configfile;
         }
     }
     else
     {
         printf("Warning: no config file specified, using the default config. In order to specify a config file use %s /path/to/ardb.conf\n", argv[0]);
     }
-    ArdbConfig cfg;
-    if (!cfg.Parse(props))
-    {
-        printf("Failed to parse config file.\n");
-        return -1;
-    }
-    if (cfg.daemonize)
-    {
-        daemonize();
-    }
-    signal_setting();
-
-    /*
-     * save pid into file
-     */
-    if (!cfg.pidfile.empty())
-    {
-        char tmp[200];
-        sprintf(tmp, "%d", getpid());
-        std::string content = tmp;
-        file_write_content(cfg.pidfile, content);
-    }
-    ArdbLogger::InitDefaultLogger(cfg.loglevel, cfg.logfile);
-    g_config = &cfg;
 
     Ardb db;
-    if (db.Init() == 0)
+    if (0 == db.Init(confpath))
     {
         Server server;
         server.Start();
     }
-    ArdbLogger::DestroyDefaultLogger();
-    return 0;
 }
 

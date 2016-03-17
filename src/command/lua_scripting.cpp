@@ -766,7 +766,7 @@ namespace ardb
         ARDB_NOTUSED(lua);
         LuaExecContext* ctx = g_lua_exec_ctx.GetValue();
         uint64 elapsed = get_current_epoch_millis() - ctx->lua_time_start;
-        if (elapsed >= (uint64) g_config->lua_time_limit && !ctx->lua_timeout)
+        if (elapsed >= (uint64) g_db->GetConf().lua_time_limit && !ctx->lua_timeout)
         {
             WARN_LOG("Lua slow script detected: %s still in execution after %llu milliseconds. You can try killing the script using the SCRIPT KILL command.",
                     ctx->lua_executing_func, elapsed);
@@ -963,7 +963,7 @@ namespace ardb
         luaSetGlobalArray(m_lua, "ARGV", args);
 
         bool delhook = false;
-        if (g_config->lua_time_limit > 0)
+        if (g_db->GetConf().lua_time_limit > 0)
         {
             lua_sethook(m_lua, MaskCountHook, LUA_MASKCOUNT, 100000);
             delhook = true;

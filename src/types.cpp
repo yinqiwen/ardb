@@ -58,17 +58,14 @@ OP_NAMESPACE_BEGIN
 
     void* Data::ReserveStringSpace(size_t size)
     {
-        if (encoding != E_SDS)
-        {
-            Clear();
-        }
+        ToMutableStr();
         if (StringLength() < size)
         {
             void* s = malloc(size);
+            memset((char*)s + StringLength(), 0, size - StringLength());
             if (IsString())
             {
                 memcpy(s, CStr(), StringLength());
-                memset((char*)s + StringLength(), 0, size - StringLength());
                 Clear();
             }
             data = (int64_t) s;
@@ -119,7 +116,13 @@ OP_NAMESPACE_BEGIN
             case E_FLOAT64:
             {
 //                int64_t v;
-                data = *(int64_t*) buf.GetRawReadBuffer();
+//                data = *(int64_t*) buf.GetRawReadBuffer();
+                if(buf.ReadableBytes() < sizeof(data))
+                {
+                    printf("####less buf:%d\n", buf.ReadableBytes());
+                    return false;
+                }
+                memcpy(&data, buf.GetRawReadBuffer(), sizeof(data));
                 buf.AdvanceReadIndex(sizeof(data));
 //                buf.Read(&data, sizeof(data));
 //                if (!BufferHelper::ReadVarInt64(buf, v))
@@ -137,7 +140,12 @@ OP_NAMESPACE_BEGIN
                 {
                     return false;
                 }
+                if(buf.ReadableBytes() < strlen)
+                {
+                    return false;
+                }
                 const char* ss = buf.GetRawReadBuffer();
+                buf.AdvanceReadIndex(strlen);
                 len = strlen;
                 if (clone_str)
                 {
@@ -221,7 +229,7 @@ OP_NAMESPACE_BEGIN
         Clear();
         encoding = other.encoding;
         len = other.len;
-        if (encoding == E_SDS)
+        if (other.encoding == E_SDS)
         {
             void* s = malloc(other.len);
             data = (int64_t) s;
@@ -229,7 +237,7 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-            memcpy(&data, &other.data, sizeof(data));
+            data = other.data;
         }
     }
     int Data::Compare(const Data& right, bool alpha_cmp) const

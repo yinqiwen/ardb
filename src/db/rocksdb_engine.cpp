@@ -91,28 +91,36 @@ OP_NAMESPACE_BEGIN
 
                 Buffer keyBuffer(const_cast<char*>(key.data()), 0, key.size());
                 key_obj.Decode(keyBuffer, false);
+
+                Buffer mergeBuffer(const_cast<char*>(value.data()), 0, value.size());
+                decode_merge_operation(mergeBuffer, op, args);
                 if (NULL != existing_value)
                 {
                     Buffer valueBuffer(const_cast<char*>(existing_value->data()), 0, existing_value->size());
-                    if(!val_obj.Decode(valueBuffer, false))
+                    if (!val_obj.Decode(valueBuffer, false))
                     {
-                    	abort();
+                        return false;
                     }
                 }
-                Buffer mergeBuffer(const_cast<char*>(value.data()), 0, value.size());
-                decode_merge_operation(mergeBuffer, op, args);
                 int err = g_db->MergeOperation(key_obj, val_obj, op, args);
                 if (0 == err)
                 {
                     Buffer encode_buffer;
                     Slice encode_slice = val_obj.Encode(encode_buffer);
-                    new_value->assign(encode_slice.data(), encode_slice.size());
-                }else
+                    if (encode_slice.size() > 0)
+                    {
+                        new_value->assign(encode_slice.data(), encode_slice.size());
+                    }else
+                    {
+                        new_value->clear();
+                    }
+                }
+                else
                 {
-                	if (NULL != existing_value)
-                	{
-                		new_value->assign(existing_value->data(), existing_value->size());
-                	}
+                    if (NULL != existing_value && !existing_value->empty())
+                    {
+                        new_value->assign(existing_value->data(), existing_value->size());
+                    }
                 }
                 return true;        // always return true for this, since we treat all errors as "zero".
             }
@@ -162,15 +170,16 @@ OP_NAMESPACE_BEGIN
 
     int RocksDBEngine::Init(const std::string& dir, const std::string& conf)
     {
+        static RocksDBComparator comparator;
+        m_options.comparator = &comparator;
+        m_options.merge_operator.reset(new MergeOperator(this));
         rocksdb::Status s = rocksdb::GetOptionsFromString(m_options, conf, &m_options);
         if (!s.ok())
         {
             ERROR_LOG("Invalid rocksdb's options:%s with error reson:%s", conf.c_str(), s.ToString().c_str());
             return -1;
         }
-        static RocksDBComparator comparator;
-        m_options.comparator = &comparator;
-        m_options.merge_operator.reset(new MergeOperator(this));
+
         std::vector<std::string> column_families;
         s = rocksdb::DB::ListColumnFamilies(m_options, dir, &column_families);
         if (column_families.empty())
@@ -302,7 +311,7 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-            s = m_db->Delete(opt,cf, key_slice);
+            s = m_db->Delete(opt, cf, key_slice);
         }
         return ROCKSDB_ERR(s);
     }
@@ -314,8 +323,6 @@ OP_NAMESPACE_BEGIN
         {
             return ERR_ENTRY_NOT_EXIST;
         }
-        Buffer buffer;
-        encode_merge_operation(buffer, op, args);
         rocksdb::WriteOptions opt;
         rocksdb::Slice key_slice = ROCKSDB_SLICE(const_cast<KeyObject&>(key).Encode());
         Buffer merge_buffer;

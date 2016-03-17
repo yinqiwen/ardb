@@ -250,12 +250,12 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
-        uint8 bit = cmd.GetArguments()[2] != "0";
+        uint8 bit = cmd.GetArguments()[2] != "0" ? 1 : 0;
         int err = 0;
         /*
          * merge setbit
          */
-        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !g_config->redis_compatible)
+        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !GetConf().redis_compatible)
         {
             DataArray args(2);
             args[0].SetInt64(offset);
@@ -359,7 +359,7 @@ OP_NAMESPACE_BEGIN
         if (!str.IsString())
         {
             str.ToString(strbuf);
-            p = (const unsigned char*)(&strbuf[0]);
+            p = (const unsigned char*) (&strbuf[0]);
             strlen = strbuf.size();
         }
         else
@@ -525,7 +525,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::BitopCount(Context& ctx, RedisCommandFrame& cmd)
     {
-    	return Bitop(ctx, cmd);
+        return Bitop(ctx, cmd);
     }
 
     int Ardb::Bitop(Context& ctx, RedisCommandFrame& cmd)
@@ -534,10 +534,10 @@ OP_NAMESPACE_BEGIN
         const std::string& opname = cmd.GetArguments()[0];
         std::string targetkey;
         int destkey_count = 0;
-        if(cmd.GetType() == REDIS_CMD_BITOP)
+        if (cmd.GetType() == REDIS_CMD_BITOP)
         {
-        	targetkey = cmd.GetArguments()[1];
-        	destkey_count = 1;
+            targetkey = cmd.GetArguments()[1];
+            destkey_count = 1;
         }
         unsigned long op;
         unsigned long maxlen = 0; /* Array of length of src strings,
@@ -578,7 +578,7 @@ OP_NAMESPACE_BEGIN
             keys.push_back(k);
         }
         m_engine->MultiGet(ctx, keys, vals, errs);
-        if(cmd.GetType() == REDIS_CMD_BITOP)
+        if (cmd.GetType() == REDIS_CMD_BITOP)
         {
             if (vals[0].GetType() != 0 && vals[0].GetType() != KEY_STRING)
             {
@@ -703,13 +703,13 @@ OP_NAMESPACE_BEGIN
             /* j is set to the next byte to process by the previous loop. */
             for (; j < maxlen; j++)
             {
-                Data& first = vals[1].GetStringValue();
+                Data& first = vals[destkey_count].GetStringValue();
                 output = (first.StringLength() <= j) ? 0 : first.CStr()[j];
                 if (op == BITOP_NOT)
                     output = ~output;
                 for (i = 1; i < numkeys; i++)
                 {
-                    byte = (vals[i + 1].GetStringValue().StringLength() <= j) ? 0 : vals[i + 1].GetStringValue().CStr()[j];
+                    byte = (vals[i + destkey_count].GetStringValue().StringLength() <= j) ? 0 : vals[destkey_count + 1].GetStringValue().CStr()[j];
                     switch (op)
                     {
                         case BITOP_AND:
@@ -731,15 +731,16 @@ OP_NAMESPACE_BEGIN
         int err = 0;
         if (maxlen)
         {
-        	if(cmd.GetType() == REDIS_CMD_BITOP)
-        	{
+            if (cmd.GetType() == REDIS_CMD_BITOP)
+            {
                 vals[0].SetType(KEY_STRING);
                 vals[0].GetStringValue().SetString(res, false);
                 err = m_engine->Put(ctx, keys[0], vals[0]);
-        	}
-        	else{
-        		maxlen = popcount(res.c_str(), res.size());
-        	}
+            }
+            else
+            {
+                maxlen = popcount(res.c_str(), res.size());
+            }
         }
         else
         {

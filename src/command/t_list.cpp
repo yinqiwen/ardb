@@ -396,7 +396,7 @@ OP_NAMESPACE_BEGIN
         KeyObject key(ctx.ns, KEY_META, keystr);
         ValueObject meta;
         int err = 0;
-        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !g_config->redis_compatible)
+        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !GetConf().redis_compatible)
         {
             DataArray args(cmd.GetArguments().size() - 1);
             for (size_t i = 0; i < cmd.GetArguments().size() - 1; i++)

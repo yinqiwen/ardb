@@ -150,7 +150,7 @@ namespace ardb
             uname(&name);
             info.append("# Server\r\n");
             info.append("ardb_version:").append(ARDB_VERSION).append("\r\n");
-            info.append("ardb_home:").append(g_config->home).append("\r\n");
+            info.append("ardb_home:").append(GetConf().home).append("\r\n");
             info.append("os:").append(name.sysname).append(" ").append(name.release).append(" ").append(name.machine).append("\r\n");
             char tmp[256];
             sprintf(tmp, "%d.%d.%d",
@@ -210,7 +210,7 @@ namespace ardb
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "disk"))
         {
             info.append("# Disk\r\n");
-            int64 filesize = file_size(g_config->data_base_path);
+            int64 filesize = file_size(GetConf().data_base_path);
             char tmp[256];
             sprintf(tmp, "%" PRId64, filesize);
             info.append("db_used_space:").append(tmp).append("\r\n");
