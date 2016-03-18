@@ -66,9 +66,11 @@ namespace ardb
             ERR_NOSCRIPT = -1007,
             ERR_BIT_OFFSET_OUTRANGE = -1007,
             ERR_BIT_OUTRANGE = -1008,
+            ERR_CORRUPTED_HLL_OBJECT = -1009,
+            ERR_INVALID_HLL_STRING = -1010,
             ERR_INVALID_ARGS = -3,
             ERR_INVALID_OPERATION = -4,
-            ERR_INVALID_STR = -5,
+
             ERR_KEY_EXIST = -7,
             ERR_INVALID_TYPE = -8,
             ERR_OUTOFRANGE = -9,

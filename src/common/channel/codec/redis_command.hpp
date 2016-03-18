@@ -229,7 +229,7 @@ namespace ardb
             REDIS_CMD_HSETNX2 = 1011,
             REDIS_CMD_HMSET2 = 1012,
             REDIS_CMD_HINCR2 = 1013,
-            REDIS_CMD_HMETA_CREATE = 1014, // not a real command, just a internal merge operation indicator
+            REDIS_CMD_HINCRBYFLOAT2 = 1014,
             REDIS_CMD_LPUSH2 = 1015,
             REDIS_CMD_LPUSHX2 = 1016,
             REDIS_CMD_RPUSH2 = 1017,
@@ -244,6 +244,7 @@ namespace ardb
             REDIS_CMD_EXPIRE2 = 1026,
             REDIS_CMD_PEXPIRE2 = 1027,
             REDIS_CMD_SETBIT2 = 1028,
+            REDIS_CMD_PFADD2 = 1029,
         };
 
         class RedisCommandDecoder;

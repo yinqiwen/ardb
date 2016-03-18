@@ -172,10 +172,9 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-
     int Ardb::MergeExpire(Context& ctx, const KeyObject& key, ValueObject& meta, int64 ms)
     {
-        if(meta.GetType() == 0)
+        if (meta.GetType() == 0)
         {
             return ERR_NOTPERFORMED;
         }
@@ -205,7 +204,7 @@ OP_NAMESPACE_BEGIN
             reply.SetErrCode(ERR_OUTOFRANGE);
             return 0;
         }
-        switch(cmd.GetType())
+        switch (cmd.GetType())
         {
             case REDIS_CMD_PEXPIREAT:
             case REDIS_CMD_PEXPIREAT2:
@@ -222,13 +221,13 @@ OP_NAMESPACE_BEGIN
             case REDIS_CMD_EXPIRE2:
             {
                 mills *= 1000;
-                mills  += get_current_epoch_millis();
+                mills += get_current_epoch_millis();
                 break;
             }
             case REDIS_CMD_PEXPIRE:
             case REDIS_CMD_PEXPIRE2:
             {
-                mills  += get_current_epoch_millis();
+                mills += get_current_epoch_millis();
                 break;
             }
             default:
@@ -301,7 +300,7 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::MergeDel(Context& ctx,KeyObject& key, ValueObject& value)
+    int Ardb::MergeDel(Context& ctx, KeyObject& key, ValueObject& value)
     {
         if (value.GetType() == 0)
         {
@@ -318,33 +317,45 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::DelElements(Context& ctx,KeyObject& key, ValueObject& value)
+    int Ardb::DelElements(Context& ctx, KeyObject& key, ValueObject& value)
     {
-    	//todo
+        //todo
         switch (value.GetType())
         {
             case 0:
             {
-        	     break;
+                break;
             }
             case KEY_STRING:
             {
                 break;
             }
             case KEY_HASH:
-            {
-                break;
-            }
             case KEY_SET:
-            {
-                break;
-            }
             case KEY_LIST:
-            {
-                break;
-            }
             case KEY_ZSET:
             {
+                KeyType ele_type = element_type((KeyType) value.GetType());
+                KeyObject key(key.GetNameSpace(), key.GetKey(), key.GetKey());
+                Iterator* iter = m_engine->Find(ctx, key);
+                while (NULL != iter && iter->Valid())
+                {
+                    KeyObject& member = iter->Key();
+                    if (member.GetType() != key.GetKey() || member.GetNameSpace() != key.GetNameSpace() || member.GetKey() != key.GetKey())
+                    {
+                        break;
+                    }
+                    m_engine->Del(ctx, member);
+                    if (value.GetType() == KEY_ZSET)
+                    {
+                        KeyObject skey(key.GetNameSpace(), key.GetKey(), key.GetKey());
+                        //skey.SetZSetMember(member.get)
+                        //todo
+                        //
+                    }
+                    iter->Next();
+                }
+                DELETE(iter);
                 break;
             }
             default:
@@ -352,7 +363,7 @@ OP_NAMESPACE_BEGIN
                 abort();
             }
         }
-    	return 0;
+        return 0;
     }
 
     int Ardb::Del(Context& ctx, RedisCommandFrame& cmd)
@@ -372,26 +383,26 @@ OP_NAMESPACE_BEGIN
         KeyObjectArray ks;
         for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
         {
-             KeyObject k(ctx.ns, KEY_META, cmd.GetArguments()[i]);
-             ks.push_back(k);
+            KeyObject k(ctx.ns, KEY_META, cmd.GetArguments()[i]);
+            ks.push_back(k);
         }
         ValueObjectArray vs;
         ErrCodeArray errs;
         int err = m_engine->MultiGet(ctx, ks, vs, errs);
         if (0 != err)
         {
-             reply.SetErrCode(err);
-             return 0;
+            reply.SetErrCode(err);
+            return 0;
         }
         int removed = 0;
         for (size_t i = 0; i < ks.size(); i++)
         {
-              if (errs[i] == 0)
-              {
-                  DelElements(ctx, ks[i], vs[i]);
-            	  err = m_engine->Del(ctx, ks[i]);
-            	  removed++;
-              }
+            if (errs[i] == 0)
+            {
+                DelElements(ctx, ks[i], vs[i]);
+                err = m_engine->Del(ctx, ks[i]);
+                removed++;
+            }
         }
         reply.SetInteger(removed);
         return 0;

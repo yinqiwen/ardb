@@ -242,6 +242,7 @@ OP_NAMESPACE_BEGIN
         { "geosearch", REDIS_CMD_GEO_SEARCH, &Ardb::GeoSearch, 5, -1, "r", 0, 0, 0 },
         { "auth", REDIS_CMD_AUTH, &Ardb::Auth, 1, 1, "r", 0, 0, 0 },
         { "pfadd", REDIS_CMD_PFADD, &Ardb::PFAdd, 2, -1, "w", 0, 0, 0 },
+        { "pfadd2", REDIS_CMD_PFADD2, &Ardb::PFAdd, 2, -1, "w", 0, 0, 0 },
         { "pfcount", REDIS_CMD_PFCOUNT, &Ardb::PFCount, 1, -1, "w", 0, 0, 0 },
         { "pfmerge", REDIS_CMD_PFMERGE, &Ardb::PFMerge, 2, -1, "w", 0, 0, 0 }, };
 
@@ -464,15 +465,20 @@ OP_NAMESPACE_BEGIN
 
     bool Ardb::CheckMeta(Context& ctx, const std::string& key, KeyType expected, ValueObject& meta_value)
     {
-        RedisReply& reply = ctx.GetReply();
         KeyObject meta_key(ctx.ns, KEY_META, key);
-        int err = m_engine->Get(ctx, meta_key, meta_value);
+        return CheckMeta(ctx, meta_key, expected, meta_value);
+    }
+
+    bool Ardb::CheckMeta(Context& ctx, const KeyObject& key, KeyType expected, ValueObject& meta)
+    {
+        RedisReply& reply = ctx.GetReply();
+        int err = m_engine->Get(ctx, key, meta);
         if (err != 0 && err != ERR_ENTRY_NOT_EXIST)
         {
             reply.SetErrCode(err);
             return false;
         }
-        if (meta_value.GetType() > 0 && meta_value.GetType() != expected)
+        if (meta.GetType() > 0 && meta.GetType() != expected)
         {
             reply.SetErrCode(ERR_INVALID_TYPE);
             return false;
@@ -546,6 +552,11 @@ OP_NAMESPACE_BEGIN
             case REDIS_CMD_SETBIT2:
             {
                 return MergeSetBit(merge_ctx, key, val, args[0].GetInt64(), args[1].GetInt64(), NULL);
+            }
+            case REDIS_CMD_PFADD:
+            case REDIS_CMD_PFADD2:
+            {
+                return MergePFAdd(merge_ctx, key, val, args, NULL);
             }
             default:
             {

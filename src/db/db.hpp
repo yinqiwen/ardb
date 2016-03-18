@@ -159,10 +159,9 @@ OP_NAMESPACE_BEGIN
             int MergeIncrByFloat(Context& ctx,KeyObject& key, ValueObject& val, double inc);
             int MergeSet(Context& ctx,KeyObject& key, ValueObject& val, uint16_t op, const Data& data, int64_t ttl);
             int MergeSetRange(Context& ctx,KeyObject& key, ValueObject& val, int64_t offset, const std::string& range);
-            int MergeHSet(Context& ctx,KeyObject& key, ValueObject& meta_value, const Data& field, const Data& value, bool inc_size, bool nx);
-            int MergeHDel(Context& ctx,KeyObject& key, ValueObject& meta_value, const DataArray& fields);
+            int MergeHSet(Context& ctx,KeyObject& key, ValueObject& value, uint16_t op, Data& v);
+            int MergeHDel(Context& ctx,KeyObject& key, ValueObject& meta_value);
             int MergeHIncrby(Context& ctx,KeyObject& key, ValueObject& value, uint16_t op, const Data& v);
-            int MergeHCreateMeta(Context& ctx,KeyObject& key, ValueObject& value, const Data& v);
             int MergeListPop(Context& ctx,KeyObject& key, ValueObject& value, uint16_t op, Data& element);
             int MergeListPush(Context& ctx,KeyObject& key, ValueObject& value, uint16_t op, const DataArray& args);
             int MergeSAdd(Context& ctx,KeyObject& key, ValueObject& value, const DataArray& ms);
@@ -170,9 +169,11 @@ OP_NAMESPACE_BEGIN
             int MergeDel(Context& ctx,KeyObject& key, ValueObject& value);
             int MergeExpire(Context& ctx, const KeyObject& key, ValueObject& meta, int64 ms);
             int MergeSetBit(Context& ctx, const KeyObject& key, ValueObject& meta, int64 offset, uint8 bit, uint8* oldbit);
+            int MergePFAdd(Context& ctx,KeyObject& key, ValueObject& value, const DataArray& ms, int* updated = NULL);
 
             bool CheckMeta(Context& ctx, const std::string& key, KeyType expected);
             bool CheckMeta(Context& ctx, const std::string& key, KeyType expected, ValueObject& meta);
+            bool CheckMeta(Context& ctx, const KeyObject& key, KeyType expected, ValueObject& meta);
 
             int DelElements(Context& ctx,KeyObject& key, ValueObject& value);
 

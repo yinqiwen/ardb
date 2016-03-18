@@ -230,6 +230,16 @@ namespace ardb
                     str.assign("bit is not an integer or out of range");
                     break;
                 }
+                case ERR_CORRUPTED_HLL_OBJECT:
+                {
+                    str.assign("INVALIDOBJ Corrupted HLL object detected");
+                    break;
+                }
+                case ERR_INVALID_HLL_STRING:
+                {
+                    str.assign("WRONGTYPE Key is not a valid HyperLogLog string value.");
+                    break;
+                }
                 case STATUS_PONG:
                 {
                     str.assign("PONG", 4);

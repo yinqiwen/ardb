@@ -1344,140 +1344,180 @@ bool isHLLObjectOrReply(std::string& value)
 
 namespace ardb
 {
-
-    int Ardb::HyperloglogAdd(Context& ctx, const std::string& key, const SliceArray& members)
+    int Ardb::MergePFAdd(Context& ctx, KeyObject& key, ValueObject& meta, const DataArray& ms, int* up)
     {
-        KeyLockerGuard keyguard(m_key_lock, ctx.currentDB, key);
-        ValueObject value;
-        int updated = 0;
-        StringGet(ctx, key, value);
         std::string hllvalue;
-        if (ctx.reply.type == REDIS_REPLY_STRING)
-        {
-            if (value.meta.str_value.RawString() != NULL)
-            {
-                hllvalue.assign(value.meta.str_value.RawString(), sdslen(value.meta.str_value.RawString()));
-            }
-            if (!isHLLObjectOrReply(hllvalue))
-            {
-                return ERR_INVALID_HLL_TYPE;
-            }
-        }
-        else if (REDIS_REPLY_NIL == ctx.reply.type)
+        int updated = 0;
+        if (meta.GetType() == 0)
         {
             createHLLObject(hllvalue);
+            meta.SetType(KEY_STRING);
             updated++;
         }
         else
         {
-            return ERR_INVALID_TYPE;
+            meta.GetStringValue().ToString(hllvalue);
+            if (!isHLLObjectOrReply(hllvalue))
+            {
+                //reply.SetErrCode(ERR_INVALID_HLL_STRING);
+                return ERR_INVALID_HLL_STRING;
+            }
         }
-        for (uint32 i = 0; i < members.size(); i++)
+        for (uint32 i = 0; i < ms.size(); i++)
         {
-            int retval = hllAdd(hllvalue, (unsigned char*) (members[i].data()), members[i].size(), (uint32_t) m_cfg.hll_sparse_max_bytes);
+            int retval = hllAdd(hllvalue, (unsigned char*) (ms[i].CStr()), ms[i].StringLength(), (uint32_t) GetConf().hll_sparse_max_bytes);
             switch (retval)
             {
                 case 1:
                     updated++;
                     break;
                 case -1:
-                    //addReplySds(c, sdsnew(invalid_hll_err));
-                    return ERR_CORRUPTED_HLL_VALUE;
+                {
+                    //reply.SetErrCode(ERR_CORRUPTED_HLL_OBJECT);
+                    return ERR_CORRUPTED_HLL_OBJECT;
+                }
             }
         }
         struct hllhdr* hdr = (struct hllhdr*) (&hllvalue[0]);
         if (updated)
         {
             HLL_INVALIDATE_CACHE(hdr);
-            value.meta.str_value.SetString(hllvalue, false);
-            int ret = SetKeyValue(ctx, value);
-            return ret == 0 ? 1 : ret;
+            meta.GetStringValue().SetString(hllvalue, false);
+            //err = m_engine->Put(ctx, key, meta);
         }
-        return 0;
+        if (NULL != up)
+        {
+            *up = updated;
+        }
+        return updated ? 0 : ERR_NOTPERFORMED;
     }
 
-    int Ardb::HyperloglogCountKey(Context& ctx, const std::string& key, uint64& v)
+    /* PFADD var ele ele ele ... ele => :0 or :1 */
+    int Ardb::PFAdd(Context& ctx, RedisCommandFrame& cmd)
     {
-        KeyLockerGuard keyguard(m_key_lock, ctx.currentDB, key);
-        ValueObject value;
-        int ret = StringGet(ctx, key, value);
-        std::string hllvalue;
-        if (0 == ret)
+        RedisReply& reply = ctx.GetReply();
+        const std::string& keystr = cmd.GetArguments()[0];
+        ctx.flags.create_if_notexist = 1;
+        KeyObject key(ctx.ns, KEY_META, keystr);
+        DataArray args(cmd.GetArguments().size() - 1);
+        for (size_t i = 1; i < args.size(); i++)
         {
-            if (value.meta.str_value.RawString() != NULL)
-            {
-                hllvalue.assign(value.meta.str_value.RawString(), sdslen(value.meta.str_value.RawString()));
-            }
-            else if (ctx.reply.type == REDIS_REPLY_NIL)
-            {
-                return 0;
-            }
-            if (!isHLLObjectOrReply(hllvalue))
-            {
-                return ERR_INVALID_HLL_TYPE;
-            }
+            args[i].SetString(cmd.GetArguments()[i], false);
         }
-        else if (ERR_NOT_EXIST == ret)
+        int err = 0;
+        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !GetConf().redis_compatible)
+        {
+            err = m_engine->Merge(ctx, key, cmd.GetType(), args);
+            if (0 != err)
+            {
+                reply.SetErrCode(err);
+            }
+            else
+            {
+                reply.SetStatusCode(STATUS_OK);
+            }
+            return 0;
+        }
+        ValueObject value;
+        int updated = 0;
+        KeyLockGuard guard(key);
+        ValueObject meta;
+        if (!CheckMeta(ctx, key, KEY_STRING, meta))
         {
             return 0;
         }
-        else
+        err = MergePFAdd(ctx, key, meta,args, &updated);
+        if(0 == err && updated)
         {
-            return ret;
+            err = m_engine->Put(ctx, key, meta);
         }
-        struct hllhdr *hdr;
-        uint64_t card = 0;
-
-        /* Check if the cached cardinality is valid. */
-        hdr = (struct hllhdr *) (&hllvalue[0]);
-        if (HLL_VALID_CACHE(hdr))
+        if (err != 0)
         {
-            /* Just return the cached value. */
-            card = (uint64_t) hdr->card[0];
-            card |= (uint64_t) hdr->card[1] << 8;
-            card |= (uint64_t) hdr->card[2] << 16;
-            card |= (uint64_t) hdr->card[3] << 24;
-            card |= (uint64_t) hdr->card[4] << 32;
-            card |= (uint64_t) hdr->card[5] << 40;
-            card |= (uint64_t) hdr->card[6] << 48;
-            card |= (uint64_t) hdr->card[7] << 56;
+            reply.SetErrCode(err);
         }
         else
         {
-            int invalid = 0;
-            /* Recompute it and update the cached value. */
-            card = hllCount(hdr, hllvalue.size(), &invalid);
-            if (invalid)
-            {
-                //addReplySds(c, sdsnew(invalid_hll_err));
-                return ERR_CORRUPTED_HLL_VALUE;
-            }
-            hdr->card[0] = card & 0xff;
-            hdr->card[1] = (card >> 8) & 0xff;
-            hdr->card[2] = (card >> 16) & 0xff;
-            hdr->card[3] = (card >> 24) & 0xff;
-            hdr->card[4] = (card >> 32) & 0xff;
-            hdr->card[5] = (card >> 40) & 0xff;
-            hdr->card[6] = (card >> 48) & 0xff;
-            hdr->card[7] = (card >> 56) & 0xff;
-            /* This is not considered a read-only command even if the
-             * data structure is not modified, since the cached value
-             * may be modified and given that the HLL is a Redis string
-             * we need to propagate the change. */
-            //signalModifiedKey(c->db, c->argv[1]);
-            //server.dirty++;
-            SetKeyValue(ctx, value);
+            reply.SetInteger(updated ? 1 : 0);
         }
-        v = card;
         return 0;
-    }
 
+    }
     /* PFCOUNT var -> approximated cardinality of set. */
-    int Ardb::HyperloglogCount(Context& ctx, const StringArray& keys, uint64& card)
+    int Ardb::PFCount(Context& ctx, RedisCommandFrame& cmd)
     {
-        if (keys.size() == 1)
+        uint64 card = 0;
+        RedisReply& reply = ctx.GetReply();
+        reply.SetInteger(0); //default response
+        if (cmd.GetArguments().size() == 1)
         {
-            return HyperloglogCountKey(ctx, keys[0], card);
+            KeyObject meta_key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
+            ValueObject meta;
+            if (!CheckMeta(ctx, meta_key, KEY_STRING, meta))
+            {
+                return 0;
+            }
+            if (meta.GetType() == 0)
+            {
+                return 0;
+            }
+            std::string hllvalue;
+            meta.GetStringValue().ToString(hllvalue);
+            if (!isHLLObjectOrReply(hllvalue))
+            {
+                reply.SetErrCode(ERR_INVALID_HLL_STRING);
+                return 0;
+            }
+            struct hllhdr *hdr;
+            uint64_t card = 0;
+
+            /* Check if the cached cardinality is valid. */
+            hdr = (struct hllhdr *) (&hllvalue[0]);
+            if (HLL_VALID_CACHE(hdr))
+            {
+                /* Just return the cached value. */
+                card = (uint64_t) hdr->card[0];
+                card |= (uint64_t) hdr->card[1] << 8;
+                card |= (uint64_t) hdr->card[2] << 16;
+                card |= (uint64_t) hdr->card[3] << 24;
+                card |= (uint64_t) hdr->card[4] << 32;
+                card |= (uint64_t) hdr->card[5] << 40;
+                card |= (uint64_t) hdr->card[6] << 48;
+                card |= (uint64_t) hdr->card[7] << 56;
+            }
+            else
+            {
+                int invalid = 0;
+                /* Recompute it and update the cached value. */
+                card = hllCount(hdr, hllvalue.size(), &invalid);
+                if (invalid)
+                {
+                    reply.SetErrCode(ERR_CORRUPTED_HLL_OBJECT);
+                    return 0;
+                }
+                hdr->card[0] = card & 0xff;
+                hdr->card[1] = (card >> 8) & 0xff;
+                hdr->card[2] = (card >> 16) & 0xff;
+                hdr->card[3] = (card >> 24) & 0xff;
+                hdr->card[4] = (card >> 32) & 0xff;
+                hdr->card[5] = (card >> 40) & 0xff;
+                hdr->card[6] = (card >> 48) & 0xff;
+                hdr->card[7] = (card >> 56) & 0xff;
+                /* This is not considered a read-only command even if the
+                 * data structure is not modified, since the cached value
+                 * may be modified and given that the HLL is a Redis string
+                 * we need to propagate the change. */
+                //signalModifiedKey(c->db, c->argv[1]);
+                //server.dirty++;
+                meta.GetStringValue().SetString(hllvalue, false);
+                int err = m_engine->Put(ctx, meta_key, meta);
+                if (0 != err)
+                {
+                    reply.SetErrCode(err);
+                    return 0;
+                }
+            }
+            reply.SetInteger(card);
+            return 0;
         }
         uint8_t max[HLL_HDR_SIZE + HLL_REGISTERS], *registers;
 
@@ -1486,44 +1526,41 @@ namespace ardb
         struct hllhdr *hdr = (struct hllhdr*) max;
         hdr->encoding = HLL_RAW; /* Special internal-only encoding. */
         registers = max + HLL_HDR_SIZE;
-        for (uint32 i = 0; i < keys.size(); i++)
+        for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
         {
             ValueObject hll;
-            std::string hllvalue;
-            int ret = StringGet(ctx, keys[i], hll);
-            if (0 == ret)
+            if (!CheckMeta(ctx, cmd.GetArguments()[i], KEY_STRING, hll))
             {
-                if (hll.meta.str_value.RawString() != NULL)
-                {
-                    hllvalue.assign(hll.meta.str_value.RawString(), sdslen(hll.meta.str_value.RawString()));
-                }
-                if (!isHLLObjectOrReply(hllvalue))
-                {
-                    return ERR_INVALID_HLL_TYPE;
-                }
+                return 0;
             }
-            else if (ERR_NOT_EXIST == ret)
+            if (hll.GetType() == 0)
             {
                 continue;
             }
-            else
+            std::string hllvalue;
+            hll.GetStringValue().ToString(hllvalue);
+            if (!isHLLObjectOrReply(hllvalue))
             {
-                return ret;
+                reply.SetErrCode(ERR_INVALID_HLL_STRING);
+                return 0;
             }
 
             /* Merge with this HLL with our 'max' HHL by setting max[i]
              * to MAX(max[i],hll[i]). */
             if (hllMerge(registers, hllvalue) == -1)
             {
-                return ERR_CORRUPTED_HLL_VALUE;
+                reply.SetErrCode(ERR_CORRUPTED_HLL_OBJECT);
+                return 0;
             }
         }
         card = hllCount(hdr, sizeof(max), NULL);
+        reply.SetInteger(card);
         return 0;
     }
 
-    int Ardb::HyperloglogMerge(Context& ctx, const std::string& destkey, const StringArray& srckeys)
+    int Ardb::PFMerge(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
         uint8_t max[HLL_REGISTERS];
         struct hllhdr *hdr;
         uint32 j = 0;
@@ -1532,61 +1569,64 @@ namespace ardb
          * We we the maximum into the max array of registers. We'll write
          * it to the target variable later. */
         memset(max, 0, sizeof(max));
-        for (j = 0; j < srckeys.size(); j++)
+        KeyObjectArray keys;
+        ValueObjectArray vals;
+        ErrCodeArray errs;
+        for (size_t i = 0; i < cmd.GetArguments().size(); i++)
         {
-            ValueObject hll;
-            StringGet(ctx, srckeys[j], hll);
-            std::string hllvalue;
-            if (ctx.reply.type == REDIS_REPLY_STRING)
+            KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[i]);
+            keys.push_back(key);
+        }
+        int err = m_engine->MultiGet(ctx, keys, vals, errs);
+        if (0 != err)
+        {
+            reply.SetErrCode(err);
+            return 0;
+        }
+
+        for (size_t i = 0; i < vals.size(); i++)
+        {
+            if (errs[i] != 0 && errs[i] != ERR_ENTRY_NOT_EXIST)
             {
-                if (hll.meta.str_value.RawString() != NULL)
-                {
-                    hllvalue.assign(hll.meta.str_value.RawString(), sdslen(hll.meta.str_value.RawString()));
-                }
-                if (!isHLLObjectOrReply(hllvalue))
-                {
-                    return ERR_INVALID_HLL_TYPE;
-                }
+                reply.SetErrCode(err);
+                return 0;
             }
-            else if (ctx.reply.type == REDIS_REPLY_NIL)
+            if (vals[i].GetType() != 0 && vals[i].GetType() != KEY_STRING)
+            {
+                reply.SetErrCode(ERR_INVALID_TYPE);
+                return 0;
+            }
+            std::string hllvalue;
+            if (vals[i].GetType() == 0)
             {
                 continue;
             }
             else
             {
-                return ERR_INVALID_TYPE;
-            }
-
-            /* Merge with this HLL with our 'max' HHL by setting max[i]
-             * to MAX(max[i],hll[i]). */
-            if (hllMerge(max, hllvalue) == -1)
-            {
-                return ERR_CORRUPTED_HLL_VALUE;
+                vals[i].GetStringValue().ToString(hllvalue);
+                if (!isHLLObjectOrReply(hllvalue))
+                {
+                    reply.SetErrCode(ERR_INVALID_HLL_STRING);
+                    return 0;
+                }
+                /* Merge with this HLL with our 'max' HHL by setting max[i]
+                 * to MAX(max[i],hll[i]). */
+                if (hllMerge(max, hllvalue) == -1)
+                {
+                    reply.SetErrCode(ERR_CORRUPTED_HLL_OBJECT);
+                    return 0;
+                }
             }
         }
-
-        /* Create / unshare the destination key's value if needed. */
-        ValueObject hll;
         std::string hllvalue;
-        StringGet(ctx, destkey, hll);
-        if (ctx.reply.type == REDIS_REPLY_STRING)
+        if (vals[0].GetType() == 0)
         {
-            if (hll.meta.str_value.RawString() != NULL)
-            {
-                hllvalue.assign(hll.meta.str_value.RawString(), sdslen(hll.meta.str_value.RawString()));
-            }
-            if (!isHLLObjectOrReply(hllvalue))
-            {
-                return ERR_INVALID_HLL_TYPE;
-            }
-        }
-        else if (ctx.reply.type == REDIS_REPLY_NIL)
-        {
+            vals[0].SetType(KEY_STRING);
             createHLLObject(hllvalue);
         }
         else
         {
-            return ERR_INVALID_TYPE;
+            vals[0].GetStringValue().ToString(hllvalue);
         }
 
         /* Only support dense objects as destination. */
@@ -1594,7 +1634,8 @@ namespace ardb
         if (hllSparseToDense(&hlls) == -1)
         {
             sdsfree(hlls);
-            return ERR_CORRUPTED_HLL_VALUE;
+            reply.SetErrCode(ERR_CORRUPTED_HLL_OBJECT);
+            return 0;
         }
 
         /* Write the resulting HLL to the destination HLL registers and
@@ -1608,68 +1649,15 @@ namespace ardb
         hllvalue.clear();
         hllvalue.append(hlls, sdslen(hlls));
         sdsfree(hlls);
-        hll.key.db = ctx.currentDB;
-        hll.key.key = destkey;
-        hll.key.type = KEY_META;
-        hll.type = STRING_META;
-        hll.meta.str_value.SetString(hllvalue, false);
-        return SetKeyValue(ctx, hll);
-    }
-
-    /* PFADD var ele ele ele ... ele => :0 or :1 */
-    int Ardb::PFAdd(Context& ctx, RedisCommandFrame& cmd)
-    {
-        const std::string& key = cmd.GetArguments()[0];
-        SliceArray members;
-        for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+        vals[0].GetStringValue().SetString(hllvalue, false);
+        int err = m_engine->Put(ctx, keys[0], vals[0]);
+        if (0 != err)
         {
-            members.push_back(cmd.GetArguments()[i]);
-        }
-        int ret = HyperloglogAdd(ctx, key, members);
-        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
-        if (ret >= 0)
-        {
-            fill_int_reply(ctx.reply, ret);
-            return 0;
+            reply.SetErrCode(err);
         }
         else
         {
-            fill_error_reply(ctx.reply, "Operation against a key holding the wrong kind of value");
-        }
-        return 0;
-
-    }
-    /* PFCOUNT var -> approximated cardinality of set. */
-    int Ardb::PFCount(Context& ctx, RedisCommandFrame& cmd)
-    {
-        uint64 card = 0;
-        StringArray keys;
-        for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
-        {
-            keys.push_back(cmd.GetArguments()[i]);
-        }
-        int ret = HyperloglogCount(ctx, keys, card);
-        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
-        fill_int_reply(ctx.reply, (int64) card);
-        return 0;
-    }
-
-    int Ardb::PFMerge(Context& ctx, RedisCommandFrame& cmd)
-    {
-        StringArray srckeys;
-        for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
-        {
-            srckeys.push_back(cmd.GetArguments()[i]);
-        }
-        int ret = HyperloglogMerge(ctx, cmd.GetArguments()[0], srckeys);
-        CHECK_ARDB_RETURN_VALUE(ctx.reply, ret);
-        if (0 == ret)
-        {
-            fill_status_reply(ctx.reply, "OK");
-        }
-        else
-        {
-            fill_error_reply(ctx.reply, "Operation against a key holding the wrong kind of value");
+            reply.SetStatusCode(STATUS_OK);
         }
         return 0;
     }
