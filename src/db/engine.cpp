@@ -1,7 +1,7 @@
 /*
  * engine.cpp
  *
- *  Created on: 2016Äê2ÔÂ16ÈÕ
+ *  Created on: 2016ï¿½ï¿½2ï¿½ï¿½16ï¿½ï¿½
  *      Author: wangqiying
  */
 #include "engine.hpp"
@@ -47,10 +47,14 @@ OP_NAMESPACE_BEGIN
         {
             abort();
         }
-        ret = key1.GetType() - key2.GetType();
-        if (ret != 0)
+        //printf("####%d  %d\n", key1.GetType(), key2.GetType());
+        if(key1.GetType() != KEY_ANY && key2.GetType() != KEY_ANY)
         {
-            return ret;
+            ret = key1.GetType() - key2.GetType();
+            if (ret != 0)
+            {
+                return ret;
+            }
         }
 
         /*
@@ -69,15 +73,26 @@ OP_NAMESPACE_BEGIN
         {
             return ret;
         }
-
+        if(key1.GetType() == KEY_ANY || key2.GetType() == KEY_ANY)
+        {
+        	return 0;
+        }
         /*
-         * 4. only meta/ttl_value key has no element in key part
+         * 4. only meta key has no element in key part
          */
         uint8_t type = key1.GetType();
         if (type != KEY_META)
         {
             int elen1 = key1.DecodeElementLength(kbuf1);
             int elen2 = key2.DecodeElementLength(kbuf2);
+            if(elen1 <= 0 || elen2 <= 0)
+            {
+            	 abort();
+            }
+            if(key1.GetElement(0).IsAny() || key2.GetElement(0).IsAny())
+            {
+            	return 0;
+            }
             ret = elen1 - elen2;
             if (ret != 0)
             {

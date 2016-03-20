@@ -168,27 +168,32 @@ namespace ardb
                 }
                 void SetString(const Data& v)
                 {
+                	Clear();
                     type = REDIS_REPLY_STRING;
                     v.ToString(str);
                 }
 
                 void SetString(const std::string& v)
                 {
+                	Clear();
                     type = REDIS_REPLY_STRING;
                     str = v;
                 }
                 void SetErrCode(int err)
                 {
+                	Clear();
                     type = REDIS_REPLY_ERROR;
                     integer = err;
                 }
                 void SetErrorReason(const std::string& reason)
                 {
+                	Clear();
                     type = REDIS_REPLY_ERROR;
                     str = reason;
                 }
                 void SetStatusCode(int status)
                 {
+                	Clear();
                     type = REDIS_REPLY_STATUS;
                     integer = status;
                 }
@@ -204,6 +209,7 @@ namespace ardb
                 void Clear();
                 void Clone(const RedisReply& r)
                 {
+                	Clear();
                     type = r.type;
                     integer = r.integer;
                     str = r.str;

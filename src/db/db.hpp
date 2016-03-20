@@ -159,14 +159,13 @@ OP_NAMESPACE_BEGIN
             int MergeIncrByFloat(Context& ctx,KeyObject& key, ValueObject& val, double inc);
             int MergeSet(Context& ctx,KeyObject& key, ValueObject& val, uint16_t op, const Data& data, int64_t ttl);
             int MergeSetRange(Context& ctx,KeyObject& key, ValueObject& val, int64_t offset, const std::string& range);
-            int MergeHSet(Context& ctx,KeyObject& key, ValueObject& value, uint16_t op, Data& v);
+            int MergeHSet(Context& ctx,KeyObject& key, ValueObject& value, uint16_t op, const Data& v);
             int MergeHDel(Context& ctx,KeyObject& key, ValueObject& meta_value);
             int MergeHIncrby(Context& ctx,KeyObject& key, ValueObject& value, uint16_t op, const Data& v);
             int MergeListPop(Context& ctx,KeyObject& key, ValueObject& value, uint16_t op, Data& element);
             int MergeListPush(Context& ctx,KeyObject& key, ValueObject& value, uint16_t op, const DataArray& args);
             int MergeSAdd(Context& ctx,KeyObject& key, ValueObject& value, const DataArray& ms);
             int MergeSRem(Context& ctx,KeyObject& key, ValueObject& value, const DataArray& ms);
-            int MergeDel(Context& ctx,KeyObject& key, ValueObject& value);
             int MergeExpire(Context& ctx, const KeyObject& key, ValueObject& meta, int64 ms);
             int MergeSetBit(Context& ctx, const KeyObject& key, ValueObject& meta, int64 offset, uint8 bit, uint8* oldbit);
             int MergePFAdd(Context& ctx,KeyObject& key, ValueObject& value, const DataArray& ms, int* updated = NULL);
@@ -175,7 +174,9 @@ OP_NAMESPACE_BEGIN
             bool CheckMeta(Context& ctx, const std::string& key, KeyType expected, ValueObject& meta);
             bool CheckMeta(Context& ctx, const KeyObject& key, KeyType expected, ValueObject& meta);
 
-            int DelElements(Context& ctx,KeyObject& key, ValueObject& value);
+            int DelElements(Context& ctx, KeyObject& key);
+
+            int HIterate(Context& ctx, RedisCommandFrame& cmd);
 
 //            int GetScript(const std::string& funacname, std::string& funcbody);
 //            int SaveScript(const std::string& funacname, const std::string& funcbody);
@@ -378,6 +379,7 @@ OP_NAMESPACE_BEGIN
             int Init(const std::string& conf_file);
             int Call(Context& ctx, RedisCommandFrame& cmd);
             int MergeOperation(KeyObject& key, ValueObject& val, uint16_t op, const DataArray& args);
+            int MergeOperand(ValueObject& left, ValueObject& right);
             const ArdbConfig& GetConf() const
             {
                 return m_conf;

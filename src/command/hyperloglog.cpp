@@ -1650,7 +1650,7 @@ namespace ardb
         hllvalue.append(hlls, sdslen(hlls));
         sdsfree(hlls);
         vals[0].GetStringValue().SetString(hllvalue, false);
-        int err = m_engine->Put(ctx, keys[0], vals[0]);
+        err = m_engine->Put(ctx, keys[0], vals[0]);
         if (0 != err)
         {
             reply.SetErrCode(err);

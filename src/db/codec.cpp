@@ -205,6 +205,7 @@ OP_NAMESPACE_BEGIN
         {
             return Slice();
         }
+        encode_buffer.WriteByte((char) type);
         switch (type)
         {
             case KEY_STRING:
@@ -216,12 +217,16 @@ OP_NAMESPACE_BEGIN
                 GetMeta();
                 break;
             }
+            case KEY_MERGE_OP:
+            {
+            	BufferHelper::WriteFixUInt16(encode_buffer, op, true);
+            	break;
+            }
             default:
             {
                break;
             }
         }
-        encode_buffer.WriteByte((char) type);
         encode_buffer.WriteByte((char) vals.size());
         for (size_t i = 0; i < vals.size(); i++)
         {
@@ -241,6 +246,13 @@ OP_NAMESPACE_BEGIN
             return false;
         }
         type = (uint8) tmp;
+        if(type == KEY_MERGE_OP)
+        {
+        	if(!BufferHelper::ReadFixUInt16(buffer, op, true))
+        	{
+        	     return false;
+        	}
+        }
         char lench;
         if (!buffer.ReadByte(lench))
         {
@@ -263,30 +275,41 @@ OP_NAMESPACE_BEGIN
 
     int encode_merge_operation(Buffer& buffer, uint16_t op, const DataArray& args)
     {
-        BufferHelper::WriteFixUInt16(buffer, op, true);
-        buffer.WriteByte((char) args.size());
-        for (size_t i = 0; i < args.size(); i++)
-        {
-            args[i].Encode(buffer);
-        }
+        ValueObject merge_val;
+        merge_val.SetType(KEY_MERGE_OP);
+        merge_val.SetMergeOp(op);
+        merge_val.SetMergeArgs(args);
+        merge_val.Encode(buffer);
         return 0;
     }
-
-    int decode_merge_operation(Buffer& buffer, uint16_t& op, DataArray& args)
-    {
-        BufferHelper::ReadFixUInt16(buffer, op, true);
-        char len;
-        buffer.ReadByte(len);
-        if (len > 0)
-        {
-            args.resize(len);
-            for (int i = 0; i < len; i++)
-            {
-                args[i].Decode(buffer, false);
-            }
-        }
-        return 0;
-    }
+//
+//    bool decode_merge_operation(Buffer& buffer, uint16_t& op, DataArray& args)
+//    {
+//        if(!BufferHelper::ReadFixUInt16(buffer, op, true))
+//        {
+//        	//printf("####ailed read op:%d %u\n", buffer.ReadableBytes(), buffer.Capacity());
+//        	return false;
+//        }
+//        char len;
+//        if(!buffer.ReadByte(len))
+//        {
+//        	//printf("####ailed read len\n");
+//        	return false;
+//        }
+//        if (len > 0)
+//        {
+//            args.resize(len);
+//            for (int i = 0; i < len; i++)
+//            {
+//                if(!args[i].Decode(buffer, false))
+//                {
+//                	//printf("####ailed read arg:%d %d %d\n", i, op, len);
+//                	return false;
+//                }
+//            }
+//        }
+//        return true;
+//    }
 
     KeyType element_type(KeyType type)
     {

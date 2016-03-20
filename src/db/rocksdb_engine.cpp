@@ -6,6 +6,7 @@
  */
 #include "rocksdb_engine.hpp"
 #include "rocksdb/utilities/convenience.h"
+#include "rocksdb/compaction_filter.h"
 #include "thread/lock_guard.hpp"
 #include "db/db.hpp"
 
@@ -72,6 +73,31 @@ OP_NAMESPACE_BEGIN
             }
     };
 
+    class RocksDBCompactionFilter: public rocksdb::CompactionFilter
+	{
+    	const char* Name() const
+    	{
+    		return "ArdbCompactionFilter";
+    	}
+    	bool FilterMergeOperand(int level, const rocksdb::Slice& key,
+    	                                  const rocksdb::Slice& operand) const
+    	{
+    	    return false;
+        }
+    	bool Filter(int level,
+    	                      const rocksdb::Slice& key,
+    	                      const rocksdb::Slice& existing_value,
+    	                      std::string* new_value,
+    	                      bool* value_changed) const
+    	{
+    		if(existing_value.size() == 0)
+    		{
+    			return false;
+    		}
+    		return true;
+    	}
+	};
+
     class MergeOperator: public rocksdb::AssociativeMergeOperator
     {
         private:
@@ -85,35 +111,55 @@ OP_NAMESPACE_BEGIN
                     rocksdb::Logger* logger) const override
             {
                 KeyObject key_obj;
-                ValueObject val_obj;
-                uint16_t op = 0;
-                DataArray args;
+                ValueObject val_obj, merge_op;
 
                 Buffer keyBuffer(const_cast<char*>(key.data()), 0, key.size());
                 key_obj.Decode(keyBuffer, false);
 
                 Buffer mergeBuffer(const_cast<char*>(value.data()), 0, value.size());
-                decode_merge_operation(mergeBuffer, op, args);
+                if(!merge_op.Decode(mergeBuffer, false))
+                {
+                	std::string ks;
+                	key_obj.GetKey().ToString(ks);
+                	WARN_LOG("Invalid merge key:%s op string with size:%u & op:%u", ks.c_str(), value.size(), merge_op.GetMergeOp());
+                	return false;
+                }
                 if (NULL != existing_value)
                 {
                     Buffer valueBuffer(const_cast<char*>(existing_value->data()), 0, existing_value->size());
                     if (!val_obj.Decode(valueBuffer, false))
                     {
-                        return false;
+                    	std::string ks;
+                    	key_obj.GetKey().ToString(ks);
+                    	WARN_LOG("Invalid key:%s existing value string with size:%llu, while merge op:%u", ks.c_str(),existing_value->size(), merge_op.GetMergeOp());
+                        return true;
                     }
                 }
-                int err = g_db->MergeOperation(key_obj, val_obj, op, args);
+                if(val_obj.GetType() == KEY_MERGE_OP)
+                {
+                	int merge_oprand = g_db->MergeOperand(val_obj, merge_op);
+                	if(merge_oprand < 0)
+                	{
+                		return false;
+                	}
+                	else if(0 == merge_oprand)
+                	{
+                		new_value->assign(value.data(), value.size());
+                		return true;
+                	}else
+                	{
+                		Buffer tmp;
+                		val_obj.Encode(tmp);
+                		new_value->assign(tmp.GetRawReadBuffer(), tmp.ReadableBytes());
+                		return true;
+                	}
+                }
+                int err = g_db->MergeOperation(key_obj, val_obj, merge_op.GetMergeOp(), merge_op.GetMergeArgs());
                 if (0 == err)
                 {
                     Buffer encode_buffer;
                     Slice encode_slice = val_obj.Encode(encode_buffer);
-                    if (encode_slice.size() > 0)
-                    {
-                        new_value->assign(encode_slice.data(), encode_slice.size());
-                    }else
-                    {
-                        new_value->clear();
-                    }
+                    new_value->assign(encode_slice.data(), encode_slice.size());
                 }
                 else
                 {

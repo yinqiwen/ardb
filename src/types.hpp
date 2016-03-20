@@ -232,6 +232,8 @@ OP_NAMESPACE_BEGIN
             const char* CStr() const;
             const std::string& ToString(std::string& str) const;
             char* ToMutableStr();
+            bool IsAny() const;
+            void ToAny();
 
     };
 

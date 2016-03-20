@@ -478,12 +478,27 @@ OP_NAMESPACE_BEGIN
             reply.SetErrCode(err);
             return false;
         }
-        if (meta.GetType() > 0 && meta.GetType() != expected)
+        if (meta.GetType() > 0)
         {
-            reply.SetErrCode(ERR_INVALID_TYPE);
-            return false;
+        	if(meta.GetType() != expected)
+        	{
+                reply.SetErrCode(ERR_INVALID_TYPE);
+                return false;
+        	}
+        	if(meta.GetTTL() > 0 && meta.GetTTL() < get_current_epoch_millis())
+        	{
+        		KeyObject any(key.GetNameSpace(), KEY_ANY, key.GetKey());
+        		m_engine->Del(ctx, any);
+        		meta.Clear();
+        		return true;
+        	}
         }
         return true;
+    }
+
+    int Ardb::MergeOperand(ValueObject& left, ValueObject& right)
+    {
+    	return -1;
     }
 
     int Ardb::MergeOperation(KeyObject& key, ValueObject& val, uint16_t op, const DataArray& args)
@@ -492,31 +507,21 @@ OP_NAMESPACE_BEGIN
         int err = 0;
         switch (op)
         {
-            case REDIS_CMD_HMSET:
-            case REDIS_CMD_HMSET2:
+            case REDIS_CMD_HSET:
+            case REDIS_CMD_HSET2:
+            case REDIS_CMD_HSETNX:
+            case REDIS_CMD_HSETNX2:
             {
-                for (size_t i = 0; i < args.size(); i += 2)
-                {
-                    err = MergeHSet(merge_ctx, key, val, args[i], args[i + 1], false, false);
-                    if (0 != err)
-                    {
-                        return err;
-                    }
-                }
-                break;
+                return MergeHSet(merge_ctx, key, val, op, args[0]);
             }
             case REDIS_CMD_SET:
             case REDIS_CMD_SET2:
             case REDIS_CMD_SETXX:
             case REDIS_CMD_SETNX:
             case REDIS_CMD_SETNX2:
+            case REDIS_CMD_PSETEX:
             {
                 return MergeSet(merge_ctx, key, val, op, args[0], 0);
-            }
-            case REDIS_CMD_DEL:
-            case REDIS_CMD_DEL2:
-            {
-                return MergeDel(merge_ctx, key, val);
             }
             case REDIS_CMD_APPEND:
             case REDIS_CMD_APPEND2:

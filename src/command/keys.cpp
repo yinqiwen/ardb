@@ -87,6 +87,7 @@ OP_NAMESPACE_BEGIN
     }
     int Ardb::Randomkey(Context& ctx, RedisCommandFrame& cmd)
     {
+
         return 0;
     }
     int Ardb::Scan(Context& ctx, RedisCommandFrame& cmd)
@@ -179,19 +180,6 @@ OP_NAMESPACE_BEGIN
             return ERR_NOTPERFORMED;
         }
         int64 ttl = ms + get_current_epoch_millis();
-        if (meta.GetTTL() == 0)
-        {
-            meta.SetTTL(ttl);
-        }
-        else
-        {
-            KeyObject ttl_sort(key.GetNameSpace(), KEY_TTL_SORT, meta.GetTTL());
-            ttl_sort.SetTTLKey(key.GetKey());
-            m_engine->Del(ctx, ttl_sort);
-        }
-        KeyObject ttl_sort(key.GetNameSpace(), KEY_TTL_SORT, ttl);
-        ValueObject empty;
-        m_engine->Put(ctx, ttl_sort, empty);
         meta.SetTTL(ttl);
         return 0;
     }
@@ -300,70 +288,12 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::MergeDel(Context& ctx, KeyObject& key, ValueObject& value)
+    int Ardb::DelElements(Context& ctx, KeyObject& key)
     {
-        if (value.GetType() == 0)
-        {
-            return ERR_NOTPERFORMED;
-        }
-        DelElements(ctx, key, value);
-        if (value.GetTTL() > 0)
-        {
-            KeyObject ttl_key(key.GetNameSpace(), KEY_TTL_SORT, value.GetTTL());
-            ttl_key.SetTTLKey(key.GetKey());
-            m_engine->Del(ctx, ttl_key);
-        }
-        value.Clear();
-        return 0;
-    }
-
-    int Ardb::DelElements(Context& ctx, KeyObject& key, ValueObject& value)
-    {
-        //todo
-        switch (value.GetType())
-        {
-            case 0:
-            {
-                break;
-            }
-            case KEY_STRING:
-            {
-                break;
-            }
-            case KEY_HASH:
-            case KEY_SET:
-            case KEY_LIST:
-            case KEY_ZSET:
-            {
-                KeyType ele_type = element_type((KeyType) value.GetType());
-                KeyObject key(key.GetNameSpace(), key.GetKey(), key.GetKey());
-                Iterator* iter = m_engine->Find(ctx, key);
-                while (NULL != iter && iter->Valid())
-                {
-                    KeyObject& member = iter->Key();
-                    if (member.GetType() != key.GetKey() || member.GetNameSpace() != key.GetNameSpace() || member.GetKey() != key.GetKey())
-                    {
-                        break;
-                    }
-                    m_engine->Del(ctx, member);
-                    if (value.GetType() == KEY_ZSET)
-                    {
-                        KeyObject skey(key.GetNameSpace(), key.GetKey(), key.GetKey());
-                        //skey.SetZSetMember(member.get)
-                        //todo
-                        //
-                    }
-                    iter->Next();
-                }
-                DELETE(iter);
-                break;
-            }
-            default:
-            {
-                abort();
-            }
-        }
-        return 0;
+    	Data any;
+    	any.ToAny();
+    	key.SetMember(any, 0);
+    	return m_engine->Del(ctx, key);
     }
 
     int Ardb::Del(Context& ctx, RedisCommandFrame& cmd)
@@ -373,9 +303,8 @@ OP_NAMESPACE_BEGIN
         {
             for (size_t i = 0; i < cmd.GetArguments().size(); i++)
             {
-                KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[i]);
-                Data empty;
-                m_engine->Merge(ctx, key, cmd.GetType(), empty);
+                KeyObject key(ctx.ns, KEY_ANY, cmd.GetArguments()[i]);
+                m_engine->Del(ctx, key);
             }
             reply.SetStatusCode(STATUS_OK);
             return 0;
@@ -399,8 +328,8 @@ OP_NAMESPACE_BEGIN
         {
             if (errs[i] == 0)
             {
-                DelElements(ctx, ks[i], vs[i]);
-                err = m_engine->Del(ctx, ks[i]);
+            	KeyObject any_key(ctx.ns, KEY_ANY, cmd.GetArguments()[i]);
+                err = m_engine->Del(ctx, any_key);
                 removed++;
             }
         }

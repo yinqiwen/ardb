@@ -46,20 +46,23 @@ OP_NAMESPACE_BEGIN
 
         KEY_META = 1,
 
-        KEY_STRING = 2,
+		KEY_ANY = 2,
 
-        KEY_HASH = 3, KEY_HASH_FIELD = 4,
+        KEY_STRING = 3,
 
-        KEY_LIST = 5, KEY_LIST_ELEMENT = 6,
+        KEY_HASH = 4, KEY_HASH_FIELD = 5,
 
-        KEY_SET = 7, KEY_SET_MEMBER = 8,
+        KEY_LIST = 6, KEY_LIST_ELEMENT = 7,
 
-        KEY_ZSET = 9, KEY_ZSET_SORT = 10, KEY_ZSET_SCORE = 11,
+        KEY_SET = 8, KEY_SET_MEMBER = 9,
+
+        KEY_ZSET = 10, KEY_ZSET_SORT = 11, KEY_ZSET_SCORE = 12,
         /*
          * Reserver 20 types
          */
 
-        KEY_TTL_SORT = 33,
+
+		KEY_MERGE_OP = 34,
 
         KEY_END = 255, /* max value for 1byte */
     };
@@ -168,22 +171,9 @@ OP_NAMESPACE_BEGIN
             {
                 setElement(score, 0);
             }
-
-            void SetTTL(int64_t ms)
+            void SetMember(const Data& data, uint32 idx)
             {
-                assert(type == KEY_TTL_SORT);
-                key.SetInt64(ms);
-            }
-            void SetTTLKey(const Data& k)
-            {
-                if (type == KEY_TTL_SORT)
-                {
-                    setElement(k, 0);
-                }
-                else
-                {
-                    key = k;
-                }
+            	getElement(idx).Clone(data);
             }
             //int Compare(const KeyObject& other);
 
@@ -237,6 +227,7 @@ OP_NAMESPACE_BEGIN
     {
         private:
             uint8 type;
+            uint16 op;
             DataArray vals;
             Data& getElement(uint32_t idx)
             {
@@ -248,7 +239,7 @@ OP_NAMESPACE_BEGIN
             }
         public:
             ValueObject() :
-                    type(0)
+                    type(0),op(0)
             {
             }
             void Clear()
@@ -263,6 +254,14 @@ OP_NAMESPACE_BEGIN
             void SetType(uint8 t)
             {
                 type = t;
+            }
+            void SetMergeOp(uint16 v)
+            {
+            	op = v;
+            }
+            uint16 GetMergeOp()
+            {
+            	return op;
             }
             Meta& GetMeta();
             MKeyMeta& GetMKeyMeta();
@@ -341,12 +340,20 @@ OP_NAMESPACE_BEGIN
             {
                 getElement(0).SetFloat64(s);
             }
+            void SetMergeArgs(const DataArray& args)
+            {
+            	vals = args;
+            }
+            const DataArray& GetMergeArgs() const
+            {
+            	return vals;
+            }
             Slice Encode(Buffer& buffer);
             bool Decode(Buffer& buffer, bool clone_str);
     };
 
     int encode_merge_operation(Buffer& buffer, uint16_t op, const DataArray& args);
-    int decode_merge_operation(Buffer& buffer, uint16_t& op, DataArray& args);
+//    bool decode_merge_operation(Buffer& buffer, uint16_t& op, DataArray& args);
     KeyType element_type(KeyType type);
 
     typedef std::vector<KeyObject> KeyObjectArray;
