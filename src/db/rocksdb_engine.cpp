@@ -73,30 +73,87 @@ OP_NAMESPACE_BEGIN
             }
     };
 
+    class RocksDBPrefixExtractor: public rocksdb::SliceTransform
+    {
+            // Return the name of this transformation.
+            const char* Name() const
+            {
+                return "ArdbPrefixExtractor";
+            }
+
+            // transform a src in domain to a dst in the range
+            rocksdb::Slice Transform(const rocksdb::Slice& src) const
+            {
+                Buffer buffer(const_cast<char*>(src.data()), 0, src.size());
+                KeyObject k;
+                if (!k.DecodeType(buffer) || !k.DecodeKey(buffer, false))
+                {
+                    abort();
+                }
+                return rocksdb::Slice(src.data(), src.size() - buffer.ReadableBytes());
+            }
+
+            // determine whether this is a valid src upon the function applies
+            bool InDomain(const rocksdb::Slice& src)
+            {
+                return true;
+            }
+
+            // determine whether dst=Transform(src) for some src
+            bool InRange(const rocksdb::Slice& dst) const
+            {
+                return true;
+            }
+
+            // Transform(s)=Transform(`prefix`) for any s with `prefix` as a prefix.
+            //
+            // This function is not used by RocksDB, but for users. If users pass
+            // Options by string to RocksDB, they might not know what prefix extractor
+            // they are using. This function is to help users can determine:
+            //   if they want to iterate all keys prefixing `prefix`, whetherit is
+            //   safe to use prefix bloom filter and seek to key `prefix`.
+            // If this function returns true, this means a user can Seek() to a prefix
+            // using the bloom filter. Otherwise, user needs to skip the bloom filter
+            // by setting ReadOptions.total_order_seek = true.
+            //
+            // Here is an example: Suppose we implement a slice transform that returns
+            // the first part of the string after spliting it using deimiter ",":
+            // 1. SameResultWhenAppended("abc,") should return true. If aplying prefix
+            //    bloom filter using it, all slices matching "abc:.*" will be extracted
+            //    to "abc,", so any SST file or memtable containing any of those key
+            //    will not be filtered out.
+            // 2. SameResultWhenAppended("abc") should return false. A user will not
+            //    guaranteed to see all the keys matching "abc.*" if a user seek to "abc"
+            //    against a DB with the same setting. If one SST file only contains
+            //    "abcd,e", the file can be filtered out and the key will be invisible.
+            //
+            // i.e., an implementation always returning false is safe.
+            virtual bool SameResultWhenAppended(const rocksdb::Slice& prefix) const
+            {
+                return false;
+            }
+    };
+
     class RocksDBCompactionFilter: public rocksdb::CompactionFilter
-	{
-    	const char* Name() const
-    	{
-    		return "ArdbCompactionFilter";
-    	}
-    	bool FilterMergeOperand(int level, const rocksdb::Slice& key,
-    	                                  const rocksdb::Slice& operand) const
-    	{
-    	    return false;
-        }
-    	bool Filter(int level,
-    	                      const rocksdb::Slice& key,
-    	                      const rocksdb::Slice& existing_value,
-    	                      std::string* new_value,
-    	                      bool* value_changed) const
-    	{
-    		if(existing_value.size() == 0)
-    		{
-    			return false;
-    		}
-    		return true;
-    	}
-	};
+    {
+            const char* Name() const
+            {
+                return "ArdbCompactionFilter";
+            }
+            bool FilterMergeOperand(int level, const rocksdb::Slice& key, const rocksdb::Slice& operand) const
+            {
+                return false;
+            }
+            bool Filter(int level, const rocksdb::Slice& key, const rocksdb::Slice& existing_value, std::string* new_value,
+            bool* value_changed) const
+            {
+                if (existing_value.size() == 0)
+                {
+                    return true;
+                }
+                return false;
+            }
+    };
 
     class MergeOperator: public rocksdb::AssociativeMergeOperator
     {
@@ -117,42 +174,44 @@ OP_NAMESPACE_BEGIN
                 key_obj.Decode(keyBuffer, false);
 
                 Buffer mergeBuffer(const_cast<char*>(value.data()), 0, value.size());
-                if(!merge_op.Decode(mergeBuffer, false))
+                if (!merge_op.Decode(mergeBuffer, false))
                 {
-                	std::string ks;
-                	key_obj.GetKey().ToString(ks);
-                	WARN_LOG("Invalid merge key:%s op string with size:%u & op:%u", ks.c_str(), value.size(), merge_op.GetMergeOp());
-                	return false;
+                    std::string ks;
+                    key_obj.GetKey().ToString(ks);
+                    WARN_LOG("Invalid merge key:%s op string with size:%u & op:%u", ks.c_str(), value.size(), merge_op.GetMergeOp());
+                    return false;
                 }
                 if (NULL != existing_value)
                 {
                     Buffer valueBuffer(const_cast<char*>(existing_value->data()), 0, existing_value->size());
                     if (!val_obj.Decode(valueBuffer, false))
                     {
-                    	std::string ks;
-                    	key_obj.GetKey().ToString(ks);
-                    	WARN_LOG("Invalid key:%s existing value string with size:%llu, while merge op:%u", ks.c_str(),existing_value->size(), merge_op.GetMergeOp());
+                        std::string ks;
+                        key_obj.GetKey().ToString(ks);
+                        WARN_LOG("Invalid key:%s existing value string with size:%llu, while merge op:%u", ks.c_str(), existing_value->size(),
+                                merge_op.GetMergeOp());
                         return true;
                     }
                 }
-                if(val_obj.GetType() == KEY_MERGE_OP)
+                if (val_obj.GetType() == KEY_MERGE_OP)
                 {
-                	int merge_oprand = g_db->MergeOperand(val_obj, merge_op);
-                	if(merge_oprand < 0)
-                	{
-                		return false;
-                	}
-                	else if(0 == merge_oprand)
-                	{
-                		new_value->assign(value.data(), value.size());
-                		return true;
-                	}else
-                	{
-                		Buffer tmp;
-                		val_obj.Encode(tmp);
-                		new_value->assign(tmp.GetRawReadBuffer(), tmp.ReadableBytes());
-                		return true;
-                	}
+                    int merge_oprand = g_db->MergeOperand(val_obj, merge_op);
+                    if (merge_oprand < 0)
+                    {
+                        return false;
+                    }
+                    else if (0 == merge_oprand)
+                    {
+                        new_value->assign(value.data(), value.size());
+                        return true;
+                    }
+                    else
+                    {
+                        Buffer tmp;
+                        val_obj.Encode(tmp);
+                        new_value->assign(tmp.GetRawReadBuffer(), tmp.ReadableBytes());
+                        return true;
+                    }
                 }
                 int err = g_db->MergeOperation(key_obj, val_obj, merge_op.GetMergeOp(), merge_op.GetMergeArgs());
                 if (0 == err)
@@ -477,6 +536,19 @@ OP_NAMESPACE_BEGIN
             m_transc.GetValue().Clear();
         }
         return 0;
+    }
+
+    int RocksDBEngine::Compact(Context& ctx, const KeyObject& start, const KeyObject& end)
+    {
+        rocksdb::ColumnFamilyHandle* cf = GetColumnFamilyHandle(ctx, ctx.ns);
+        if (NULL == cf)
+        {
+            return ERR_ENTRY_NOT_EXIST;
+        }
+        rocksdb::Slice start_key = ROCKSDB_SLICE(const_cast<KeyObject&>(start).Encode());
+        rocksdb::Slice end_key = ROCKSDB_SLICE(const_cast<KeyObject&>(end).Encode());
+        rocksdb::CompactRangeOptions opt;
+        return m_db->CompactRange(opt, cf, start.IsValid() ? &start_key : NULL, end.IsValid() ? &end_key : NULL);
     }
 
     bool RocksDBIterator::Valid()

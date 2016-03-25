@@ -62,7 +62,7 @@ OP_NAMESPACE_BEGIN
         if (StringLength() < size)
         {
             void* s = malloc(size);
-            memset((char*)s + StringLength(), 0, size - StringLength());
+            memset((char*) s + StringLength(), 0, size - StringLength());
             if (IsString())
             {
                 memcpy(s, CStr(), StringLength());
@@ -122,7 +122,7 @@ OP_NAMESPACE_BEGIN
             {
 //                int64_t v;
 //                data = *(int64_t*) buf.GetRawReadBuffer();
-                if(buf.ReadableBytes() < sizeof(data))
+                if (buf.ReadableBytes() < sizeof(data))
                 {
                     return false;
                 }
@@ -144,7 +144,7 @@ OP_NAMESPACE_BEGIN
                 {
                     return false;
                 }
-                if(buf.ReadableBytes() < strlen)
+                if (buf.ReadableBytes() < strlen)
                 {
                     return false;
                 }
@@ -172,6 +172,24 @@ OP_NAMESPACE_BEGIN
                 return false;
             }
         }
+    }
+
+    void Data::SetString(const char* str, size_t slen, bool clone)
+    {
+        Clear();
+        if (clone)
+        {
+            void* s = malloc(slen);
+                                data = (int64_t) s;
+                                memcpy(s, (char*) str, slen);
+                                encoding = E_SDS;
+        }
+        else
+        {
+            memcpy(&data, &str, sizeof(const char*));
+            encoding = E_CSTR;
+        }
+        len = slen;
     }
 
     void Data::SetString(const std::string& str, bool try_int_encoding)
@@ -246,10 +264,10 @@ OP_NAMESPACE_BEGIN
     }
     int Data::Compare(const Data& right, bool alpha_cmp) const
     {
-    	if(IsAny() || right.IsAny())
-    	{
-    		return 0;
-    	}
+        if (IsAny() || right.IsAny())
+        {
+            return 0;
+        }
         if (!alpha_cmp)
         {
             if (IsInteger() && right.IsInteger())
@@ -378,12 +396,12 @@ OP_NAMESPACE_BEGIN
 
     bool Data::IsAny() const
     {
-    	return encoding == E_ANY;
+        return encoding == E_ANY;
     }
     void Data::ToAny()
     {
-    	Clear();
-    	encoding =  E_ANY;
+        Clear();
+        encoding = E_ANY;
     }
     const std::string& Data::ToString(std::string& str) const
     {
@@ -443,7 +461,6 @@ OP_NAMESPACE_BEGIN
             }
         }
     }
-
 
     size_t DataHash::operator()(const Data& t) const
     {

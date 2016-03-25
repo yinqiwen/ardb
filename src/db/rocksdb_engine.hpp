@@ -127,6 +127,7 @@ OP_NAMESPACE_BEGIN
             int BeginTransaction();
             int CommitTransaction();
             int DiscardTransaction();
+            int Compact(Context& ctx, const KeyObject& start, const KeyObject& end);
 
             Iterator* Find(Context& ctx, const KeyObject& key);
     };

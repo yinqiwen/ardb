@@ -46,25 +46,22 @@ OP_NAMESPACE_BEGIN
 
         KEY_META = 1,
 
-		KEY_ANY = 2,
+        KEY_STRING = 2,
 
-        KEY_STRING = 3,
+        KEY_HASH = 3, KEY_HASH_FIELD = 4,
 
-        KEY_HASH = 4, KEY_HASH_FIELD = 5,
+        KEY_LIST = 5, KEY_LIST_ELEMENT = 6,
 
-        KEY_LIST = 6, KEY_LIST_ELEMENT = 7,
+        KEY_SET = 7, KEY_SET_MEMBER = 8,
 
-        KEY_SET = 8, KEY_SET_MEMBER = 9,
-
-        KEY_ZSET = 10, KEY_ZSET_SORT = 11, KEY_ZSET_SCORE = 12,
+        KEY_ZSET = 9, KEY_ZSET_SORT = 10, KEY_ZSET_SCORE = 11,
         /*
          * Reserver 20 types
          */
 
+		KEY_MERGE_OP = 30,
 
-		KEY_MERGE_OP = 34,
-
-        KEY_END = 255, /* max value for 1byte */
+        KEY_END = 31, /* max value for 1byte */
     };
 
     struct KeyObject
@@ -95,7 +92,7 @@ OP_NAMESPACE_BEGIN
                 getElement(idx).Clone(data);
             }
         public:
-            KeyObject():type(0)
+            KeyObject(uint8 t = 0):type(t)
             {
             }
             KeyObject(const Data& nns, uint8 t, const std::string& data) :
@@ -175,12 +172,16 @@ OP_NAMESPACE_BEGIN
             {
             	getElement(idx).Clone(data);
             }
+
+            bool IsValid() const;
             //int Compare(const KeyObject& other);
 
             Slice Encode();
+            void EncodePrefix(Buffer& buffer) const;
             bool DecodeNS(Buffer& buffer, bool clone_str);
-            bool DecodeType(Buffer& buffer);
-            bool DecodeKey(Buffer& buffer, bool clone_str);
+            bool DecodePrefix(Buffer& buffer, bool clone_str);
+            //bool DecodeType(Buffer& buffer);
+            //bool DecodeKey(Buffer& buffer, bool clone_str);
             int DecodeElementLength(Buffer& buffer);
             bool DecodeElement(Buffer& buffer, bool clone_str, int idx);
             bool Decode(Buffer& buffer, bool clone_str);

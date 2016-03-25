@@ -34,27 +34,43 @@
 
 OP_NAMESPACE_BEGIN
 
-
-
     bool KeyObject::DecodeNS(Buffer& buffer, bool clone_str)
     {
         return ns.Decode(buffer, clone_str);
     }
 
-    bool KeyObject::DecodeType(Buffer& buffer)
+//    bool KeyObject::DecodeType(Buffer& buffer)
+//    {
+//        char tmp;
+//        if (!buffer.ReadByte(tmp))
+//        {
+//            return false;
+//        }
+//        type = (uint8) tmp;
+//        return true;
+//    }
+//    bool KeyObject::DecodeKey(Buffer& buffer, bool clone_str)
+//    {
+//        return key.Decode(buffer, clone_str);
+//    }
+
+    bool KeyObject::DecodePrefix(Buffer& buffer, bool clone_str)
     {
-        char tmp;
-        if (!buffer.ReadByte(tmp))
+        uint32 header;
+        if(!BufferHelper::ReadFixUInt32(buffer, header, true))
         {
             return false;
         }
-        type = (uint8)tmp;
+        uint32 keylen = header >> 5;
+        if(buffer.ReadableBytes() < keylen)
+        {
+            return false;
+        }
+        key.SetString(buffer.GetRawReadBuffer(), keylen, clone_str);
+        type = (uint8)(header & 0x1F);
         return true;
     }
-    bool KeyObject::DecodeKey(Buffer& buffer, bool clone_str)
-    {
-        return key.Decode(buffer, clone_str);
-    }
+
     int KeyObject::DecodeElementLength(Buffer& buffer)
     {
         char len;
@@ -82,14 +98,14 @@ OP_NAMESPACE_BEGIN
     }
     bool KeyObject::Decode(Buffer& buffer, bool clone_str)
     {
-        if (!DecodeType(buffer))
+        if (!DecodePrefix(buffer, clone_str))
         {
             return false;
         }
-        if (!DecodeKey(buffer, clone_str))
-        {
-            return false;
-        }
+//        if (!DecodeKey(buffer, clone_str))
+//        {
+//            return false;
+//        }
         int elen1 = DecodeElementLength(buffer);
         if (elen1 > 0)
         {
@@ -104,12 +120,26 @@ OP_NAMESPACE_BEGIN
         return true;
     }
 
+    void KeyObject::EncodePrefix(Buffer& buffer) const
+    {
+        uint32 header = key.StringLength();
+        header = header << 5;
+        header += type;
+        BufferHelper::WriteFixUInt32(buffer, header, true);
+        buffer.Write(key.CStr(), key.StringLength());
+    }
+
     Slice KeyObject::Encode()
     {
+        if(!IsValid())
+        {
+            return Slice();
+        }
         if (!encode_buffer.Readable())
         {
-            encode_buffer.WriteByte((char) type);
-            key.Encode(encode_buffer);
+            //encode_buffer.WriteByte((char) type);
+            //key.Encode(encode_buffer);
+            EncodePrefix(encode_buffer);
             encode_buffer.WriteByte((char) elements.size());
             for (size_t i = 0; i < elements.size(); i++)
             {
@@ -119,11 +149,36 @@ OP_NAMESPACE_BEGIN
         return Slice(encode_buffer.GetRawReadBuffer(), encode_buffer.ReadableBytes());
     }
 
+    bool KeyObject::IsValid() const
+    {
+        switch (type)
+        {
+            case KEY_META:
+            case KEY_STRING:
+            case KEY_HASH:
+            case KEY_LIST:
+            case KEY_SET:
+            case KEY_ZSET:
+            case KEY_HASH_FIELD:
+            case KEY_LIST_ELEMENT:
+            case KEY_SET_MEMBER:
+            case KEY_ZSET_SORT:
+            case KEY_ZSET_SCORE:
+            {
+                return true;
+            }
+            default:
+            {
+                return false;
+            }
+        }
+    }
+
     Meta& ValueObject::GetMeta()
     {
         Data& meta = getElement(0);
         size_t reserved_size = sizeof(Meta);
-        switch(type)
+        switch (type)
         {
             case KEY_LIST:
             {
@@ -146,20 +201,23 @@ OP_NAMESPACE_BEGIN
                 abort();
             }
         }
-        return *(Meta*)meta.ReserveStringSpace(reserved_size);
+        return *(Meta*) meta.ReserveStringSpace(reserved_size);
     }
 
     MKeyMeta& ValueObject::GetMKeyMeta()
     {
-        return (MKeyMeta&)GetMeta();
+        return (MKeyMeta&) GetMeta();
     }
-    ListMeta& ValueObject::GetListMeta()    {
-        return (ListMeta&)GetMeta();
+    ListMeta& ValueObject::GetListMeta()
+    {
+        return (ListMeta&) GetMeta();
     }
-    HashMeta& ValueObject::GetHashMeta()    {
+    HashMeta& ValueObject::GetHashMeta()
+    {
         return GetMKeyMeta();
     }
-    SetMeta& ValueObject::GetSetMeta()    {
+    SetMeta& ValueObject::GetSetMeta()
+    {
         return GetMKeyMeta();
     }
     ZSetMeta& ValueObject::GetZSetMeta()
@@ -181,17 +239,17 @@ OP_NAMESPACE_BEGIN
     bool ValueObject::SetMinMaxData(const Data& v)
     {
         bool replaced = false;
-        if(vals.size() < 3)
+        if (vals.size() < 3)
         {
             vals.resize(3);
             replaced = true;
         }
-        if(vals[1] > v || vals[1].IsNil())
+        if (vals[1] > v || vals[1].IsNil())
         {
             vals[1] = v;
             replaced = true;
         }
-        if(vals[2] < v || vals[2].IsNil())
+        if (vals[2] < v || vals[2].IsNil())
         {
             vals[2] = v;
             replaced = true;
@@ -201,7 +259,7 @@ OP_NAMESPACE_BEGIN
 
     Slice ValueObject::Encode(Buffer& encode_buffer)
     {
-        if(0 == type)
+        if (0 == type)
         {
             return Slice();
         }
@@ -219,12 +277,12 @@ OP_NAMESPACE_BEGIN
             }
             case KEY_MERGE_OP:
             {
-            	BufferHelper::WriteFixUInt16(encode_buffer, op, true);
-            	break;
+                BufferHelper::WriteFixUInt16(encode_buffer, op, true);
+                break;
             }
             default:
             {
-               break;
+                break;
             }
         }
         encode_buffer.WriteByte((char) vals.size());
@@ -236,22 +294,22 @@ OP_NAMESPACE_BEGIN
     }
     bool ValueObject::Decode(Buffer& buffer, bool clone_str)
     {
-    	if(!buffer.Readable())
-    	{
-    		return true;
-    	}
+        if (!buffer.Readable())
+        {
+            return true;
+        }
         char tmp;
         if (!buffer.ReadByte(tmp))
         {
             return false;
         }
         type = (uint8) tmp;
-        if(type == KEY_MERGE_OP)
+        if (type == KEY_MERGE_OP)
         {
-        	if(!BufferHelper::ReadFixUInt16(buffer, op, true))
-        	{
-        	     return false;
-        	}
+            if (!BufferHelper::ReadFixUInt16(buffer, op, true))
+            {
+                return false;
+            }
         }
         char lench;
         if (!buffer.ReadByte(lench))

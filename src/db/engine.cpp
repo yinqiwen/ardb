@@ -37,46 +37,34 @@ OP_NAMESPACE_BEGIN
         }
 
         /*
-         * 2. compare type
+         * 2. decode  prefix
          */
-        if(!key1.DecodeType(kbuf1))
+        if(!key1.DecodePrefix(kbuf1, false))
         {
             abort();
         }
-        if(!key2.DecodeType(kbuf2))
+        if(!key2.DecodePrefix(kbuf2, false))
         {
             abort();
-        }
-        //printf("####%d  %d\n", key1.GetType(), key2.GetType());
-        if(key1.GetType() != KEY_ANY && key2.GetType() != KEY_ANY)
-        {
-            ret = key1.GetType() - key2.GetType();
-            if (ret != 0)
-            {
-                return ret;
-            }
         }
 
         /*
-         * 3. compare key
+         * 3. compare key & type
          */
-        if(!key1.DecodeKey(kbuf1,false))
-        {
-            abort();
-        }
-        if(!key2.DecodeKey(kbuf2, false))
-        {
-            abort();
-        }
-        ret = key1.GetKey().Compare(key2.GetKey(), false);
+        ret = key1.GetKey().Compare(key2.GetKey(), true);
         if (ret != 0)
         {
             return ret;
         }
-        if(key1.GetType() == KEY_ANY || key2.GetType() == KEY_ANY)
+        ret = key1.GetType() - key2.GetType();
+        if (ret != 0)
         {
-        	return 0;
+            return ret;
         }
+//        if(key1.GetType() == KEY_ANY || key2.GetType() == KEY_ANY)
+//        {
+//        	return 0;
+//        }
         /*
          * 4. only meta key has no element in key part
          */

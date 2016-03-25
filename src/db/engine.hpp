@@ -43,6 +43,8 @@ OP_NAMESPACE_BEGIN
 
             virtual Iterator* Find(Context& ctx, const KeyObject& key) = 0;
 
+            virtual int Compact(Context& ctx, const KeyObject& start, const KeyObject& end) = 0;
+
             virtual int BeginTransaction() = 0;
             virtual int CommitTransaction() = 0;
             virtual int DiscardTransaction() = 0;

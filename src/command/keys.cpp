@@ -303,7 +303,7 @@ OP_NAMESPACE_BEGIN
         {
             for (size_t i = 0; i < cmd.GetArguments().size(); i++)
             {
-                KeyObject key(ctx.ns, KEY_ANY, cmd.GetArguments()[i]);
+                KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[i]);
                 m_engine->Del(ctx, key);
             }
             reply.SetStatusCode(STATUS_OK);
@@ -328,7 +328,7 @@ OP_NAMESPACE_BEGIN
         {
             if (errs[i] == 0)
             {
-            	KeyObject any_key(ctx.ns, KEY_ANY, cmd.GetArguments()[i]);
+            	KeyObject any_key(ctx.ns, KEY_META, cmd.GetArguments()[i]);
                 err = m_engine->Del(ctx, any_key);
                 removed++;
             }
