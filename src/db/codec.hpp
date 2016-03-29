@@ -59,7 +59,6 @@ OP_NAMESPACE_BEGIN
          * Reserver 20 types
          */
 
-		KEY_MERGE_OP = 30,
 
         KEY_END = 31, /* max value for 1byte */
     };
@@ -104,9 +103,21 @@ OP_NAMESPACE_BEGIN
                     ns(nns), type(t), key(key_data)
             {
             }
+            void Clear()
+            {
+                clearEncodeBuffer();
+                type = 0;
+                ns.Clear();
+                key.Clear();
+                elements.clear();
+            }
             const Data& GetNameSpace() const
             {
                 return ns;
+            }
+            void SetNameSpce(const Data& nns)
+            {
+                ns = nns;
             }
             const Data& GetElement(int idx) const
             {
@@ -179,6 +190,7 @@ OP_NAMESPACE_BEGIN
             Slice Encode();
             void EncodePrefix(Buffer& buffer) const;
             bool DecodeNS(Buffer& buffer, bool clone_str);
+            bool DecodeKey(Buffer& buffer, bool clone_str);
             bool DecodePrefix(Buffer& buffer, bool clone_str);
             //bool DecodeType(Buffer& buffer);
             //bool DecodeKey(Buffer& buffer, bool clone_str);
@@ -228,7 +240,6 @@ OP_NAMESPACE_BEGIN
     {
         private:
             uint8 type;
-            uint16 op;
             DataArray vals;
             Data& getElement(uint32_t idx)
             {
@@ -240,7 +251,7 @@ OP_NAMESPACE_BEGIN
             }
         public:
             ValueObject() :
-                    type(0),op(0)
+                    type(0)
             {
             }
             void Clear()
@@ -255,14 +266,6 @@ OP_NAMESPACE_BEGIN
             void SetType(uint8 t)
             {
                 type = t;
-            }
-            void SetMergeOp(uint16 v)
-            {
-            	op = v;
-            }
-            uint16 GetMergeOp()
-            {
-            	return op;
             }
             Meta& GetMeta();
             MKeyMeta& GetMKeyMeta();
@@ -354,7 +357,7 @@ OP_NAMESPACE_BEGIN
     };
 
     int encode_merge_operation(Buffer& buffer, uint16_t op, const DataArray& args);
-//    bool decode_merge_operation(Buffer& buffer, uint16_t& op, DataArray& args);
+    bool decode_merge_operation(Buffer& buffer, uint16_t& op, DataArray& args);
     KeyType element_type(KeyType type);
 
     typedef std::vector<KeyObject> KeyObjectArray;

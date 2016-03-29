@@ -30,6 +30,7 @@
 #include "codec.hpp"
 #include "buffer/buffer_helper.hpp"
 #include "util/murmur3.h"
+#include "channel/all_includes.hpp"
 #include <cmath>
 
 OP_NAMESPACE_BEGIN
@@ -54,20 +55,30 @@ OP_NAMESPACE_BEGIN
 //        return key.Decode(buffer, clone_str);
 //    }
 
-    bool KeyObject::DecodePrefix(Buffer& buffer, bool clone_str)
+    bool KeyObject::DecodeKey(Buffer& buffer, bool clone_str)
     {
-        uint32 header;
-        if(!BufferHelper::ReadFixUInt32(buffer, header, true))
+        uint32 keylen;
+        if (!BufferHelper::ReadVarUInt32(buffer, keylen))
         {
             return false;
         }
-        uint32 keylen = header >> 5;
-        if(buffer.ReadableBytes() < keylen)
+        if (buffer.ReadableBytes() < (keylen + 1))
         {
             return false;
         }
         key.SetString(buffer.GetRawReadBuffer(), keylen, clone_str);
-        type = (uint8)(header & 0x1F);
+        buffer.AdvanceReadIndex(keylen);
+        return true;
+    }
+
+    bool KeyObject::DecodePrefix(Buffer& buffer, bool clone_str)
+    {
+        if (!DecodeKey(buffer, clone_str))
+        {
+            return false;
+        }
+        type = (uint8) (buffer.GetRawReadBuffer()[0]);
+        buffer.AdvanceReadIndex(1);
         return true;
     }
 
@@ -76,7 +87,7 @@ OP_NAMESPACE_BEGIN
         char len;
         if (!buffer.ReadByte(len))
         {
-            return -1;
+            return 0;
         }
         if (len < 0 || len > 127)
         {
@@ -98,6 +109,7 @@ OP_NAMESPACE_BEGIN
     }
     bool KeyObject::Decode(Buffer& buffer, bool clone_str)
     {
+        Clear();
         if (!DecodePrefix(buffer, clone_str))
         {
             return false;
@@ -122,16 +134,14 @@ OP_NAMESPACE_BEGIN
 
     void KeyObject::EncodePrefix(Buffer& buffer) const
     {
-        uint32 header = key.StringLength();
-        header = header << 5;
-        header += type;
-        BufferHelper::WriteFixUInt32(buffer, header, true);
+        BufferHelper::WriteVarUInt32(buffer, key.StringLength());
         buffer.Write(key.CStr(), key.StringLength());
+        buffer.WriteByte((char) type);
     }
 
     Slice KeyObject::Encode()
     {
-        if(!IsValid())
+        if (!IsValid())
         {
             return Slice();
         }
@@ -275,11 +285,6 @@ OP_NAMESPACE_BEGIN
                 GetMeta();
                 break;
             }
-            case KEY_MERGE_OP:
-            {
-                BufferHelper::WriteFixUInt16(encode_buffer, op, true);
-                break;
-            }
             default:
             {
                 break;
@@ -294,6 +299,7 @@ OP_NAMESPACE_BEGIN
     }
     bool ValueObject::Decode(Buffer& buffer, bool clone_str)
     {
+        Clear();
         if (!buffer.Readable())
         {
             return true;
@@ -304,13 +310,6 @@ OP_NAMESPACE_BEGIN
             return false;
         }
         type = (uint8) tmp;
-        if (type == KEY_MERGE_OP)
-        {
-            if (!BufferHelper::ReadFixUInt16(buffer, op, true))
-            {
-                return false;
-            }
-        }
         char lench;
         if (!buffer.ReadByte(lench))
         {
@@ -333,41 +332,43 @@ OP_NAMESPACE_BEGIN
 
     int encode_merge_operation(Buffer& buffer, uint16_t op, const DataArray& args)
     {
-        ValueObject merge_val;
-        merge_val.SetType(KEY_MERGE_OP);
-        merge_val.SetMergeOp(op);
-        merge_val.SetMergeArgs(args);
-        merge_val.Encode(buffer);
+        BufferHelper::WriteFixUInt16(buffer, op, true);
+        size_t len = args.size();
+        if (len >= 128)
+        {
+            FATAL_LOG("Merge operation args length exceed limit 128");
+        }
+        buffer.WriteByte((char)len);
+        for (size_t i = 0; i < len; i++)
+        {
+            args[i].Encode(buffer);
+        }
         return 0;
     }
-//
-//    bool decode_merge_operation(Buffer& buffer, uint16_t& op, DataArray& args)
-//    {
-//        if(!BufferHelper::ReadFixUInt16(buffer, op, true))
-//        {
-//        	//printf("####ailed read op:%d %u\n", buffer.ReadableBytes(), buffer.Capacity());
-//        	return false;
-//        }
-//        char len;
-//        if(!buffer.ReadByte(len))
-//        {
-//        	//printf("####ailed read len\n");
-//        	return false;
-//        }
-//        if (len > 0)
-//        {
-//            args.resize(len);
-//            for (int i = 0; i < len; i++)
-//            {
-//                if(!args[i].Decode(buffer, false))
-//                {
-//                	//printf("####ailed read arg:%d %d %d\n", i, op, len);
-//                	return false;
-//                }
-//            }
-//        }
-//        return true;
-//    }
+    bool decode_merge_operation(Buffer& buffer, uint16_t& op, DataArray& args)
+    {
+        if (!BufferHelper::ReadFixUInt16(buffer, op, true))
+        {
+            return false;
+        }
+        char len;
+        if (!buffer.ReadByte(len))
+        {
+            return false;
+        }
+        if (len > 0)
+        {
+            args.resize(len);
+            for (int i = 0; i < len; i++)
+            {
+                if (!args[i].Decode(buffer, false))
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
 
     KeyType element_type(KeyType type)
     {

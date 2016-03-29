@@ -7,6 +7,7 @@
 #include "rocksdb_engine.hpp"
 #include "rocksdb/utilities/convenience.h"
 #include "rocksdb/compaction_filter.h"
+#include "rocksdb/slice_transform.h"
 #include "thread/lock_guard.hpp"
 #include "db/db.hpp"
 
@@ -52,7 +53,7 @@ OP_NAMESPACE_BEGIN
             // by any clients of this package.
             const char* Name() const
             {
-                return "ArdbComparator";
+                return "ardb.comparator";
             }
 
             // Advanced functions: these are used to reduce the space requirements
@@ -78,7 +79,7 @@ OP_NAMESPACE_BEGIN
             // Return the name of this transformation.
             const char* Name() const
             {
-                return "ArdbPrefixExtractor";
+                return "ardb.prefix_extractor";
             }
 
             // transform a src in domain to a dst in the range
@@ -86,15 +87,15 @@ OP_NAMESPACE_BEGIN
             {
                 Buffer buffer(const_cast<char*>(src.data()), 0, src.size());
                 KeyObject k;
-                if (!k.DecodeType(buffer) || !k.DecodeKey(buffer, false))
+                if (!k.DecodeKey(buffer, false))
                 {
                     abort();
                 }
-                return rocksdb::Slice(src.data(), src.size() - buffer.ReadableBytes());
+                return rocksdb::Slice(src.data(), buffer.ReadableBytes());
             }
 
             // determine whether this is a valid src upon the function applies
-            bool InDomain(const rocksdb::Slice& src)
+            bool InDomain(const rocksdb::Slice& src) const
             {
                 return true;
             }
@@ -136,9 +137,17 @@ OP_NAMESPACE_BEGIN
 
     class RocksDBCompactionFilter: public rocksdb::CompactionFilter
     {
+        private:
+            uint32_t cf_id;
+            std::string delete_key;
+        public:
+            RocksDBCompactionFilter(uint32 id) :
+                    cf_id(id)
+            {
+            }
             const char* Name() const
             {
-                return "ArdbCompactionFilter";
+                return "ardb.compact_filter";
             }
             bool FilterMergeOperand(int level, const rocksdb::Slice& key, const rocksdb::Slice& operand) const
             {
@@ -151,11 +160,58 @@ OP_NAMESPACE_BEGIN
                 {
                     return true;
                 }
+                Buffer buffer(const_cast<char*>(key.data()), 0, key.size());
+                KeyObject k;
+                if (!k.DecodeKey(buffer, false))
+                {
+                    abort();
+                }
+                if (k.GetType() == KEY_META)
+                {
+                    ValueObject meta;
+                    Buffer val_buffer(const_cast<char*>(existing_value.data()), 0, existing_value.size());
+                    if (!meta.Decode(val_buffer, false))
+                    {
+                        abort();
+                    }
+                    if (meta.GetTTL() <= get_current_epoch_millis())
+                    {
+                        if (meta.GetType() != KEY_STRING)
+                        {
+                            const_cast<RocksDBCompactionFilter*>(this)->delete_key.assign(k.GetKey().CStr(), k.GetKey().StringLength());
+                        }
+                        return true;
+                    }
+                    const_cast<RocksDBCompactionFilter*>(this)->delete_key.clear();
+                }
+                else
+                {
+                    if (!delete_key.empty())
+                    {
+                        if (delete_key.size() == k.GetKey().StringLength() && !strncmp(delete_key.data(), k.GetKey().CStr(), delete_key.size()))
+                        {
+                            return true;
+                        }
+                    }
+                }
                 return false;
             }
     };
 
-    class MergeOperator: public rocksdb::AssociativeMergeOperator
+    class RocksDBCompactionFilterFactory: public rocksdb::CompactionFilterFactory
+    {
+            std::unique_ptr<rocksdb::CompactionFilter> CreateCompactionFilter(const rocksdb::CompactionFilter::Context& context)
+            {
+                return std::unique_ptr < rocksdb::CompactionFilter > (new RocksDBCompactionFilter(context.column_family_id));
+            }
+
+            const char* Name() const
+            {
+                return "ardb.compact_filter_factory";
+            }
+    };
+
+    class MergeOperator: public rocksdb::MergeOperator
     {
         private:
             RocksDBEngine* m_engine;
@@ -164,23 +220,32 @@ OP_NAMESPACE_BEGIN
                     m_engine(engine)
             {
             }
-            bool Merge(const rocksdb::Slice& key, const rocksdb::Slice* existing_value, const rocksdb::Slice& value, std::string* new_value,
-                    rocksdb::Logger* logger) const override
+            // Gives the client a way to express the read -> modify -> write semantics
+            // key:      (IN)    The key that's associated with this merge operation.
+            //                   Client could multiplex the merge operator based on it
+            //                   if the key space is partitioned and different subspaces
+            //                   refer to different types of data which have different
+            //                   merge operation semantics
+            // existing: (IN)    null indicates that the key does not exist before this op
+            // operand_list:(IN) the sequence of merge operations to apply, front() first.
+            // new_value:(OUT)   Client is responsible for filling the merge result here.
+            // The string that new_value is pointing to will be empty.
+            // logger:   (IN)    Client could use this to log errors during merge.
+            //
+            // Return true on success.
+            // All values passed in will be client-specific values. So if this method
+            // returns false, it is because client specified bad data or there was
+            // internal corruption. This will be treated as an error by the library.
+            //
+            // Also make use of the *logger for error messages.
+            bool FullMerge(const rocksdb::Slice& key, const rocksdb::Slice* existing_value, const std::deque<std::string>& operand_list, std::string* new_value,
+                    rocksdb::Logger* logger) const
             {
                 KeyObject key_obj;
-                ValueObject val_obj, merge_op;
-
                 Buffer keyBuffer(const_cast<char*>(key.data()), 0, key.size());
                 key_obj.Decode(keyBuffer, false);
 
-                Buffer mergeBuffer(const_cast<char*>(value.data()), 0, value.size());
-                if (!merge_op.Decode(mergeBuffer, false))
-                {
-                    std::string ks;
-                    key_obj.GetKey().ToString(ks);
-                    WARN_LOG("Invalid merge key:%s op string with size:%u & op:%u", ks.c_str(), value.size(), merge_op.GetMergeOp());
-                    return false;
-                }
+                ValueObject val_obj;
                 if (NULL != existing_value)
                 {
                     Buffer valueBuffer(const_cast<char*>(existing_value->data()), 0, existing_value->size());
@@ -188,33 +253,29 @@ OP_NAMESPACE_BEGIN
                     {
                         std::string ks;
                         key_obj.GetKey().ToString(ks);
-                        WARN_LOG("Invalid key:%s existing value string with size:%llu, while merge op:%u", ks.c_str(), existing_value->size(),
-                                merge_op.GetMergeOp());
-                        return true;
-                    }
-                }
-                if (val_obj.GetType() == KEY_MERGE_OP)
-                {
-                    int merge_oprand = g_db->MergeOperand(val_obj, merge_op);
-                    if (merge_oprand < 0)
-                    {
+                        WARN_LOG("Invalid key:%s existing value string with size:%llu", ks.c_str(), existing_value->size());
                         return false;
                     }
-                    else if (0 == merge_oprand)
+                }
+                bool value_changed = false;
+                for (size_t i = 0; i < operand_list.size(); i++)
+                {
+                    uint16 op = 0;
+                    DataArray args;
+                    Buffer mergeBuffer(const_cast<char*>(operand_list[i].data()), 0, operand_list[i].size());
+                    if (!decode_merge_operation(mergeBuffer, op, args))
                     {
-                        new_value->assign(value.data(), value.size());
-                        return true;
+                        std::string ks;
+                        key_obj.GetKey().ToString(ks);
+                        WARN_LOG("Invalid merge op which decode faild for key:%s", ks.c_str());
+                        continue;
                     }
-                    else
+                    if (0 == g_db->MergeOperation(key_obj, val_obj, op, args))
                     {
-                        Buffer tmp;
-                        val_obj.Encode(tmp);
-                        new_value->assign(tmp.GetRawReadBuffer(), tmp.ReadableBytes());
-                        return true;
+                        value_changed = true;
                     }
                 }
-                int err = g_db->MergeOperation(key_obj, val_obj, merge_op.GetMergeOp(), merge_op.GetMergeArgs());
-                if (0 == err)
+                if (value_changed)
                 {
                     Buffer encode_buffer;
                     Slice encode_slice = val_obj.Encode(encode_buffer);
@@ -222,17 +283,133 @@ OP_NAMESPACE_BEGIN
                 }
                 else
                 {
-                    if (NULL != existing_value && !existing_value->empty())
+                    if (NULL != existing_value)
                     {
                         new_value->assign(existing_value->data(), existing_value->size());
                     }
                 }
-                return true;        // always return true for this, since we treat all errors as "zero".
+                return true;
+            }
+            // This function performs merge(left_op, right_op)
+            // when both the operands are themselves merge operation types
+            // that you would have passed to a DB::Merge() call in the same order
+            // (i.e.: DB::Merge(key,left_op), followed by DB::Merge(key,right_op)).
+            //
+            // PartialMerge should combine them into a single merge operation that is
+            // saved into *new_value, and then it should return true.
+            // *new_value should be constructed such that a call to
+            // DB::Merge(key, *new_value) would yield the same result as a call
+            // to DB::Merge(key, left_op) followed by DB::Merge(key, right_op).
+            //
+            // The string that new_value is pointing to will be empty.
+            //
+            // The default implementation of PartialMergeMulti will use this function
+            // as a helper, for backward compatibility.  Any successor class of
+            // MergeOperator should either implement PartialMerge or PartialMergeMulti,
+            // although implementing PartialMergeMulti is suggested as it is in general
+            // more effective to merge multiple operands at a time instead of two
+            // operands at a time.
+            //
+            // If it is impossible or infeasible to combine the two operations,
+            // leave new_value unchanged and return false. The library will
+            // internally keep track of the operations, and apply them in the
+            // correct order once a base-value (a Put/Delete/End-of-Database) is seen.
+            //
+            // TODO: Presently there is no way to differentiate between error/corruption
+            // and simply "return false". For now, the client should simply return
+            // false in any case it cannot perform partial-merge, regardless of reason.
+            // If there is corruption in the data, handle it in the FullMerge() function,
+            // and return false there.  The default implementation of PartialMerge will
+            // always return false.
+            bool PartialMergeMulti(const rocksdb::Slice& key, const std::deque<rocksdb::Slice>& operand_list, std::string* new_value,
+                    rocksdb::Logger* logger) const
+            {
+                if (operand_list.size() < 2)
+                {
+                    return false;
+                }
+                uint16 ops[2];
+                DataArray ops_args[2];
+                size_t left_pos = 0;
+                Buffer first_op_buffer(const_cast<char*>(operand_list[0].data()), 0, operand_list[0].size());
+                if (!decode_merge_operation(first_op_buffer, ops[0], ops_args[0]))
+                {
+                    WARN_LOG("Invalid first merge op.");
+                    return false;
+                }
+                for (size_t i = 1; i < operand_list.size(); i += 2)
+                {
+                    Buffer op_buffer(const_cast<char*>(operand_list[i].data()), 0, operand_list[i].size());
+                    if (!decode_merge_operation(op_buffer, ops[1 - left_pos], ops_args[1 - left_pos]))
+                    {
+                        WARN_LOG("Invalid merge op at:%u", i);
+                        return false;
+                    }
+                    if (0 != g_db->MergeOperands(ops[left_pos], ops_args[left_pos], ops[1 - left_pos], ops_args[1 - left_pos]))
+                    {
+                        return false;
+                    }
+                    left_pos = 1 - left_pos;
+                }
+                Buffer merge;
+                encode_merge_operation(merge, ops[left_pos], ops_args[left_pos]);
+                new_value->assign(merge.GetRawReadBuffer(), merge.ReadableBytes());
+                return true;
+            }
+            // This function performs merge when all the operands are themselves merge
+            // operation types that you would have passed to a DB::Merge() call in the
+            // same order (front() first)
+            // (i.e. DB::Merge(key, operand_list[0]), followed by
+            //  DB::Merge(key, operand_list[1]), ...)
+            //
+            // PartialMergeMulti should combine them into a single merge operation that is
+            // saved into *new_value, and then it should return true.  *new_value should
+            // be constructed such that a call to DB::Merge(key, *new_value) would yield
+            // the same result as subquential individual calls to DB::Merge(key, operand)
+            // for each operand in operand_list from front() to back().
+            //
+            // The string that new_value is pointing to will be empty.
+            //
+            // The PartialMergeMulti function will be called only when the list of
+            // operands are long enough. The minimum amount of operands that will be
+            // passed to the function are specified by the "min_partial_merge_operands"
+            // option.
+            //
+            // In the default implementation, PartialMergeMulti will invoke PartialMerge
+            // multiple times, where each time it only merges two operands.  Developers
+            // should either implement PartialMergeMulti, or implement PartialMerge which
+            // is served as the helper function of the default PartialMergeMulti.
+            bool PartialMerge(const rocksdb::Slice& key, const rocksdb::Slice& left_operand, const rocksdb::Slice& right_operand, std::string* new_value,
+                    rocksdb::Logger* logger) const
+            {
+                uint16 left_op = 0, right_op = 0;
+                DataArray left_args, right_args;
+                Buffer left_mergeBuffer(const_cast<char*>(left_operand.data()), 0, left_operand.size());
+                Buffer right_mergeBuffer(const_cast<char*>(right_operand.data()), 0, right_operand.size());
+                if (!decode_merge_operation(left_mergeBuffer, left_op, left_args))
+                {
+                    WARN_LOG("Invalid left merge op.");
+                    return false;
+                }
+                if (!decode_merge_operation(right_mergeBuffer, right_op, right_args))
+                {
+                    WARN_LOG("Invalid right merge op.");
+                    return false;
+                }
+                int err = g_db->MergeOperands(left_op, left_args, right_op, right_args);
+                if (0 == err)
+                {
+                    Buffer merge;
+                    encode_merge_operation(merge, right_op, right_args);
+                    new_value->assign(merge.GetRawReadBuffer(), merge.ReadableBytes());
+                    return true;
+                }
+                return false;
             }
 
             const char* Name() const override
             {
-                return "ArdbMerger";
+                return "ardb.merger";
             }
     };
 
@@ -266,6 +443,7 @@ OP_NAMESPACE_BEGIN
         if (s.ok())
         {
             m_handlers[ns] = cfh;
+            m_idmapping[cfh->GetID()] = ns;
             INFO_LOG("Create ColumnFamilyHandle with name:%s success.", name.c_str());
             return cfh;
         }
@@ -278,6 +456,8 @@ OP_NAMESPACE_BEGIN
         static RocksDBComparator comparator;
         m_options.comparator = &comparator;
         m_options.merge_operator.reset(new MergeOperator(this));
+        m_options.prefix_extractor.reset(new RocksDBPrefixExtractor);
+        m_options.compaction_filter_factory.reset(new RocksDBCompactionFilterFactory);
         rocksdb::Status s = rocksdb::GetOptionsFromString(m_options, conf, &m_options);
         if (!s.ok())
         {
@@ -308,6 +488,7 @@ OP_NAMESPACE_BEGIN
                     Data ns;
                     ns.SetString(column_families_descs[i].name, true);
                     m_handlers[ns] = handler;
+                    m_idmapping[handlers[i]->GetID()] = ns;
                     INFO_LOG("RocksDB open column family:%s success.", column_families_descs[i].name.c_str());
                 }
             }
@@ -506,7 +687,7 @@ OP_NAMESPACE_BEGIN
         opt.snapshot = GetSnpashot();
         rocksdb::Iterator* rocksiter = m_db->NewIterator(opt, cf);
         Iterator* iter = NULL;
-        NEW(iter, RocksDBIterator(this,rocksiter));
+        NEW(iter, RocksDBIterator(this,rocksiter,key.GetNameSpace()));
         if (key.GetType() > 0)
         {
             iter->Jump(key);
@@ -548,7 +729,8 @@ OP_NAMESPACE_BEGIN
         rocksdb::Slice start_key = ROCKSDB_SLICE(const_cast<KeyObject&>(start).Encode());
         rocksdb::Slice end_key = ROCKSDB_SLICE(const_cast<KeyObject&>(end).Encode());
         rocksdb::CompactRangeOptions opt;
-        return m_db->CompactRange(opt, cf, start.IsValid() ? &start_key : NULL, end.IsValid() ? &end_key : NULL);
+        rocksdb::Status s = m_db->CompactRange(opt, cf, start.IsValid() ? &start_key : NULL, end.IsValid() ? &end_key : NULL);
+        return ROCKSDB_ERR(s);
     }
 
     bool RocksDBIterator::Valid()
@@ -557,17 +739,14 @@ OP_NAMESPACE_BEGIN
     }
     void RocksDBIterator::Next()
     {
-        assert(m_iter != NULL);
         m_iter->Next();
     }
     void RocksDBIterator::Prev()
     {
-        assert(m_iter != NULL);
         m_iter->Prev();
     }
     void RocksDBIterator::Jump(const KeyObject& next)
     {
-        assert(m_iter != NULL);
         Slice key_slice = const_cast<KeyObject&>(next).Encode();
         m_iter->Seek(ROCKSDB_SLICE(key_slice));
     }
@@ -575,14 +754,15 @@ OP_NAMESPACE_BEGIN
     {
         rocksdb::Slice key = m_iter->key();
         Buffer kbuf(const_cast<char*>(key.data()), 0, key.size());
-        assert(m_key.Decode(kbuf, true));
+        m_key.Decode(kbuf, true);
+        m_key.SetNameSpce(m_ns);
         return m_key;
     }
     ValueObject& RocksDBIterator::Value()
     {
         rocksdb::Slice key = m_iter->value();
         Buffer kbuf(const_cast<char*>(key.data()), 0, key.size());
-        assert(m_value.Decode(kbuf, true));
+        m_value.Decode(kbuf, true);
         return m_value;
     }
     RocksDBIterator::~RocksDBIterator()

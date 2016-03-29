@@ -288,51 +288,45 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::DelElements(Context& ctx, KeyObject& key)
+    int Ardb::DelKey(Context& ctx, const KeyObject& meta_key, Iterator*& iter)
     {
-    	Data any;
-    	any.ToAny();
-    	key.SetMember(any, 0);
-    	return m_engine->Del(ctx, key);
+        if (NULL == iter)
+        {
+            iter = m_engine->Find(ctx, meta_key);
+        }
+        else
+        {
+            iter->Jump(meta_key);
+        }
+        int removed = 0;
+        while (NULL != iter && iter->Valid())
+        {
+            KeyObject& k = iter->Key();
+            const Data& kdata = k.GetKey();
+            if (k.GetNameSpace().Compare(meta_key.GetNameSpace()) != 0 || kdata.StringLength() != meta_key.GetKey().StringLength()
+                    || strncmp(meta_key.GetKey().CStr(), kdata.CStr(), kdata.StringLength()) != 0)
+            {
+                break;
+            }
+            removed = 1;
+            m_engine->Del(ctx, k);
+            iter->Next();
+        }
+        //DELETE(iter);
+        return removed;
     }
 
     int Ardb::Del(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
-        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !GetConf().redis_compatible)
-        {
-            for (size_t i = 0; i < cmd.GetArguments().size(); i++)
-            {
-                KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[i]);
-                m_engine->Del(ctx, key);
-            }
-            reply.SetStatusCode(STATUS_OK);
-            return 0;
-        }
-        KeyObjectArray ks;
-        for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
-        {
-            KeyObject k(ctx.ns, KEY_META, cmd.GetArguments()[i]);
-            ks.push_back(k);
-        }
-        ValueObjectArray vs;
-        ErrCodeArray errs;
-        int err = m_engine->MultiGet(ctx, ks, vs, errs);
-        if (0 != err)
-        {
-            reply.SetErrCode(err);
-            return 0;
-        }
+        Iterator* iter = NULL;
         int removed = 0;
-        for (size_t i = 0; i < ks.size(); i++)
+        for (size_t i = 0; i < cmd.GetArguments().size(); i++)
         {
-            if (errs[i] == 0)
-            {
-            	KeyObject any_key(ctx.ns, KEY_META, cmd.GetArguments()[i]);
-                err = m_engine->Del(ctx, any_key);
-                removed++;
-            }
+            KeyObject meta(ctx.ns, KEY_META, cmd.GetArguments()[i]);
+            removed += DelKey(ctx, meta, iter);
         }
+        DELETE(iter);
         reply.SetInteger(removed);
         return 0;
     }

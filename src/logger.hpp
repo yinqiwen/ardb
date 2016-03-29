@@ -116,6 +116,7 @@ namespace ardb
 	if(FATAL_ENABLED())\
     {                 \
 		(*(ardb::ArdbLogger::GetLogHandler()))(ardb::FATAL_LOG_LEVEL, __FILE__, __FUNCTION__, __LINE__,__VA_ARGS__); \
+		abort();\
 	}\
 }while(0)
 

@@ -252,7 +252,10 @@ namespace ardb
                 }
                 default:
                 {
-                    abort();
+                    char tmp[256];
+                    sprintf(tmp, "##Unknown error code:%d", code);
+                    str = tmp;
+                    break;
                 }
             }
         }

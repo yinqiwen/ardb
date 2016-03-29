@@ -296,7 +296,7 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::MergeIncrBy(Context& ctx,KeyObject& key, ValueObject& val, uint16_t op, int64_t incr)
+    int Ardb::MergeIncrBy(Context& ctx,KeyObject& key, ValueObject& val, int64_t incr)
     {
         if (val.GetType() > 0)
         {
@@ -306,21 +306,6 @@ OP_NAMESPACE_BEGIN
             }
         }
         val.SetType(KEY_STRING);
-        switch (op)
-        {
-            case REDIS_CMD_DECRBY:
-            case REDIS_CMD_DECR:
-            case REDIS_CMD_DECR2:
-            case REDIS_CMD_DECRBY2:
-            {
-                incr = 0 - incr;
-                break;
-            }
-            default:
-            {
-                break;
-            }
-        }
         Data& data = val.GetStringValue();
         data.SetInt64(data.GetInt64() + incr);
         return 0;
@@ -362,7 +347,24 @@ OP_NAMESPACE_BEGIN
         err = m_engine->Get(ctx, key, v);
         if (err == ERR_ENTRY_NOT_EXIST || 0 == err)
         {
-            err = MergeIncrBy(ctx, key, v, cmd.GetType(), incr);
+            switch(cmd.GetType())
+            {
+                case REDIS_CMD_DECR:
+                {
+                    incr = -1;
+                    break;
+                }
+                case REDIS_CMD_DECRBY:
+                {
+                    incr = 0 - incr;
+                    break;
+                }
+                default:
+                {
+                    break;
+                }
+            }
+            err = MergeIncrBy(ctx, key, v, incr);
             if (0 == err)
             {
                 err = m_engine->Put(ctx, key, v);
@@ -535,9 +537,9 @@ OP_NAMESPACE_BEGIN
         {
             op = nx_xx == 0 ? REDIS_CMD_SETNX : REDIS_CMD_SETXX;
         }
+        ValueObject valueobj;
         if (redis_compatible)
         {
-            ValueObject valueobj;
             if (!CheckMeta(ctx, key, KEY_STRING, valueobj))
             {
                 return  ctx.GetReply().ErrCode();
@@ -550,16 +552,26 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-            DataArray merge_data;
-            merge_data.push_back(merge);
-            if (ttl > 0)
+            if(REDIS_CMD_SET == op)
             {
-                op = REDIS_CMD_PSETEX;
-                Data ttl_data;
-                ttl_data.SetInt64(ttl);
-                merge_data.push_back(ttl_data);
+                valueobj.SetType(KEY_STRING);
+                valueobj.SetTTL(ttl);
+                valueobj.GetStringValue().SetString(value, true);
+                err = m_engine->Put(ctx, keyobj, valueobj);
+            }else
+            {
+                DataArray merge_data;
+                merge_data.push_back(merge);
+                if (ttl > 0)
+                {
+                    op = REDIS_CMD_PSETEX;
+                    Data ttl_data;
+                    ttl_data.SetInt64(ttl);
+                    merge_data.push_back(ttl_data);
+                }
+                err = m_engine->Merge(ctx, keyobj, op, merge_data);
             }
-            err = m_engine->Merge(ctx, keyobj, op, merge_data);
+
         }
         return err;
     }

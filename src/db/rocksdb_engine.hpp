@@ -25,9 +25,10 @@
 OP_NAMESPACE_BEGIN
 
     class RocksDBEngine;
-    class RocksDBIterator:public Iterator
+    class RocksDBIterator: public Iterator
     {
         private:
+            Data m_ns;
             KeyObject m_key;
             ValueObject m_value;
             RocksDBEngine* m_engine;
@@ -39,8 +40,8 @@ OP_NAMESPACE_BEGIN
             KeyObject& Key();
             ValueObject& Value();
         public:
-            RocksDBIterator(RocksDBEngine* engine, rocksdb::Iterator* iter) :
-                m_engine(engine),m_iter(iter)
+            RocksDBIterator(RocksDBEngine* engine, rocksdb::Iterator* iter, const Data& ns) :
+                m_ns(ns),m_engine(engine), m_iter(iter)
             {
             }
             ~RocksDBIterator();
@@ -103,9 +104,11 @@ OP_NAMESPACE_BEGIN
             };
 
             typedef TreeMap<Data, rocksdb::ColumnFamilyHandle*>::Type ColumnFamilyHandleTable;
+            typedef TreeMap<uint32_t, Data>::Type ColumnFamilyHandleIDTable;
             rocksdb::DB* m_db;
             rocksdb::Options m_options;
             ColumnFamilyHandleTable m_handlers;
+            ColumnFamilyHandleIDTable m_idmapping;
             SpinRWLock m_lock;
             ThreadLocal<RocksTransaction> m_transc;
             ThreadLocal<RocksSnapshot> m_snapshot;

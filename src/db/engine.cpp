@@ -73,13 +73,9 @@ OP_NAMESPACE_BEGIN
         {
             int elen1 = key1.DecodeElementLength(kbuf1);
             int elen2 = key2.DecodeElementLength(kbuf2);
-            if(elen1 <= 0 || elen2 <= 0)
+            if(elen1 < 0 || elen2 < 0)
             {
-            	 abort();
-            }
-            if(key1.GetElement(0).IsAny() || key2.GetElement(0).IsAny())
-            {
-            	return 0;
+            	 FATAL_LOG("Invalid element length");
             }
             ret = elen1 - elen2;
             if (ret != 0)

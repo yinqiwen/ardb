@@ -153,9 +153,9 @@ OP_NAMESPACE_BEGIN
             int ListPop(Context& ctx, RedisCommandFrame& cmd);
             int ListPush(Context& ctx, RedisCommandFrame& cmd);
 
-
+            bool AdjustMergeOp(uint16& op, DataArray& args);
             int MergeAppend(Context& ctx,KeyObject& key, ValueObject& val, const std::string& append);
-            int MergeIncrBy(Context& ctx,KeyObject& key, ValueObject& val, uint16_t op, int64_t inc);
+            int MergeIncrBy(Context& ctx,KeyObject& key, ValueObject& val, int64_t inc);
             int MergeIncrByFloat(Context& ctx,KeyObject& key, ValueObject& val, double inc);
             int MergeSet(Context& ctx,KeyObject& key, ValueObject& val, uint16_t op, const Data& data, int64_t ttl);
             int MergeSetRange(Context& ctx,KeyObject& key, ValueObject& val, int64_t offset, const std::string& range);
@@ -174,13 +174,9 @@ OP_NAMESPACE_BEGIN
             bool CheckMeta(Context& ctx, const std::string& key, KeyType expected, ValueObject& meta);
             bool CheckMeta(Context& ctx, const KeyObject& key, KeyType expected, ValueObject& meta);
 
-            int DelElements(Context& ctx, KeyObject& key);
+            int DelKey(Context& ctx, const KeyObject& meta_key, Iterator*& iter);
 
             int HIterate(Context& ctx, RedisCommandFrame& cmd);
-
-//            int GetScript(const std::string& funacname, std::string& funcbody);
-//            int SaveScript(const std::string& funacname, const std::string& funcbody);
-//            int FlushScripts(Context& ctx);
 
             int WatchForKey(Context& ctx, const std::string& key);
             int UnwatchKeys(Context& ctx);
@@ -378,8 +374,8 @@ OP_NAMESPACE_BEGIN
             Ardb();
             int Init(const std::string& conf_file);
             int Call(Context& ctx, RedisCommandFrame& cmd);
-            int MergeOperation(KeyObject& key, ValueObject& val, uint16_t op, const DataArray& args);
-            int MergeOperand(ValueObject& left, ValueObject& right);
+            int MergeOperation(KeyObject& key, ValueObject& val, uint16_t op, DataArray& args);
+            int MergeOperands(uint16_t left, const DataArray& left_args, uint16_t& right, DataArray& right_args);
             const ArdbConfig& GetConf() const
             {
                 return m_conf;

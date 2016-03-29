@@ -16,7 +16,7 @@ OP_NAMESPACE_BEGIN
 
     enum DataEncoding
     {
-        E_INT64 = 1, E_FLOAT64 = 2, E_CSTR = 3, E_SDS = 4, E_ANY = 5,
+        E_INT64 = 1, E_FLOAT64 = 2, E_CSTR = 3, E_SDS = 4
     };
 
     Data::Data() :
@@ -113,7 +113,6 @@ OP_NAMESPACE_BEGIN
         switch (encoding)
         {
             case 0:
-            case E_ANY:
             {
                 return true;
             }
@@ -264,10 +263,6 @@ OP_NAMESPACE_BEGIN
     }
     int Data::Compare(const Data& right, bool alpha_cmp) const
     {
-        if (IsAny() || right.IsAny())
-        {
-            return 0;
-        }
         if (!alpha_cmp)
         {
             if (IsInteger() && right.IsInteger())
@@ -394,15 +389,6 @@ OP_NAMESPACE_BEGIN
         }
     }
 
-    bool Data::IsAny() const
-    {
-        return encoding == E_ANY;
-    }
-    void Data::ToAny()
-    {
-        Clear();
-        encoding = E_ANY;
-    }
     const std::string& Data::ToString(std::string& str) const
     {
         uint32 slen = 0;

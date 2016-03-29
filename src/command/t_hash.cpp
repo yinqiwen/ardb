@@ -48,7 +48,7 @@ OP_NAMESPACE_BEGIN
             {
                 if (value.GetType() != KEY_HASH)
                 {
-                	return ERR_NOTPERFORMED;
+                    return ERR_NOTPERFORMED;
                 }
                 if (value.GetObjectLen() == -1)
                 {
@@ -73,7 +73,7 @@ OP_NAMESPACE_BEGIN
         if (set_meta)
         {
             value.SetType(KEY_HASH);
-            value.SetObjectLen(opv.IsInteger()?opv.GetInt64():-1);
+            value.SetObjectLen(opv.IsInteger() ? opv.GetInt64() : -1);
         }
         else
         {
@@ -108,8 +108,8 @@ OP_NAMESPACE_BEGIN
                     return 0;
                 }
             }
-            meta.SetObjectLen(-1);
             meta.SetType(KEY_HASH);
+            meta.SetObjectLen(-1);
             m_engine->Put(ctx, key, meta);
 
             for (size_t i = 1; i < cmd.GetArguments().size(); i += 2)
@@ -156,14 +156,14 @@ OP_NAMESPACE_BEGIN
                 {
                     Data meta_size;
                     meta_size.SetInt64(1);
-                    m_engine->Merge(ctx, key, cmd.GetType(), meta_size);
+                    m_engine->Merge(ctx, key, REDIS_CMD_HSETNX, meta_size);
                     m_engine->Merge(ctx, field, REDIS_CMD_HSETNX, field_value.GetHashValue());
                 }
                 else
                 {
-                	meta.SetType(KEY_HASH);
-                	meta.SetObjectLen(-1);
-                	m_engine->Put(ctx, key, meta);
+                    meta.SetType(KEY_HASH);
+                    meta.SetObjectLen(-1);
+                    m_engine->Put(ctx, key, meta);
                     m_engine->Put(ctx, field, field_value);
                 }
             }
@@ -234,41 +234,53 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::HIterate(Context& ctx, RedisCommandFrame& cmd)
     {
-    	RedisReply& reply = ctx.GetReply();
-    	ValueObject meta;
-    	if (!CheckMeta(ctx, cmd.GetArguments()[0], KEY_HASH, meta))
-    	{
-    	     return 0;
-    	}
-    	reply.ReserveMember(0);
-    	if (meta.GetType() == 0)
-    	{
-    	    return 0;
-    	}
-    	const std::string& keystr = cmd.GetArguments()[0];
-    	KeyObject key(ctx.ns, KEY_HASH_FIELD, keystr);
-    	Iterator* iter = m_engine->Find(ctx, key);
-    	while (NULL != iter && iter->Valid())
-    	{
-    	      KeyObject& field = iter->Key();
-    	      if (field.GetType() != KEY_HASH_FIELD || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != field.GetKey())
-    	      {
-    	          break;
-    	      }
-    	      if(cmd.GetType() == REDIS_CMD_HKEYS || cmd.GetType() == REDIS_CMD_HGETALL)
-    	      {
-        	      RedisReply& r = reply.AddMember();
-        	      r.SetString(field.GetHashField());
-    	      }
-    	      if(cmd.GetType() == REDIS_CMD_HVALS || cmd.GetType() == REDIS_CMD_HGETALL)
-    	      {
-    	          RedisReply& r = reply.AddMember();
-    	          r.SetString(field.GetHashField());
-    	      }
-    	      iter->Next();
-    	}
-    	DELETE(iter);
-    	return 0;
+        RedisReply& reply = ctx.GetReply();
+        reply.ReserveMember(0);
+        const std::string& keystr = cmd.GetArguments()[0];
+        KeyObject key(ctx.ns, KEY_META, keystr);
+        Iterator* iter = m_engine->Find(ctx, key);
+        bool checked_meta = false;
+        while (NULL != iter && iter->Valid())
+        {
+            KeyObject& field = iter->Key();
+            if (!checked_meta)
+            {
+                if (field.GetType() == KEY_META && field.GetKey() == key.GetKey())
+                {
+                    ValueObject& meta = iter->Value();
+                    if (meta.GetType() != KEY_HASH)
+                    {
+                        reply.SetErrCode(ERR_INVALID_TYPE);
+                        break;
+                    }
+                    checked_meta = true;
+                    iter->Next();
+                    continue;
+                }
+                else
+                {
+                    break;
+                }
+            }
+            if (field.GetType() != KEY_HASH_FIELD || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != key.GetKey())
+            {
+                break;
+            }
+            if (cmd.GetType() == REDIS_CMD_HKEYS || cmd.GetType() == REDIS_CMD_HGETALL)
+            {
+                RedisReply& r = reply.AddMember();
+                r.SetString(field.GetHashField());
+            }
+            if (cmd.GetType() == REDIS_CMD_HVALS || cmd.GetType() == REDIS_CMD_HGETALL)
+            {
+                ValueObject& fv = iter->Value();
+                RedisReply& r = reply.AddMember();
+                r.SetString(fv.GetHashValue());
+            }
+            iter->Next();
+        }
+        DELETE(iter);
+        return 0;
     }
     int Ardb::HKeys(Context& ctx, RedisCommandFrame& cmd)
     {
@@ -281,7 +293,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::HGetAll(Context& ctx, RedisCommandFrame& cmd)
     {
-    	return HIterate(ctx, cmd);
+        return HIterate(ctx, cmd);
     }
     int Ardb::HScan(Context& ctx, RedisCommandFrame& cmd)
     {
@@ -659,10 +671,11 @@ OP_NAMESPACE_BEGIN
             if (meta.GetObjectLen() > 0)
             {
                 meta.SetObjectLen(meta.GetObjectLen() - del_num);
-                if(meta.GetObjectLen() == 0)
+                if (meta.GetObjectLen() == 0)
                 {
                     m_engine->Del(ctx, key);
-                }else
+                }
+                else
                 {
                     m_engine->Put(ctx, key, meta);
                 }
