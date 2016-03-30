@@ -56,7 +56,6 @@ OP_NAMESPACE_BEGIN
                     return ERR_NOTPERFORMED;
                 }
                 value.SetObjectLen(-1);
-                return 0;
             }
             else
             {
@@ -69,6 +68,7 @@ OP_NAMESPACE_BEGIN
                     return ERR_NOTPERFORMED;
                 }
             }
+            return 0;
         }
         if (set_meta)
         {
@@ -195,6 +195,7 @@ OP_NAMESPACE_BEGIN
         Data meta_size;
         meta_size.SetInt64(1);
         err = MergeHSet(ctx, keys[0], vals[0], cmd.GetType(), meta_size);
+        bool inserted = vals[1].GetType() == 0;
         if (0 == err)
         {
             Data field_value;
@@ -223,7 +224,7 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-            reply.SetInteger(1);
+            reply.SetInteger(inserted ? 1 : 0);
         }
         return 0;
     }
