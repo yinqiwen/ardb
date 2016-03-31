@@ -270,7 +270,7 @@ rocksdb: $(ROCKSDB_LIBA)
 $(ROCKSDB_LIBA): $(SNAPPY_LIBA) $(ROCKSDB_PATH)
 	echo ">>>>> Building ROCKSDB" && \
 	cd ${ROCKSDB_PATH} && \
-	CXXFLAGS="-I${SNAPPY_PATH} -O2 -DNDEBUG" CFLAGS="-I${SNAPPY_PATH}" LDFLAGS="${SNAPPY_PATH}/.libs" $(MAKE) static_lib && \
+	CXXFLAGS="-I${SNAPPY_PATH}" CFLAGS="-I${SNAPPY_PATH}" LDFLAGS="${SNAPPY_PATH}/.libs" $(MAKE) static_lib && \
 	echo "<<<<< Done building ROCKSDB"
 
 $(ROCKSDB_PATH):

@@ -420,6 +420,12 @@ OP_NAMESPACE_BEGIN
 
     RocksDBEngine::~RocksDBEngine()
     {
+        ColumnFamilyHandleTable::iterator it = m_handlers.begin();
+        while (it != m_handlers.end())
+        {
+            DELETE(it->second);
+            it++;
+        }
         DELETE(m_db);
     }
 
@@ -637,8 +643,9 @@ OP_NAMESPACE_BEGIN
         }
         rocksdb::ReadOptions opt;
         opt.snapshot = PeekSnpashot();
+        std::string tmp;
         rocksdb::Slice k = ROCKSDB_SLICE(const_cast<KeyObject&>(key).Encode());
-        bool exist = m_db->KeyMayExist(opt, cf, k, NULL);
+        bool exist = m_db->KeyMayExist(opt, cf, k, &tmp, NULL);
         if (!exist)
         {
             return false;
@@ -647,7 +654,7 @@ OP_NAMESPACE_BEGIN
         {
             return exist;
         }
-        return m_db->Get(opt, cf, k, NULL).ok();
+        return m_db->Get(opt, cf, k, &tmp).ok();
     }
 
     const rocksdb::Snapshot* RocksDBEngine::GetSnpashot()

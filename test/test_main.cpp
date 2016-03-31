@@ -43,6 +43,10 @@ int main()
             }
             uint64 end = get_current_epoch_millis();
             printf("=======================%s Test End(%llums)============================\n\n", fs[i].c_str(), (end - start));
+            if(r.IsErr())
+            {
+                break;
+            }
         }
     }
     return 0;

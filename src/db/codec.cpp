@@ -245,7 +245,26 @@ OP_NAMESPACE_BEGIN
         assert(type != 0);
         GetMeta().ttl = v;
     }
-
+    void ValueObject::ClearMinMaxData()
+    {
+        GetMin().Clear();
+        GetMax().Clear();
+    }
+    bool ValueObject::SetMinData(const Data& v)
+    {
+        bool replaced = false;
+                if (vals.size() < 3)
+                {
+                    vals.resize(3);
+                    replaced = true;
+                }
+                if (vals[1] > v || vals[1].IsNil())
+                {
+                    vals[1] = v;
+                    replaced = true;
+                }
+                return replaced;
+    }
     bool ValueObject::SetMinMaxData(const Data& v)
     {
         bool replaced = false;

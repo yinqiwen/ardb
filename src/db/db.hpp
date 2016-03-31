@@ -160,12 +160,9 @@ OP_NAMESPACE_BEGIN
             int MergeSet(Context& ctx,KeyObject& key, ValueObject& val, uint16_t op, const Data& data, int64_t ttl);
             int MergeSetRange(Context& ctx,KeyObject& key, ValueObject& val, int64_t offset, const std::string& range);
             int MergeHSet(Context& ctx,KeyObject& key, ValueObject& value, uint16_t op, const Data& v);
-            int MergeHDel(Context& ctx,KeyObject& key, ValueObject& meta_value);
             int MergeHIncrby(Context& ctx,KeyObject& key, ValueObject& value, uint16_t op, const Data& v);
             int MergeListPop(Context& ctx,KeyObject& key, ValueObject& value, uint16_t op, Data& element);
             int MergeListPush(Context& ctx,KeyObject& key, ValueObject& value, uint16_t op, const DataArray& args);
-            int MergeSAdd(Context& ctx,KeyObject& key, ValueObject& value, const DataArray& ms);
-            int MergeSRem(Context& ctx,KeyObject& key, ValueObject& value, const DataArray& ms);
             int MergeExpire(Context& ctx, const KeyObject& key, ValueObject& meta, int64 ms);
             int MergeSetBit(Context& ctx, const KeyObject& key, ValueObject& meta, int64 offset, uint8 bit, uint8* oldbit);
             int MergePFAdd(Context& ctx,KeyObject& key, ValueObject& value, const DataArray& ms, int* updated = NULL);
@@ -173,6 +170,8 @@ OP_NAMESPACE_BEGIN
             bool CheckMeta(Context& ctx, const std::string& key, KeyType expected);
             bool CheckMeta(Context& ctx, const std::string& key, KeyType expected, ValueObject& meta);
             bool CheckMeta(Context& ctx, const KeyObject& key, KeyType expected, ValueObject& meta);
+
+            int GetMinMax(Context& ctx, const KeyObject& key, KeyType ele_type, ValueObject& meta, Iterator*& iter);
 
             int DelKey(Context& ctx, const KeyObject& meta_key, Iterator*& iter);
 

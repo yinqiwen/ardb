@@ -302,6 +302,8 @@ OP_NAMESPACE_BEGIN
                 getElement(0).Clone(v);
             }
             bool SetMinMaxData(const Data& v);
+            bool SetMinData(const Data& v);
+            void ClearMinMaxData();
             Data& GetMin()
             {
                 return getElement(1);

@@ -31,98 +31,60 @@
 
 OP_NAMESPACE_BEGIN
 
-    int Ardb::MergeSAdd(Context& ctx,KeyObject& key, ValueObject& value, const DataArray& ms)
-    {
-        if (value.GetType() > 0 && value.GetType() != KEY_SET)
-        {
-            return ERR_INVALID_TYPE;
-        }
-        bool meta_changed = false;
-        if (value.GetType() == 0)
-        {
-            value.SetType(KEY_SET);
-            value.SetObjectLen( ms.size());
-            meta_changed = true;
-        }
-        else
-        {
-            if (value.GetObjectLen() >= 0)
-            {
-                value.SetObjectLen(-1);
-                meta_changed = true;
-            }
-        }
-        for (size_t i = 0; i < ms.size(); i++)
-        {
-            KeyObject field(key.GetNameSpace(), KEY_SET_MEMBER, ms[i]);
-            field.SetSetMember(ms[i]);
-            ValueObject empty;
-            m_engine->Put(ctx, field, empty);
-            if(value.SetMinMaxData(ms[i]))
-            {
-                meta_changed = true;
-            }
-        }
-        return meta_changed ? 0 : ERR_NOTPERFORMED;
-    }
-
     int Ardb::SAdd(Context& ctx, RedisCommandFrame& cmd)
     {
+        ctx.flags.create_if_notexist = 1;
         RedisReply& reply = ctx.GetReply();
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_META, keystr);
+        KeyLockGuard guard(key);
         ValueObject meta;
         int err = 0;
         std::set<std::string> added;
-        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !GetConf().redis_compatible)
+        bool redis_compatible = cmd.GetType() < REDIS_CMD_MERGE_BEGIN && GetConf().redis_compatible;
+        if (redis_compatible)
         {
-            DataArray args(cmd.GetArguments().size() - 1);
-            for (size_t i = 0; i < args.size(); i++)
+            if (!CheckMeta(ctx, keystr, KEY_SET, meta))
             {
-                const std::string& data = cmd.GetArguments()[i + 1];
-                if (added.count(data) == 0)
-                {
-                    args[i].SetString(data, true);
-                    added.insert(data);
-                }
-            }
-            err = m_engine->Merge(ctx, key, cmd.GetType(), args);
-            if (0 != err)
-            {
-                reply.SetErrCode(err);
-            }
-            else
-            {
-                reply.SetStatusCode(STATUS_OK);
+                return 0;
             }
         }
         else
         {
-            KeyLockGuard guard(key);
-            ValueObject meta;
-            if (!CheckMeta(ctx, keystr, KEY_HASH, meta))
+            meta.SetType(KEY_SET);
+            meta.SetObjectLen(-1);
+        }
+        {
+            bool meta_changed = false;
+            TransactionGuard batch(ctx, m_engine);
+            ValueObject empty;
+            empty.SetType(KEY_SET_MEMBER);
+            for (size_t i = 1; i < cmd.GetArguments().size(); i++)
             {
-                return 0;
-            }
-            {
-                bool meta_changed = false;
-                TransactionGuard batch(ctx, m_engine);
-                for (size_t i = 1; i < cmd.GetArguments().size(); i++)
+                KeyObject field(ctx.ns, KEY_SET_MEMBER, keystr);
+                const std::string& data = cmd.GetArguments()[i];
+                field.SetSetMember(data);
+                if (redis_compatible)
                 {
-                    KeyObject field(ctx.ns, KEY_SET_MEMBER, keystr);
-                    const std::string& data = cmd.GetArguments()[i];
-                    field.SetSetMember(data);
                     if ((0 == meta.GetType() || !m_engine->Exists(ctx, field)) && added.count(data) == 0)
                     {
-                        ValueObject field_value;
-                        m_engine->Put(ctx, field, field_value);
-                        if(meta.SetMinMaxData(field.GetSetMember()))
+                        m_engine->Put(ctx, field, empty);
+                        if (meta.SetMinMaxData(field.GetSetMember()))
                         {
                             meta_changed = true;
                         }
                         added.insert(data);
                     }
                 }
+                else
+                {
+                    meta_changed = true;
+                    m_engine->Put(ctx, field, empty);
+                    added.insert(data);
+                }
+            }
+            if (redis_compatible)
+            {
                 if (0 == meta.GetType())
                 {
                     meta.SetType(KEY_SET);
@@ -134,18 +96,25 @@ OP_NAMESPACE_BEGIN
                     meta.SetObjectLen(meta.GetObjectLen() + added.size());
                     meta_changed = true;
                 }
-                if(meta_changed)
-                {
-                    m_engine->Put(ctx, key, meta);
-                }
             }
-            if (0 == ctx.transc_err)
+            if (meta_changed)
             {
-                reply.SetErrCode(ctx.transc_err);
+                m_engine->Put(ctx, key, meta);
+            }
+        }
+        if (0 != ctx.transc_err)
+        {
+            reply.SetErrCode(ctx.transc_err);
+        }
+        else
+        {
+            if (redis_compatible)
+            {
+                reply.SetInteger(added.size());
             }
             else
             {
-                reply.SetInteger(added.size());
+                reply.SetStatusCode(STATUS_OK);
             }
         }
         return 0;
@@ -168,23 +137,42 @@ OP_NAMESPACE_BEGIN
     int Ardb::SMembers(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
-        ValueObject meta;
-        if (!CheckMeta(ctx, cmd.GetArguments()[0], KEY_SET, meta))
-        {
-            return 0;
-        }
         reply.ReserveMember(0);
-        if (meta.GetType() == 0)
-        {
-            return 0;
-        }
         const std::string& keystr = cmd.GetArguments()[0];
-        KeyObject key(ctx.ns, KEY_SET_MEMBER, keystr);
+        KeyObject key(ctx.ns, KEY_META, keystr);
+        KeyLockGuard guard(key);
         Iterator* iter = m_engine->Find(ctx, key);
+        bool checked_meta = false;
+        bool need_set_minmax = false;
+        ValueObject new_meta;
         while (NULL != iter && iter->Valid())
         {
             KeyObject& field = iter->Key();
-            if (field.GetType() != KEY_SET_MEMBER || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != field.GetKey())
+            if (!checked_meta)
+            {
+                if (field.GetType() == KEY_META && field.GetKey() == key.GetKey())
+                {
+                    ValueObject& meta = iter->Value();
+                    if (meta.GetType() != KEY_SET)
+                    {
+                        reply.SetErrCode(ERR_INVALID_TYPE);
+                        break;
+                    }
+                    checked_meta = true;
+                    if (meta.GetMin().IsNil() && meta.GetMax().IsNil())
+                    {
+                        need_set_minmax = true;
+                        new_meta = meta;
+                    }
+                    iter->Next();
+                    continue;
+                }
+                else
+                {
+                    break;
+                }
+            }
+            if (field.GetType() != KEY_SET_MEMBER || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != key.GetKey())
             {
                 break;
             }
@@ -193,6 +181,13 @@ OP_NAMESPACE_BEGIN
             iter->Next();
         }
         DELETE(iter);
+        if (need_set_minmax)
+        {
+            new_meta.SetObjectLen(reply.MemberSize());
+            new_meta.GetMin().SetString(reply.MemberAt(0).str, true);
+            new_meta.GetMax().SetString(reply.MemberAt(reply.MemberSize() - 1).str, true);
+            m_engine->Put(ctx, key, new_meta);
+        }
         return 0;
     }
 
@@ -238,13 +233,21 @@ OP_NAMESPACE_BEGIN
         KeyObject key(ctx.ns, KEY_SET_MEMBER, keystr);
         key.SetSetMember(meta.GetMin());
         Iterator* iter = m_engine->Find(ctx, key);
-        if (NULL != iter && iter->Valid())
+        bool ele_removed = false;
+        while (NULL != iter && iter->Valid())
         {
             KeyObject& field = iter->Key();
-            if (field.GetType() == KEY_SET_MEMBER && field.GetNameSpace() == key.GetNameSpace() && field.GetKey() == field.GetKey())
+            if (field.GetType() == KEY_SET_MEMBER && field.GetNameSpace() == key.GetNameSpace() && field.GetKey() == key.GetKey())
             {
+                if (ele_removed)
+                {
+                    //set min data
+                    meta.SetMinData(field.GetSetMember());
+                    break;
+                }
                 reply.SetString(field.GetSetMember());
                 m_engine->Del(ctx, field);
+                ele_removed = true;
                 if (meta.GetObjectLen() > 0)
                 {
                     meta.SetObjectLen(meta.GetObjectLen() - 1);
@@ -253,16 +256,22 @@ OP_NAMESPACE_BEGIN
                         remove_key = true;
                     }
                 }
+                iter->Next();
             }
             else
             {
                 remove_key = true;
+                break;
             }
         }
         DELETE(iter);
         if (remove_key)
         {
             m_engine->Del(ctx, key);
+        }
+        else
+        {
+            m_engine->Put(ctx, key, meta);
         }
         return 0;
     }
@@ -317,25 +326,6 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::MergeSRem(Context& ctx,KeyObject& key, ValueObject& value, const DataArray& ms)
-    {
-        if (value.GetType() != KEY_SET)
-        {
-            return ERR_NOTPERFORMED;
-        }
-        {
-            TransactionGuard batch(ctx, m_engine);
-            for (size_t i = 0; i < ms.size(); i++)
-            {
-                KeyObject field(key.GetNameSpace(), KEY_SET_MEMBER, key.GetKey());
-                field.SetSetMember(ms[i]);
-                m_engine->Del(ctx, field);
-            }
-        }
-        value.SetObjectLen(-1);
-        return 0;
-    }
-
     int Ardb::SRem(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
@@ -376,10 +366,11 @@ OP_NAMESPACE_BEGIN
                 }
             }
         }
-        if(ctx.transc_err != 0)
+        if (ctx.transc_err != 0)
         {
             reply.SetErrCode(ctx.transc_err);
-        }else
+        }
+        else
         {
             reply.SetInteger(remove_count);
         }

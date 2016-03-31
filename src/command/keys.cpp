@@ -81,6 +81,12 @@ OP_NAMESPACE_BEGIN
         }
         return 0;
     }
+
+    int Ardb::GetMinMax(Context& ctx, const KeyObject& key, KeyType ele_type, ValueObject& meta, Iterator*& iter)
+    {
+        return -1;
+    }
+
     int Ardb::KeysCount(Context& ctx, RedisCommandFrame& cmd)
     {
         return 0;

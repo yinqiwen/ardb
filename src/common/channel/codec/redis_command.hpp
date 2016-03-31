@@ -236,7 +236,7 @@ namespace ardb
             REDIS_CMD_RPUSHX2 = 1018,
             REDIS_CMD_SREM2 = 1019,
             REDIS_CMD_SADD2 = 1020,
-            //REDIS_CMD_DEL2 = 1021,
+            REDIS_CMD_HDEL2 = 1021,
             REDIS_CMD_MSET2 = 1022,
             REDIS_CMD_MSETNX2 = 1023,
             REDIS_CMD_PEXPIREAT2 = 1024,

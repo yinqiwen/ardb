@@ -34,13 +34,9 @@ OP_NAMESPACE_BEGIN
     {
         bool nx = (op == REDIS_CMD_HSETNX || op == REDIS_CMD_HSETNX2);
         bool set_meta = key.GetType() == KEY_META;
-        if (nx && value.GetType() != 0)
-        {
-            return ERR_NOTPERFORMED;
-        }
         if (value.GetType() > 0)
         {
-            if (nx)
+            if (nx && !set_meta)
             {
                 return ERR_NOTPERFORMED;
             }
@@ -67,6 +63,7 @@ OP_NAMESPACE_BEGIN
                 {
                     return ERR_NOTPERFORMED;
                 }
+                value.SetHashValue(opv);
             }
             return 0;
         }
@@ -94,6 +91,7 @@ OP_NAMESPACE_BEGIN
             reply.SetErrCode(ERR_INVALID_SYNTAX);
             return 0;
         }
+        ctx.flags.create_if_notexist = 1;
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_META, keystr);
         int err = 0;
@@ -138,6 +136,7 @@ OP_NAMESPACE_BEGIN
      */
     int Ardb::HSet(Context& ctx, RedisCommandFrame& cmd)
     {
+        ctx.flags.create_if_notexist = 1;
         RedisReply& reply = ctx.GetReply();
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_META, keystr);
@@ -196,7 +195,7 @@ OP_NAMESPACE_BEGIN
         meta_size.SetInt64(1);
         err = MergeHSet(ctx, keys[0], vals[0], cmd.GetType(), meta_size);
         bool inserted = vals[1].GetType() == 0;
-        if (0 == err)
+        if (0 == err || ERR_NOTPERFORMED == err)
         {
             Data field_value;
             field_value.SetString(cmd.GetArguments()[2], true);
@@ -338,11 +337,11 @@ OP_NAMESPACE_BEGIN
         {
             if (errs[i] != 0)
             {
-                reply.MemberAt(i).Clear();
+                reply.MemberAt(i - 1).Clear();
             }
             else
             {
-                reply.MemberAt(i).SetString(vals[i].GetHashValue());
+                reply.MemberAt(i - 1).SetString(vals[i].GetHashValue());
             }
         }
         return 0;
@@ -355,13 +354,29 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::MergeHIncrby(Context& ctx, KeyObject& key, ValueObject& value, uint16_t op, const Data& v)
     {
+        if (op == REDIS_CMD_HINCR)
+        {
+            if (!v.IsInteger())
+            {
+                return ERR_INVALID_INTEGER_ARGS;
+            }
+        }
+        else if (op == REDIS_CMD_HINCRBYFLOAT)
+        {
+            if (!v.IsNumber())
+            {
+                return ERR_INVALID_INTEGER_ARGS;
+            }
+        }
+
         if (value.GetType() == 0)
         {
+            value.SetType(KEY_HASH_FIELD);
             value.SetHashValue(v);
         }
         else
         {
-            if (op == REDIS_CMD_HINCR || op == REDIS_CMD_HINCR2)
+            if (op == REDIS_CMD_HINCR)
             {
                 if (!value.GetHashValue().IsInteger())
                 {
@@ -388,6 +403,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::HIncrby(Context& ctx, RedisCommandFrame& cmd)
     {
+        ctx.flags.create_if_notexist = 1;
         RedisReply& reply = ctx.GetReply();
         bool inc_float = (cmd.GetType() == REDIS_CMD_HINCRBYFLOAT || cmd.GetType() == REDIS_CMD_HINCRBYFLOAT2);
         int64 increment_integer = 0;
@@ -421,11 +437,11 @@ OP_NAMESPACE_BEGIN
             Data arg;
             if (inc_float)
             {
-                arg.SetInt64(increment_float);
+                arg.SetFloat64(increment_float);
             }
             else
             {
-                arg.SetFloat64(increment_integer);
+                arg.SetInt64(increment_integer);
             }
             {
                 TransactionGuard batch(ctx, m_engine);
@@ -487,10 +503,12 @@ OP_NAMESPACE_BEGIN
             if (inc_float)
             {
                 vals[1].GetHashValue().SetFloat64(increment_float);
+                float_val = increment_float;
             }
             else
             {
                 vals[1].GetHashValue().SetInt64(increment_integer);
+                int_val = increment_integer;
             }
         }
         else
@@ -595,38 +613,21 @@ OP_NAMESPACE_BEGIN
         reply.SetInteger(existed ? 1 : 0);
         return 0;
     }
-    int Ardb::MergeHDel(Context& ctx, KeyObject& key, ValueObject& meta_value)
-    {
-        if (meta_value.GetType() == 0 || meta_value.GetType() != KEY_HASH)
-        {
-            return ERR_NOTPERFORMED;
-        }
-        if (meta_value.GetObjectLen() >= 0)
-        {
-            meta_value.SetObjectLen(-1);
-            return 0;
-        }
-        else
-        {
-            /*
-             * meta value is not changed
-             */
-            return ERR_NOTPERFORMED;
-        }
-    }
     int Ardb::HDel(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_META, keystr);
+        KeyLockGuard guard(key);
         ValueObject meta;
         int err = 0;
         if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !GetConf().redis_compatible)
         {
             {
                 TransactionGuard batch(ctx, m_engine);
-                Data empty;
-                m_engine->Merge(ctx, key, cmd.GetType(), empty);
+                meta.SetType(KEY_HASH);
+                meta.SetObjectLen(-1);
+                m_engine->Put(ctx, key, meta);
                 for (size_t i = 1; i < cmd.GetArguments().size(); i++)
                 {
                     KeyObject field(ctx.ns, KEY_HASH_FIELD, cmd.GetArguments()[0]);
@@ -644,7 +645,6 @@ OP_NAMESPACE_BEGIN
             }
             return 0;
         }
-        KeyLockGuard guard(key);
         err = m_engine->Get(ctx, key, meta);
         if (err != 0 && err != ERR_ENTRY_NOT_EXIST)
         {

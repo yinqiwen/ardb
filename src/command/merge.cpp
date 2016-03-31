@@ -81,6 +81,18 @@ namespace ardb
                 op = REDIS_CMD_INCRBY;
                 return true;
             }
+            case REDIS_CMD_HINCR:
+            case REDIS_CMD_HINCR2:
+            {
+                op = REDIS_CMD_HINCR;
+                return true;
+            }
+            case REDIS_CMD_HINCRBYFLOAT:
+            case REDIS_CMD_HINCRBYFLOAT2:
+            {
+                op = REDIS_CMD_HINCRBYFLOAT;
+                return true;
+            }
             case REDIS_CMD_DECR:
             case REDIS_CMD_DECR2:
             {
@@ -134,12 +146,14 @@ namespace ardb
         }
         switch (left)
         {
-            case REDIS_CMD_INCR:
+            case REDIS_CMD_INCRBY:
+            case REDIS_CMD_HINCR:
             {
                 right_args[0].SetInt64(right_args[0].GetInt64() + left_args[0].GetInt64());
                 return 0;
             }
             case REDIS_CMD_INCRBYFLOAT:
+            case REDIS_CMD_HINCRBYFLOAT:
             {
                 right_args[0].SetFloat64(right_args[0].GetFloat64() + left_args[0].GetFloat64());
                 return 0;
@@ -166,6 +180,11 @@ namespace ardb
             case REDIS_CMD_HSETNX:
             {
                 return MergeHSet(merge_ctx, key, val, op, args[0]);
+            }
+            case REDIS_CMD_HINCR:
+            case REDIS_CMD_HINCRBYFLOAT:
+            {
+                return MergeHIncrby(merge_ctx, key, val, op, args[0]);
             }
             case REDIS_CMD_SET:
             case REDIS_CMD_SETXX:
