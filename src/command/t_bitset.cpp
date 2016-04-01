@@ -255,7 +255,7 @@ OP_NAMESPACE_BEGIN
         /*
          * merge setbit
          */
-        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !GetConf().redis_compatible)
+        if (!ctx.flags.redis_compatible)
         {
             DataArray args(2);
             args[0].SetInt64(offset);

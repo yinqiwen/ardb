@@ -42,8 +42,9 @@ OP_NAMESPACE_BEGIN
             unsigned no_fill_reply :1;
             unsigned create_if_notexist :1;
             unsigned fuzzy_check :1;
+            unsigned redis_compatible:1;
             CallFlags() :
-                    no_wal(0), no_fill_reply(0), create_if_notexist(0), fuzzy_check(0)
+                    no_wal(0), no_fill_reply(0), create_if_notexist(0), fuzzy_check(0),redis_compatible(0)
             {
             }
     };

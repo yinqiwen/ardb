@@ -253,21 +253,6 @@ OP_NAMESPACE_BEGIN
     bool ValueObject::SetMinData(const Data& v)
     {
         bool replaced = false;
-                if (vals.size() < 3)
-                {
-                    vals.resize(3);
-                    replaced = true;
-                }
-                if (vals[1] > v || vals[1].IsNil())
-                {
-                    vals[1] = v;
-                    replaced = true;
-                }
-                return replaced;
-    }
-    bool ValueObject::SetMinMaxData(const Data& v)
-    {
-        bool replaced = false;
         if (vals.size() < 3)
         {
             vals.resize(3);
@@ -278,10 +263,33 @@ OP_NAMESPACE_BEGIN
             vals[1] = v;
             replaced = true;
         }
-        if (vals[2] < v || vals[2].IsNil())
+        return replaced;
+    }
+    bool ValueObject::SetMinMaxData(const Data& v)
+    {
+        bool replaced = false;
+        if (vals.size() < 3)
         {
-            vals[2] = v;
+            vals.resize(3);
             replaced = true;
+        }
+        if (vals[2].IsNil() && vals[1].IsNil())
+        {
+            vals[1] = v;
+            vals[2] = v;
+        }
+        else
+        {
+            if (vals[1] > v || vals[1].IsNil())
+            {
+                vals[1] = v;
+                replaced = true;
+            }
+            if (vals[2] < v)
+            {
+                vals[2] = v;
+                replaced = true;
+            }
         }
         return replaced;
     }
@@ -357,7 +365,7 @@ OP_NAMESPACE_BEGIN
         {
             FATAL_LOG("Merge operation args length exceed limit 128");
         }
-        buffer.WriteByte((char)len);
+        buffer.WriteByte((char) len);
         for (size_t i = 0; i < len; i++)
         {
             args[i].Encode(buffer);

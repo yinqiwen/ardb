@@ -1405,7 +1405,7 @@ namespace ardb
             args[i].SetString(cmd.GetArguments()[i], false);
         }
         int err = 0;
-        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !GetConf().redis_compatible)
+        if (!ctx.flags.redis_compatible)
         {
             err = m_engine->Merge(ctx, key, cmd.GetType(), args);
             if (0 != err)

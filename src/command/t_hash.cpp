@@ -99,7 +99,7 @@ OP_NAMESPACE_BEGIN
         ValueObject meta;
         {
             TransactionGuard batch(ctx, m_engine);
-            if (cmd.GetType() < REDIS_CMD_MERGE_BEGIN && GetConf().redis_compatible)
+            if (ctx.flags.redis_compatible)
             {
                 if (!CheckMeta(ctx, key, KEY_HASH, meta))
                 {
@@ -142,7 +142,7 @@ OP_NAMESPACE_BEGIN
         KeyObject key(ctx.ns, KEY_META, keystr);
         ValueObject meta;
         int err = 0;
-        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !GetConf().redis_compatible)
+        if (!ctx.flags.redis_compatible)
         {
             {
                 TransactionGuard batch(ctx, m_engine);
@@ -432,7 +432,7 @@ OP_NAMESPACE_BEGIN
         KeyObject field_key(ctx.ns, KEY_HASH_FIELD, keystr);
         field_key.SetHashField(cmd.GetArguments()[1]);
         int err = 0;
-        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !GetConf().redis_compatible)
+        if (!ctx.flags.redis_compatible)
         {
             Data arg;
             if (inc_float)
@@ -621,7 +621,7 @@ OP_NAMESPACE_BEGIN
         KeyLockGuard guard(key);
         ValueObject meta;
         int err = 0;
-        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !GetConf().redis_compatible)
+        if (!ctx.flags.redis_compatible)
         {
             {
                 TransactionGuard batch(ctx, m_engine);

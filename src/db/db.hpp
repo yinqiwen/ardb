@@ -115,6 +115,13 @@ OP_NAMESPACE_BEGIN
                     KeyLockGuard(KeyObject& key);
                     ~KeyLockGuard();
             };
+            struct KeysLockGuard
+            {
+                    KeyObjectArray ks;
+                    KeysLockGuard(KeyObjectArray& keys);
+                    KeysLockGuard(KeyObject& key1, KeyObject& key2);
+                    ~KeysLockGuard();
+            };
 
         private:
             Engine* m_engine;
@@ -131,6 +138,8 @@ OP_NAMESPACE_BEGIN
 
             void LockKey(KeyObject& key);
             void UnlockKey(KeyObject& key);
+            void LockKeys(KeyObjectArray& key);
+            void UnlockKeys(KeyObjectArray& key);
 
             bool GetLongFromProtocol(Context& ctx, const std::string& str, int64_t& v);
 
@@ -154,22 +163,22 @@ OP_NAMESPACE_BEGIN
             int ListPush(Context& ctx, RedisCommandFrame& cmd);
 
             bool AdjustMergeOp(uint16& op, DataArray& args);
-            int MergeAppend(Context& ctx,KeyObject& key, ValueObject& val, const std::string& append);
-            int MergeIncrBy(Context& ctx,KeyObject& key, ValueObject& val, int64_t inc);
-            int MergeIncrByFloat(Context& ctx,KeyObject& key, ValueObject& val, double inc);
-            int MergeSet(Context& ctx,KeyObject& key, ValueObject& val, uint16_t op, const Data& data, int64_t ttl);
-            int MergeSetRange(Context& ctx,KeyObject& key, ValueObject& val, int64_t offset, const std::string& range);
-            int MergeHSet(Context& ctx,KeyObject& key, ValueObject& value, uint16_t op, const Data& v);
-            int MergeHIncrby(Context& ctx,KeyObject& key, ValueObject& value, uint16_t op, const Data& v);
-            int MergeListPop(Context& ctx,KeyObject& key, ValueObject& value, uint16_t op, Data& element);
-            int MergeListPush(Context& ctx,KeyObject& key, ValueObject& value, uint16_t op, const DataArray& args);
+            int MergeAppend(Context& ctx, KeyObject& key, ValueObject& val, const std::string& append);
+            int MergeIncrBy(Context& ctx, KeyObject& key, ValueObject& val, int64_t inc);
+            int MergeIncrByFloat(Context& ctx, KeyObject& key, ValueObject& val, double inc);
+            int MergeSet(Context& ctx, KeyObject& key, ValueObject& val, uint16_t op, const Data& data, int64_t ttl);
+            int MergeSetRange(Context& ctx, KeyObject& key, ValueObject& val, int64_t offset, const std::string& range);
+            int MergeHSet(Context& ctx, KeyObject& key, ValueObject& value, uint16_t op, const Data& v);
+            int MergeHIncrby(Context& ctx, KeyObject& key, ValueObject& value, uint16_t op, const Data& v);
+            int MergeListPop(Context& ctx, KeyObject& key, ValueObject& value, uint16_t op, Data& element);
+            int MergeListPush(Context& ctx, KeyObject& key, ValueObject& value, uint16_t op, const DataArray& args);
             int MergeExpire(Context& ctx, const KeyObject& key, ValueObject& meta, int64 ms);
             int MergeSetBit(Context& ctx, const KeyObject& key, ValueObject& meta, int64 offset, uint8 bit, uint8* oldbit);
-            int MergePFAdd(Context& ctx,KeyObject& key, ValueObject& value, const DataArray& ms, int* updated = NULL);
+            int MergePFAdd(Context& ctx, KeyObject& key, ValueObject& value, const DataArray& ms, int* updated = NULL);
 
             bool CheckMeta(Context& ctx, const std::string& key, KeyType expected);
             bool CheckMeta(Context& ctx, const std::string& key, KeyType expected, ValueObject& meta);
-            bool CheckMeta(Context& ctx, const KeyObject& key, KeyType expected, ValueObject& meta);
+            bool CheckMeta(Context& ctx, const KeyObject& key, KeyType expected, ValueObject& meta, bool fetch = true);
 
             int GetMinMax(Context& ctx, const KeyObject& key, KeyType ele_type, ValueObject& meta, Iterator*& iter);
 

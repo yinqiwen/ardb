@@ -107,7 +107,7 @@ OP_NAMESPACE_BEGIN
         /*
          * merge append
          */
-        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !GetConf().redis_compatible)
+        if (!ctx.flags.redis_compatible)
         {
             Data merge_data;
             merge_data.SetString(append, false);
@@ -180,7 +180,7 @@ OP_NAMESPACE_BEGIN
             for (uint32 i = 0; i < cmd.GetArguments().size(); i += 2)
             {
                 KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[i]);
-                if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !GetConf().redis_compatible)
+                if (!ctx.flags.redis_compatible)
                 {
                     uint16_t merge_op = REDIS_CMD_SET;
                     if (cmd.GetType() == REDIS_CMD_MSETNX || cmd.GetType() == REDIS_CMD_MSETNX2)
@@ -260,7 +260,7 @@ OP_NAMESPACE_BEGIN
         /*
          * merge incr
          */
-        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !GetConf().redis_compatible)
+        if (!ctx.flags.redis_compatible)
         {
             Data merge_data;
             merge_data.SetFloat64(increment);
@@ -328,7 +328,7 @@ OP_NAMESPACE_BEGIN
         /*
          * merge incr
          */
-        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !GetConf().redis_compatible)
+        if (!ctx.flags.redis_compatible)
         {
             Data merge_data;
             merge_data.SetInt64(incr);
@@ -623,7 +623,7 @@ OP_NAMESPACE_BEGIN
                 }
             }
         }
-        bool redis_compatible = cmd.GetType() < REDIS_CMD_MERGE_BEGIN && GetConf().redis_compatible;
+        bool redis_compatible = ctx.flags.redis_compatible;
         int err = StringSet(ctx, key, value, redis_compatible, ttl, nx_xx);
         if (0 != err)
         {
@@ -651,7 +651,7 @@ OP_NAMESPACE_BEGIN
     {
         RedisReply& reply = ctx.GetReply();
         const std::string& key = cmd.GetArguments()[0];
-        bool redis_compatible = cmd.GetType() < REDIS_CMD_MERGE_BEGIN && GetConf().redis_compatible;
+        bool redis_compatible = !ctx.flags.redis_compatible;
         int err = StringSet(ctx, cmd.GetArguments()[0], cmd.GetArguments()[1], redis_compatible, -1, 0);
         if (0 != err)
         {
@@ -724,7 +724,7 @@ OP_NAMESPACE_BEGIN
         /*
          * merge setrange
          */
-        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !GetConf().redis_compatible)
+        if (!ctx.flags.redis_compatible)
         {
             DataArray args(2);
             args[0].SetInt64(offset);

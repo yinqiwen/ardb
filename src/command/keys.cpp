@@ -230,7 +230,7 @@ OP_NAMESPACE_BEGIN
             }
         }
         KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
-        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN && !GetConf().redis_compatible)
+        if (!ctx.flags.redis_compatible)
         {
             Data merge_data;
             merge_data.SetInt64(mills);
@@ -330,6 +330,7 @@ OP_NAMESPACE_BEGIN
         for (size_t i = 0; i < cmd.GetArguments().size(); i++)
         {
             KeyObject meta(ctx.ns, KEY_META, cmd.GetArguments()[i]);
+            KeyLockGuard guard(meta);
             removed += DelKey(ctx, meta, iter);
         }
         DELETE(iter);

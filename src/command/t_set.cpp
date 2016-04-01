@@ -41,7 +41,7 @@ OP_NAMESPACE_BEGIN
         ValueObject meta;
         int err = 0;
         std::set<std::string> added;
-        bool redis_compatible = cmd.GetType() < REDIS_CMD_MERGE_BEGIN && GetConf().redis_compatible;
+        bool redis_compatible = ctx.flags.redis_compatible;
         if (redis_compatible)
         {
             if (!CheckMeta(ctx, keystr, KEY_SET, meta))
@@ -194,22 +194,85 @@ OP_NAMESPACE_BEGIN
     int Ardb::SMove(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
-        ValueObject meta;
-        if (!CheckMeta(ctx, cmd.GetArguments()[0], KEY_SET, meta))
+        KeyObjectArray ks;
+        for (uint32 i = 0; i < 2; i++)
+        {
+            KeyObject k(ctx.ns, KEY_META, cmd.GetArguments()[i]);
+            ks.push_back(k);
+        }
+        for (uint32 i = 0; i < 2; i++)
+        {
+            KeyObject k(ctx.ns, KEY_SET_MEMBER, cmd.GetArguments()[i]);
+            k.SetSetMember(cmd.GetArguments()[2]);
+            ks.push_back(k);
+        }
+        KeysLockGuard guard(ks[0], ks[1]);
+        ValueObjectArray vs;
+        ErrCodeArray errs;
+        int err = m_engine->MultiGet(ctx, ks, vs, errs);
+        if (0 != err)
+        {
+            reply.SetErrCode(err);
+            return 0;
+        }
+        if (!CheckMeta(ctx, ks[0], KEY_SET, vs[0], false) || !CheckMeta(ctx, ks[1], KEY_SET, vs[1], false))
         {
             return 0;
         }
         reply.SetInteger(0); //default response
-        if (meta.GetType() == 0)
+        if (vs[0].GetType() == 0)
         {
             return 0;
         }
-        KeyObject member(ctx.ns, KEY_SET_MEMBER, cmd.GetArguments()[0]);
-        member.SetSetMember(cmd.GetArguments()[2]);
-        if (m_engine->Exists(ctx, member))
+        if (vs[2].GetType() == KEY_SET_MEMBER)
         {
-            m_engine->Del(ctx, member);
-            KeyObject move(ctx.ns, KEY_SET_MEMBER, cmd.GetArguments()[1]);
+            TransactionGuard batch(ctx, m_engine);
+            m_engine->Del(ctx, ks[3]);
+            if (vs[0].GetObjectLen() > 0)
+            {
+                vs[0].SetObjectLen(vs[0].GetObjectLen() - 1);
+                if (vs[0].GetObjectLen() == 0)
+                {
+                    m_engine->Del(ctx, ks[0]);
+                }
+                else
+                {
+                    m_engine->Put(ctx, ks[0], vs[0]);
+                }
+            }
+            bool dest_meta_updated = false;
+            if (vs[3].GetType() == 0) //not exist in dest set
+            {
+                vs[3].SetType(KEY_SET_MEMBER);
+                m_engine->Put(ctx, ks[3], vs[3]);
+                if (vs[1].GetType() == 0)
+                {
+                    vs[1].SetType(KEY_SET);
+                    vs[1].SetObjectLen(1);
+                    vs[1].SetMinMaxData(ks[3].GetSetMember());
+                    dest_meta_updated = true;
+                }
+                else
+                {
+                    if (vs[1].SetMinMaxData(ks[3].GetSetMember()))
+                    {
+                        dest_meta_updated = true;
+                    }
+                    if (vs[1].GetObjectLen() > 0)
+                    {
+                        vs[1].SetObjectLen(vs[1].GetObjectLen() + 1);
+                    }
+                }
+                if (dest_meta_updated)
+                {
+                    m_engine->Put(ctx, ks[1], vs[1]);
+                }
+            }
+            reply.SetInteger(1);
+        }
+        if (0 != ctx.transc_err)
+        {
+            reply.SetErrCode(ctx.transc_err);
         }
         return 0;
     }
@@ -306,7 +369,7 @@ OP_NAMESPACE_BEGIN
         while (NULL != iter && iter->Valid() && count > 0)
         {
             KeyObject& field = iter->Key();
-            if (field.GetType() == KEY_SET_MEMBER && field.GetNameSpace() == key.GetNameSpace() && field.GetKey() == field.GetKey())
+            if (field.GetType() == KEY_SET_MEMBER && field.GetNameSpace() == key.GetNameSpace() && key.GetKey() == field.GetKey())
             {
                 if (with_count)
                 {
@@ -330,19 +393,33 @@ OP_NAMESPACE_BEGIN
     {
         RedisReply& reply = ctx.GetReply();
         KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
-        if (cmd.GetType() > REDIS_CMD_MERGE_BEGIN || !GetConf().redis_compatible)
+        ValueObject meta;
+        KeyLockGuard guard(key);
+        if (!ctx.flags.redis_compatible)
         {
-            DataArray ms(cmd.GetArguments().size() - 1);
-            for (size_t i = 1; i < cmd.GetArguments().size(); i++)
             {
-                ms[i - 1].SetString(cmd.GetArguments()[i], true);
+                TransactionGuard batch(ctx, m_engine);
+                for (size_t i = 1; i < cmd.GetArguments().size(); i++)
+                {
+                    KeyObject field(ctx.ns, KEY_SET_MEMBER, cmd.GetArguments()[0]);
+                    const std::string& data = cmd.GetArguments()[i];
+                    field.SetSetMember(data);
+                    m_engine->Del(ctx, field);
+                }
+                meta.SetObjectLen(-1);
+                meta.SetType(KEY_SET);
+                m_engine->Put(ctx, key, meta);
             }
-            m_engine->Merge(ctx, key, cmd.GetType(), ms);
-            reply.SetStatusCode(STATUS_OK);
+            if (ctx.transc_err != 0)
+            {
+                reply.SetErrCode(ctx.transc_err);
+            }
+            else
+            {
+                reply.SetStatusCode(STATUS_OK);
+            }
             return 0;
         }
-        KeyLockGuard guard(key);
-        ValueObject meta;
         if (!CheckMeta(ctx, cmd.GetArguments()[0], KEY_SET, meta))
         {
             return 0;
@@ -355,6 +432,7 @@ OP_NAMESPACE_BEGIN
         int64_t remove_count = 0;
         {
             TransactionGuard batch(ctx, m_engine);
+            bool meta_changed = false;
             for (size_t i = 0; i < cmd.GetArguments().size(); i++)
             {
                 KeyObject member(ctx.ns, KEY_SET_MEMBER, cmd.GetArguments()[0]);
@@ -362,7 +440,23 @@ OP_NAMESPACE_BEGIN
                 if (m_engine->Exists(ctx, member))
                 {
                     m_engine->Del(ctx, member);
+                    if (meta.GetObjectLen() > 0)
+                    {
+                        meta.SetObjectLen(meta.GetObjectLen() - 1);
+                        meta_changed = true;
+                    }
                     remove_count++;
+                }
+            }
+            if (meta_changed)
+            {
+                if (meta.GetObjectLen() == 0)
+                {
+                    m_engine->Del(ctx, key);
+                }
+                else
+                {
+                    m_engine->Put(ctx, key, meta);
                 }
             }
         }

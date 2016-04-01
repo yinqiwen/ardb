@@ -64,6 +64,21 @@ OP_NAMESPACE_BEGIN
         g_db->UnlockKey(k);
     }
 
+    Ardb::KeysLockGuard::KeysLockGuard(KeyObjectArray& keys):ks(keys)
+    {
+        g_db->LockKeys(ks);
+    }
+    Ardb::KeysLockGuard::KeysLockGuard(KeyObject& key1, KeyObject& key2)
+    {
+        ks.push_back(key1);
+        ks.push_back(key2);
+        g_db->LockKeys(ks);
+    }
+    Ardb::KeysLockGuard::~KeysLockGuard()
+    {
+        g_db->UnlockKeys(ks);
+    }
+
     Ardb::Ardb() :
             m_engine(NULL)
     {
@@ -392,6 +407,8 @@ OP_NAMESPACE_BEGIN
     void Ardb::LockKey(KeyObject& key)
     {
         KeyPrefix lk;
+        lk.ns = key.GetNameSpace();
+        lk.key = key.GetKey();
         while (true)
         {
             ThreadMutexLock* lock = NULL;
@@ -434,6 +451,8 @@ OP_NAMESPACE_BEGIN
     void Ardb::UnlockKey(KeyObject& key)
     {
         KeyPrefix lk;
+        lk.ns = key.GetNameSpace();
+        lk.key = key.GetKey();
         {
             LockGuard<SpinMutexLock> guard(m_locking_keys_lock);
             LockTable::iterator ret = m_locking_keys.find(lk);
@@ -445,6 +464,88 @@ OP_NAMESPACE_BEGIN
                 LockGuard<ThreadMutexLock> guard(*lock);
                 lock->Notify();
             }
+        }
+    }
+
+    void Ardb::LockKeys(KeyObjectArray& ks)
+    {
+        typedef std::vector<std::pair<LockTable::iterator, bool> > IterRetArray;
+        while (true)
+        {
+            ThreadMutexLock* lock = NULL;
+            {
+                LockGuard<SpinMutexLock> guard(m_locking_keys_lock);
+                IterRetArray rets(ks.size());
+                for (size_t i = 0; i < ks.size(); i++)
+                {
+                    KeyPrefix lk;
+                    lk.ns = ks[i].GetNameSpace();
+                    lk.key = ks[i].GetKey();
+                    std::pair<LockTable::iterator, bool> ret = m_locking_keys.insert(LockTable::value_type(lk, NULL));
+                    if (!ret.second && NULL != ret.first->second)
+                    {
+                        /*
+                         * already locked by other thread, wait until unlocked
+                         */
+                        lock = ret.first->second;
+                        break;
+                    }
+                    rets[i] = ret;
+                }
+                /*
+                 * already locked by other thread, wait until unlocked
+                 */
+                if (NULL != lock)
+                {
+                    break;
+                }
+                /*
+                 * no other thread lock on the key
+                 */
+                if (!m_lock_pool.empty())
+                {
+                    lock = m_lock_pool.top();
+                    m_lock_pool.pop();
+                }
+                else
+                {
+                    NEW(lock, ThreadMutexLock);
+                }
+                for (size_t i = 0; i < ks.size(); i++)
+                {
+                    rets[i].first->second = lock;
+                }
+                return;
+            }
+
+            if (NULL != lock)
+            {
+                LockGuard<ThreadMutexLock> guard(*lock);
+                lock->Wait(1, MILLIS);
+            }
+        }
+    }
+    void Ardb::UnlockKeys(KeyObjectArray& ks)
+    {
+        LockGuard<SpinMutexLock> guard(m_locking_keys_lock);
+        ThreadMutexLock* lock = NULL;
+        for (size_t i = 0; i < ks.size(); i++)
+        {
+            KeyPrefix lk;
+            lk.ns = ks[i].GetNameSpace();
+            lk.key = ks[i].GetKey();
+            LockTable::iterator ret = m_locking_keys.find(lk);
+            if (ret != m_locking_keys.end() && ret->second != NULL)
+            {
+                lock = ret->second;
+                m_locking_keys.erase(ret);
+                m_lock_pool.push(lock);
+            }
+        }
+        if (NULL != lock)
+        {
+            LockGuard<ThreadMutexLock> guard(*lock);
+            lock->Notify();
         }
     }
 
@@ -476,14 +577,18 @@ OP_NAMESPACE_BEGIN
         return CheckMeta(ctx, meta_key, expected, meta_value);
     }
 
-    bool Ardb::CheckMeta(Context& ctx, const KeyObject& key, KeyType expected, ValueObject& meta)
+    bool Ardb::CheckMeta(Context& ctx, const KeyObject& key, KeyType expected, ValueObject& meta, bool fetch)
     {
         RedisReply& reply = ctx.GetReply();
-        int err = m_engine->Get(ctx, key, meta);
-        if (err != 0 && err != ERR_ENTRY_NOT_EXIST)
+        int err = 0;
+        if (fetch)
         {
-            reply.SetErrCode(err);
-            return false;
+            err = m_engine->Get(ctx, key, meta);
+            if (err != 0 && err != ERR_ENTRY_NOT_EXIST)
+            {
+                reply.SetErrCode(err);
+                return false;
+            }
         }
         if (meta.GetType() > 0)
         {
@@ -514,6 +619,10 @@ OP_NAMESPACE_BEGIN
     int Ardb::DoCall(Context& ctx, RedisCommandHandlerSetting& setting, RedisCommandFrame& args)
     {
         uint64 start_time = get_current_epoch_micros();
+        if(args.GetType() < REDIS_CMD_MERGE_BEGIN && GetConf().redis_compatible)
+        {
+            ctx.flags.redis_compatible = 1;
+        }
         int ret = (this->*(setting.handler))(ctx, args);
         uint64 stop_time = get_current_epoch_micros();
         atomic_add_uint64(&(setting.calls), 1);
