@@ -82,9 +82,65 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::GetMinMax(Context& ctx, const KeyObject& key, KeyType ele_type, ValueObject& meta, Iterator*& iter)
+    int Ardb::GetMinMax(Context& ctx, const KeyObject& key, KeyType expected, ValueObject& meta, Iterator*& iter)
     {
-        return -1;
+        if (NULL != iter)
+        {
+            WARN_LOG("Not NULL iterator before getting min/max element.");
+            return -1;
+        }
+        m_engine->Get(ctx, key, meta);
+        if (meta.GetType() > 0 && meta.GetType() != expected)
+        {
+            return -1;
+        }
+        if(meta.GetType() == 0 || (!meta.GetMin().IsNil() && !meta.GetMax().IsNil()))
+        {
+            return 0;
+        }
+        KeyType ele_type = element_type(expected);
+        KeyObject start_element(ctx.ns, ele_type, key.GetKey());
+        start_element.SetMember(meta.GetMin(), 0);
+        iter = m_engine->Find(ctx, start_element);
+        if (NULL == iter || !iter->Valid())
+        {
+            DELETE(iter);
+            return -1;
+        }
+        KeyObject& min_key = iter->Key();
+        if (min_key.GetKey() != key.GetKey() || min_key.GetType() != ele_type|| min_key.GetNameSpace() != key.GetNameSpace())
+        {
+            DELETE(iter);
+            return -1;
+        }
+        bool meta_changed = false;
+        if (meta.GetMin().IsNil())
+        {
+            meta.SetMinData(min_key.GetElement(0));
+            meta_changed = true;
+        }
+        if (meta.GetMax().IsNil())
+        {
+            iter->JumpToLast();
+            if (!iter->Valid())
+            {
+                DELETE(iter);
+                return -1;
+            }
+            KeyObject& iter_key = iter->Key();
+            if (iter_key.GetType() != ele_type || iter_key.GetKey() != key.GetKey() || iter_key.GetNameSpace() != key.GetNameSpace())
+            {
+                DELETE(iter);
+                return -1;
+            }
+            meta.SetMaxData(iter_key.GetElement(0));
+            meta_changed = true;
+        }
+        if (meta_changed)
+        {
+            m_engine->Put(ctx, key, meta);
+        }
+        return 0;
     }
 
     int Ardb::KeysCount(Context& ctx, RedisCommandFrame& cmd)

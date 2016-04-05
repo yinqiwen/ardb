@@ -303,6 +303,7 @@ OP_NAMESPACE_BEGIN
             }
             bool SetMinMaxData(const Data& v);
             bool SetMinData(const Data& v);
+            bool SetMaxData(const Data& v);
             void ClearMinMaxData();
             Data& GetMin()
             {

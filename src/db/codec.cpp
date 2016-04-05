@@ -265,6 +265,21 @@ OP_NAMESPACE_BEGIN
         }
         return replaced;
     }
+    bool ValueObject::SetMaxData(const Data& v)
+    {
+        bool replaced = false;
+        if (vals.size() < 3)
+        {
+            vals.resize(3);
+            replaced = true;
+        }
+        if (vals[2] < v || vals[2].IsNil())
+        {
+            vals[2] = v;
+            replaced = true;
+        }
+        return replaced;
+    }
     bool ValueObject::SetMinMaxData(const Data& v)
     {
         bool replaced = false;

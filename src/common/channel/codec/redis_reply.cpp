@@ -133,6 +133,7 @@ namespace ardb
         }
         void RedisReply::ReserveMember(size_t num)
         {
+            Clear();
             type = REDIS_REPLY_ARRAY;
             for (size_t i = 0; i < num; i++)
             {

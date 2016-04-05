@@ -64,7 +64,8 @@ OP_NAMESPACE_BEGIN
         g_db->UnlockKey(k);
     }
 
-    Ardb::KeysLockGuard::KeysLockGuard(KeyObjectArray& keys):ks(keys)
+    Ardb::KeysLockGuard::KeysLockGuard(KeyObjectArray& keys) :
+            ks(keys)
     {
         g_db->LockKeys(ks);
     }
@@ -619,9 +620,13 @@ OP_NAMESPACE_BEGIN
     int Ardb::DoCall(Context& ctx, RedisCommandHandlerSetting& setting, RedisCommandFrame& args)
     {
         uint64 start_time = get_current_epoch_micros();
-        if(args.GetType() < REDIS_CMD_MERGE_BEGIN && GetConf().redis_compatible)
+        if (args.GetType() < REDIS_CMD_MERGE_BEGIN && GetConf().redis_compatible)
         {
             ctx.flags.redis_compatible = 1;
+        }
+        else
+        {
+            ctx.flags.redis_compatible = 0;
         }
         int ret = (this->*(setting.handler))(ctx, args);
         uint64 stop_time = get_current_epoch_micros();

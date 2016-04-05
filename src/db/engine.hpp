@@ -19,6 +19,8 @@ OP_NAMESPACE_BEGIN
             virtual void Next() = 0;
             virtual void Prev() = 0;
             virtual void Jump(const KeyObject& next) = 0;
+            virtual void JumpToFirst() = 0;
+            virtual void JumpToLast() = 0;
             virtual KeyObject& Key() = 0;
             virtual ValueObject& Value() = 0;
             virtual ~Iterator()

@@ -33,12 +33,16 @@ OP_NAMESPACE_BEGIN
             ValueObject m_value;
             RocksDBEngine* m_engine;
             rocksdb::Iterator* m_iter;
+            std::string m_iterate_upper_bound;
             bool Valid();
             void Next();
             void Prev();
             void Jump(const KeyObject& next);
+            void JumpToFirst();
+            void JumpToLast();
             KeyObject& Key();
             ValueObject& Value();
+            void ClearState();
         public:
             RocksDBIterator(RocksDBEngine* engine, rocksdb::Iterator* iter, const Data& ns) :
                 m_ns(ns),m_engine(engine), m_iter(iter)

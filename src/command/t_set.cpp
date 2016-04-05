@@ -39,7 +39,6 @@ OP_NAMESPACE_BEGIN
         KeyObject key(ctx.ns, KEY_META, keystr);
         KeyLockGuard guard(key);
         ValueObject meta;
-        int err = 0;
         std::set<std::string> added;
         bool redis_compatible = ctx.flags.redis_compatible;
         if (redis_compatible)
@@ -261,6 +260,7 @@ OP_NAMESPACE_BEGIN
                     if (vs[1].GetObjectLen() > 0)
                     {
                         vs[1].SetObjectLen(vs[1].GetObjectLen() + 1);
+                        dest_meta_updated = true;
                     }
                 }
                 if (dest_meta_updated)
@@ -342,16 +342,7 @@ OP_NAMESPACE_BEGIN
     int Ardb::SRandMember(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
-        ValueObject meta;
-        if (!CheckMeta(ctx, cmd.GetArguments()[0], KEY_SET, meta))
-        {
-            return 0;
-        }
-        if (meta.GetType() == 0)
-        {
-            return 0;
-        }
-        bool with_count = cmd.GetArguments().size() >= 1;
+        bool with_count = cmd.GetArguments().size() > 1;
         int64 count = 1;
         if (with_count)
         {
@@ -363,6 +354,16 @@ OP_NAMESPACE_BEGIN
             count = std::abs(count);
             reply.ReserveMember(0);
         }
+        ValueObject meta;
+        if (!CheckMeta(ctx, cmd.GetArguments()[0], KEY_SET, meta))
+        {
+            return 0;
+        }
+        if (meta.GetType() == 0)
+        {
+            return 0;
+        }
+
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_SET_MEMBER, keystr);
         Iterator* iter = m_engine->Find(ctx, key);
@@ -383,6 +384,10 @@ OP_NAMESPACE_BEGIN
                     reply.SetString(field.GetSetMember());
                     break;
                 }
+            }
+            else
+            {
+                break;
             }
         }
         DELETE(iter);
@@ -406,8 +411,8 @@ OP_NAMESPACE_BEGIN
                     field.SetSetMember(data);
                     m_engine->Del(ctx, field);
                 }
-                meta.SetObjectLen(-1);
                 meta.SetType(KEY_SET);
+                meta.SetObjectLen(-1);
                 m_engine->Put(ctx, key, meta);
             }
             if (ctx.transc_err != 0)
@@ -433,10 +438,10 @@ OP_NAMESPACE_BEGIN
         {
             TransactionGuard batch(ctx, m_engine);
             bool meta_changed = false;
-            for (size_t i = 0; i < cmd.GetArguments().size(); i++)
+            for (size_t i = 1; i < cmd.GetArguments().size(); i++)
             {
                 KeyObject member(ctx.ns, KEY_SET_MEMBER, cmd.GetArguments()[0]);
-                member.SetSetMember(cmd.GetArguments()[i + 1]);
+                member.SetSetMember(cmd.GetArguments()[i]);
                 if (m_engine->Exists(ctx, member))
                 {
                     m_engine->Del(ctx, member);
@@ -473,51 +478,407 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::SDiff(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
+        PointerArray<Iterator*> iters;
+        ValueObjectArray metas;
+        size_t diff_key_cursor = 0;
+        KeyObjectArray keys;
+        for (size_t i = 0; i < cmd.GetArguments().size(); i++)
+        {
+            KeyObject set_key(ctx.ns, KEY_META, cmd.GetArguments()[i]);
+            keys.push_back(set_key);
+        }
+        metas.resize(keys.size());
+        iters.resize(keys.size());
+        KeysLockGuard guard(keys);
+        if (cmd.GetType() == REDIS_CMD_SDIFFSTORE)
+        {
+            diff_key_cursor = 1;
+            if (!CheckMeta(ctx, keys[0], KEY_SET, metas[0]))
+            {
+                return 0;
+            }
+        }
+        for (size_t i = diff_key_cursor; i < keys.size(); i++)
+        {
+            if (0 != GetMinMax(ctx, keys[i], KEY_SET, metas[i], iters[i]))
+            {
+                reply.SetErrCode(ERR_INVALID_TYPE);
+                return 0;
+            }
+        }
+        if (metas[diff_key_cursor].GetType() == 0)
+        {
+            if (cmd.GetType() == REDIS_CMD_SDIFF)
+            {
+                reply.ReserveMember(0);
+            }
+            else
+            {
+                if (cmd.GetType() == REDIS_CMD_SDIFFSTORE)
+                {
+                    if (metas[0].GetType() > 0)
+                    {
+                        Iterator* iter = NULL;
+                        DelKey(ctx, keys[0], iter);
+                        DELETE(iter);
+                    }
+                }
+                reply.SetInteger(0); //REDIS_CMD_SDIFFCOUNT & REDIS_CMD_SDIFFSTORE
+            }
+            return 0;
+        }
+        DataSet diff_result;
+        while (iters[diff_key_cursor]->Valid())
+        {
+            KeyObject& k = iters[diff_key_cursor]->Key();
+            if (k.GetType() != KEY_SET_MEMBER || k.GetKey() != keys[diff_key_cursor].GetKey() || k.GetNameSpace() != keys[diff_key_cursor].GetNameSpace())
+            {
+                break;
+            }
+            diff_result.insert(k.GetSetMember());
+            iters[diff_key_cursor]->Next();
+        }
+
+        for (size_t i = diff_key_cursor + 1; i < metas.size(); i++)
+        {
+            if (metas[i].GetType() == 0)
+            {
+                continue;
+            }
+            Data min = metas[diff_key_cursor].GetMin() > metas[i].GetMin() ? metas[diff_key_cursor].GetMin() : metas[i].GetMin();
+            Data max = metas[diff_key_cursor].GetMax() < metas[i].GetMax() ? metas[diff_key_cursor].GetMax() : metas[i].GetMax();
+            KeyObject start(ctx.ns, KEY_SET_MEMBER, keys[i].GetKey());
+            start.SetSetMember(min);
+            iters[i]->Jump(start);
+            while (iters[i]->Valid())
+            {
+                KeyObject& k = iters[i]->Key();
+                if (k.GetType() != KEY_SET_MEMBER || k.GetKey() != keys[i].GetKey() || k.GetNameSpace() != keys[i].GetNameSpace() || k.GetSetMember() > max)
+                {
+                    break;
+                }
+                diff_result.erase(k.GetSetMember());
+                iters[i]->Next();
+            }
+        }
+        if (cmd.GetType() == REDIS_CMD_SDIFFSTORE)
+        {
+            if (metas[0].GetType() > 0)
+            {
+                Iterator* iter = NULL;
+                DelKey(ctx, keys[0], iter);
+                DELETE(iter);
+            }
+            if (!diff_result.empty())
+            {
+                DataSet::iterator it = diff_result.begin();
+                ValueObject dest_meta;
+                dest_meta.SetType(KEY_SET);
+                dest_meta.SetObjectLen(diff_result.size());
+                while (it != diff_result.end())
+                {
+                    KeyObject element(ctx.ns, KEY_SET_MEMBER, cmd.GetArguments()[0]);
+                    element.SetSetMember(*it);
+                    ValueObject empty;
+                    empty.SetType(KEY_SET_MEMBER);
+                    m_engine->Put(ctx, element, empty);
+                    it++;
+                }
+                dest_meta.SetMinData(*(diff_result.begin()));
+                dest_meta.SetMaxData(*(diff_result.rbegin()));
+                m_engine->Put(ctx, keys[0], dest_meta);
+            }
+            reply.SetInteger(diff_result.size());
+        }
+        else if (cmd.GetType() == REDIS_CMD_SDIFF)
+        {
+            DataSet::iterator it = diff_result.begin();
+            while (it != diff_result.end())
+            {
+                RedisReply& r = reply.AddMember();
+                r.SetString(*it);
+                it++;
+            }
+        }
+        else
+        {
+            reply.SetInteger(diff_result.size()); //REDIS_CMD_SDIFFCOUNT
+        }
         return 0;
     }
 
     int Ardb::SDiffStore(Context& ctx, RedisCommandFrame& cmd)
     {
-        return 0;
+        return SDiff(ctx, cmd);
     }
     int Ardb::SDiffCount(Context& ctx, RedisCommandFrame& cmd)
     {
-        return 0;
+        return SDiff(ctx, cmd);
     }
 
     int Ardb::SInter(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
+        PointerArray<Iterator*> iters;
+        ValueObjectArray metas;
+        size_t inter_key_cursor = 0;
+        KeyObjectArray keys;
+        for (size_t i = 0; i < cmd.GetArguments().size(); i++)
+        {
+            KeyObject set_key(ctx.ns, KEY_META, cmd.GetArguments()[i]);
+            keys.push_back(set_key);
+        }
+        metas.resize(keys.size());
+        iters.resize(keys.size());
+        KeysLockGuard guard(keys);
+        if (cmd.GetType() == REDIS_CMD_SINTERSTORE)
+        {
+            inter_key_cursor = 1;
+            if (!CheckMeta(ctx, keys[0], KEY_SET, metas[0]))
+            {
+                return 0;
+            }
+        }
+        bool empty_result = false;
+        Data min, max;
+        for (size_t i = inter_key_cursor; i < keys.size(); i++)
+        {
+            if (0 != GetMinMax(ctx, keys[i], KEY_SET, metas[i], iters[i]))
+            {
+                reply.SetErrCode(ERR_INVALID_TYPE);
+                return 0;
+            }
+            if (metas[i].GetType() == 0)
+            {
+                empty_result = true;
+                break;
+            }
+            if (min.IsNil() || metas[i].GetMin() > min)
+            {
+                min = metas[i].GetMin();
+            }
+            if (max.IsNil() || metas[i].GetMax() < max)
+            {
+                max = metas[i].GetMax();
+            }
+        }
+        if (min > max)
+        {
+            empty_result = true;
+        }
+
+        if (empty_result)
+        {
+            if (cmd.GetType() == REDIS_CMD_SINTER)
+            {
+                reply.ReserveMember(0);
+            }
+            else // REDIS_CMD_SINTERSTORE | REDIS_CMD_SINTERCOUNT
+            {
+                if (cmd.GetType() == REDIS_CMD_SINTERSTORE)
+                {
+                    if (metas[0].GetType() > 0)
+                    {
+                        Iterator* iter = NULL;
+                        DelKey(ctx, keys[0], iter);
+                        DELETE(iter);
+                    }
+                }
+                reply.SetInteger(0);
+            }
+            return 0;
+        }
+        DataSet inter_result[2];
+        size_t inter_result_cursor = 1;
+        for (size_t i = inter_key_cursor; i < metas.size(); i++)
+        {
+            KeyObject start(ctx.ns, KEY_SET_MEMBER, keys[i].GetKey());
+            start.SetSetMember(min);
+            iters[i]->Jump(start);
+            inter_result_cursor = 1 - inter_result_cursor;
+            inter_result[inter_result_cursor].clear();
+            while (iters[i]->Valid())
+            {
+                KeyObject& k = iters[i]->Key();
+                if (k.GetType() != KEY_SET_MEMBER || k.GetKey() != keys[i].GetKey() || k.GetNameSpace() != keys[i].GetNameSpace() || k.GetSetMember() > max)
+                {
+                    break;
+                }
+                if (i == inter_key_cursor || inter_result[1 - inter_result_cursor].erase(k.GetSetMember()) > 0)
+                {
+                    inter_result[inter_result_cursor].insert(k.GetSetMember());
+                }
+                iters[i]->Next();
+            }
+        }
+        if (cmd.GetType() == REDIS_CMD_SINTERSTORE)
+        {
+            if (!inter_result[inter_result_cursor].empty())
+            {
+                DataSet::iterator it = inter_result[inter_result_cursor].begin();
+                ValueObject dest_meta;
+                dest_meta.SetType(KEY_SET);
+                dest_meta.SetObjectLen(inter_result[inter_result_cursor].size());
+                while (it != inter_result[inter_result_cursor].end())
+                {
+                    KeyObject element(ctx.ns, KEY_SET_MEMBER, cmd.GetArguments()[0]);
+                    element.SetSetMember(*it);
+                    ValueObject empty;
+                    empty.SetType(KEY_SET_MEMBER);
+                    m_engine->Put(ctx, element, empty);
+                    it++;
+                }
+                dest_meta.SetMinData(*(inter_result[inter_result_cursor].begin()));
+                dest_meta.SetMaxData(*(inter_result[inter_result_cursor].rbegin()));
+                m_engine->Put(ctx, keys[0], dest_meta);
+            }
+            reply.SetInteger(inter_result[inter_result_cursor].size());
+        }
+        else if (cmd.GetType() == REDIS_CMD_SDIFF)
+        {
+            DataSet::iterator it = inter_result[inter_result_cursor].begin();
+            while (it != inter_result[inter_result_cursor].end())
+            {
+                RedisReply& r = reply.AddMember();
+                r.SetString(*it);
+                it++;
+            }
+        }
+        else
+        {
+            reply.SetInteger(inter_result[inter_result_cursor].size()); //REDIS_CMD_SINTERCOUNT
+        }
         return 0;
     }
 
     int Ardb::SInterStore(Context& ctx, RedisCommandFrame& cmd)
     {
-        return 0;
+        return SInter(ctx, cmd);
     }
 
     int Ardb::SInterCount(Context& ctx, RedisCommandFrame& cmd)
     {
-        return 0;
+        return SInter(ctx, cmd);
     }
 
     int Ardb::SUnion(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
+        ValueObjectArray metas;
+        size_t union_key_cursor = 0;
+        KeyObjectArray keys;
+        for (size_t i = 0; i < cmd.GetArguments().size(); i++)
+        {
+            KeyObject set_key(ctx.ns, KEY_META, cmd.GetArguments()[i]);
+            keys.push_back(set_key);
+        }
+        metas.resize(keys.size());
+        KeysLockGuard guard(keys);
+        ErrCodeArray errs;
+        m_engine->MultiGet(ctx, keys, metas, errs);
+        for (size_t i = 0; i < metas.size(); i++)
+        {
+            if (!CheckMeta(ctx, keys[i], KEY_SET, metas[i], false))
+            {
+                return 0;
+            }
+            if (errs[i] != 0 && errs[i] != ERR_ENTRY_NOT_EXIST)
+            {
+                reply.SetErrCode(errs[i]);
+                return 0;
+            }
+        }
+        if (cmd.GetType() == REDIS_CMD_SUNIONSTORE)
+        {
+            union_key_cursor = 1;
+        }
+        DataSet union_result;
+        Iterator* iter = NULL;
+        for (size_t i = union_key_cursor; i < keys.size(); i++)
+        {
+            KeyObject ele(ctx.ns, KEY_SET_MEMBER, keys[i].GetKey());
+            ele.SetSetMember(metas[i].GetMin());
+            if (NULL != iter)
+            {
+                iter->Jump(ele);
+            }
+            else
+            {
+                iter = m_engine->Find(ctx, ele);
+            }
+            while (NULL != iter && iter->Valid())
+            {
+                KeyObject& k = iter->Key();
+                if (k.GetType() != KEY_SET_MEMBER || k.GetKey() != keys[i].GetKey() || k.GetNameSpace() != keys[i].GetNameSpace())
+                {
+                    break;
+                }
+                union_result.insert(k.GetSetMember());
+                iter->Next();
+            }
+        }
+        DELETE(iter);
+
+        if (cmd.GetType() == REDIS_CMD_SUNIONSTORE)
+        {
+            if (metas[0].GetType() > 0)
+            {
+                Iterator* iter = NULL;
+                DelKey(ctx, keys[0], iter);
+                DELETE(iter);
+            }
+            if (!union_result.empty())
+            {
+                DataSet::iterator it = union_result.begin();
+                ValueObject dest_meta;
+                dest_meta.SetType(KEY_SET);
+                dest_meta.SetObjectLen(union_result.size());
+                while (it != union_result.end())
+                {
+                    KeyObject element(ctx.ns, KEY_SET_MEMBER, cmd.GetArguments()[0]);
+                    element.SetSetMember(*it);
+                    ValueObject empty;
+                    empty.SetType(KEY_SET_MEMBER);
+                    m_engine->Put(ctx, element, empty);
+                    it++;
+                }
+                dest_meta.SetMinData(*(union_result.begin()));
+                dest_meta.SetMaxData(*(union_result.rbegin()));
+                m_engine->Put(ctx, keys[0], dest_meta);
+                reply.SetInteger(union_result.size());
+            }
+
+        }
+        else if (cmd.GetType() == REDIS_CMD_SUNION)
+        {
+            DataSet::iterator it = union_result.begin();
+            while (it != union_result.end())
+            {
+                RedisReply& r = reply.AddMember();
+                r.SetString(*it);
+                it++;
+            }
+        }
+        else
+        {
+            reply.SetInteger(union_result.size()); //REDIS_CMD_SUNIONCOUNT
+        }
         return 0;
     }
 
     int Ardb::SUnionStore(Context& ctx, RedisCommandFrame& cmd)
     {
-        return 0;
+        return SUnion(ctx, cmd);
     }
 
     int Ardb::SUnionCount(Context& ctx, RedisCommandFrame& cmd)
     {
-        return 0;
+        return SUnion(ctx, cmd);
     }
 
     int Ardb::SScan(Context& ctx, RedisCommandFrame& cmd)
     {
-
         return 0;
     }
 

@@ -56,9 +56,9 @@ OP_NAMESPACE_BEGIN
         }
         if (index < 0)
         {
-            index = v.GetListMeta().size + index;
+            index = v.GetObjectLen() + index;
         }
-        if (index < 0 || index >= v.GetListMeta().size)
+        if (index < 0 || index >= v.GetObjectLen())
         {
             reply.Clear();
             return 0;
@@ -86,7 +86,7 @@ OP_NAMESPACE_BEGIN
             while (NULL != iter && iter->Valid())
             {
                 KeyObject& field = iter->Key();
-                if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != field.GetKey())
+                if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != key.GetKey())
                 {
                     break;
                 }

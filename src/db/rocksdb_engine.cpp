@@ -91,7 +91,7 @@ OP_NAMESPACE_BEGIN
                 {
                     abort();
                 }
-                return rocksdb::Slice(src.data(), buffer.ReadableBytes());
+                return rocksdb::Slice(src.data(), src.size() - buffer.ReadableBytes());
             }
 
             // determine whether this is a valid src upon the function applies
@@ -467,7 +467,7 @@ OP_NAMESPACE_BEGIN
         rocksdb::Status s = rocksdb::GetOptionsFromString(m_options, conf, &m_options);
         if (!s.ok())
         {
-            ERROR_LOG("Invalid rocksdb's options:%s with error reson:%s", conf.c_str(), s.ToString().c_str());
+            ERROR_LOG("Invalid rocksdb's options:%s with error reason:%s", conf.c_str(), s.ToString().c_str());
             return -1;
         }
 
@@ -692,6 +692,10 @@ OP_NAMESPACE_BEGIN
         }
         rocksdb::ReadOptions opt;
         opt.snapshot = GetSnpashot();
+        if (key.GetType() > 0)
+        {
+            opt.prefix_same_as_start = true;
+        }
         rocksdb::Iterator* rocksiter = m_db->NewIterator(opt, cf);
         Iterator* iter = NULL;
         NEW(iter, RocksDBIterator(this,rocksiter,key.GetNameSpace()));
@@ -740,25 +744,47 @@ OP_NAMESPACE_BEGIN
         return ROCKSDB_ERR(s);
     }
 
-    bool RocksDBIterator::Valid()
+    bool RocksDBIterator::RocksDBIterator::Valid()
     {
         return NULL != m_iter && m_iter->Valid();
     }
+    void RocksDBIterator::ClearState()
+    {
+        m_key.Clear();
+        m_value.Clear();
+    }
     void RocksDBIterator::Next()
     {
+        ClearState();
         m_iter->Next();
     }
     void RocksDBIterator::Prev()
     {
+        ClearState();
         m_iter->Prev();
     }
     void RocksDBIterator::Jump(const KeyObject& next)
     {
+        ClearState();
         Slice key_slice = const_cast<KeyObject&>(next).Encode();
         m_iter->Seek(ROCKSDB_SLICE(key_slice));
     }
+    void RocksDBIterator::JumpToFirst()
+    {
+        ClearState();
+        m_iter->SeekToFirst();
+    }
+    void RocksDBIterator::JumpToLast()
+    {
+        ClearState();
+        m_iter->SeekToLast();
+    }
     KeyObject& RocksDBIterator::Key()
     {
+        if (m_key.GetType() > 0)
+        {
+            return m_key;
+        }
         rocksdb::Slice key = m_iter->key();
         Buffer kbuf(const_cast<char*>(key.data()), 0, key.size());
         m_key.Decode(kbuf, true);
@@ -767,6 +793,10 @@ OP_NAMESPACE_BEGIN
     }
     ValueObject& RocksDBIterator::Value()
     {
+        if (m_value.GetType() > 0)
+        {
+            return m_value;
+        }
         rocksdb::Slice key = m_iter->value();
         Buffer kbuf(const_cast<char*>(key.data()), 0, key.size());
         m_value.Decode(kbuf, true);

@@ -188,7 +188,7 @@ OP_NAMESPACE_BEGIN
             bool Decode(Buffer& buf, bool clone_str);
 
             void SetString(const std::string& str, bool try_int_encoding);
-            void SetString(const char* str,  size_t len, bool clone);
+            void SetString(const char* str, size_t len, bool clone);
             void SetInt64(int64 v);
             void SetFloat64(double v);
             int64 GetInt64() const;
@@ -246,6 +246,21 @@ OP_NAMESPACE_BEGIN
     };
 
     typedef std::vector<Data> DataArray;
+    typedef TreeSet<Data>::Type DataSet;
+
+    template<typename T>
+    struct PointerArray: public std::vector<T>
+    {
+        public:
+            ~PointerArray()
+            {
+                for(size_t i = 0 ; i < std::vector<T>::size(); i++)
+                {
+                    delete(std::vector<T>::at(i));
+                }
+            }
+    };
+
 OP_NAMESPACE_END
 
 #endif /* SRC_TYPES_HPP_ */
