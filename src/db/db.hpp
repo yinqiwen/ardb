@@ -170,8 +170,6 @@ OP_NAMESPACE_BEGIN
             int MergeSetRange(Context& ctx, KeyObject& key, ValueObject& val, int64_t offset, const std::string& range);
             int MergeHSet(Context& ctx, KeyObject& key, ValueObject& value, uint16_t op, const Data& v);
             int MergeHIncrby(Context& ctx, KeyObject& key, ValueObject& value, uint16_t op, const Data& v);
-            int MergeListPop(Context& ctx, KeyObject& key, ValueObject& value, uint16_t op, Data& element);
-            int MergeListPush(Context& ctx, KeyObject& key, ValueObject& value, uint16_t op, const DataArray& args);
             int MergeExpire(Context& ctx, const KeyObject& key, ValueObject& meta, int64 ms);
             int MergeSetBit(Context& ctx, const KeyObject& key, ValueObject& meta, int64 offset, uint8 bit, uint8* oldbit);
             int MergePFAdd(Context& ctx, KeyObject& key, ValueObject& value, const DataArray& ms, int* updated = NULL);

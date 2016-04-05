@@ -43,13 +43,11 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::ZCount(Context& ctx, RedisCommandFrame& cmd)
     {
-
         return 0;
     }
 
     int Ardb::ZIncrby(Context& ctx, RedisCommandFrame& cmd)
     {
-
         return 0;
     }
 

@@ -120,8 +120,7 @@ OP_NAMESPACE_BEGIN
         KeyObject key(ctx.ns, KEY_META, keystr);
         ValueObject meta;
         KeyLockGuard guard(key);
-        int err = CheckMeta(ctx, cmd.GetArguments()[0], KEY_LIST, meta);
-        if (0 != err)
+        if (!CheckMeta(ctx, key, KEY_LIST, meta))
         {
             return 0;
         }
@@ -130,6 +129,8 @@ OP_NAMESPACE_BEGIN
             reply.Clear();
             return 0;
         }
+        int err = 0;
+
         if (meta.GetListMeta().sequencial)
         {
             KeyObject ele_key(ctx.ns, KEY_LIST_ELEMENT, keystr);
@@ -138,10 +139,11 @@ OP_NAMESPACE_BEGIN
             err = m_engine->Get(ctx, ele_key, ele_value);
             if (0 != err)
             {
-                reply.SetErrCode(err);
-                return 0;
+                 reply.SetErrCode(err);
+                 return 0;
             }
             reply.SetString(ele_value.GetListElement());
+            m_engine->Del(ctx, ele_key);
             if (is_lpop)
             {
                 meta.SetListMinIdx(meta.GetListMinIdx() + 1);
@@ -150,24 +152,6 @@ OP_NAMESPACE_BEGIN
             {
                 meta.SetListMaxIdx(meta.GetListMaxIdx() -1);
             }
-            meta.SetObjectLen(meta.GetObjectLen() - 1);
-            {
-                TransactionGuard batch(ctx, m_engine);
-                if (meta.GetListMeta().size == 0)
-                {
-                    m_engine->Del(ctx, key);
-                }
-                else
-                {
-                    m_engine->Put(ctx, key, meta);
-                }
-                m_engine->Del(ctx, ele_key);
-            }
-            if (ctx.transc_err != 0)
-            {
-                reply.SetErrCode(ctx.transc_err);
-            }
-            return 0;
         }
         else
         {
@@ -182,42 +166,25 @@ OP_NAMESPACE_BEGIN
                     if (field->GetType() != KEY_LIST_ELEMENT || field->GetNameSpace() != ele_key.GetNameSpace() || field->GetKey() != ele_key.GetKey())
                     {
                         iter->Prev();
-                        assert(iter->Valid());
                         field = &(iter->Key());
                     }
                 }
-                assert(field->GetType() == KEY_LIST_ELEMENT && field->GetNameSpace() == key.GetNameSpace() && field->GetKey() == ele_key.GetKey());
                 reply.SetString(iter->Value().GetListElement());
-                {
-                    meta.SetObjectLen(meta.GetObjectLen() - 1);
-                    TransactionGuard batch(ctx, m_engine);
-                    if (meta.GetListMeta().size == 0)
-                    {
-                        m_engine->Del(ctx, key);
-                    }
-                    else
-                    {
-                        if (meta.GetListMeta().sequencial)
-                        {
-                            if (is_lpop)
-                            {
-                                meta.SetListMinIdx(meta.GetListMinIdx() + 1);
-                            }
-                            else
-                            {
-                                meta.SetListMaxIdx(meta.GetListMaxIdx() -1);
-                            }
-                        }
-                        m_engine->Put(ctx, key, meta);
-                    }
-                    m_engine->Del(ctx, *field);
-                }
                 if (ctx.transc_err != 0)
                 {
                     reply.SetErrCode(ctx.transc_err);
                 }
             }
             DELETE(iter);
+        }
+        meta.SetObjectLen(meta.GetObjectLen() - 1);
+        if (meta.GetObjectLen() == 0)
+        {
+            m_engine->Del(ctx, key);
+        }
+        else
+        {
+            m_engine->Put(ctx, key, meta);
         }
         return 0;
     }
@@ -336,59 +303,6 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::MergeListPush(Context& ctx,KeyObject& key, ValueObject& value, uint16_t op, const DataArray& args)
-    {
-        if (value.GetType() > 0 && value.GetType() != KEY_LIST)
-        {
-            return ERR_INVALID_TYPE;
-        }
-        if (value.GetType() == 0 & (op == REDIS_CMD_LPUSHX || op == REDIS_CMD_RPUSHX || op == REDIS_CMD_LPUSHX2 || op == REDIS_CMD_RPUSHX2))
-        {
-            return ERR_ENTRY_NOT_EXIST;
-        }
-        bool lpush = (op == REDIS_CMD_LPUSHX || op == REDIS_CMD_LPUSHX2 || op == REDIS_CMD_LPUSH || op == REDIS_CMD_LPUSH2);
-        if (value.GetType() == 0)
-        {
-            value.SetType(KEY_LIST);
-            value.GetListMeta().size = args.size();
-            value.SetListMinIdx(0);
-            value.SetListMaxIdx(args.size() - 1);
-        }
-        else
-        {
-            value.GetListMeta().size += args.size();
-            if (lpush)
-            {
-                value.SetListMinIdx(value.GetListMinIdx() - args.size());
-            }
-            else
-            {
-                value.SetListMaxIdx(value.GetListMaxIdx() + args.size());
-            }
-        }
-
-        {
-            TransactionGuard batch(ctx, m_engine);
-            for (size_t i = 0; i < args.size(); i++)
-            {
-                KeyObject ele_key(key.GetNameSpace(), KEY_LIST_ELEMENT, key.GetKey());
-                if (lpush)
-                {
-                    ele_key.SetListIndex(value.GetListMinIdx() + args.size() - i - 1);
-                }
-                else
-                {
-                    ele_key.SetListIndex(value.GetListMaxIdx() - args.size() + i + 1);
-                }
-                ValueObject ele_value;
-                ele_value.SetType(KEY_LIST_ELEMENT);
-                ele_value.SetListElement(args[i]);
-                m_engine->Put(ctx, ele_key, ele_value);
-            }
-        }
-        return ctx.transc_err;
-    }
-
     int Ardb::ListPush(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
@@ -396,54 +310,57 @@ OP_NAMESPACE_BEGIN
         KeyObject key(ctx.ns, KEY_META, keystr);
         ValueObject meta;
         int err = 0;
-        if (!ctx.flags.redis_compatible)
-        {
-            DataArray args(cmd.GetArguments().size() - 1);
-            for (size_t i = 0; i < cmd.GetArguments().size() - 1; i++)
-            {
-                args[i].SetString(cmd.GetArguments()[i + 1], true);
-            }
-            err = m_engine->Merge(ctx, key, cmd.GetType(), args);
-            if (0 != err)
-            {
-                reply.SetErrCode(err);
-            }
-            else
-            {
-                reply.SetStatusCode(STATUS_OK);
-            }
-            return 0;
-        }
         KeyLockGuard guard(key);
-        err = CheckMeta(ctx, cmd.GetArguments()[0], KEY_LIST, meta);
-        if (0 != err)
+        if (!CheckMeta(ctx, key, KEY_LIST, meta))
         {
             return 0;
         }
-        DataArray args(cmd.GetArguments().size() - 1);
-        for (size_t i = 0; i < cmd.GetArguments().size(); i++)
+        bool left_push = cmd.GetType() == REDIS_CMD_LPUSH || cmd.GetType() == REDIS_CMD_LPUSHX;
+        bool xx = cmd.GetType() == REDIS_CMD_RPUSHX || cmd.GetType() == REDIS_CMD_LPUSHX;
+        if(xx && meta.GetType() == 0)
         {
-            args[i].SetString(cmd.GetArguments()[i + 1], true);
+        	reply.SetInteger(0);
+        	return 0;
+        }
+        if(meta.GetType() == 0)
+        {
+            meta.SetType(KEY_LIST);
+            meta.SetObjectLen(0);
+            meta.SetListMaxIdx(0);
+            meta.SetListMinIdx(0);
         }
         {
             TransactionGuard batch(ctx, m_engine);
-            err = MergeListPush(ctx, key, meta, cmd.GetType(), args);
-            if (0 == err)
+            for (size_t i = 1; i < cmd.GetArguments().size(); i++)
             {
-                m_engine->Put(ctx, key, meta);
+            	KeyObject ele(ctx.ns, KEY_LIST_ELEMENT, keystr);
+            	ValueObject ele_value;
+            	ele_value.SetType(KEY_LIST_ELEMENT);
+            	ele_value.SetListElement(cmd.GetArguments()[i]);
+            	int64 idx = 0;
+            	if(left_push)
+            	{
+            	    idx = meta.GetListMinIdx() - 1;
+            		meta.SetListMinIdx(idx);
+            	}else
+            	{
+            		idx = meta.GetListMaxIdx() + 1;
+            		meta.SetListMinIdx(idx);
+            	}
+        		ele.SetListIndex(idx);
+        		m_engine->Put(ctx, ele, ele_value);
+        		meta.SetObjectLen(meta.GetObjectLen() + 1);
             }
+            m_engine->Put(ctx, key, meta);
         }
-        if (0 == err)
-        {
-            err = ctx.transc_err;
-        }
+        err = ctx.transc_err;
         if (err != 0)
         {
             reply.SetErrCode(err);
         }
         else
         {
-            reply.SetInteger(meta.GetListMeta().size);
+            reply.SetInteger(meta.GetObjectLen());
         }
         return 0;
     }
@@ -468,7 +385,7 @@ OP_NAMESPACE_BEGIN
         }
         KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
         ValueObject meta;
-        int err = CheckMeta(ctx, cmd.GetArguments()[0], KEY_LIST, meta);
+        int err = CheckMeta(ctx, key, KEY_LIST, meta);
         if (0 != err)
         {
             return 0;
