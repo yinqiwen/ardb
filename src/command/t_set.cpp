@@ -546,6 +546,10 @@ OP_NAMESPACE_BEGIN
             {
                 continue;
             }
+            if (metas[i].GetMin() > metas[diff_key_cursor].GetMax() || metas[i].GetMax() < metas[diff_key_cursor].GetMin())
+            {
+                continue;
+            }
             Data min = metas[diff_key_cursor].GetMin() > metas[i].GetMin() ? metas[diff_key_cursor].GetMin() : metas[i].GetMin();
             Data max = metas[diff_key_cursor].GetMax() < metas[i].GetMax() ? metas[diff_key_cursor].GetMax() : metas[i].GetMax();
             KeyObject start(ctx.ns, KEY_SET_MEMBER, keys[i].GetKey());
@@ -716,6 +720,12 @@ OP_NAMESPACE_BEGIN
         {
             if (!inter_result[inter_result_cursor].empty())
             {
+                if (metas[0].GetType() > 0)
+                {
+                    Iterator* iter = NULL;
+                    DelKey(ctx, keys[0], iter);
+                    DELETE(iter);
+                }
                 DataSet::iterator it = inter_result[inter_result_cursor].begin();
                 ValueObject dest_meta;
                 dest_meta.SetType(KEY_SET);
@@ -735,7 +745,7 @@ OP_NAMESPACE_BEGIN
             }
             reply.SetInteger(inter_result[inter_result_cursor].size());
         }
-        else if (cmd.GetType() == REDIS_CMD_SDIFF)
+        else if (cmd.GetType() == REDIS_CMD_SINTER)
         {
             DataSet::iterator it = inter_result[inter_result_cursor].begin();
             while (it != inter_result[inter_result_cursor].end())
@@ -795,8 +805,13 @@ OP_NAMESPACE_BEGIN
         }
         DataSet union_result;
         Iterator* iter = NULL;
+        ctx.flags.iterate_no_limit = 1;
         for (size_t i = union_key_cursor; i < keys.size(); i++)
         {
+            if (metas[i].GetType() == 0)
+            {
+                continue;
+            }
             KeyObject ele(ctx.ns, KEY_SET_MEMBER, keys[i].GetKey());
             ele.SetSetMember(metas[i].GetMin());
             if (NULL != iter)

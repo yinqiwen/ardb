@@ -516,6 +516,7 @@ namespace ardb
         Context* lua_ctx = ctx->exec;
         RedisReply& reply = lua_ctx->GetReply();
         reply.Clear();
+        lua_ctx->ClearFlags();
         g_db->DoCall(*lua_ctx, *setting, cmd);
         if (raise_error && reply.type != REDIS_REPLY_ERROR)
         {

@@ -690,15 +690,31 @@ OP_NAMESPACE_BEGIN
         {
             return NULL;
         }
+        RocksDBIterator* iter = NULL;
+        NEW(iter, RocksDBIterator(this,key.GetNameSpace()));
         rocksdb::ReadOptions opt;
         opt.snapshot = GetSnpashot();
         if (key.GetType() > 0)
         {
             opt.prefix_same_as_start = true;
+            if(!ctx.flags.iterate_no_limit)
+            {
+                iter->IterateUpperBoundKey().SetNameSpce(ctx.ns);
+                if (key.GetType() == KEY_META)
+                {
+                    iter->IterateUpperBoundKey().SetType(KEY_END);
+                }
+                else
+                {
+                    iter->IterateUpperBoundKey().SetType(key.GetType() + 1);
+                }
+                iter->IterateUpperBoundKey().SetKey(key.GetKey());
+                iter->SaveIterateUpperBoundSlice();
+                opt.iterate_upper_bound = &(iter->IterateUpperBoundSlice());
+            }
         }
         rocksdb::Iterator* rocksiter = m_db->NewIterator(opt, cf);
-        Iterator* iter = NULL;
-        NEW(iter, RocksDBIterator(this,rocksiter,key.GetNameSpace()));
+        iter->SetIterator(rocksiter);
         if (key.GetType() > 0)
         {
             iter->Jump(key);
@@ -743,7 +759,10 @@ OP_NAMESPACE_BEGIN
         rocksdb::Status s = m_db->CompactRange(opt, cf, start.IsValid() ? &start_key : NULL, end.IsValid() ? &end_key : NULL);
         return ROCKSDB_ERR(s);
     }
-
+    void RocksDBIterator::SaveIterateUpperBoundSlice()
+    {
+        m_iterate_upper_bound_slice = ROCKSDB_SLICE(m_iterate_upper_bound_key.Encode(false));
+    }
     bool RocksDBIterator::RocksDBIterator::Valid()
     {
         return NULL != m_iter && m_iter->Valid();

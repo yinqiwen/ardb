@@ -111,8 +111,9 @@ OP_NAMESPACE_BEGIN
 
             struct KeyLockGuard
             {
+                    bool lock;
                     KeyObject& k;
-                    KeyLockGuard(KeyObject& key);
+                    KeyLockGuard(KeyObject& key, bool _lock = true);
                     ~KeyLockGuard();
             };
             struct KeysLockGuard
@@ -159,8 +160,8 @@ OP_NAMESPACE_BEGIN
 
             int StringSet(Context& ctx, const std::string& key, const std::string& value, bool redis_compatible, int64_t px = -1, int8_t nx_xx = -1);
 
-            int ListPop(Context& ctx, RedisCommandFrame& cmd);
-            int ListPush(Context& ctx, RedisCommandFrame& cmd);
+            int ListPop(Context& ctx, RedisCommandFrame& cmd, bool lock_key = true);
+            int ListPush(Context& ctx, RedisCommandFrame& cmd, bool lock_key = true);
 
             bool AdjustMergeOp(uint16& op, DataArray& args);
             int MergeAppend(Context& ctx, KeyObject& key, ValueObject& val, const std::string& append);

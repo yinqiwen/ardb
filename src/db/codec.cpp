@@ -123,7 +123,7 @@ OP_NAMESPACE_BEGIN
         {
             for (int i = 0; i < elen1; i++)
             {
-                if (!DecodeElement(buffer, false, i))
+                if (!DecodeElement(buffer, clone_str, i))
                 {
                     return false;
                 }
@@ -139,9 +139,9 @@ OP_NAMESPACE_BEGIN
         buffer.WriteByte((char) type);
     }
 
-    Slice KeyObject::Encode()
+    Slice KeyObject::Encode(bool verify)
     {
-        if (!IsValid())
+        if (verify && !IsValid())
         {
             return Slice();
         }
@@ -250,7 +250,7 @@ OP_NAMESPACE_BEGIN
         GetMin().Clear();
         GetMax().Clear();
     }
-    bool ValueObject::SetMinData(const Data& v)
+    bool ValueObject::SetMinData(const Data& v, bool overwite)
     {
         bool replaced = false;
         if (vals.size() < 3)
@@ -258,14 +258,14 @@ OP_NAMESPACE_BEGIN
             vals.resize(3);
             replaced = true;
         }
-        if (vals[1] > v || vals[1].IsNil())
+        if (overwite || vals[1] > v || vals[1].IsNil())
         {
             vals[1] = v;
             replaced = true;
         }
         return replaced;
     }
-    bool ValueObject::SetMaxData(const Data& v)
+    bool ValueObject::SetMaxData(const Data& v, bool overwite)
     {
         bool replaced = false;
         if (vals.size() < 3)
@@ -273,7 +273,7 @@ OP_NAMESPACE_BEGIN
             vals.resize(3);
             replaced = true;
         }
-        if (vals[2] < v || vals[2].IsNil())
+        if (overwite || vals[2] < v || vals[2].IsNil())
         {
             vals[2] = v;
             replaced = true;

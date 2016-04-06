@@ -42,9 +42,10 @@ OP_NAMESPACE_BEGIN
             unsigned no_fill_reply :1;
             unsigned create_if_notexist :1;
             unsigned fuzzy_check :1;
-            unsigned redis_compatible:1;
+            unsigned redis_compatible :1;
+            unsigned iterate_no_limit :1;
             CallFlags() :
-                    no_wal(0), no_fill_reply(0), create_if_notexist(0), fuzzy_check(0),redis_compatible(0)
+                    no_wal(0), no_fill_reply(0), create_if_notexist(0), fuzzy_check(0), redis_compatible(0), iterate_no_limit(0)
             {
             }
     };
@@ -123,11 +124,15 @@ OP_NAMESPACE_BEGIN
                 }
                 return *reply;
             }
+            void ClearFlags()
+            {
+                memset(&flags, 0, sizeof(flags));
+            }
             void ClearState()
             {
                 SetReply(NULL);
                 current_cmd = NULL;
-                memset(&flags, 0, sizeof(flags));
+                ClearFlags();
             }
             void ClearTransaction()
             {

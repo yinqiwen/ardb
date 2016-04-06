@@ -328,7 +328,7 @@ OP_NAMESPACE_BEGIN
         {
             return 1;
         }
-        return len - right.len;
+        return left_len - right_len;
     }
 
     bool Data::IsInteger() const

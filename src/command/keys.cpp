@@ -94,7 +94,7 @@ OP_NAMESPACE_BEGIN
         {
             return -1;
         }
-        if(meta.GetType() == 0 || (!meta.GetMin().IsNil() && !meta.GetMax().IsNil()))
+        if (meta.GetType() == 0 )
         {
             return 0;
         }
@@ -102,14 +102,19 @@ OP_NAMESPACE_BEGIN
         KeyObject start_element(ctx.ns, ele_type, key.GetKey());
         start_element.SetMember(meta.GetMin(), 0);
         iter = m_engine->Find(ctx, start_element);
+        if(!meta.GetMin().IsNil() && !meta.GetMax().IsNil())
+        {
+            return 0;
+        }
         if (NULL == iter || !iter->Valid())
         {
             DELETE(iter);
             return -1;
         }
         KeyObject& min_key = iter->Key();
-        if (min_key.GetKey() != key.GetKey() || min_key.GetType() != ele_type|| min_key.GetNameSpace() != key.GetNameSpace())
+        if (min_key.GetKey() != key.GetKey() || min_key.GetType() != ele_type || min_key.GetNameSpace() != key.GetNameSpace())
         {
+            WARN_LOG("Invalid start iterator to fetch max element");
             DELETE(iter);
             return -1;
         }
@@ -125,12 +130,14 @@ OP_NAMESPACE_BEGIN
             if (!iter->Valid())
             {
                 DELETE(iter);
+                WARN_LOG("Invalid iterator to fetch max element");
                 return -1;
             }
             KeyObject& iter_key = iter->Key();
             if (iter_key.GetType() != ele_type || iter_key.GetKey() != key.GetKey() || iter_key.GetNameSpace() != key.GetNameSpace())
             {
                 DELETE(iter);
+                WARN_LOG("Invalid iterator key to fetch max element");
                 return -1;
             }
             meta.SetMaxData(iter_key.GetElement(0));
@@ -140,6 +147,8 @@ OP_NAMESPACE_BEGIN
         {
             m_engine->Put(ctx, key, meta);
         }
+        start_element.SetMember(meta.GetMin(), 0);
+        iter->Jump(start_element);
         return 0;
     }
 
@@ -383,6 +392,7 @@ OP_NAMESPACE_BEGIN
         RedisReply& reply = ctx.GetReply();
         Iterator* iter = NULL;
         int removed = 0;
+        ctx.flags.iterate_no_limit = cmd.GetArguments().size() > 1 ? 1 : 0;
         for (size_t i = 0; i < cmd.GetArguments().size(); i++)
         {
             KeyObject meta(ctx.ns, KEY_META, cmd.GetArguments()[i]);

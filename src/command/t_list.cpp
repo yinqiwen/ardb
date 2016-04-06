@@ -44,8 +44,8 @@ OP_NAMESPACE_BEGIN
         }
         KeyObject k(ctx.ns, KEY_META, cmd.GetArguments()[0]);
         ValueObject v;
-        int err = CheckMeta(ctx, cmd.GetArguments()[0], KEY_LIST, v);
-        if (0 != err)
+        int err;
+        if (!CheckMeta(ctx, k, KEY_LIST, v))
         {
             return 0;
         }
@@ -66,7 +66,7 @@ OP_NAMESPACE_BEGIN
         if (v.GetListMeta().sequencial)
         {
             KeyObject ele(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
-            ele.SetListIndex((int64_t) (v.GetListMinIdx() + index));
+            ele.SetListIndex(v.GetListMinIdx() + index);
             ValueObject ele_value;
             err = m_engine->Get(ctx, ele, ele_value);
             if (0 == err)
@@ -80,7 +80,7 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-            KeyObject key(ctx.ns, KEY_LIST_ELEMENT, v.GetListMinIdx());
+            KeyObject key(ctx.ns, KEY_LIST_ELEMENT, v.GetMin());
             Iterator* iter = m_engine->Find(ctx, key);
             int64 cursor = 0;
             while (NULL != iter && iter->Valid())
@@ -112,14 +112,14 @@ OP_NAMESPACE_BEGIN
         return ObjectLen(ctx, KEY_LIST, cmd.GetArguments()[0]);
     }
 
-    int Ardb::ListPop(Context& ctx, RedisCommandFrame& cmd)
+    int Ardb::ListPop(Context& ctx, RedisCommandFrame& cmd, bool lock_key)
     {
         RedisReply& reply = ctx.GetReply();
         bool is_lpop = (cmd.GetType() == REDIS_CMD_LPOP || cmd.GetType() == REDIS_CMD_BLPOP);
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_META, keystr);
         ValueObject meta;
-        KeyLockGuard guard(key);
+        KeyLockGuard guard(key, lock_key);
         if (!CheckMeta(ctx, key, KEY_LIST, meta))
         {
             return 0;
@@ -130,61 +130,95 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         int err = 0;
-
-        if (meta.GetListMeta().sequencial)
         {
-            KeyObject ele_key(ctx.ns, KEY_LIST_ELEMENT, keystr);
-            ValueObject ele_value;
-            ele_key.SetListIndex(is_lpop ? meta.GetListMinIdx() : meta.GetListMaxIdx());
-            err = m_engine->Get(ctx, ele_key, ele_value);
-            if (0 != err)
+            TransactionGuard batch(ctx, m_engine);
+            if (meta.GetListMeta().sequencial)
             {
-                 reply.SetErrCode(err);
-                 return 0;
-            }
-            reply.SetString(ele_value.GetListElement());
-            m_engine->Del(ctx, ele_key);
-            if (is_lpop)
-            {
-                meta.SetListMinIdx(meta.GetListMinIdx() + 1);
+                KeyObject ele_key(ctx.ns, KEY_LIST_ELEMENT, keystr);
+                ValueObject ele_value;
+                ele_key.SetListIndex(is_lpop ? meta.GetListMinIdx() : meta.GetListMaxIdx());
+                err = m_engine->Get(ctx, ele_key, ele_value);
+                if (0 != err)
+                {
+                    reply.SetErrCode(err);
+                    return 0;
+                }
+                reply.SetString(ele_value.GetListElement());
+                m_engine->Del(ctx, ele_key);
+                if (is_lpop)
+                {
+                    meta.SetListMinIdx(meta.GetListMinIdx() + 1);
+                }
+                else
+                {
+                    meta.SetListMaxIdx(meta.GetListMaxIdx() - 1);
+                }
             }
             else
             {
-                meta.SetListMaxIdx(meta.GetListMaxIdx() -1);
-            }
-        }
-        else
-        {
-            KeyObject ele_key(ctx.ns, KEY_LIST_ELEMENT, keystr);
-            ele_key.SetListIndex(is_lpop ? meta.GetListMinIdx() : meta.GetListMaxIdx());
-            Iterator* iter = m_engine->Find(ctx, ele_key);
-            if (NULL != iter && iter->Valid())
-            {
-                KeyObject* field = &(iter->Key());
+                KeyObject ele_key(ctx.ns, KEY_LIST_ELEMENT, keystr);
+                ele_key.SetListIndex(is_lpop ? meta.GetMin() : meta.GetMax());
+                Iterator* iter = m_engine->Find(ctx, ele_key);
                 if (!is_lpop)
                 {
-                    if (field->GetType() != KEY_LIST_ELEMENT || field->GetNameSpace() != ele_key.GetNameSpace() || field->GetKey() != ele_key.GetKey())
+                    if (!iter->Valid())
                     {
-                        iter->Prev();
-                        field = &(iter->Key());
+                        iter->JumpToLast();
                     }
                 }
-                reply.SetString(iter->Value().GetListElement());
-                if (ctx.transc_err != 0)
+                if (iter->Valid())
                 {
-                    reply.SetErrCode(ctx.transc_err);
+                    KeyObject& field = iter->Key();
+                    if (field.GetType() == KEY_LIST_ELEMENT && field.GetNameSpace() == ele_key.GetNameSpace() && field.GetKey() != ele_key.GetKey())
+                    {
+                        reply.SetString(iter->Value().GetListElement());
+                        m_engine->Del(ctx, field);
+                        if (meta.GetObjectLen() > 1)
+                        {
+                            if (is_lpop)
+                            {
+                                iter->Next();
+                            }
+                            else
+                            {
+                                iter->Prev();
+                            }
+                            if (iter->Valid())
+                            {
+                                KeyObject& minmax = iter->Key();
+                                if (minmax.GetType() == KEY_LIST_ELEMENT && minmax.GetNameSpace() == ele_key.GetNameSpace()
+                                        && minmax.GetKey() != ele_key.GetKey())
+                                {
+                                    if (is_lpop)
+                                    {
+                                        meta.SetMinData(minmax.GetElement(0), true);
+                                    }
+                                    else
+                                    {
+                                        meta.SetMaxData(minmax.GetElement(0), true);
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
+                DELETE(iter);
             }
-            DELETE(iter);
+            meta.SetObjectLen(meta.GetObjectLen() - 1);
+            if (meta.GetObjectLen() == 0)
+            {
+                m_engine->Del(ctx, key);
+            }
+            else
+            {
+                m_engine->Put(ctx, key, meta);
+            }
         }
-        meta.SetObjectLen(meta.GetObjectLen() - 1);
-        if (meta.GetObjectLen() == 0)
+        err = ctx.transc_err;
+        if (0 != err)
         {
-            m_engine->Del(ctx, key);
-        }
-        else
-        {
-            m_engine->Put(ctx, key, meta);
+            reply.SetErrCode(err);
+            return 0;
         }
         return 0;
     }
@@ -215,8 +249,7 @@ OP_NAMESPACE_BEGIN
         KeyObject key(ctx.ns, KEY_META, keystr);
         ValueObject meta;
         KeyLockGuard guard(key);
-        int err = CheckMeta(ctx, cmd.GetArguments()[0], KEY_LIST, meta);
-        if (0 != err)
+        if (!CheckMeta(ctx, key, KEY_LIST, meta))
         {
             return 0;
         }
@@ -229,7 +262,7 @@ OP_NAMESPACE_BEGIN
         Data match;
         match.SetString(cmd.GetArguments()[2], true);
         KeyObject elekey(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
-        elekey.SetListIndex(meta.GetListMinIdx());
+        elekey.SetListIndex(meta.GetMin());
         Iterator* iter = m_engine->Find(ctx, elekey);
         bool found_match = false;
         bool insert_ele_idx_computed = false;
@@ -238,7 +271,7 @@ OP_NAMESPACE_BEGIN
         while (NULL != iter && iter->Valid())
         {
             KeyObject& field = iter->Key();
-            if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != field.GetKey())
+            if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != key.GetKey())
             {
                 break;
             }
@@ -261,9 +294,11 @@ OP_NAMESPACE_BEGIN
                 {
                     iter->Next();
                 }
-                continue;
             }
-            iter->Next();
+            else
+            {
+                iter->Next();
+            }
         }
         DELETE(iter);
         if (found_match)
@@ -287,69 +322,72 @@ OP_NAMESPACE_BEGIN
             {
                 TransactionGuard batch(ctx, m_engine);
                 m_engine->Put(ctx, insert, insert_val);
-                meta.GetListMeta().size++;
+                meta.SetObjectLen(meta.GetObjectLen() + 1);
                 meta.GetListMeta().sequencial = false;
                 meta.SetMinMaxData(insert_ele_idx);
                 m_engine->Put(ctx, key, meta);
             }
-            if(0 != ctx.transc_err)
+            if (0 != ctx.transc_err)
             {
                 reply.SetErrCode(ctx.transc_err);
-            }else
+            }
+            else
             {
-                reply.SetInteger(meta.GetListMeta().size);
+                reply.SetInteger(meta.GetObjectLen());
             }
         }
         return 0;
     }
 
-    int Ardb::ListPush(Context& ctx, RedisCommandFrame& cmd)
+    int Ardb::ListPush(Context& ctx, RedisCommandFrame& cmd, bool lock_key)
     {
         RedisReply& reply = ctx.GetReply();
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_META, keystr);
         ValueObject meta;
         int err = 0;
-        KeyLockGuard guard(key);
+        KeyLockGuard guard(key, lock_key);
         if (!CheckMeta(ctx, key, KEY_LIST, meta))
         {
             return 0;
         }
         bool left_push = cmd.GetType() == REDIS_CMD_LPUSH || cmd.GetType() == REDIS_CMD_LPUSHX;
         bool xx = cmd.GetType() == REDIS_CMD_RPUSHX || cmd.GetType() == REDIS_CMD_LPUSHX;
-        if(xx && meta.GetType() == 0)
+        if (xx && meta.GetType() == 0)
         {
-        	reply.SetInteger(0);
-        	return 0;
+            reply.SetInteger(0);
+            return 0;
         }
-        if(meta.GetType() == 0)
+        if (meta.GetType() == 0)
         {
             meta.SetType(KEY_LIST);
             meta.SetObjectLen(0);
             meta.SetListMaxIdx(0);
             meta.SetListMinIdx(0);
+            meta.GetListMeta().sequencial = true;
         }
         {
             TransactionGuard batch(ctx, m_engine);
             for (size_t i = 1; i < cmd.GetArguments().size(); i++)
             {
-            	KeyObject ele(ctx.ns, KEY_LIST_ELEMENT, keystr);
-            	ValueObject ele_value;
-            	ele_value.SetType(KEY_LIST_ELEMENT);
-            	ele_value.SetListElement(cmd.GetArguments()[i]);
-            	int64 idx = 0;
-            	if(left_push)
-            	{
-            	    idx = meta.GetListMinIdx() - 1;
-            		meta.SetListMinIdx(idx);
-            	}else
-            	{
-            		idx = meta.GetListMaxIdx() + 1;
-            		meta.SetListMinIdx(idx);
-            	}
-        		ele.SetListIndex(idx);
-        		m_engine->Put(ctx, ele, ele_value);
-        		meta.SetObjectLen(meta.GetObjectLen() + 1);
+                KeyObject ele(ctx.ns, KEY_LIST_ELEMENT, keystr);
+                ValueObject ele_value;
+                ele_value.SetType(KEY_LIST_ELEMENT);
+                ele_value.SetListElement(cmd.GetArguments()[i]);
+                int64 idx = 0;
+                if (left_push)
+                {
+                    idx = meta.GetListMinIdx() - 1;
+                    meta.SetListMinIdx(idx);
+                }
+                else
+                {
+                    idx = meta.GetListMaxIdx() + 1;
+                    meta.SetListMinIdx(idx);
+                }
+                ele.SetListIndex(idx);
+                m_engine->Put(ctx, ele, ele_value);
+                meta.SetObjectLen(meta.GetObjectLen() + 1);
             }
             m_engine->Put(ctx, key, meta);
         }
@@ -385,8 +423,7 @@ OP_NAMESPACE_BEGIN
         }
         KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
         ValueObject meta;
-        int err = CheckMeta(ctx, key, KEY_LIST, meta);
-        if (0 != err)
+        if (!CheckMeta(ctx, key, KEY_LIST, meta))
         {
             return 0;
         }
@@ -396,25 +433,26 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         if (start < 0)
-            start = meta.GetListMeta().size + start;
+            start = meta.GetObjectLen() + start;
         if (end < 0)
-            end = meta.GetListMeta().size + end;
+            end = meta.GetObjectLen() + end;
         if (start < 0)
             start = 0;
-        if (start > end || start >= meta.GetListMeta().size)
+        if (start > end || start >= meta.GetObjectLen())
         {
             return 0;
         }
-        if (end >= meta.GetListMeta().size)
-            end = meta.GetListMeta().size - 1;
+        if (end >= meta.GetObjectLen())
+            end = meta.GetObjectLen() - 1;
         int64_t rangelen = (end - start) + 1;
+        reply.ReserveMember(0);
         if (meta.GetListMeta().sequencial)
         {
             KeyObjectArray ks;
             for (size_t i = 0; i < rangelen; i++)
             {
                 KeyObject key(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
-                key.SetListIndex(meta.GetListMinIdx() + i + start);
+                key.SetListIndex((int64)(meta.GetListMinIdx() + i + start));
                 ks.push_back(key);
             }
             ValueObjectArray vs;
@@ -429,13 +467,13 @@ OP_NAMESPACE_BEGIN
         else
         {
             KeyObject ele_key(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
-            ele_key.SetListIndex(meta.GetListMinIdx());
+            ele_key.SetListIndex(meta.GetMin());
             Iterator* iter = m_engine->Find(ctx, ele_key);
             int64 cursor = 0;
             while (NULL != iter && iter->Valid())
             {
                 KeyObject& field = iter->Key();
-                if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != field.GetKey())
+                if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != key.GetKey())
                 {
                     break;
                 }
@@ -473,8 +511,7 @@ OP_NAMESPACE_BEGIN
         KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
         ValueObject meta;
         KeyLockGuard guard(key);
-        int err = CheckMeta(ctx, cmd.GetArguments()[0], KEY_LIST, meta);
-        if (0 != err)
+        if (!CheckMeta(ctx, key, KEY_LIST, meta))
         {
             return 0;
         }
@@ -487,20 +524,19 @@ OP_NAMESPACE_BEGIN
         KeyObject ele_key(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
         if (count < 0)
         {
-            ele_key.SetListIndex(meta.GetListMaxIdx());
-            iter = m_engine->Find(ctx, ele_key);
-            if (NULL != iter && iter->Valid())
-            {
-                KeyObject* field = &(iter->Key());
-                if (field->GetType() != KEY_LIST_ELEMENT || field->GetNameSpace() != ele_key.GetNameSpace() || field->GetKey() != ele_key.GetKey())
-                {
-                    iter->Prev();
-                }
-            }
+            ele_key.SetListIndex(meta.GetMin());
         }
         else
         {
-            ele_key.SetListIndex(meta.GetListMinIdx());
+            ele_key.SetListIndex(meta.GetMax());
+        }
+        iter = m_engine->Find(ctx, ele_key);
+        if (count < 0)
+        {
+            if (!iter->Valid())
+            {
+                iter->JumpToLast();
+            }
         }
         int64 removed = 0;
         Data rem_data;
@@ -523,10 +559,19 @@ OP_NAMESPACE_BEGIN
                 {
                     break;
                 }
+                if (count > 0)
+                {
+                    iter->Next();
+                }
+                else
+                {
+                    iter->Prev();
+                }
             }
+            DELETE(iter);
             meta.GetListMeta().sequencial = false;
-            meta.GetListMeta().size -= removed;
-            if (meta.GetListMeta().size == 0)
+            meta.SetObjectLen(meta.GetObjectLen() - removed);
+            if (meta.GetObjectLen() == 0)
             {
                 m_engine->Del(ctx, key);
             }
@@ -535,7 +580,6 @@ OP_NAMESPACE_BEGIN
                 m_engine->Put(ctx, key, meta);
             }
         }
-        DELETE(iter);
         if (ctx.transc_err != 0)
         {
             reply.SetErrCode(ctx.transc_err);
@@ -557,9 +601,9 @@ OP_NAMESPACE_BEGIN
         }
         KeyObject k(ctx.ns, KEY_META, cmd.GetArguments()[0]);
         ValueObject v;
+        int err = 0;
         KeyLockGuard guard(k);
-        int err = CheckMeta(ctx, cmd.GetArguments()[0], KEY_LIST, v);
-        if (0 != err)
+        if (!CheckMeta(ctx, k, KEY_LIST, v))
         {
             return 0;
         }
@@ -570,9 +614,9 @@ OP_NAMESPACE_BEGIN
         }
         if (index < 0)
         {
-            index = v.GetListMeta().size + index;
+            index = v.GetObjectLen() + index;
         }
-        if (index < 0 || index >= v.GetListMeta().size)
+        if (index < 0 || index >= v.GetObjectLen())
         {
             reply.SetErrCode(ERR_OUTOFRANGE);
             return 0;
@@ -596,13 +640,13 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-            KeyObject key(ctx.ns, KEY_LIST_ELEMENT, v.GetListMinIdx());
+            KeyObject key(ctx.ns, KEY_LIST_ELEMENT, v.GetMin());
             Iterator* iter = m_engine->Find(ctx, key);
             int64 cursor = 0;
             while (NULL != iter && iter->Valid())
             {
                 KeyObject& field = iter->Key();
-                if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != field.GetKey())
+                if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != key.GetKey())
                 {
                     break;
                 }
@@ -650,21 +694,16 @@ OP_NAMESPACE_BEGIN
         KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
         ValueObject meta;
         KeyLockGuard guard(key);
-        int err = CheckMeta(ctx, cmd.GetArguments()[0], KEY_LIST, meta);
-        if (0 != err)
+        if (!CheckMeta(ctx, key, KEY_LIST, meta) || meta.GetType() == 0)
         {
             return 0;
         }
-        if (meta.GetType() == 0)
-        {
-            return 0;
-        }
-        int64_t llen = meta.GetListMeta().size;
+        int64_t llen = meta.GetObjectLen();
         /* convert negative indexes */
         if (start < 0)
-            start = meta.GetListMeta().size + start;
+            start = llen + start;
         if (end < 0)
-            end = meta.GetListMeta().size + end;
+            end = llen + end;
         if (start < 0)
             start = 0;
 
@@ -697,11 +736,10 @@ OP_NAMESPACE_BEGIN
                 elekey.SetListIndex(i + meta.GetListMaxIdx() - i);
                 m_engine->Del(ctx, elekey);
             }
-            meta.GetListMeta().size -= ltrim;
-            meta.GetListMeta().size -= rtrim;
+            meta.SetObjectLen(meta.GetObjectLen() - ltrim);
+            meta.SetObjectLen(meta.GetObjectLen() - rtrim);
             meta.SetListMinIdx(meta.GetListMinIdx() + ltrim);
-            meta.SetListMaxIdx(meta.GetListMaxIdx() + rtrim);
-
+            meta.SetListMaxIdx(meta.GetListMaxIdx() - rtrim);
         }
         else
         {
@@ -710,27 +748,31 @@ OP_NAMESPACE_BEGIN
             if (ltrim > 0)
             {
                 KeyObject elekey(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
-                elekey.SetListIndex(meta.GetListMinIdx());
+                elekey.SetListIndex(meta.GetMin());
                 iter = m_engine->Find(ctx, elekey);
-                while (NULL != iter && iter->Valid() && ltrim > 0)
+                while (NULL != iter && iter->Valid())
                 {
                     KeyObject& field = iter->Key();
-                    if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != field.GetKey())
+                    if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != elekey.GetKey())
                     {
                         trim_stop = true;
                         break;
                     }
+                    if (ltrim <= 0)
+                    {
+                        meta.SetMinData(field.GetElement(0), true);
+                        break;
+                    }
                     m_engine->Del(ctx, field);
-                    meta.GetListMeta().size--;
+                    meta.SetObjectLen(meta.GetObjectLen() - 1);
                     ltrim--;
                     iter->Next();
                 }
-
             }
             if (rtrim > 0 && !trim_stop)
             {
                 KeyObject tail(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
-                tail.SetListIndex(meta.GetListMaxIdx());
+                tail.SetListIndex(meta.GetMax());
                 if (NULL != iter)
                 {
                     iter->Jump(tail);
@@ -739,24 +781,24 @@ OP_NAMESPACE_BEGIN
                 {
                     iter = m_engine->Find(ctx, tail);
                 }
-                if (NULL != iter && iter->Valid())
+                if (!iter->Valid())
                 {
-                    KeyObject& field = iter->Key();
-                    if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != field.GetKey())
-                    {
-                        iter->Prev();
-                    }
+                    iter->JumpToLast();
                 }
-                while (NULL != iter && iter->Valid() && rtrim > 0)
+                while (iter->Valid())
                 {
                     KeyObject& field = iter->Key();
-                    if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != field.GetKey())
+                    if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != key.GetKey())
                     {
-                        trim_stop = true;
+                        break;
+                    }
+                    if (rtrim <= 0)
+                    {
+                        meta.SetMaxData(field.GetElement(0), true);
                         break;
                     }
                     m_engine->Del(ctx, field);
-                    meta.GetListMeta().size--;
+                    meta.SetObjectLen(meta.GetObjectLen() - 1);
                     rtrim--;
                     iter->Prev();
                 }
@@ -790,8 +832,15 @@ OP_NAMESPACE_BEGIN
     int Ardb::RPopLPush(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
-        ListPop(ctx, cmd);
-        if(reply.type == REDIS_REPLY_STRING)
+        KeyObject src(ctx.ns, KEY_META, cmd.GetArguments()[0]);
+        KeyObject dest(ctx.ns, KEY_META, cmd.GetArguments()[1]);
+        KeysLockGuard guard(src, dest);
+        RedisCommandFrame rpop;
+        rpop.SetCommand("rpop");
+        rpop.SetType(REDIS_CMD_LPUSH);
+        rpop.AddArg(cmd.GetArguments()[0]);
+        ListPop(ctx, rpop, false);
+        if (reply.type == REDIS_REPLY_STRING)
         {
             const std::string& data = reply.str;
             RedisCommandFrame lpush;
@@ -799,8 +848,8 @@ OP_NAMESPACE_BEGIN
             lpush.SetType(REDIS_CMD_LPUSH);
             lpush.AddArg(cmd.GetArguments()[1]);
             lpush.AddArg(data);
-            ListPush(ctx, lpush);
-            if(reply.type != REDIS_REPLY_ERROR)
+            ListPush(ctx, lpush, false);
+            if (reply.type != REDIS_REPLY_ERROR)
             {
                 reply.SetString(data);
             }

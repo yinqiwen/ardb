@@ -33,7 +33,27 @@ OP_NAMESPACE_BEGIN
             ValueObject m_value;
             RocksDBEngine* m_engine;
             rocksdb::Iterator* m_iter;
-            std::string m_iterate_upper_bound;
+            KeyObject m_iterate_upper_bound_key;
+            rocksdb::Slice m_iterate_upper_bound_slice;
+            void ClearState();
+        public:
+            RocksDBIterator(RocksDBEngine* engine, const Data& ns) :
+                    m_ns(ns), m_engine(engine), m_iter(NULL)
+            {
+            }
+            void SetIterator(rocksdb::Iterator* iter)
+            {
+                m_iter = iter;
+            }
+            KeyObject& IterateUpperBoundKey()
+            {
+                return m_iterate_upper_bound_key;
+            }
+            const rocksdb::Slice& IterateUpperBoundSlice() const
+            {
+                return m_iterate_upper_bound_slice;
+            }
+            void SaveIterateUpperBoundSlice();
             bool Valid();
             void Next();
             void Prev();
@@ -42,12 +62,6 @@ OP_NAMESPACE_BEGIN
             void JumpToLast();
             KeyObject& Key();
             ValueObject& Value();
-            void ClearState();
-        public:
-            RocksDBIterator(RocksDBEngine* engine, rocksdb::Iterator* iter, const Data& ns) :
-                m_ns(ns),m_engine(engine), m_iter(iter)
-            {
-            }
             ~RocksDBIterator();
     };
 

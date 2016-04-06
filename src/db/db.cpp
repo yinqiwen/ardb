@@ -53,15 +53,22 @@ OP_NAMESPACE_BEGIN
         return strcasecmp(s1.c_str(), s2.c_str()) == 0 ? true : false;
     }
 
-    Ardb::KeyLockGuard::KeyLockGuard(KeyObject& key) :
-            k(key)
+    Ardb::KeyLockGuard::KeyLockGuard(KeyObject& key, bool _lock) :
+            k(key),lock(_lock)
     {
-        g_db->LockKey(k);
+        if(lock)
+        {
+            g_db->LockKey(k);
+        }
+
     }
 
     Ardb::KeyLockGuard::~KeyLockGuard()
     {
-        g_db->UnlockKey(k);
+        if(lock)
+        {
+            g_db->UnlockKey(k);
+        }
     }
 
     Ardb::KeysLockGuard::KeysLockGuard(KeyObjectArray& keys) :

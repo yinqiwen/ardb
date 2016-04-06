@@ -59,7 +59,6 @@ OP_NAMESPACE_BEGIN
          * Reserver 20 types
          */
 
-
         KEY_END = 31, /* max value for 1byte */
     };
 
@@ -91,7 +90,8 @@ OP_NAMESPACE_BEGIN
                 getElement(idx).Clone(data);
             }
         public:
-            KeyObject(uint8 t = 0):type(t)
+            KeyObject(uint8 t = 0) :
+                    type(t)
             {
             }
             KeyObject(const Data& nns, uint8 t, const std::string& data) :
@@ -131,6 +131,14 @@ OP_NAMESPACE_BEGIN
             {
                 return (KeyType) type;
             }
+            void SetType(uint8 t)
+            {
+                type = t;
+            }
+            void SetKey(const Data& d)
+            {
+                key = d;
+            }
             void SetHashField(const std::string& v)
             {
                 getElement(0).SetString(v, true);
@@ -148,7 +156,7 @@ OP_NAMESPACE_BEGIN
             {
                 return GetElement(0);
             }
-            void SetListIndex(double idx)
+            void SetListIndex(const Data& idx)
             {
                 setElement(idx, 0);
             }
@@ -181,13 +189,13 @@ OP_NAMESPACE_BEGIN
             }
             void SetMember(const Data& data, uint32 idx)
             {
-            	getElement(idx).Clone(data);
+                getElement(idx).Clone(data);
             }
 
             bool IsValid() const;
             //int Compare(const KeyObject& other);
 
-            Slice Encode();
+            Slice Encode(bool verify = true);
             void EncodePrefix(Buffer& buffer) const;
             bool DecodeNS(Buffer& buffer, bool clone_str);
             bool DecodeKey(Buffer& buffer, bool clone_str);
@@ -302,8 +310,8 @@ OP_NAMESPACE_BEGIN
                 getElement(0).Clone(v);
             }
             bool SetMinMaxData(const Data& v);
-            bool SetMinData(const Data& v);
-            bool SetMaxData(const Data& v);
+            bool SetMinData(const Data& v, bool overwite = false);
+            bool SetMaxData(const Data& v, bool overwite = false);
             void ClearMinMaxData();
             Data& GetMin()
             {
@@ -323,11 +331,11 @@ OP_NAMESPACE_BEGIN
             }
             void SetListMaxIdx(int64 v)
             {
-                GetMin().SetInt64(v);
+                GetMax().SetInt64(v);
             }
             void SetListMinIdx(int64 v)
             {
-                GetMax().SetInt64(v);
+                GetMin().SetInt64(v);
             }
             Data& GetHashValue()
             {
@@ -349,11 +357,11 @@ OP_NAMESPACE_BEGIN
             }
             void SetMergeArgs(const DataArray& args)
             {
-            	vals = args;
+                vals = args;
             }
             const DataArray& GetMergeArgs() const
             {
-            	return vals;
+                return vals;
             }
             Slice Encode(Buffer& buffer);
             bool Decode(Buffer& buffer, bool clone_str);
