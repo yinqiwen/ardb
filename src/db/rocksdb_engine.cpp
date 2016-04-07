@@ -697,7 +697,7 @@ OP_NAMESPACE_BEGIN
         if (key.GetType() > 0)
         {
             opt.prefix_same_as_start = true;
-            if(!ctx.flags.iterate_no_limit)
+            if(!ctx.flags.iterate_multi_keys)
             {
                 iter->IterateUpperBoundKey().SetNameSpce(ctx.ns);
                 if (key.GetType() == KEY_META)

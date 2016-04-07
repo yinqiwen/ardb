@@ -237,9 +237,9 @@ OP_NAMESPACE_BEGIN
 
     struct ListMeta: public MKeyMeta
     {
-            bool sequencial;
+            bool sequential;
             ListMeta() :
-                    sequencial(true)
+                    sequential(true)
             {
             }
     };

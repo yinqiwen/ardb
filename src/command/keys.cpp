@@ -392,7 +392,7 @@ OP_NAMESPACE_BEGIN
         RedisReply& reply = ctx.GetReply();
         Iterator* iter = NULL;
         int removed = 0;
-        ctx.flags.iterate_no_limit = cmd.GetArguments().size() > 1 ? 1 : 0;
+        ctx.flags.iterate_multi_keys = cmd.GetArguments().size() > 1 ? 1 : 0;
         for (size_t i = 0; i < cmd.GetArguments().size(); i++)
         {
             KeyObject meta(ctx.ns, KEY_META, cmd.GetArguments()[i]);

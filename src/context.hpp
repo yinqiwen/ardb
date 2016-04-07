@@ -43,9 +43,9 @@ OP_NAMESPACE_BEGIN
             unsigned create_if_notexist :1;
             unsigned fuzzy_check :1;
             unsigned redis_compatible :1;
-            unsigned iterate_no_limit :1;
+            unsigned iterate_multi_keys :1;
             CallFlags() :
-                    no_wal(0), no_fill_reply(0), create_if_notexist(0), fuzzy_check(0), redis_compatible(0), iterate_no_limit(0)
+                    no_wal(0), no_fill_reply(0), create_if_notexist(0), fuzzy_check(0), redis_compatible(0), iterate_multi_keys(0)
             {
             }
     };
