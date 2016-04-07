@@ -376,15 +376,31 @@ OP_NAMESPACE_BEGIN
                 ele_value.SetType(KEY_LIST_ELEMENT);
                 ele_value.SetListElement(cmd.GetArguments()[i]);
                 int64 idx = 0;
-                if (left_push)
+                if(meta.GetObjectLen() > 0)
                 {
-                    idx = meta.GetListMinIdx() - 1;
-                    meta.SetListMinIdx(idx);
-                }
-                else
-                {
-                    idx = meta.GetListMaxIdx() + 1;
-                    meta.SetListMaxIdx(idx);
+                    if (left_push)
+                    {
+                    	if(meta.GetMin().IsInteger())
+                    	{
+                            idx = meta.GetListMinIdx() - 1;
+                    	}
+                    	else
+                    	{
+                    		idx = (int64_t)(meta.GetMin().GetFloat64()) - 1;
+                    	}
+                        meta.SetListMinIdx(idx);
+                    }
+                    else
+                    {
+                    	if(meta.GetMax().IsInteger())
+                    	{
+                    		  idx = meta.GetListMaxIdx() + 1;
+                    	}else
+                    	{
+                    		  idx = (int64_t)(meta.GetMax().GetFloat64()) + 1;
+                    	}
+                        meta.SetListMaxIdx(idx);
+                    }
                 }
                 ele.SetListIndex(idx);
                 m_engine->Put(ctx, ele, ele_value);
@@ -723,6 +739,7 @@ OP_NAMESPACE_BEGIN
             ltrim = start;
             rtrim = llen - end - 1;
         }
+        int64_t trimed_count = 0;
         if (meta.GetListMeta().sequential)
         {
             for (int64_t i = 0; i < ltrim; i++)
@@ -730,17 +747,23 @@ OP_NAMESPACE_BEGIN
                 KeyObject elekey(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
                 elekey.SetListIndex(i + meta.GetListMinIdx());
                 m_engine->Del(ctx, elekey);
+                trimed_count++;
             }
-            for (int64_t i = 0; i < rtrim; i++)
+            for (int64_t i = rtrim; rtrim > 0 && i < llen; i++)
             {
                 KeyObject elekey(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
-                elekey.SetListIndex(i + meta.GetListMaxIdx() - i);
+                elekey.SetListIndex(i + meta.GetListMinIdx());
                 m_engine->Del(ctx, elekey);
+                trimed_count++;
             }
-            meta.SetObjectLen(meta.GetObjectLen() - ltrim);
-            meta.SetObjectLen(meta.GetObjectLen() - rtrim);
-            meta.SetListMinIdx(meta.GetListMinIdx() + ltrim);
-            meta.SetListMaxIdx(meta.GetListMaxIdx() - rtrim);
+            if(ltrim > 0)
+            {
+                meta.SetListMinIdx(meta.GetListMinIdx() + ltrim);
+            }
+            if(rtrim > 0)
+            {
+                meta.SetListMaxIdx(meta.GetListMinIdx() + rtrim - 1);
+            }
         }
         else
         {
@@ -766,6 +789,7 @@ OP_NAMESPACE_BEGIN
                     }
                     m_engine->Del(ctx, field);
                     meta.SetObjectLen(meta.GetObjectLen() - 1);
+                    trimed_count++;
                     ltrim--;
                     iter->Next();
                 }
@@ -786,6 +810,7 @@ OP_NAMESPACE_BEGIN
                 {
                     iter->JumpToLast();
                 }
+                int64_t tail_trim_count = llen - rtrim;
                 while (iter->Valid())
                 {
                     KeyObject& field = iter->Key();
@@ -793,20 +818,21 @@ OP_NAMESPACE_BEGIN
                     {
                         break;
                     }
-                    if (rtrim <= 0)
+                    if (tail_trim_count <= 0)
                     {
                         meta.SetMaxData(field.GetElement(0), true);
                         break;
                     }
                     m_engine->Del(ctx, field);
-                    meta.SetObjectLen(meta.GetObjectLen() - 1);
-                    rtrim--;
+                    tail_trim_count--;
+                    trimed_count++;
                     iter->Prev();
                 }
             }
             DELETE(iter);
         }
-        if (0 == meta.GetListMeta().size)
+        meta.SetObjectLen(meta.GetObjectLen() - trimed_count);
+        if (0 == meta.GetObjectLen())
         {
             m_engine->Del(ctx, key);
         }
@@ -843,7 +869,7 @@ OP_NAMESPACE_BEGIN
         ListPop(ctx, rpop, false);
         if (reply.type == REDIS_REPLY_STRING)
         {
-            const std::string& data = reply.str;
+            std::string data = reply.str;
             RedisCommandFrame lpush;
             lpush.SetCommand("lpush");
             lpush.SetType(REDIS_CMD_LPUSH);
