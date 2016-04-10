@@ -125,6 +125,7 @@ OP_NAMESPACE_BEGIN
         {
             return 0;
         }
+
         if (meta.GetType() == 0 || meta.GetObjectLen() == 0)
         {
             reply.Clear();
@@ -132,6 +133,7 @@ OP_NAMESPACE_BEGIN
         }
         int err = 0;
         {
+
             TransactionGuard batch(ctx, m_engine);
             if (meta.GetListMeta().sequential)
             {
@@ -170,7 +172,7 @@ OP_NAMESPACE_BEGIN
                 if (iter->Valid())
                 {
                     KeyObject& field = iter->Key();
-                    if (field.GetType() == KEY_LIST_ELEMENT && field.GetNameSpace() == ele_key.GetNameSpace() && field.GetKey() != ele_key.GetKey())
+                    if (field.GetType() == KEY_LIST_ELEMENT && field.GetNameSpace() == ele_key.GetNameSpace() && field.GetKey() == ele_key.GetKey())
                     {
                         reply.SetString(iter->Value().GetListElement());
                         m_engine->Del(ctx, field);
@@ -188,7 +190,7 @@ OP_NAMESPACE_BEGIN
                             {
                                 KeyObject& minmax = iter->Key();
                                 if (minmax.GetType() == KEY_LIST_ELEMENT && minmax.GetNameSpace() == ele_key.GetNameSpace()
-                                        && minmax.GetKey() != ele_key.GetKey())
+                                        && minmax.GetKey() == ele_key.GetKey())
                                 {
                                     if (is_lpop)
                                     {
@@ -565,8 +567,14 @@ OP_NAMESPACE_BEGIN
                 KeyObject& field = iter->Key();
                 if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != ele_key.GetNameSpace() || field.GetKey() != ele_key.GetKey())
                 {
+//                	std::string ss;
+//                	field.GetKey().ToString(ss);
+//                    printf("###Bore lrem %d %s\n",field.GetType() , ss.c_str());
+//                    iter->JumpToLast();
+//                    continue;
                     break;
                 }
+
                 if (iter->Value().GetListElement() == rem_data)
                 {
                     m_engine->Del(ctx, field);
@@ -657,7 +665,8 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-            KeyObject key(ctx.ns, KEY_LIST_ELEMENT, v.GetMin());
+            KeyObject key(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
+            key.SetListIndex(v.GetMin());
             Iterator* iter = m_engine->Find(ctx, key);
             int64 cursor = 0;
             while (NULL != iter && iter->Valid())
@@ -756,9 +765,10 @@ OP_NAMESPACE_BEGIN
                 m_engine->Del(ctx, elekey);
                 trimed_count++;
             }
+            int64_t last_min = meta.GetListMinIdx();
             if(ltrim > 0)
             {
-                meta.SetListMinIdx(meta.GetListMinIdx() + ltrim);
+                meta.SetListMinIdx(last_min + ltrim);
             }
             if(rtrim > 0)
             {
@@ -788,7 +798,6 @@ OP_NAMESPACE_BEGIN
                         break;
                     }
                     m_engine->Del(ctx, field);
-                    meta.SetObjectLen(meta.GetObjectLen() - 1);
                     trimed_count++;
                     ltrim--;
                     iter->Next();

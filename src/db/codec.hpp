@@ -183,6 +183,12 @@ OP_NAMESPACE_BEGIN
                     setElement(v, 1);
                 }
             }
+            void SetZSetMember(const std::string& v)
+            {
+            	Data d;
+            	d.SetString(v, true);
+                SetZSetMember(d);
+            }
             void SetZSetScore(double score)
             {
                 setElement(score, 0);
@@ -193,7 +199,7 @@ OP_NAMESPACE_BEGIN
             }
 
             bool IsValid() const;
-            //int Compare(const KeyObject& other);
+            int Compare(const KeyObject& other) const;
 
             Slice Encode(bool verify = true);
             void EncodePrefix(Buffer& buffer) const;
@@ -283,6 +289,7 @@ OP_NAMESPACE_BEGIN
             ZSetMeta& GetZSetMeta();
             int64 GetObjectLen()
             {
+            	if(type == 0) return 0;
                 return GetMKeyMeta().size;
             }
             void SetObjectLen(int64 v)

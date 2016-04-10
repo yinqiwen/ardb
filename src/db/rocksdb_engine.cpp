@@ -699,18 +699,17 @@ OP_NAMESPACE_BEGIN
             opt.prefix_same_as_start = true;
             if(!ctx.flags.iterate_multi_keys)
             {
-                iter->IterateUpperBoundKey().SetNameSpce(ctx.ns);
+                KeyObject& upperbound_key = iter->IterateUpperBoundKey();
+                upperbound_key.SetNameSpce(ctx.ns);
                 if (key.GetType() == KEY_META)
                 {
-                    iter->IterateUpperBoundKey().SetType(KEY_END);
+                	upperbound_key.SetType(KEY_END);
                 }
                 else
                 {
-                    iter->IterateUpperBoundKey().SetType(key.GetType() + 1);
+                	upperbound_key.SetType(key.GetType() + 1);
                 }
-                iter->IterateUpperBoundKey().SetKey(key.GetKey());
-                iter->SaveIterateUpperBoundSlice();
-                opt.iterate_upper_bound = &(iter->IterateUpperBoundSlice());
+                upperbound_key.SetKey(key.GetKey());
             }
         }
         rocksdb::Iterator* rocksiter = m_db->NewIterator(opt, cf);
@@ -759,23 +758,34 @@ OP_NAMESPACE_BEGIN
         rocksdb::Status s = m_db->CompactRange(opt, cf, start.IsValid() ? &start_key : NULL, end.IsValid() ? &end_key : NULL);
         return ROCKSDB_ERR(s);
     }
-    void RocksDBIterator::SaveIterateUpperBoundSlice()
-    {
-        m_iterate_upper_bound_slice = ROCKSDB_SLICE(m_iterate_upper_bound_key.Encode(false));
-    }
     bool RocksDBIterator::RocksDBIterator::Valid()
     {
-        return NULL != m_iter && m_iter->Valid();
+        return m_valid&& NULL != m_iter && m_iter->Valid();
     }
     void RocksDBIterator::ClearState()
     {
         m_key.Clear();
         m_value.Clear();
+        m_valid = true;
+    }
+    void RocksDBIterator::CheckBound()
+    {
+        if(NULL != m_iter && m_iterate_upper_bound_key.GetType() > 0)
+        {
+        	if(m_iter->Valid())
+        	{
+        		if(Key().Compare(m_iterate_upper_bound_key) >=0)
+        		{
+        			m_valid = false;
+        		}
+        	}
+        }
     }
     void RocksDBIterator::Next()
     {
         ClearState();
         m_iter->Next();
+        CheckBound();
     }
     void RocksDBIterator::Prev()
     {
@@ -787,6 +797,7 @@ OP_NAMESPACE_BEGIN
         ClearState();
         Slice key_slice = const_cast<KeyObject&>(next).Encode();
         m_iter->Seek(ROCKSDB_SLICE(key_slice));
+        CheckBound();
     }
     void RocksDBIterator::JumpToFirst()
     {
@@ -796,7 +807,25 @@ OP_NAMESPACE_BEGIN
     void RocksDBIterator::JumpToLast()
     {
         ClearState();
-        m_iter->SeekToLast();
+        if(m_iterate_upper_bound_key.GetType() > 0)
+        {
+        	Jump(m_iterate_upper_bound_key);
+        	if(!m_iter->Valid())
+        	{
+        		 m_iter->SeekToLast();
+        	}
+        	if(m_iter->Valid())
+        	{
+        		if(!Valid())
+        		{
+        			Prev();
+        		}
+        	}
+        }
+        else
+        {
+            m_iter->SeekToLast();
+        }
     }
     KeyObject& RocksDBIterator::Key()
     {

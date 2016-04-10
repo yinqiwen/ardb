@@ -45,6 +45,8 @@ s = ardb.call("linsert", "mylist", "before", "ax", "ss")
 ardb.assert2(s == -1, s)
 s = ardb.call("linsert", "mylist", "after", "hello", "ss")
 ardb.assert2(s == 5, s)
+ardb.call("rpush", "mylist", "zzz")
+ardb.call("lrem", "mylist", "1", "zzz")
 s = ardb.call("lrem", "mylist", "1", "ss")
 ardb.assert2(s == 1, s)
 s = ardb.call("lrem", "mylist", "1", "ax")
@@ -53,6 +55,8 @@ s = ardb.call("lrem", "mylist", "-2", "a0")
 ardb.assert2(s == 1, s)
 s = ardb.call("lrem", "mylist", "2", "a1")
 ardb.assert2(s == 1, s)
+
+
 --[[ non sequential list lrange  --]]
 local vs = ardb.call("lrange", "mylist", "0", "-1")
 ardb.assert2(table.getn(vs) == 2, vs)

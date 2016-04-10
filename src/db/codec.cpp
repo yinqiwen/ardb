@@ -40,6 +40,39 @@ OP_NAMESPACE_BEGIN
         return ns.Decode(buffer, clone_str);
     }
 
+    int KeyObject::Compare(const KeyObject& other) const
+    {
+    	int ret = ns.Compare(other.ns, false);
+    	if(ret != 0)
+    	{
+    		return ret;
+    	}
+    	ret = key.Compare(other.key, false);
+    	if(ret != 0)
+    	{
+    		return ret;
+    	}
+    	ret = (int)type - (int)other.type;
+    	if(ret != 0)
+    	{
+    		return ret;
+    	}
+    	ret = elements.size() - other.elements.size();
+    	if(ret != 0)
+    	{
+    		return ret;
+    	}
+    	for(size_t i = 0; i < elements.size(); i++)
+    	{
+    		ret = elements[i].Compare(other.elements[i], false);
+    		if(ret != 0)
+    		{
+    		    return ret;
+    		}
+    	}
+    	return 0;
+    }
+
 //    bool KeyObject::DecodeType(Buffer& buffer)
 //    {
 //        char tmp;

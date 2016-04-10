@@ -29,10 +29,119 @@
 #include "db/db.hpp"
 #include <float.h>
 
+/* This generic command implements both ZADD and ZINCRBY. */
+#define ZADD_NONE 0
+#define ZADD_INCR (1<<0)    /* Increment the score instead of setting it. */
+#define ZADD_NX (1<<1)      /* Don't touch elements not already existing. */
+#define ZADD_XX (1<<2)      /* Only touch elements already exisitng. */
+#define ZADD_CH (1<<3)      /* Return num of elements added or updated. */
+
 OP_NAMESPACE_BEGIN
 
     int Ardb::ZAdd(Context& ctx, RedisCommandFrame& cmd)
     {
+        ctx.flags.create_if_notexist = 1;
+	    int flags = 0;
+	    int added = 0;      /* Number of new elements added. */
+	    int updated = 0;    /* Number of elements with updated score. */
+	    int processed = 0;  /* Number of elements processed, may remain zero with
+	                               options like XX. */
+	    size_t scoreidx = 1;
+	    while(scoreidx < cmd.GetArguments().size())
+	    {
+	    	const char* opt = cmd.GetArguments()[scoreidx].c_str();
+	    	if (!strcasecmp(opt,"nx")) flags |= ZADD_NX;
+	    	else if (!strcasecmp(opt,"xx")) flags |= ZADD_XX;
+	    	else if (!strcasecmp(opt,"ch")) flags |= ZADD_CH;
+	    	else if (!strcasecmp(opt,"incr")) flags |= ZADD_INCR;
+	        else break;
+	    	scoreidx++;
+	    }
+        /* Turn options into simple to check vars. */
+        int incr = (flags & ZADD_INCR) != 0;
+        int nx = (flags & ZADD_NX) != 0;
+        int xx = (flags & ZADD_XX) != 0;
+        int ch = (flags & ZADD_CH) != 0;
+        RedisReply& reply = ctx.GetReply();
+        size_t elements = cmd.GetArguments().size() - scoreidx;
+        if(elements% 2 != 0)
+		{
+        	reply.SetErrCode(ERR_INVALID_SYNTAX);
+			return 0;
+		}
+        if (nx && xx) {
+        	reply.SetErrorReason("XX and NX options at the same time are not compatible");
+            return 0;
+        }
+        elements /= 2; /* Now this holds the number of score-element pairs. */
+        if (incr && elements > 1) {
+        	reply.SetErrorReason("INCR option supports a single increment-element pair");
+            return 0;
+        }
+        KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
+        ValueObject meta;
+        KeyLockGuard guard(key);
+        if(!CheckMeta(ctx, key, KEY_ZSET, meta))
+        {
+        	return 0;
+        }
+        if(xx && meta.GetType() == 0)
+        {
+        	return 0;
+        }
+        for(size_t i = 0; i < elements; i++)
+        {
+        	KeyObject ele(ctx.ns, KEY_ZSET_SCORE, cmd.GetArguments()[0]);
+        	ele.SetZSetMember(cmd.GetArguments()[scoreidx + i * 2 + 1]);
+        	const std::string& scorestr = cmd.GetArguments()[scoreidx + i * 2 ];
+        	double score,current_score;
+        	if(!string_todouble(scorestr, score))
+        	{
+        		reply.SetErrCode(ERR_INVALID_FLOAT_ARGS);
+        		return 0;
+        	}
+        	ValueObject ele_value;
+        	if(0 == m_engine->Get(ctx, ele, ele_value))
+        	{
+        		if(nx) continue;
+        		current_score = ele_value.GetZSetScore();
+                if(incr)
+                {
+                	score += current_score;
+                }
+
+                processed++;
+                if(score != current_score)
+                {
+                	KeyObject old_sort_key(ctx.ns, KEY_ZSET_SORT, cmd.GetArguments()[0]);
+                	old_sort_key.SetZSetMember(cmd.GetArguments()[scoreidx + i * 2 + 1]);
+                	old_sort_key.SetZSetScore(current_score);
+                	m_engine->Del(ctx, old_sort_key);
+                	updated++;
+                }else
+                {
+                	continue;
+                }
+        	}else
+        	{
+        		if(xx)
+        		{
+        			continue;
+        		}
+        		added++;
+        		processed++;
+        	}
+          	KeyObject new_sort_key(ctx.ns, KEY_ZSET_SORT, cmd.GetArguments()[0]);
+          	new_sort_key.SetZSetMember(cmd.GetArguments()[scoreidx + i * 2 + 1]);
+          	new_sort_key.SetZSetScore(score);
+          	ValueObject empty;
+          	empty.SetType(KEY_ZSET_SORT);
+          	m_engine->Put(ctx, new_sort_key, empty);
+          	ele_value.SetType(KEY_ZSET_SCORE);
+          	ele_value.SetZSetScore(score);
+          	m_engine->Put(ctx, ele, ele_value);
+        }
+        meta.SetObjectLen(meta.GetObjectLen() + added);
         return 0;
     }
 
