@@ -184,6 +184,9 @@ OP_NAMESPACE_BEGIN
             int DelKey(Context& ctx, const KeyObject& meta_key, Iterator*& iter);
 
             int HIterate(Context& ctx, RedisCommandFrame& cmd);
+            int ZIterateByRank(Context& ctx, RedisCommandFrame& cmd);
+            int ZIterateByScore(Context& ctx, RedisCommandFrame& cmd);
+            int ZIterateByLex(Context& ctx, RedisCommandFrame& cmd);
 
             int WatchForKey(Context& ctx, const std::string& key);
             int UnwatchKeys(Context& ctx);

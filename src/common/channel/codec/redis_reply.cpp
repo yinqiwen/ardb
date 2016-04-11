@@ -216,6 +216,11 @@ namespace ardb
         {
             switch(code)
             {
+                case ERR_SCORE_NAN:
+                {
+                    str.assign("resulting score is not a number (NaN)");
+                    break;
+                }
                 case ERR_OUTOFRANGE:
                 {
                     str.assign("value is out of range");

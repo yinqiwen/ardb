@@ -32,6 +32,7 @@
 #include "util/murmur3.h"
 #include "channel/all_includes.hpp"
 #include <cmath>
+#include <float.h>
 
 OP_NAMESPACE_BEGIN
 
@@ -42,35 +43,35 @@ OP_NAMESPACE_BEGIN
 
     int KeyObject::Compare(const KeyObject& other) const
     {
-    	int ret = ns.Compare(other.ns, false);
-    	if(ret != 0)
-    	{
-    		return ret;
-    	}
-    	ret = key.Compare(other.key, false);
-    	if(ret != 0)
-    	{
-    		return ret;
-    	}
-    	ret = (int)type - (int)other.type;
-    	if(ret != 0)
-    	{
-    		return ret;
-    	}
-    	ret = elements.size() - other.elements.size();
-    	if(ret != 0)
-    	{
-    		return ret;
-    	}
-    	for(size_t i = 0; i < elements.size(); i++)
-    	{
-    		ret = elements[i].Compare(other.elements[i], false);
-    		if(ret != 0)
-    		{
-    		    return ret;
-    		}
-    	}
-    	return 0;
+        int ret = ns.Compare(other.ns, false);
+        if (ret != 0)
+        {
+            return ret;
+        }
+        ret = key.Compare(other.key, false);
+        if (ret != 0)
+        {
+            return ret;
+        }
+        ret = (int) type - (int) other.type;
+        if (ret != 0)
+        {
+            return ret;
+        }
+        ret = elements.size() - other.elements.size();
+        if (ret != 0)
+        {
+            return ret;
+        }
+        for (size_t i = 0; i < elements.size(); i++)
+        {
+            ret = elements[i].Compare(other.elements[i], false);
+            if (ret != 0)
+            {
+                return ret;
+            }
+        }
+        return 0;
     }
 
 //    bool KeyObject::DecodeType(Buffer& buffer)
@@ -401,6 +402,112 @@ OP_NAMESPACE_BEGIN
                     return false;
                 }
             }
+        }
+        return true;
+    }
+
+    static int parse_score(const std::string& score_str, double& score, bool& contain)
+    {
+        contain = true;
+        const char* str = score_str.c_str();
+        if (score_str.at(0) == '(')
+        {
+            contain = false;
+            str++;
+        }
+        if (strcasecmp(str, "-inf") == 0)
+        {
+            score = -DBL_MAX;
+        }
+        else if (strcasecmp(str, "+inf") == 0)
+        {
+            score = DBL_MAX;
+        }
+        else
+        {
+            if (!str_todouble(str, score))
+            {
+                return -1;
+            }
+        }
+        return 0;
+    }
+    bool ZRangeSpec::Parse(const std::string& minstr, const std::string& maxstr)
+    {
+        double min_d, max_d;
+        int ret = parse_score(minstr, min_d, contain_min);
+        if (0 == ret)
+        {
+            ret = parse_score(maxstr, max_d, contain_max);
+        }
+        if (ret == 0 && min_d > max_d)
+        {
+            return false;
+        }
+        min.SetFloat64(min_d);
+        max.SetFloat64(max_d);
+        return ret == 0;
+    }
+    static bool verify_lexrange_para(const std::string& str)
+    {
+        if (str == "-" || str == "+")
+        {
+            return true;
+        }
+        if (str.empty())
+        {
+            return false;
+        }
+
+        if (str[0] != '(' && str[0] != '[')
+        {
+            return false;
+        }
+        return true;
+    }
+    bool ZLexRangeSpec::Parse(const std::string& minstr, const std::string& maxstr)
+    {
+        if (!verify_lexrange_para(minstr) || !verify_lexrange_para(maxstr))
+        {
+            return false;
+        }
+        if (minstr[0] == '(')
+        {
+            include_min = false;
+        }
+        if (minstr[0] == '[')
+        {
+            include_min = true;
+        }
+        if (maxstr[0] == '(')
+        {
+            include_max = false;
+        }
+        if (maxstr[0] == '[')
+        {
+            include_max = true;
+        }
+        if (minstr == "-")
+        {
+            min.clear();
+            include_min = true;
+        }
+        else
+        {
+            min = minstr.substr(1);
+        }
+        if (maxstr == "+")
+        {
+            max.clear();
+            include_max = true;
+        }
+        else
+        {
+            max = maxstr.substr(1);
+        }
+        if (min > max && !max.empty())
+        {
+            return false;
         }
         return true;
     }

@@ -156,6 +156,17 @@ OP_NAMESPACE_BEGIN
             {
                 return GetElement(0);
             }
+            const Data& GetZSetMember() const
+            {
+                if (type == KEY_ZSET_SCORE)
+                {
+                    return GetElement(0);
+                }
+                else
+                {
+                    return GetElement(1);
+                }
+            }
             void SetListIndex(const Data& idx)
             {
                 setElement(idx, 0);
@@ -185,19 +196,22 @@ OP_NAMESPACE_BEGIN
             }
             void SetZSetMember(const std::string& v)
             {
-            	Data d;
-            	d.SetString(v, true);
+                Data d;
+                d.SetString(v, false);
                 SetZSetMember(d);
             }
             void SetZSetScore(double score)
             {
                 setElement(score, 0);
             }
+            double GetZSetScore()
+            {
+                return getElement(0).GetFloat64();
+            }
             void SetMember(const Data& data, uint32 idx)
             {
                 getElement(idx).Clone(data);
             }
-
             bool IsValid() const;
             int Compare(const KeyObject& other) const;
 
@@ -289,7 +303,8 @@ OP_NAMESPACE_BEGIN
             ZSetMeta& GetZSetMeta();
             int64 GetObjectLen()
             {
-            	if(type == 0) return 0;
+                if (type == 0)
+                    return 0;
                 return GetMKeyMeta().size;
             }
             void SetObjectLen(int64 v)
@@ -372,6 +387,79 @@ OP_NAMESPACE_BEGIN
             }
             Slice Encode(Buffer& buffer);
             bool Decode(Buffer& buffer, bool clone_str);
+    };
+
+    struct ZRangeSpec
+    {
+            Data min, max;
+            bool contain_min, contain_max;
+            ZRangeSpec() :
+                    contain_min(false), contain_max(false)
+            {
+                min.SetInt64(0);
+                max.SetInt64(0);
+            }
+            bool Parse(const std::string& minstr, const std::string& maxstr);
+
+            bool InRange(const Data& d) const
+            {
+                bool inrange = d >= min && d <= max;
+                if (inrange)
+                {
+                    if (!contain_min && d == min)
+                    {
+                        inrange = false;
+                    }
+                    if (!contain_max && d == max)
+                    {
+                        inrange = false;
+                    }
+                }
+                return inrange;
+            }
+            bool InRange(double d) const
+            {
+                Data data;
+                data.SetFloat64(d);
+                return InRange(data);
+            }
+    };
+    struct ZLexRangeSpec
+    {
+            std::string min;
+            std::string max;
+            bool include_min;
+            bool include_max;
+            ZLexRangeSpec() :
+                    include_min(false), include_max(false)
+            {
+            }
+            bool Parse(const std::string& minstr, const std::string& maxstr);
+            bool InRange(const std::string& str) const
+            {
+                bool in_range = false;
+                if (max.empty())
+                {
+                    in_range = str >= min;
+                }
+                else
+                {
+                    in_range = str >= min && str <= max;
+                }
+
+                if (in_range)
+                {
+                    if (!include_min && str == min)
+                    {
+                        return false;
+                    }
+                    if (!include_max && str == max)
+                    {
+                        return false;
+                    }
+                }
+                return in_range;
+            }
     };
 
     int encode_merge_operation(Buffer& buffer, uint16_t op, const DataArray& args);
