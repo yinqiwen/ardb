@@ -179,6 +179,7 @@ OP_NAMESPACE_BEGIN
             bool CheckMeta(Context& ctx, const std::string& key, KeyType expected, ValueObject& meta);
             bool CheckMeta(Context& ctx, const KeyObject& key, KeyType expected, ValueObject& meta, bool fetch = true);
 
+            int GetMinMax(Context& ctx, const KeyObject& key, ValueObject& meta, Iterator*& iter);
             int GetMinMax(Context& ctx, const KeyObject& key, KeyType ele_type, ValueObject& meta, Iterator*& iter);
 
             int DelKey(Context& ctx, const KeyObject& meta_key, Iterator*& iter);

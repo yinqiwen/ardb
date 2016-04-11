@@ -247,6 +247,7 @@ OP_NAMESPACE_BEGIN
 
     typedef std::vector<Data> DataArray;
     typedef TreeSet<Data>::Type DataSet;
+    typedef TreeMap<Data, double>::Type DataScoreMap;
 
     template<typename T>
     struct PointerArray: public std::vector<T>

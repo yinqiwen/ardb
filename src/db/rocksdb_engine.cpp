@@ -162,10 +162,13 @@ OP_NAMESPACE_BEGIN
                 }
                 Buffer buffer(const_cast<char*>(key.data()), 0, key.size());
                 KeyObject k;
-                if (!k.DecodeKey(buffer, false))
+                if (!k.DecodePrefix(buffer, false))
                 {
                     abort();
                 }
+//                std::string ss;
+//                k.GetKey().ToString(ss);
+//                printf("####compact %d %s %d\n", k.GetType(), ss.c_str(), pthread_self());
                 if (k.GetType() == KEY_META)
                 {
                     ValueObject meta;
@@ -174,7 +177,7 @@ OP_NAMESPACE_BEGIN
                     {
                         abort();
                     }
-                    if (meta.GetTTL() <= get_current_epoch_millis())
+                    if (meta.GetTTL() > 0 && meta.GetTTL() <= get_current_epoch_millis())
                     {
                         if (meta.GetType() != KEY_STRING)
                         {
