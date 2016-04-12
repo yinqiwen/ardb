@@ -34,117 +34,104 @@ OP_NAMESPACE_BEGIN
         RedisReply& reply = ctx.GetReply();
         KeyObject key(ctx.ns, KEY_META, keystr);
         ValueObject meta;
-        int err = m_engine->Get(ctx, key, meta);
-        if (err != 0)
+        if (!CheckMeta(ctx, key, type, meta))
         {
-            if (err != ERR_ENTRY_NOT_EXIST)
-            {
-                reply.SetErrCode(err);
-            }
-            else
-            {
-                reply.SetInteger(0);
-            }
+            return 0;
+        }
+        if (meta.GetType() == 0)
+        {
+            reply.SetInteger(0);
+            return 0;
+        }
+        if (meta.GetObjectLen() >= 0)
+        {
+            reply.SetInteger(meta.GetObjectLen());
         }
         else
         {
-            if (meta.GetType() != type)
+            KeyType ele_type = element_type(type);
+            int64_t len = 0;
+            KeyObject key(ctx.ns, ele_type, keystr);
+            Iterator* iter = m_engine->Find(ctx, key);
+            while (NULL != iter && iter->Valid())
             {
-                reply.SetErrCode(ERR_INVALID_TYPE);
-            }
-            else
-            {
-                if (meta.GetObjectLen() >= 0)
+                KeyObject& field = iter->Key();
+                if (field.GetType() != ele_type || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != key.GetKey())
                 {
-                    reply.SetInteger(meta.GetObjectLen());
+                    break;
                 }
-                else
-                {
-                    KeyType ele_type = element_type(type);
-                    int64_t len = 0;
-                    KeyObject key(ctx.ns, ele_type, keystr);
-                    Iterator* iter = m_engine->Find(ctx, key);
-                    while (NULL != iter && iter->Valid())
-                    {
-                        KeyObject& field = iter->Key();
-                        if (field.GetType() != ele_type || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != field.GetKey())
-                        {
-                            break;
-                        }
-                        len++;
-                        iter->Next();
-                    }
-                    DELETE(iter);
-                    reply.SetInteger(len);
-                }
+                len++;
+                iter->Next();
             }
+            DELETE(iter);
+            reply.SetInteger(len);
         }
         return 0;
     }
 
     int Ardb::GetMinMax(Context& ctx, const KeyObject& key, ValueObject& meta, Iterator*& iter)
     {
-    	if (NULL != iter)
-    	        {
-    	            WARN_LOG("Not NULL iterator before getting min/max element.");
-    	            return -1;
-    	        }
-    	        if (meta.GetType() == 0 )
-    	        {
-    	            return 0;
-    	        }
-    	        KeyType ele_type = element_type((KeyType)meta.GetType());
-    	        KeyObject start_element(ctx.ns, ele_type, key.GetKey());
-    	        start_element.SetMember(meta.GetMin(), 0);
-    	        iter = m_engine->Find(ctx, start_element);
-    	        if(!meta.GetMin().IsNil() && !meta.GetMax().IsNil())
-    	        {
-    	            return 0;
-    	        }
-    	        if (NULL == iter || !iter->Valid())
-    	        {
-    	            DELETE(iter);
-    	            return -1;
-    	        }
-    	        KeyObject& min_key = iter->Key();
-    	        if (min_key.GetKey() != key.GetKey() || min_key.GetType() != ele_type || min_key.GetNameSpace() != key.GetNameSpace())
-    	        {
-    	            WARN_LOG("Invalid start iterator to fetch max element");
-    	            DELETE(iter);
-    	            return -1;
-    	        }
-    	        bool meta_changed = false;
-    	        if (meta.GetMin().IsNil())
-    	        {
-    	            meta.SetMinData(min_key.GetElement(0));
-    	            meta_changed = true;
-    	        }
-    	        if (meta.GetMax().IsNil())
-    	        {
-    	            iter->JumpToLast();
-    	            if (!iter->Valid())
-    	            {
-    	                DELETE(iter);
-    	                WARN_LOG("Invalid iterator to fetch max element");
-    	                return -1;
-    	            }
-    	            KeyObject& iter_key = iter->Key();
-    	            if (iter_key.GetType() != ele_type || iter_key.GetKey() != key.GetKey() || iter_key.GetNameSpace() != key.GetNameSpace())
-    	            {
-    	                DELETE(iter);
-    	                WARN_LOG("Invalid iterator key to fetch max element");
-    	                return -1;
-    	            }
-    	            meta.SetMaxData(iter_key.GetElement(0));
-    	            meta_changed = true;
-    	        }
-    	        if (meta_changed)
-    	        {
-    	            m_engine->Put(ctx, key, meta);
-    	        }
-    	        start_element.SetMember(meta.GetMin(), 0);
-    	        iter->Jump(start_element);
-    	        return 0;
+        if (NULL != iter)
+        {
+            WARN_LOG("Not NULL iterator before getting min/max element.");
+            return -1;
+        }
+        if (meta.GetType() == 0)
+        {
+            return 0;
+        }
+        KeyType ele_type = element_type((KeyType) meta.GetType());
+        KeyObject start_element(ctx.ns, ele_type, key.GetKey());
+        start_element.SetMember(meta.GetMin(), 0);
+        iter = m_engine->Find(ctx, start_element);
+        if (!meta.GetMin().IsNil() && !meta.GetMax().IsNil())
+        {
+            return 0;
+        }
+        if (NULL == iter || !iter->Valid())
+        {
+            DELETE(iter);
+            return -1;
+        }
+        KeyObject& min_key = iter->Key();
+        if (min_key.GetKey() != key.GetKey() || min_key.GetType() != ele_type || min_key.GetNameSpace() != key.GetNameSpace())
+        {
+            WARN_LOG("Invalid start iterator to fetch max element");
+            DELETE(iter);
+            return -1;
+        }
+        bool meta_changed = false;
+        if (meta.GetMin().IsNil())
+        {
+            meta.SetMinData(min_key.GetElement(0));
+            meta_changed = true;
+        }
+        if (meta.GetMax().IsNil())
+        {
+            iter->JumpToLast();
+            if (!iter->Valid())
+            {
+                DELETE(iter);
+                WARN_LOG("Invalid iterator to fetch max element");
+                return -1;
+            }
+            KeyObject& iter_key = iter->Key();
+            if (iter_key.GetType() != ele_type || iter_key.GetKey() != key.GetKey() || iter_key.GetNameSpace() != key.GetNameSpace())
+            {
+                DELETE(iter);
+                WARN_LOG("Invalid iterator key to fetch max element");
+                return -1;
+            }
+            meta.SetMaxData(iter_key.GetElement(0));
+            meta_changed = true;
+        }
+        if (meta_changed)
+        {
+            m_engine->Put(ctx, key, meta);
+        }
+        start_element.SetMember(meta.GetMin(), 0);
+        iter->Jump(start_element);
+        return 0;
     }
     int Ardb::GetMinMax(Context& ctx, const KeyObject& key, KeyType expected, ValueObject& meta, Iterator*& iter)
     {
@@ -158,20 +145,109 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::KeysCount(Context& ctx, RedisCommandFrame& cmd)
     {
-        return 0;
+        return Keys(ctx, cmd);
     }
     int Ardb::Randomkey(Context& ctx, RedisCommandFrame& cmd)
     {
-
         return 0;
     }
     int Ardb::Scan(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
+        uint32 limit = 1000; //return max 1000 keys one time
+        std::string pattern;
+        if (cmd.GetArguments().size() > 1)
+        {
+            for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+            {
+                if (!strcasecmp(cmd.GetArguments()[i].c_str(), "count"))
+                {
+                    if (i + 1 >= cmd.GetArguments().size() || !string_touint32(cmd.GetArguments()[i + 1], limit))
+                    {
+                        reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
+                        return 0;
+                    }
+                    i++;
+                }
+                else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "match"))
+                {
+                    if (i + 1 >= cmd.GetArguments().size())
+                    {
+                        reply.SetErrorReason("'MATCH' need one args followed");
+                        return 0;
+                    }
+                    pattern = cmd.GetArguments()[i + 1];
+                    i++;
+                }
+                else
+                {
+                    reply.SetErrorReason("Syntax error, try scan 0");
+                    return 0;
+                }
+            }
+        }
+        uint32 scan_count_limit = limit * 10;
+        uint32 scan_count = 0;
         return 0;
     }
 
     int Ardb::Keys(Context& ctx, RedisCommandFrame& cmd)
     {
+        const std::string& pattern = cmd.GetArguments()[0];
+        ctx.flags.iterate_multi_keys = 1;
+        std::string start;
+        for (size_t i = 0; i < pattern.size(); i++)
+        {
+            if (pattern[i] != '*' && pattern[i] != '?' && pattern[i] != '[' && pattern[i] != '\\')
+            {
+                start.append(pattern[i], 1);
+            }
+            else
+            {
+                break;
+            }
+        }
+        RedisReply& reply = ctx.GetReply();
+        if (cmd.GetType() == REDIS_CMD_KEYS)
+        {
+            reply.ReserveMember(0);
+        }
+        else
+        {
+            reply.SetInteger(0);
+        }
+        bool noregex = start == pattern;
+        int64_t match_count = 0;
+        KeyObject startkey(ctx.ns, KEY_META, start);
+        Iterator* iter = m_engine->Find(ctx, startkey);
+        while (iter->Valid())
+        {
+            KeyObject& k = iter->Key();
+            if (k.GetType() == KEY_META)
+            {
+                std::string keystr;
+                k.GetKey().ToString(keystr);
+                if (stringmatchlen(pattern.c_str(), pattern.size(), keystr.c_str(), keystr.size(), 0) == 1)
+                {
+                    match_count++;
+                    if (cmd.GetType() == REDIS_CMD_KEYS)
+                    {
+                        RedisReply& r = reply.AddMember();
+                        r.SetString(keystr);
+                    }
+                    if (noregex)
+                    {
+                        break;
+                    }
+                }
+            }
+            iter->Next();
+        }
+        DELETE(iter);
+        if (cmd.GetType() == REDIS_CMD_KEYSCOUNT)
+        {
+            reply.SetInteger(match_count);
+        }
         return 0;
     }
 
@@ -196,11 +272,10 @@ OP_NAMESPACE_BEGIN
         RedisReply& reply = ctx.GetReply();
         KeyObject meta_key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
         ValueObject meta_value;
-        int err = m_engine->Get(ctx, meta_key, meta_value);
-        if (err != 0 && err != ERR_ENTRY_NOT_EXIST)
+        KeyLockGuard guard(meta_key);
+        if (!CheckMeta(ctx, meta_key, (KeyType) 0, meta_value))
         {
-            reply.SetErrCode(err);
-            return false;
+            return 0;
         }
         switch (meta_value.GetType())
         {
@@ -245,7 +320,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::Persist(Context& ctx, RedisCommandFrame& cmd)
     {
-        return 0;
+        return PExpireat(ctx, cmd);
     }
 
     int Ardb::MergeExpire(Context& ctx, const KeyObject& key, ValueObject& meta, int64 ms)
@@ -262,13 +337,22 @@ OP_NAMESPACE_BEGIN
     {
         RedisReply& reply = ctx.GetReply();
         int64 mills;
-        if (!string_toint64(cmd.GetArguments()[1], mills) || mills <= 0)
+        if (cmd.GetArguments().size() == 2)
         {
-            reply.SetErrCode(ERR_OUTOFRANGE);
-            return 0;
+            if (!string_toint64(cmd.GetArguments()[1], mills) || mills <= 0)
+            {
+                reply.SetErrCode(ERR_OUTOFRANGE);
+                return 0;
+            }
         }
+
         switch (cmd.GetType())
         {
+            case REDIS_CMD_PERSIST:
+            {
+                mills = 0;
+                break;
+            }
             case REDIS_CMD_PEXPIREAT:
             case REDIS_CMD_PEXPIREAT2:
             {
@@ -305,7 +389,25 @@ OP_NAMESPACE_BEGIN
             merge_data.SetInt64(mills);
             m_engine->Merge(ctx, key, REDIS_CMD_PEXPIREAT, merge_data);
             reply.SetStatusCode(STATUS_OK);
-            return 0;
+        }
+        else
+        {
+            ValueObject meta_value;
+            KeyLockGuard guard(key);
+            if (!CheckMeta(ctx, key, (KeyType) 0, meta_value))
+            {
+                return 0;
+            }
+            if (meta_value.GetType() == 0)
+            {
+                reply.SetInteger(0);
+            }
+            else
+            {
+                meta_value.SetTTL(mills);
+                m_engine->Put(ctx, key, meta_value);
+                reply.SetInteger(1);
+            }
         }
         return 0;
     }

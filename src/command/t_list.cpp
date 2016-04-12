@@ -43,6 +43,7 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         KeyObject k(ctx.ns, KEY_META, cmd.GetArguments()[0]);
+        KeyLockGuard guard(k);
         ValueObject v;
         int err;
         if (!CheckMeta(ctx, k, KEY_LIST, v))

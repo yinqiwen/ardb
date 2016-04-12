@@ -179,9 +179,9 @@ OP_NAMESPACE_BEGIN
         if (clone)
         {
             void* s = malloc(slen);
-                                data = (int64_t) s;
-                                memcpy(s, (char*) str, slen);
-                                encoding = E_SDS;
+            data = (int64_t) s;
+            memcpy(s, (char*) str, slen);
+            encoding = E_SDS;
         }
         else
         {
@@ -263,6 +263,10 @@ OP_NAMESPACE_BEGIN
     }
     int Data::Compare(const Data& right, bool alpha_cmp) const
     {
+        if (IsNil() || right.IsNil())
+        {
+            return right.IsNil() - IsNil();
+        }
         if (!alpha_cmp)
         {
             if (IsInteger() && right.IsInteger())

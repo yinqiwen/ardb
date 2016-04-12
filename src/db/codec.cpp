@@ -36,6 +36,31 @@
 
 OP_NAMESPACE_BEGIN
 
+    void KeyObject::SetType(uint8 t)
+    {
+        type = t;
+        switch (type)
+        {
+            case KEY_SET_MEMBER:
+            case KEY_LIST_ELEMENT:
+            case KEY_ZSET_SCORE:
+            case KEY_HASH_FIELD:
+            {
+                elements.resize(1);
+                break;
+            }
+            case KEY_ZSET_SORT:
+            {
+                elements.resize(2);
+                break;
+            }
+            default:
+            {
+                break;
+            }
+        }
+    }
+
     bool KeyObject::DecodeNS(Buffer& buffer, bool clone_str)
     {
         return ns.Decode(buffer, clone_str);

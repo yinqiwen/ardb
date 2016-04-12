@@ -600,7 +600,7 @@ OP_NAMESPACE_BEGIN
         }
         if (meta.GetType() > 0)
         {
-            if (meta.GetType() != expected)
+            if (expected > 0 && meta.GetType() != expected)
             {
                 reply.SetErrCode(ERR_INVALID_TYPE);
                 return false;

@@ -93,15 +93,18 @@ OP_NAMESPACE_BEGIN
             KeyObject(uint8 t = 0) :
                     type(t)
             {
+                SetType(t);
             }
             KeyObject(const Data& nns, uint8 t, const std::string& data) :
-                    ns(nns), type(t)
+                    ns(nns), type(0)
             {
                 key.SetString(data, false);
+                SetType(t);
             }
             KeyObject(const Data& nns, uint8 t, const Data& key_data) :
-                    ns(nns), type(t), key(key_data)
+                    ns(nns), type(0), key(key_data)
             {
+                SetType(t);
             }
             void Clear()
             {
@@ -131,10 +134,7 @@ OP_NAMESPACE_BEGIN
             {
                 return (KeyType) type;
             }
-            void SetType(uint8 t)
-            {
-                type = t;
-            }
+            void SetType(uint8 t);
             void SetKey(const Data& d)
             {
                 key = d;
@@ -401,23 +401,38 @@ OP_NAMESPACE_BEGIN
             }
             bool Parse(const std::string& minstr, const std::string& maxstr);
 
-            bool InRange(const Data& d) const
+            int InRange(const Data& d) const
             {
-                bool inrange = d >= min && d <= max;
-                if (inrange)
+                int inrange = 0;
+                if (d >= min)
+                {
+                    if (d <= max)
+                    {
+                        inrange = 0;
+                    }
+                    else
+                    {
+                        inrange = 1;
+                    }
+                }
+                else
+                {
+                    inrange = -1;
+                }
+                if (0 == inrange)
                 {
                     if (!contain_min && d == min)
                     {
-                        inrange = false;
+                        inrange = -1;
                     }
                     if (!contain_max && d == max)
                     {
-                        inrange = false;
+                        inrange = 1;
                     }
                 }
                 return inrange;
             }
-            bool InRange(double d) const
+            int InRange(double d) const
             {
                 Data data;
                 data.SetFloat64(d);
@@ -435,27 +450,41 @@ OP_NAMESPACE_BEGIN
             {
             }
             bool Parse(const std::string& minstr, const std::string& maxstr);
-            bool InRange(const std::string& str) const
+            int InRange(const std::string& str) const
             {
-                bool in_range = false;
+                int in_range = -1;
                 if (max.empty())
                 {
-                    in_range = str >= min;
+                    in_range = str >= min ? 0 : -1;
                 }
                 else
                 {
-                    in_range = str >= min && str <= max;
+                    if (str >= min)
+                    {
+                        if (str <= max)
+                        {
+                            in_range = 0;
+                        }
+                        else
+                        {
+                            in_range = 1;
+                        }
+                    }
+                    else
+                    {
+                        in_range = -1;
+                    }
                 }
 
-                if (in_range)
+                if (0 == in_range)
                 {
                     if (!include_min && str == min)
                     {
-                        return false;
+                        return -1;
                     }
                     if (!include_max && str == max)
                     {
-                        return false;
+                        return 1;
                     }
                 }
                 return in_range;
