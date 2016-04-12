@@ -1400,9 +1400,9 @@ namespace ardb
         ctx.flags.create_if_notexist = 1;
         KeyObject key(ctx.ns, KEY_META, keystr);
         DataArray args(cmd.GetArguments().size() - 1);
-        for (size_t i = 1; i < args.size(); i++)
+        for (size_t i = 1; i < cmd.GetArguments().size(); i++)
         {
-            args[i].SetString(cmd.GetArguments()[i], false);
+            args[i-1].SetString(cmd.GetArguments()[i], false);
         }
         int err = 0;
         if (!ctx.flags.redis_compatible)
@@ -1431,7 +1431,7 @@ namespace ardb
         {
             err = m_engine->Put(ctx, key, meta);
         }
-        if (err != 0)
+        if (err != 0 && err != ERR_NOTPERFORMED)
         {
             reply.SetErrCode(err);
         }
@@ -1526,7 +1526,7 @@ namespace ardb
         struct hllhdr *hdr = (struct hllhdr*) max;
         hdr->encoding = HLL_RAW; /* Special internal-only encoding. */
         registers = max + HLL_HDR_SIZE;
-        for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+        for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
         {
             ValueObject hll;
             if (!CheckMeta(ctx, cmd.GetArguments()[i], KEY_STRING, hll))

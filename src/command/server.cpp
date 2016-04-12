@@ -671,7 +671,6 @@ namespace ardb
         RedisReply& reply = ctx.GetReply();
         reply.SetStatusCode(STATUS_OK);
         KeyObject start, end;
-
         m_engine->Compact(ctx, start, end);
         return 0;
     }
@@ -679,6 +678,7 @@ namespace ardb
     int Ardb::CompactAll(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
+        reply.SetStatusCode(STATUS_OK);
         return 0;
     }
     /*

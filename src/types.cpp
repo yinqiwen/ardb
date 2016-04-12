@@ -194,7 +194,7 @@ OP_NAMESPACE_BEGIN
     void Data::SetString(const std::string& str, bool try_int_encoding)
     {
         int64_t int_val;
-        if (str.size() <= 21 && string2ll(str.data(), str.size(), &int_val))
+        if (try_int_encoding && str.size() <= 21 && string2ll(str.data(), str.size(), &int_val))
         {
             SetInt64((int64) int_val);
             return;

@@ -118,7 +118,7 @@ OP_NAMESPACE_BEGIN
             {
                 return ns;
             }
-            void SetNameSpce(const Data& nns)
+            void SetNameSpace(const Data& nns)
             {
                 ns = nns;
             }

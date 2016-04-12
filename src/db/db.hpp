@@ -144,6 +144,10 @@ OP_NAMESPACE_BEGIN
 
             bool GetLongFromProtocol(Context& ctx, const std::string& str, int64_t& v);
 
+            void ClearExpireRedisCursor();
+            int FindElementByRedisCursor(const std::string& cursor, std::string& element);
+            uint64 GetNewRedisCursor(const std::string& element);
+
             void TryPushSlowCommand(const RedisCommandFrame& cmd, uint64 micros);
             void GetSlowlog(Context& ctx, uint32 len);
             int ObjectLen(Context& ctx, KeyType type, const std::string& key);
@@ -183,6 +187,8 @@ OP_NAMESPACE_BEGIN
             int GetMinMax(Context& ctx, const KeyObject& key, KeyType ele_type, ValueObject& meta, Iterator*& iter);
 
             int DelKey(Context& ctx, const KeyObject& meta_key, Iterator*& iter);
+            int DelKey(Context& ctx, const KeyObject& meta_key);
+            int MoveKey(Context& ctx, RedisCommandFrame& cmd);
 
             int HIterate(Context& ctx, RedisCommandFrame& cmd);
             int ZIterateByRank(Context& ctx, RedisCommandFrame& cmd);

@@ -188,6 +188,7 @@ OP_NAMESPACE_BEGIN
         }
         uint32 scan_count_limit = limit * 10;
         uint32 scan_count = 0;
+
         return 0;
     }
 
@@ -251,20 +252,67 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
+    int Ardb::MoveKey(Context& ctx, RedisCommandFrame& cmd)
+    {
+        RedisReply& reply = ctx.GetReply();
+        Data srcdb, dstdb;
+        const std::string& srckey = cmd.GetArguments()[0];
+        std::string dstkey;
+        srcdb = ctx.ns;
+        if (cmd.GetType() == REDIS_CMD_RENAME || cmd.GetType() == REDIS_CMD_RENAMENX)
+        {
+            dstkey = cmd.GetArguments()[1];
+            dstdb = srcdb;
+        }
+        else
+        {
+            dstkey = srckey;
+            dstdb.SetString(cmd.GetArguments()[1], true);
+        }
+        bool nx = cmd.GetType() == REDIS_CMD_RENAMENX || cmd.GetType() == REDIS_CMD_MOVE;
+        KeyObject src(srcdb, KEY_META, srckey);
+        KeyObject dst(dstdb, KEY_META, dstkey);
+        KeysLockGuard guard(src, dst);
+        if (m_engine->Exists(ctx, dst))
+        {
+            if (nx)
+            {
+                reply.SetInteger(0);
+                return 0;
+            }
+            DelKey(ctx, dst);
+        }
+        int64_t moved = 0;
+        Iterator* iter = m_engine->Find(ctx, src);
+        while(iter->Valid())
+        {
+            KeyObject& k = iter->Key();
+            if(k.GetKey() != src.GetKey() || k.GetNameSpace() != src.GetNameSpace())
+            {
+                break;
+            }
+            k.SetNameSpace(dstdb);
+            m_engine->Put(ctx, k, iter->Value());
+            iter->Next();
+        }
+        DELETE(iter);
+        reply.SetInteger(moved > 0 ?1:0);
+        return 0;
+    }
+
     int Ardb::Rename(Context& ctx, RedisCommandFrame& cmd)
     {
-        return 0;
+        return MoveKey(ctx, cmd);
     }
 
     int Ardb::RenameNX(Context& ctx, RedisCommandFrame& cmd)
     {
-        Rename(ctx, cmd);
-        return 0;
+        return MoveKey(ctx, cmd);
     }
 
     int Ardb::Move(Context& ctx, RedisCommandFrame& cmd)
     {
-        return 0;
+        return MoveKey(ctx, cmd);
     }
 
     int Ardb::Type(Context& ctx, RedisCommandFrame& cmd)
@@ -465,6 +513,14 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
+    int Ardb::DelKey(Context& ctx, const KeyObject& meta_key)
+    {
+        Iterator* iter = NULL;
+        int ret = DelKey(ctx, meta_key, iter);
+        DELETE(iter);
+        return ret;
+    }
+
     int Ardb::DelKey(Context& ctx, const KeyObject& meta_key, Iterator*& iter)
     {
         if (NULL == iter)
@@ -480,8 +536,7 @@ OP_NAMESPACE_BEGIN
         {
             KeyObject& k = iter->Key();
             const Data& kdata = k.GetKey();
-            if (k.GetNameSpace().Compare(meta_key.GetNameSpace()) != 0 || kdata.StringLength() != meta_key.GetKey().StringLength()
-                    || strncmp(meta_key.GetKey().CStr(), kdata.CStr(), kdata.StringLength()) != 0)
+            if (k.GetNameSpace().Compare(meta_key.GetNameSpace()) != 0 || kdata.StringLength() != meta_key.GetKey().StringLength() || strncmp(meta_key.GetKey().CStr(), kdata.CStr(), kdata.StringLength()) != 0)
             {
                 break;
             }

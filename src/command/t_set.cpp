@@ -519,9 +519,7 @@ OP_NAMESPACE_BEGIN
                 {
                     if (metas[0].GetType() > 0)
                     {
-                        Iterator* iter = NULL;
-                        DelKey(ctx, keys[0], iter);
-                        DELETE(iter);
+                        DelKey(ctx, keys[0]);
                     }
                 }
                 reply.SetInteger(0); //REDIS_CMD_SDIFFCOUNT & REDIS_CMD_SDIFFSTORE

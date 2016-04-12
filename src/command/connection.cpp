@@ -46,7 +46,7 @@ OP_NAMESPACE_BEGIN
     }
     int Ardb::Select(Context& ctx, RedisCommandFrame& cmd)
     {
-        ctx.ns.SetString(cmd.GetArguments()[0], false);
+        ctx.ns.SetString(cmd.GetArguments()[0], true);
         return 0;
     }
 

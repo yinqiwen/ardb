@@ -703,7 +703,7 @@ OP_NAMESPACE_BEGIN
             if(!ctx.flags.iterate_multi_keys)
             {
                 KeyObject& upperbound_key = iter->IterateUpperBoundKey();
-                upperbound_key.SetNameSpce(ctx.ns);
+                upperbound_key.SetNameSpace(key.GetNameSpace());
                 if (key.GetType() == KEY_META)
                 {
                 	upperbound_key.SetType(KEY_END);
@@ -750,7 +750,7 @@ OP_NAMESPACE_BEGIN
 
     int RocksDBEngine::Compact(Context& ctx, const KeyObject& start, const KeyObject& end)
     {
-        rocksdb::ColumnFamilyHandle* cf = GetColumnFamilyHandle(ctx, ctx.ns);
+        rocksdb::ColumnFamilyHandle* cf = GetColumnFamilyHandle(ctx, start.GetNameSpace());
         if (NULL == cf)
         {
             return ERR_ENTRY_NOT_EXIST;
@@ -839,7 +839,7 @@ OP_NAMESPACE_BEGIN
         rocksdb::Slice key = m_iter->key();
         Buffer kbuf(const_cast<char*>(key.data()), 0, key.size());
         m_key.Decode(kbuf, true);
-        m_key.SetNameSpce(m_ns);
+        m_key.SetNameSpace(m_ns);
         return m_key;
     }
     ValueObject& RocksDBIterator::Value()

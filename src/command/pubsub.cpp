@@ -310,8 +310,8 @@ namespace ardb
 
     int Ardb::Publish(Context& ctx, RedisCommandFrame& cmd)
     {
-//        const std::string& channel = cmd.GetArguments()[0];
-//        const std::string& message = cmd.GetArguments()[1];
+        const std::string& channel = cmd.GetArguments()[0];
+        const std::string& message = cmd.GetArguments()[1];
 //        int count = 0;
 //        count += PublishMessage(ctx, channel, message);
 //        fill_int_reply(ctx.reply, count);

@@ -1095,9 +1095,7 @@ OP_NAMESPACE_BEGIN
         }
         if (vs[vs.size() - 1].GetType() > 0)
         {
-            Iterator* iter = NULL;
-            DelKey(ctx, destkey, iter);
-            DELETE(iter);
+            DelKey(ctx, destkey);
         }
 
         if (!inter_union_result[result_cursor].empty())

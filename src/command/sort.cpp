@@ -33,8 +33,127 @@
 
 namespace ardb
 {
+    struct SortOptions
+    {
+            const char* by;
+            bool with_limit;
+            int32 limit_offset;
+            int32 limit_count;
+            std::vector<const char*> get_patterns;
+            bool is_desc;
+            bool with_alpha;
+            bool nosort;
+            const char* store_dst;
+            SortOptions() :
+                    by(NULL), with_limit(false), limit_offset(0), limit_count(0), is_desc(false), with_alpha(false), nosort(false), store_dst(
+                    NULL)
+            {
+            }
+            bool Parse(const std::deque<std::string>& args, uint32 idx)
+            {
+                for (uint32 i = idx; i < args.size(); i++)
+                {
+                    if (!strcasecmp(args[i].c_str(), "asc"))
+                    {
+                        is_desc = false;
+                    }
+                    else if (!strcasecmp(args[i].c_str(), "desc"))
+                    {
+                        is_desc = true;
+                    }
+                    else if (!strcasecmp(args[i].c_str(), "alpha"))
+                    {
+                        with_alpha = true;
+                    }
+                    else if (!strcasecmp(args[i].c_str(), "limit") && (i + 2) < args.size())
+                    {
+                        with_limit = true;
+                        if (!string_toint32(args[i + 1], limit_offset) || !string_toint32(args[i + 2], limit_count))
+                        {
+                            return false;
+                        }
+                        i += 2;
+                    }
+                    else if (!strcasecmp(args[i].c_str(), "store") && i < args.size() - 1)
+                    {
+                        store_dst = args[i + 1].c_str();
+                        i++;
+                    }
+                    else if (!strcasecmp(args[i].c_str(), "by") && i < args.size() - 1)
+                    {
+                        by = args[i + 1].c_str();
+                        if (!strcasecmp(by, "nosort"))
+                        {
+                            by = NULL;
+                            nosort = true;
+                        }
+                        i++;
+                    }
+                    else if (!strcasecmp(args[i].c_str(), "get") && i < args.size() - 1)
+                    {
+                        get_patterns.push_back(args[i + 1].c_str());
+                        i++;
+                    }
+                    else
+                    {
+                        DEBUG_LOG("Invalid sort option:%s", args[i].c_str());
+                        return false;
+                    }
+                }
+                return true;
+            }
+    };
+    struct SortValue
+    {
+            Data* value;
+            Data cmp;
+            double score;
+            SortValue(Data* v) :
+                    value(v), score(0)
+            {
+            }
+            int Compare(const SortValue& other) const
+            {
+                if (cmp.IsNil() && other.cmp.IsNil())
+                {
+                    return value->Compare(*other.value);
+                }
+                return cmp.Compare(other.cmp);
+            }
+    };
+    template<typename T>
+    static bool greater_value(const T& v1, const T& v2)
+    {
+        return v1.Compare(v2) > 0;
+    }
+    template<typename T>
+    static bool less_value(const T& v1, const T& v2)
+    {
+        return v1.Compare(v2) < 0;
+    }
     int Ardb::Sort(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
+        SortOptions options;
+        if (!options.Parse(cmd.GetArguments(), 1))
+        {
+            reply.SetErrorReason("Invalid SORT command or invalid state for SORT.");
+            return 0;
+        }
+        KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
+        ValueObject meta;
+        if (!CheckMeta(ctx, key, (KeyType) 0, meta))
+        {
+            return 0;
+        }
+        if(meta.GetType() > 0)
+        {
+            if (meta.GetType() != KEY_SET && meta.GetType() != KEY_ZSET && meta.GetType() != KEY_LIST)
+            {
+                reply.SetErrorReason("Invalid SORT command or invalid state for SORT.");
+                return 0;
+            }
+        }
 
         return 0;
     }
