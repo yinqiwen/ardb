@@ -50,6 +50,25 @@ OP_NAMESPACE_BEGIN
             }
     };
 
+    struct KeyPrefix
+    {
+            Data ns;
+            Data key;
+            bool operator<(const KeyPrefix& other) const
+            {
+                int cmp = ns.Compare(other.ns);
+                if (cmp < 0)
+                {
+                    return true;
+                }
+                if (cmp > 0)
+                {
+                    return false;
+                }
+                return key < other.key;
+            }
+    };
+
     struct ClientContext
     {
             bool processing;
@@ -66,10 +85,12 @@ OP_NAMESPACE_BEGIN
     struct TransactionContext
     {
             bool abort;
+            bool cas;
             RedisCommandFrameArray cached_cmds;
-
+            typedef TreeSet<KeyPrefix>::Type WatchKeySet;
+            WatchKeySet watched_keys;
             TransactionContext() :
-                    abort(false)
+                    abort(false),cas(false)
             {
             }
     };
@@ -150,6 +171,7 @@ OP_NAMESPACE_BEGIN
             {
                 return pubsub != NULL;
             }
+
             TransactionContext& GetTransaction()
             {
                 if (NULL == transc)
@@ -157,6 +179,15 @@ OP_NAMESPACE_BEGIN
                     NEW(transc, TransactionContext);
                 }
                 return *transc;
+            }
+            bool AbortTransaction()
+            {
+                if (InTransaction())
+                {
+                    GetTransaction().abort = true;
+                    return true;
+                }
+                return false;
             }
             PubSubContext& GetPubsub()
             {
@@ -171,6 +202,7 @@ OP_NAMESPACE_BEGIN
                 SetReply(NULL);
             }
     };
+    typedef TreeSet<Context*>::Type ContextSet;
 
 OP_NAMESPACE_END
 

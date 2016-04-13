@@ -532,6 +532,7 @@ OP_NAMESPACE_BEGIN
         {
             s = m_db->Put(opt, cf, key_slice, value_slice);
         }
+        g_db->TouchWatchKey(ctx, key);
         return ROCKSDB_ERR(s);
     }
     int RocksDBEngine::MultiGet(Context& ctx, const KeyObjectArray& keys, ValueObjectArray& values, ErrCodeArray& errs)
@@ -608,6 +609,7 @@ OP_NAMESPACE_BEGIN
         {
             s = m_db->Delete(opt, cf, key_slice);
         }
+        g_db->TouchWatchKey(ctx, key);
         return ROCKSDB_ERR(s);
     }
 
@@ -633,6 +635,7 @@ OP_NAMESPACE_BEGIN
         {
             s = m_db->Merge(opt, cf, key_slice, merge_slice);
         }
+        g_db->TouchWatchKey(ctx, key);
         return ROCKSDB_ERR(s);
     }
 
@@ -700,17 +703,17 @@ OP_NAMESPACE_BEGIN
         if (key.GetType() > 0)
         {
             opt.prefix_same_as_start = true;
-            if(!ctx.flags.iterate_multi_keys)
+            if (!ctx.flags.iterate_multi_keys)
             {
                 KeyObject& upperbound_key = iter->IterateUpperBoundKey();
                 upperbound_key.SetNameSpace(key.GetNameSpace());
                 if (key.GetType() == KEY_META)
                 {
-                	upperbound_key.SetType(KEY_END);
+                    upperbound_key.SetType(KEY_END);
                 }
                 else
                 {
-                	upperbound_key.SetType(key.GetType() + 1);
+                    upperbound_key.SetType(key.GetType() + 1);
                 }
                 upperbound_key.SetKey(key.GetKey());
             }
@@ -761,9 +764,34 @@ OP_NAMESPACE_BEGIN
         rocksdb::Status s = m_db->CompactRange(opt, cf, start.IsValid() ? &start_key : NULL, end.IsValid() ? &end_key : NULL);
         return ROCKSDB_ERR(s);
     }
+
+    int RocksDBEngine::ListNameSpaces(Context& ctx, DataArray& nss)
+    {
+        RWLockGuard<SpinRWLock> guard(m_lock, true);
+        ColumnFamilyHandleTable::iterator it = m_handlers.begin();
+        while (it != m_handlers.end())
+        {
+            nss.push_back(it->first);
+            it++;
+        }
+        return 0;
+    }
+
+    int RocksDBEngine::DropNameSpace(Context& ctx, const Data& ns)
+    {
+        RWLockGuard<SpinRWLock> guard(m_lock, false);
+        ColumnFamilyHandleTable::iterator found = m_handlers.find(ns);
+        if(found != m_handlers.end())
+        {
+            m_db->DropColumnFamily(found->second);
+            m_handlers.erase(found);
+        }
+        return 0;
+    }
+
     bool RocksDBIterator::RocksDBIterator::Valid()
     {
-        return m_valid&& NULL != m_iter && m_iter->Valid();
+        return m_valid && NULL != m_iter && m_iter->Valid();
     }
     void RocksDBIterator::ClearState()
     {
@@ -773,15 +801,15 @@ OP_NAMESPACE_BEGIN
     }
     void RocksDBIterator::CheckBound()
     {
-        if(NULL != m_iter && m_iterate_upper_bound_key.GetType() > 0)
+        if (NULL != m_iter && m_iterate_upper_bound_key.GetType() > 0)
         {
-        	if(m_iter->Valid())
-        	{
-        		if(Key().Compare(m_iterate_upper_bound_key) >=0)
-        		{
-        			m_valid = false;
-        		}
-        	}
+            if (m_iter->Valid())
+            {
+                if (Key().Compare(m_iterate_upper_bound_key) >= 0)
+                {
+                    m_valid = false;
+                }
+            }
         }
     }
     void RocksDBIterator::Next()
@@ -810,20 +838,20 @@ OP_NAMESPACE_BEGIN
     void RocksDBIterator::JumpToLast()
     {
         ClearState();
-        if(m_iterate_upper_bound_key.GetType() > 0)
+        if (m_iterate_upper_bound_key.GetType() > 0)
         {
-        	Jump(m_iterate_upper_bound_key);
-        	if(!m_iter->Valid())
-        	{
-        		 m_iter->SeekToLast();
-        	}
-        	if(m_iter->Valid())
-        	{
-        		if(!Valid())
-        		{
-        			Prev();
-        		}
-        	}
+            Jump(m_iterate_upper_bound_key);
+            if (!m_iter->Valid())
+            {
+                m_iter->SeekToLast();
+            }
+            if (m_iter->Valid())
+            {
+                if (!Valid())
+                {
+                    Prev();
+                }
+            }
         }
         else
         {

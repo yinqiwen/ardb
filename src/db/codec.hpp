@@ -139,6 +139,10 @@ OP_NAMESPACE_BEGIN
             {
                 key = d;
             }
+            void SetKey(const std::string& v)
+            {
+                key.SetString(v, false);
+            }
             void SetHashField(const std::string& v)
             {
                 getElement(0).SetString(v, true);

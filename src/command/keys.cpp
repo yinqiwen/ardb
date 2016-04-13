@@ -151,14 +151,54 @@ OP_NAMESPACE_BEGIN
     {
         return 0;
     }
+
     int Ardb::Scan(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
+        reply.ReserveMember(0);
         uint32 limit = 1000; //return max 1000 keys one time
         std::string pattern;
-        if (cmd.GetArguments().size() > 1)
+        KeyObject startkey;
+        startkey.SetNameSpace(ctx.ns);
+        uint32 cursor_pos = 0;
+        std::string cursor_element;
+        if (cmd.GetType() == REDIS_CMD_HSCAN || cmd.GetType() == REDIS_CMD_HSCAN2)
         {
-            for (uint32 i = 1; i < cmd.GetArguments().size(); i++)
+            cursor_pos = 1;
+            FindElementByRedisCursor(cmd.GetArguments()[cursor_pos], cursor_element);
+            startkey.SetType(KEY_HASH_FIELD);
+            startkey.SetKey(cmd.GetArguments()[0]);
+            startkey.SetHashField(cursor_element);
+
+        }
+        else if (cmd.GetType() == REDIS_CMD_SSCAN || cmd.GetType() == REDIS_CMD_SSCAN2)
+        {
+            cursor_pos = 1;
+            FindElementByRedisCursor(cmd.GetArguments()[cursor_pos], cursor_element);
+            startkey.SetType(KEY_SET_MEMBER);
+            startkey.SetKey(cmd.GetArguments()[0]);
+            startkey.SetSetMember(cursor_element);
+        }
+        else if (cmd.GetType() == REDIS_CMD_ZSCAN || cmd.GetType() == REDIS_CMD_ZSCAN2)
+        {
+            cursor_pos = 1;
+            FindElementByRedisCursor(cmd.GetArguments()[cursor_pos], cursor_element);
+            startkey.SetType(KEY_ZSET_SORT);
+            startkey.SetKey(cmd.GetArguments()[0]);
+            startkey.SetZSetMember(cursor_element);
+        }
+        else
+        {
+            cursor_pos = 0;
+            FindElementByRedisCursor(cmd.GetArguments()[cursor_pos], cursor_element);
+            startkey.SetType(KEY_META);
+            startkey.SetKey(cursor_element);
+            ctx.flags.iterate_multi_keys = 1;
+        }
+
+        if (cmd.GetArguments().size() > cursor_pos + 1)
+        {
+            for (uint32 i = cursor_pos + 1; i < cmd.GetArguments().size(); i++)
             {
                 if (!strcasecmp(cmd.GetArguments()[i].c_str(), "count"))
                 {
@@ -177,6 +217,10 @@ OP_NAMESPACE_BEGIN
                         return 0;
                     }
                     pattern = cmd.GetArguments()[i + 1];
+                    if (pattern == "*")
+                    {
+                        pattern.clear();
+                    }
                     i++;
                 }
                 else
@@ -186,9 +230,112 @@ OP_NAMESPACE_BEGIN
                 }
             }
         }
+        RedisReply& r1 = reply.AddMember();
+        RedisReply& r2 = reply.AddMember();
+        r2.ReserveMember(0);
         uint32 scan_count_limit = limit * 10;
         uint32 scan_count = 0;
-
+        int64_t result_count = 0;
+        Iterator* iter = m_engine->Find(ctx, startkey);
+        std::string match_element;
+        while (iter->Valid())
+        {
+            KeyObject& k = iter->Key();
+            if (cmd.GetType() == REDIS_CMD_SCAN || cmd.GetType() == REDIS_CMD_SCAN2)
+            {
+                if (k.GetType() != KEY_META)
+                {
+                    iter->Next();
+                    continue;
+                }
+                k.GetKey().ToString(match_element);
+            }
+            else
+            {
+                if (k.GetType() != startkey.GetType() || k.GetKey() != startkey.GetKey() || k.GetNameSpace() != startkey.GetNameSpace())
+                {
+                    break;
+                }
+                if (!pattern.empty())
+                {
+                    if (k.GetType() == KEY_ZSET_SORT)
+                    {
+                        k.GetZSetMember().ToString(match_element);
+                    }
+                    else
+                    {
+                        k.GetElement(0).ToString(match_element);
+                    }
+                }
+            }
+            scan_count++;
+            if (!pattern.empty())
+            {
+                if (stringmatchlen(pattern.c_str(), pattern.size(), match_element.c_str(), match_element.size(), 0) != 1)
+                {
+                    iter->Next();
+                    continue;
+                }
+            }
+            result_count++;
+            switch (k.GetType())
+            {
+                case KEY_META:
+                {
+                    RedisReply& rr = r2.AddMember();
+                    rr.SetString(k.GetKey());
+                    break;
+                }
+                case KEY_HASH_FIELD:
+                {
+                    RedisReply& rr = r2.AddMember();
+                    rr.SetString(k.GetHashField());
+                    RedisReply& rr1 = r2.AddMember();
+                    rr1.SetString(iter->Value().GetHashValue());
+                    break;
+                }
+                case KEY_ZSET_SORT:
+                {
+                    RedisReply& rr = r2.AddMember();
+                    rr.SetString(k.GetZSetMember());
+                    RedisReply& rr1 = r2.AddMember();
+                    rr1.SetString(k.GetElement(0));
+                    break;
+                }
+                case KEY_SET_MEMBER:
+                {
+                    RedisReply& rr = r2.AddMember();
+                    rr.SetString(k.GetSetMember());
+                    break;
+                }
+                default:
+                {
+                    break;
+                }
+            }
+            if (scan_count >= scan_count_limit || result_count >= limit)
+            {
+                break;
+            }
+            iter->Next();
+        }
+        if (!iter->Valid())
+        {
+            r1.SetString("0");
+        }
+        else
+        {
+            if (ctx.flags.redis_compatible)
+            {
+                uint64 newcursor = GetNewRedisCursor(match_element);
+                r1.SetString(stringfromll(newcursor));
+            }
+            else
+            {
+                r1.SetString(match_element);
+            }
+        }
+        DELETE(iter);
         return 0;
     }
 
@@ -284,10 +431,10 @@ OP_NAMESPACE_BEGIN
         }
         int64_t moved = 0;
         Iterator* iter = m_engine->Find(ctx, src);
-        while(iter->Valid())
+        while (iter->Valid())
         {
             KeyObject& k = iter->Key();
-            if(k.GetKey() != src.GetKey() || k.GetNameSpace() != src.GetNameSpace())
+            if (k.GetKey() != src.GetKey() || k.GetNameSpace() != src.GetNameSpace())
             {
                 break;
             }
@@ -296,7 +443,7 @@ OP_NAMESPACE_BEGIN
             iter->Next();
         }
         DELETE(iter);
-        reply.SetInteger(moved > 0 ?1:0);
+        reply.SetInteger(moved > 0 ? 1 : 0);
         return 0;
     }
 
@@ -536,7 +683,8 @@ OP_NAMESPACE_BEGIN
         {
             KeyObject& k = iter->Key();
             const Data& kdata = k.GetKey();
-            if (k.GetNameSpace().Compare(meta_key.GetNameSpace()) != 0 || kdata.StringLength() != meta_key.GetKey().StringLength() || strncmp(meta_key.GetKey().CStr(), kdata.CStr(), kdata.StringLength()) != 0)
+            if (k.GetNameSpace().Compare(meta_key.GetNameSpace()) != 0 || kdata.StringLength() != meta_key.GetKey().StringLength()
+                    || strncmp(meta_key.GetKey().CStr(), kdata.CStr(), kdata.StringLength()) != 0)
             {
                 break;
             }
@@ -544,7 +692,6 @@ OP_NAMESPACE_BEGIN
             m_engine->Del(ctx, k);
             iter->Next();
         }
-        //DELETE(iter);
         return removed;
     }
 

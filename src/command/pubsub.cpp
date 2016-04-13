@@ -161,11 +161,14 @@ namespace ardb
 
     int Ardb::Subscribe(Context& ctx, RedisCommandFrame& cmd)
     {
-//        ctx.client->GetWritableOptions().max_write_buffer_size = (int32)(m_cfg.pubsub_client_output_buffer_limit);
-//        for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
-//        {
-//            SubscribeChannel(ctx, cmd.GetArguments()[i], true);
-//        }
+//        ctx.client->client->GetWritableOptions().max_write_buffer_size = (int32) (m_cfg.pubsub_client_output_buffer_limit);
+        for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
+        {
+            const std::string& channel = cmd.GetArguments()[i];
+            ctx.GetPubsub().pubsub_channels.insert(channel);
+            WriteLockGuard<SpinRWLock> guard(m_pubsub_lock);
+            m_pubsub_channels[channel].insert(&ctx);
+        }
         return 0;
     }
 
@@ -187,10 +190,13 @@ namespace ardb
     int Ardb::PSubscribe(Context& ctx, RedisCommandFrame& cmd)
     {
 //        ctx.client->GetWritableOptions().max_write_buffer_size = (int32)(m_cfg.pubsub_client_output_buffer_limit);
-//        for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
-//        {
-//            PSubscribeChannel(ctx, cmd.GetArguments()[i], true);
-//        }
+        for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
+        {
+            const std::string& pattern = cmd.GetArguments()[i];
+            ctx.GetPubsub().pubsub_patterns.insert(pattern);
+            WriteLockGuard<SpinRWLock> guard(m_pubsub_lock);
+            m_pubsub_patterns[pattern].insert(&ctx);
+        }
         return 0;
     }
     int Ardb::PUnSubscribe(Context& ctx, RedisCommandFrame& cmd)
@@ -240,7 +246,7 @@ namespace ardb
     static void async_write_message(Channel* ch, void * data)
     {
         RedisReply* r = (RedisReply*) data;
-        if(!ch->Write(*r))
+        if (!ch->Write(*r))
         {
             ch->Close();
         }

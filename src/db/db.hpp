@@ -35,6 +35,7 @@
 #include "thread/spin_mutex_lock.hpp"
 #include "thread/thread_mutex_lock.hpp"
 #include "channel/all_includes.hpp"
+#include "util/lru.hpp"
 #include "command/lua_scripting.hpp"
 #include "db/engine.hpp"
 #include "statistics.hpp"
@@ -90,25 +91,6 @@ OP_NAMESPACE_BEGIN
                     bool operator()(const std::string& s1, const std::string& s2) const;
             };
 
-            struct KeyPrefix
-            {
-                    Data ns;
-                    Data key;
-                    bool operator<(const KeyPrefix& other) const
-                    {
-                        int cmp = ns.Compare(other.ns);
-                        if (cmp < 0)
-                        {
-                            return true;
-                        }
-                        if (cmp > 0)
-                        {
-                            return false;
-                        }
-                        return key < other.key;
-                    }
-            };
-
             struct KeyLockGuard
             {
                     bool lock;
@@ -137,6 +119,20 @@ OP_NAMESPACE_BEGIN
             LockTable m_locking_keys;
             LockPool m_lock_pool;
 
+            SpinMutexLock m_redis_cursor_lock;
+            typedef LRUCache<uint64, std::string> RedisCursorCache;
+            uint64  m_redis_cursor_seed;
+            RedisCursorCache m_redis_cursor_cache;
+
+            typedef TreeMap<std::string, ContextSet>::Type PubSubChannelTable;
+            SpinRWLock m_pubsub_lock;
+            PubSubChannelTable m_pubsub_channels;
+            PubSubChannelTable m_pubsub_patterns;
+
+            SpinRWLock m_watched_keys_lock;
+            typedef TreeMap<KeyPrefix, ContextSet>::Type WatchedContextTable;
+            WatchedContextTable m_watched_ctxs;
+
             void LockKey(KeyObject& key);
             void UnlockKey(KeyObject& key);
             void LockKeys(KeyObjectArray& key);
@@ -144,7 +140,6 @@ OP_NAMESPACE_BEGIN
 
             bool GetLongFromProtocol(Context& ctx, const std::string& str, int64_t& v);
 
-            void ClearExpireRedisCursor();
             int FindElementByRedisCursor(const std::string& cursor, std::string& element);
             uint64 GetNewRedisCursor(const std::string& element);
 
@@ -197,7 +192,8 @@ OP_NAMESPACE_BEGIN
 
             int WatchForKey(Context& ctx, const std::string& key);
             int UnwatchKeys(Context& ctx);
-            int AbortWatchKey(Context& ctx, const std::string& key);
+            int TouchWatchedKeysOnFlush(Context& ctx, const Data& ns);
+            int DiscardTransaction(Context& ctx);
 
             int IncrDecrCommand(Context& ctx, RedisCommandFrame& cmd);
 
@@ -393,6 +389,7 @@ OP_NAMESPACE_BEGIN
             int Call(Context& ctx, RedisCommandFrame& cmd);
             int MergeOperation(KeyObject& key, ValueObject& val, uint16_t op, DataArray& args);
             int MergeOperands(uint16_t left, const DataArray& left_args, uint16_t& right, DataArray& right_args);
+            int TouchWatchKey(Context& ctx, const KeyObject& key);
             const ArdbConfig& GetConf() const
             {
                 return m_conf;

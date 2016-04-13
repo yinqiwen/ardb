@@ -241,6 +241,10 @@ namespace ardb
             REDIS_CMD_PEXPIRE2 = 1027,
             REDIS_CMD_SETBIT2 = 1028,
             REDIS_CMD_PFADD2 = 1029,
+            REDIS_CMD_HSCAN2 = 1030,
+            REDIS_CMD_SSCAN2 = 1031,
+            REDIS_CMD_SCAN2 = 1032,
+            REDIS_CMD_ZSCAN2 = 1033,
         };
 
         class RedisCommandDecoder;

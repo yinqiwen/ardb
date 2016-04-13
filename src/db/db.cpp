@@ -54,9 +54,9 @@ OP_NAMESPACE_BEGIN
     }
 
     Ardb::KeyLockGuard::KeyLockGuard(KeyObject& key, bool _lock) :
-            k(key),lock(_lock)
+            k(key), lock(_lock)
     {
-        if(lock)
+        if (lock)
         {
             g_db->LockKey(k);
         }
@@ -65,7 +65,7 @@ OP_NAMESPACE_BEGIN
 
     Ardb::KeyLockGuard::~KeyLockGuard()
     {
-        if(lock)
+        if (lock)
         {
             g_db->UnlockKey(k);
         }
@@ -88,7 +88,7 @@ OP_NAMESPACE_BEGIN
     }
 
     Ardb::Ardb() :
-            m_engine(NULL)
+            m_engine(NULL), m_redis_cursor_seed(0)
     {
         g_db = this;
         m_settings.set_empty_key("");
@@ -195,6 +195,7 @@ OP_NAMESPACE_BEGIN
         { "hmset", REDIS_CMD_HMSET, &Ardb::HMSet, 3, -1, "w", 0, 0, 0 },
         { "hmset2", REDIS_CMD_HMSET2, &Ardb::HMSet, 3, -1, "w", 0, 0, 0 },
         { "hscan", REDIS_CMD_HSCAN, &Ardb::HScan, 2, 6, "r", 0, 0, 0 },
+        { "hscan2", REDIS_CMD_HSCAN2, &Ardb::HScan, 2, 6, "r", 0, 0, 0 },
         { "scard", REDIS_CMD_SCARD, &Ardb::SCard, 1, 1, "r", 0, 0, 0 },
         { "sadd", REDIS_CMD_SADD, &Ardb::SAdd, 2, -1, "w", 0, 0, 0 },
         { "sadd2", REDIS_CMD_SADD2, &Ardb::SAdd, 2, -1, "w", 0, 0, 0 },
@@ -215,6 +216,7 @@ OP_NAMESPACE_BEGIN
         { "sunionstore", REDIS_CMD_SUNIONSTORE, &Ardb::SUnionStore, 3, -1, "r", 0, 0, 0 },
         { "sunioncount", REDIS_CMD_SUNIONCOUNT, &Ardb::SUnionCount, 2, -1, "r", 0, 0, 0 },
         { "sscan", REDIS_CMD_SSCAN, &Ardb::SScan, 2, 6, "r", 0, 0, 0 },
+        { "sscan2", REDIS_CMD_SSCAN2, &Ardb::SScan, 2, 6, "r", 0, 0, 0 },
         { "zadd", REDIS_CMD_ZADD, &Ardb::ZAdd, 3, -1, "w", 0, 0, 0 },
         { "zcard", REDIS_CMD_ZCARD, &Ardb::ZCard, 1, 1, "r", 0, 0, 0 },
         { "zcount", REDIS_CMD_ZCOUNT, &Ardb::ZCount, 3, 3, "r", 0, 0, 0 },
@@ -268,6 +270,7 @@ OP_NAMESPACE_BEGIN
         { "script", REDIS_CMD_SCRIPT, &Ardb::Script, 1, -1, "s", 0, 0, 0 },
         { "randomkey", REDIS_CMD_RANDOMKEY, &Ardb::Randomkey, 0, 0, "r", 0, 0, 0 },
         { "scan", REDIS_CMD_SCAN, &Ardb::Scan, 1, 5, "r", 0, 0, 0 },
+        { "scan2", REDIS_CMD_SCAN2, &Ardb::Scan, 1, 5, "r", 0, 0, 0 },
         { "geoadd", REDIS_CMD_GEO_ADD, &Ardb::GeoAdd, 5, -1, "w", 0, 0, 0 },
         { "geosearch", REDIS_CMD_GEO_SEARCH, &Ardb::GeoSearch, 5, -1, "r", 0, 0, 0 },
         { "auth", REDIS_CMD_AUTH, &Ardb::Auth, 1, 1, "r", 0, 0, 0 },
@@ -557,6 +560,30 @@ OP_NAMESPACE_BEGIN
         }
     }
 
+    int Ardb::FindElementByRedisCursor(const std::string& cursor, std::string& element)
+    {
+        uint64 cursor_int = 0;
+        element.clear();
+        if (!string_touint64(cursor, cursor_int))
+        {
+            return -1;
+        }
+        if (0 == cursor_int)
+        {
+            return 0;
+        }
+        LockGuard<ThreadMutexLock> guard(m_redis_cursor_lock);
+        return m_redis_cursor_cache.Get(cursor_int, element) ? 0 : -1;
+    }
+    uint64 Ardb::GetNewRedisCursor(const std::string& element)
+    {
+        LockGuard<ThreadMutexLock> guard(m_redis_cursor_lock);
+        m_redis_cursor_seed++;
+        RedisCursorCache::CacheEntry entry;
+        m_redis_cursor_cache.Insert(m_redis_cursor_seed, element, entry);
+        return m_redis_cursor_seed;
+    }
+
     bool Ardb::GetLongFromProtocol(Context& ctx, const std::string& str, int64_t& v)
     {
         RedisReply& reply = ctx.GetReply();
@@ -681,12 +708,10 @@ OP_NAMESPACE_BEGIN
         RedisCommandHandlerSetting* found = FindRedisCommandHandlerSetting(args);
         if (NULL == found)
         {
+            ctx.AbortTransaction();
             reply.SetErrorReason("unknown command:" + args.GetCommand());
             return -1;
         }
-
-        //ctx.ClearState();
-
         DEBUG_LOG("Process recved cmd[%lld]:%s", ctx.sequence, args.ToString().c_str());
 //        if (err == ERR_OVERLOAD)
 //        {
@@ -711,6 +736,7 @@ OP_NAMESPACE_BEGIN
          */
         if (!ctx.authenticated && setting.type != REDIS_CMD_AUTH && setting.type != REDIS_CMD_QUIT)
         {
+            ctx.AbortTransaction();
             reply.SetErrCode(ERR_AUTH_FAILED);
             //fill_fix_error_reply(ctx.reply, "NOAUTH Authentication required");
             return ret;
@@ -727,6 +753,7 @@ OP_NAMESPACE_BEGIN
 
         if (!valid_cmd)
         {
+            ctx.AbortTransaction();
             reply.SetErrorReason("wrong number of arguments for command:" + args.GetCommand());
             return 0;
         }

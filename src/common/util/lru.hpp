@@ -95,6 +95,24 @@ namespace ardb
             {
                 return m_cache_list;
             }
+            bool GetFirstMapKey(key_type& key)
+            {
+                if (!m_entry_map.empty())
+                {
+                    key = m_entry_map.begin()->first;
+                    return true;
+                }
+                return false;
+            }
+            bool GetLastMapKey(key_type& key)
+            {
+                if (!m_entry_map.empty())
+                {
+                    key = m_entry_map.rbegin()->first;
+                    return true;
+                }
+                return false;
+            }
             bool Contains(const key_type& key)
             {
                 typename CacheEntryMap::iterator found = m_entry_map.find(key);

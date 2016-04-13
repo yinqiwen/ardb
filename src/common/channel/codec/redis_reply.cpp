@@ -216,6 +216,11 @@ namespace ardb
         {
             switch(code)
             {
+                case ERR_EXEC_ABORT:
+                {
+                    str.assign("EXECABORT Transaction discarded because of previous errors.");
+                    break;
+                }
                 case ERR_SCORE_NAN:
                 {
                     str.assign("resulting score is not a number (NaN)");

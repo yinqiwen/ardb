@@ -69,6 +69,7 @@ namespace ardb
             ERR_CORRUPTED_HLL_OBJECT = -1009,
             ERR_INVALID_HLL_STRING = -1010,
             ERR_SCORE_NAN = -1011,
+            ERR_EXEC_ABORT = -1012,
             ERR_INVALID_ARGS = -3,
             ERR_INVALID_OPERATION = -4,
 

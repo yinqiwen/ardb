@@ -892,7 +892,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::SScan(Context& ctx, RedisCommandFrame& cmd)
     {
-        return 0;
+        return Scan(ctx, cmd);
     }
 
 OP_NAMESPACE_END

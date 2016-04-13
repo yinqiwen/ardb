@@ -297,7 +297,7 @@ OP_NAMESPACE_BEGIN
     }
     int Ardb::HScan(Context& ctx, RedisCommandFrame& cmd)
     {
-        return 0;
+        return Scan(ctx, cmd);
     }
 
     int Ardb::HMGet(Context& ctx, RedisCommandFrame& cmd)

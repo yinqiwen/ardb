@@ -395,6 +395,7 @@ OP_NAMESPACE_BEGIN
 
     const std::string& Data::ToString(std::string& str) const
     {
+        str.clear();
         uint32 slen = 0;
         switch (encoding)
         {

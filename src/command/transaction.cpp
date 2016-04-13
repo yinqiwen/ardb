@@ -32,8 +32,6 @@
 
 namespace ardb
 {
-    static ThreadMutex g_transc_mutex;
-
     int Ardb::Multi(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
@@ -55,124 +53,161 @@ namespace ardb
             reply.SetErrorReason("DISCARD without MULTI");
             return 0;
         }
-        ctx.ClearTransaction();
+        DiscardTransaction(ctx);
         reply.SetStatusCode(STATUS_OK);
         return 0;
     }
 
     int Ardb::Exec(Context& ctx, RedisCommandFrame& cmd)
     {
-//        if (!ctx.InTransc())
-//        {
-//            fill_error_reply(ctx.reply, "EXEC without MULTI");
-//            return 0;
-//        }
-//        if (ctx.GetTransc().abort)
-//        {
-//            ctx.reply.type = REDIS_REPLY_NIL;
-//            ctx.ClearTransc();
-//            return 0;
-//        }
-//        LockGuard<ThreadMutex> guard(g_transc_mutex); //only one transc allowed exec at the same time in multi threads
-//        RedisCommandFrameArray::iterator it = ctx.GetTransc().cached_cmds.begin();
-//        Context transc_ctx;
-//        transc_ctx.currentDB = ctx.currentDB;
-//        while (it != ctx.GetTransc().cached_cmds.end())
-//        {
-//            RedisReply& r = ctx.reply.AddMember();
-//            RedisCommandHandlerSetting* setting = FindRedisCommandHandlerSetting(*it);
-//            if(NULL != setting)
-//            {
-//                transc_ctx.reply.Clear();
-//                DoCall(transc_ctx, *setting, *it);
-//                r.Clone(transc_ctx.reply);
-//            }
-//            else
-//            {
-//                fill_error_reply(r, "unknown command '%s'", it->GetCommand().c_str());
-//            }
-//            it++;
-//        }
-//        ctx.currentDB = transc_ctx.currentDB;
-//        ctx.ClearTransc();
-//        UnwatchKeys(ctx);
+        RedisReply& reply = ctx.GetReply();
+        if (!ctx.InTransaction())
+        {
+            reply.SetErrorReason("EXEC without MULTI");
+            return 0;
+        }
+        if (ctx.GetTransaction().abort || ctx.GetTransaction().cas)
+        {
+            if (ctx.GetTransaction().abort)
+            {
+                reply.SetErrCode(ERR_EXEC_ABORT);
+            }
+            else
+            {
+                reply.Clear();
+            }
+            DiscardTransaction(ctx);
+            return 0;
+        }
+        UnwatchKeys(ctx);
+        RedisCommandFrameArray::iterator it = ctx.GetTransaction().cached_cmds.begin();
+        Context transc_ctx;
+        transc_ctx.ns = ctx.ns;
+        while (it != ctx.GetTransaction().cached_cmds.end())
+        {
+            RedisReply& r = reply.AddMember();
+            RedisCommandHandlerSetting* setting = FindRedisCommandHandlerSetting(*it);
+            if (NULL != setting)
+            {
+                transc_ctx.GetReply().Clear();
+                DoCall(transc_ctx, *setting, *it);
+                r.Clone(transc_ctx.GetReply());
+            }
+            else
+            {
+                r.SetErrorReason("unknown command");
+            }
+            it++;
+        }
+        ctx.ns = transc_ctx.ns;
+        DiscardTransaction(ctx);
         return 0;
     }
 
-    int Ardb::AbortWatchKey(Context& ctx, const std::string& key)
+    int Ardb::DiscardTransaction(Context& ctx)
     {
-//        if(NULL != m_watched_ctx)
-//        {
-//            DBItemKey k(ctx.currentDB, key);
-//            WatchedContextTable::iterator found = m_watched_ctx->find(k);
-//            if(found != m_watched_ctx->end())
-//            {
-//                ContextSet::iterator cit = found->second.begin();
-//                while(cit != found->second.end())
-//                {
-//                    (*cit)->GetTransc().abort = true;
-//                    cit++;
-//                }
-//            }
-//        }
+        UnwatchKeys(ctx);
+        ctx.ClearTransaction();
+        return 0;
+    }
+
+    int Ardb::TouchWatchedKeysOnFlush(Context& ctx, const Data& ns)
+    {
+        WriteLockGuard<SpinRWLock> guard(m_watched_keys_lock);
+        if (!m_watched_ctxs.empty())
+        {
+            WatchedContextTable::iterator wit = m_watched_ctxs.begin();
+            while (wit != m_watched_ctxs.end())
+            {
+                if(wit->first.ns == ns)
+                {
+                    ContextSet::iterator cit = wit->second.begin();
+                    while (cit != wit->second.end())
+                    {
+                        (*cit)->GetTransaction().cas = true;
+                        cit++;
+                    }
+                }
+                wit++;
+            }
+        }
+        return 0;
+    }
+
+    int Ardb::TouchWatchKey(Context& ctx, const KeyObject& key)
+    {
+        WriteLockGuard<SpinRWLock> guard(m_watched_keys_lock);
+        if (!m_watched_ctxs.empty())
+        {
+            KeyPrefix prefix;
+            prefix.ns = key.GetNameSpace();
+            prefix.key = key.GetKey();
+            WatchedContextTable::iterator found = m_watched_ctxs.find(prefix);
+            if (found != m_watched_ctxs.end())
+            {
+                ContextSet::iterator cit = found->second.begin();
+                while (cit != found->second.end())
+                {
+                    (*cit)->GetTransaction().cas = true;
+                    cit++;
+                }
+            }
+        }
         return 0;
     }
 
     int Ardb::WatchForKey(Context& ctx, const std::string& key)
     {
-//        WriteLockGuard<SpinRWLock> guard(m_watched_keys_lock);
-//        if (NULL == m_watched_ctx)
-//        {
-//            m_watched_ctx = new WatchedContextTable;
-//        }
-//        DBItemKey k(ctx.currentDB, key);
-//        (*m_watched_ctx)[k].insert(&ctx);
-//        ctx.GetTransc().watched_keys.insert(k);
+        WriteLockGuard<SpinRWLock> guard(m_watched_keys_lock);
+        KeyPrefix prefix;
+        prefix.ns = ctx.ns;
+        prefix.key.SetString(key, false);
+        m_watched_ctxs[prefix].insert(&ctx);
+        ctx.GetTransaction().watched_keys.insert(prefix);
         return 0;
     }
 
     int Ardb::UnwatchKeys(Context& ctx)
     {
-//        if(NULL != m_watched_ctx && ctx.transc != NULL)
-//        {
-//            WriteLockGuard<SpinRWLock> guard(m_watched_keys_lock);
-//            WatchKeySet::iterator it = ctx.GetTransc().watched_keys.begin();
-//            while(it != ctx.GetTransc().watched_keys.end())
-//            {
-//                (*m_watched_ctx)[*it].erase(&ctx);
-//                if((*m_watched_ctx)[*it].size() == 0)
-//                {
-//                    m_watched_ctx->erase(*it);
-//                }
-//                it++;
-//            }
-//            ctx.ClearTransc();
-//            if(m_watched_ctx->empty())
-//            {
-//                DELETE(m_watched_ctx);
-//            }
-//        }
+        WriteLockGuard<SpinRWLock> guard(m_watched_keys_lock);
+        if (ctx.transc != NULL && !m_watched_ctxs.empty())
+        {
+            TransactionContext::WatchKeySet::iterator it = ctx.GetTransaction().watched_keys.begin();
+            while (it != ctx.GetTransaction().watched_keys.end())
+            {
+                const KeyPrefix& prefix = *it;
+                m_watched_ctxs[prefix].erase(&ctx);
+                if (m_watched_ctxs[prefix].size() == 0)
+                {
+                    m_watched_ctxs.erase(prefix);
+                }
+                it++;
+            }
+
+        }
         return 0;
     }
 
     int Ardb::Watch(Context& ctx, RedisCommandFrame& cmd)
     {
-//        if (ctx.InTransc())
-//        {
-//            fill_error_reply(ctx.reply, "WATCH inside MULTI is not allowed");
-//            return 0;
-//        }
-//        for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
-//        {
-//            WatchForKey(ctx, cmd.GetArguments()[i]);
-//        }
-//        fill_status_reply(ctx.reply, "OK");
+        RedisReply& reply = ctx.GetReply();
+        if (ctx.InTransaction())
+        {
+            reply.SetErrorReason("WATCH inside MULTI is not allowed");
+            return 0;
+        }
+        for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
+        {
+            WatchForKey(ctx, cmd.GetArguments()[i]);
+        }
+        reply.SetStatusCode(STATUS_OK);
         return 0;
     }
     int Ardb::UnWatch(Context& ctx, RedisCommandFrame& cmd)
     {
-//        ctx.GetReply().SetStatusCode(STATUS_OK);
-//        UnwatchKeys(ctx);
+        RedisReply& reply = ctx.GetReply();
+        reply.SetStatusCode(STATUS_OK);
+        UnwatchKeys(ctx);
         return 0;
     }
 }

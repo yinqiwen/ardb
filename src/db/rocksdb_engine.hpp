@@ -145,6 +145,8 @@ OP_NAMESPACE_BEGIN
             int CommitTransaction();
             int DiscardTransaction();
             int Compact(Context& ctx, const KeyObject& start, const KeyObject& end);
+            int ListNameSpaces(Context& ctx, DataArray& nss);
+            int DropNameSpace(Context& ctx, const Data& ns);
 
             Iterator* Find(Context& ctx, const KeyObject& key);
     };
