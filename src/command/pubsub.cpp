@@ -31,143 +31,124 @@
 
 namespace ardb
 {
-    int Ardb::SubscribeChannel(Context& ctx, const std::string& channel, bool notify)
+    int Ardb::SubscribeChannel(Context& ctx, const std::string& channel, bool is_pattern)
     {
-//        ctx.GetPubsub().pubsub_channels.insert(channel);
-//        {
-//            WriteLockGuard<SpinRWLock> guard(m_pubsub_ctx_lock);
-//            m_pubsub_channels[channel].insert(&ctx);
-//        }
-//
-//        if (notify && NULL != ctx.client)
-//        {
-//            RedisReply r;
-//            RedisReply& r1 = r.AddMember();
-//            RedisReply& r2 = r.AddMember();
-//            RedisReply& r3 = r.AddMember();
-//            fill_str_reply(r1, "subscribe");
-//            fill_str_reply(r2, channel);
-//            fill_int_reply(r3, ctx.GetPubsub().pubsub_channels.size() + ctx.GetPubsub().pubsub_patterns.size());
-//            ctx.client->Write(r);
-//        }
+        if (is_pattern)
+        {
+            ctx.GetPubsub().pubsub_patterns.insert(channel);
+        }
+        else
+        {
+            ctx.GetPubsub().pubsub_channels.insert(channel);
+        }
+        {
+            WriteLockGuard<SpinRWLock> guard(m_pubsub_lock);
+            if (is_pattern)
+            {
+                m_pubsub_patterns[channel].insert(&ctx);
+            }
+            else
+            {
+                m_pubsub_channels[channel].insert(&ctx);
+            }
+
+        }
+
+        RedisReply r;
+        RedisReply& r1 = r.AddMember();
+        RedisReply& r2 = r.AddMember();
+        RedisReply& r3 = r.AddMember();
+        r1.SetString(is_pattern?"psubscribe":"subscribe");
+        r2.SetString(channel);
+        r3.SetInteger((int64)(ctx.GetPubsub().pubsub_channels.size() + ctx.GetPubsub().pubsub_patterns.size()));
+        WriteReply(ctx, &r, false);
         return 0;
     }
-    int Ardb::UnsubscribeChannel(Context& ctx, const std::string& channel, bool notify)
+    int Ardb::UnsubscribeChannel(Context& ctx, const std::string& channel, bool is_pattern, bool notify)
     {
-//        ctx.GetPubsub().pubsub_channels.erase(channel);
-//        WriteLockGuard<SpinRWLock> guard(m_pubsub_ctx_lock);
-//        PubsubContextTable::iterator it = m_pubsub_channels.find(channel);
-//        int ret = 0;
-//        if (it != m_pubsub_channels.end())
-//        {
-//            it->second.erase(&ctx);
-//            if (it->second.empty())
-//            {
-//                m_pubsub_channels.erase(it);
-//            }
-//            ret = 1;
-//        }
-//        if (notify && NULL != ctx.client)
-//        {
-//            RedisReply r;
-//            RedisReply& r1 = r.AddMember();
-//            RedisReply& r2 = r.AddMember();
-//            RedisReply& r3 = r.AddMember();
-//            fill_str_reply(r1, "unsubscribe");
-//            fill_str_reply(r2, channel);
-//            fill_int_reply(r3, ctx.GetPubsub().pubsub_channels.size() + ctx.GetPubsub().pubsub_patterns.size());
-//            ctx.client->Write(r);
-//        }
-//        return ret;
+        if(NULL == ctx.pubsub)
+        {
+            return 0;
+        }
+        PubSubChannelTable* tables = NULL;
+        if(is_pattern)
+        {
+            ctx.GetPubsub().pubsub_patterns.erase(channel);
+            tables = &m_pubsub_patterns;
+        }else
+        {
+            ctx.GetPubsub().pubsub_channels.erase(channel);
+            tables = &m_pubsub_channels;
+        }
+        WriteLockGuard<SpinRWLock> guard(m_pubsub_lock);
+        PubSubChannelTable::iterator it = tables->find(channel);
+        int ret = 0;
+        if (it != tables->end())
+        {
+            it->second.erase(&ctx);
+            if (it->second.empty())
+            {
+                tables->erase(it);
+            }
+            ret = 1;
+        }
+        if (notify)
+        {
+            RedisReply r;
+            RedisReply& r1 = r.AddMember();
+            RedisReply& r2 = r.AddMember();
+            RedisReply& r3 = r.AddMember();
+            r1.SetString(is_pattern?"punsubscribe" : "unsubscribe");
+            r2.SetString(channel);
+            r3.SetInteger((int64)(ctx.GetPubsub().pubsub_channels.size() + ctx.GetPubsub().pubsub_patterns.size()));
+            WriteReply(ctx, &r, false);
+        }
+        return ret;
     }
 
-    int Ardb::UnsubscribeAll(Context& ctx, bool notify)
+    int Ardb::UnsubscribeAll(Context& ctx, bool is_pattern, bool notify)
     {
-//        if(NULL == ctx.pubsub)
-//        {
-//            return 0;
-//        }
-//        StringSet tmp = ctx.GetPubsub().pubsub_channels;
-//        StringSet::iterator it = tmp.begin();
-//        int count = 0;
-//        while (it != tmp.end())
-//        {
-//            count += UnsubscribeChannel(ctx, *it, notify);
-//            it++;
-//        }
-//        if (notify && count == 0 && NULL != ctx.client)
-//        {
-//            RedisReply r;
-//            RedisReply& r1 = r.AddMember();
-//            RedisReply& r2 = r.AddMember();
-//            RedisReply& r3 = r.AddMember();
-//            fill_str_reply(r1, "unsubscribe");
-//            r2.type = REDIS_REPLY_NIL;
-//            fill_int_reply(r3, ctx.GetPubsub().pubsub_channels.size() + ctx.GetPubsub().pubsub_patterns.size());
-//            ctx.client->Write(r);
-//        }
+        if(NULL == ctx.pubsub)
+        {
+            return 0;
+        }
+        int count = 0;
+        StringTreeSet* channels = NULL;
+        if(is_pattern)
+        {
+            channels = &(ctx.GetPubsub().pubsub_patterns);
+        }else
+        {
+            channels = &(ctx.GetPubsub().pubsub_channels);
+        }
+        StringTreeSet::iterator it = channels->begin();
+        while (it != channels->end())
+        {
+            count += UnsubscribeChannel(ctx, *it, is_pattern, notify);
+            it++;
+        }
+        if (notify && count == 0)
+        {
+            RedisReply r;
+            RedisReply& r1 = r.AddMember();
+            RedisReply& r2 = r.AddMember();
+            RedisReply& r3 = r.AddMember();
+            r1.SetString(is_pattern?"punsubscribe":"unsubscribe");
+            r2.Clear();
+            r3.SetInteger((int64)(ctx.GetPubsub().pubsub_channels.size() + ctx.GetPubsub().pubsub_patterns.size()));
+            WriteReply(ctx, &r, false);
+        }
         return 0;
-    }
-
-    int Ardb::PSubscribeChannel(Context& ctx, const std::string& pattern, bool notify)
-    {
-//        ctx.GetPubsub().pubsub_patterns.insert(pattern);
-//        {
-//            WriteLockGuard<SpinRWLock> guard(m_pubsub_ctx_lock);
-//            m_pubsub_patterns[pattern].insert(&ctx);
-//        }
-//
-//        if (notify && NULL != ctx.client)
-//        {
-//            RedisReply r;
-//            RedisReply& r1 = r.AddMember();
-//            RedisReply& r2 = r.AddMember();
-//            RedisReply& r3 = r.AddMember();
-//            fill_str_reply(r1, "psubscribe");
-//            fill_str_reply(r2, pattern);
-//            fill_int_reply(r3, ctx.GetPubsub().pubsub_channels.size() + ctx.GetPubsub().pubsub_patterns.size());
-//            ctx.client->Write(r);
-//        }
-        return 0;
-    }
-    int Ardb::PUnsubscribeChannel(Context& ctx, const std::string& pattern, bool notify)
-    {
-//        ctx.GetPubsub().pubsub_patterns.erase(pattern);
-//        WriteLockGuard<SpinRWLock> guard(m_pubsub_ctx_lock);
-//        PubsubContextTable::iterator it = m_pubsub_patterns.find(pattern);
-//        int ret = 0;
-//        if (it != m_pubsub_patterns.end())
-//        {
-//            it->second.erase(&ctx);
-//            if (it->second.empty())
-//            {
-//                m_pubsub_patterns.erase(it);
-//            }
-//            ret = 1;
-//        }
-//        if (notify && NULL != ctx.client)
-//        {
-//            RedisReply r;
-//            RedisReply& r1 = r.AddMember();
-//            RedisReply& r2 = r.AddMember();
-//            RedisReply& r3 = r.AddMember();
-//            fill_str_reply(r1, "punsubscribe");
-//            fill_str_reply(r2, pattern);
-//            fill_int_reply(r3, ctx.GetPubsub().pubsub_channels.size() + ctx.GetPubsub().pubsub_patterns.size());
-//            ctx.client->Write(r);
-//        }
-//        return ret;
     }
 
     int Ardb::Subscribe(Context& ctx, RedisCommandFrame& cmd)
     {
 //        ctx.client->client->GetWritableOptions().max_write_buffer_size = (int32) (m_cfg.pubsub_client_output_buffer_limit);
+        ctx.GetReply().type = 0; //let cleint not write this reply
         for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
         {
             const std::string& channel = cmd.GetArguments()[i];
-            ctx.GetPubsub().pubsub_channels.insert(channel);
-            WriteLockGuard<SpinRWLock> guard(m_pubsub_lock);
-            m_pubsub_channels[channel].insert(&ctx);
+            SubscribeChannel(ctx, channel, false);
         }
         return 0;
     }
@@ -176,26 +157,29 @@ namespace ardb
     {
         if (cmd.GetArguments().size() == 0)
         {
-            UnsubscribeAll(ctx, true);
+            UnsubscribeAll(ctx, false, true);
         }
         else
         {
             for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
             {
-                UnsubscribeChannel(ctx, cmd.GetArguments()[i], true);
+                UnsubscribeChannel(ctx, cmd.GetArguments()[i], false, true);
             }
+        }
+        if(ctx.SubscriptionsCount() == 0)
+        {
+            ctx.ClearPubsub();
         }
         return 0;
     }
     int Ardb::PSubscribe(Context& ctx, RedisCommandFrame& cmd)
     {
 //        ctx.client->GetWritableOptions().max_write_buffer_size = (int32)(m_cfg.pubsub_client_output_buffer_limit);
+        ctx.GetReply().type = 0; //let cleint not write this reply
         for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
         {
             const std::string& pattern = cmd.GetArguments()[i];
-            ctx.GetPubsub().pubsub_patterns.insert(pattern);
-            WriteLockGuard<SpinRWLock> guard(m_pubsub_lock);
-            m_pubsub_patterns[pattern].insert(&ctx);
+            SubscribeChannel(ctx, pattern, true);
         }
         return 0;
     }
@@ -203,124 +187,90 @@ namespace ardb
     {
         if (cmd.GetArguments().size() == 0)
         {
-            PUnsubscribeAll(ctx, true);
+            UnsubscribeAll(ctx, true, true);
         }
         else
         {
             for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
             {
-                PUnsubscribeChannel(ctx, cmd.GetArguments()[i], true);
+                UnsubscribeChannel(ctx, cmd.GetArguments()[i], true, true);
             }
         }
-        return 0;
-    }
-
-    int Ardb::PUnsubscribeAll(Context& ctx, bool notify)
-    {
-//        if(NULL == ctx.pubsub)
-//        {
-//            return 0;
-//        }
-//        StringSet tmp = ctx.GetPubsub().pubsub_patterns;
-//        StringSet::iterator it = tmp.begin();
-//        int count = 0;
-//        while (it != tmp.end())
-//        {
-//            count += PUnsubscribeChannel(ctx, *it, notify);
-//            it++;
-//        }
-//        if (notify && count == 0 && NULL != ctx.client)
-//        {
-//            RedisReply r;
-//            RedisReply& r1 = r.AddMember();
-//            RedisReply& r2 = r.AddMember();
-//            RedisReply& r3 = r.AddMember();
-//            fill_str_reply(r1, "punsubscribe");
-//            r2.type = REDIS_REPLY_NIL;
-//            fill_int_reply(r3, ctx.GetPubsub().pubsub_channels.size() + ctx.GetPubsub().pubsub_patterns.size());
-//            ctx.client->Write(r);
-//        }
-        return 0;
-    }
-
-    static void async_write_message(Channel* ch, void * data)
-    {
-        RedisReply* r = (RedisReply*) data;
-        if (!ch->Write(*r))
+        if(ctx.SubscriptionsCount() == 0)
         {
-            ch->Close();
+            ctx.ClearPubsub();
         }
-        DELETE(r);
+        return 0;
     }
 
     int Ardb::PublishMessage(Context& ctx, const std::string& channel, const std::string& message)
     {
-//        ReadLockGuard<SpinRWLock> guard(m_pubsub_ctx_lock);
-//        PubsubContextTable::iterator fit = m_pubsub_channels.find(channel);
-//
-//        int receiver = 0;
-//        if (fit != m_pubsub_channels.end())
-//        {
-//            ContextSet::iterator cit = fit->second.begin();
-//            while (cit != fit->second.end())
-//            {
-//                Context* cc = *cit;
-//                if (NULL != cc && cc->client != NULL)
-//                {
-//                    RedisReply* r = NULL;
-//                    NEW(r, RedisReply);
-//                    RedisReply& r1 = r->AddMember();
-//                    RedisReply& r2 = r->AddMember();
-//                    RedisReply& r3 = r->AddMember();
-//                    fill_str_reply(r1, "message");
-//                    fill_str_reply(r2, channel);
-//                    fill_str_reply(r3, message);
-//                    cc->client->GetService().AsyncIO(cc->client->GetID(), async_write_message, r);
-//                    receiver++;
-//                }
-//                cit++;
-//            }
-//        }
-//        PubsubContextTable::iterator pit = m_pubsub_patterns.begin();
-//        while (pit != m_pubsub_patterns.end())
-//        {
-//            const std::string& pattern = pit->first;
-//            if (stringmatchlen(pattern.c_str(), pattern.size(), channel.c_str(), channel.size(), 0))
-//            {
-//                ContextSet::iterator cit = pit->second.begin();
-//                while (cit != pit->second.end())
-//                {
-//                    Context* cc = *cit;
-//                    if (NULL != cc && cc->client != NULL)
-//                    {
-//                        RedisReply* r = NULL;
-//                        NEW(r, RedisReply);
-//                        RedisReply& r1 = r->AddMember();
-//                        RedisReply& r2 = r->AddMember();
-//                        RedisReply& r3 = r->AddMember();
-//                        RedisReply& r4 = r->AddMember();
-//                        fill_str_reply(r1, "pmessage");
-//                        fill_str_reply(r2, pattern);
-//                        fill_str_reply(r3, channel);
-//                        fill_str_reply(r4, message);
-//                        cc->client->GetService().AsyncIO(cc->client->GetID(), async_write_message, r);
-//                        receiver++;
-//                    }
-//                    cit++;
-//                }
-//            }
-//            pit++;
-//        }
-//        return receiver;
+        ReadLockGuard<SpinRWLock> guard(m_pubsub_lock);
+        PubSubChannelTable::iterator fit = m_pubsub_channels.find(channel);
+
+        int receiver = 0;
+        if (fit != m_pubsub_channels.end())
+        {
+            ContextSet::iterator cit = fit->second.begin();
+            while (cit != fit->second.end())
+            {
+                Context* cc = *cit;
+                if (NULL != cc && cc->client != NULL)
+                {
+                    RedisReply* r = NULL;
+                    NEW(r, RedisReply);
+                    RedisReply& r1 = r->AddMember();
+                    RedisReply& r2 = r->AddMember();
+                    RedisReply& r3 = r->AddMember();
+                    r1.SetString("message");
+                    r2.SetString(channel);
+                    r3.SetString(message);
+                    WriteReply(*cc, r, true);
+                    receiver++;
+                }
+                cit++;
+            }
+        }
+        PubSubChannelTable::iterator pit = m_pubsub_patterns.begin();
+        while (pit != m_pubsub_patterns.end())
+        {
+            const std::string& pattern = pit->first;
+            if (stringmatchlen(pattern.c_str(), pattern.size(), channel.c_str(), channel.size(), 0))
+            {
+                ContextSet::iterator cit = pit->second.begin();
+                while (cit != pit->second.end())
+                {
+                    Context* cc = *cit;
+                    if (NULL != cc && cc->client != NULL)
+                    {
+                        RedisReply* r = NULL;
+                        NEW(r, RedisReply);
+                        RedisReply& r1 = r->AddMember();
+                        RedisReply& r2 = r->AddMember();
+                        RedisReply& r3 = r->AddMember();
+                        RedisReply& r4 = r->AddMember();
+                        r1.SetString("pmessage");
+                        r2.SetString(pattern);
+                        r3.SetString(channel);
+                        r4.SetString(message);
+                        WriteReply(*cc, r, true);
+                        receiver++;
+                    }
+                    cit++;
+                }
+            }
+            pit++;
+        }
+        return receiver;
     }
 
     int Ardb::Publish(Context& ctx, RedisCommandFrame& cmd)
     {
         const std::string& channel = cmd.GetArguments()[0];
         const std::string& message = cmd.GetArguments()[1];
-//        int count = 0;
-//        count += PublishMessage(ctx, channel, message);
-//        fill_int_reply(ctx.reply, count);
+        int count = 0;
+        count += PublishMessage(ctx, channel, message);
+        ctx.GetReply().SetInteger(count);
         return 0;
     }
 }

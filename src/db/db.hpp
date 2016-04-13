@@ -133,6 +133,8 @@ OP_NAMESPACE_BEGIN
             typedef TreeMap<KeyPrefix, ContextSet>::Type WatchedContextTable;
             WatchedContextTable m_watched_ctxs;
 
+            int WriteReply(Context& ctx, RedisReply* r, bool async);
+
             void LockKey(KeyObject& key);
             void UnlockKey(KeyObject& key);
             void LockKeys(KeyObjectArray& key);
@@ -149,12 +151,9 @@ OP_NAMESPACE_BEGIN
 
             void FillInfoResponse(const std::string& section, std::string& info);
 
-            int SubscribeChannel(Context& ctx, const std::string& channel, bool notify);
-            int UnsubscribeChannel(Context& ctx, const std::string& channel, bool notify);
-            int UnsubscribeAll(Context& ctx, bool notify);
-            int PSubscribeChannel(Context& ctx, const std::string& pattern, bool notify);
-            int PUnsubscribeChannel(Context& ctx, const std::string& pattern, bool notify);
-            int PUnsubscribeAll(Context& ctx, bool notify);
+            int SubscribeChannel(Context& ctx, const std::string& channel, bool is_pattern);
+            int UnsubscribeChannel(Context& ctx, const std::string& channel, bool is_pattern, bool notify);
+            int UnsubscribeAll(Context& ctx, bool is_pattern, bool notify);
             int PublishMessage(Context& ctx, const std::string& channel, const std::string& message);
 
             int StringSet(Context& ctx, const std::string& key, const std::string& value, bool redis_compatible, int64_t px = -1, int8_t nx_xx = -1);
@@ -390,6 +389,7 @@ OP_NAMESPACE_BEGIN
             int MergeOperation(KeyObject& key, ValueObject& val, uint16_t op, DataArray& args);
             int MergeOperands(uint16_t left, const DataArray& left_args, uint16_t& right, DataArray& right_args);
             int TouchWatchKey(Context& ctx, const KeyObject& key);
+            void FreeClient(Context& ctx);
             const ArdbConfig& GetConf() const
             {
                 return m_conf;

@@ -572,12 +572,12 @@ OP_NAMESPACE_BEGIN
         {
             return 0;
         }
-        LockGuard<ThreadMutexLock> guard(m_redis_cursor_lock);
+        LockGuard<SpinMutexLock> guard(m_redis_cursor_lock);
         return m_redis_cursor_cache.Get(cursor_int, element) ? 0 : -1;
     }
     uint64 Ardb::GetNewRedisCursor(const std::string& element)
     {
-        LockGuard<ThreadMutexLock> guard(m_redis_cursor_lock);
+        LockGuard<SpinMutexLock> guard(m_redis_cursor_lock);
         m_redis_cursor_seed++;
         RedisCursorCache::CacheEntry entry;
         m_redis_cursor_cache.Insert(m_redis_cursor_seed, element, entry);
@@ -649,6 +649,44 @@ OP_NAMESPACE_BEGIN
             }
         }
         return true;
+    }
+
+    static void async_write_reply_callback(Channel* ch, void * data)
+    {
+        RedisReply* r = (RedisReply*) data;
+        if (NULL != ch && NULL != r)
+        {
+            if(!ch->Write(*r))
+            {
+                ch->Close();
+            }
+        }
+        DELETE(r);
+    }
+
+    int Ardb::WriteReply(Context& ctx, RedisReply* r, bool async)
+    {
+        if(NULL == ctx.client || NULL == ctx.client->client || NULL == r)
+        {
+            return -1;
+        }
+        Channel* ch = ctx.client->client;
+        if(!async)
+        {
+            ch->Write(*r);
+        }
+        else
+        {
+            ch->GetService().AsyncIO(ch->GetID(), async_write_reply_callback, r);
+        }
+        return 0;
+    }
+
+    void Ardb::FreeClient(Context& ctx)
+    {
+        UnwatchKeys(ctx);
+        UnsubscribeAll(ctx, true, false);
+        UnsubscribeAll(ctx, false, false);
     }
 
     int Ardb::DoCall(Context& ctx, RedisCommandHandlerSetting& setting, RedisCommandFrame& args)

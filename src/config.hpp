@@ -80,7 +80,7 @@ OP_NAMESPACE_BEGIN
             bool slave_serve_stale_data;
             int64 slave_priority;
 
-            StringSet trusted_ip;
+            StringTreeSet trusted_ip;
 
             int64 lua_time_limit;
 

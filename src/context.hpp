@@ -96,8 +96,8 @@ OP_NAMESPACE_BEGIN
     };
     struct PubSubContext
     {
-            StringSet pubsub_channels;
-            StringSet pubsub_patterns;
+            StringTreeSet pubsub_channels;
+            StringTreeSet pubsub_patterns;
     };
 
     class Context
@@ -196,6 +196,14 @@ OP_NAMESPACE_BEGIN
                     NEW(pubsub, PubSubContext);
                 }
                 return *pubsub;
+            }
+            int64_t SubscriptionsCount()
+            {
+                if (NULL == pubsub)
+                {
+                    return 0;
+                }
+                return pubsub->pubsub_channels.size() + pubsub->pubsub_patterns.size();
             }
             ~Context()
             {

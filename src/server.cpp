@@ -90,7 +90,7 @@ OP_NAMESPACE_BEGIN
             }
             void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e)
             {
-                //m_db->FreeClientContext(m_ctx);
+                g_db->FreeClient(m_ctx);
             }
             void ChannelConnected(ChannelHandlerContext& ctx, ChannelStateEvent& e)
             {
@@ -113,7 +113,7 @@ OP_NAMESPACE_BEGIN
                         const std::string& ip = addr->GetHost();
                         if (ip != "127.0.0.1") //allways trust 127.0.0.1
                         {
-                            StringSet::const_iterator sit = g_db->GetConf().trusted_ip.begin();
+                            StringTreeSet::const_iterator sit = g_db->GetConf().trusted_ip.begin();
                             while (sit != g_db->GetConf().trusted_ip.end())
                             {
                                 if (stringmatchlen(sit->c_str(), sit->size(), ip.c_str(), ip.size(), 0) == 1)
