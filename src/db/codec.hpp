@@ -177,11 +177,17 @@ OP_NAMESPACE_BEGIN
                 v.SetInt64(idx);
                 SetListIndex(v);
             }
+            void SetListIndex(double idx)
+            {
+                Data v;
+                v.SetFloat64(idx);
+                SetListIndex(v);
+            }
             void SetListIndex(const Data& idx)
             {
                 setElement(idx, 0);
             }
-            double GetListIndex()
+            double GetListIndex() const
             {
                 return GetElement(0).GetFloat64();
             }

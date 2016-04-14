@@ -216,12 +216,9 @@ namespace ardb
             }
             GeoHashBits hash;
             geohash_fast_encode(lat_range, lon_range, y, x, GEO_STEP_MAX, &hash);
-            std::string doubleStrValue;
-            fast_dtoa(x, 9, doubleStrValue);
-            zadd.AddArg(doubleStrValue);
-            fast_dtoa(y, 9, doubleStrValue);
-            zadd.AddArg(doubleStrValue);
+            zadd.AddArg(stringfromll(hash.bits));
             zadd.AddArg(cmd.GetArguments()[i + 2]);
+            //printf("###add %llu\n", hash.bits);
         }
         return ZAdd(ctx, zadd);
     }
@@ -249,7 +246,7 @@ namespace ardb
         ValueObjectArray vs;
         ErrCodeArray errs;
         m_engine->MultiGet(ctx, members, vs, errs);
-        if (errs[1] != 0 || errs[2] != 0)
+        if (errs[0] != 0 || errs[1] != 0)
         {
             reply.Clear();
             return 0;
@@ -257,8 +254,7 @@ namespace ardb
         double score1 = vs[0].GetZSetScore();
         double score2 = vs[1].GetZSetScore();
         double x[2], y[2];
-        if (!GeoHashHelper::GetXYByHash(GEO_WGS84_TYPE, GEO_STEP_MAX, (uint64) score1, x[0], y[0])
-                || !GeoHashHelper::GetXYByHash(GEO_WGS84_TYPE, GEO_STEP_MAX, (uint64) score2, x[1], y[1]))
+        if (!GeoHashHelper::GetXYByHash(GEO_WGS84_TYPE, GEO_STEP_MAX, (uint64) score1, x[0], y[0]) || !GeoHashHelper::GetXYByHash(GEO_WGS84_TYPE, GEO_STEP_MAX, (uint64) score2, x[1], y[1]))
         {
             reply.Clear();
             return 0;
@@ -313,7 +309,6 @@ namespace ardb
                 lon_range.max = 180;
                 lat_range.min = -90;
                 lat_range.max = 90;
-                GeoHashBits hash;
                 geohash_fast_encode(lat_range, lon_range, y, x, GEO_STEP_MAX, &hash);
 
                 char buf[12];
@@ -412,12 +407,12 @@ namespace ardb
         GeoHashHelper::GetCoordRange(GEO_WGS84_TYPE, lat_range, lon_range);
         if (cmd.GetType() == REDIS_CMD_GEO_RADIUS)
         {
-            double x, y;
-            if (!string_todouble(cmd.GetArguments()[1], x) || !string_todouble(cmd.GetArguments()[2 + 1], y))
+            if (!string_todouble(cmd.GetArguments()[1], x) || !string_todouble(cmd.GetArguments()[2], y))
             {
                 reply.SetErrCode(ERR_INVALID_FLOAT_ARGS);
                 return 0;
             }
+            //printf
             if (x < lon_range.min || x > lon_range.max || y < lat_range.min || y > lat_range.max)
             {
                 reply.SetErrorReason("invalid longitude,latitude pair");
@@ -432,7 +427,7 @@ namespace ardb
             ValueObject score_val;
             int err = m_engine->Get(ctx, member, score_val);
             double score = score_val.GetZSetScore();
-            if (0 != err || !!GeoHashHelper::GetXYByHash(GEO_WGS84_TYPE, GEO_STEP_MAX, (uint64) score, x, y))
+            if (0 != err || !GeoHashHelper::GetXYByHash(GEO_WGS84_TYPE, GEO_STEP_MAX, (uint64) score, x, y))
             {
                 reply.SetErrorReason("could not decode requested zset member");
                 return 0;
@@ -451,6 +446,7 @@ namespace ardb
             return 0;
         }
         radius *= to_meters;
+
         std::string err;
         if (0 != options.Parse(cmd.GetArguments(), err, radius_arg_pos + 2))
         {
@@ -462,6 +458,13 @@ namespace ardb
         {
             reply.SetErrorReason("STORE option in GEORADIUS is not compatible with "
                     "WITHDIST, WITHHASH, WITHCOORDS and GET options");
+            return 0;
+        }
+
+        KeyObject geokey(ctx.ns, KEY_META, cmd.GetArguments()[0]);
+        ValueObject geometa;
+        if (!CheckMeta(ctx, geokey, KEY_ZSET, geometa))
+        {
             return 0;
         }
 
@@ -513,6 +516,7 @@ namespace ardb
         GeoPointArray points;
         std::vector<ZRangeSpec>::iterator hit = range_array.begin();
         Iterator* iter = NULL;
+        //printf("###%d \n", range_array.size());
         while (hit != range_array.end())
         {
             ZRangeSpec& range = *hit;
@@ -526,6 +530,7 @@ namespace ardb
             {
                 iter->Jump(zmember);
             }
+            //printf("###%.2f\n", range.min.GetFloat64());
             while (iter->Valid())
             {
                 KeyObject& zkey = iter->Key();
@@ -553,6 +558,10 @@ namespace ardb
                     break;
                 }
                 iter->Next();
+            }
+            if (!iter->Valid())
+            {
+                break;
             }
             hit++;
         }
@@ -592,39 +601,48 @@ namespace ardb
         if (NULL == options.storekey)
         {
             reply.ReserveMember(0);
+            //printf("###%d\n", points.size());
             GeoPointArray::iterator pit = points.begin();
             while (pit != points.end())
             {
                 RedisReply& r = reply.AddMember();
-                RedisReply& rvalue = r.AddMember();
-                rvalue.SetString(pit->value);
-                GeoGetOptionArray::const_iterator ait = options.get_patterns.begin();
-                while (ait != options.get_patterns.end())
+                if (options.get_patterns.empty())
                 {
-                    RedisReply& rr = r.AddMember();
-                    if (ait->get_distances)
-                    {
-                        setDistance(rr, pit->distance);
-                    }
-                    else if (ait->get_coodinates)
-                    {
-                        RedisReply& rr1 = rr.AddMember();
-                        RedisReply& rr2 = rr.AddMember();
-                        rr1.SetDouble(pit->x);
-                        rr2.SetDouble(pit->y);
-                    }
-                    else if (ait->get_hash)
-                    {
-                        rr.SetInteger(pit->score);
-                    }
-                    else
-                    {
-                        Data attr;
-                        GetValueByPattern(ctx, ait->get_pattern, pit->value, attr);
-                        rr.SetString(attr);
-                    }
-                    ait++;
+                    r.SetString(pit->value);
                 }
+                else
+                {
+                    RedisReply& point_reply = r.AddMember();
+                    point_reply.SetString(pit->value);
+                    GeoGetOptionArray::const_iterator ait = options.get_patterns.begin();
+                    while (ait != options.get_patterns.end())
+                    {
+                        RedisReply& rr = r.AddMember();
+                        if (ait->get_distances)
+                        {
+                            setDistance(rr, pit->distance/to_meters);
+                        }
+                        else if (ait->get_coodinates)
+                        {
+                            RedisReply& rr1 = rr.AddMember();
+                            RedisReply& rr2 = rr.AddMember();
+                            rr1.SetDouble(pit->x);
+                            rr2.SetDouble(pit->y);
+                        }
+                        else if (ait->get_hash)
+                        {
+                            rr.SetInteger(pit->score);
+                        }
+                        else
+                        {
+                            Data attr;
+                            GetValueByPattern(ctx, ait->get_pattern, pit->value, attr);
+                            rr.SetString(attr);
+                        }
+                        ait++;
+                    }
+                }
+
                 pit++;
             }
         }

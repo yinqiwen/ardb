@@ -410,10 +410,10 @@ namespace ardb
         }
 
         GeoHashBits hash;
-        geohash_fast_encode(lat_range, lat_range, latitude, longitude, steps, &hash);
+        geohash_fast_encode(lat_range, lon_range, latitude, longitude, steps, &hash);
 
         GeoHashArea area;
-        geohash_fast_decode(lat_range, lat_range, hash, &area);
+        geohash_fast_decode(lat_range, lon_range, hash, &area);
         results.insert(hash);
 
         GeoHashNeighbors neighbors;
@@ -549,7 +549,7 @@ namespace ardb
 
     bool GeoHashHelper::GetMercatorXYByHash(GeoHashFix60Bits hash, double& x, double& y)
     {
-        return GetXYByHash(GEO_MERCATOR_TYPE, hash, x, y);
+        return GetXYByHash(GEO_MERCATOR_TYPE, 30,hash, x, y);
     }
 }
 

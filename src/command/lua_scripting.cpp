@@ -133,13 +133,21 @@ namespace ardb
             }
             case REDIS_REPLY_ARRAY:
             {
-                lua_newtable(lua);
-                for (uint32 j = 0; j < reply.MemberSize(); j++)
+                if(reply.integer < 0)
                 {
-                    lua_pushnumber(lua, j + 1);
-                    redisProtocolToLuaType(lua, reply.MemberAt(j));
-                    lua_settable(lua, -3);
+                    lua_pushboolean(lua,0);
                 }
+                else
+                {
+                    lua_newtable(lua);
+                    for (uint32 j = 0; j < reply.MemberSize(); j++)
+                    {
+                        lua_pushnumber(lua, j + 1);
+                        redisProtocolToLuaType(lua, reply.MemberAt(j));
+                        lua_settable(lua, -3);
+                    }
+                }
+
                 break;
             }
             default:

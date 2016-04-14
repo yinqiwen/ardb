@@ -282,7 +282,7 @@ OP_NAMESPACE_BEGIN
             if (found_match)
             {
                 //compute insert_ele_idx
-                insert_ele_idx = (field.GetListIndex() + insert_ele_idx) / 2;
+                insert_ele_idx = (field.GetListIndex() + insert_ele_idx) / 2.0;
                 insert_ele_idx_computed = true;
                 break;
             }
@@ -466,6 +466,7 @@ OP_NAMESPACE_BEGIN
             end = meta.GetObjectLen() - 1;
         int64_t rangelen = (end - start) + 1;
         reply.ReserveMember(0);
+
         if (meta.GetListMeta().sequential)
         {
             KeyObjectArray ks;
@@ -497,6 +498,7 @@ OP_NAMESPACE_BEGIN
                 {
                     break;
                 }
+
                 if (cursor >= start)
                 {
                     RedisReply& r = reply.AddMember();
@@ -568,11 +570,6 @@ OP_NAMESPACE_BEGIN
                 KeyObject& field = iter->Key();
                 if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != ele_key.GetNameSpace() || field.GetKey() != ele_key.GetKey())
                 {
-//                	std::string ss;
-//                	field.GetKey().ToString(ss);
-//                    printf("###Bore lrem %d %s\n",field.GetType() , ss.c_str());
-//                    iter->JumpToLast();
-//                    continue;
                     break;
                 }
 
@@ -773,7 +770,7 @@ OP_NAMESPACE_BEGIN
             }
             if(rtrim > 0)
             {
-                meta.SetListMaxIdx(meta.GetListMinIdx() + rtrim - 1);
+                meta.SetListMaxIdx(last_min + rtrim - 1);
             }
         }
         else
@@ -798,6 +795,7 @@ OP_NAMESPACE_BEGIN
                         meta.SetMinData(field.GetElement(0), true);
                         break;
                     }
+
                     m_engine->Del(ctx, field);
                     trimed_count++;
                     ltrim--;
