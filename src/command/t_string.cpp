@@ -154,7 +154,7 @@ OP_NAMESPACE_BEGIN
             mills *= 1000;
         }
         const std::string& key = cmd.GetArguments()[0];
-        int err = StringSet(ctx, key, cmd.GetArguments()[2], false, mills, -1);
+        int err = SetString(ctx, key, cmd.GetArguments()[2], false, mills, -1);
         if (0 != err)
         {
             reply.SetErrCode(err);
@@ -520,7 +520,7 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::StringSet(Context& ctx, const std::string& key, const std::string& value, bool redis_compatible, int64_t px, int8_t nx_xx)
+    int Ardb::SetString(Context& ctx, const std::string& key, const std::string& value, bool redis_compatible, int64_t px, int8_t nx_xx)
     {
         ctx.flags.create_if_notexist = 1;
         int err = 0;
@@ -624,7 +624,7 @@ OP_NAMESPACE_BEGIN
             }
         }
         bool redis_compatible = ctx.flags.redis_compatible;
-        int err = StringSet(ctx, key, value, redis_compatible, ttl, nx_xx);
+        int err = SetString(ctx, key, value, redis_compatible, ttl, nx_xx);
         if (0 != err)
         {
             if (ERR_NOTPERFORMED == err)
@@ -652,7 +652,7 @@ OP_NAMESPACE_BEGIN
         RedisReply& reply = ctx.GetReply();
         const std::string& key = cmd.GetArguments()[0];
         bool redis_compatible = ctx.flags.redis_compatible;
-        int err = StringSet(ctx, cmd.GetArguments()[0], cmd.GetArguments()[1], redis_compatible, -1, 0);
+        int err = SetString(ctx, cmd.GetArguments()[0], cmd.GetArguments()[1], redis_compatible, -1, 0);
         if (0 != err)
         {
             if (err == ERR_NOTPERFORMED)

@@ -171,6 +171,12 @@ OP_NAMESPACE_BEGIN
                     return GetElement(1);
                 }
             }
+            void SetListIndex(int64_t idx)
+            {
+                Data v;
+                v.SetInt64(idx);
+                SetListIndex(v);
+            }
             void SetListIndex(const Data& idx)
             {
                 setElement(idx, 0);

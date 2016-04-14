@@ -145,6 +145,8 @@ OP_NAMESPACE_BEGIN
             int FindElementByRedisCursor(const std::string& cursor, std::string& element);
             uint64 GetNewRedisCursor(const std::string& element);
 
+            int GetValueByPattern(Context& ctx, const Slice& pattern, Data& subst, Data& value);
+
             void TryPushSlowCommand(const RedisCommandFrame& cmd, uint64 micros);
             void GetSlowlog(Context& ctx, uint32 len);
             int ObjectLen(Context& ctx, KeyType type, const std::string& key);
@@ -156,7 +158,7 @@ OP_NAMESPACE_BEGIN
             int UnsubscribeAll(Context& ctx, bool is_pattern, bool notify);
             int PublishMessage(Context& ctx, const std::string& channel, const std::string& message);
 
-            int StringSet(Context& ctx, const std::string& key, const std::string& value, bool redis_compatible, int64_t px = -1, int8_t nx_xx = -1);
+            int SetString(Context& ctx, const std::string& key, const std::string& value, bool redis_compatible, int64_t px = -1, int8_t nx_xx = -1);
 
             int ListPop(Context& ctx, RedisCommandFrame& cmd, bool lock_key = true);
             int ListPush(Context& ctx, RedisCommandFrame& cmd, bool lock_key = true);
@@ -182,6 +184,7 @@ OP_NAMESPACE_BEGIN
 
             int DelKey(Context& ctx, const KeyObject& meta_key, Iterator*& iter);
             int DelKey(Context& ctx, const KeyObject& meta_key);
+            int DelKey(Context& ctx, const std::string& key);
             int MoveKey(Context& ctx, RedisCommandFrame& cmd);
 
             int HIterate(Context& ctx, RedisCommandFrame& cmd);
@@ -369,7 +372,11 @@ OP_NAMESPACE_BEGIN
             int Script(Context& ctx, RedisCommandFrame& cmd);
 
             int GeoAdd(Context& ctx, RedisCommandFrame& cmd);
-            int GeoSearch(Context& ctx, RedisCommandFrame& cmd);
+            int GeoRadius(Context& ctx, RedisCommandFrame& cmd);
+            int GeoRadiusByMember(Context& ctx, RedisCommandFrame& cmd);
+            int GeoDist(Context& ctx, RedisCommandFrame& cmd);
+            int GeoHash(Context& ctx, RedisCommandFrame& cmd);
+            int GeoPos(Context& ctx, RedisCommandFrame& cmd);
 
             int Auth(Context& ctx, RedisCommandFrame& cmd);
 

@@ -144,7 +144,7 @@ namespace ardb
     int Ardb::Subscribe(Context& ctx, RedisCommandFrame& cmd)
     {
 //        ctx.client->client->GetWritableOptions().max_write_buffer_size = (int32) (m_cfg.pubsub_client_output_buffer_limit);
-        ctx.GetReply().type = 0; //let cleint not write this reply
+        ctx.GetReply().SetEmpty(); //let cleint not write this reply
         for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
         {
             const std::string& channel = cmd.GetArguments()[i];
@@ -175,7 +175,7 @@ namespace ardb
     int Ardb::PSubscribe(Context& ctx, RedisCommandFrame& cmd)
     {
 //        ctx.client->GetWritableOptions().max_write_buffer_size = (int32)(m_cfg.pubsub_client_output_buffer_limit);
-        ctx.GetReply().type = 0; //let cleint not write this reply
+        ctx.GetReply().SetEmpty(); //let cleint not write this reply
         for (uint32 i = 0; i < cmd.GetArguments().size(); i++)
         {
             const std::string& pattern = cmd.GetArguments()[i];

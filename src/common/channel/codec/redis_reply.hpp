@@ -44,7 +44,6 @@
 #define REDIS_REPLY_ERROR 6
 #define REDIS_REPLY_DOUBLE 1001
 
-
 #define FIRST_CHUNK_FLAG  0x01
 #define LAST_CHUNK_FLAG  0x02
 
@@ -70,6 +69,7 @@ namespace ardb
             ERR_INVALID_HLL_STRING = -1010,
             ERR_SCORE_NAN = -1011,
             ERR_EXEC_ABORT = -1012,
+            ERR_UNSUPPORT_DIST_UNIT = -1013,
             ERR_INVALID_ARGS = -3,
             ERR_INVALID_OPERATION = -4,
 
@@ -94,9 +94,7 @@ namespace ardb
 
         enum StatusCode
         {
-            STATUS_OK = 1000,
-            STATUS_PONG = 1001,
-            STATUS_QUEUED = 1002,
+            STATUS_OK = 1000, STATUS_PONG = 1001, STATUS_QUEUED = 1002,
         };
 
         struct RedisDumpFileChunk
@@ -153,13 +151,19 @@ namespace ardb
                 }
                 bool IsErr() const
                 {
-                	return type == REDIS_REPLY_ERROR;
+                    return type == REDIS_REPLY_ERROR;
                 }
                 const std::string& Status();
                 const std::string& Error();
                 int64_t ErrCode() const
                 {
-                	return integer;
+                    return integer;
+                }
+
+                void SetEmpty()
+                {
+                    Clear();
+                    type = 0;
                 }
                 double GetDouble();
                 void SetDouble(double v);
@@ -170,32 +174,35 @@ namespace ardb
                 }
                 void SetString(const Data& v)
                 {
-                	Clear();
-                    type = REDIS_REPLY_STRING;
-                    v.ToString(str);
+                    Clear();
+                    if(!v.IsNil())
+                    {
+                        type = REDIS_REPLY_STRING;
+                        v.ToString(str);
+                    }
                 }
 
                 void SetString(const std::string& v)
                 {
-                	Clear();
+                    Clear();
                     type = REDIS_REPLY_STRING;
                     str = v;
                 }
                 void SetErrCode(int err)
                 {
-                	Clear();
+                    Clear();
                     type = REDIS_REPLY_ERROR;
                     integer = err;
                 }
                 void SetErrorReason(const std::string& reason)
                 {
-                	Clear();
+                    Clear();
                     type = REDIS_REPLY_ERROR;
                     str = reason;
                 }
                 void SetStatusCode(int status)
                 {
-                	Clear();
+                    Clear();
                     type = REDIS_REPLY_STATUS;
                     integer = status;
                 }
@@ -205,13 +212,13 @@ namespace ardb
                     return pool != NULL;
                 }
                 RedisReply& AddMember(bool tail = true);
-                void ReserveMember(size_t num);
+                void ReserveMember(int64_t num);
                 size_t MemberSize();
                 RedisReply& MemberAt(uint32 i);
                 void Clear();
                 void Clone(const RedisReply& r)
                 {
-                	Clear();
+                    Clear();
                     type = r.type;
                     integer = r.integer;
                     str = r.str;

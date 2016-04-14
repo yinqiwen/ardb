@@ -67,7 +67,7 @@ namespace ardb
             static int GetCoordRange(uint8 coord_type, GeoHashRange& lat_range, GeoHashRange& lon_range);
             static int GetAreasByRadius(uint8 coord_type,double latitude, double longitude, double radius_meters, GeoHashBitsSet& results);
             static int GetAreasByRadiusV2(uint8 coord_type,double latitude, double longitude, double radius_meters, GeoHashBitsSet& results);
-            static GeoHashFix60Bits Allign60Bits(const GeoHashBits& hash);
+            static uint64 AllignHashBits(uint8 step, const GeoHashBits& hash);
             static double GetMercatorX(double longtitude);
             static double GetMercatorY(double latitude);
             static double GetWGS84X(double x);
@@ -76,7 +76,8 @@ namespace ardb
             static bool GetDistanceSquareIfInRadius(uint8 coord_type, double x1, double y1, double x2, double y2, double radius, double& distance, double accurace);
 
             static bool GetMercatorXYByHash(GeoHashFix60Bits hash, double& x, double& y);
-            static bool GetXYByHash(uint8 coord_type, GeoHashFix60Bits hash, double& x, double& y);
+            static bool GetXYByHash(uint8 coord_type, uint8 step, uint64_t hash, double& x, double& y);
+            static double GetWGS84Distance(double lon1d, double lat1d, double lon2d, double lat2d);
     };
 }
 

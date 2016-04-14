@@ -131,11 +131,12 @@ namespace ardb
             }
             return *reply;
         }
-        void RedisReply::ReserveMember(size_t num)
+        void RedisReply::ReserveMember(int64_t num)
         {
             Clear();
             type = REDIS_REPLY_ARRAY;
-            for (size_t i = 0; i < num; i++)
+            integer = num;
+            for (size_t i = 0; num > 0 && i < num; i++)
             {
                 AddMember();
             }
@@ -168,7 +169,7 @@ namespace ardb
         }
         const std::string& RedisReply::Error()
         {
-            if(str.empty())
+            if (str.empty())
             {
                 reply_error_string(integer, str);
             }
@@ -176,7 +177,7 @@ namespace ardb
         }
         const std::string& RedisReply::Status()
         {
-            if(str.empty())
+            if (str.empty())
             {
                 reply_status_string(integer, str);
             }
@@ -184,12 +185,12 @@ namespace ardb
         }
         RedisReply::~RedisReply()
         {
-        	Clear();
+            Clear();
         }
 
         void reply_status_string(int code, std::string& str)
         {
-            switch(code)
+            switch (code)
             {
                 case STATUS_OK:
                 {
@@ -214,11 +215,16 @@ namespace ardb
         }
         void reply_error_string(int code, std::string& str)
         {
-            switch(code)
+            switch (code)
             {
                 case ERR_EXEC_ABORT:
                 {
                     str.assign("EXECABORT Transaction discarded because of previous errors.");
+                    break;
+                }
+                case ERR_UNSUPPORT_DIST_UNIT:
+                {
+                    str.assign("unsupported unit provided. please use m, km, ft, mi.");
                     break;
                 }
                 case ERR_SCORE_NAN:

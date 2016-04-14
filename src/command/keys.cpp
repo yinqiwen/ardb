@@ -660,6 +660,12 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
+    int Ardb::DelKey(Context& ctx, const std::string& key)
+    {
+        KeyObject meta_key(ctx.ns, KEY_META, key);
+        return DelKey(ctx, meta_key);
+    }
+
     int Ardb::DelKey(Context& ctx, const KeyObject& meta_key)
     {
         Iterator* iter = NULL;

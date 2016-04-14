@@ -163,8 +163,7 @@ namespace ardb
         return 0;
     }
 
-    int GeoHashHelper::GetAreasByRadiusV2(uint8 coord_type, double latitude, double longitude, double radius_meters,
-            GeoHashBitsSet& results)
+    int GeoHashHelper::GetAreasByRadiusV2(uint8 coord_type, double latitude, double longitude, double radius_meters, GeoHashBitsSet& results)
     {
         GeoHashRange lat_range, lon_range;
         GeoHashHelper::GetCoordRange(coord_type, lat_range, lon_range);
@@ -348,8 +347,7 @@ namespace ardb
         return 0;
     }
 
-    int GeoHashHelper::GetAreasByRadius(uint8 coord_type, double latitude, double longitude, double radius_meters,
-            GeoHashBitsSet& results)
+    int GeoHashHelper::GetAreasByRadius(uint8 coord_type, double latitude, double longitude, double radius_meters, GeoHashBitsSet& results)
     {
         GeoHashRange lat_range, lon_range;
         GeoHashHelper::GetCoordRange(coord_type, lat_range, lon_range);
@@ -412,10 +410,10 @@ namespace ardb
         return 0;
     }
 
-    GeoHashFix60Bits GeoHashHelper::Allign60Bits(const GeoHashBits& hash)
+    uint64 GeoHashHelper::AllignHashBits(uint8 step, const GeoHashBits& hash)
     {
         uint64_t bits = hash.bits;
-        bits <<= (60 - hash.step * 2);
+        bits <<= (step * 2 - hash.step * 2);
         return bits;
     }
 
@@ -431,8 +429,20 @@ namespace ardb
         return 2.0 * EARTH_RADIUS_IN_METERS * asin(sqrt(u * u + cos(lat1r) * cos(lat2r) * v * v));
     }
 
-    bool GeoHashHelper::GetDistanceSquareIfInRadius(uint8 coord_type, double x1, double y1, double x2, double y2,
-            double radius, double& distance, double accurace)
+    double GeoHashHelper::GetWGS84Distance(double lon1d, double lat1d, double lon2d, double lat2d)
+    {
+        double lat1r, lon1r, lat2r, lon2r, u, v;
+        lat1r = deg_rad(lat1d);
+        lon1r = deg_rad(lon1d);
+        lat2r = deg_rad(lat2d);
+        lon2r = deg_rad(lon2d);
+        u = sin((lat2r - lat1r) / 2);
+        v = sin((lon2r - lon1r) / 2);
+        return 2.0 * EARTH_RADIUS_IN_METERS * asin(sqrt(u * u + cos(lat1r) * cos(lat2r) * v * v));
+    }
+
+    bool GeoHashHelper::GetDistanceSquareIfInRadius(uint8 coord_type, double x1, double y1, double x2, double y2, double radius, double& distance,
+            double accurace)
     {
         if (coord_type == GEO_WGS84_TYPE)
         {
@@ -473,13 +483,13 @@ namespace ardb
         return true;
     }
 
-    bool GeoHashHelper::GetXYByHash(uint8 coord_type, GeoHashFix60Bits hash, double& x, double& y)
+    bool GeoHashHelper::GetXYByHash(uint8 coord_type, uint8 step, uint64_t hash, double& x, double& y)
     {
         GeoHashRange lat_range, lon_range;
         GeoHashHelper::GetCoordRange(coord_type, lat_range, lon_range);
         GeoHashBits hashbits;
         hashbits.bits = hash;
-        hashbits.step = 30;
+        hashbits.step = step;
         GeoHashArea area;
         if (0 == geohash_fast_decode(lat_range, lon_range, hashbits, &area))
         {

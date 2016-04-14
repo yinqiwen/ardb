@@ -74,7 +74,7 @@ namespace ardb
             }
             else
             {
-                reply.Clear();
+                reply.ReserveMember(-1);
             }
             DiscardTransaction(ctx);
             return 0;

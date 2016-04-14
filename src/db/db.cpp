@@ -271,8 +271,12 @@ OP_NAMESPACE_BEGIN
         { "randomkey", REDIS_CMD_RANDOMKEY, &Ardb::Randomkey, 0, 0, "r", 0, 0, 0 },
         { "scan", REDIS_CMD_SCAN, &Ardb::Scan, 1, 5, "r", 0, 0, 0 },
         { "scan2", REDIS_CMD_SCAN2, &Ardb::Scan, 1, 5, "r", 0, 0, 0 },
-        { "geoadd", REDIS_CMD_GEO_ADD, &Ardb::GeoAdd, 5, -1, "w", 0, 0, 0 },
-        { "geosearch", REDIS_CMD_GEO_SEARCH, &Ardb::GeoSearch, 5, -1, "r", 0, 0, 0 },
+        { "geoadd", REDIS_CMD_GEO_ADD, &Ardb::GeoAdd, 4, -1, "w", 0, 0, 0 },
+        { "georadius", REDIS_CMD_GEO_RADIUS, &Ardb::GeoRadius, 5, -1, "r", 0, 0, 0 },
+        { "georadiusbymember", REDIS_CMD_GEO_RADIUSBYMEMBER, &Ardb::GeoRadiusByMember, 4, 10, "r", 0, 0, 0 },
+        { "geohash", REDIS_CMD_GEO_HASH, &Ardb::GeoHash, 2, -1, "r", 0, 0, 0 },
+        { "geodist", REDIS_CMD_GEO_DIST, &Ardb::GeoDist, 3, 4, "r", 0, 0, 0 },
+        { "geopos", REDIS_CMD_GEO_POS, &Ardb::GeoPos, 2, -1, "r", 0, 0, 0 },
         { "auth", REDIS_CMD_AUTH, &Ardb::Auth, 1, 1, "r", 0, 0, 0 },
         { "pfadd", REDIS_CMD_PFADD, &Ardb::PFAdd, 2, -1, "w", 0, 0, 0 },
         { "pfadd2", REDIS_CMD_PFADD2, &Ardb::PFAdd, 2, -1, "w", 0, 0, 0 },
@@ -692,7 +696,7 @@ OP_NAMESPACE_BEGIN
     int Ardb::DoCall(Context& ctx, RedisCommandHandlerSetting& setting, RedisCommandFrame& args)
     {
         uint64 start_time = get_current_epoch_micros();
-        if (args.GetType() < REDIS_CMD_MERGE_BEGIN && GetConf().redis_compatible)
+        if (args.GetType() < REDIS_CMD_EXTEND_BEGIN && GetConf().redis_compatible)
         {
             ctx.flags.redis_compatible = 1;
         }

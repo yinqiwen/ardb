@@ -44,6 +44,7 @@ OP_NAMESPACE_BEGIN
     typedef std::vector<std::string> StringArray;
     typedef TreeMap<std::string, std::string>::Type StringStringMap;
     typedef TreeSet<std::string>::Type StringTreeSet;
+    typedef TreeMap<std::string, double>::Type StringDoubleMap;
 
     class Slice
     {
