@@ -108,6 +108,30 @@ namespace ardb
         step--;
         return step;
     }
+    static uint8_t estimate_geohash_steps_by_radius_lat(double range_meters, double lat)
+    {
+        uint8_t step = 1;
+        while (range_meters < MERCATOR_MAX)
+        {
+            range_meters *= 2;
+            step++;
+        }
+        step -= 2; /* Make sure range is included in the worst case. */
+        /* Wider range torwards the poles... Note: it is possible to do better
+         * than this approximation by computing the distance between meridians
+         * at this latitude, but this does the trick for now. */
+        if (lat > 67 || lat < -67)
+            step--;
+        if (lat > 80 || lat < -80)
+            step--;
+
+        /* Frame to valid range. */
+        if (step < 1)
+            step = 1;
+        if (step > 26)
+            step = 25;
+        return step;
+    }
 
     double GeoHashHelper::GetWGS84X(double x)
     {
@@ -353,18 +377,38 @@ namespace ardb
         GeoHashHelper::GetCoordRange(coord_type, lat_range, lon_range);
         double delta_longitude = radius_meters;
         double delta_latitude = radius_meters;
-        if (coord_type == GEO_WGS84_TYPE)
-        {
-            delta_latitude = radius_meters / (111320.0 * cos(latitude));
-            delta_longitude = radius_meters / 110540.0;
-        }
 
         double min_lat = latitude - delta_latitude;
         double max_lat = latitude + delta_latitude;
         double min_lon = longitude - delta_longitude;
         double max_lon = longitude + delta_longitude;
+        int steps;
+        if (coord_type == GEO_WGS84_TYPE)
+        {
+            double lonr, latr;
+            lonr = deg_rad(longitude);
+            latr = deg_rad(latitude);
 
-        int steps = estimate_geohash_steps_by_radius(radius_meters);
+            double distance = radius_meters / EARTH_RADIUS_IN_METERS;
+            double min_latitude = latr - distance;
+            double max_latitude = latr + distance;
+
+            double min_longitude, max_longitude;
+            double difference_longitude = asin(sin(distance) / cos(latr));
+            min_longitude = lonr - difference_longitude;
+            max_longitude = lonr + difference_longitude;
+
+            min_lon = rad_deg(min_longitude);
+            min_lat = rad_deg(min_latitude);
+            max_lon = rad_deg(max_longitude);
+            max_lat = rad_deg(max_latitude);
+            steps = estimate_geohash_steps_by_radius_lat(radius_meters, latitude);
+        }
+        else
+        {
+            steps = estimate_geohash_steps_by_radius(radius_meters);
+        }
+
         GeoHashBits hash;
         geohash_fast_encode(lat_range, lat_range, latitude, longitude, steps, &hash);
 
