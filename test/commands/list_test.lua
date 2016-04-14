@@ -57,6 +57,9 @@ s = ardb.call("lrem", "mylist", "2", "a1")
 ardb.assert2(s == 1, s)
 
 
+s=ardb.call("llen", "mylist")
+ardb.assert2(s == 2, s)
+
 --[[ non sequential list lrange  --]]
 local vs = ardb.call("lrange", "mylist", "0", "-1")
 ardb.assert2(table.getn(vs) == 2, vs)
