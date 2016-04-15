@@ -113,7 +113,7 @@ namespace ardb
 
     int Ardb::TouchWatchedKeysOnFlush(Context& ctx, const Data& ns)
     {
-        WriteLockGuard<SpinRWLock> guard(m_watched_keys_lock);
+        LockGuard<SpinMutexLock> guard(m_watched_keys_lock);
         if (!m_watched_ctxs.empty())
         {
             WatchedContextTable::iterator wit = m_watched_ctxs.begin();
@@ -136,7 +136,7 @@ namespace ardb
 
     int Ardb::TouchWatchKey(Context& ctx, const KeyObject& key)
     {
-        WriteLockGuard<SpinRWLock> guard(m_watched_keys_lock);
+        LockGuard<SpinMutexLock> guard(m_watched_keys_lock);
         if (!m_watched_ctxs.empty())
         {
             KeyPrefix prefix;
@@ -158,7 +158,7 @@ namespace ardb
 
     int Ardb::WatchForKey(Context& ctx, const std::string& key)
     {
-        WriteLockGuard<SpinRWLock> guard(m_watched_keys_lock);
+        LockGuard<SpinMutexLock> guard(m_watched_keys_lock);
         KeyPrefix prefix;
         prefix.ns = ctx.ns;
         prefix.key.SetString(key, false);
@@ -169,7 +169,7 @@ namespace ardb
 
     int Ardb::UnwatchKeys(Context& ctx)
     {
-        WriteLockGuard<SpinRWLock> guard(m_watched_keys_lock);
+        LockGuard<SpinMutexLock> guard(m_watched_keys_lock);
         if (ctx.transc != NULL && !m_watched_ctxs.empty())
         {
             TransactionContext::WatchKeySet::iterator it = ctx.GetTransaction().watched_keys.begin();

@@ -90,7 +90,7 @@ OP_NAMESPACE_BEGIN
             typedef TreeSet<KeyPrefix>::Type WatchKeySet;
             WatchKeySet watched_keys;
             TransactionContext() :
-                    abort(false),cas(false)
+                    abort(false), cas(false)
             {
             }
     };
@@ -98,6 +98,13 @@ OP_NAMESPACE_BEGIN
     {
             StringTreeSet pubsub_channels;
             StringTreeSet pubsub_patterns;
+    };
+
+    struct BlockingState
+    {
+            typedef TreeSet<KeyPrefix>::Type BlockKeySet;
+            BlockKeySet keys;
+            KeyPrefix target;
     };
 
     class Context
@@ -113,12 +120,14 @@ OP_NAMESPACE_BEGIN
             ClientContext* client;
             TransactionContext* transc;
             PubSubContext* pubsub;
+            BlockingState* bpop;
             int dirty;
 
             int transc_err;
             int64 sequence;  //recv command sequence in the server, start from 1
             Context() :
-                    reply(NULL), authenticated(true), current_cmd(NULL), client(NULL), transc(NULL), pubsub(NULL), dirty(0), transc_err(0), sequence(0)
+                    reply(NULL), authenticated(true), current_cmd(NULL), client(NULL), transc(NULL), pubsub(NULL), bpop(NULL), dirty(0), transc_err(0), sequence(
+                            0)
             {
                 ns.SetInt64(0);
             }
@@ -163,6 +172,10 @@ OP_NAMESPACE_BEGIN
             {
                 DELETE(pubsub);
             }
+            void ClearBPop()
+            {
+                DELETE(bpop);
+            }
             bool InTransaction()
             {
                 return transc != NULL;
@@ -171,7 +184,14 @@ OP_NAMESPACE_BEGIN
             {
                 return pubsub != NULL;
             }
-
+            BlockingState& GetBPop()
+            {
+                if (NULL == bpop)
+                {
+                    NEW(bpop, BlockingState);
+                }
+                return *bpop;
+            }
             TransactionContext& GetTransaction()
             {
                 if (NULL == transc)

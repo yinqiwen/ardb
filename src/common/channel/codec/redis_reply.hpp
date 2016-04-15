@@ -153,6 +153,10 @@ namespace ardb
                 {
                     return type == REDIS_REPLY_ERROR;
                 }
+                bool IsNil() const
+                {
+                    return type == REDIS_REPLY_NIL;
+                }
                 const std::string& Status();
                 const std::string& Error();
                 int64_t ErrCode() const

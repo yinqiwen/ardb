@@ -379,29 +379,30 @@ OP_NAMESPACE_BEGIN
                 ele_value.SetType(KEY_LIST_ELEMENT);
                 ele_value.SetListElement(cmd.GetArguments()[i]);
                 int64 idx = 0;
-                if(meta.GetObjectLen() > 0)
+                if (meta.GetObjectLen() > 0)
                 {
                     if (left_push)
                     {
-                    	if(meta.GetMin().IsInteger())
-                    	{
+                        if (meta.GetMin().IsInteger())
+                        {
                             idx = meta.GetListMinIdx() - 1;
-                    	}
-                    	else
-                    	{
-                    		idx = (int64_t)(meta.GetMin().GetFloat64()) - 1;
-                    	}
+                        }
+                        else
+                        {
+                            idx = (int64_t) (meta.GetMin().GetFloat64()) - 1;
+                        }
                         meta.SetListMinIdx(idx);
                     }
                     else
                     {
-                    	if(meta.GetMax().IsInteger())
-                    	{
-                    		  idx = meta.GetListMaxIdx() + 1;
-                    	}else
-                    	{
-                    		  idx = (int64_t)(meta.GetMax().GetFloat64()) + 1;
-                    	}
+                        if (meta.GetMax().IsInteger())
+                        {
+                            idx = meta.GetListMaxIdx() + 1;
+                        }
+                        else
+                        {
+                            idx = (int64_t) (meta.GetMax().GetFloat64()) + 1;
+                        }
                         meta.SetListMaxIdx(idx);
                     }
                 }
@@ -419,6 +420,7 @@ OP_NAMESPACE_BEGIN
         else
         {
             reply.SetInteger(meta.GetObjectLen());
+            SignalListAsReady(ctx, keystr);
         }
         return 0;
     }
@@ -473,7 +475,7 @@ OP_NAMESPACE_BEGIN
             for (size_t i = 0; i < rangelen; i++)
             {
                 KeyObject key(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
-                key.SetListIndex((int64)(meta.GetListMinIdx() + i + start));
+                key.SetListIndex((int64) (meta.GetListMinIdx() + i + start));
                 ks.push_back(key);
             }
             ValueObjectArray vs;
@@ -764,11 +766,11 @@ OP_NAMESPACE_BEGIN
                 trimed_count++;
             }
             int64_t last_min = meta.GetListMinIdx();
-            if(ltrim > 0)
+            if (ltrim > 0)
             {
                 meta.SetListMinIdx(last_min + ltrim);
             }
-            if(rtrim > 0)
+            if (rtrim > 0)
             {
                 meta.SetListMaxIdx(last_min + rtrim - 1);
             }
@@ -894,14 +896,155 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::BLPop(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
+        uint32 timeout;
+        if (!string_touint32(cmd.GetArguments()[cmd.GetArguments().size() - 1], timeout))
+        {
+            reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
+            return 0;
+        }
+        StringArray list_keys;
+        for (size_t i = 0; i < cmd.GetArguments().size() - 1; i++)
+        {
+            RedisCommandFrame list_pop;
+            list_pop.SetCommand(cmd.GetType() == REDIS_CMD_BRPOP ? "rpop" : "lpop");
+            list_pop.SetType(cmd.GetType() == REDIS_CMD_BRPOP ? REDIS_CMD_RPOP : REDIS_CMD_LPOP);
+            list_pop.AddArg(cmd.GetArguments()[i]);
+            ListPop(ctx, list_pop, true);
+            if (!reply.IsNil())
+            {
+                if (!reply.IsErr())
+                {
+                    std::string val = reply.str;
+                    reply.ReserveMember(0);
+                    RedisReply& r1 = reply.AddMember();
+                    RedisReply& r2 = reply.AddMember();
+                    r1.SetString(cmd.GetArguments()[i]);
+                    r2.SetString(val);
+                }
+                return 0;
+            }
+            list_keys.push_back(cmd.GetArguments()[i]);
+        }
+        BlockForKeys(ctx, list_keys, "", timeout);
         return 0;
     }
     int Ardb::BRPop(Context& ctx, RedisCommandFrame& cmd)
     {
-        return 0;
+        return BLPop(ctx, cmd);
     }
     int Ardb::BRPopLPush(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
+        uint32 timeout;
+        if (!string_touint32(cmd.GetArguments()[cmd.GetArguments().size() - 1], timeout))
+        {
+            reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
+            return 0;
+        }
+        RPopLPush(ctx, cmd);
+        if (reply.IsNil())
+        {
+            StringArray list_keys(1, cmd.GetArguments()[0]);
+            BlockForKeys(ctx, list_keys, cmd.GetArguments()[1], timeout);
+        }
+        return 0;
+    }
+
+    int Ardb::UnblockKeys(Context& ctx)
+    {
+        LockGuard<SpinMutexLock> guard(m_block_keys_lock);
+        if (ctx.bpop != NULL && !m_blocked_ctxs.empty())
+        {
+            BlockingState::BlockKeySet::iterator it = ctx.GetBPop().keys.begin();
+            while (it != ctx.GetBPop().keys.end())
+            {
+                const KeyPrefix& prefix = *it;
+                m_blocked_ctxs[prefix].erase(&ctx);
+                if (m_blocked_ctxs[prefix].size() == 0)
+                {
+                    m_blocked_ctxs.erase(prefix);
+                }
+                it++;
+            }
+        }
+        return 0;
+    }
+
+    int Ardb::BlockForKeys(Context& ctx, const StringArray& keys, const std::string& target, uint32 timeout)
+    {
+        if (!target.empty())
+        {
+            ctx.GetBPop().target.key.SetString(target, false);
+            ctx.GetBPop().target.ns = ctx.ns;
+        }
+        LockGuard<SpinMutexLock> guard(m_block_keys_lock);
+        for (size_t i = 0; i < keys.size(); i++)
+        {
+            KeyPrefix prefix;
+            prefix.ns = ctx.ns;
+            prefix.key.SetString(keys[i], false);
+            ctx.GetBPop().keys.insert(prefix);
+            m_blocked_ctxs[prefix].insert(&ctx);
+        }
+        return 0;
+    }
+
+    int Ardb::SignalListAsReady(Context& ctx, const std::string& key)
+    {
+        LockGuard<SpinMutexLock> guard(m_block_keys_lock);
+        KeyPrefix prefix;
+        prefix.ns = ctx.ns;
+        prefix.key.SetString(key, false);
+        if (m_blocked_ctxs.find(prefix) == m_blocked_ctxs.end())
+        {
+            return -1;
+        }
+        m_ready_keys.insert(prefix);
+        return 0;
+    }
+
+    int Ardb::WakeClientsBlockingOnList(Context& ctx)
+    {
+        ReadyKeySet ready_keys;
+        {
+            LockGuard<SpinMutexLock> guard(m_block_keys_lock);
+            ready_keys = m_ready_keys;
+            m_ready_keys.clear();
+        }
+        while (!ready_keys.empty())
+        {
+            ReadyKeySet::iterator head = ready_keys.begin();
+            KeyPrefix key = *head;
+            while (true)
+            {
+                Context* unblock_client = NULL;
+                {
+                    LockGuard<SpinMutexLock> guard(m_block_keys_lock);
+                    BlockedContextTable::iterator fit = m_blocked_ctxs.find(key);
+                    if (fit != m_blocked_ctxs.end())
+                    {
+                        ContextSet::iterator cit = fit->second.begin();
+                        if (cit == fit->second.end())
+                        {
+                            break;
+                        }
+                        unblock_client = *cit;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                if (NULL != unblock_client)
+                {
+                    //ListPop(ctx, cmd, true);
+                    //RedisRe
+                    UnblockKeys(*unblock_client);
+                }
+            }
+            ready_keys.erase(head);
+        }
         return 0;
     }
 

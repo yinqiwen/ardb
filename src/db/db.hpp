@@ -121,7 +121,7 @@ OP_NAMESPACE_BEGIN
 
             SpinMutexLock m_redis_cursor_lock;
             typedef LRUCache<uint64, std::string> RedisCursorCache;
-            uint64  m_redis_cursor_seed;
+            uint64 m_redis_cursor_seed;
             RedisCursorCache m_redis_cursor_cache;
 
             typedef TreeMap<std::string, ContextSet>::Type PubSubChannelTable;
@@ -129,9 +129,15 @@ OP_NAMESPACE_BEGIN
             PubSubChannelTable m_pubsub_channels;
             PubSubChannelTable m_pubsub_patterns;
 
-            SpinRWLock m_watched_keys_lock;
+            SpinMutexLock m_watched_keys_lock;
             typedef TreeMap<KeyPrefix, ContextSet>::Type WatchedContextTable;
             WatchedContextTable m_watched_ctxs;
+
+            SpinMutexLock m_block_keys_lock;
+            typedef TreeMap<KeyPrefix, ContextSet>::Type BlockedContextTable;
+            typedef TreeSet<KeyPrefix>::Type ReadyKeySet;
+            BlockedContextTable m_blocked_ctxs;
+            ReadyKeySet m_ready_keys;
 
             int WriteReply(Context& ctx, RedisReply* r, bool async);
 
@@ -197,6 +203,11 @@ OP_NAMESPACE_BEGIN
             int TouchWatchedKeysOnFlush(Context& ctx, const Data& ns);
             int DiscardTransaction(Context& ctx);
 
+            int BlockForKeys(Context& ctx, const StringArray& keys, const std::string& target, uint32 timeout);
+            int UnblockKeys(Context& ctx);
+            int WakeClientsBlockingOnList(Context& ctx);
+            int SignalListAsReady(Context& ctx, const std::string& key);
+
             int IncrDecrCommand(Context& ctx, RedisCommandFrame& cmd);
 
             int FireKeyChangedEvent(Context& ctx, const KeyObject& key);
@@ -253,7 +264,6 @@ OP_NAMESPACE_BEGIN
             int CompactAll(Context& ctx, RedisCommandFrame& cmd);
 
             int Append(Context& ctx, RedisCommandFrame& cmd);
-
             int Decr(Context& ctx, RedisCommandFrame& cmd);
             int Decrby(Context& ctx, RedisCommandFrame& cmd);
             int Get(Context& ctx, RedisCommandFrame& cmd);
@@ -361,11 +371,6 @@ OP_NAMESPACE_BEGIN
             int BLPop(Context& ctx, RedisCommandFrame& cmd);
             int BRPop(Context& ctx, RedisCommandFrame& cmd);
             int BRPopLPush(Context& ctx, RedisCommandFrame& cmd);
-
-            int HClear(Context& ctx, ValueObject& meta);
-            int SClear(Context& ctx, ValueObject& meta);
-            int ZClear(Context& ctx, ValueObject& meta);
-            int LClear(Context& ctx, ValueObject& meta);
 
             int Eval(Context& ctx, RedisCommandFrame& cmd);
             int EvalSHA(Context& ctx, RedisCommandFrame& cmd);

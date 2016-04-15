@@ -818,6 +818,7 @@ OP_NAMESPACE_BEGIN
             }
         }
         ret = DoCall(ctx, setting, args);
+        WakeClientsBlockingOnList(ctx);
         return ret;
     }
 
