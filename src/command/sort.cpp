@@ -208,7 +208,7 @@ namespace ardb
             KeyObject store_key(ctx.ns, KEY_META, options.store_dst);
             lock_keys.push_back(store_key);
         }
-        KeysLockGuard guard(lock_keys);
+        KeysLockGuard guard(ctx, lock_keys);
         ValueObject meta;
         if (!CheckMeta(ctx, key, (KeyType) 0, meta))
         {

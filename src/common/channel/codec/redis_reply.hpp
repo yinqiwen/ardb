@@ -157,6 +157,14 @@ namespace ardb
                 {
                     return type == REDIS_REPLY_NIL;
                 }
+                bool IsString() const
+                {
+                    return type == REDIS_REPLY_STRING;
+                }
+                bool IsArray() const
+                {
+                    return type == REDIS_REPLY_ARRAY;
+                }
                 const std::string& Status();
                 const std::string& Error();
                 int64_t ErrCode() const
@@ -170,6 +178,10 @@ namespace ardb
                     type = 0;
                 }
                 double GetDouble();
+                const std::string& GetString() const
+                {
+                    return str;
+                }
                 void SetDouble(double v);
                 void SetInteger(int64_t v)
                 {
@@ -179,7 +191,7 @@ namespace ardb
                 void SetString(const Data& v)
                 {
                     Clear();
-                    if(!v.IsNil())
+                    if (!v.IsNil())
                     {
                         type = REDIS_REPLY_STRING;
                         v.ToString(str);

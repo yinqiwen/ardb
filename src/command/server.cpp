@@ -679,6 +679,14 @@ namespace ardb
     {
         RedisReply& reply = ctx.GetReply();
         reply.SetStatusCode(STATUS_OK);
+        DataArray nss;
+        m_engine->ListNameSpaces(ctx, nss);
+        for(size_t i = 0; i < nss.size(); i++)
+        {
+            KeyObject start, end;
+            start.SetNameSpace(nss[i]);
+            m_engine->Compact(ctx, start, end);
+        }
         return 0;
     }
     /*

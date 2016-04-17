@@ -95,7 +95,7 @@ OP_NAMESPACE_BEGIN
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_META, keystr);
         int err = 0;
-        KeyLockGuard guard(key);
+        KeyLockGuard guard(ctx,key);
         ValueObject meta;
         {
             TransactionGuard batch(ctx, m_engine);
@@ -176,7 +176,7 @@ OP_NAMESPACE_BEGIN
             }
             return 0;
         }
-        KeyLockGuard guard(key);
+        KeyLockGuard guard(ctx,key);
         KeyObject field(ctx.ns, KEY_HASH_FIELD, keystr);
         field.SetHashField(cmd.GetArguments()[1]);
         KeyObjectArray keys;
@@ -462,7 +462,7 @@ OP_NAMESPACE_BEGIN
             }
             return 0;
         }
-        KeyLockGuard guard(meta_key);
+        KeyLockGuard guard(ctx,meta_key);
         KeyObjectArray keys;
         keys.push_back(meta_key);
         keys.push_back(field_key);
@@ -618,7 +618,7 @@ OP_NAMESPACE_BEGIN
         RedisReply& reply = ctx.GetReply();
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_META, keystr);
-        KeyLockGuard guard(key);
+        KeyLockGuard guard(ctx,key);
         ValueObject meta;
         int err = 0;
         if (!ctx.flags.redis_compatible)

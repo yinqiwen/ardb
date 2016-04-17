@@ -233,6 +233,11 @@ OP_NAMESPACE_BEGIN
             void Clear();
             const char* CStr() const;
             const std::string& ToString(std::string& str) const;
+            std::string AsString() const
+            {
+                std::string str;
+                return ToString(str);
+            }
             char* ToMutableStr();
 
     };

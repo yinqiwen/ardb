@@ -51,8 +51,8 @@ OP_NAMESPACE_BEGIN
             virtual int CommitTransaction() = 0;
             virtual int DiscardTransaction() = 0;
 
-            int ListNameSpaces(Context& ctx, DataArray& nss);
-            int DropNameSpace(Context& ctx, const Data& ns);
+            virtual int ListNameSpaces(Context& ctx, DataArray& nss) = 0;
+            virtual int DropNameSpace(Context& ctx, const Data& ns) = 0;
             virtual ~Engine()
             {
             }

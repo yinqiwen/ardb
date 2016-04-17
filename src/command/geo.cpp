@@ -649,7 +649,7 @@ namespace ardb
         else
         {
             KeyObject dstkey(ctx.ns, KEY_META, options.storekey);
-            KeyLockGuard guard(dstkey);
+            KeyLockGuard guard(ctx,dstkey);
             DelKey(ctx, dstkey);
             if (points.size() > 0)
             {

@@ -37,7 +37,7 @@ OP_NAMESPACE_BEGIN
         RedisReply& reply = ctx.GetReply();
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_META, keystr);
-        KeyLockGuard guard(key);
+        KeyLockGuard guard(ctx, key);
         ValueObject meta;
         std::set<std::string> added;
         bool redis_compatible = ctx.flags.redis_compatible;
@@ -139,7 +139,7 @@ OP_NAMESPACE_BEGIN
         reply.ReserveMember(0);
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_META, keystr);
-        KeyLockGuard guard(key);
+        KeyLockGuard guard(ctx, key);
         Iterator* iter = m_engine->Find(ctx, key);
         bool checked_meta = false;
         bool need_set_minmax = false;
@@ -205,7 +205,7 @@ OP_NAMESPACE_BEGIN
             k.SetSetMember(cmd.GetArguments()[2]);
             ks.push_back(k);
         }
-        KeysLockGuard guard(ks[0], ks[1]);
+        KeysLockGuard guard(ctx, ks[0], ks[1]);
         ValueObjectArray vs;
         ErrCodeArray errs;
         int err = m_engine->MultiGet(ctx, ks, vs, errs);
@@ -283,7 +283,7 @@ OP_NAMESPACE_BEGIN
         ValueObject meta;
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject meta_key(ctx.ns, KEY_META, keystr);
-        KeyLockGuard guard(meta_key);
+        KeyLockGuard guard(ctx, meta_key);
         if (!CheckMeta(ctx, keystr, KEY_SET, meta))
         {
             return 0;
@@ -399,7 +399,7 @@ OP_NAMESPACE_BEGIN
         RedisReply& reply = ctx.GetReply();
         KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
         ValueObject meta;
-        KeyLockGuard guard(key);
+        KeyLockGuard guard(ctx, key);
         if (!ctx.flags.redis_compatible)
         {
             {
@@ -490,7 +490,7 @@ OP_NAMESPACE_BEGIN
         }
         metas.resize(keys.size());
         iters.resize(keys.size());
-        KeysLockGuard guard(keys);
+        KeysLockGuard guard(ctx, keys);
         if (cmd.GetType() == REDIS_CMD_SDIFFSTORE)
         {
             diff_key_cursor = 1;
@@ -633,7 +633,7 @@ OP_NAMESPACE_BEGIN
         }
         metas.resize(keys.size());
         iters.resize(keys.size());
-        KeysLockGuard guard(keys);
+        KeysLockGuard guard(ctx, keys);
         if (cmd.GetType() == REDIS_CMD_SINTERSTORE)
         {
             inter_key_cursor = 1;
@@ -782,7 +782,7 @@ OP_NAMESPACE_BEGIN
             keys.push_back(set_key);
         }
         metas.resize(keys.size());
-        KeysLockGuard guard(keys);
+        KeysLockGuard guard(ctx,keys);
         ErrCodeArray errs;
         m_engine->MultiGet(ctx, keys, metas, errs);
         for (size_t i = 0; i < metas.size(); i++)

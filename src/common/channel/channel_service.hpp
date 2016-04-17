@@ -55,15 +55,25 @@ namespace ardb
 {
     enum ChannelSoftSignal
     {
-        CHANNEL_REMOVE = 1,
-        WAKEUP = 2,
-        USER_DEFINED = 3,
-        CHANNEL_ASNC_IO = 4,
+        CHANNEL_REMOVE = 1, WAKEUP = 2, USER_DEFINED = 3, CHANNEL_ASNC_IO = 4,
     };
+
+
 
     class ChannelService;
     typedef void UserEventCallback(ChannelService* serv, uint32 ev, void* data);
     typedef void UserRoutineCallback(ChannelService* serv, uint32 idx, void* data);
+
+    struct ChannelServiceLifeCycle
+    {
+            virtual void OnStart(ChannelService* serv, uint32 idx) = 0;
+            virtual void OnStop(ChannelService* serv, uint32 idx) = 0;
+            virtual void OnRoutine(ChannelService* serv, uint32 idx) = 0;
+            virtual ~ChannelServiceLifeCycle()
+            {
+            }
+    };
+
     /**
      * event loop service
      */
@@ -97,11 +107,10 @@ namespace ardb
 
             TaskList m_pending_tasks;
 
-            UserEventCallback* m_user_cb;
-            void* m_user_cb_data;
+//            UserEventCallback* m_user_cb;
+//            void* m_user_cb_data;
 
-            UserRoutineCallback* m_user_routine;
-            void* m_user_routine_data;
+            ChannelServiceLifeCycle* m_lifecycle_callback;
 
             /*
              * parent's index is 0
@@ -148,7 +157,7 @@ namespace ardb
             void SetThreadPoolSize(uint32 size);
             uint32 GetThreadPoolSize();
             ChannelService& GetNextChannelService();
-            ChannelService& GetIdlestChannelService(uint32 min , uint32 max);
+            ChannelService& GetIdlestChannelService(uint32 min, uint32 max);
             uint32 GetPoolIndex()
             {
                 return m_pool_index;
@@ -183,8 +192,8 @@ namespace ardb
             void CloseAllChannels(bool fireCloseEvent = true);
             void CloseAllChannelFD(std::set<Channel*>& exceptions);
 
-            void RegisterUserEventCallback(UserEventCallback* cb, void* data);
-            void RegisterUserRoutineCallback(UserRoutineCallback* cb, void* data);
+//            void RegisterUserEventCallback(UserEventCallback* cb, void* data);
+            void RegisterLifecycleCallback(ChannelServiceLifeCycle* callback);
             void FireUserEvent(uint32 ev);
             void AsyncIO(uint32 id, ChannelAsyncIOCallback* cb, void* data);
             ~ChannelService();

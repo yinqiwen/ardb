@@ -45,6 +45,26 @@ OP_NAMESPACE_BEGIN
     static ThreadLocal<RedisReplyPool> g_reply_pool;
     static QPSTrack g_total_qps;
 
+    class ServerLifecycleHandler: public ChannelServiceLifeCycle, public Runnable
+    {
+            void Run()
+            {
+                g_db->ScanClients();
+            }
+            void OnStart(ChannelService* serv, uint32 idx)
+            {
+                serv->GetTimer().Schedule(this, 100, 100, MILLIS);
+            }
+            void OnStop(ChannelService* serv, uint32 idx)
+            {
+
+            }
+            void OnRoutine(ChannelService* serv, uint32 idx)
+            {
+
+            }
+    };
+
     class RedisRequestHandler: public ChannelUpstreamHandler<RedisCommandFrame>
     {
         private:
@@ -97,6 +117,9 @@ OP_NAMESPACE_BEGIN
                 m_client_ctx.uptime = get_current_epoch_micros();
                 m_client_ctx.last_interaction_ustime = get_current_epoch_micros();
                 m_client_ctx.client = ctx.GetChannel();
+                m_client_ctx.clientid.id = ctx.GetChannel()->GetID();
+                m_client_ctx.clientid.service = &(ctx.GetChannel()->GetService());
+                m_client_ctx.client->Attach(&m_ctx, NULL);
                 if (!g_db->GetConf().requirepass.empty())
                 {
                     m_ctx.authenticated = false;
@@ -125,6 +148,10 @@ OP_NAMESPACE_BEGIN
                             ctx.GetChannel()->Close();
                         }
                     }
+                }
+                else
+                {
+                    g_db->AddClient(m_ctx);
                 }
             }
         public:
@@ -181,6 +208,8 @@ OP_NAMESPACE_BEGIN
         }
         m_service = new ChannelService(g_db->GetConf().max_open_files);
         m_service->SetThreadPoolSize(worker_count);
+        ServerLifecycleHandler lifecycle;
+        m_service->RegisterLifecycleCallback(&lifecycle);
 
         ChannelOptions ops;
         ops.tcp_nodelay = true;
@@ -239,6 +268,8 @@ OP_NAMESPACE_BEGIN
             server->BindThreadPool(min, min + g_db->GetConf().servers[i].GetThreadPoolSize());
             INFO_LOG("Ardb will accept connections on %s", address.c_str());
         }
+
+
         StartCrons();
 
         INFO_LOG("Ardb started with version %s", ARDB_VERSION);

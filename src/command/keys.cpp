@@ -419,7 +419,7 @@ OP_NAMESPACE_BEGIN
         bool nx = cmd.GetType() == REDIS_CMD_RENAMENX || cmd.GetType() == REDIS_CMD_MOVE;
         KeyObject src(srcdb, KEY_META, srckey);
         KeyObject dst(dstdb, KEY_META, dstkey);
-        KeysLockGuard guard(src, dst);
+        KeysLockGuard guard(ctx, src, dst);
         if (m_engine->Exists(ctx, dst))
         {
             if (nx)
@@ -467,7 +467,7 @@ OP_NAMESPACE_BEGIN
         RedisReply& reply = ctx.GetReply();
         KeyObject meta_key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
         ValueObject meta_value;
-        KeyLockGuard guard(meta_key);
+        KeyLockGuard guard(ctx,meta_key);
         if (!CheckMeta(ctx, meta_key, (KeyType) 0, meta_value))
         {
             return 0;
@@ -588,7 +588,7 @@ OP_NAMESPACE_BEGIN
         else
         {
             ValueObject meta_value;
-            KeyLockGuard guard(key);
+            KeyLockGuard guard(ctx,key);
             if (!CheckMeta(ctx, key, (KeyType) 0, meta_value))
             {
                 return 0;
@@ -710,7 +710,7 @@ OP_NAMESPACE_BEGIN
         for (size_t i = 0; i < cmd.GetArguments().size(); i++)
         {
             KeyObject meta(ctx.ns, KEY_META, cmd.GetArguments()[i]);
-            KeyLockGuard guard(meta);
+            KeyLockGuard guard(ctx, meta);
             removed += DelKey(ctx, meta, iter);
         }
         DELETE(iter);

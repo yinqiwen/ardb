@@ -1420,7 +1420,7 @@ namespace ardb
         }
         ValueObject value;
         int updated = 0;
-        KeyLockGuard guard(key);
+        KeyLockGuard guard(ctx,key);
         ValueObject meta;
         if (!CheckMeta(ctx, key, KEY_STRING, meta))
         {

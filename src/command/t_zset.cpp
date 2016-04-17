@@ -110,7 +110,7 @@ OP_NAMESPACE_BEGIN
         }
         KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
         ValueObject meta;
-        KeyLockGuard guard(key);
+        KeyLockGuard guard(ctx, key);
         if (!CheckMeta(ctx, key, KEY_ZSET, meta))
         {
             return 0;
@@ -253,7 +253,7 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
-        KeyLockGuard guard(key);
+        KeyLockGuard guard(ctx, key);
         ValueObject meta;
         if (toremove)
         {
@@ -427,7 +427,7 @@ OP_NAMESPACE_BEGIN
             }
         }
         KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
-        KeyLockGuard guard(key);
+        KeyLockGuard guard(ctx, key);
         ValueObject meta;
         if (toremove || countrange)
         {
@@ -620,7 +620,7 @@ OP_NAMESPACE_BEGIN
         ValueObjectArray vs;
         ErrCodeArray errs;
         KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
-        KeyLockGuard guard(key);
+        KeyLockGuard guard(ctx, key);
         keys.push_back(key);
         for (size_t i = 1; i < cmd.GetArguments().size(); i++)
         {
@@ -740,7 +740,7 @@ OP_NAMESPACE_BEGIN
             }
         }
         KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
-        KeyLockGuard guard(key);
+        KeyLockGuard guard(ctx, key);
         ValueObject meta;
         if (toremove || countrange)
         {
@@ -970,7 +970,7 @@ OP_NAMESPACE_BEGIN
             weights.push_back(1.0);
         }
         keys.push_back(destkey);
-        KeysLockGuard guard(keys);
+        KeysLockGuard guard(ctx, keys);
         m_engine->MultiGet(ctx, keys, vs, errs);
         for (size_t i = 0; i < setnum; i++)
         {

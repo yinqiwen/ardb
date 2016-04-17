@@ -67,6 +67,30 @@ OP_NAMESPACE_BEGIN
                 }
                 return key < other.key;
             }
+            bool IsNil() const
+            {
+                return ns.IsNil() && key.IsNil();
+            }
+    };
+
+    struct ClientId
+    {
+            uint32 id;
+            ChannelService* service;
+            ClientId():id(0),service(NULL){}
+            bool operator<(const ClientId& other) const
+            {
+                int64 cmp = (int64)id - (int64)other.id;
+                if (cmp < 0)
+                {
+                    return true;
+                }
+                if (cmp > 0)
+                {
+                    return false;
+                }
+                return service < other.service;
+            }
     };
 
     struct ClientContext
@@ -74,6 +98,7 @@ OP_NAMESPACE_BEGIN
             bool processing;
             std::string name;
             Channel* client;
+            ClientId clientid;
             int64 uptime;
             int64 last_interaction_ustime;
             ClientContext() :
@@ -105,6 +130,8 @@ OP_NAMESPACE_BEGIN
             typedef TreeSet<KeyPrefix>::Type BlockKeySet;
             BlockKeySet keys;
             KeyPrefix target;
+            uint64 timeout;
+            BlockingState():timeout(0){}
     };
 
     class Context
@@ -113,10 +140,12 @@ OP_NAMESPACE_BEGIN
             RedisReply *reply;
         public:
             bool authenticated;
+            bool keyslocked;
             CallFlags flags;
             Data ns;
 
             RedisCommandFrame* current_cmd;
+            RedisCommandType last_cmdtype;
             ClientContext* client;
             TransactionContext* transc;
             PubSubContext* pubsub;
@@ -126,7 +155,7 @@ OP_NAMESPACE_BEGIN
             int transc_err;
             int64 sequence;  //recv command sequence in the server, start from 1
             Context() :
-                    reply(NULL), authenticated(true), current_cmd(NULL), client(NULL), transc(NULL), pubsub(NULL), bpop(NULL), dirty(0), transc_err(0), sequence(
+                    reply(NULL), authenticated(true),keyslocked(false), current_cmd(NULL), last_cmdtype(REDIS_CMD_INVALID),client(NULL), transc(NULL), pubsub(NULL), bpop(NULL), dirty(0), transc_err(0), sequence(
                             0)
             {
                 ns.SetInt64(0);
@@ -184,6 +213,10 @@ OP_NAMESPACE_BEGIN
             {
                 return pubsub != NULL;
             }
+            bool IsBlocking()
+            {
+                return NULL != bpop && !bpop->keys.empty();
+            }
             BlockingState& GetBPop()
             {
                 if (NULL == bpop)
@@ -231,6 +264,7 @@ OP_NAMESPACE_BEGIN
             }
     };
     typedef TreeSet<Context*>::Type ContextSet;
+    typedef TreeSet<ClientId>::Type ClientIdSet;
 
 OP_NAMESPACE_END
 

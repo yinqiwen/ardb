@@ -93,16 +93,19 @@ OP_NAMESPACE_BEGIN
 
             struct KeyLockGuard
             {
+                    Context& ctx;
                     bool lock;
                     KeyObject& k;
-                    KeyLockGuard(KeyObject& key, bool _lock = true);
+
+                    KeyLockGuard(Context& cctx, KeyObject& key, bool _lock = true);
                     ~KeyLockGuard();
             };
             struct KeysLockGuard
             {
+                    Context& ctx;
                     KeyObjectArray ks;
-                    KeysLockGuard(KeyObjectArray& keys);
-                    KeysLockGuard(KeyObject& key1, KeyObject& key2);
+                    KeysLockGuard(Context& cctx,KeyObjectArray& keys);
+                    KeysLockGuard(Context& cctx,KeyObject& key1, KeyObject& key2);
                     ~KeysLockGuard();
             };
 
@@ -138,6 +141,11 @@ OP_NAMESPACE_BEGIN
             typedef TreeSet<KeyPrefix>::Type ReadyKeySet;
             BlockedContextTable m_blocked_ctxs;
             ReadyKeySet m_ready_keys;
+
+            ThreadLocal<ClientIdSet> m_clients;
+            ThreadLocal<ClientId> m_last_scan_clientid;
+            SpinMutexLock m_clients_lock;
+            ContextSet m_all_clients;
 
             int WriteReply(Context& ctx, RedisReply* r, bool async);
 
@@ -204,9 +212,10 @@ OP_NAMESPACE_BEGIN
             int DiscardTransaction(Context& ctx);
 
             int BlockForKeys(Context& ctx, const StringArray& keys, const std::string& target, uint32 timeout);
-            int UnblockKeys(Context& ctx);
+            int UnblockKeys(Context& ctx, bool use_lock = true);
             int WakeClientsBlockingOnList(Context& ctx);
             int SignalListAsReady(Context& ctx, const std::string& key);
+            int ServeClientBlockedOnList(Context& ctx, const KeyPrefix& key, const std::string& value);
 
             int IncrDecrCommand(Context& ctx, RedisCommandFrame& cmd);
 
@@ -402,6 +411,8 @@ OP_NAMESPACE_BEGIN
             int MergeOperands(uint16_t left, const DataArray& left_args, uint16_t& right, DataArray& right_args);
             int TouchWatchKey(Context& ctx, const KeyObject& key);
             void FreeClient(Context& ctx);
+            void AddClient(Context& ctx);
+            void ScanClients();
             const ArdbConfig& GetConf() const
             {
                 return m_conf;

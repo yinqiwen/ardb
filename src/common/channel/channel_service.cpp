@@ -37,8 +37,7 @@ using namespace ardb;
 
 ChannelService::ChannelService(uint32 setsize) :
         m_setsize(setsize), m_eventLoop(NULL), m_timer(NULL), m_signal_channel(
-        NULL), m_self_soft_signal_channel(NULL), m_running(false), m_thread_pool_size(1), m_tid(0), m_user_cb(NULL), m_user_cb_data(
-        NULL), m_user_routine(NULL), m_user_routine_data(NULL),m_pool_index(0)
+        NULL), m_self_soft_signal_channel(NULL), m_running(false), m_thread_pool_size(1), m_tid(0), m_lifecycle_callback(NULL),m_pool_index(0)
 {
     m_eventLoop = aeCreateEventLoop(m_setsize);
     m_self_soft_signal_channel = NewSoftSignalChannel();
@@ -52,15 +51,14 @@ ChannelService::ChannelService(uint32 setsize) :
     }
 }
 
-void ChannelService::RegisterUserEventCallback(UserEventCallback* cb, void* data)
+//void ChannelService::RegisterUserEventCallback(UserEventCallback* cb, void* data)
+//{
+//    m_user_cb = cb;
+//    m_user_cb_data = data;
+//}
+void ChannelService::RegisterLifecycleCallback(ChannelServiceLifeCycle* callback)
 {
-    m_user_cb = cb;
-    m_user_cb_data = data;
-}
-void ChannelService::RegisterUserRoutineCallback(UserRoutineCallback* cb, void* data)
-{
-    m_user_routine = cb;
-    m_user_routine_data = data;
+   m_lifecycle_callback = callback;
 }
 
 void ChannelService::FireUserEvent(uint32 ev)
@@ -160,10 +158,10 @@ void ChannelService::OnSoftSignal(uint32 soft_signo, uint32 appendinfo)
         }
         case USER_DEFINED:
         {
-            if (NULL != m_user_cb)
-            {
-                m_user_cb(this, appendinfo, m_user_cb_data);
-            }
+//            if (NULL != m_user_cb)
+//            {
+//                m_user_cb(this, appendinfo, m_user_cb_data);
+//            }
             break;
         }
         case CHANNEL_ASNC_IO:
@@ -324,8 +322,8 @@ void ChannelService::StartSubPool()
         {
             ChannelService* s = new ChannelService(m_setsize);
             s->m_pool_index = i + 1;
-            s->RegisterUserRoutineCallback(m_user_routine, m_user_routine_data);
-            s->RegisterUserEventCallback(m_user_cb, m_user_cb_data);
+            s->RegisterLifecycleCallback(m_lifecycle_callback);
+//            s->RegisterUserEventCallback(m_user_cb, m_user_cb_data);
             m_sub_pool.push_back(s);
             LaunchThread* launch = new LaunchThread(s);
             launch->Start();
@@ -342,6 +340,10 @@ void ChannelService::Start()
         GetTimer().Schedule(this, 1000, 1000);
         m_running = true;
         m_tid = Thread::CurrentThreadID();
+        if(NULL != m_lifecycle_callback)
+        {
+            m_lifecycle_callback->OnStart(this, m_pool_index);
+        }
         aeMain(m_eventLoop);
     }
 }
@@ -356,6 +358,10 @@ void ChannelService::Stop()
     if (m_running)
     {
         m_running = false;
+        if(NULL != m_lifecycle_callback)
+        {
+            m_lifecycle_callback->OnStop(this, m_pool_index);
+        }
         aeStop(m_eventLoop);
         if (!IsInLoopThread())
         {
@@ -582,9 +588,9 @@ void ChannelService::AttachAcceptedChannel(SocketChannel *ch)
 
 void ChannelService::Routine()
 {
-    if (NULL != m_user_routine)
+    if(NULL != m_lifecycle_callback)
     {
-        m_user_routine(this, m_pool_index, m_user_routine_data);
+        m_lifecycle_callback->OnRoutine(this, m_pool_index);
     }
 }
 

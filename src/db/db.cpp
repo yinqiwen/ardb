@@ -53,11 +53,12 @@ OP_NAMESPACE_BEGIN
         return strcasecmp(s1.c_str(), s2.c_str()) == 0 ? true : false;
     }
 
-    Ardb::KeyLockGuard::KeyLockGuard(KeyObject& key, bool _lock) :
-            k(key), lock(_lock)
+    Ardb::KeyLockGuard::KeyLockGuard(Context& cctx,KeyObject& key, bool _lock) :
+            ctx(cctx),k(key), lock(_lock)
     {
         if (lock)
         {
+            ctx.keyslocked = true;
             g_db->LockKey(k);
         }
 
@@ -68,15 +69,17 @@ OP_NAMESPACE_BEGIN
         if (lock)
         {
             g_db->UnlockKey(k);
+            ctx.keyslocked = false;
         }
     }
 
-    Ardb::KeysLockGuard::KeysLockGuard(KeyObjectArray& keys) :
-            ks(keys)
+    Ardb::KeysLockGuard::KeysLockGuard(Context& cctx,KeyObjectArray& keys) :
+        ctx(cctx),ks(keys)
     {
+        ctx.keyslocked = true;
         g_db->LockKeys(ks);
     }
-    Ardb::KeysLockGuard::KeysLockGuard(KeyObject& key1, KeyObject& key2)
+    Ardb::KeysLockGuard::KeysLockGuard(Context& cctx,KeyObject& key1, KeyObject& key2):ctx(cctx)
     {
         ks.push_back(key1);
         ks.push_back(key2);
@@ -85,6 +88,7 @@ OP_NAMESPACE_BEGIN
     Ardb::KeysLockGuard::~KeysLockGuard()
     {
         g_db->UnlockKeys(ks);
+        ctx.keyslocked = false;
     }
 
     Ardb::Ardb() :
@@ -672,6 +676,10 @@ OP_NAMESPACE_BEGIN
     {
         if(NULL == ctx.client || NULL == ctx.client->client || NULL == r)
         {
+            if(async)
+            {
+                DELETE(r);
+            }
             return -1;
         }
         Channel* ch = ctx.client->client;
@@ -691,6 +699,51 @@ OP_NAMESPACE_BEGIN
         UnwatchKeys(ctx);
         UnsubscribeAll(ctx, true, false);
         UnsubscribeAll(ctx, false, false);
+        if(NULL != ctx.client)
+        {
+            m_clients.GetValue().erase(ctx.client->clientid);
+            LockGuard<SpinMutexLock> guard(m_clients_lock);
+            m_all_clients.erase(&ctx);
+        }
+    }
+
+    void Ardb::ScanClients()
+    {
+        uint64 now = get_current_epoch_micros();
+        ClientIdSet::iterator it = m_clients.GetValue().lower_bound(m_last_scan_clientid.GetValue());
+        while(it != m_clients.GetValue().end())
+        {
+            Context* client = NULL;
+            if(GetConf().tcp_keepalive > 0)
+            {
+                if(!client->IsBlocking() && !client->IsSubscribed())
+                {
+                    if(now - client->client->last_interaction_ustime >= GetConf().tcp_keepalive * 1000 * 1000)
+                    {
+                        //timeout;
+                    }
+                }
+            }
+            if(client->IsBlocking())
+            {
+                if(client->GetBPop().timeout > 0 && now >= client->GetBPop().timeout)
+                {
+                    //timeout;
+                }
+            }
+            it++;
+        }
+
+    }
+
+    void Ardb::AddClient(Context& ctx)
+    {
+        if(NULL != ctx.client)
+        {
+            m_clients.GetValue().insert(ctx.client->clientid);
+            LockGuard<SpinMutexLock> guard(m_clients_lock);
+            m_all_clients.insert(&ctx);
+        }
     }
 
     int Ardb::DoCall(Context& ctx, RedisCommandHandlerSetting& setting, RedisCommandFrame& args)
@@ -704,6 +757,11 @@ OP_NAMESPACE_BEGIN
         {
             ctx.flags.redis_compatible = 0;
         }
+        if(NULL != ctx.client)
+        {
+            ctx.client->last_interaction_ustime = start_time;
+        }
+        ctx.last_cmdtype = setting.type;
         int ret = (this->*(setting.handler))(ctx, args);
         uint64 stop_time = get_current_epoch_micros();
         atomic_add_uint64(&(setting.calls), 1);
