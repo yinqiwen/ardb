@@ -109,10 +109,21 @@ OP_NAMESPACE_BEGIN
                     ~KeysLockGuard();
             };
 
+            struct ArdbState
+            {
+                    unsigned loading :1;
+                    ArdbState() :
+                        loading(0)
+                    {
+                    }
+            };
+
         private:
             Engine* m_engine;
             ArdbConfig m_conf;
             ThreadLocal<LUAInterpreter> m_lua;
+
+            ArdbState m_state;
 
             typedef google::dense_hash_map<std::string, RedisCommandHandlerSetting, RedisCommandHash, RedisCommandEqual> RedisCommandHandlerSettingTable;
             RedisCommandHandlerSettingTable m_settings;

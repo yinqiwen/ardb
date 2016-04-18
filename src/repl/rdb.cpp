@@ -45,7 +45,7 @@ extern "C"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include "ardb.hpp"
+#include "db/db.hpp"
 
 #define RETURN_NEGATIVE_EXPR(x)  do\
     {                    \
@@ -589,15 +589,11 @@ namespace ardb
     void RedisDumpFile::LoadListZipList(unsigned char* data, const std::string& key)
     {
         unsigned char* iter = ziplistIndex(data, 0);
-        Context& tmpctx = *m_dump_ctx;
+        Context& tmpctx;
         ValueObject listmeta;
-        tmpctx.currentDB = m_current_db;
-        listmeta.key.db = m_current_db;
-        listmeta.key.type = KEY_META;
-        listmeta.key.key = key;
-        listmeta.type = LIST_META;
-        listmeta.meta.SetEncoding(COLLECTION_ENCODING_ZIPLIST);
+        listmeta.SetType(KEY_LIST);
         //BatchWriteGuard guard(m_db->GetKeyValueEngine());
+        int64 idx = 0;
         while (iter != NULL)
         {
             unsigned char *vstr;
@@ -614,11 +610,22 @@ namespace ardb
                 {
                     value = stringfromll(vlong);
                 }
-                m_db->ListInsert(tmpctx, listmeta, NULL, value, true, false);
+                KeyObject lk(m_current_db, KEY_LIST_ELEMENT, key);
+                lk.SetListIndex(idx);
+                ValueObject lv;
+                lv.SetType(KEY_LIST_ELEMENT);
+                lv.SetListElement(value);
+                //g_db->Set
+                idx++;
+                //m_db->ListInsert(tmpctx, listmeta, NULL, value, true, false);
             }
             iter = ziplistNext(data, iter);
         }
-        m_db->SetKeyValue(tmpctx, listmeta);
+        listmeta.SetObjectLen(idx);
+        listmeta.SetListMinIdx(0);
+        listmeta.SetListMaxIdx(idx - 1);
+        listmeta.GetListMeta().sequential = true;
+        //m_db->SetKeyValue(tmpctx, listmeta);
     }
 
     static double zzlGetScore(unsigned char *sptr)
@@ -1134,34 +1141,30 @@ namespace ardb
     {
         switch (type)
         {
-            case STRING_META:
+            case KEY_STRING:
             {
                 return WriteType(REDIS_RDB_TYPE_STRING);
             }
-            case SET_META:
-            case SET_ELEMENT:
+            case KEY_SET:
+            case KEY_SET_MEMBER:
             {
                 return WriteType(REDIS_RDB_TYPE_SET);
             }
-            case LIST_META:
-            case LIST_ELEMENT:
+            case KEY_LIST:
+            case KEY_LIST_ELEMENT:
             {
                 return WriteType(REDIS_RDB_TYPE_LIST);
             }
-            case ZSET_META:
-            case ZSET_ELEMENT_SCORE:
+            case KEY_ZSET:
+            case KEY_ZSET_SCORE:
+            case KEY_ZSET_SORT:
             {
                 return WriteType(REDIS_RDB_TYPE_ZSET);
             }
-            case HASH_META:
-            case HASH_FIELD:
+            case KEY_HASH:
+            case KEY_HASH_FIELD:
             {
                 return WriteType(REDIS_RDB_TYPE_HASH);
-            }
-            case BITSET_META:
-            case BITSET_ELEMENT:
-            {
-                return WriteType(REDIS_RDB_TYPE_STRING);
             }
             default:
             {
@@ -1282,9 +1285,9 @@ namespace ardb
     {
         /* Avoid to decode the object, then encode it again, if the
          * object is alrady integer encoded. */
-        if (o.encoding == STRING_ENCODING_INT64)
+        if (o.IsInteger())
         {
-            return WriteLongLongAsStringObject(o.value.iv);
+            return WriteLongLongAsStringObject(o.GetInt64());
         }
         else
         {

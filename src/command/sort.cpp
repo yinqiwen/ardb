@@ -111,7 +111,7 @@ namespace ardb
             bool weight_cmp;
             int Compare(const SortValue& other) const
             {
-                if (weight_cmp)
+                if (!weight_cmp)
                 {
                     return value.Compare(other.value, alpha_cmp);
                 }

@@ -182,7 +182,7 @@ namespace ardb
                 info.append("connected_clients:").append(stringfromll(m_all_clients.size())).append("\r\n");
             }
             {
-                WriteLockGuard<SpinRWLock> guard(m_block_keys_lock);
+                LockGuard<SpinMutexLock> guard(m_block_keys_lock);
                 info.append("blocked_clients:").append(stringfromll(m_blocked_ctxs.size())).append("\r\n");
             }
             info.append("\r\n");

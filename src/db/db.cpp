@@ -713,7 +713,7 @@ OP_NAMESPACE_BEGIN
     {
         std::vector<Context*> to_close;
         uint64 now = get_current_epoch_micros();
-        ContextSet& local_clients = m_clients.GetValue();
+        ClientIdSet& local_clients = m_clients.GetValue();
         if (local_clients.empty())
         {
             return;
@@ -848,35 +848,7 @@ OP_NAMESPACE_BEGIN
             reply.SetErrorReason("unknown command:" + args.GetCommand());
             return -1;
         }
-        DEBUG_LOG("Process recved cmd[%lld]:%s", ctx.sequence, args.ToString().c_str());
-//        if (err == ERR_OVERLOAD)
-//        {
-//            /*
-//             * block overloaded connection
-//             */
-//            if (NULL != ctx.client && !ctx.client->IsDetached())
-//            {
-//                ctx.client->DetachFD();
-//                uint64 now = get_current_epoch_millis();
-//                uint64 next = 1000 - (now % 1000);
-//                ChannelService& serv = ctx.client->GetService();
-//                ctx.client->GetService().GetTimer().ScheduleHeapTask(new ResumeOverloadConnection(serv, ctx.client->GetID()), next == 0 ? 1 : next, -1, MILLIS);
-//            }
-//        }
-        ctx.current_cmd = &args;
         RedisCommandHandlerSetting& setting = *found;
-        int ret = 0;
-
-        /*
-         * Check if the connection is authenticated
-         */
-        if (!ctx.authenticated && setting.type != REDIS_CMD_AUTH && setting.type != REDIS_CMD_QUIT)
-        {
-            ctx.AbortTransaction();
-            reply.SetErrCode(ERR_AUTH_FAILED);
-            //fill_fix_error_reply(ctx.reply, "NOAUTH Authentication required");
-            return ret;
-        }
         bool valid_cmd = true;
         if (setting.min_arity > 0)
         {
@@ -893,6 +865,35 @@ OP_NAMESPACE_BEGIN
             reply.SetErrorReason("wrong number of arguments for command:" + args.GetCommand());
             return 0;
         }
+        DEBUG_LOG("Process recved cmd[%lld]:%s", ctx.sequence, args.ToString().c_str());
+//        if (err == ERR_OVERLOAD)
+//        {
+//            /*
+//             * block overloaded connection
+//             */
+//            if (NULL != ctx.client && !ctx.client->IsDetached())
+//            {
+//                ctx.client->DetachFD();
+//                uint64 now = get_current_epoch_millis();
+//                uint64 next = 1000 - (now % 1000);
+//                ChannelService& serv = ctx.client->GetService();
+//                ctx.client->GetService().GetTimer().ScheduleHeapTask(new ResumeOverloadConnection(serv, ctx.client->GetID()), next == 0 ? 1 : next, -1, MILLIS);
+//            }
+//        }
+        ctx.current_cmd = &args;
+
+        int ret = 0;
+        /*
+         * Check if the connection is authenticated
+         */
+        if (!ctx.authenticated && setting.type != REDIS_CMD_AUTH && setting.type != REDIS_CMD_QUIT)
+        {
+            ctx.AbortTransaction();
+            reply.SetErrCode(ERR_AUTH_FAILED);
+            //fill_fix_error_reply(ctx.reply, "NOAUTH Authentication required");
+            return ret;
+        }
+
         if (ctx.InTransaction())
         {
             if (setting.type != REDIS_CMD_MULTI && setting.type != REDIS_CMD_EXEC && setting.type != REDIS_CMD_DISCARD && setting.type != REDIS_CMD_QUIT)

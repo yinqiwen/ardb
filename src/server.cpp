@@ -118,7 +118,7 @@ OP_NAMESPACE_BEGIN
                 m_client_ctx.last_interaction_ustime = get_current_epoch_micros();
                 m_client_ctx.client = ctx.GetChannel();
                 m_client_ctx.clientid.id = ctx.GetChannel()->GetID();
-                m_client_ctx.clientid.ctx = &ctx;
+                m_client_ctx.clientid.ctx = &m_ctx;
                 m_client_ctx.client->Attach(&m_ctx, NULL);
                 if (!g_db->GetConf().requirepass.empty())
                 {
