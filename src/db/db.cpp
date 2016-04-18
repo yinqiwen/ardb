@@ -53,8 +53,8 @@ OP_NAMESPACE_BEGIN
         return strcasecmp(s1.c_str(), s2.c_str()) == 0 ? true : false;
     }
 
-    Ardb::KeyLockGuard::KeyLockGuard(Context& cctx,KeyObject& key, bool _lock) :
-            ctx(cctx),k(key), lock(_lock)
+    Ardb::KeyLockGuard::KeyLockGuard(Context& cctx, KeyObject& key, bool _lock) :
+            ctx(cctx), k(key), lock(_lock)
     {
         if (lock)
         {
@@ -73,13 +73,14 @@ OP_NAMESPACE_BEGIN
         }
     }
 
-    Ardb::KeysLockGuard::KeysLockGuard(Context& cctx,KeyObjectArray& keys) :
-        ctx(cctx),ks(keys)
+    Ardb::KeysLockGuard::KeysLockGuard(Context& cctx, KeyObjectArray& keys) :
+            ctx(cctx), ks(keys)
     {
         ctx.keyslocked = true;
         g_db->LockKeys(ks);
     }
-    Ardb::KeysLockGuard::KeysLockGuard(Context& cctx,KeyObject& key1, KeyObject& key2):ctx(cctx)
+    Ardb::KeysLockGuard::KeysLockGuard(Context& cctx, KeyObject& key1, KeyObject& key2) :
+            ctx(cctx)
     {
         ks.push_back(key1);
         ks.push_back(key2);
@@ -664,7 +665,7 @@ OP_NAMESPACE_BEGIN
         RedisReply* r = (RedisReply*) data;
         if (NULL != ch && NULL != r)
         {
-            if(!ch->Write(*r))
+            if (!ch->Write(*r))
             {
                 ch->Close();
             }
@@ -674,16 +675,16 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::WriteReply(Context& ctx, RedisReply* r, bool async)
     {
-        if(NULL == ctx.client || NULL == ctx.client->client || NULL == r)
+        if (NULL == ctx.client || NULL == ctx.client->client || NULL == r)
         {
-            if(async)
+            if (async)
             {
                 DELETE(r);
             }
             return -1;
         }
         Channel* ch = ctx.client->client;
-        if(!async)
+        if (!async)
         {
             ch->Write(*r);
         }
@@ -699,7 +700,7 @@ OP_NAMESPACE_BEGIN
         UnwatchKeys(ctx);
         UnsubscribeAll(ctx, true, false);
         UnsubscribeAll(ctx, false, false);
-        if(NULL != ctx.client)
+        if (NULL != ctx.client)
         {
             m_clients.GetValue().erase(ctx.client->clientid);
             LockGuard<SpinMutexLock> guard(m_clients_lock);
@@ -707,38 +708,73 @@ OP_NAMESPACE_BEGIN
         }
     }
 
+#define CLIENTS_CRON_MIN_ITERATIONS 5
     void Ardb::ScanClients()
     {
+        std::vector<Context*> to_close;
         uint64 now = get_current_epoch_micros();
-        ClientIdSet::iterator it = m_clients.GetValue().lower_bound(m_last_scan_clientid.GetValue());
-        while(it != m_clients.GetValue().end())
+        ContextSet& local_clients = m_clients.GetValue();
+        if (local_clients.empty())
         {
-            Context* client = NULL;
-            if(GetConf().tcp_keepalive > 0)
+            return;
+        }
+        int64 numclients = local_clients.size();
+        int64 iterations = numclients / GetConf().hz;
+
+        /* Process at least a few clients while we are at it, even if we need
+         * to process less than CLIENTS_CRON_MIN_ITERATIONS to meet our contract
+         * of processing each client once per second. */
+        if (iterations < CLIENTS_CRON_MIN_ITERATIONS)
+            iterations = (numclients < CLIENTS_CRON_MIN_ITERATIONS) ? numclients : CLIENTS_CRON_MIN_ITERATIONS;
+        ClientId& last_scan_clientid = m_last_scan_clientid.GetValue();
+        ClientIdSet::iterator it = local_clients.lower_bound(last_scan_clientid);
+        while (it != local_clients.end() && iterations--)
+        {
+            ClientId& clientid = *it;
+            Context* client = clientid.ctx;
+            if (GetConf().tcp_keepalive > 0)
             {
-                if(!client->IsBlocking() && !client->IsSubscribed())
+                if (!client->IsBlocking() && !client->IsSubscribed())
                 {
-                    if(now - client->client->last_interaction_ustime >= GetConf().tcp_keepalive * 1000 * 1000)
+                    if (now - client->client->last_interaction_ustime >= GetConf().tcp_keepalive * 1000 * 1000)
                     {
                         //timeout;
+                        to_close.push_back(client);
+                        client = NULL;
                     }
                 }
             }
-            if(client->IsBlocking())
+            if (NULL != client && client->IsBlocking())
             {
-                if(client->GetBPop().timeout > 0 && now >= client->GetBPop().timeout)
+                if (client->GetBPop().timeout > 0 && now >= client->GetBPop().timeout)
                 {
                     //timeout;
+                    RedisReply empty_bulk;
+                    empty_bulk.ReserveMember(-1);
+                    client->client->client->Write(empty_bulk);
+                    to_close.push_back(client);
                 }
             }
             it++;
         }
-
+        for (size_t i = 0; i < to_close.size(); i++)
+        {
+            to_close[i]->client->client->Close();
+        }
+        if (it == local_clients.end())
+        {
+            last_scan_clientid.id = 0;
+            last_scan_clientid.ctx = NULL;
+        }
+        else
+        {
+            last_scan_clientid = (*it);
+        }
     }
 
     void Ardb::AddClient(Context& ctx)
     {
-        if(NULL != ctx.client)
+        if (NULL != ctx.client)
         {
             m_clients.GetValue().insert(ctx.client->clientid);
             LockGuard<SpinMutexLock> guard(m_clients_lock);
@@ -757,7 +793,7 @@ OP_NAMESPACE_BEGIN
         {
             ctx.flags.redis_compatible = 0;
         }
-        if(NULL != ctx.client)
+        if (NULL != ctx.client)
         {
             ctx.client->last_interaction_ustime = start_time;
         }

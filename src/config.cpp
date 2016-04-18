@@ -34,6 +34,10 @@
 #include <errno.h>
 
 #define ARDB_AUTHPASS_MAX_LEN 512
+/* Static server configuration */
+#define CONFIG_DEFAULT_HZ        10      /* Time interrupt calls/sec. */
+#define CONFIG_MIN_HZ            1
+#define CONFIG_MAX_HZ            500
 
 OP_NAMESPACE_BEGIN
 
@@ -54,7 +58,7 @@ OP_NAMESPACE_BEGIN
 
     int64 ListenPoint::GetThreadPoolSize() const
     {
-        if(thread_pool_size > 0)
+        if (thread_pool_size > 0)
         {
             return thread_pool_size;
         }
@@ -87,7 +91,11 @@ OP_NAMESPACE_BEGIN
         replace_env_var(const_cast<Properties&>(props));
 
         conf_get_string(props, "pidfile", pidfile);
-
+        conf_get_int64(props, "hz", hz);
+        if (hz < CONFIG_MIN_HZ)
+            hz = CONFIG_MIN_HZ;
+        if (hz > CONFIG_MAX_HZ)
+            hz = CONFIG_MAX_HZ;
         conf_get_int64(props, "tcp-keepalive", tcp_keepalive);
         conf_get_int64(props, "timeout", timeout);
         //conf_get_int64(props, "unixsocketperm", unixsocketperm);

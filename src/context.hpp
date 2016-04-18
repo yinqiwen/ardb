@@ -73,11 +73,12 @@ OP_NAMESPACE_BEGIN
             }
     };
 
+    class Context;
     struct ClientId
     {
             uint32 id;
-            ChannelService* service;
-            ClientId():id(0),service(NULL){}
+            Context* ctx;
+            ClientId():id(0),ctx(NULL){}
             bool operator<(const ClientId& other) const
             {
                 int64 cmp = (int64)id - (int64)other.id;
@@ -89,7 +90,7 @@ OP_NAMESPACE_BEGIN
                 {
                     return false;
                 }
-                return service < other.service;
+                return ctx < other.ctx;
             }
     };
 

@@ -56,6 +56,7 @@ OP_NAMESPACE_BEGIN
 
             ListenPointArray servers;
 
+            int64 hz;
             //int64 unixsocketperm;
             int64 max_open_files;
             int64 tcp_keepalive;
@@ -125,7 +126,7 @@ OP_NAMESPACE_BEGIN
             std::string rocksdb_options;
 
             ArdbConfig() :
-                    daemonize(false), max_open_files(100000), tcp_keepalive(0), timeout(0), engine("rocksdb"), slowlog_log_slower_than(10000), slowlog_max_len(
+                    daemonize(false), hz(10), max_open_files(100000), tcp_keepalive(0), timeout(0), engine("rocksdb"), slowlog_log_slower_than(10000), slowlog_max_len(
                             128), repl_data_dir("./repl"), backup_dir("./backup"), backup_redis_format(false), repl_ping_slave_period(10), repl_timeout(60), repl_backlog_size(
                             100 * 1024 * 1024), repl_state_persist_period(1), repl_backlog_time_limit(3600), slave_cleardb_before_fullresync(true), slave_readonly(
                             true), slave_serve_stale_data(true), slave_priority(100), lua_time_limit(0), master_port(0), loglevel("INFO"), hll_sparse_max_bytes(

@@ -109,12 +109,12 @@ namespace ardb
 
     int Ardb::Import(Context& ctx, RedisCommandFrame& cmd)
     {
-//        std::string file = m_cfg.backup_dir + "/dump.ardb";
-//        if (cmd.GetArguments().size() == 1)
-//        {
-//            file = cmd.GetArguments()[0];
-//        }
-//        int ret = 0;
+        std::string file = GetConf().backup_dir + "/dump.ardb";
+        if (cmd.GetArguments().size() == 1)
+        {
+            file = cmd.GetArguments()[0];
+        }
+        int ret = 0;
 //        ChannelService& serv = ctx.client->GetService();
 //        uint32 conn_id = ctx.client->GetID();
 //        if (RedisDumpFile::IsRedisDumpFile(file) == 1)
@@ -177,14 +177,14 @@ namespace ardb
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "clients"))
         {
             info.append("# Clients\r\n");
-//            {
-//                LockGuard<SpinMutexLock> guard(m_clients_lock);
-//                info.append("connected_clients:").append(stringfromll(m_clients.size())).append("\r\n");
-//            }
-//            {
-//                WriteLockGuard<SpinRWLock> guard(m_block_ctx_lock);
-//                info.append("blocked_clients:").append(stringfromll(m_block_context_table.size())).append("\r\n");
-//            }
+            {
+                LockGuard<SpinMutexLock> guard(m_clients_lock);
+                info.append("connected_clients:").append(stringfromll(m_all_clients.size())).append("\r\n");
+            }
+            {
+                WriteLockGuard<SpinRWLock> guard(m_block_keys_lock);
+                info.append("blocked_clients:").append(stringfromll(m_blocked_ctxs.size())).append("\r\n");
+            }
             info.append("\r\n");
         }
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "databases"))
@@ -418,7 +418,7 @@ namespace ardb
     int Ardb::Client(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
-        if(NULL == ctx.client)
+        if (NULL == ctx.client)
         {
             reply.SetErrCode(ERR_AUTH_FAILED);
             return 0;
@@ -456,63 +456,58 @@ namespace ardb
                 reply.SetErrorReason("Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | PAUSE timeout)");
                 return 0;
             }
-//            LockGuard<SpinMutexLock> guard(m_clients_lock);
-//            ContextTable::iterator it = m_clients.begin();
-//            while (it != m_clients.end())
-//            {
-//                SocketChannel* conn = (SocketChannel*) (it->second->client);
-//                if (conn->GetRemoteStringAddress() == cmd.GetArguments()[1])
-//                {
-//                    if (it->second->processing)
-//                    {
-//                        it->second->close_after_processed = true;
-//                    }
-//                    else
-//                    {
-//                        conn->GetService().AsyncIO(conn->GetID(), ChannelCloseCallback, NULL);
-//                    }
-//                    break;
-//                }
-//                it++;
-//            }
-//            fill_status_reply(ctx.reply, "OK");
+            LockGuard<SpinMutexLock> guard(m_clients_lock);
+            ContextSet::iterator it = m_all_clients.begin();
+            while (it != m_all_clients.end())
+            {
+                Context* client = *it;
+                SocketChannel* conn = (SocketChannel*) (client->client->client);
+                if (conn->GetRemoteStringAddress() == cmd.GetArguments()[1])
+                {
+                    conn->GetService().AsyncIO(conn->GetID(), ChannelCloseCallback, NULL);
+                    break;
+                }
+                it++;
+            }
+            reply.SetStatusCode(STATUS_OK);
         }
         else if (subcmd == "list")
         {
-//            std::string& info = ctx.reply.str;
-//            LockGuard<SpinMutexLock> guard(m_clients_lock);
-//            ContextTable::iterator it = m_clients.begin();
-//            uint64 now = get_current_epoch_micros();
-//            while (it != m_clients.end())
-//            {
-//                SocketChannel* conn = (SocketChannel*) (it->second->client);
-//                info.append("id=").append(stringfromll(it->first)).append(" ");
-//                info.append("addr=").append(conn->GetRemoteStringAddress()).append(" ");
-//                info.append("fd=").append(stringfromll(it->second->client->GetReadFD())).append(" ");
-//                info.append("name=").append(it->second->name).append(" ");
-//                uint64 borntime = it->second->born_time;
-//                uint64 elpased = (now <= borntime ? 0 : now - borntime) / 1000000;
-//                info.append("age=").append(stringfromll(elpased)).append(" ");
-//                uint64 activetime = it->second->last_interaction_ustime;
-//                elpased = (now <= activetime ? 0 : now - activetime) / 1000000;
-//                info.append("idle=").append(stringfromll(elpased)).append(" ");
-//                info.append("db=").append(stringfromll(it->second->currentDB)).append(" ");
-//                std::string cmd;
-//                RedisCommandHandlerSettingTable::iterator cit = m_settings.begin();
-//                while (cit != m_settings.end())
-//                {
-//                    if (cit->second.type == it->second->current_cmd_type)
-//                    {
-//                        cmd = cit->first;
-//                        break;
-//                    }
-//                    cit++;
-//                }
-//                info.append("cmd=").append(cmd).append(" ");
-//                info.append("\n");
-//                it++;
-//            }
-//            ctx.reply.type = REDIS_REPLY_STRING;
+            std::string info;
+            LockGuard<SpinMutexLock> guard(m_clients_lock);
+            ContextSet::iterator it = m_all_clients.begin();
+            uint64 now = get_current_epoch_micros();
+            while (it != m_all_clients.end())
+            {
+                Context* client_ctx = *it;
+                SocketChannel* conn = (SocketChannel*) (client_ctx->client->client);
+                info.append("id=").append(stringfromll(conn->GetID())).append(" ");
+                info.append("addr=").append(conn->GetRemoteStringAddress()).append(" ");
+                info.append("fd=").append(stringfromll(conn->GetReadFD())).append(" ");
+                info.append("name=").append(client_ctx->client->name).append(" ");
+                uint64 borntime = client_ctx->client->uptime;
+                uint64 elpased = (now <= borntime ? 0 : now - borntime) / 1000000;
+                info.append("age=").append(stringfromll(elpased)).append(" ");
+                uint64 activetime = client_ctx->client->last_interaction_ustime;
+                elpased = (now <= activetime ? 0 : now - activetime) / 1000000;
+                info.append("idle=").append(stringfromll(elpased)).append(" ");
+                info.append("db=").append(client_ctx->ns.AsString()).append(" ");
+                std::string cmd;
+                RedisCommandHandlerSettingTable::iterator cit = m_settings.begin();
+                while (cit != m_settings.end())
+                {
+                    if (cit->second.type == client_ctx->last_cmdtype)
+                    {
+                        cmd = cit->first;
+                        break;
+                    }
+                    cit++;
+                }
+                info.append("cmd=").append(cmd).append(" ");
+                info.append("\n");
+                it++;
+            }
+            reply.SetString(info);
         }
         else
         {
@@ -681,7 +676,7 @@ namespace ardb
         reply.SetStatusCode(STATUS_OK);
         DataArray nss;
         m_engine->ListNameSpaces(ctx, nss);
-        for(size_t i = 0; i < nss.size(); i++)
+        for (size_t i = 0; i < nss.size(); i++)
         {
             KeyObject start, end;
             start.SetNameSpace(nss[i]);

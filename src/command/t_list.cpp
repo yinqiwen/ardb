@@ -190,7 +190,8 @@ OP_NAMESPACE_BEGIN
                             if (iter->Valid())
                             {
                                 KeyObject& minmax = iter->Key();
-                                if (minmax.GetType() == KEY_LIST_ELEMENT && minmax.GetNameSpace() == ele_key.GetNameSpace() && minmax.GetKey() == ele_key.GetKey())
+                                if (minmax.GetType() == KEY_LIST_ELEMENT && minmax.GetNameSpace() == ele_key.GetNameSpace()
+                                        && minmax.GetKey() == ele_key.GetKey())
                                 {
                                     if (is_lpop)
                                     {
@@ -956,7 +957,7 @@ OP_NAMESPACE_BEGIN
     {
         if (ctx.keyslocked)
         {
-            FATAL_LOG("Can not modiy block dataset when key locked.");
+            FATAL_LOG("Can not modify block dataset when key locked.");
         }
         LockGuard<SpinMutexLock> guard(m_block_keys_lock, use_lock);
         if (ctx.bpop != NULL && !m_blocked_ctxs.empty())
@@ -981,14 +982,14 @@ OP_NAMESPACE_BEGIN
     {
         if (ctx.keyslocked)
         {
-            FATAL_LOG("Can not modiy block dataset when key locked.");
+            FATAL_LOG("Can not modify block dataset when key locked.");
         }
         if (!target.empty())
         {
             ctx.GetBPop().target.key.SetString(target, false);
             ctx.GetBPop().target.ns = ctx.ns;
         }
-        if(timeout > 0)
+        if (timeout > 0)
         {
             ctx.GetBPop().timeout = timeout * 1000 * 1000 + get_current_epoch_micros();
         }
@@ -1009,7 +1010,7 @@ OP_NAMESPACE_BEGIN
     {
         if (ctx.keyslocked)
         {
-            FATAL_LOG("Can not modiy block dataset when key locked.");
+            FATAL_LOG("Can not modify block dataset when key locked.");
         }
         LockGuard<SpinMutexLock> guard(m_block_keys_lock);
         KeyPrefix prefix;
@@ -1065,7 +1066,7 @@ OP_NAMESPACE_BEGIN
         ReadyKeySet ready_keys;
         {
             LockGuard<SpinMutexLock> guard(m_block_keys_lock);
-            if(m_ready_keys.empty())
+            if (m_ready_keys.empty())
             {
                 return 0;
             }
@@ -1076,65 +1077,57 @@ OP_NAMESPACE_BEGIN
         {
             ReadyKeySet::iterator head = ready_keys.begin();
             KeyPrefix key = *head;
-            while (true)
             {
+                LockGuard<SpinMutexLock> block_guard(m_block_keys_lock);
+                BlockedContextTable::iterator fit = m_blocked_ctxs.find(key);
+                if (fit != m_blocked_ctxs.end())
                 {
-                    KeyObject list_key(key.ns, KEY_META, key.key);
-                    LockGuard<SpinMutexLock> block_guard(m_block_keys_lock);
-                    BlockedContextTable::iterator fit = m_blocked_ctxs.find(key);
-                    if (fit != m_blocked_ctxs.end())
-                    {
-                        ContextSet::iterator cit = fit->second.begin();
-                        if (cit == fit->second.end())
-                        {
-                            break;
-                        }
-                        Context* unblock_client = *cit;
-                        RedisCommandFrame list_pop;
-                        if (unblock_client->last_cmdtype == REDIS_CMD_BLPOP)
-                        {
-                            list_pop.SetCommand("lpop");
-                            list_pop.SetType(REDIS_CMD_LPOP);
-                        }
-                        else
-                        {
-                            list_pop.SetCommand("rpop");
-                            list_pop.SetType(REDIS_CMD_RPOP);
-                        }
-                        list_pop.AddArg(key.key.AsString());
-                        Context tmpctx;
-                        tmpctx.ns = key.ns;
-                        ListPop(tmpctx, list_pop, true);
-                        if (tmpctx.GetReply().IsString())
-                        {
-                            if (0 != ServeClientBlockedOnList(*unblock_client, key, tmpctx.GetReply().GetString()))
-                            {
-                                /*
-                                 * repush value into old list
-                                 */
-                                std::string repush = tmpctx.GetReply().GetString();
-                                RedisCommandFrame list_push;
-                                if (unblock_client->last_cmdtype == REDIS_CMD_BLPOP)
-                                {
-                                    list_push.SetCommand("lpush");
-                                    list_push.SetType(REDIS_CMD_LPUSH);
-                                }
-                                else
-                                {
-                                    list_push.SetCommand("rpush");
-                                    list_push.SetType(REDIS_CMD_RPUSH);
-                                }
-                                list_push.AddArg(key.key.AsString());
-                                list_push.AddArg(repush);
-                                ListPush(tmpctx, list_push, true);
-                            }
-                        }
-                        UnblockKeys(*unblock_client, false);
-                    }
-                    else
+                    ContextSet::iterator cit = fit->second.begin();
+                    if (cit == fit->second.end())
                     {
                         break;
                     }
+                    Context* unblock_client = *cit;
+                    RedisCommandFrame list_pop;
+                    if (unblock_client->last_cmdtype == REDIS_CMD_BLPOP)
+                    {
+                        list_pop.SetCommand("lpop");
+                        list_pop.SetType(REDIS_CMD_LPOP);
+                    }
+                    else
+                    {
+                        list_pop.SetCommand("rpop");
+                        list_pop.SetType(REDIS_CMD_RPOP);
+                    }
+                    list_pop.AddArg(key.key.AsString());
+                    Context tmpctx;
+                    tmpctx.ns = key.ns;
+                    ListPop(tmpctx, list_pop, true);
+                    if (tmpctx.GetReply().IsString())
+                    {
+                        if (0 != ServeClientBlockedOnList(*unblock_client, key, tmpctx.GetReply().GetString()))
+                        {
+                            /*
+                             * repush value into old list
+                             */
+                            std::string repush = tmpctx.GetReply().GetString();
+                            RedisCommandFrame list_push;
+                            if (unblock_client->last_cmdtype == REDIS_CMD_BLPOP)
+                            {
+                                list_push.SetCommand("lpush");
+                                list_push.SetType(REDIS_CMD_LPUSH);
+                            }
+                            else
+                            {
+                                list_push.SetCommand("rpush");
+                                list_push.SetType(REDIS_CMD_RPUSH);
+                            }
+                            list_push.AddArg(key.key.AsString());
+                            list_push.AddArg(repush);
+                            ListPush(tmpctx, list_push, true);
+                        }
+                    }
+                    UnblockKeys(*unblock_client, false);
                 }
             }
             ready_keys.erase(head);

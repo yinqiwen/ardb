@@ -53,7 +53,7 @@ OP_NAMESPACE_BEGIN
             }
             void OnStart(ChannelService* serv, uint32 idx)
             {
-                serv->GetTimer().Schedule(this, 100, 100, MILLIS);
+                serv->GetTimer().Schedule(this, 1, 1000 / g_db->GetConf().hz, MILLIS);
             }
             void OnStop(ChannelService* serv, uint32 idx)
             {
@@ -118,7 +118,7 @@ OP_NAMESPACE_BEGIN
                 m_client_ctx.last_interaction_ustime = get_current_epoch_micros();
                 m_client_ctx.client = ctx.GetChannel();
                 m_client_ctx.clientid.id = ctx.GetChannel()->GetID();
-                m_client_ctx.clientid.service = &(ctx.GetChannel()->GetService());
+                m_client_ctx.clientid.ctx = &ctx;
                 m_client_ctx.client->Attach(&m_ctx, NULL);
                 if (!g_db->GetConf().requirepass.empty())
                 {
@@ -268,7 +268,6 @@ OP_NAMESPACE_BEGIN
             server->BindThreadPool(min, min + g_db->GetConf().servers[i].GetThreadPoolSize());
             INFO_LOG("Ardb will accept connections on %s", address.c_str());
         }
-
 
         StartCrons();
 
