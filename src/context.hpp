@@ -34,6 +34,8 @@
 #include "channel/all_includes.hpp"
 #include "types.hpp"
 
+#define ARDB_MAX_NAMESPACE_SIZE  512
+
 using namespace ardb::codec;
 OP_NAMESPACE_BEGIN
     struct CallFlags
@@ -78,10 +80,13 @@ OP_NAMESPACE_BEGIN
     {
             uint32 id;
             Context* ctx;
-            ClientId():id(0),ctx(NULL){}
+            ClientId() :
+                    id(0), ctx(NULL)
+            {
+            }
             bool operator<(const ClientId& other) const
             {
-                int64 cmp = (int64)id - (int64)other.id;
+                int64 cmp = (int64) id - (int64) other.id;
                 if (cmp < 0)
                 {
                     return true;
@@ -132,7 +137,10 @@ OP_NAMESPACE_BEGIN
             BlockKeySet keys;
             KeyPrefix target;
             uint64 timeout;
-            BlockingState():timeout(0){}
+            BlockingState() :
+                    timeout(0)
+            {
+            }
     };
 
     class Context
@@ -156,10 +164,10 @@ OP_NAMESPACE_BEGIN
             int transc_err;
             int64 sequence;  //recv command sequence in the server, start from 1
             Context() :
-                    reply(NULL), authenticated(true),keyslocked(false), current_cmd(NULL), last_cmdtype(REDIS_CMD_INVALID),client(NULL), transc(NULL), pubsub(NULL), bpop(NULL), dirty(0), transc_err(0), sequence(
-                            0)
+                    reply(NULL), authenticated(true), keyslocked(false), current_cmd(NULL), last_cmdtype(REDIS_CMD_INVALID), client(NULL), transc(NULL), pubsub(
+                            NULL), bpop(NULL), dirty(0), transc_err(0), sequence(0)
             {
-                ns.SetInt64(0);
+                ns.SetString("0", false);
             }
             void RewriteClientCommand(const RedisCommandFrame& cmd)
             {

@@ -67,7 +67,7 @@ OP_NAMESPACE_BEGIN
                 {
                     if ((0 == meta.GetType() || !m_engine->Exists(ctx, field)) && added.count(data) == 0)
                     {
-                        m_engine->Put(ctx, field, empty);
+                        SetKeyValue(ctx, field, empty);
                         if (meta.SetMinMaxData(field.GetSetMember()))
                         {
                             meta_changed = true;
@@ -78,7 +78,7 @@ OP_NAMESPACE_BEGIN
                 else
                 {
                     meta_changed = true;
-                    m_engine->Put(ctx, field, empty);
+                    SetKeyValue(ctx, field, empty);
                     added.insert(data);
                 }
             }
@@ -98,7 +98,7 @@ OP_NAMESPACE_BEGIN
             }
             if (meta_changed)
             {
-                m_engine->Put(ctx, key, meta);
+                SetKeyValue(ctx, key, meta);
             }
         }
         if (0 != ctx.transc_err)
@@ -185,7 +185,7 @@ OP_NAMESPACE_BEGIN
             new_meta.SetObjectLen(reply.MemberSize());
             new_meta.GetMin().SetString(reply.MemberAt(0).str, true);
             new_meta.GetMax().SetString(reply.MemberAt(reply.MemberSize() - 1).str, true);
-            m_engine->Put(ctx, key, new_meta);
+            SetKeyValue(ctx, key, new_meta);
         }
         return 0;
     }
@@ -226,24 +226,24 @@ OP_NAMESPACE_BEGIN
         if (vs[2].GetType() == KEY_SET_MEMBER)
         {
             TransactionGuard batch(ctx, m_engine);
-            m_engine->Del(ctx, ks[3]);
+            RemoveKey(ctx, ks[3]);
             if (vs[0].GetObjectLen() > 0)
             {
                 vs[0].SetObjectLen(vs[0].GetObjectLen() - 1);
                 if (vs[0].GetObjectLen() == 0)
                 {
-                    m_engine->Del(ctx, ks[0]);
+                    RemoveKey(ctx, ks[0]);
                 }
                 else
                 {
-                    m_engine->Put(ctx, ks[0], vs[0]);
+                    SetKeyValue(ctx, ks[0], vs[0]);
                 }
             }
             bool dest_meta_updated = false;
             if (vs[3].GetType() == 0) //not exist in dest set
             {
                 vs[3].SetType(KEY_SET_MEMBER);
-                m_engine->Put(ctx, ks[3], vs[3]);
+                SetKeyValue(ctx, ks[3], vs[3]);
                 if (vs[1].GetType() == 0)
                 {
                     vs[1].SetType(KEY_SET);
@@ -265,7 +265,7 @@ OP_NAMESPACE_BEGIN
                 }
                 if (dest_meta_updated)
                 {
-                    m_engine->Put(ctx, ks[1], vs[1]);
+                    SetKeyValue(ctx, ks[1], vs[1]);
                 }
             }
             reply.SetInteger(1);
@@ -309,7 +309,7 @@ OP_NAMESPACE_BEGIN
                     break;
                 }
                 reply.SetString(field.GetSetMember());
-                m_engine->Del(ctx, field);
+                RemoveKey(ctx, field);
                 ele_removed = true;
                 if (meta.GetObjectLen() > 0)
                 {
@@ -330,11 +330,11 @@ OP_NAMESPACE_BEGIN
         DELETE(iter);
         if (remove_key)
         {
-            m_engine->Del(ctx, key);
+            RemoveKey(ctx, key);
         }
         else
         {
-            m_engine->Put(ctx, key, meta);
+            SetKeyValue(ctx, key, meta);
         }
         return 0;
     }
@@ -409,11 +409,11 @@ OP_NAMESPACE_BEGIN
                     KeyObject field(ctx.ns, KEY_SET_MEMBER, cmd.GetArguments()[0]);
                     const std::string& data = cmd.GetArguments()[i];
                     field.SetSetMember(data);
-                    m_engine->Del(ctx, field);
+                    RemoveKey(ctx, field);
                 }
                 meta.SetType(KEY_SET);
                 meta.SetObjectLen(-1);
-                m_engine->Put(ctx, key, meta);
+                SetKeyValue(ctx, key, meta);
             }
             if (ctx.transc_err != 0)
             {
@@ -444,7 +444,7 @@ OP_NAMESPACE_BEGIN
                 member.SetSetMember(cmd.GetArguments()[i]);
                 if (m_engine->Exists(ctx, member))
                 {
-                    m_engine->Del(ctx, member);
+                    RemoveKey(ctx, member);
                     if (meta.GetObjectLen() > 0)
                     {
                         meta.SetObjectLen(meta.GetObjectLen() - 1);
@@ -457,11 +457,11 @@ OP_NAMESPACE_BEGIN
             {
                 if (meta.GetObjectLen() == 0)
                 {
-                    m_engine->Del(ctx, key);
+                    RemoveKey(ctx, key);
                 }
                 else
                 {
-                    m_engine->Put(ctx, key, meta);
+                    SetKeyValue(ctx, key, meta);
                 }
             }
         }
@@ -584,12 +584,12 @@ OP_NAMESPACE_BEGIN
                     element.SetSetMember(*it);
                     ValueObject empty;
                     empty.SetType(KEY_SET_MEMBER);
-                    m_engine->Put(ctx, element, empty);
+                    SetKeyValue(ctx, element, empty);
                     it++;
                 }
                 dest_meta.SetMinData(*(diff_result.begin()));
                 dest_meta.SetMaxData(*(diff_result.rbegin()));
-                m_engine->Put(ctx, keys[0], dest_meta);
+                SetKeyValue(ctx, keys[0], dest_meta);
             }
             reply.SetInteger(diff_result.size());
         }
@@ -734,12 +734,12 @@ OP_NAMESPACE_BEGIN
                     element.SetSetMember(*it);
                     ValueObject empty;
                     empty.SetType(KEY_SET_MEMBER);
-                    m_engine->Put(ctx, element, empty);
+                    SetKeyValue(ctx, element, empty);
                     it++;
                 }
                 dest_meta.SetMinData(*(inter_result[inter_result_cursor].begin()));
                 dest_meta.SetMaxData(*(inter_result[inter_result_cursor].rbegin()));
-                m_engine->Put(ctx, keys[0], dest_meta);
+                SetKeyValue(ctx, keys[0], dest_meta);
             }
             reply.SetInteger(inter_result[inter_result_cursor].size());
         }
@@ -853,12 +853,12 @@ OP_NAMESPACE_BEGIN
                     element.SetSetMember(*it);
                     ValueObject empty;
                     empty.SetType(KEY_SET_MEMBER);
-                    m_engine->Put(ctx, element, empty);
+                    SetKeyValue(ctx, element, empty);
                     it++;
                 }
                 dest_meta.SetMinData(*(union_result.begin()));
                 dest_meta.SetMaxData(*(union_result.rbegin()));
-                m_engine->Put(ctx, keys[0], dest_meta);
+                SetKeyValue(ctx, keys[0], dest_meta);
                 reply.SetInteger(union_result.size());
             }
 

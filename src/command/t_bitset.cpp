@@ -260,7 +260,7 @@ OP_NAMESPACE_BEGIN
             DataArray args(2);
             args[0].SetInt64(offset);
             args[1].SetInt64(bit);
-            err = m_engine->Merge(ctx, key, cmd.GetType(), args);
+            err = MergeKeyValue(ctx, key, cmd.GetType(), args);
             if (err < 0)
             {
                 reply.SetErrCode(err);
@@ -280,7 +280,7 @@ OP_NAMESPACE_BEGIN
         err = MergeSetBit(ctx, key, v, offset, bit, &oldbit);
         if (0 == err)
         {
-            err = m_engine->Put(ctx, key, v);
+            err = SetKeyValue(ctx, key, v);
         }
         if (err < 0)
         {
@@ -735,7 +735,7 @@ OP_NAMESPACE_BEGIN
             {
                 vals[0].SetType(KEY_STRING);
                 vals[0].GetStringValue().SetString(res, false);
-                err = m_engine->Put(ctx, keys[0], vals[0]);
+                err = SetKeyValue(ctx, keys[0], vals[0]);
             }
             else
             {
@@ -746,7 +746,7 @@ OP_NAMESPACE_BEGIN
         {
             if (vals[0].GetType() > 0)
             {
-                err = m_engine->Del(ctx, keys[0]);
+                err = RemoveKey(ctx, keys[0]);
             }
         }
         if (0 != err)

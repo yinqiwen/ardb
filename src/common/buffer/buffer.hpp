@@ -79,6 +79,20 @@ namespace ardb
 			{
 				EnsureWritableBytes(size);
 			}
+            inline bool WrapReadableContent(const void* data, size_t len)
+            {
+                Clear();
+                if (m_in_heap && m_buffer_len > 0)
+                {
+                    return false;
+                }
+                m_in_heap = false;
+                m_buffer = (char*) data;
+                m_buffer_len = len;
+                m_read_idx = 0;
+                m_write_idx = len;
+                return true;
+            }
 			inline size_t GetReadIndex() const
 			{
 				return m_read_idx;

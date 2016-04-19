@@ -334,12 +334,12 @@ namespace ardb
                 ValueObject ele_value;
                 ele_value.SetType(KEY_LIST_ELEMENT);
                 ele_value.SetListElement(*it);
-                m_engine->Put(ctx, ele_key, ele_value);
+                SetKeyValue(ctx, ele_key, ele_value);
                 idx++;
                 it++;
             }
             store_meta.SetListMaxIdx(idx);
-            m_engine->Put(ctx, store_key, store_meta);
+            SetKeyValue(ctx, store_key, store_meta);
         }
         else
         {

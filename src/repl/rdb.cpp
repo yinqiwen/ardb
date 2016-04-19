@@ -109,6 +109,7 @@ extern "C"
 
 #define ARDB_RDB_TYPE_CHUNK 1
 #define ARDB_RDB_TYPE_SNAPPY_CHUNK 2
+#define ARDB_RDB_OPCODE_SELECTDB   3
 #define ARDB_RDB_TYPE_EOF 255
 
 namespace ardb
@@ -116,18 +117,541 @@ namespace ardb
 
     static const uint32 kloading_process_events_interval_bytes = 10 * 1024 * 1024;
     static const uint32 kmax_read_buffer_size = 10 * 1024 * 1024;
+
+    static int EncodeInteger(long long value, unsigned char *enc)
+    {
+        /* Finally check if it fits in our ranges */
+        if (value >= -(1 << 7) && value <= (1 << 7) - 1)
+        {
+            enc[0] = (REDIS_RDB_ENCVAL << 6) | REDIS_RDB_ENC_INT8;
+            enc[1] = value & 0xFF;
+            return 2;
+        }
+        else if (value >= -(1 << 15) && value <= (1 << 15) - 1)
+        {
+            enc[0] = (REDIS_RDB_ENCVAL << 6) | REDIS_RDB_ENC_INT16;
+            enc[1] = value & 0xFF;
+            enc[2] = (value >> 8) & 0xFF;
+            return 3;
+        }
+        else if (value >= -((long long) 1 << 31) && value <= ((long long) 1 << 31) - 1)
+        {
+            enc[0] = (REDIS_RDB_ENCVAL << 6) | REDIS_RDB_ENC_INT32;
+            enc[1] = value & 0xFF;
+            enc[2] = (value >> 8) & 0xFF;
+            enc[3] = (value >> 16) & 0xFF;
+            enc[4] = (value >> 24) & 0xFF;
+            return 5;
+        }
+        else
+        {
+            return 0;
+        }
+    }
+
+    /* String objects in the form "2391" "-100" without any space and with a
+     * range of values that can fit in an 8, 16 or 32 bit signed value can be
+     * encoded as integers to save space */
+    static int TryIntegerEncoding(char *s, size_t len, unsigned char *enc)
+    {
+        long long value;
+        char *endptr, buf[32];
+
+        /* Check if it's possible to encode this value as a number */
+        value = strtoll(s, &endptr, 10);
+        if (endptr[0] != '\0')
+            return 0;
+        ll2string(buf, 32, value);
+
+        /* If the number converted back into a string is not identical
+         * then it's not possible to encode the string as integer */
+        if (strlen(buf) != len || memcmp(buf, s, len))
+            return 0;
+
+        return EncodeInteger(value, enc);
+    }
+
     DataDumpFile::DataDumpFile() :
-            m_read_fp(NULL), m_write_fp(NULL), m_dump_ctx(NULL),m_db(NULL), m_cksm(0), m_routine_cb(
+            m_read_fp(NULL), m_write_fp(NULL), m_db(NULL), m_cksm(0), m_routine_cb(
             NULL), m_routine_cbdata(
             NULL), m_processed_bytes(0), m_file_size(0), m_is_saving(false), m_last_save(0), m_routinetime(0), m_read_buf(
-            NULL),m_expected_data_size(0),m_writed_data_size(0)
+            NULL), m_expected_data_size(0), m_writed_data_size(0)
     {
-        m_dump_ctx = new Context;
+
     }
     int DataDumpFile::Init(Ardb* db)
     {
         this->m_db = db;
         return 0;
+    }
+
+    int DataDumpFile::ReadType()
+    {
+        unsigned char type;
+        if (Read(&type, 1) == 0)
+            return -1;
+        return type;
+    }
+
+    time_t DataDumpFile::ReadTime()
+    {
+        int32_t t32;
+        if (Read(&t32, 4) == 0)
+            return -1;
+        return (time_t) t32;
+    }
+    int64 DataDumpFile::ReadMillisecondTime()
+    {
+        int64_t t64;
+        if (Read(&t64, 8) == 0)
+            return -1;
+        return (long long) t64;
+    }
+
+    uint32_t DataDumpFile::ReadLen(int *isencoded)
+    {
+        unsigned char buf[2];
+        uint32_t len;
+        int type;
+
+        if (isencoded)
+            *isencoded = 0;
+        if (Read(buf, 1) == 0)
+            return REDIS_RDB_LENERR;
+        type = (buf[0] & 0xC0) >> 6;
+        if (type == REDIS_RDB_ENCVAL)
+        {
+            /* Read a 6 bit encoding type. */
+            if (isencoded)
+                *isencoded = 1;
+            return buf[0] & 0x3F;
+        }
+        else if (type == REDIS_RDB_6BITLEN)
+        {
+            /* Read a 6 bit len. */
+            return buf[0] & 0x3F;
+        }
+        else if (type == REDIS_RDB_14BITLEN)
+        {
+            /* Read a 14 bit len. */
+            if (Read(buf + 1, 1) == 0)
+                return REDIS_RDB_LENERR;
+            return ((buf[0] & 0x3F) << 8) | buf[1];
+        }
+        else
+        {
+            /* Read a 32 bit len. */
+            if (Read(&len, 4) == 0)
+                return REDIS_RDB_LENERR;
+            return ntohl(len);
+        }
+    }
+
+    bool DataDumpFile::ReadLzfStringObject(std::string& str)
+    {
+        unsigned int len, clen;
+        unsigned char *c = NULL;
+
+        if ((clen = ReadLen(NULL)) == REDIS_RDB_LENERR)
+            return false;
+        if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR)
+            return false;
+        str.resize(len);
+        NEW(c, unsigned char[clen]);
+        if (NULL == c)
+            return false;
+
+        if (!Read(c, clen))
+        {
+            DELETE_A(c);
+            return false;
+        }
+        str.resize(len);
+        char* val = &str[0];
+        if (lzf_decompress(c, clen, val, len) == 0)
+        {
+            DELETE_A(c);
+            return false;
+        }
+        DELETE_A(c);
+        return true;
+    }
+
+    bool DataDumpFile::ReadInteger(int enctype, int64& val)
+    {
+        unsigned char enc[4];
+
+        if (enctype == REDIS_RDB_ENC_INT8)
+        {
+            if (Read(enc, 1) == 0)
+                return false;
+            val = (signed char) enc[0];
+        }
+        else if (enctype == REDIS_RDB_ENC_INT16)
+        {
+            uint16_t v;
+            if (Read(enc, 2) == 0)
+                return false;
+            v = enc[0] | (enc[1] << 8);
+            val = (int16_t) v;
+        }
+        else if (enctype == REDIS_RDB_ENC_INT32)
+        {
+            uint32_t v;
+            if (Read(enc, 4) == 0)
+                return false;
+            v = enc[0] | (enc[1] << 8) | (enc[2] << 16) | (enc[3] << 24);
+            val = (int32_t) v;
+        }
+        else
+        {
+            val = 0; /* anti-warning */
+            FATAL_LOG("Unknown RDB integer encoding type");
+            abort();
+        }
+        return true;
+    }
+
+    /* For information about double serialization check rdbSaveDoubleValue() */
+    int DataDumpFile::ReadDoubleValue(double&val)
+    {
+        static double R_Zero = 0.0;
+        static double R_PosInf = 1.0 / R_Zero;
+        static double R_NegInf = -1.0 / R_Zero;
+        static double R_Nan = R_Zero / R_Zero;
+        char buf[128];
+        unsigned char len;
+
+        if (Read(&len, 1) == 0)
+            return -1;
+        switch (len)
+        {
+            case 255:
+                val = R_NegInf;
+                return 0;
+            case 254:
+                val = R_PosInf;
+                return 0;
+            case 253:
+                val = R_Nan;
+                return 0;
+            default:
+                if (Read(buf, len) == 0)
+                    return -1;
+                buf[len] = '\0';
+                sscanf(buf, "%lg", &val);
+                return 0;
+        }
+    }
+
+    bool DataDumpFile::ReadString(std::string& str)
+    {
+        str.clear();
+        int isencoded;
+        uint32_t len;
+        len = ReadLen(&isencoded);
+        if (isencoded)
+        {
+            switch (len)
+            {
+                case REDIS_RDB_ENC_INT8:
+                case REDIS_RDB_ENC_INT16:
+                case REDIS_RDB_ENC_INT32:
+                {
+                    int64 v;
+                    if (ReadInteger(len, v))
+                    {
+                        str = stringfromll(v);
+                        return true;
+                    }
+                    else
+                    {
+                        return true;
+                    }
+                }
+                case REDIS_RDB_ENC_LZF:
+                {
+                    return ReadLzfStringObject(str);
+                }
+                default:
+                {
+                    ERROR_LOG("Unknown RDB encoding type");
+                    abort();
+                    break;
+                }
+            }
+        }
+
+        if (len == REDIS_RDB_LENERR)
+            return false;
+        str.clear();
+        str.resize(len);
+        char* val = &str[0];
+        if (len && Read(val, len) == 0)
+        {
+            return false;
+        }
+        return true;
+    }
+
+    int DataDumpFile::WriteType(uint8 type)
+    {
+        return Write(&type, 1);
+    }
+
+    /* Like rdbSaveStringObjectRaw() but handle encoded objects */
+    int DataDumpFile::WriteStringObject(const Data& o)
+    {
+        /* Avoid to decode the object, then encode it again, if the
+         * object is alrady integer encoded. */
+        if (o.IsInteger())
+        {
+            return WriteLongLongAsStringObject(o.GetInt64());
+        }
+        else
+        {
+            std::string str;
+            o.ToString(str);
+            return WriteRawString(str.data(), str.size());
+        }
+    }
+
+    /* Save a string objet as [len][data] on disk. If the object is a string
+     * representation of an integer value we try to save it in a special form */
+    int DataDumpFile::WriteRawString(const char *s, size_t len)
+    {
+        int enclen;
+        int n, nwritten = 0;
+
+        /* Try integer encoding */
+        if (len > 0 && len <= 11)
+        {
+            unsigned char buf[5];
+            if ((enclen = TryIntegerEncoding((char*) s, len, buf)) > 0)
+            {
+                if (Write(buf, enclen) == -1)
+                    return -1;
+                return enclen;
+            }
+        }
+
+        /* Try LZF compression - under 20 bytes it's unable to compress even
+         * aaaaaaaaaaaaaaaaaa so skip it */
+        if (len > 20)
+        {
+            n = WriteLzfStringObject(s, len);
+            if (n == -1)
+                return -1;
+            if (n > 0)
+                return n;
+            /* Return value of 0 means data can't be compressed, save the old way */
+        }
+
+        /* Store verbatim */
+        if ((n = WriteLen(len)) == -1)
+            return -1;
+        nwritten += n;
+        if (len > 0)
+        {
+            if (Write(s, len) == -1)
+                return -1;
+            nwritten += len;
+        }
+        return nwritten;
+    }
+
+    int DataDumpFile::WriteLzfStringObject(const char *s, size_t len)
+    {
+        size_t comprlen, outlen;
+        unsigned char byte;
+        int n, nwritten = 0;
+        void *out;
+
+        /* We require at least four bytes compression for this to be worth it */
+        if (len <= 4)
+            return 0;
+        outlen = len - 4;
+        if ((out = malloc(outlen + 1)) == NULL)
+            return 0;
+        comprlen = lzf_compress(s, len, out, outlen);
+        if (comprlen == 0)
+        {
+            free(out);
+            return 0;
+        }
+        /* Data compressed! Let's save it on disk */
+        byte = (REDIS_RDB_ENCVAL << 6) | REDIS_RDB_ENC_LZF;
+        if ((n = Write(&byte, 1)) == -1)
+            goto writeerr;
+        nwritten += n;
+
+        if ((n = WriteLen(comprlen)) == -1)
+            goto writeerr;
+        nwritten += n;
+
+        if ((n = WriteLen(len)) == -1)
+            goto writeerr;
+        nwritten += n;
+
+        if ((n = Write(out, comprlen)) == -1)
+            goto writeerr;
+        nwritten += n;
+
+        free(out);
+        return nwritten;
+
+        writeerr: free(out);
+        return -1;
+    }
+
+    /* Save a long long value as either an encoded string or a string. */
+    int DataDumpFile::WriteLongLongAsStringObject(long long value)
+    {
+        unsigned char buf[32];
+        int n, nwritten = 0;
+        int enclen = EncodeInteger(value, buf);
+        if (enclen > 0)
+        {
+            return Write(buf, enclen);
+        }
+        else
+        {
+            /* Encode as string */
+            enclen = ll2string((char*) buf, 32, value);
+            if ((n = WriteLen(enclen)) == -1)
+                return -1;
+            nwritten += n;
+            if ((n = Write(buf, enclen)) == -1)
+                return -1;
+            nwritten += n;
+        }
+        return nwritten;
+    }
+
+    int DataDumpFile::WriteLen(uint32 len)
+    {
+        unsigned char buf[2];
+        size_t nwritten;
+
+        if (len < (1 << 6))
+        {
+            /* Save a 6 bit len */
+            buf[0] = (len & 0xFF) | (REDIS_RDB_6BITLEN << 6);
+            if (Write(buf, 1) == -1)
+                return -1;
+            nwritten = 1;
+        }
+        else if (len < (1 << 14))
+        {
+            /* Save a 14 bit len */
+            buf[0] = ((len >> 8) & 0xFF) | (REDIS_RDB_14BITLEN << 6);
+            buf[1] = len & 0xFF;
+            if (Write(buf, 2) == -1)
+                return -1;
+            nwritten = 2;
+        }
+        else
+        {
+            /* Save a 32 bit len */
+            buf[0] = (REDIS_RDB_32BITLEN << 6);
+            if (Write(buf, 1) == -1)
+                return -1;
+            len = htonl(len);
+            if (Write(&len, 4) == -1)
+                return -1;
+            nwritten = 1 + 4;
+        }
+        return nwritten;
+    }
+
+    int DataDumpFile::WriteKeyType(KeyType type)
+    {
+        switch (type)
+        {
+            case KEY_STRING:
+            {
+                return WriteType(REDIS_RDB_TYPE_STRING);
+            }
+            case KEY_SET:
+            case KEY_SET_MEMBER:
+            {
+                return WriteType(REDIS_RDB_TYPE_SET);
+            }
+            case KEY_LIST:
+            case KEY_LIST_ELEMENT:
+            {
+                return WriteType(REDIS_RDB_TYPE_LIST);
+            }
+            case KEY_ZSET:
+            case KEY_ZSET_SCORE:
+            case KEY_ZSET_SORT:
+            {
+                return WriteType(REDIS_RDB_TYPE_ZSET);
+            }
+            case KEY_HASH:
+            case KEY_HASH_FIELD:
+            {
+                return WriteType(REDIS_RDB_TYPE_HASH);
+            }
+            default:
+            {
+                return -1;
+            }
+        }
+    }
+
+    int DataDumpFile::WriteDouble(double val)
+    {
+        unsigned char buf[128];
+        int len;
+
+        if (std::isnan(val))
+        {
+            buf[0] = 253;
+            len = 1;
+        }
+        else if (!std::isfinite(val))
+        {
+            len = 1;
+            buf[0] = (val < 0) ? 255 : 254;
+        }
+        else
+        {
+#if (DBL_MANT_DIG >= 52) && (LLONG_MAX == 0x7fffffffffffffffLL)
+            /* Check if the float is in a safe range to be casted into a
+             * long long. We are assuming that long long is 64 bit here.
+             * Also we are assuming that there are no implementations around where
+             * double has precision < 52 bit.
+             *
+             * Under this assumptions we test if a double is inside an interval
+             * where casting to long long is safe. Then using two castings we
+             * make sure the decimal part is zero. If all this is true we use
+             * integer printing function that is much faster. */
+            double min = -4503599627370495LL; /* (2^52)-1 */
+            double max = 4503599627370496LL; /* -(2^52) */
+            if (val > min && val < max && val == ((double) ((long long) val)))
+            {
+                ll2string((char*) buf + 1, sizeof(buf), (long long) val);
+            }
+            else
+#endif
+                snprintf((char*) buf + 1, sizeof(buf) - 1, "%.17g", val);
+            buf[0] = strlen((char*) buf + 1);
+            len = buf[0] + 1;
+        }
+        return Write(buf, len);
+
+    }
+
+    int DataDumpFile::WriteMillisecondTime(uint64 ts)
+    {
+        return Write(&ts, 8);
+    }
+
+    int DataDumpFile::WriteTime(time_t t)
+    {
+        int32_t t32 = (int32_t) t;
+        return Write(&t32, 4);
     }
 
     void DataDumpFile::SetExpectedDataSize(int64 size)
@@ -157,13 +681,13 @@ namespace ardb
     {
         std::string file = m_db->GetConf().repl_data_dir;
         file.append("/").append(default_file);
-        if(file == GetPath())
+        if (file == GetPath())
         {
             return 0;
         }
         Close();
         int ret = rename(GetPath().c_str(), file.c_str());
-        if(0 == ret)
+        if (0 == ret)
         {
             m_file_path = file;
         }
@@ -219,7 +743,7 @@ namespace ardb
         }
         return 0;
     }
-    int DataDumpFile::Load(uint8 ctx_identity,const std::string& file, DumpRoutine* cb, void *data)
+    int DataDumpFile::Load(uint8 ctx_identity, const std::string& file, DumpRoutine* cb, void *data)
     {
 //        m_dump_ctx->identity = ctx_identity;
         this->m_routine_cb = cb;
@@ -240,7 +764,7 @@ namespace ardb
         if (NULL != m_routine_cb && get_current_epoch_millis() - m_routinetime >= 100)
         {
             int cbret = m_routine_cb(m_routine_cbdata);
-            if(0 != cbret)
+            if (0 != cbret)
             {
                 return cbret;
             }
@@ -271,8 +795,7 @@ namespace ardb
 
     bool DataDumpFile::Read(void* buf, size_t buflen, bool cksm)
     {
-        if ((m_processed_bytes + buflen) / kloading_process_events_interval_bytes
-                > m_processed_bytes / kloading_process_events_interval_bytes)
+        if ((m_processed_bytes + buflen) / kloading_process_events_interval_bytes > m_processed_bytes / kloading_process_events_interval_bytes)
         {
             INFO_LOG("%llu bytes loaded from dump file.", m_processed_bytes);
         }
@@ -283,7 +806,7 @@ namespace ardb
         if (NULL != m_routine_cb && get_current_epoch_millis() - m_routinetime >= 100)
         {
             int cbret = m_routine_cb(m_routine_cbdata);
-            if(0 != cbret)
+            if (0 != cbret)
             {
                 return cbret;
             }
@@ -356,7 +879,6 @@ namespace ardb
     {
         Close();
         DELETE_A(m_read_buf);
-        DELETE(m_dump_ctx);
     }
 
     RedisDumpFile::RedisDumpFile()
@@ -377,220 +899,9 @@ namespace ardb
         }
     }
 
-    int RedisDumpFile::ReadType()
-    {
-        unsigned char type;
-        if (Read(&type, 1) == 0)
-            return -1;
-        return type;
-    }
-
-    time_t RedisDumpFile::ReadTime()
-    {
-        int32_t t32;
-        if (Read(&t32, 4) == 0)
-            return -1;
-        return (time_t) t32;
-    }
-    int64 RedisDumpFile::ReadMillisecondTime()
-    {
-        int64_t t64;
-        if (Read(&t64, 8) == 0)
-            return -1;
-        return (long long) t64;
-    }
-
-    uint32_t RedisDumpFile::ReadLen(int *isencoded)
-    {
-        unsigned char buf[2];
-        uint32_t len;
-        int type;
-
-        if (isencoded)
-            *isencoded = 0;
-        if (Read(buf, 1) == 0)
-            return REDIS_RDB_LENERR;
-        type = (buf[0] & 0xC0) >> 6;
-        if (type == REDIS_RDB_ENCVAL)
-        {
-            /* Read a 6 bit encoding type. */
-            if (isencoded)
-                *isencoded = 1;
-            return buf[0] & 0x3F;
-        }
-        else if (type == REDIS_RDB_6BITLEN)
-        {
-            /* Read a 6 bit len. */
-            return buf[0] & 0x3F;
-        }
-        else if (type == REDIS_RDB_14BITLEN)
-        {
-            /* Read a 14 bit len. */
-            if (Read(buf + 1, 1) == 0)
-                return REDIS_RDB_LENERR;
-            return ((buf[0] & 0x3F) << 8) | buf[1];
-        }
-        else
-        {
-            /* Read a 32 bit len. */
-            if (Read(&len, 4) == 0)
-                return REDIS_RDB_LENERR;
-            return ntohl(len);
-        }
-    }
-
-    bool RedisDumpFile::ReadLzfStringObject(std::string& str)
-    {
-        unsigned int len, clen;
-        unsigned char *c = NULL;
-
-        if ((clen = ReadLen(NULL)) == REDIS_RDB_LENERR)
-            return false;
-        if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR)
-            return false;
-        str.resize(len);
-        NEW(c, unsigned char[clen]);
-        if (NULL == c)
-            return false;
-
-        if (!Read(c, clen))
-        {
-            DELETE_A(c);
-            return false;
-        }
-        str.resize(len);
-        char* val = &str[0];
-        if (lzf_decompress(c, clen, val, len) == 0)
-        {
-            DELETE_A(c);
-            return false;
-        }
-        DELETE_A(c);
-        return true;
-    }
-
-    bool RedisDumpFile::ReadInteger(int enctype, int64& val)
-    {
-        unsigned char enc[4];
-
-        if (enctype == REDIS_RDB_ENC_INT8)
-        {
-            if (Read(enc, 1) == 0)
-                return false;
-            val = (signed char) enc[0];
-        }
-        else if (enctype == REDIS_RDB_ENC_INT16)
-        {
-            uint16_t v;
-            if (Read(enc, 2) == 0)
-                return false;
-            v = enc[0] | (enc[1] << 8);
-            val = (int16_t) v;
-        }
-        else if (enctype == REDIS_RDB_ENC_INT32)
-        {
-            uint32_t v;
-            if (Read(enc, 4) == 0)
-                return false;
-            v = enc[0] | (enc[1] << 8) | (enc[2] << 16) | (enc[3] << 24);
-            val = (int32_t) v;
-        }
-        else
-        {
-            val = 0; /* anti-warning */
-            FATAL_LOG("Unknown RDB integer encoding type");
-            abort();
-        }
-        return true;
-    }
-
-    /* For information about double serialization check rdbSaveDoubleValue() */
-    int RedisDumpFile::ReadDoubleValue(double&val)
-    {
-        static double R_Zero = 0.0;
-        static double R_PosInf = 1.0 / R_Zero;
-        static double R_NegInf = -1.0 / R_Zero;
-        static double R_Nan = R_Zero / R_Zero;
-        char buf[128];
-        unsigned char len;
-
-        if (Read(&len, 1) == 0)
-            return -1;
-        switch (len)
-        {
-            case 255:
-                val = R_NegInf;
-                return 0;
-            case 254:
-                val = R_PosInf;
-                return 0;
-            case 253:
-                val = R_Nan;
-                return 0;
-            default:
-                if (Read(buf, len) == 0)
-                    return -1;
-                buf[len] = '\0';
-                sscanf(buf, "%lg", &val);
-                return 0;
-        }
-    }
-
-    bool RedisDumpFile::ReadString(std::string& str)
-    {
-        str.clear();
-        int isencoded;
-        uint32_t len;
-        len = ReadLen(&isencoded);
-        if (isencoded)
-        {
-            switch (len)
-            {
-                case REDIS_RDB_ENC_INT8:
-                case REDIS_RDB_ENC_INT16:
-                case REDIS_RDB_ENC_INT32:
-                {
-                    int64 v;
-                    if (ReadInteger(len, v))
-                    {
-                        str = stringfromll(v);
-                        return true;
-                    }
-                    else
-                    {
-                        return true;
-                    }
-                }
-                case REDIS_RDB_ENC_LZF:
-                {
-                    return ReadLzfStringObject(str);
-                }
-                default:
-                {
-                    ERROR_LOG("Unknown RDB encoding type");
-                    abort();
-                    break;
-                }
-            }
-        }
-
-        if (len == REDIS_RDB_LENERR)
-            return false;
-        str.clear();
-        str.resize(len);
-        char* val = &str[0];
-        if (len && Read(val, len) == 0)
-        {
-            return false;
-        }
-        return true;
-    }
-
-    void RedisDumpFile::LoadListZipList(unsigned char* data, const std::string& key)
+    void RedisDumpFile::LoadListZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& listmeta)
     {
         unsigned char* iter = ziplistIndex(data, 0);
-        Context& tmpctx;
-        ValueObject listmeta;
         listmeta.SetType(KEY_LIST);
         //BatchWriteGuard guard(m_db->GetKeyValueEngine());
         int64 idx = 0;
@@ -610,14 +921,14 @@ namespace ardb
                 {
                     value = stringfromll(vlong);
                 }
-                KeyObject lk(m_current_db, KEY_LIST_ELEMENT, key);
+                KeyObject lk(ctx.ns, KEY_LIST_ELEMENT, key);
                 lk.SetListIndex(idx);
                 ValueObject lv;
                 lv.SetType(KEY_LIST_ELEMENT);
                 lv.SetListElement(value);
                 //g_db->Set
                 idx++;
-                //m_db->ListInsert(tmpctx, listmeta, NULL, value, true, false);
+                m_db->SetKeyValue(ctx, lk, lv);
             }
             iter = ziplistNext(data, iter);
         }
@@ -625,7 +936,6 @@ namespace ardb
         listmeta.SetListMinIdx(0);
         listmeta.SetListMaxIdx(idx - 1);
         listmeta.GetListMeta().sequential = true;
-        //m_db->SetKeyValue(tmpctx, listmeta);
     }
 
     static double zzlGetScore(unsigned char *sptr)
@@ -650,17 +960,10 @@ namespace ardb
         }
         return score;
     }
-    void RedisDumpFile::LoadZSetZipList(unsigned char* data, const std::string& key)
+    void RedisDumpFile::LoadZSetZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value)
     {
-        Context& tmpctx = *m_dump_ctx;
-        ValueObject zmeta;
-        tmpctx.currentDB = m_current_db;
-        zmeta.key.db = m_current_db;
-        zmeta.key.key = key;
-        zmeta.key.type = KEY_META;
-        zmeta.type = ZSET_META;
-        zmeta.meta.SetEncoding(COLLECTION_ENCODING_ZIPZSET);
-        //BatchWriteGuard guard(m_db->GetKeyValueEngine());
+        meta_value.SetType(KEY_ZSET);
+        meta_value.SetObjectLen(ziplistLen(data));
         unsigned char* iter = ziplistIndex(data, 0);
         while (iter != NULL)
         {
@@ -685,25 +988,28 @@ namespace ardb
                 break;
             }
             double score = zzlGetScore(iter);
-            Data element, scorev;
-            element.SetString(value, true);
-            scorev.SetDouble(score);
-            m_db->ZSetAdd(tmpctx, zmeta, element, scorev, NULL);
+            KeyObject zsort(ctx.ns, KEY_ZSET_SORT, key);
+            zsort.SetZSetMember(value);
+            zsort.SetZSetScore(score);
+            ValueObject zsort_value;
+            zsort_value.SetType(KEY_ZSET_SORT);
+            KeyObject zscore(ctx.ns, KEY_ZSET_SCORE, key);
+            zscore.SetZSetMember(value);
+            ValueObject zscore_value;
+            zscore_value.SetType(KEY_ZSET_SCORE);
+            zscore_value.SetZSetScore(score);
+            m_db->SetKeyValue(ctx, zsort, zscore_value);
+            m_db->SetKeyValue(ctx, zscore, zscore_value);
             iter = ziplistNext(data, iter);
         }
-        m_db->SetKeyValue(tmpctx, zmeta);
+//        KeyObject zkey(ctx.ns, KEY_META, key);
+//        m_db->SetKeyValue(ctx, zkey, zmeta);
     }
 
-    void RedisDumpFile::LoadHashZipList(unsigned char* data, const std::string& key)
+    void RedisDumpFile::LoadHashZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value)
     {
-        Context& tmpctx = *m_dump_ctx;
-        ValueObject zmeta;
-        tmpctx.currentDB = m_current_db;
-        zmeta.key.db = m_current_db;
-        zmeta.key.type = KEY_META;
-        zmeta.key.key = key;
-        zmeta.type = HASH_META;
-        zmeta.meta.SetEncoding(COLLECTION_ENCODING_ZIPMAP);
+        meta_value.SetType(KEY_HASH);
+        meta_value.SetObjectLen(ziplistLen(data));
         //BatchWriteGuard guard(m_db->GetKeyValueEngine());
         unsigned char* iter = ziplistIndex(data, 0);
         while (iter != NULL)
@@ -742,44 +1048,42 @@ namespace ardb
                 {
                     value = stringfromll(vlong);
                 }
-                Data f, v;
-                f.SetString(field, true);
-                v.SetString(value, true);
-                m_db->HashSet(tmpctx, zmeta, f, v);
-                //m_db->HSet(m_current_db, key, field, value);
+                KeyObject fkey(ctx.ns, KEY_HASH_FIELD, key);
+                fkey.SetHashField(field);
+                ValueObject fvalue;
+                fvalue.SetType(KEY_HASH_FIELD);
+                fvalue.SetHashValue(value);
+                m_db->SetKeyValue(ctx, fkey, fvalue);
             }
             iter = ziplistNext(data, iter);
         }
-        m_db->SetKeyValue(tmpctx, zmeta);
+//        KeyObject hkey(ctx.ns, KEY_META, key);
+//        m_db->SetKeyValue(ctx, hkey, hmeta);
     }
 
-    void RedisDumpFile::LoadSetIntSet(unsigned char* data, const std::string& key)
+    void RedisDumpFile::LoadSetIntSet(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value)
     {
         int ii = 0;
         int64_t llele = 0;
-        Context& tmpctx = *m_dump_ctx;
-        ValueObject zmeta;
-        tmpctx.currentDB = m_current_db;
-        zmeta.key.db = m_current_db;
-        zmeta.key.type = KEY_META;
-        zmeta.key.key = key;
-        zmeta.type = SET_META;
-        zmeta.meta.SetEncoding(COLLECTION_ENCODING_ZIPSET);
+        meta_value.SetType(KEY_SET);
+        meta_value.SetObjectLen(intsetLen((intset*) data));
         while (!intsetGet((intset*) data, ii++, &llele))
         {
-            //value
-            //m_db->SAdd(m_current_db, key, stringfromll(llele));
-            bool tmp;
-            m_db->SetAdd(tmpctx, zmeta, stringfromll(llele), tmp);
+            KeyObject member(ctx.ns, KEY_SET_MEMBER, key);
+            member.SetSetMember(stringfromll(llele));
+            ValueObject member_value;
+            member_value.SetType(KEY_SET_MEMBER);
+            m_db->SetKeyValue(ctx, member, member_value);
         }
-        m_db->SetKeyValue(tmpctx, zmeta);
+//        KeyObject skey(ctx.ns, KEY_META, key);
+//        m_db->SetKeyValue(ctx, skey, smeta);
     }
 
-    bool RedisDumpFile::LoadObject(int rdbtype, const std::string& key)
+    bool RedisDumpFile::LoadObject(Context& ctx, int rdbtype, const std::string& key, int64 expiretime)
     {
-        Context& tmpctx = *m_dump_ctx;
-        tmpctx.currentDB = m_current_db;
-        BatchWriteGuard guard(tmpctx);
+        //TransactionGuard guard(ctx);
+        KeyObject meta_key(ctx.ns, KEY_META, key);
+        ValueObject meta_value;
         switch (rdbtype)
         {
             case REDIS_RDB_TYPE_STRING:
@@ -787,10 +1091,9 @@ namespace ardb
                 std::string str;
                 if (ReadString(str))
                 {
-                    //save key-value
-                    GenericSetOptions options;
-                    options.fill_reply = false;
-                    m_db->GenericSet(tmpctx, key, str, options);
+                    ValueObject string_value;
+                    meta_value.SetType(KEY_STRING);
+                    meta_value.SetStringValue(str);
                 }
                 else
                 {
@@ -804,21 +1107,18 @@ namespace ardb
                 uint32 len;
                 if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR)
                     return false;
-                ValueObject zmeta;
-                tmpctx.currentDB = m_current_db;
-                zmeta.key.db = m_current_db;
-                zmeta.key.type = KEY_META;
-                zmeta.key.key = key;
+
                 if (REDIS_RDB_TYPE_SET == rdbtype)
                 {
-                    zmeta.type = SET_META;
-                    zmeta.meta.SetEncoding(COLLECTION_ENCODING_ZIPSET);
+                    meta_value.SetType(KEY_SET);
+                    meta_value.SetObjectLen(len);
                 }
                 else
                 {
-                    zmeta.type = LIST_META;
-                    zmeta.meta.SetEncoding(COLLECTION_ENCODING_ZIPLIST);
+                    meta_value.SetType(KEY_LIST);
+                    meta_value.SetObjectLen(len);
                 }
+                int64 idx = 0;
                 while (len--)
                 {
                     std::string str;
@@ -827,12 +1127,21 @@ namespace ardb
                         //push to list/set
                         if (REDIS_RDB_TYPE_SET == rdbtype)
                         {
-                            bool tmp;
-                            m_db->SetAdd(tmpctx, zmeta, str, tmp);
+                            KeyObject member(ctx, KEY_SET_MEMBER, key);
+                            member.SetSetMember(str);
+                            ValueObject member_val;
+                            member_val.SetType(KEY_SET_MEMBER);
+                            m_db->SetKeyValue(ctx, member, member_val);
                         }
                         else
                         {
-                            m_db->ListInsert(tmpctx, zmeta, NULL, str, true, false);
+                            KeyObject lk(ctx, KEY_LIST_ELEMENT, key);
+                            lk.SetListIndex(idx);
+                            ValueObject lv;
+                            lv.SetType(KEY_LIST_ELEMENT);
+                            lv.SetListElement(str);
+                            m_db->SetKeyValue(ctx, lk, lv);
+                            idx++;
                         }
                     }
                     else
@@ -840,7 +1149,13 @@ namespace ardb
                         return false;
                     }
                 }
-                m_db->SetKeyValue(tmpctx, zmeta);
+                if (REDIS_RDB_TYPE_SET == rdbtype)
+                {
+                    meta_value.GetListMeta().sequential = true;
+                    meta_value.SetListMinIdx(0);
+                    meta_value.SetListMaxIdx(idx - 1);
+                }
+                //m_db->SetKeyValue(ctx, meta_key, zmeta);
                 break;
             }
             case REDIS_RDB_TYPE_ZSET:
@@ -848,12 +1163,8 @@ namespace ardb
                 uint32 len;
                 if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR)
                     return false;
-                ValueObject zmeta;
-                zmeta.key.db = m_current_db;
-                zmeta.key.type = KEY_META;
-                zmeta.type = ZSET_META;
-                zmeta.key.key = key;
-                zmeta.meta.SetEncoding(COLLECTION_ENCODING_ZIPZSET);
+                meta_value.SetType(KEY_ZSET);
+                meta_value.SetObjectLen(len);
                 while (len--)
                 {
                     std::string str;
@@ -862,17 +1173,25 @@ namespace ardb
                     {
                         //save value score
                         //m_db->ZAdd(m_current_db, key, score, str);
-                        Data element, scorev;
-                        element.SetString(str, true);
-                        scorev.SetDouble(score);
-                        m_db->ZSetAdd(tmpctx, zmeta, element, scorev, NULL);
+                        KeyObject zsort(ctx.ns, KEY_ZSET_SORT, key);
+                        zsort.SetZSetMember(str);
+                        zsort.SetZSetScore(score);
+                        ValueObject zsort_value;
+                        zsort_value.SetType(KEY_ZSET_SORT);
+                        KeyObject zscore(ctx.ns, KEY_ZSET_SCORE, key);
+                        zscore.SetZSetMember(str);
+                        ValueObject zscore_value;
+                        zscore_value.SetType(KEY_ZSET_SCORE);
+                        zscore_value.SetZSetScore(score);
+                        m_db->SetKeyValue(ctx, zsort, zscore_value);
+                        m_db->SetKeyValue(ctx, zscore, zscore_value);
                     }
                     else
                     {
                         return false;
                     }
                 }
-                m_db->SetKeyValue(tmpctx, zmeta);
+                //m_db->SetKeyValue(ctx, meta_key, zmeta);
                 break;
             }
             case REDIS_RDB_TYPE_HASH:
@@ -880,29 +1199,27 @@ namespace ardb
                 uint32 len;
                 if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR)
                     return false;
-                ValueObject zmeta;
-                zmeta.key.db = m_current_db;
-                zmeta.key.type = KEY_META;
-                zmeta.type = HASH_META;
-                zmeta.key.key = key;
-                zmeta.meta.SetEncoding(COLLECTION_ENCODING_ZIPMAP);
+                meta_value.SetType(KEY_HASH);
+                meta_value.SetObjectLen(len);
                 while (len--)
                 {
                     std::string field, str;
                     if (ReadString(field) && ReadString(str))
                     {
                         //save hash value
-                        Data f, v;
-                        f.SetString(field, true);
-                        v.SetString(str, true);
-                        m_db->HashSet(tmpctx, zmeta, f, v);
+                        KeyObject fkey(ctx.ns, KEY_HASH_FIELD, key);
+                        fkey.SetHashField(field);
+                        ValueObject fvalue;
+                        fvalue.SetType(KEY_HASH_FIELD);
+                        fvalue.SetHashValue(str);
+                        m_db->SetKeyValue(ctx, fkey, fvalue);
                     }
                     else
                     {
                         return false;
                     }
                 }
-                m_db->SetKeyValue(tmpctx, zmeta);
+                //m_db->SetKeyValue(ctx, meta_key, hmeta);
                 break;
             }
             case REDIS_RDB_TYPE_HASH_ZIPMAP:
@@ -924,49 +1241,49 @@ namespace ardb
                         unsigned char *zi = zipmapRewind(data);
                         unsigned char *fstr, *vstr;
                         unsigned int flen, vlen;
-                        unsigned int maxlen = 0;
-                        ValueObject zmeta;
-                        zmeta.key.db = m_current_db;
-                        zmeta.key.type = KEY_META;
-                        zmeta.type = HASH_META;
-                        zmeta.key.key = key;
-                        zmeta.meta.SetEncoding(COLLECTION_ENCODING_ZIPMAP);
+//                        unsigned int maxlen = 0;
+//                      ValueObject hmeta;
+                        meta_value.SetType(KEY_HASH);
+                        int64 hlen = 0;
                         while ((zi = zipmapNext(zi, &fstr, &flen, &vstr, &vlen)) != NULL)
                         {
-                            if (flen > maxlen)
-                                maxlen = flen;
-                            if (vlen > maxlen)
-                                maxlen = vlen;
-
-                            //save hash value data
-                            Slice field((char*) fstr, flen);
-                            Slice value((char*) vstr, vlen);
-                            //m_db->HSet(m_current_db, key, field, value);
-                            Data f, v;
-                            f.SetString(field, true);
-                            v.SetString(value, true);
-                            m_db->HashSet(tmpctx, zmeta, f, v);
+//                            if (flen > maxlen)
+//                                maxlen = flen;
+//                            if (vlen > maxlen)
+//                                maxlen = vlen;
+                            std::string fstring, fvstring;
+                            fstring.assign((char*) fstr, flen);
+                            fvstring.assign((char*) vstr, vlen);
+                            KeyObject fkey(ctx.ns, KEY_HASH_FIELD, key);
+                            fkey.SetHashField(fstring);
+                            ValueObject fvalue;
+                            fvalue.SetType(KEY_HASH_FIELD);
+                            fvalue.SetHashValue(fvstring);
+                            m_db->SetKeyValue(ctx, fkey, fvalue);
+                            hlen++;
                         }
+                        meta_value.SetObjectLen(hlen);
+                        //m_db->SetKeyValue(ctx, meta_key, hmeta);
                         break;
                     }
                     case REDIS_RDB_TYPE_LIST_ZIPLIST:
                     {
-                        LoadListZipList(data, key);
+                        LoadListZipList(ctx, data, key, meta_value);
                         break;
                     }
                     case REDIS_RDB_TYPE_SET_INTSET:
                     {
-                        LoadSetIntSet(data, key);
+                        LoadSetIntSet(ctx, data, key, meta_value);
                         break;
                     }
                     case REDIS_RDB_TYPE_ZSET_ZIPLIST:
                     {
-                        LoadZSetZipList(data, key);
+                        LoadZSetZipList(ctx, data, key, meta_value);
                         break;
                     }
                     case REDIS_RDB_TYPE_HASH_ZIPLIST:
                     {
-                        LoadHashZipList(data, key);
+                        LoadHashZipList(ctx, data, key, meta_value);
                         break;
                     }
                     default:
@@ -983,6 +1300,11 @@ namespace ardb
                 abort();
             }
         }
+        if (expiretime > 0)
+        {
+            meta_value.SetTTL(expiretime);
+        }
+        m_db->SetKeyValue(ctx, meta_key, meta_value);
         return true;
     }
 
@@ -1017,9 +1339,10 @@ namespace ardb
         int64 expiretime = -1;
         std::string key;
 
-        m_current_db = 0;
-        Context& tmpctx = *m_dump_ctx;
-        BatchWriteGuard guard(tmpctx);
+        Context loadctx;
+        loadctx.flags.no_fill_reply = 1;
+        loadctx.flags.no_wal = 1;
+        //BatchWriteGuard guard(tmpctx);
         if (!Read(buf, 9, true))
             goto eoferr;
         buf[9] = '\0';
@@ -1038,7 +1361,7 @@ namespace ardb
 
         while (true)
         {
-            expiretime = -1;
+            expiretime = 0;
             /* Read type. */
             if ((type = ReadType()) == -1)
                 goto eoferr;
@@ -1070,11 +1393,13 @@ namespace ardb
             /* Handle SELECT DB opcode as a special case */
             if (type == REDIS_RDB_OPCODE_SELECTDB)
             {
-                if ((m_current_db = ReadLen(NULL)) == REDIS_RDB_LENERR)
+                uint32_t dbid = 0;
+                if ((dbid = ReadLen(NULL)) == REDIS_RDB_LENERR)
                 {
                     ERROR_LOG("Failed to read current DBID.");
                     goto eoferr;
                 }
+                loadctx.ns.SetString(stringfromll(dbid), false);
                 continue;
             }
             //load key, object
@@ -1084,18 +1409,11 @@ namespace ardb
                 ERROR_LOG("Failed to read current key.");
                 goto eoferr;
             }
-            Context& tmpctx = *m_dump_ctx;
-            tmpctx.currentDB = m_current_db;
-            m_db->DeleteKey(tmpctx, key);
-            if (!LoadObject(type, key))
+            //m_db->RemoveKey(tmpctx, key);
+            if (!LoadObject(loadctx, type, key, expiretime))
             {
                 ERROR_LOG("Failed to load object:%d", type);
                 goto eoferr;
-            }
-            if (-1 != expiretime)
-            {
-                m_db->GenericExpire(tmpctx, key, expiretime);
-                //m_db->Pexpireat(m_current_db, key, expiretime);
             }
         }
 
@@ -1132,507 +1450,113 @@ namespace ardb
         Write(magic, 9);
     }
 
-    int RedisDumpFile::WriteType(uint8 type)
-    {
-        return Write(&type, 1);
-    }
-
-    int RedisDumpFile::WriteKeyType(KeyType type)
-    {
-        switch (type)
-        {
-            case KEY_STRING:
-            {
-                return WriteType(REDIS_RDB_TYPE_STRING);
-            }
-            case KEY_SET:
-            case KEY_SET_MEMBER:
-            {
-                return WriteType(REDIS_RDB_TYPE_SET);
-            }
-            case KEY_LIST:
-            case KEY_LIST_ELEMENT:
-            {
-                return WriteType(REDIS_RDB_TYPE_LIST);
-            }
-            case KEY_ZSET:
-            case KEY_ZSET_SCORE:
-            case KEY_ZSET_SORT:
-            {
-                return WriteType(REDIS_RDB_TYPE_ZSET);
-            }
-            case KEY_HASH:
-            case KEY_HASH_FIELD:
-            {
-                return WriteType(REDIS_RDB_TYPE_HASH);
-            }
-            default:
-            {
-                return -1;
-            }
-        }
-    }
-
-    int RedisDumpFile::WriteDouble(double val)
-    {
-        unsigned char buf[128];
-        int len;
-
-        if (std::isnan(val))
-        {
-            buf[0] = 253;
-            len = 1;
-        }
-        else if (!std::isfinite(val))
-        {
-            len = 1;
-            buf[0] = (val < 0) ? 255 : 254;
-        }
-        else
-        {
-#if (DBL_MANT_DIG >= 52) && (LLONG_MAX == 0x7fffffffffffffffLL)
-            /* Check if the float is in a safe range to be casted into a
-             * long long. We are assuming that long long is 64 bit here.
-             * Also we are assuming that there are no implementations around where
-             * double has precision < 52 bit.
-             *
-             * Under this assumptions we test if a double is inside an interval
-             * where casting to long long is safe. Then using two castings we
-             * make sure the decimal part is zero. If all this is true we use
-             * integer printing function that is much faster. */
-            double min = -4503599627370495LL; /* (2^52)-1 */
-            double max = 4503599627370496LL; /* -(2^52) */
-            if (val > min && val < max && val == ((double) ((long long) val)))
-            {
-                ll2string((char*) buf + 1, sizeof(buf), (long long) val);
-            }
-            else
-#endif
-                snprintf((char*) buf + 1, sizeof(buf) - 1, "%.17g", val);
-            buf[0] = strlen((char*) buf + 1);
-            len = buf[0] + 1;
-        }
-        return Write(buf, len);
-
-    }
-
-    int RedisDumpFile::WriteMillisecondTime(uint64 ts)
-    {
-        return Write(&ts, 8);
-    }
-
-    int RedisDumpFile::WriteTime(time_t t)
-    {
-        int32_t t32 = (int32_t) t;
-        return Write(&t32, 4);
-    }
-
-    static int EncodeInteger(long long value, unsigned char *enc)
-    {
-        /* Finally check if it fits in our ranges */
-        if (value >= -(1 << 7) && value <= (1 << 7) - 1)
-        {
-            enc[0] = (REDIS_RDB_ENCVAL << 6) | REDIS_RDB_ENC_INT8;
-            enc[1] = value & 0xFF;
-            return 2;
-        }
-        else if (value >= -(1 << 15) && value <= (1 << 15) - 1)
-        {
-            enc[0] = (REDIS_RDB_ENCVAL << 6) | REDIS_RDB_ENC_INT16;
-            enc[1] = value & 0xFF;
-            enc[2] = (value >> 8) & 0xFF;
-            return 3;
-        }
-        else if (value >= -((long long) 1 << 31) && value <= ((long long) 1 << 31) - 1)
-        {
-            enc[0] = (REDIS_RDB_ENCVAL << 6) | REDIS_RDB_ENC_INT32;
-            enc[1] = value & 0xFF;
-            enc[2] = (value >> 8) & 0xFF;
-            enc[3] = (value >> 16) & 0xFF;
-            enc[4] = (value >> 24) & 0xFF;
-            return 5;
-        }
-        else
-        {
-            return 0;
-        }
-    }
-
-    /* String objects in the form "2391" "-100" without any space and with a
-     * range of values that can fit in an 8, 16 or 32 bit signed value can be
-     * encoded as integers to save space */
-    static int TryIntegerEncoding(char *s, size_t len, unsigned char *enc)
-    {
-        long long value;
-        char *endptr, buf[32];
-
-        /* Check if it's possible to encode this value as a number */
-        value = strtoll(s, &endptr, 10);
-        if (endptr[0] != '\0')
-            return 0;
-        ll2string(buf, 32, value);
-
-        /* If the number converted back into a string is not identical
-         * then it's not possible to encode the string as integer */
-        if (strlen(buf) != len || memcmp(buf, s, len))
-            return 0;
-
-        return EncodeInteger(value, enc);
-    }
-
-    /* Like rdbSaveStringObjectRaw() but handle encoded objects */
-    int RedisDumpFile::WriteStringObject(Data& o)
-    {
-        /* Avoid to decode the object, then encode it again, if the
-         * object is alrady integer encoded. */
-        if (o.IsInteger())
-        {
-            return WriteLongLongAsStringObject(o.GetInt64());
-        }
-        else
-        {
-            o.ToString();
-            return WriteRawString(o.RawString(), sdslen(o.RawString()));
-        }
-    }
-
-    /* Save a string objet as [len][data] on disk. If the object is a string
-     * representation of an integer value we try to save it in a special form */
-    int RedisDumpFile::WriteRawString(const char *s, size_t len)
-    {
-        int enclen;
-        int n, nwritten = 0;
-
-        /* Try integer encoding */
-        if (len > 0 && len <= 11)
-        {
-            unsigned char buf[5];
-            if ((enclen = TryIntegerEncoding((char*) s, len, buf)) > 0)
-            {
-                if (Write(buf, enclen) == -1)
-                    return -1;
-                return enclen;
-            }
-        }
-
-        /* Try LZF compression - under 20 bytes it's unable to compress even
-         * aaaaaaaaaaaaaaaaaa so skip it */
-        if (len > 20)
-        {
-            n = WriteLzfStringObject(s, len);
-            if (n == -1)
-                return -1;
-            if (n > 0)
-                return n;
-            /* Return value of 0 means data can't be compressed, save the old way */
-        }
-
-        /* Store verbatim */
-        if ((n = WriteLen(len)) == -1)
-            return -1;
-        nwritten += n;
-        if (len > 0)
-        {
-            if (Write(s, len) == -1)
-                return -1;
-            nwritten += len;
-        }
-        return nwritten;
-    }
-
-    int RedisDumpFile::WriteLzfStringObject(const char *s, size_t len)
-    {
-        size_t comprlen, outlen;
-        unsigned char byte;
-        int n, nwritten = 0;
-        void *out;
-
-        /* We require at least four bytes compression for this to be worth it */
-        if (len <= 4)
-            return 0;
-        outlen = len - 4;
-        if ((out = malloc(outlen + 1)) == NULL)
-            return 0;
-        comprlen = lzf_compress(s, len, out, outlen);
-        if (comprlen == 0)
-        {
-            free(out);
-            return 0;
-        }
-        /* Data compressed! Let's save it on disk */
-        byte = (REDIS_RDB_ENCVAL << 6) | REDIS_RDB_ENC_LZF;
-        if ((n = Write(&byte, 1)) == -1)
-            goto writeerr;
-        nwritten += n;
-
-        if ((n = WriteLen(comprlen)) == -1)
-            goto writeerr;
-        nwritten += n;
-
-        if ((n = WriteLen(len)) == -1)
-            goto writeerr;
-        nwritten += n;
-
-        if ((n = Write(out, comprlen)) == -1)
-            goto writeerr;
-        nwritten += n;
-
-        free(out);
-        return nwritten;
-
-        writeerr: free(out);
-        return -1;
-    }
-
-    /* Save a long long value as either an encoded string or a string. */
-    int RedisDumpFile::WriteLongLongAsStringObject(long long value)
-    {
-        unsigned char buf[32];
-        int n, nwritten = 0;
-        int enclen = EncodeInteger(value, buf);
-        if (enclen > 0)
-        {
-            return Write(buf, enclen);
-        }
-        else
-        {
-            /* Encode as string */
-            enclen = ll2string((char*) buf, 32, value);
-            if ((n = WriteLen(enclen)) == -1)
-                return -1;
-            nwritten += n;
-            if ((n = Write(buf, enclen)) == -1)
-                return -1;
-            nwritten += n;
-        }
-        return nwritten;
-    }
-
-    int RedisDumpFile::WriteLen(uint32 len)
-    {
-        unsigned char buf[2];
-        size_t nwritten;
-
-        if (len < (1 << 6))
-        {
-            /* Save a 6 bit len */
-            buf[0] = (len & 0xFF) | (REDIS_RDB_6BITLEN << 6);
-            if (Write(buf, 1) == -1)
-                return -1;
-            nwritten = 1;
-        }
-        else if (len < (1 << 14))
-        {
-            /* Save a 14 bit len */
-            buf[0] = ((len >> 8) & 0xFF) | (REDIS_RDB_14BITLEN << 6);
-            buf[1] = len & 0xFF;
-            if (Write(buf, 2) == -1)
-                return -1;
-            nwritten = 2;
-        }
-        else
-        {
-            /* Save a 32 bit len */
-            buf[0] = (REDIS_RDB_32BITLEN << 6);
-            if (Write(buf, 1) == -1)
-                return -1;
-            len = htonl(len);
-            if (Write(&len, 4) == -1)
-                return -1;
-            nwritten = 1 + 4;
-        }
-        return nwritten;
-    }
-
     int RedisDumpFile::DoSave()
     {
         WriteMagicHeader();
-
-#define DUMP_CHECK_WRITE(x)  if((err = (x)) < 0) break
-        KeyObject k;
-        k.db = 0;
-        k.type = KEY_META;
-        Context& tmpctx = *m_dump_ctx;
-        BatchWriteGuard guard(tmpctx);
-        Iterator* iter = m_db->IteratorKeyValue(k, false);
-        uint32 cursor = 0;
         int err = 0;
-        if (NULL != iter)
+#define DUMP_CHECK_WRITE(x)  if((err = (x)) < 0) break
+        Context dumpctx;
+        dumpctx.flags.iterate_multi_keys = 1;
+        DataArray nss;
+        m_db->GetEngine()->ListNameSpaces(dumpctx, nss);
+        for (size_t i = 0; i < nss.size(); i++)
         {
-            std::string currentKey;
+            dumpctx.ns = nss[i];
+            DUMP_CHECK_WRITE(WriteType(REDIS_RDB_OPCODE_SELECTDB));
+            DUMP_CHECK_WRITE(WriteLen(dumpctx.ns.GetInt64()));
+            KeyObject empty;
+            empty.SetNameSpace(nss[i]);
+            Iterator* iter = m_db->GetEngine()->Find(dumpctx, empty);
+            Data current_key;
+            KeyType current_keytype;
+            int64 objectlen = 0;
             while (iter->Valid())
             {
-                KeyObject kk;
-                ValueObject vv;
-                if (!decode_key(iter->Key(), kk) || !decode_value(iter->Value(), vv))
+                KeyObject& k = iter->Key();
+                ValueObject& v = iter->Value();
+                switch (k.GetType())
                 {
-                    ERROR_LOG("Failed to decode key or value.");
-                    break;
-                }
-                if (kk.db == ARDB_GLOBAL_DB)
-                {
-                    return -1;
-                }
-                if (cursor == 0 || (kk.db != m_current_db))
-                {
-                    m_current_db = kk.db;
-                    tmpctx.currentDB = kk.db;
-                    currentKey.clear();
-                    DUMP_CHECK_WRITE(WriteType(REDIS_RDB_OPCODE_SELECTDB));
-                    DUMP_CHECK_WRITE(WriteLen(m_current_db));
-                }
-                cursor++;
-                if (kk.type != KEY_META && kk.type != LIST_ELEMENT && kk.type != ZSET_ELEMENT_SCORE
-                        && kk.type != SET_ELEMENT && kk.type != BITSET_ELEMENT && kk.type != HASH_FIELD)
-                {
-                    iter->Next();
-                    continue;
-                }
-                if (kk.type == KEY_META)
-                {
-                    kk.type = vv.type;
-                    switch (vv.type)
+                    case KEY_META:
                     {
-                        case STRING_META:
+                        int64 ttl = v.GetTTL();
+                        if (ttl > 0)
                         {
-                            kk.type = STRING_META;
-                            break;
+                            DUMP_CHECK_WRITE(WriteType(REDIS_RDB_OPCODE_EXPIRETIME_MS));
+                            DUMP_CHECK_WRITE(WriteMillisecondTime(ttl));
                         }
-                        case LIST_META:
-                        case HASH_META:
-                        case ZSET_META:
-                        case SET_META:
+                        DUMP_CHECK_WRITE(WriteKeyType((KeyType )k.GetType()));
+                        current_key = k.GetKey();
+                        std::string kstr;
+                        k.GetKey().ToString(kstr);
+                        DUMP_CHECK_WRITE(WriteRawString(kstr.data(), kstr.size()));
+                        current_keytype = v.GetType();
+                        switch (current_keytype)
                         {
-                            if (vv.meta.Encoding() == COLLECTION_ENCODING_RAW)
+                            case KEY_STRING:
                             {
-                                iter->Next();
-                                continue;
+                                DUMP_CHECK_WRITE(WriteStringObject(v.GetStringValue()));
+                                break;
                             }
+                            case KEY_LIST:
+                            case KEY_ZSET:
+                            case KEY_SET:
+                            case KEY_HASH:
+                            {
+                                m_db->ObjectLen(dumpctx, current_keytype, kstr);
+                                objectlen = dumpctx.GetReply().GetInteger();
+                                DUMP_CHECK_WRITE(WriteLen(objectlen));
+                                DUMP_CHECK_WRITE(WriteStringObject(v.GetStringValue()));
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                    case KEY_LIST_ELEMENT:
+                    {
+                        if (current_key != k.GetKey() || current_keytype != KEY_LIST || objectlen <= 0)
+                        {
                             break;
                         }
-                        case BITSET_META:
-                        default:
-                        {
-                            iter->Next();
-                            continue;
-                        }
-                    }
-                }
-
-                bool firstElementInKey = false;
-                if (currentKey.size() != kk.key.size() || strncmp(currentKey.c_str(), kk.key.data(), currentKey.size()))
-                {
-                    uint64 expiretime = 0;
-                    m_db->GenericTTL(tmpctx, kk.key, expiretime);
-                    if (expiretime > 0)
-                    {
-                        DUMP_CHECK_WRITE(WriteType(REDIS_RDB_OPCODE_EXPIRETIME_MS));
-                        DUMP_CHECK_WRITE(WriteMillisecondTime(expiretime));
-                    }
-                    DUMP_CHECK_WRITE(WriteKeyType((KeyType )kk.type));
-                    currentKey.assign(kk.key.data(), kk.key.size());
-                    DUMP_CHECK_WRITE(WriteRawString(currentKey.data(), currentKey.size()));
-                    firstElementInKey = true;
-                }
-
-                switch (kk.type)
-                {
-                    case STRING_META:
-                    {
-                        DUMP_CHECK_WRITE(WriteStringObject(vv.meta.str_value));
+                        DUMP_CHECK_WRITE(WriteStringObject(v.GetListElement()));
+                        objectlen--;
                         break;
                     }
-                    case LIST_ELEMENT:
+                    case KEY_SET_MEMBER:
                     {
-                        if (firstElementInKey)
+                        if (current_key != k.GetKey() || current_keytype != KEY_SET || objectlen <= 0)
                         {
-                            m_db->ListLen(tmpctx, kk.key);
-                            DUMP_CHECK_WRITE(WriteLen(tmpctx.reply.integer));
+                            break;
                         }
-                        DUMP_CHECK_WRITE(WriteStringObject(vv.element));
+                        DUMP_CHECK_WRITE(WriteStringObject(k.GetSetMember()));
+                        objectlen--;
                         break;
                     }
-                    case SET_ELEMENT:
+                    case KEY_ZSET_SORT:
                     {
-                        if (firstElementInKey)
+                        if (current_key != k.GetKey() || current_keytype != KEY_ZSET || objectlen <= 0)
                         {
-                            m_db->SetLen(tmpctx, kk.key);
-                            DUMP_CHECK_WRITE(WriteLen(tmpctx.reply.integer));
+                            break;
                         }
-                        DUMP_CHECK_WRITE(WriteStringObject(kk.element));
+                        DUMP_CHECK_WRITE(WriteStringObject(k.GetZSetMember()));
+                        DUMP_CHECK_WRITE(WriteDouble(k.GetZSetScore()));
+                        objectlen--;
                         break;
                     }
-                    case ZSET_ELEMENT_SCORE:
+                    case KEY_HASH_FIELD:
                     {
-                        if (firstElementInKey)
+                        if (current_key != k.GetKey() || current_keytype != KEY_HASH || objectlen <= 0)
                         {
-                            m_db->ZSetLen(tmpctx, kk.key);
-                            DUMP_CHECK_WRITE(WriteLen(tmpctx.reply.integer));
+                            break;
                         }
-                        DUMP_CHECK_WRITE(WriteStringObject(kk.element));
-                        DUMP_CHECK_WRITE(WriteDouble(kk.score.NumberValue()));
+                        DUMP_CHECK_WRITE(WriteStringObject(k.GetHashField()));
+                        DUMP_CHECK_WRITE(WriteStringObject(v.GetHashValue()));
+                        objectlen--;
                         break;
                     }
-                    case HASH_FIELD:
+                    case KEY_ZSET_SCORE:
                     {
-                        if (firstElementInKey)
-                        {
-                            m_db->HashLen(tmpctx, kk.key);
-                            DUMP_CHECK_WRITE(WriteLen(tmpctx.reply.integer));
-                        }
-                        std::string fstr;
-                        kk.element.GetDecodeString(fstr);
-                        DUMP_CHECK_WRITE(WriteRawString(fstr.data(), fstr.size()));
-                        DUMP_CHECK_WRITE(WriteStringObject(vv.element));
-                        break;
-                    }
-                    case HASH_META:
-                    {
-                        DUMP_CHECK_WRITE(WriteLen(vv.meta.zipmap.size()));
-                        DataMap::iterator it = vv.meta.zipmap.begin();
-                        while (it != vv.meta.zipmap.end())
-                        {
-                            std::string field_name;
-                            it->first.GetDecodeString(field_name);
-                            DUMP_CHECK_WRITE(WriteRawString(field_name.data(), field_name.size()));
-                            DUMP_CHECK_WRITE(WriteStringObject(it->second));
-                            it++;
-                        }
-                        break;
-                    }
-                    case LIST_META:
-                    {
-                        DUMP_CHECK_WRITE(WriteLen(vv.meta.ziplist.size()));
-                        DataArray::iterator it = vv.meta.ziplist.begin();
-                        while (it != vv.meta.ziplist.end())
-                        {
-                            DUMP_CHECK_WRITE(WriteStringObject(*it));
-                            it++;
-                        }
-                        break;
-                    }
-                    case ZSET_META:
-                    {
-                        DUMP_CHECK_WRITE(WriteLen(vv.meta.zipmap.size()));
-                        DataMap::iterator it = vv.meta.zipmap.begin();
-                        while (it != vv.meta.zipmap.end())
-                        {
-                            Data d = it->first;
-                            DUMP_CHECK_WRITE(WriteStringObject(d));
-                            DUMP_CHECK_WRITE(WriteDouble(it->second.NumberValue()));
-                            it++;
-                        }
-                        break;
-                    }
-                    case SET_META:
-                    {
-                        DUMP_CHECK_WRITE(WriteLen(vv.meta.zipset.size()));
-                        DataSet::iterator it = vv.meta.zipset.begin();
-                        while (it != vv.meta.zipset.end())
-                        {
-                            DUMP_CHECK_WRITE(WriteStringObject(*it));
-                            it++;
-                        }
+                        KeyObject next(dumpctx.ns, KEY_END, current_key);
+                        iter->Jump(next);
                         break;
                     }
                     default:
@@ -1677,11 +1601,6 @@ namespace ardb
         return Write(magic, 8);
     }
 
-    int ArdbDumpFile::WriteType(uint8 type)
-    {
-        return Write(&type, 1);
-    }
-
     int ArdbDumpFile::SaveRawKeyValue(const Slice& key, const Slice& value)
     {
         /*
@@ -1690,7 +1609,7 @@ namespace ardb
         if (NULL != m_routine_cb && get_current_epoch_millis() - m_routinetime >= 100)
         {
             int cbret = m_routine_cb(m_routine_cbdata);
-            if(0 != cbret)
+            if (0 != cbret)
             {
                 return cbret;
             }
@@ -1702,25 +1621,6 @@ namespace ardb
         {
             return FlushWriteBuffer();
         }
-        return 0;
-    }
-
-    int ArdbDumpFile::WriteLen(uint32 len)
-    {
-        Buffer lenbuf(4);
-        BufferHelper::WriteFixUInt32(lenbuf, len);
-        return Write(lenbuf.GetRawReadBuffer(), lenbuf.ReadableBytes());
-    }
-
-    int ArdbDumpFile::ReadLen(uint32& len)
-    {
-        char buf[4];
-        if (!Read(buf, 4, true))
-        {
-            return -1;
-        }
-        Buffer lenbuf(buf, 0, 4);
-        BufferHelper::ReadFixUInt32(lenbuf, len);
         return 0;
     }
 
@@ -1755,18 +1655,22 @@ namespace ardb
     {
         RETURN_NEGATIVE_EXPR(WriteMagicHeader());
 
-        KeyObject k;
-        k.db = 0;
-        k.type = KEY_META;
-        BatchWriteGuard guard(*m_dump_ctx);
-        Iterator* iter = m_db->IteratorKeyValue(k, false);
-        if (NULL != iter)
+        Context dumpctx;
+        dumpctx.flags.iterate_multi_keys = 1;
+        DataArray nss;
+        m_db->GetEngine()->ListNameSpaces(dumpctx, nss);
+        for (size_t i = 0; i < nss.size(); i++)
         {
+            dumpctx.ns = nss[i];
+            DUMP_CHECK_WRITE(WriteType(ARDB_RDB_OPCODE_SELECTDB));
+            DUMP_CHECK_WRITE(WriteStringObject(nss[i]));
+            KeyObject empty;
+            empty.SetNameSpace(nss[i]);
+            Iterator* iter = m_db->GetEngine()->Find(dumpctx, empty);
             while (iter->Valid())
             {
-                //DelRaw(ctx, iter->Key());
-                int ret = SaveRawKeyValue(iter->Key(), iter->Value());
-                if(0 != ret)
+                int ret = SaveRawKeyValue(iter->RawKey(), iter->RawValue());
+                if (0 != ret)
                 {
                     DELETE(iter);
                     Close();
@@ -1774,8 +1678,8 @@ namespace ardb
                 }
                 iter->Next();
             }
+            DELETE(iter);
         }
-        DELETE(iter);
         FlushWriteBuffer();
         WriteType(REDIS_RDB_OPCODE_EOF);
         uint64 cksm = m_cksm;
@@ -1785,33 +1689,14 @@ namespace ardb
         return 0;
     }
 
-    int ArdbDumpFile::ReadType()
-    {
-        unsigned char type;
-        if (Read(&type, 1, true) == 0)
-            return -1;
-        return type;
-    }
-
-    int ArdbDumpFile::LoadBuffer(Buffer& buffer)
+    int ArdbDumpFile::LoadBuffer(Context& ctx, Buffer& buffer)
     {
         while (buffer.Readable())
         {
             Slice key, value;
             RETURN_NEGATIVE_EXPR(BufferHelper::ReadVarSlice(buffer, key));
             RETURN_NEGATIVE_EXPR(BufferHelper::ReadVarSlice(buffer, value));
-            Context& tmpctx = *m_dump_ctx;
-            if(tmpctx.identity == CONTEXT_DUMP_SYNC_LOADING)
-            {
-                uint32 header;
-                memcpy(&header, key.data(), sizeof(header));
-                DBID db = header >> 8;
-                if(!g_db->m_slave.SupportDBID(db))
-                {
-                    continue;
-                }
-            }
-            m_db->SetRaw(tmpctx, key, value);
+            m_db->GetEngine()->PutRaw(ctx, key, value);
         }
         return 0;
     }
@@ -1820,12 +1705,10 @@ namespace ardb
     {
         char buf[1024];
         int rdbver, type;
-        std::string key;
         std::string verstr;
-        uint32 len = 0;
-        uint32 rawlen, compressedlen;
-        std::string origin;
-        BatchWriteGuard guard(*m_dump_ctx);
+        Context loadctx;
+        loadctx.flags.no_fill_reply = 1;
+        loadctx.flags.no_wal = 1;
         if (!Read(buf, 8, true))
             goto eoferr;
         buf[9] = '\0';
@@ -1852,10 +1735,20 @@ namespace ardb
             if (type == ARDB_RDB_TYPE_EOF)
                 break;
 
-            /* Handle SELECT DB opcode as a special case */
-            if (type == ARDB_RDB_TYPE_CHUNK)
+            if (type == ARDB_RDB_OPCODE_SELECTDB)
             {
-                RETURN_NEGATIVE_EXPR(ReadLen(len));
+                std::string ns;
+                if (!ReadString(ns))
+                {
+                    ERROR_LOG("Failed to read selected namespace.");
+                    goto eoferr;
+                }
+                loadctx.ns.SetString(ns, false);
+            }
+            /* Handle SELECT DB opcode as a special case */
+            else if (type == ARDB_RDB_TYPE_CHUNK)
+            {
+                uint32 len = ReadLen(NULL);
                 char* newbuf = NULL;
                 NEW(newbuf, char[len]);
                 if (!Read(newbuf, len, true))
@@ -1864,12 +1757,12 @@ namespace ardb
                     goto eoferr;
                 }
                 Buffer readbuf(newbuf, 0, len);
-                RETURN_NEGATIVE_EXPR(LoadBuffer(readbuf));
+                RETURN_NEGATIVE_EXPR(LoadBuffer(loadctx, readbuf));
             }
             else if (type == ARDB_RDB_TYPE_SNAPPY_CHUNK)
             {
-                RETURN_NEGATIVE_EXPR(ReadLen(rawlen));
-                RETURN_NEGATIVE_EXPR(ReadLen(compressedlen));
+                uint32 rawlen = ReadLen(NULL);
+                uint32 compressedlen = ReadLen(NULL);
                 char* newbuf = NULL;
                 NEW(newbuf, char[compressedlen]);
                 if (!Read(newbuf, compressedlen, true))
@@ -1877,7 +1770,7 @@ namespace ardb
                     DELETE_A(newbuf);
                     goto eoferr;
                 }
-                origin.clear();
+                std::string origin;
                 origin.reserve(rawlen);
                 if (!snappy::Uncompress(newbuf, compressedlen, &origin))
                 {
@@ -1886,7 +1779,7 @@ namespace ardb
                 }
                 DELETE_A(newbuf);
                 Buffer readbuf(const_cast<char*>(origin.data()), 0, origin.size());
-                RETURN_NEGATIVE_EXPR(LoadBuffer(readbuf));
+                RETURN_NEGATIVE_EXPR(LoadBuffer(loadctx, readbuf));
             }
             else
             {

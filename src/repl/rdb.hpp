@@ -32,7 +32,7 @@
 #include <string>
 #include "common.hpp"
 #include "buffer/buffer_helper.hpp"
-#include "types.hpp"
+#include "context.hpp"
 
 namespace ardb
 {
@@ -45,9 +45,7 @@ namespace ardb
         protected:
             FILE* m_read_fp;
             FILE* m_write_fp;
-            Context* m_dump_ctx;
             std::string m_file_path;
-            Data m_current_db;
             Ardb* m_db;
             uint64 m_cksm;
             DumpRoutine* m_routine_cb;
@@ -64,6 +62,26 @@ namespace ardb
             virtual int DoLoad() = 0;
             virtual int DoSave() = 0;
             bool Read(void* buf, size_t buflen, bool cksm = true);
+
+            int WriteType(uint8 type);
+            int WriteKeyType(KeyType type);
+            int WriteLen(uint32 len);
+            int WriteMillisecondTime(uint64 ts);
+            int WriteDouble(double v);
+            int WriteLongLongAsStringObject(long long value);
+            int WriteRawString(const char *s, size_t len);
+            int WriteLzfStringObject(const char *s, size_t len);
+            int WriteTime(time_t t);
+            int WriteStringObject(const Data& o);
+
+            int ReadType();
+            time_t ReadTime();
+            int64 ReadMillisecondTime();
+            uint32_t ReadLen(int *isencoded);
+            bool ReadInteger(int enctype, int64& v);
+            bool ReadLzfStringObject(std::string& str);
+            bool ReadString(std::string& str);
+            int ReadDoubleValue(double&val);
         public:
             DataDumpFile();
             int Init(Ardb* db);
@@ -95,32 +113,16 @@ namespace ardb
     {
         private:
             void Close();
-            int ReadType();
-            time_t ReadTime();
-            int64 ReadMillisecondTime();
-            uint32_t ReadLen(int *isencoded);
-            bool ReadInteger(int enctype, int64& v);
-            bool ReadLzfStringObject(std::string& str);
-            bool ReadString(std::string& str);
-            int ReadDoubleValue(double&val);
-            bool LoadObject(int type, const std::string& key);
 
-            void LoadListZipList(unsigned char* data, const std::string& key);
-            void LoadHashZipList(unsigned char* data, const std::string& key);
-            void LoadZSetZipList(unsigned char* data, const std::string& key);
-            void LoadSetIntSet(unsigned char* data, const std::string& key);
+            bool LoadObject(Context& ctx, int type, const std::string& key, int64 expiretime);
+
+            void LoadListZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
+            void LoadHashZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
+            void LoadZSetZipList(Context& ctx,unsigned char* data, const std::string& key, ValueObject& meta_value);
+            void LoadSetIntSet(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
 
             void WriteMagicHeader();
-            int WriteType(uint8 type);
-            int WriteKeyType(KeyType type);
-            int WriteLen(uint32 len);
-            int WriteMillisecondTime(uint64 ts);
-            int WriteDouble(double v);
-            int WriteLongLongAsStringObject(long long value);
-            int WriteRawString(const char *s, size_t len);
-            int WriteLzfStringObject(const char *s, size_t len);
-            int WriteTime(time_t t);
-            int WriteStringObject(Data& o);
+
             int DoLoad();
             int DoSave();
         public:
@@ -136,13 +138,9 @@ namespace ardb
     {
         private:
             Buffer m_write_buffer;
-            int WriteLen(uint32 len);
-            int ReadLen(uint32& len);
             int WriteMagicHeader();
-            int WriteType(uint8 type);
             int SaveRawKeyValue(const Slice& key, const Slice& value);
-            int ReadType();
-            int LoadBuffer(Buffer& buffer);
+            int LoadBuffer(Context& ctx, Buffer& buffer);
             int FlushWriteBuffer();
             int DoLoad();
             int DoSave();

@@ -22,6 +22,8 @@ OP_NAMESPACE_BEGIN
             virtual void JumpToFirst() = 0;
             virtual void JumpToLast() = 0;
             virtual KeyObject& Key() = 0;
+            virtual Slice RawKey() = 0;
+            virtual Slice RawValue() = 0;
             virtual ValueObject& Value() = 0;
             virtual ~Iterator()
             {
@@ -31,7 +33,7 @@ OP_NAMESPACE_BEGIN
     class Engine
     {
         public:
-            //int Init() = 0;
+            virtual int PutRaw(Context& ctx, const Slice& key, const Slice& value) = 0;
             virtual int Put(Context& ctx, const KeyObject& key, const ValueObject& value) = 0;
             virtual int Get(Context& ctx, const KeyObject& key, ValueObject& value) = 0;
             virtual int Del(Context& ctx, const KeyObject& key) = 0;

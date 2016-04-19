@@ -127,7 +127,7 @@ OP_NAMESPACE_BEGIN
         }
         if (meta_changed)
         {
-            m_engine->Put(ctx, key, meta);
+            SetKeyValue(ctx, key, meta);
         }
         start_element.SetMember(meta.GetMin(), 0);
         iter->Jump(start_element);
@@ -439,7 +439,7 @@ OP_NAMESPACE_BEGIN
                 break;
             }
             k.SetNameSpace(dstdb);
-            m_engine->Put(ctx, k, iter->Value());
+            SetKeyValue(ctx, k, iter->Value());
             iter->Next();
         }
         DELETE(iter);
@@ -600,7 +600,7 @@ OP_NAMESPACE_BEGIN
             else
             {
                 meta_value.SetTTL(mills);
-                m_engine->Put(ctx, key, meta_value);
+                SetKeyValue(ctx, key, meta_value);
                 reply.SetInteger(1);
             }
         }
@@ -695,7 +695,7 @@ OP_NAMESPACE_BEGIN
                 break;
             }
             removed = 1;
-            m_engine->Del(ctx, k);
+            RemoveKey(ctx, k);
             iter->Next();
         }
         return removed;

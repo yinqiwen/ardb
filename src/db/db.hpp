@@ -65,6 +65,8 @@ using namespace ardb::codec;
 
 OP_NAMESPACE_BEGIN
 
+    class ArdbDumpFile;
+    class RedisDumpFile;
     class Ardb
     {
         public:
@@ -104,8 +106,8 @@ OP_NAMESPACE_BEGIN
             {
                     Context& ctx;
                     KeyObjectArray ks;
-                    KeysLockGuard(Context& cctx,KeyObjectArray& keys);
-                    KeysLockGuard(Context& cctx,KeyObject& key1, KeyObject& key2);
+                    KeysLockGuard(Context& cctx, KeyObjectArray& keys);
+                    KeysLockGuard(Context& cctx, KeyObject& key1, KeyObject& key2);
                     ~KeysLockGuard();
             };
 
@@ -113,7 +115,7 @@ OP_NAMESPACE_BEGIN
             {
                     unsigned loading :1;
                     ArdbState() :
-                        loading(0)
+                            loading(0)
                     {
                     }
             };
@@ -165,6 +167,14 @@ OP_NAMESPACE_BEGIN
             void LockKeys(KeyObjectArray& key);
             void UnlockKeys(KeyObjectArray& key);
 
+            Engine* GetEngine()
+            {
+                return m_engine;
+            }
+            int SetKeyValue(Context& ctx, const KeyObject& key, const ValueObject& val);
+            int MergeKeyValue(Context& ctx, const KeyObject& key, uint16 op, const DataArray& args);
+            int RemoveKey(Context& ctx, const KeyObject& key);
+
             bool GetLongFromProtocol(Context& ctx, const std::string& str, int64_t& v);
 
             int FindElementByRedisCursor(const std::string& cursor, std::string& element);
@@ -208,8 +218,8 @@ OP_NAMESPACE_BEGIN
             int GetMinMax(Context& ctx, const KeyObject& key, KeyType ele_type, ValueObject& meta, Iterator*& iter);
 
             int DelKey(Context& ctx, const KeyObject& meta_key, Iterator*& iter);
-            int DelKey(Context& ctx, const KeyObject& meta_key);
             int DelKey(Context& ctx, const std::string& key);
+            int DelKey(Context& ctx, const KeyObject& key);
             int MoveKey(Context& ctx, RedisCommandFrame& cmd);
 
             int HIterate(Context& ctx, RedisCommandFrame& cmd);
@@ -414,6 +424,10 @@ OP_NAMESPACE_BEGIN
             void RenameCommand();
 
             friend class LUAInterpreter;
+            friend class ArdbDumpFile;
+            friend class RedisDumpFile;
+            friend class Master;
+            friend class Slave;
         public:
             Ardb();
             int Init(const std::string& conf_file);

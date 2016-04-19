@@ -58,6 +58,8 @@ OP_NAMESPACE_BEGIN
             void JumpToLast();
             KeyObject& Key();
             ValueObject& Value();
+            Slice RawKey();
+            Slice RawValue();
             ~RocksDBIterator();
     };
 
@@ -137,6 +139,7 @@ OP_NAMESPACE_BEGIN
             ~RocksDBEngine();
             int Init(const std::string& dir, const std::string& conf);
             int Put(Context& ctx, const KeyObject& key, const ValueObject& value);
+            int PutRaw(Context& ctx, const Slice& key, const Slice& value);
             int Get(Context& ctx, const KeyObject& key, ValueObject& value);
             int MultiGet(Context& ctx, const KeyObjectArray& keys, ValueObjectArray& values, ErrCodeArray& errs);
             int Del(Context& ctx, const KeyObject& key);

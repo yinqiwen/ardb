@@ -670,11 +670,11 @@ namespace ardb
                     ValueObject zscore_value;
                     zscore_value.SetType(KEY_ZSET_SCORE);
                     zscore_value.SetZSetScore(options.storedist ? pit->distance : pit->score);
-                    m_engine->Put(ctx, zsort, zsort_value);
-                    m_engine->Put(ctx, zscore, zscore_value);
+                    SetKeyValue(ctx, zsort, zsort_value);
+                    SetKeyValue(ctx, zscore, zscore_value);
                     pit++;
                 }
-                m_engine->Put(ctx, dstkey, dstmeta);
+                SetKeyValue(ctx, dstkey, dstmeta);
             }
             if (0 == ctx.transc_err)
             {

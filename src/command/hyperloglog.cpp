@@ -1407,7 +1407,7 @@ namespace ardb
         int err = 0;
         if (!ctx.flags.redis_compatible)
         {
-            err = m_engine->Merge(ctx, key, cmd.GetType(), args);
+            err = MergeKeyValue(ctx, key, cmd.GetType(), args);
             if (0 != err)
             {
                 reply.SetErrCode(err);
@@ -1429,7 +1429,7 @@ namespace ardb
         err = MergePFAdd(ctx, key, meta,args, &updated);
         if(0 == err && updated)
         {
-            err = m_engine->Put(ctx, key, meta);
+            err = SetKeyValue(ctx, key, meta);
         }
         if (err != 0 && err != ERR_NOTPERFORMED)
         {
@@ -1509,7 +1509,7 @@ namespace ardb
                 //signalModifiedKey(c->db, c->argv[1]);
                 //server.dirty++;
                 meta.GetStringValue().SetString(hllvalue, false);
-                int err = m_engine->Put(ctx, meta_key, meta);
+                int err = SetKeyValue(ctx, meta_key, meta);
                 if (0 != err)
                 {
                     reply.SetErrCode(err);
@@ -1650,7 +1650,7 @@ namespace ardb
         hllvalue.append(hlls, sdslen(hlls));
         sdsfree(hlls);
         vals[0].GetStringValue().SetString(hllvalue, false);
-        err = m_engine->Put(ctx, keys[0], vals[0]);
+        err = SetKeyValue(ctx, keys[0], vals[0]);
         if (0 != err)
         {
             reply.SetErrCode(err);

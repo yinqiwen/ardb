@@ -127,7 +127,7 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         MergeAppend(ctx,key, v, append);
-        err = m_engine->Put(ctx, key, v);
+        err = SetKeyValue(ctx, key, v);
         if (err < 0)
         {
             reply.SetErrCode(err);
@@ -210,7 +210,7 @@ OP_NAMESPACE_BEGIN
                     ValueObject value;
                     value.SetType(KEY_STRING);
                     value.GetStringValue().SetString(cmd.GetArguments()[i + 1], true);
-                    m_engine->Put(ctx, key, value);
+                    SetKeyValue(ctx, key, value);
                 }
             }
         }
@@ -282,7 +282,7 @@ OP_NAMESPACE_BEGIN
             err = MergeIncrByFloat(ctx, key, v, increment);
             if (0 == err)
             {
-                err = m_engine->Put(ctx, key, v);
+                err = SetKeyValue(ctx, key, v);
             }
         }
         if (err != 0)
@@ -367,7 +367,7 @@ OP_NAMESPACE_BEGIN
             err = MergeIncrBy(ctx, key, v, incr);
             if (0 == err)
             {
-                err = m_engine->Put(ctx, key, v);
+                err = SetKeyValue(ctx, key, v);
             }
         }
         if (err < 0)
@@ -421,7 +421,7 @@ OP_NAMESPACE_BEGIN
             }
             reply.SetString(value.GetStringValue());
             value.GetStringValue().SetString(cmd.GetArguments()[1], true);
-            err = m_engine->Put(ctx, keyobj, value);
+            err = SetKeyValue(ctx, keyobj, value);
             if (0 != err)
             {
                 reply.SetErrCode(err);
@@ -547,7 +547,7 @@ OP_NAMESPACE_BEGIN
             err = MergeSet(ctx, keyobj, valueobj, op, merge, ttl);
             if (0 == err)
             {
-                err = m_engine->Put(ctx, keyobj, valueobj);
+                err = SetKeyValue(ctx, keyobj, valueobj);
             }
         }
         else
@@ -557,7 +557,7 @@ OP_NAMESPACE_BEGIN
                 valueobj.SetType(KEY_STRING);
                 valueobj.SetTTL(ttl);
                 valueobj.GetStringValue().SetString(value, true);
-                err = m_engine->Put(ctx, keyobj, valueobj);
+                err = SetKeyValue(ctx, keyobj, valueobj);
             }else
             {
                 DataArray merge_data;
@@ -569,7 +569,7 @@ OP_NAMESPACE_BEGIN
                     ttl_data.SetInt64(ttl);
                     merge_data.push_back(ttl_data);
                 }
-                err = m_engine->Merge(ctx, keyobj, op, merge_data);
+                err = MergeKeyValue(ctx, keyobj, op, merge_data);
             }
 
         }
@@ -729,7 +729,7 @@ OP_NAMESPACE_BEGIN
             DataArray args(2);
             args[0].SetInt64(offset);
             args[1].SetString(cmd.GetArguments()[2], false);
-            err = m_engine->Merge(ctx, keyobj, cmd.GetType(), args);
+            err = MergeKeyValue(ctx, keyobj, cmd.GetType(), args);
             if (0 != err)
             {
                 reply.SetErrCode(err);
@@ -756,7 +756,7 @@ OP_NAMESPACE_BEGIN
             err = MergeSetRange(ctx, keyobj, valueobj, offset, cmd.GetArguments()[2]);
             if(0 == err)
             {
-            	err = m_engine->Put(ctx, keyobj, valueobj);
+            	err = SetKeyValue(ctx, keyobj, valueobj);
             }
             if (0 != err)
             {

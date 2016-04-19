@@ -182,6 +182,10 @@ namespace ardb
                 {
                     return str;
                 }
+                int64 GetInteger() const
+                {
+                    return integer;
+                }
                 void SetDouble(double v);
                 void SetInteger(int64_t v)
                 {

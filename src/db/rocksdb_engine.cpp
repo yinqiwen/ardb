@@ -511,6 +511,30 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
+    int RocksDBEngine::PutRaw(Context& ctx, const Slice& key, const Slice& value)
+    {
+        rocksdb::ColumnFamilyHandle* cf = GetColumnFamilyHandle(ctx, ctx.ns);
+        if (NULL == cf)
+        {
+            return ERR_ENTRY_NOT_EXIST;
+        }
+
+        rocksdb::WriteOptions opt;
+        rocksdb::Slice key_slice = ROCKSDB_SLICE(key);
+        rocksdb::Slice value_slice = ROCKSDB_SLICE(value);
+        rocksdb::Status s;
+        rocksdb::WriteBatch* batch = m_transc.GetValue().Ref();
+        if (NULL != batch)
+        {
+            batch->Put(cf, key_slice, value_slice);
+        }
+        else
+        {
+            s = m_db->Put(opt, cf, key_slice, value_slice);
+        }
+        return ROCKSDB_ERR(s);
+    }
+
     int RocksDBEngine::Put(Context& ctx, const KeyObject& key, const ValueObject& value)
     {
         rocksdb::ColumnFamilyHandle* cf = GetColumnFamilyHandle(ctx, key.GetNameSpace());
@@ -532,7 +556,6 @@ OP_NAMESPACE_BEGIN
         {
             s = m_db->Put(opt, cf, key_slice, value_slice);
         }
-        g_db->TouchWatchKey(ctx, key);
         return ROCKSDB_ERR(s);
     }
     int RocksDBEngine::MultiGet(Context& ctx, const KeyObjectArray& keys, ValueObjectArray& values, ErrCodeArray& errs)
@@ -609,7 +632,6 @@ OP_NAMESPACE_BEGIN
         {
             s = m_db->Delete(opt, cf, key_slice);
         }
-        g_db->TouchWatchKey(ctx, key);
         return ROCKSDB_ERR(s);
     }
 
@@ -635,7 +657,6 @@ OP_NAMESPACE_BEGIN
         {
             s = m_db->Merge(opt, cf, key_slice, merge_slice);
         }
-        g_db->TouchWatchKey(ctx, key);
         return ROCKSDB_ERR(s);
     }
 
@@ -781,7 +802,7 @@ OP_NAMESPACE_BEGIN
     {
         RWLockGuard<SpinRWLock> guard(m_lock, false);
         ColumnFamilyHandleTable::iterator found = m_handlers.find(ns);
-        if(found != m_handlers.end())
+        if (found != m_handlers.end())
         {
             m_db->DropColumnFamily(found->second);
             m_handlers.erase(found);
@@ -880,6 +901,14 @@ OP_NAMESPACE_BEGIN
         Buffer kbuf(const_cast<char*>(key.data()), 0, key.size());
         m_value.Decode(kbuf, true);
         return m_value;
+    }
+    Slice RocksDBIterator::RawKey()
+    {
+        return ARDB_SLICE(m_iter->key());
+    }
+    Slice RocksDBIterator::RawValue()
+    {
+        return ARDB_SLICE(m_iter->value());
     }
     RocksDBIterator::~RocksDBIterator()
     {

@@ -211,7 +211,8 @@ bool RedisCommandDecoder::Decode(Channel* channel, Buffer& buffer, RedisCommandF
         }
         if (ret > 0)
         {
-            msg.m_raw_data_size = buffer.GetReadIndex() - mark_read_index;
+            size_t raw_data_size = buffer.GetReadIndex() - mark_read_index;
+            msg.m_raw_msg.WrapReadableContent(buffer.GetRawReadBuffer() - raw_data_size, raw_data_size);
             return true;
         }
         else

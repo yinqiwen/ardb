@@ -155,9 +155,10 @@ OP_NAMESPACE_BEGIN
         conf_get_bool(props, "daemonize", daemonize);
 
         conf_get_int64(props, "repl-backlog-size", repl_backlog_size);
+        conf_get_int64(props, "repl-backlog-cache-size", repl_backlog_cache_size);
         conf_get_int64(props, "repl-ping-slave-period", repl_ping_slave_period);
         conf_get_int64(props, "repl-timeout", repl_timeout);
-        conf_get_int64(props, "repl-state-persist-period", repl_state_persist_period);
+        conf_get_int64(props, "repl-backlog-sync-period", repl_backlog_sync_period);
         conf_get_int64(props, "repl-backlog-ttl", repl_backlog_time_limit);
         conf_get_bool(props, "repl-disable-tcp-nodelay", repl_disable_tcp_nodelay);
         conf_get_int64(props, "lua-time-limit", lua_time_limit);

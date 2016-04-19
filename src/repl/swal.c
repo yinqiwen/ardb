@@ -26,7 +26,6 @@
  *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include "swal.h"
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <fcntl.h>
@@ -34,6 +33,7 @@
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
+#include "swal.h"
 
 #define SWAL_META_SIZE 1024
 
@@ -160,8 +160,7 @@ int swal_open(const char* dir, const swal_options_t* options, swal_t** wal)
         swal_close(wal_log);
         return SWAL_ERR_META_OPEN_FAIL;
     }
-    swal_meta_t* meta = (swal_meta_t*) mmap(NULL, options->user_meta_size + SWAL_META_SIZE, mmap_mode, MAP_SHARED,
-            meta_fd, 0);
+    swal_meta_t* meta = (swal_meta_t*) mmap(NULL, options->user_meta_size + SWAL_META_SIZE, mmap_mode, MAP_SHARED, meta_fd, 0);
     wal_log->meta = meta;
     wal_log->options = *options;
     int err = open_wal_logfile(wal_log);

@@ -331,6 +331,10 @@ OP_NAMESPACE_BEGIN
             {
                 return getElement(1);
             }
+            void SetStringValue(const std::string& v)
+            {
+                GetStringValue().SetString(v, true);
+            }
             void SetHashValue(const Data& v)
             {
                 getElement(0).Clone(v);

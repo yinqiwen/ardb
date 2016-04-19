@@ -147,12 +147,12 @@ OP_NAMESPACE_BEGIN
         }
         m_cmd_recved_time = time(NULL);
         int len = g_repl->WriteWAL(cmd.GetRawProtocolData());
-        DEBUG_LOG("Recv master inline:%d cmd %s with len:%d at %lld %lld at state:%d", cmd.IsInLine(), cmd.ToString().c_str(), len, g_repl->DataOffset(), g_repl->WALEndOffset(), m_status.state);
+        DEBUG_LOG("Recv master inline:%d cmd %s with len:%d at %lld %lld at state:%d", cmd.IsInLine(), cmd.ToString().c_str(), len, g_repl->DataOffset(),
+                g_repl->WALEndOffset(), m_status.state);
         if (!write_wal_only && g_repl->DataOffset() + len == g_repl->WALEndOffset())
         {
-            CallFlags flags;
-            flags.no_wal = 1;
-            g_db->Call(m_slave_ctx, cmd, flags);
+            m_slave_ctx.flags.no_wal = 1;
+            g_db->Call(m_slave_ctx, cmd);
             g_repl->UpdateDataOffsetCksm(cmd.GetRawProtocolData());
             return;
         }
@@ -160,7 +160,7 @@ OP_NAMESPACE_BEGIN
     }
     void Slave::Routine()
     {
-        if (g_db->GetConfig().master_host.empty())
+        if (g_db->GetConf().master_host.empty())
         {
             return;
         }
@@ -173,7 +173,7 @@ OP_NAMESPACE_BEGIN
         }
         if (m_status.state == SLAVE_STATE_SYNCED || m_status.state == SLAVE_STATE_LOADING_SNAPSHOT)
         {
-            if (m_cmd_recved_time > 0 && now - m_cmd_recved_time >= g_db->GetConfig().repl_timeout)
+            if (m_cmd_recved_time > 0 && now - m_cmd_recved_time >= g_db->GetConf().repl_timeout)
             {
                 if (m_status.state == SLAVE_STATE_SYNCED)
                 {

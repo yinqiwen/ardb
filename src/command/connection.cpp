@@ -46,7 +46,13 @@ OP_NAMESPACE_BEGIN
     }
     int Ardb::Select(Context& ctx, RedisCommandFrame& cmd)
     {
-        ctx.ns.SetString(cmd.GetArguments()[0], true);
+        if (cmd.GetArguments()[0].size() > ARDB_MAX_NAMESPACE_SIZE)
+        {
+            ctx.GetReply().SetErrorReason("too large namespace string length.");
+            return 0;
+        }
+        ctx.ns.SetString(cmd.GetArguments()[0], false);
+        ctx.GetReply().SetStatusCode(STATUS_OK);
         return 0;
     }
 

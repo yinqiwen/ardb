@@ -70,7 +70,7 @@ namespace ardb
             REDIS_CMD_SHUTDOWN = 26,
             REDIS_CMD_SLAVEOF = 27,
             REDIS_CMD_REPLCONF = 28,
-            EWDIS_CMD_SYNC = 29,
+            REDIS_CMD_SYNC = 29,
             REDIS_CMD_PSYNC = 30,
             REDIS_CMD_SELECT = 31,
             REDIS_CMD_AUTH = 32,
@@ -264,9 +264,9 @@ namespace ardb
                 std::string m_cmd;
                 ArgumentArray m_args;
                 /*
-                 * Used to identify the received protocol data size
+                 * Used to save temp protocol data
                  */
-                uint32 m_raw_data_size;
+                Buffer m_raw_msg;
                 inline void FillNextArgument(Buffer& buf, size_t len)
                 {
                     const char* str = buf.GetRawReadBuffer();
@@ -284,11 +284,11 @@ namespace ardb
                 friend class RedisCommandDecoder;
             public:
                 RedisCommandFrame(const std::string& cmd = "") :
-                        type(REDIS_CMD_INVALID), m_is_inline(false), m_cmd_seted(false), m_cmd(cmd), m_raw_data_size(0)
+                        type(REDIS_CMD_INVALID), m_is_inline(false), m_cmd_seted(false), m_cmd(cmd)
                 {
                 }
                 RedisCommandFrame(ArgumentArray& cmd) :
-                        type(REDIS_CMD_INVALID), m_is_inline(false), m_cmd_seted(false), m_raw_data_size(0)
+                        type(REDIS_CMD_INVALID), m_is_inline(false), m_cmd_seted(false)
                 {
                     m_cmd = cmd.front();
                     cmd.pop_front();
@@ -336,10 +336,9 @@ namespace ardb
                     m_cmd = m_args.front();
                     m_args.pop_front();
                 }
-
-                inline uint32 GetRawDataSize()
+                inline const Buffer& GetRawProtocolData() const
                 {
-                    return m_raw_data_size;
+                    return m_raw_msg;
                 }
                 inline void SetType(RedisCommandType type)
                 {

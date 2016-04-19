@@ -159,7 +159,7 @@ OP_NAMESPACE_BEGIN
                         KeyObject old_sort_key(ctx.ns, KEY_ZSET_SORT, cmd.GetArguments()[0]);
                         old_sort_key.SetZSetMember(cmd.GetArguments()[scoreidx + i * 2 + 1]);
                         old_sort_key.SetZSetScore(current_score);
-                        m_engine->Del(ctx, old_sort_key);
+                        RemoveKey(ctx, old_sort_key);
                         updated++;
                     }
                     else
@@ -181,14 +181,14 @@ OP_NAMESPACE_BEGIN
                 new_sort_key.SetZSetScore(score);
                 ValueObject empty;
                 empty.SetType(KEY_ZSET_SORT);
-                m_engine->Put(ctx, new_sort_key, empty);
+                SetKeyValue(ctx, new_sort_key, empty);
                 ele_value.SetType(KEY_ZSET_SCORE);
                 ele_value.SetZSetScore(score);
-                m_engine->Put(ctx, ele, ele_value);
+                SetKeyValue(ctx, ele, ele_value);
                 meta.SetMinMaxData(new_sort_key.GetZSetMember());
             }
             meta.SetObjectLen(meta.GetObjectLen() + added);
-            m_engine->Put(ctx, key, meta);
+            SetKeyValue(ctx, key, meta);
         }
         if (ctx.transc_err != 0)
         {
@@ -320,8 +320,8 @@ OP_NAMESPACE_BEGIN
                 {
                     KeyObject score_key(ctx.ns, KEY_ZSET_SCORE, key.GetKey());
                     score_key.SetZSetMember(field.GetZSetMember());
-                    m_engine->Del(ctx, field);
-                    m_engine->Del(ctx, score_key);
+                    RemoveKey(ctx, field);
+                    RemoveKey(ctx, score_key);
                     removed++;
                 }
                 else
@@ -355,11 +355,11 @@ OP_NAMESPACE_BEGIN
                 meta.SetObjectLen(meta.GetObjectLen() - removed);
                 if (meta.GetObjectLen() == 0)
                 {
-                    m_engine->Del(ctx, key);
+                    RemoveKey(ctx, key);
                 }
                 else
                 {
-                    m_engine->Put(ctx, key, meta);
+                    SetKeyValue(ctx, key, meta);
                 }
             }
             reply.SetInteger(removed);
@@ -480,8 +480,8 @@ OP_NAMESPACE_BEGIN
                     {
                         KeyObject score_key(ctx.ns, KEY_ZSET_SCORE, key.GetKey());
                         score_key.SetZSetMember(field.GetZSetMember());
-                        m_engine->Del(ctx, field);
-                        m_engine->Del(ctx, score_key);
+                        RemoveKey(ctx, field);
+                        RemoveKey(ctx, score_key);
                         removed++;
                     }
                     else if (!countrange)
@@ -519,11 +519,11 @@ OP_NAMESPACE_BEGIN
                 meta.SetObjectLen(meta.GetObjectLen() - removed);
                 if (meta.GetObjectLen() == 0)
                 {
-                    m_engine->Del(ctx, key);
+                    RemoveKey(ctx, key);
                 }
                 else
                 {
-                    m_engine->Put(ctx, key, meta);
+                    SetKeyValue(ctx, key, meta);
                 }
             }
             reply.SetInteger(removed);
@@ -647,15 +647,15 @@ OP_NAMESPACE_BEGIN
                     KeyObject sort_key(ctx.ns, KEY_ZSET_SORT, cmd.GetArguments()[0]);
                     sort_key.SetZSetMember(keys[i].GetZSetMember());
                     sort_key.SetZSetScore(vs[i].GetZSetScore());
-                    m_engine->Del(ctx, sort_key);
-                    m_engine->Del(ctx, keys[i]);
+                    RemoveKey(ctx, sort_key);
+                    RemoveKey(ctx, keys[i]);
                     removed++;
                 }
             }
             if (removed > 0)
             {
                 vs[0].SetObjectLen(vs[0].GetObjectLen() - removed);
-                m_engine->Put(ctx, keys[0], vs[0]);
+                SetKeyValue(ctx, keys[0], vs[0]);
             }
         }
         if (0 != ctx.transc_err)
@@ -796,8 +796,8 @@ OP_NAMESPACE_BEGIN
                         KeyObject sort_key(ctx.ns, KEY_ZSET_SORT, key.GetKey());
                         sort_key.SetZSetMember(field.GetZSetMember());
                         sort_key.SetZSetScore(iter->Value().GetZSetScore());
-                        m_engine->Del(ctx, field);
-                        m_engine->Del(ctx, sort_key);
+                        RemoveKey(ctx, field);
+                        RemoveKey(ctx, sort_key);
                         removed++;
                     }
                     else if (!countrange)
@@ -830,11 +830,11 @@ OP_NAMESPACE_BEGIN
                 meta.SetObjectLen(meta.GetObjectLen() - removed);
                 if (meta.GetObjectLen() == 0)
                 {
-                    m_engine->Del(ctx, key);
+                    RemoveKey(ctx, key);
                 }
                 else
                 {
-                    m_engine->Put(ctx, key, meta);
+                    SetKeyValue(ctx, key, meta);
                 }
             }
             reply.SetInteger(removed);
@@ -1116,12 +1116,12 @@ OP_NAMESPACE_BEGIN
                 sort.SetZSetScore(it->second);
                 ValueObject sort_value;
                 sort_value.SetType(KEY_ZSET_SORT);
-                m_engine->Put(ctx, sort, sort_value);
+                SetKeyValue(ctx, sort, sort_value);
                 it++;
             }
             dest_meta.SetMinData(inter_union_result[result_cursor].begin()->first);
             dest_meta.SetMaxData(inter_union_result[result_cursor].rbegin()->first);
-            m_engine->Put(ctx, destkey, dest_meta);
+            SetKeyValue(ctx, destkey, dest_meta);
         }
         reply.SetInteger(inter_union_result[result_cursor].size());
         return 0;

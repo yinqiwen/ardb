@@ -131,7 +131,7 @@ OP_NAMESPACE_BEGIN
         { "shutdown", REDIS_CMD_SHUTDOWN, &Ardb::Shutdown, 0, 1, "ar", 0, 0, 0 },
         { "slaveof", REDIS_CMD_SLAVEOF, &Ardb::Slaveof, 2, -1, "as", 0, 0, 0 },
         { "replconf", REDIS_CMD_REPLCONF, &Ardb::ReplConf, 0, -1, "ars", 0, 0, 0 },
-        { "sync", EWDIS_CMD_SYNC, &Ardb::Sync, 0, 2, "ars", 0, 0, 0 },
+        { "sync", REDIS_CMD_SYNC, &Ardb::Sync, 0, 2, "ars", 0, 0, 0 },
         { "psync", REDIS_CMD_PSYNC, &Ardb::PSync, 2, 2, "ars", 0, 0, 0 },
         { "apsync", REDIS_CMD_PSYNC, &Ardb::PSync, 2, -1, "ars", 0, 0, 0 },
         { "select", REDIS_CMD_SELECT, &Ardb::Select, 1, 1, "r", 0, 0, 0 },
@@ -424,6 +424,34 @@ OP_NAMESPACE_BEGIN
         }
     }
 
+    int Ardb::SetKeyValue(Context& ctx, const KeyObject& key, const ValueObject& val)
+    {
+        int ret = m_engine->Put(ctx, key, val);
+        if (0 == ret)
+        {
+            TouchWatchKey(ctx, key);
+        }
+        return ret;
+    }
+    int Ardb::MergeKeyValue(Context& ctx, const KeyObject& key, uint16 op, const DataArray& args)
+    {
+        int ret = m_engine->Merge(ctx, key, op, args);
+        if (0 == ret)
+        {
+            TouchWatchKey(ctx, key);
+        }
+        return ret;
+    }
+    int Ardb::RemoveKey(Context& ctx, const KeyObject& key)
+    {
+        int ret = m_engine->Del(ctx, key);
+        if (0 == ret)
+        {
+            TouchWatchKey(ctx, key);
+        }
+        return ret;
+    }
+
     void Ardb::LockKey(KeyObject& key)
     {
         KeyPrefix lk;
@@ -645,7 +673,7 @@ OP_NAMESPACE_BEGIN
             {
                 if (meta.GetType() == KEY_STRING)
                 {
-                    m_engine->Del(ctx, key);
+                    RemoveKey(ctx, key);
                 }
                 else
                 {

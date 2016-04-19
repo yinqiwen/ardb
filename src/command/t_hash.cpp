@@ -108,7 +108,7 @@ OP_NAMESPACE_BEGIN
             }
             meta.SetType(KEY_HASH);
             meta.SetObjectLen(-1);
-            m_engine->Put(ctx, key, meta);
+            SetKeyValue(ctx, key, meta);
 
             for (size_t i = 1; i < cmd.GetArguments().size(); i += 2)
             {
@@ -117,7 +117,7 @@ OP_NAMESPACE_BEGIN
                 ValueObject field_value;
                 field_value.SetType(KEY_HASH_FIELD);
                 field_value.SetHashValue(cmd.GetArguments()[i + 1]);
-                m_engine->Put(ctx, field, field_value);
+                SetKeyValue(ctx, field, field_value);
             }
         }
         if (0 != ctx.transc_err)
@@ -162,8 +162,8 @@ OP_NAMESPACE_BEGIN
                 {
                     meta.SetType(KEY_HASH);
                     meta.SetObjectLen(-1);
-                    m_engine->Put(ctx, key, meta);
-                    m_engine->Put(ctx, field, field_value);
+                    SetKeyValue(ctx, key, meta);
+                    SetKeyValue(ctx, field, field_value);
                 }
             }
             if (0 != ctx.transc_err)
@@ -205,8 +205,8 @@ OP_NAMESPACE_BEGIN
         {
             {
                 TransactionGuard batch(ctx, m_engine);
-                m_engine->Put(ctx, keys[0], vals[0]);
-                m_engine->Put(ctx, keys[1], vals[1]);
+                SetKeyValue(ctx, keys[0], vals[0]);
+                SetKeyValue(ctx, keys[1], vals[1]);
             }
             err = ctx.transc_err;
         }
@@ -448,7 +448,7 @@ OP_NAMESPACE_BEGIN
                 ValueObject meta;
                 meta.SetType(KEY_HASH);
                 meta.SetObjectLen(-1);
-                m_engine->Put(ctx, meta_key, meta);
+                SetKeyValue(ctx, meta_key, meta);
                 m_engine->Merge(ctx, field_key, cmd.GetType(), arg);
             }
             err = ctx.transc_err;
@@ -539,9 +539,9 @@ OP_NAMESPACE_BEGIN
             TransactionGuard batch(ctx, m_engine);
             if (meta_change)
             {
-                m_engine->Put(ctx, keys[0], vals[0]);
+                SetKeyValue(ctx, keys[0], vals[0]);
             }
-            m_engine->Put(ctx, keys[1], vals[1]);
+            SetKeyValue(ctx, keys[1], vals[1]);
         }
         err = ctx.transc_err;
         if (0 != err)
@@ -627,12 +627,12 @@ OP_NAMESPACE_BEGIN
                 TransactionGuard batch(ctx, m_engine);
                 meta.SetType(KEY_HASH);
                 meta.SetObjectLen(-1);
-                m_engine->Put(ctx, key, meta);
+                SetKeyValue(ctx, key, meta);
                 for (size_t i = 1; i < cmd.GetArguments().size(); i++)
                 {
                     KeyObject field(ctx.ns, KEY_HASH_FIELD, cmd.GetArguments()[0]);
                     field.SetHashField(cmd.GetArguments()[i]);
-                    m_engine->Del(ctx, field);
+                    RemoveKey(ctx, field);
                 }
             }
             if (0 != ctx.transc_err)
@@ -665,7 +665,7 @@ OP_NAMESPACE_BEGIN
                 field.SetHashField(cmd.GetArguments()[i]);
                 if (m_engine->Exists(ctx, field))
                 {
-                    m_engine->Del(ctx, field);
+                    RemoveKey(ctx, field);
                     del_num++;
                 }
             }
@@ -674,11 +674,11 @@ OP_NAMESPACE_BEGIN
                 meta.SetObjectLen(meta.GetObjectLen() - del_num);
                 if (meta.GetObjectLen() == 0)
                 {
-                    m_engine->Del(ctx, key);
+                    RemoveKey(ctx, key);
                 }
                 else
                 {
-                    m_engine->Put(ctx, key, meta);
+                    SetKeyValue(ctx, key, meta);
                 }
             }
         }
