@@ -26,7 +26,7 @@
  *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include "server.hpp"
+#include "network.hpp"
 
 OP_NAMESPACE_BEGIN
     void Server::StartCrons()

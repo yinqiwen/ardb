@@ -26,15 +26,14 @@
  *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF 
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
-
-#include "server.hpp"
-#include "db/db.hpp"
 #include <signal.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include "network.hpp"
+#include "db/db.hpp"
 
 void version()
 {

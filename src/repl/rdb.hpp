@@ -38,29 +38,33 @@ namespace ardb
 {
     typedef int DumpRoutine(void* cb);
 
-    class Ardb;
-    class Context;
+    enum DataDumpType
+    {
+        REDIS_DUMP = 0, ARDB_DUMP
+    };
+
     class DataDumpFile
     {
         protected:
             FILE* m_read_fp;
             FILE* m_write_fp;
             std::string m_file_path;
-            Ardb* m_db;
             uint64 m_cksm;
             DumpRoutine* m_routine_cb;
             void *m_routine_cbdata;
             uint64 m_processed_bytes;
             uint64 m_file_size;
             bool m_is_saving;
-            uint32 m_last_save;
             uint64 m_routinetime;
             char* m_read_buf;
 
             int64 m_expected_data_size;
             int64 m_writed_data_size;
-            virtual int DoLoad() = 0;
-            virtual int DoSave() = 0;
+
+            Buffer m_write_buffer;
+            uint64 m_cached_repl_offset;
+            uint64 m_cached_repl_cksm;
+            time_t m_save_time;
             bool Read(void* buf, size_t buflen, bool cksm = true);
 
             int WriteType(uint8 type);
@@ -82,12 +86,42 @@ namespace ardb
             bool ReadLzfStringObject(std::string& str);
             bool ReadString(std::string& str);
             int ReadDoubleValue(double&val);
+
+            bool RedisLoadObject(Context& ctx, int type, const std::string& key, int64 expiretime);
+            void RedisLoadListZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
+            void RedisLoadHashZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
+            void RedisLoadZSetZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
+            void RedisLoadSetIntSet(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
+
+            void RedisWriteMagicHeader();
+
+            int RedisLoad();
+            int RedisSave();
+
+            int ArdbWriteMagicHeader();
+            int ArdbSaveRawKeyValue(const Slice& key, const Slice& value);
+            int ArdbFlushWriteBuffer();
+            int ArdbLoadBuffer(Context& ctx, Buffer& buffer);
+            int ArdbSave();
+            int ArdbLoad();
+
         public:
             DataDumpFile();
-            int Init(Ardb* db);
+            uint64 CachedReplOffset()
+            {
+                return m_cached_repl_offset;
+            }
+            uint64 CachedReplCksm()
+            {
+                return m_cached_repl_cksm;
+            }
             const std::string& GetPath()
             {
                 return m_file_path;
+            }
+            time_t SaveTime()
+            {
+                return m_save_time;
             }
             void SetExpectedDataSize(int64 size);
             int64 DumpLeftDataSize();
@@ -95,58 +129,17 @@ namespace ardb
             int Write(const void* buf, size_t buflen);
             int OpenWriteFile(const std::string& file);
             int OpenReadFile(const std::string& file);
-            int Load(uint8 ctx_identity, const std::string& file, DumpRoutine* cb, void *data);
-            int Save(const std::string& file, DumpRoutine* cb, void *data);
-            int BGSave(const std::string& file);
-            uint32 LastSave()
-            {
-                return m_last_save;
-            }
+            int Load(const std::string& file, DumpRoutine* cb, void *data);
+            int Save(DataDumpType type, const std::string& file, DumpRoutine* cb, void *data);
+            int BGSave(DataDumpType type, const std::string& file);
+
             void Flush();
             void Remove();
             int Rename(const std::string& default_file = "dump.rdb");
             void Close();
-            virtual ~DataDumpFile();
-    };
+            ~DataDumpFile();
 
-    class RedisDumpFile: public DataDumpFile
-    {
-        private:
-            void Close();
-
-            bool LoadObject(Context& ctx, int type, const std::string& key, int64 expiretime);
-
-            void LoadListZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
-            void LoadHashZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
-            void LoadZSetZipList(Context& ctx,unsigned char* data, const std::string& key, ValueObject& meta_value);
-            void LoadSetIntSet(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
-
-            void WriteMagicHeader();
-
-            int DoLoad();
-            int DoSave();
-        public:
-            RedisDumpFile();
-            /*
-             * return: -1:error 0:not redis dump 1:redis dump file
-             */
             static int IsRedisDumpFile(const std::string& file);
-            ~RedisDumpFile();
-    };
-
-    class ArdbDumpFile: public DataDumpFile
-    {
-        private:
-            Buffer m_write_buffer;
-            int WriteMagicHeader();
-            int SaveRawKeyValue(const Slice& key, const Slice& value);
-            int LoadBuffer(Context& ctx, Buffer& buffer);
-            int FlushWriteBuffer();
-            int DoLoad();
-            int DoSave();
-        public:
-            ArdbDumpFile();
-            ~ArdbDumpFile();
     };
 
 }

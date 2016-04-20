@@ -26,11 +26,11 @@
  *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include "server.hpp"
 #include "thread/thread_local.hpp"
 #include "db/db.hpp"
 #include <sys/types.h>
 #include <sys/stat.h>
+#include "network.hpp"
 
 OP_NAMESPACE_BEGIN
     struct ServerHandlerData

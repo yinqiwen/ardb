@@ -14,16 +14,14 @@
 OP_NAMESPACE_BEGIN
     enum SyncState
     {
-        SYNC_STATE_INVALID,
-        SYNC_STATE_START,
-        SYNC_STATE_WAITING_SNAPSHOT,
-        SYNC_STATE_SYNCING_SNAPSHOT,
+        SYNC_STATE_INVALID, SYNC_STATE_START, SYNC_STATE_WAITING_SNAPSHOT, SYNC_STATE_SYNCING_SNAPSHOT,
         //SYNC_STATE_SYNCING_WAL,
         SYNC_STATE_SYNCED,
     };
 
     struct SlaveContext
     {
+            DataDumpFile* snapshot;
             Channel* conn;
             std::string server_key;
             int64 sync_offset;
@@ -35,7 +33,7 @@ OP_NAMESPACE_BEGIN
             bool isRedisSlave;
             uint8 state;
             SlaveContext() :
-                    conn(NULL), sync_offset(0), ack_offset(0), sync_cksm(0), acktime(0), port(0), repldbfd(-1), isRedisSlave(false), state(SYNC_STATE_INVALID)
+                    snapshot(NULL), conn(NULL), sync_offset(0), ack_offset(0), sync_cksm(0), acktime(0), port(0), repldbfd(-1), isRedisSlave(false), state(SYNC_STATE_INVALID)
             {
             }
             std::string GetAddress()
@@ -64,51 +62,51 @@ OP_NAMESPACE_BEGIN
 
     int Master::Init()
     {
-        struct HeartbeatTask: public Runnable
-        {
-                Master* serv;
-                HeartbeatTask(Master* s) :
-                        serv(s)
-                {
-                }
-                void Run()
-                {
-                    serv->OnHeartbeat();
-                }
-        };
-        struct RoutineTask: public Runnable
-        {
-                Master* serv;
-                RoutineTask(Master* s) :
-                        serv(s)
-                {
-                }
-                void Run()
-                {
-                    serv->ClearNilSlave();
-                }
-        };
-
-        g_repl->GetTimer().ScheduleHeapTask(new HeartbeatTask(this), g_db->GetConfig().repl_ping_slave_period, g_db->GetConfig().repl_ping_slave_period,
-                SECONDS);
-        g_repl->GetTimer().ScheduleHeapTask(new RoutineTask(this), 1, 1, SECONDS);
+//        struct HeartbeatTask: public Runnable
+//        {
+//                Master* serv;
+//                HeartbeatTask(Master* s) :
+//                        serv(s)
+//                {
+//                }
+//                void Run()
+//                {
+//                    serv->OnHeartbeat();
+//                }
+//        };
+//        struct RoutineTask: public Runnable
+//        {
+//                Master* serv;
+//                RoutineTask(Master* s) :
+//                        serv(s)
+//                {
+//                }
+//                void Run()
+//                {
+//                    serv->ClearNilSlave();
+//                }
+//        };
+//
+//        g_repl->GetTimer().ScheduleHeapTask(new HeartbeatTask(this), g_db->GetConfig().repl_ping_slave_period, g_db->GetConfig().repl_ping_slave_period,
+//                SECONDS);
+//        g_repl->GetTimer().ScheduleHeapTask(new RoutineTask(this), 1, 1, SECONDS);
         return 0;
     }
 
-    void Master::ClearNilSlave()
-    {
-        SlaveContextSet::iterator it = m_slaves.begin();
-        while (it != m_slaves.end())
-        {
-            SlaveContext* ctx = *it;
-            if (it->second == NULL)
-            {
-                it = m_slaves.erase(it);
-                continue;
-            }
-            it++;
-        }
-    }
+//    void Master::ClearNilSlave()
+//    {
+//        SlaveContextSet::iterator it = m_slaves.begin();
+//        while (it != m_slaves.end())
+//        {
+//            SlaveContext* ctx = *it;
+//            if (it->second == NULL)
+//            {
+//                it = m_slaves.erase(it);
+//                continue;
+//            }
+//            it++;
+//        }
+//    }
 
     void Master::OnHeartbeat()
     {
@@ -201,6 +199,7 @@ OP_NAMESPACE_BEGIN
         close(slave->repldbfd);
         slave->repldbfd = -1;
         slave->state = SYNC_STATE_SYNCED;
+        slave->snapshot = NULL;
     }
 
     static void OnSnapshotFileSendFailure(void* data)
@@ -215,9 +214,8 @@ OP_NAMESPACE_BEGIN
         slave->state = SYNC_STATE_SYNCING_SNAPSHOT;
         //FULLRESYNC
         Buffer msg;
-        SnapshotType type = slave->isRedisSlave ? REDIS_SNAPSHOT : MMKV_SNAPSHOT;
-        slave->sync_offset = Snapshot::SnapshotOffset(type);
-        slave->sync_cksm = Snapshot::SnapshotCksm(type);
+        slave->sync_offset = slave->snapshot->CachedReplOffset();
+        slave->sync_cksm = slave->snapshot->CachedReplCksm();
         if (slave->isRedisSlave)
         {
             msg.Printf("+FULLRESYNC %s %lld\r\n", g_repl->GetServerKey(), slave->sync_offset);
@@ -227,7 +225,7 @@ OP_NAMESPACE_BEGIN
             msg.Printf("+FULLRESYNC %s %lld %llu\r\n", g_repl->GetServerKey(), slave->sync_offset, slave->sync_cksm);
         }
         slave->conn->Write(msg);
-        std::string dump_file_path = Snapshot::DefaultPath(type);
+        std::string dump_file_path = slave->snapshot.GetPath();
         SendFileSetting setting;
         setting.fd = open(dump_file_path.c_str(), O_RDONLY);
         if (-1 == setting.fd)
@@ -276,8 +274,7 @@ OP_NAMESPACE_BEGIN
         if (slave->sync_offset < g_repl->WALStartOffset() || slave->sync_offset > g_repl->WALEndOffset())
         {
             slave->conn->Close();
-            ERROR_LOG("Slave synced offset:%llu is invalid in offset range[%llu-%llu] for wal.", slave->sync_offset, g_repl->WALStartOffset(),
-                    g_repl->WALEndOffset());
+            ERROR_LOG("Slave synced offset:%llu is invalid in offset range[%llu-%llu] for wal.", slave->sync_offset, g_repl->WALStartOffset(), g_repl->WALEndOffset());
             return;
         }
         if (slave->sync_offset < g_repl->WALEndOffset())
@@ -317,19 +314,16 @@ OP_NAMESPACE_BEGIN
         }
     }
 
-    int Master::CreateSnapshot(bool is_redis_type)
+    int Master::CreateSnapshot(SlaveContext* slave)
     {
-        Snapshot rdb;
-        int ret = rdb.Save(false, is_redis_type ? REDIS_SNAPSHOT : MMKV_SNAPSHOT, DumpRDBRoutine, this);
+        DataDumpFile* snapshot = NULL;
 
+        slave->snapshot = snapshot;
+        int ret = snapshot->Save(slave->isRedisSlave ? REDIS_DUMP : ARDB_DUMP, "", DumpRDBRoutine, this);
         if (0 == ret)
         {
             INFO_LOG("[Master]Saved snapshot file.");
-            FullResyncSlaves(is_redis_type);
-        }
-        else if (ERR_SNAPSHOT_SAVING == ret)
-        {
-            return 0;
+            FullResyncSlaves (is_redis_type);
         }
         else
         {
@@ -388,10 +382,10 @@ OP_NAMESPACE_BEGIN
             }
             else
             {
-                WARN_LOG("Create snapshot for full resync for slave runid:%s offset:%llu cksm:%llu, while current WAL runid:%s offset:%llu cksm:%llu",
-                        slave->server_key.c_str(), slave->sync_offset, slave->sync_cksm, g_repl->GetServerKey(), g_repl->WALEndOffset(), g_repl->WALCksm());
+                WARN_LOG("Create snapshot for full resync for slave runid:%s offset:%llu cksm:%llu, while current WAL runid:%s offset:%llu cksm:%llu", slave->server_key.c_str(), slave->sync_offset, slave->sync_cksm, g_repl->GetServerKey(),
+                        g_repl->WALEndOffset(), g_repl->WALCksm());
                 slave->state = SYNC_STATE_WAITING_SNAPSHOT;
-                CreateSnapshot(slave->isRedisSlave);
+                CreateSnapshot(slave);
             }
         }
     }
@@ -414,7 +408,7 @@ OP_NAMESPACE_BEGIN
             if (slave->state == SYNC_STATE_SYNCED)
             {
                 DEBUG_LOG("[Master]Slave sync from %lld to %llu at state:%u", slave->sync_offset, g_repl->WALEndOffset(), slave->state);
-                SyncWAL (slave);
+                SyncWAL(slave);
             }
         }
         else
@@ -435,10 +429,10 @@ OP_NAMESPACE_BEGIN
                 if (string_toint64(cmd->GetArguments()[1], offset))
                 {
                     if (NULL != slave)
-                       {
-                           slave->acktime = time(NULL);
-                           slave->ack_offset = offset;
-                       }
+                    {
+                        slave->acktime = time(NULL);
+                        slave->ack_offset = offset;
+                    }
                 }
             }
         }
@@ -470,11 +464,8 @@ OP_NAMESPACE_BEGIN
     {
         DEBUG_LOG("Add slave %s", slave->GetAddress().c_str());
         g_repl->GetIOService().AttachChannel(slave->conn, true);
-
         slave->state = SYNC_STATE_START;
-
         slave->conn->ClearPipeline();
-
         if (g_db->GetConf().repl_disable_tcp_nodelay)
         {
             ChannelOptions newoptions = slave->conn->GetOptions();
@@ -528,7 +519,7 @@ OP_NAMESPACE_BEGIN
         slave->GetService().DetachChannel(slave, true);
         if (g_repl->GetIOService().IsInLoopThread())
         {
-            AddSlave(&conn);
+            AddSlave (&conn);
         }
         else
         {
@@ -595,8 +586,7 @@ OP_NAMESPACE_BEGIN
 
             uint32 lag = time(NULL) - slave->acktime;
             sprintf(buffer, "slave%u:%s,state=%s,"
-                    "offset=%" PRId64",lag=%u, o_buffer_size:%u, o_buffer_capacity:%u\r\n", i, slave->GetAddress().c_str(), state, slave->sync_offset, lag,
-                    slave->conn->WritableBytes(), slave->conn->GetOutputBuffer().Capacity());
+                    "offset=%" PRId64",lag=%u, o_buffer_size:%u, o_buffer_capacity:%u\r\n", i, slave->GetAddress().c_str(), state, slave->sync_offset, lag, slave->conn->WritableBytes(), slave->conn->GetOutputBuffer().Capacity());
             it++;
             i++;
             str.append(buffer);

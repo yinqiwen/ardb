@@ -15,6 +15,7 @@
 #include "util/concurrent_queue.hpp"
 #include "swal.h"
 #include "context.hpp"
+#include "rdb.hpp"
 #include <map>
 
 using namespace ardb::codec;
@@ -60,7 +61,7 @@ OP_NAMESPACE_BEGIN
             int64 cached_master_repl_offset;
             uint64 cached_master_repl_cksm;
             bool replaying_wal;
-            Snapshot snapshot;
+            DataDumpFile snapshot;
             void Clear()
             {
                 server_is_redis = false;
@@ -118,10 +119,12 @@ OP_NAMESPACE_BEGIN
 
     class SlaveContext;
     typedef TreeSet<SlaveContext*>::Type SlaveContextSet;
+    typedef TreeSet<DataDumpFile*>::Type DataDumpFileSet;
     class Master: public ChannelUpstreamHandler<RedisCommandFrame>
     {
         private:
             SlaveContextSet m_slaves;
+            DataDumpFileSet m_cached_snapshots;
             time_t m_repl_noslaves_since;
 
             void OnHeartbeat();
@@ -136,7 +139,7 @@ OP_NAMESPACE_BEGIN
 
             void SyncWAL(SlaveContext* slave);
             void SendSnapshotToSlave(SlaveContext* slave);
-            int CreateSnapshot(bool is_redis_type);
+            int CreateSnapshot(SlaveContext* slave);
             static int DumpRDBRoutine(void* cb);
             void AddSlave(SlaveContext* slave);
         public:

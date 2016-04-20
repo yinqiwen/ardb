@@ -27,14 +27,12 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "slave.hpp"
 #include <sstream>
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <errno.h>
-#include "slave.hpp"
 #include "repl.hpp"
 
 OP_NAMESPACE_BEGIN
@@ -53,25 +51,25 @@ OP_NAMESPACE_BEGIN
     Slave::Slave() :
             m_client(NULL), m_cmd_recved_time(0), m_master_link_down_time(0), m_routine_ts(0), m_lastinteraction(0)
     {
-        m_slave_ctx.server_address = MASTER_SERVER_ADDRESS_NAME;
-        m_slave_ctx.client = NULL;
+        //m_slave_ctx.server_address = MASTER_SERVER_ADDRESS_NAME;
+        m_slave_ctx.flags.no_fill_reply = 1;
     }
 
     int Slave::Init()
     {
-        struct RoutineTask: public Runnable
-        {
-                Slave* c;
-                RoutineTask(Slave* cc) :
-                        c(cc)
-                {
-                }
-                void Run()
-                {
-                    c->Routine();
-                }
-        };
-        g_repl->GetTimer().ScheduleHeapTask(new RoutineTask(this), 1, 1, SECONDS);
+//        struct RoutineTask: public Runnable
+//        {
+//                Slave* c;
+//                RoutineTask(Slave* cc) :
+//                        c(cc)
+//                {
+//                }
+//                void Run()
+//                {
+//                    c->Routine();
+//                }
+//        };
+//        g_repl->GetTimer().ScheduleHeapTask(new RoutineTask(this), 1, 1, SECONDS);
         return 0;
     }
 
@@ -88,17 +86,17 @@ OP_NAMESPACE_BEGIN
             //can not replay wal in non synced state
             return;
         }
-        if (g_repl->DataOffset() == g_repl->WALEndOffset())
-        {
-            swal_clear_replay_cache(g_repl->GetWAL());
-            return;
-        }
+//        if (g_repl->GetReplLog().DataOffset() == g_repl->GetReplLog().WALEndOffset())
+//        {
+//            swal_clear_replay_cache(g_repl->GetReplLog().GetWAL());
+//            return;
+//        }
         if (m_status.replaying_wal)
         {
             return;
         }
         m_status.replaying_wal = true;
-        swal_replay(g_repl->GetWAL(), g_repl->DataOffset(), -1, slave_replay_wal, NULL);
+        swal_replay(g_repl->GetReplLog().GetWAL(), g_repl->GetReplLog().DataOffset(), -1, slave_replay_wal, NULL);
         m_status.replaying_wal = false;
     }
 
@@ -114,9 +112,7 @@ OP_NAMESPACE_BEGIN
             {
                 break;
             }
-            CallFlags flags;
-            flags.no_wal = 1;
-            g_db->Call(m_slave_ctx, msg, flags);
+            g_db->Call(m_slave_ctx, msg);
             g_repl->UpdateDataOffsetCksm(msg.GetRawProtocolData());
             g_repl->GetIOServ().Continue();
         }
@@ -127,10 +123,10 @@ OP_NAMESPACE_BEGIN
         DEBUG_LOG("Master conn connected.");
         m_lastinteraction = m_cmd_recved_time = time(NULL);
         m_master_link_down_time = 0;
-        if (!g_db->GetConfig().masterauth.empty())
+        if (!g_db->GetConf().masterauth.empty())
         {
             Buffer auth;
-            auth.Printf("auth %s\r\n", g_db->GetConfig().masterauth.c_str());
+            auth.Printf("auth %s\r\n", g_db->GetConf().masterauth.c_str());
             ctx.GetChannel()->Write(auth);
             m_status.state = SLAVE_STATE_WAITING_AUTH_REPLY;
             return;
@@ -202,7 +198,7 @@ OP_NAMESPACE_BEGIN
 
     static int LoadRDBRoutine(void* cb)
     {
-        g_repl->GetIOServ().Continue();
+        g_repl->GetIOService().Continue();
         Slave* slave = (Slave*) cb;
         if (slave->GetStatus().state != SLAVE_STATE_LOADING_SNAPSHOT)
         {
@@ -244,7 +240,6 @@ OP_NAMESPACE_BEGIN
                     v = trim_string(v);
                     m_status.server_support_psync = (compare_version<3>(v, "2.7.0") >= 0);
                     INFO_LOG("[Slave]Remote master is a Redis %s instance, support partial sync:%u", v.c_str(), m_status.server_support_psync);
-
                 }
                 else
                 {
@@ -252,7 +247,7 @@ OP_NAMESPACE_BEGIN
                     m_status.server_support_psync = true;
                 }
                 Buffer replconf;
-                replconf.Printf("replconf listening-port %u\r\n", g_db->GetConfig().PrimayPort());
+                replconf.Printf("replconf listening-port %u\r\n", g_db->GetConf().PrimayPort());
                 ch->Write(replconf);
                 m_status.state = SLAVE_STATE_WAITING_REPLCONF_REPLY;
                 break;
@@ -364,10 +359,10 @@ OP_NAMESPACE_BEGIN
         if (chunk.IsFirstChunk())
         {
             m_status.snapshot.Close();
-            char tmp[g_db->GetConfig().repl_data_dir.size() + 100];
+            char tmp[g_db->GetConf().repl_data_dir.size() + 100];
             uint32 now = time(NULL);
-            sprintf(tmp, "%s/temp-%u-%u.snapshot", g_db->GetConfig().repl_data_dir.c_str(), getpid(), now);
-            m_status.snapshot.Open(tmp, false);
+            sprintf(tmp, "%s/temp-%u-%u.snapshot", g_db->GetConf().repl_data_dir.c_str(), getpid(), now);
+            m_status.snapshot.OpenWriteFile(tmp);
             INFO_LOG("[Slave]Create dump file:%s, master is redis:%d", tmp, m_status.server_is_redis);
             //m_status.snapshot->SetExpectedDataSize(chunk.len);
         }
@@ -388,7 +383,7 @@ OP_NAMESPACE_BEGIN
              */
             g_repl->SetServerKey(random_hex_string(40));
             g_repl->ResetWALOffsetCksm(m_status.cached_master_repl_offset, m_status.cached_master_repl_cksm);
-            if (g_db->GetConfig().slave_cleardb_before_fullresync)
+            if (g_db->GetConf().slave_cleardb_before_fullresync)
             {
                 g_db->GetKVStore().FlushAll();
             }
@@ -449,17 +444,16 @@ OP_NAMESPACE_BEGIN
 
     int Slave::ConnectMaster()
     {
-        if (g_db->GetConfig().master_host.empty())
+        if (g_db->GetConf().master_host.empty())
         {
             return -1;
         }
-        SocketHostAddress addr(g_db->GetConfig().master_host, g_db->GetConfig().master_port);
+        SocketHostAddress addr(g_db->GetConf().master_host, g_db->GetConf().master_port);
         if (NULL != m_client)
         {
             return 0;
         }
-        m_client = g_repl->GetIOServ().NewClientSocketChannel();
-
+        m_client = g_repl->GetIOService().NewClientSocketChannel();
         m_decoder.Clear();
         m_client->GetPipeline().AddLast("decoder", &m_decoder);
         m_client->GetPipeline().AddLast("encoder", &m_encoder);
@@ -467,7 +461,7 @@ OP_NAMESPACE_BEGIN
         m_decoder.SwitchToReplyDecoder();
         m_status.state = SLAVE_STATE_CONNECTING;
         m_client->Connect(&addr);
-        DEBUG_LOG("[Slave]Connecting master %s:%u", g_db->GetConfig().master_host.c_str(), g_db->GetConfig().master_port);
+        INFO_LOG("[Slave]Connecting master %s:%u", g_db->GetConf().master_host.c_str(), g_db->GetConf().master_port);
         return 0;
     }
 
