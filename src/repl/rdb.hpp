@@ -30,27 +30,34 @@
 #ifndef RDB_HPP_
 #define RDB_HPP_
 #include <string>
+#include <deque>
 #include "common.hpp"
 #include "buffer/buffer_helper.hpp"
 #include "context.hpp"
 
 namespace ardb
 {
-    typedef int DumpRoutine(void* cb);
 
-    enum DataDumpType
+    enum SnapshotType
     {
         REDIS_DUMP = 0, ARDB_DUMP
     };
 
-    class DataDumpFile
+    enum RoutineState
+    {
+        ROUTINE_START = 0, ROUTINING, ROUTINE_SUCCESS, ROUTINE_FAIL
+    };
+    class Snapshot;
+    typedef int SnapshotRoutine(RoutineState state, Snapshot* snapshot, void* cb);
+
+    class Snapshot
     {
         protected:
             FILE* m_read_fp;
             FILE* m_write_fp;
             std::string m_file_path;
             uint64 m_cksm;
-            DumpRoutine* m_routine_cb;
+            SnapshotRoutine* m_routine_cb;
             void *m_routine_cbdata;
             uint64 m_processed_bytes;
             uint64 m_file_size;
@@ -65,6 +72,7 @@ namespace ardb
             uint64 m_cached_repl_offset;
             uint64 m_cached_repl_cksm;
             time_t m_save_time;
+            SnapshotType m_type;
             bool Read(void* buf, size_t buflen, bool cksm = true);
 
             int WriteType(uint8 type);
@@ -105,8 +113,14 @@ namespace ardb
             int ArdbSave();
             int ArdbLoad();
 
+            int DoSave();
+            int PrepareSave(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data);
         public:
-            DataDumpFile();
+            Snapshot();
+            SnapshotType GetType()
+            {
+                return m_type;
+            }
             uint64 CachedReplOffset()
             {
                 return m_cached_repl_offset;
@@ -129,18 +143,32 @@ namespace ardb
             int Write(const void* buf, size_t buflen);
             int OpenWriteFile(const std::string& file);
             int OpenReadFile(const std::string& file);
-            int Load(const std::string& file, DumpRoutine* cb, void *data);
-            int Save(DataDumpType type, const std::string& file, DumpRoutine* cb, void *data);
-            int BGSave(DataDumpType type, const std::string& file);
+            int Load(const std::string& file, SnapshotRoutine* cb, void *data);
+            int Reload(SnapshotRoutine* cb, void *data);
+            int Save(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data);
+            int BGSave(SnapshotType type, const std::string& file, SnapshotRoutine* cb = NULL, void *data = NULL);
 
             void Flush();
             void Remove();
             int Rename(const std::string& default_file = "dump.rdb");
             void Close();
-            ~DataDumpFile();
+            ~Snapshot();
 
             static int IsRedisDumpFile(const std::string& file);
     };
+
+    class SnapshotManager
+    {
+        private:
+            typedef std::deque<Snapshot*> SnapshotArray;
+            SnapshotArray m_snapshots;
+        public:
+            SnapshotManager();
+            void RemoveExpiredSnapshots();
+            Snapshot* GetSyncSnapshot(SnapshotType type, SnapshotRoutine* cb, void *data);
+    };
+
+    extern SnapshotManager* g_snapshot_manager;
 
 }
 

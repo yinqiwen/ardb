@@ -55,6 +55,7 @@ struct swal_t
     char* ring_cache;
     size_t ring_cache_start_offset;
     size_t ring_cache_idx;
+    time_t last_replay_time;
 };
 
 swal_options_t* swal_options_create()
@@ -277,6 +278,7 @@ int swal_sync_meta(swal_t* wal)
 int swal_replay(swal_t* wal, size_t offset, int64_t limit_len, swal_replay_logfunc func, void* data)
 {
     size_t total = wal->meta->log_end_offset - offset;
+    wal->last_replay_time = time(NULL);
     if (limit_len > 0 && limit_len < total)
     {
         total = limit_len;
@@ -335,13 +337,14 @@ int swal_replay(swal_t* wal, size_t offset, int64_t limit_len, swal_replay_logfu
     }
     return 0;
 }
-void swal_clear_replay_cache(swal_t* wal)
+int swal_clear_replay_cache(swal_t* wal)
 {
     if (NULL != wal->mmap_buf)
     {
         munmap(wal->mmap_buf, wal->options.max_file_size);
         wal->mmap_buf = NULL;
     }
+    return 0;
 }
 int swal_reset(swal_t* wal, size_t offset, uint64_t cksm)
 {

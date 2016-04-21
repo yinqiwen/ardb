@@ -163,6 +163,9 @@ OP_NAMESPACE_BEGIN
         conf_get_bool(props, "repl-disable-tcp-nodelay", repl_disable_tcp_nodelay);
         conf_get_int64(props, "lua-time-limit", lua_time_limit);
 
+        conf_get_int64(props, "snapshot-max-lag", snapshot_max_lag);
+
+
         conf_get_int64(props, "hll-sparse-max-bytes", hll_sparse_max_bytes);
 
         conf_get_bool(props, "slave-read-only", slave_readonly);

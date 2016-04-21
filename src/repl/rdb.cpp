@@ -171,21 +171,21 @@ namespace ardb
         return EncodeInteger(value, enc);
     }
 
-    DataDumpFile::DataDumpFile() :
-            m_read_fp(NULL), m_write_fp(NULL),  m_cksm(0), m_routine_cb(
+    Snapshot::Snapshot() :
+            m_read_fp(NULL), m_write_fp(NULL), m_cksm(0), m_routine_cb(
             NULL), m_routine_cbdata(
             NULL), m_processed_bytes(0), m_file_size(0), m_is_saving(false), m_routinetime(0), m_read_buf(
-            NULL), m_expected_data_size(0), m_writed_data_size(0),m_cached_repl_offset(0),m_cached_repl_cksm(0),m_save_time(0)
+            NULL), m_expected_data_size(0), m_writed_data_size(0), m_cached_repl_offset(0), m_cached_repl_cksm(0), m_save_time(0), m_type(ARDB_DUMP)
     {
 
     }
-    DataDumpFile::~DataDumpFile()
+    Snapshot::~Snapshot()
     {
         Close();
         DELETE_A(m_read_buf);
     }
 
-    int DataDumpFile::ReadType()
+    int Snapshot::ReadType()
     {
         unsigned char type;
         if (Read(&type, 1) == 0)
@@ -193,14 +193,14 @@ namespace ardb
         return type;
     }
 
-    time_t DataDumpFile::ReadTime()
+    time_t Snapshot::ReadTime()
     {
         int32_t t32;
         if (Read(&t32, 4) == 0)
             return -1;
         return (time_t) t32;
     }
-    int64 DataDumpFile::ReadMillisecondTime()
+    int64 Snapshot::ReadMillisecondTime()
     {
         int64_t t64;
         if (Read(&t64, 8) == 0)
@@ -208,7 +208,7 @@ namespace ardb
         return (long long) t64;
     }
 
-    uint32_t DataDumpFile::ReadLen(int *isencoded)
+    uint32_t Snapshot::ReadLen(int *isencoded)
     {
         unsigned char buf[2];
         uint32_t len;
@@ -247,7 +247,7 @@ namespace ardb
         }
     }
 
-    bool DataDumpFile::ReadLzfStringObject(std::string& str)
+    bool Snapshot::ReadLzfStringObject(std::string& str)
     {
         unsigned int len, clen;
         unsigned char *c = NULL;
@@ -277,7 +277,7 @@ namespace ardb
         return true;
     }
 
-    bool DataDumpFile::ReadInteger(int enctype, int64& val)
+    bool Snapshot::ReadInteger(int enctype, int64& val)
     {
         unsigned char enc[4];
 
@@ -313,7 +313,7 @@ namespace ardb
     }
 
     /* For information about double serialization check rdbSaveDoubleValue() */
-    int DataDumpFile::ReadDoubleValue(double&val)
+    int Snapshot::ReadDoubleValue(double&val)
     {
         static double R_Zero = 0.0;
         static double R_PosInf = 1.0 / R_Zero;
@@ -344,7 +344,7 @@ namespace ardb
         }
     }
 
-    bool DataDumpFile::ReadString(std::string& str)
+    bool Snapshot::ReadString(std::string& str)
     {
         str.clear();
         int isencoded;
@@ -394,13 +394,13 @@ namespace ardb
         return true;
     }
 
-    int DataDumpFile::WriteType(uint8 type)
+    int Snapshot::WriteType(uint8 type)
     {
         return Write(&type, 1);
     }
 
     /* Like rdbSaveStringObjectRaw() but handle encoded objects */
-    int DataDumpFile::WriteStringObject(const Data& o)
+    int Snapshot::WriteStringObject(const Data& o)
     {
         /* Avoid to decode the object, then encode it again, if the
          * object is alrady integer encoded. */
@@ -418,7 +418,7 @@ namespace ardb
 
     /* Save a string objet as [len][data] on disk. If the object is a string
      * representation of an integer value we try to save it in a special form */
-    int DataDumpFile::WriteRawString(const char *s, size_t len)
+    int Snapshot::WriteRawString(const char *s, size_t len)
     {
         int enclen;
         int n, nwritten = 0;
@@ -460,7 +460,7 @@ namespace ardb
         return nwritten;
     }
 
-    int DataDumpFile::WriteLzfStringObject(const char *s, size_t len)
+    int Snapshot::WriteLzfStringObject(const char *s, size_t len)
     {
         size_t comprlen, outlen;
         unsigned char byte;
@@ -505,7 +505,7 @@ namespace ardb
     }
 
     /* Save a long long value as either an encoded string or a string. */
-    int DataDumpFile::WriteLongLongAsStringObject(long long value)
+    int Snapshot::WriteLongLongAsStringObject(long long value)
     {
         unsigned char buf[32];
         int n, nwritten = 0;
@@ -528,7 +528,7 @@ namespace ardb
         return nwritten;
     }
 
-    int DataDumpFile::WriteLen(uint32 len)
+    int Snapshot::WriteLen(uint32 len)
     {
         unsigned char buf[2];
         size_t nwritten;
@@ -564,7 +564,7 @@ namespace ardb
         return nwritten;
     }
 
-    int DataDumpFile::WriteKeyType(KeyType type)
+    int Snapshot::WriteKeyType(KeyType type)
     {
         switch (type)
         {
@@ -600,7 +600,7 @@ namespace ardb
         }
     }
 
-    int DataDumpFile::WriteDouble(double val)
+    int Snapshot::WriteDouble(double val)
     {
         unsigned char buf[128];
         int len;
@@ -643,33 +643,33 @@ namespace ardb
 
     }
 
-    int DataDumpFile::WriteMillisecondTime(uint64 ts)
+    int Snapshot::WriteMillisecondTime(uint64 ts)
     {
         return Write(&ts, 8);
     }
 
-    int DataDumpFile::WriteTime(time_t t)
+    int Snapshot::WriteTime(time_t t)
     {
         int32_t t32 = (int32_t) t;
         return Write(&t32, 4);
     }
 
-    void DataDumpFile::SetExpectedDataSize(int64 size)
+    void Snapshot::SetExpectedDataSize(int64 size)
     {
         m_expected_data_size = size;
     }
 
-    int64 DataDumpFile::DumpLeftDataSize()
+    int64 Snapshot::DumpLeftDataSize()
     {
         return m_expected_data_size - m_writed_data_size;
     }
 
-    int64 DataDumpFile::ProcessLeftDataSize()
+    int64 Snapshot::ProcessLeftDataSize()
     {
         return m_expected_data_size - m_processed_bytes;
     }
 
-    void DataDumpFile::Flush()
+    void Snapshot::Flush()
     {
         if (NULL != m_write_fp)
         {
@@ -677,7 +677,7 @@ namespace ardb
         }
     }
 
-    int DataDumpFile::Rename(const std::string& default_file)
+    int Snapshot::Rename(const std::string& default_file)
     {
         std::string file = g_db->GetConf().repl_data_dir;
         file.append("/").append(default_file);
@@ -694,13 +694,13 @@ namespace ardb
         return ret;
     }
 
-    void DataDumpFile::Remove()
+    void Snapshot::Remove()
     {
         Close();
         unlink(m_file_path.c_str());
     }
 
-    void DataDumpFile::Close()
+    void Snapshot::Close()
     {
         if (NULL != m_read_fp)
         {
@@ -712,8 +712,10 @@ namespace ardb
             fclose(m_write_fp);
             m_write_fp = NULL;
         }
+        m_write_buffer.Clear();
+        m_write_buffer.Compact(256);
     }
-    int DataDumpFile::OpenWriteFile(const std::string& file)
+    int Snapshot::OpenWriteFile(const std::string& file)
     {
         this->m_file_path = file;
         if ((m_write_fp = fopen(m_file_path.c_str(), "w")) == NULL)
@@ -725,9 +727,12 @@ namespace ardb
         return 0;
     }
 
-    int DataDumpFile::OpenReadFile(const std::string& file)
+    int Snapshot::OpenReadFile(const std::string& file)
     {
-        this->m_file_path = file;
+        if(m_file_path != file)
+        {
+            this->m_file_path = file;
+        }
         if ((m_read_fp = fopen(m_file_path.c_str(), "r")) == NULL)
         {
             ERROR_LOG("Failed to open ardb dump file:%s to write", m_file_path.c_str());
@@ -743,9 +748,21 @@ namespace ardb
         }
         return 0;
     }
-    int DataDumpFile::Load(const std::string& file, DumpRoutine* cb, void *data)
+
+    int Snapshot::Reload(SnapshotRoutine* cb, void *data)
+    {
+        return Load(m_file_path, cb, data);
+    }
+
+    int Snapshot::Load(const std::string& file, SnapshotRoutine* cb, void *data)
     {
         int ret = 0;
+        m_routine_cb = cb;
+        m_routine_cbdata = data;
+        if (NULL != m_routine_cb)
+        {
+            m_routine_cb(ROUTINE_START, this, m_routine_cbdata);
+        }
         uint64_t start_time = get_current_epoch_millis();
         bool is_redis_snapshot = IsRedisDumpFile(file);
         ret = OpenReadFile(file);
@@ -755,10 +772,12 @@ namespace ardb
         }
         if (is_redis_snapshot)
         {
+            m_type = REDIS_DUMP;
             ret = RedisLoad();
         }
         else
         {
+            m_type = ARDB_DUMP;
             ret = ArdbLoad();
         }
         if (ret == 0)
@@ -766,17 +785,21 @@ namespace ardb
             uint64_t cost = get_current_epoch_millis() - start_time;
             INFO_LOG("Cost %.2fs to load snapshot file with type:%d.", cost / 1000.0, is_redis_snapshot ? REDIS_DUMP : ARDB_DUMP);
         }
+        if (NULL != m_routine_cb)
+        {
+            m_routine_cb(ret == 0 ? ROUTINE_SUCCESS : ROUTINE_FAIL, this, m_routine_cbdata);
+        }
         return ret;
     }
 
-    int DataDumpFile::Write(const void* buf, size_t buflen)
+    int Snapshot::Write(const void* buf, size_t buflen)
     {
         /*
          * routine callback every 100ms
          */
         if (NULL != m_routine_cb && get_current_epoch_millis() - m_routinetime >= 100)
         {
-            int cbret = m_routine_cb(m_routine_cbdata);
+            int cbret = m_routine_cb(ROUTINING, this, m_routine_cbdata);
             if (0 != cbret)
             {
                 return cbret;
@@ -806,7 +829,7 @@ namespace ardb
         return 0;
     }
 
-    bool DataDumpFile::Read(void* buf, size_t buflen, bool cksm)
+    bool Snapshot::Read(void* buf, size_t buflen, bool cksm)
     {
         if ((m_processed_bytes + buflen) / kloading_process_events_interval_bytes > m_processed_bytes / kloading_process_events_interval_bytes)
         {
@@ -818,7 +841,7 @@ namespace ardb
          */
         if (NULL != m_routine_cb && get_current_epoch_millis() - m_routinetime >= 100)
         {
-            int cbret = m_routine_cb(m_routine_cbdata);
+            int cbret = m_routine_cb(ROUTINING, this, m_routine_cbdata);
             if (0 != cbret)
             {
                 return cbret;
@@ -842,12 +865,8 @@ namespace ardb
         return true;
     }
 
-    int DataDumpFile::Save(DataDumpType type,const std::string& file, DumpRoutine* cb, void *data)
+    int Snapshot::PrepareSave(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data)
     {
-        if (m_is_saving)
-        {
-            return -1;
-        }
         int ret = OpenWriteFile(file);
         if (0 != ret)
         {
@@ -857,47 +876,80 @@ namespace ardb
         m_is_saving = true;
         this->m_routine_cb = cb;
         this->m_routine_cbdata = data;
-        if(type == REDIS_DUMP)
+        m_type = type;
+        m_cached_repl_offset = g_repl->GetReplLog().DataOffset();
+        m_cached_repl_cksm = g_repl->GetReplLog().DataCksm();
+        return 0;
+    }
+
+    int Snapshot::DoSave()
+    {
+        int ret = 0;
+        if (NULL != m_routine_cb)
+        {
+            m_routine_cb(ROUTINE_START, this, m_routine_cbdata);
+        }
+        if (m_type == REDIS_DUMP)
         {
             ret = RedisSave();
-        }else
+        }
+        else
         {
             ret = ArdbSave();
         }
-
         Close();
-
         m_is_saving = false;
+        if (NULL != m_routine_cb)
+        {
+            m_routine_cb(ret == 0 ? ROUTINE_SUCCESS : ROUTINE_FAIL, this, m_routine_cbdata);
+        }
         return ret;
     }
-    int DataDumpFile::BGSave(DataDumpType type, const std::string& file)
+
+    int Snapshot::Save(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data)
+    {
+        if (m_is_saving)
+        {
+            return -1;
+        }
+        int ret = PrepareSave(type, file, cb, data);
+        if (0 != ret)
+        {
+            return ret;
+        }
+        return DoSave();
+    }
+    int Snapshot::BGSave(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data)
     {
         if (m_is_saving)
         {
             ERROR_LOG("There is already a background task saving data.");
             return -1;
         }
+        int ret = PrepareSave(type, file, cb, data);
+        if (0 != ret)
+        {
+            return ret;
+        }
         struct BGTask: public Thread
         {
-                DataDumpFile* serv;
-                std::string path;
-                DataDumpType t;
-                BGTask(DataDumpFile* s, const std::string& file,DataDumpType tt) :
-                        serv(s), path(file),t(tt)
+                Snapshot* serv;
+                BGTask(Snapshot* s) :
+                        serv(s)
                 {
                 }
                 void Run()
                 {
-                    serv->Save(t, path, NULL, NULL);
+                    serv->DoSave();
                     delete this;
                 }
         };
-        BGTask* task = new BGTask(this, file, type);
+        BGTask* task = new BGTask(this);
         task->Start();
         return 0;
     }
 
-    void DataDumpFile::RedisLoadListZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& listmeta)
+    void Snapshot::RedisLoadListZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& listmeta)
     {
         unsigned char* iter = ziplistIndex(data, 0);
         listmeta.SetType(KEY_LIST);
@@ -958,7 +1010,7 @@ namespace ardb
         }
         return score;
     }
-    void DataDumpFile::RedisLoadZSetZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value)
+    void Snapshot::RedisLoadZSetZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value)
     {
         meta_value.SetType(KEY_ZSET);
         meta_value.SetObjectLen(ziplistLen(data));
@@ -1004,7 +1056,7 @@ namespace ardb
 //        g_db->SetKeyValue(ctx, zkey, zmeta);
     }
 
-    void DataDumpFile::RedisLoadHashZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value)
+    void Snapshot::RedisLoadHashZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value)
     {
         meta_value.SetType(KEY_HASH);
         meta_value.SetObjectLen(ziplistLen(data));
@@ -1059,7 +1111,7 @@ namespace ardb
 //        g_db->SetKeyValue(ctx, hkey, hmeta);
     }
 
-    void DataDumpFile::RedisLoadSetIntSet(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value)
+    void Snapshot::RedisLoadSetIntSet(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value)
     {
         int ii = 0;
         int64_t llele = 0;
@@ -1077,7 +1129,7 @@ namespace ardb
 //        g_db->SetKeyValue(ctx, skey, smeta);
     }
 
-    bool DataDumpFile::RedisLoadObject(Context& ctx, int rdbtype, const std::string& key, int64 expiretime)
+    bool Snapshot::RedisLoadObject(Context& ctx, int rdbtype, const std::string& key, int64 expiretime)
     {
         //TransactionGuard guard(ctx);
         KeyObject meta_key(ctx.ns, KEY_META, key);
@@ -1306,7 +1358,7 @@ namespace ardb
         return true;
     }
 
-    int DataDumpFile::IsRedisDumpFile(const std::string& file)
+    int Snapshot::IsRedisDumpFile(const std::string& file)
     {
         FILE* fp = NULL;
         if ((fp = fopen(file.c_str(), "r")) == NULL)
@@ -1330,7 +1382,7 @@ namespace ardb
         return 1;
     }
 
-    int DataDumpFile::RedisLoad()
+    int Snapshot::RedisLoad()
     {
         char buf[1024];
         int rdbver, type;
@@ -1441,14 +1493,14 @@ namespace ardb
         return -1;
     }
 
-    void DataDumpFile::RedisWriteMagicHeader()
+    void Snapshot::RedisWriteMagicHeader()
     {
         char magic[10];
         snprintf(magic, sizeof(magic), "REDIS%04d", REDIS_RDB_VERSION);
         Write(magic, 9);
     }
 
-    int DataDumpFile::RedisSave()
+    int Snapshot::RedisSave()
     {
         RedisWriteMagicHeader();
         int err = 0;
@@ -1581,22 +1633,21 @@ namespace ardb
         return 0;
     }
 
-
-    int DataDumpFile::ArdbWriteMagicHeader()
+    int Snapshot::ArdbWriteMagicHeader()
     {
         char magic[10];
         snprintf(magic, sizeof(magic), "ARDB%04d", ARDB_RDB_VERSION);
         return Write(magic, 8);
     }
 
-    int DataDumpFile::ArdbSaveRawKeyValue(const Slice& key, const Slice& value)
+    int Snapshot::ArdbSaveRawKeyValue(const Slice& key, const Slice& value)
     {
         /*
          * routine callback every 100ms
          */
         if (NULL != m_routine_cb && get_current_epoch_millis() - m_routinetime >= 100)
         {
-            int cbret = m_routine_cb(m_routine_cbdata);
+            int cbret = m_routine_cb(ROUTINING, this, m_routine_cbdata);
             if (0 != cbret)
             {
                 return cbret;
@@ -1612,7 +1663,7 @@ namespace ardb
         return 0;
     }
 
-    int DataDumpFile::ArdbFlushWriteBuffer()
+    int Snapshot::ArdbFlushWriteBuffer()
     {
         if (m_write_buffer.Readable())
         {
@@ -1639,7 +1690,7 @@ namespace ardb
         return 0;
     }
 
-    int DataDumpFile::ArdbSave()
+    int Snapshot::ArdbSave()
     {
         RETURN_NEGATIVE_EXPR(ArdbWriteMagicHeader());
 
@@ -1676,7 +1727,7 @@ namespace ardb
         return 0;
     }
 
-    int DataDumpFile::ArdbLoadBuffer(Context& ctx, Buffer& buffer)
+    int Snapshot::ArdbLoadBuffer(Context& ctx, Buffer& buffer)
     {
         while (buffer.Readable())
         {
@@ -1688,7 +1739,7 @@ namespace ardb
         return 0;
     }
 
-    int DataDumpFile::ArdbLoad()
+    int Snapshot::ArdbLoad()
     {
         char buf[1024];
         int rdbver, type;
@@ -1801,6 +1852,41 @@ namespace ardb
         eoferr: Close();
         WARN_LOG("Short read or OOM loading DB. Unrecoverable error, aborting now.");
         return -1;
+    }
+
+    static SnapshotManager g_snapshot_manager_instance;
+    SnapshotManager* g_snapshot_manager = &g_snapshot_manager_instance;
+
+    void SnapshotManager::RemoveExpiredSnapshots()
+    {
+
+    }
+
+    Snapshot* SnapshotManager::GetSyncSnapshot(SnapshotType type, SnapshotRoutine* cb, void *data)
+    {
+        time_t now = time(NULL);
+        SnapshotArray::reverse_iterator it = m_snapshots.rbegin();
+        while (it != m_snapshots.end())
+        {
+            Snapshot* s = *it;
+            int64 lag_distance = g_repl->GetReplLog().DataOffset() - s->CachedReplOffset();
+            if (s->GetType() == type && lag_distance < g_db->GetConf().snapshot_max_lag)
+            {
+                return s;
+            }
+            it++;
+        }
+        Snapshot* snapshot = NULL;
+        NEW(snapshot, Snapshot);
+        char path[1024];
+        snprintf(path, sizeof(path) - 1, "%s/snapshot-%u", g_db->GetConf().backup_dir.c_str(), now);
+        if (0 == snapshot->BGSave(type, path, cb, data))
+        {
+            m_snapshots.push_back(snapshot);
+            return snapshot;
+        }
+        DELETE(snapshot);
+        return NULL;
     }
 
 }

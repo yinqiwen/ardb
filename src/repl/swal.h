@@ -65,7 +65,7 @@ extern "C"
 
     typedef int swal_replay_logfunc(const void* log, size_t loglen, void* data);
     int swal_replay(swal_t* wal, size_t offset, int64_t limit_len, swal_replay_logfunc func, void* data);
-    void swal_clear_replay_cache(swal_t* wal);
+    int swal_clear_replay_cache(swal_t* wal);
     int swal_reset(swal_t* wal, size_t offset, uint64_t cksm);
     uint64_t swal_cksm(swal_t* wal);
     size_t swal_start_offset(swal_t* wal);

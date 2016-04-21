@@ -116,6 +116,8 @@ OP_NAMESPACE_BEGIN
             bool scan_redis_compatible;
             int64 scan_cursor_expire_after;
 
+            int64 snapshot_max_lag;
+
             std::string conf_path;
             Properties conf_props;
 
@@ -133,7 +135,7 @@ OP_NAMESPACE_BEGIN
                             true), slave_readonly(true), slave_serve_stale_data(true), slave_priority(100), lua_time_limit(0), master_port(0), loglevel("INFO"), hll_sparse_max_bytes(
                             3000), reply_pool_size(5000), primary_port(0), slave_client_output_buffer_limit(256 * 1024 * 1024), pubsub_client_output_buffer_limit(
                             32 * 1024 * 1024), slave_ignore_expire(false), slave_ignore_del(false), repl_disable_tcp_nodelay(false), scan_redis_compatible(
-                            true), scan_cursor_expire_after(60), lua_exec_atomic(true), redis_compatible(true)
+                            true), scan_cursor_expire_after(60), snapshot_max_lag(500 * 1024 * 1024), lua_exec_atomic(true), redis_compatible(true)
             {
             }
             bool Parse(const Properties& props);

@@ -69,7 +69,7 @@ OP_NAMESPACE_BEGIN
     {
         return m_wal;
     }
-    const char* ReplicationBacklog::GetServerKey()
+    const char* ReplicationBacklog::GetReplKey()
     {
         ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
         return meta->serverkey;
