@@ -37,17 +37,17 @@ OP_NAMESPACE_BEGIN
             void Routine();
             swal_t* GetWAL();
             const char* GetReplKey();
-            void SetServerKey(const std::string& str);
+            void SetReplKey(const std::string& str);
             int WriteWAL(const Data& ns, RedisCommandFrame& cmd);
             bool IsValidOffsetCksm(int64_t offset, uint64_t cksm);
             uint64_t WALStartOffset();
             uint64_t WALEndOffset();
             uint64_t WALCksm();
             void ResetWALOffsetCksm(uint64_t offset, uint64_t cksm);
-            void ResetDataOffsetCksm(uint64_t offset, uint64_t cksm);
-            uint64_t DataOffset();
-            uint64_t DataCksm();
-            void UpdateDataOffsetCksm(const Buffer& data);
+//            void ResetDataOffsetCksm(uint64_t offset, uint64_t cksm);
+//            uint64_t DataOffset();
+//            uint64_t DataCksm();
+//            void UpdateDataOffsetCksm(const Buffer& data);
             ~ReplicationBacklog();
     };
 
@@ -60,10 +60,13 @@ OP_NAMESPACE_BEGIN
             std::string cached_master_runid;
             int64 cached_master_repl_offset;
             uint64 cached_master_repl_cksm;
-            bool replaying_wal;
+            int64 sync_repl_offset;
+            uint64 sync_repl_cksm;
             uint32 cmd_recved_time;
             uint32 master_link_down_time;
+            Buffer replay_cumulate_buffer;
             Snapshot snapshot;
+            void UpdateSyncOffsetCksm(const Buffer& buffer);
             void Clear()
             {
                 server_is_redis = false;
@@ -72,11 +75,13 @@ OP_NAMESPACE_BEGIN
                 cached_master_runid.clear();
                 cached_master_repl_offset = 0;
                 cached_master_repl_cksm = 0;
+                sync_repl_offset = 0;
+                sync_repl_cksm = 0;
                 snapshot.Close();
             }
             SlaveContext() :
-                    server_is_redis(false), server_support_psync(false), state(0), cached_master_repl_offset(0), cached_master_repl_cksm(0), replaying_wal(
-                            false), cmd_recved_time(0), master_link_down_time(0)
+                    server_is_redis(false), server_support_psync(false), state(0), cached_master_repl_offset(0), cached_master_repl_cksm(0), sync_repl_offset(
+                            0), sync_repl_cksm(0), cmd_recved_time(0), master_link_down_time(0)
             {
             }
     };
@@ -88,7 +93,7 @@ OP_NAMESPACE_BEGIN
             RedisMessageDecoder m_decoder;
             NullRedisReplyEncoder m_encoder;
             SlaveContext m_ctx;
-            time_t m_routine_ts;
+            //time_t m_routine_ts;
             time_t m_lastinteraction;
 
             void HandleRedisCommand(Channel* ch, RedisCommandFrame& cmd);
@@ -102,6 +107,7 @@ OP_NAMESPACE_BEGIN
             void InfoMaster();
             int ConnectMaster();
             void ReplayWAL();
+            void DoClose();
         public:
             Slave();
             int Init();
@@ -110,6 +116,7 @@ OP_NAMESPACE_BEGIN
             void Stop();
             void ReplayWAL(const void* log, size_t loglen);
             bool IsSynced();
+            bool IsLoading();
     };
 
     class SlaveSyncContext;
@@ -121,10 +128,9 @@ OP_NAMESPACE_BEGIN
             SlaveSyncContextSet m_slaves;
             DataDumpFileSet m_cached_snapshots;
             time_t m_repl_noslaves_since;
-
+            time_t m_repl_nolag_since;
+            uint32 m_repl_good_slaves_count;
             int PingSlaves();
-
-            void SyncSlave(SlaveSyncContext* slave);
 
             void ClearNilSlave();
 
@@ -135,18 +141,23 @@ OP_NAMESPACE_BEGIN
             void SyncWAL(SlaveSyncContext* slave);
             void SendSnapshotToSlave(SlaveSyncContext* slave);
             void AddSlave(SlaveSyncContext* slave);
-
         public:
             Master();
             int Init();
             void FullResyncSlaves(Snapshot* snapshot);
             void CloseSlaveBySnapshot(Snapshot* snapshot);
+            void CloseSlave(SlaveSyncContext* slave);
+            void SyncSlave(SlaveSyncContext* slave);
             void AddSlave(Channel* slave, RedisCommandFrame& cmd);
             void SetSlavePort(Channel* slave, uint32 port);
             size_t ConnectedSlaves();
             void SyncWAL();
             void PrintSlaves(std::string& str);
             void DisconnectAllSlaves();
+            uint32 GoodSlavesCount()const
+            {
+                return m_repl_good_slaves_count;
+            }
             ~Master();
     };
 

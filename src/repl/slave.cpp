@@ -49,8 +49,14 @@ OP_NAMESPACE_BEGIN
         SLAVE_STATE_REPLAYING_WAL,
         SLAVE_STATE_SYNCED,
     };
+    void SlaveContext::UpdateSyncOffsetCksm(const Buffer& buffer)
+    {
+        sync_repl_offset += buffer.ReadableBytes();
+        sync_repl_cksm = crc64(sync_repl_offset, (const unsigned char *) (buffer.GetRawReadBuffer()), buffer.ReadableBytes());
+    }
+
     Slave::Slave() :
-            m_client(NULL), m_routine_ts(0), m_lastinteraction(0)
+            m_client(NULL), m_lastinteraction(0)
     {
         //m_slave_ctx.server_address = MASTER_SERVER_ADDRESS_NAME;
         m_ctx.ctx.flags.no_fill_reply = 1;
@@ -85,6 +91,7 @@ OP_NAMESPACE_BEGIN
         if (m_ctx.state != SLAVE_STATE_REPLAYING_WAL)
         {
             //can not replay wal in non synced state
+            WARN_LOG("Try to replay wal at state:%u", m_ctx.state);
             return;
         }
 //        if (g_repl->GetReplLog().DataOffset() == g_repl->GetReplLog().WALEndOffset())
@@ -92,31 +99,57 @@ OP_NAMESPACE_BEGIN
 //            swal_clear_replay_cache(g_repl->GetReplLog().GetWAL());
 //            return;
 //        }
-        if (m_ctx.replaying_wal)
+//        m_ctx.state = SLAVE_STATE_REPLAYING_WAL;
+        int err = swal_replay(g_repl->GetReplLog().GetWAL(), m_ctx.sync_repl_offset, -1, slave_replay_wal, NULL);
+        if (0 != err)
         {
+            ERROR_LOG("Failed to replay wal with sync_offset:%lld, wal_start_offset:%llu", m_ctx.sync_repl_offset, g_repl->GetReplLog().WALStartOffset());
+            DoClose();
             return;
         }
-        m_ctx.replaying_wal = true;
-        swal_replay(g_repl->GetReplLog().GetWAL(), g_repl->GetReplLog().DataOffset(), -1, slave_replay_wal, NULL);
-        m_ctx.replaying_wal = false;
-        m_ctx.state = SLAVE_STATE_SYNCED;
+        if (m_ctx.sync_repl_offset == g_repl->GetReplLog().WALEndOffset())
+        {
+            m_ctx.state = SLAVE_STATE_SYNCED;
+        }
     }
 
     void Slave::ReplayWAL(const void* log, size_t loglen)
     {
-        std::string err;
+        Buffer* replay_buffer = NULL;
         Buffer logbuf((char*) log, 0, loglen);
-        while (logbuf.Readable() && m_ctx.state == SLAVE_STATE_REPLAYING_WAL)
+        if (m_ctx.replay_cumulate_buffer.Readable())
+        {
+            m_ctx.replay_cumulate_buffer.Write(log, loglen);
+            replay_buffer = &m_ctx.replay_cumulate_buffer;
+        }
+        else
+        {
+            replay_buffer = &logbuf;
+        }
+
+        while (replay_buffer->Readable() && m_ctx.state == SLAVE_STATE_REPLAYING_WAL)
         {
             RedisCommandFrame msg;
-            size_t rest = logbuf.ReadableBytes();
-            if (!RedisCommandDecoder::Decode(logbuf, msg, err))
+            size_t rest = replay_buffer->ReadableBytes();
+            if (!RedisCommandDecoder::Decode(NULL, *replay_buffer, msg))
             {
                 break;
             }
             g_db->Call(m_ctx.ctx, msg);
-            g_repl->GetReplLog().UpdateDataOffsetCksm(msg.GetRawProtocolData());
+            m_ctx.UpdateSyncOffsetCksm(msg.GetRawProtocolData());
             g_repl->GetIOService().Continue();
+        }
+        if (replay_buffer->Readable())
+        {
+            if (replay_buffer == &logbuf)
+            {
+                m_ctx.replay_cumulate_buffer.Clear();
+                m_ctx.replay_cumulate_buffer.Write(replay_buffer, replay_buffer->ReadableBytes());
+            }
+            else
+            {
+                m_ctx.replay_cumulate_buffer.DiscardReadedBytes();
+            }
         }
     }
 
@@ -145,16 +178,18 @@ OP_NAMESPACE_BEGIN
         }
         m_ctx.cmd_recved_time = time(NULL);
         int len = g_repl->GetReplLog().WriteWAL(cmd.GetRawProtocolData());
-        DEBUG_LOG("Recv master inline:%d cmd %s with len:%d at %lld %lld at state:%d", cmd.IsInLine(), cmd.ToString().c_str(), len, g_repl->DataOffset(),
+        DEBUG_LOG("Recv master inline:%d cmd %s with len:%d at %lld %lld at state:%d", cmd.IsInLine(), cmd.ToString().c_str(), len, m_ctx.sync_repl_offset,
                 g_repl->GetReplLog().WALEndOffset(), m_ctx.state);
-        if (!write_wal_only && g_repl->GetReplLog().DataOffset() + len == g_repl->GetReplLog().WALEndOffset())
+        if (!write_wal_only)
         {
             m_ctx.ctx.flags.no_wal = 1;
             g_db->Call(m_ctx.ctx, cmd);
-            g_repl->GetReplLog().UpdateDataOffsetCksm(cmd.GetRawProtocolData());
-            return;
+            m_ctx.UpdateSyncOffsetCksm(cmd.GetRawProtocolData());
         }
-        ReplayWAL();
+        else
+        {
+            ReplayWAL();
+        }
     }
     void Slave::Routine()
     {
@@ -171,11 +206,11 @@ OP_NAMESPACE_BEGIN
         }
         if (m_ctx.state == SLAVE_STATE_SYNCED || m_ctx.state == SLAVE_STATE_LOADING_SNAPSHOT)
         {
-            if (m_cmd_recved_time > 0 && now - m_cmd_recved_time >= g_db->GetConf().repl_timeout)
+            if (m_ctx.cmd_recved_time > 0 && now - m_ctx.cmd_recved_time >= g_db->GetConf().repl_timeout)
             {
                 if (m_ctx.state == SLAVE_STATE_SYNCED)
                 {
-                    WARN_LOG("now = %u, ping_recved_time=%u", now, m_cmd_recved_time);
+                    //WARN_LOG("now = %u, ping_recved_time=%u", now, m_ctx.cmd_recved_time);
                     Timeout();
                     return;
                 }
@@ -183,11 +218,11 @@ OP_NAMESPACE_BEGIN
             if (m_ctx.server_support_psync && NULL != m_client)
             {
                 Buffer ack;
-                ack.Printf("REPLCONF ACK %llu\r\n", g_repl->GetReplLog().DataOffset());
+                ack.Printf("REPLCONF ACK %llu\r\n", m_ctx.sync_repl_offset);
                 m_client->Write(ack);
             }
         }
-        m_routine_ts = now;
+        //m_routine_ts = now;
     }
 
     void Slave::InfoMaster()
@@ -198,15 +233,14 @@ OP_NAMESPACE_BEGIN
         m_ctx.state = SLAVE_STATE_WAITING_INFO_REPLY;
     }
 
-    static int LoadRDBRoutine(RoutineState state, Snapshot* snapshot, void* cb)
+    static int LoadRDBRoutine(SnapshotState state, Snapshot* snapshot, void* cb)
     {
         g_repl->GetIOService().Continue();
-        Slave* slave = (Slave*) cb;
-        if (slave->GetStatus().state != SLAVE_STATE_LOADING_SNAPSHOT)
+        SlaveContext* slave = (SlaveContext*) cb;
+        if (slave->state != SLAVE_STATE_LOADING_SNAPSHOT)
         {
             return -1;
         }
-//        slave->Routine();
         return 0;
     }
     void Slave::HandleRedisReply(Channel* ch, RedisReply& reply)
@@ -249,7 +283,7 @@ OP_NAMESPACE_BEGIN
                     m_ctx.server_support_psync = true;
                 }
                 Buffer replconf;
-                replconf.Printf("replconf listening-port %u\r\n", g_db->GetConf().PrimayPort());
+                replconf.Printf("replconf listening-port %u\r\n", g_db->GetConf().PrimaryPort());
                 ch->Write(replconf);
                 m_ctx.state = SLAVE_STATE_WAITING_REPLCONF_REPLY;
                 break;
@@ -267,7 +301,8 @@ OP_NAMESPACE_BEGIN
                     Buffer sync;
                     if (!m_ctx.server_is_redis)
                     {
-                        sync.Printf("psync %s %lld cksm %llu\r\n", g_repl->GetReplLog().GetReplKey(), g_repl->GetReplLog().WALEndOffset(), g_repl->GetReplLog().WALCksm());
+                        sync.Printf("psync %s %lld cksm %llu\r\n", g_repl->GetReplLog().GetReplKey(), g_repl->GetReplLog().WALEndOffset(),
+                                g_repl->GetReplLog().WALCksm());
                     }
                     else
                     {
@@ -363,10 +398,10 @@ OP_NAMESPACE_BEGIN
             m_ctx.snapshot.Close();
             char tmp[g_db->GetConf().repl_data_dir.size() + 100];
             uint32 now = time(NULL);
-            sprintf(tmp, "%s/temp-%u-%u.snapshot", g_db->GetConf().repl_data_dir.c_str(), getpid(), now);
+            sprintf(tmp, "%s/sync-snapshot.%u.%u", g_db->GetConf().repl_data_dir.c_str(), getpid(), now);
             m_ctx.snapshot.OpenWriteFile(tmp);
             INFO_LOG("[Slave]Create dump file:%s, master is redis:%d", tmp, m_ctx.server_is_redis);
-            //m_status.snapshot->SetExpectedDataSize(chunk.len);
+            m_ctx.snapshot.SetExpectedDataSize(chunk.len);
         }
         if (!chunk.chunk.empty())
         {
@@ -375,6 +410,12 @@ OP_NAMESPACE_BEGIN
         if (chunk.IsLastChunk())
         {
             m_ctx.snapshot.Flush();
+            if (m_ctx.snapshot.DumpLeftDataSize() > 0)
+            {
+                ERROR_LOG("Invalid synced snapshot with rest unsynced data %llu bytes", m_ctx.snapshot.DumpLeftDataSize());
+                DoClose();
+                return;
+            }
 //            SnapshotType snapshot_type = Snapshot::IsRedisSnapshot(m_ctx.snapshot.GetPath()) ? REDIS_SNAPSHOT : MMKV_SNAPSHOT;
 //            m_ctx.snapshot.RenameDefault();
             m_decoder.SwitchToCommandDecoder();
@@ -383,15 +424,15 @@ OP_NAMESPACE_BEGIN
              * set server key to a random string first, if server restart when loading data, it would do a full resync again with another server key.
              * set wal offset&cksm to make sure that this slave could accept&save synced commands when loading snapshot file.
              */
-            g_repl->SetServerKey(random_hex_string(40));
-            g_repl->ResetWALOffsetCksm(m_ctx.cached_master_repl_offset, m_ctx.cached_master_repl_cksm);
+            g_repl->GetReplLog().SetReplKey(random_hex_string(40));
+            g_repl->GetReplLog().ResetWALOffsetCksm(m_ctx.cached_master_repl_offset, m_ctx.cached_master_repl_cksm);
             if (g_db->GetConf().slave_cleardb_before_fullresync)
             {
-                g_db->GetKVStore().FlushAll();
+                //g_db->GetKVStore().FlushAll();
             }
             INFO_LOG("Start loading snapshot file.");
-            m_cmd_recved_time = time(NULL);
-            int ret = m_ctx.snapshot.Reload(LoadRDBRoutine, this);
+            m_ctx.cmd_recved_time = time(NULL);
+            int ret = m_ctx.snapshot.Reload(LoadRDBRoutine, &m_ctx);
             if (0 != ret)
             {
                 if (NULL != m_client)
@@ -401,13 +442,13 @@ OP_NAMESPACE_BEGIN
                 WARN_LOG("Failed to load snapshot file.");
                 return;
             }
-            g_repl->SetServerKey(m_ctx.cached_master_runid);
-            g_repl->ResetDataOffsetCksm(m_ctx.cached_master_repl_offset, m_ctx.cached_master_repl_cksm);
-            m_ctx.snapshot.UpdateSnapshotOffsetCksm(snapshot_type, m_ctx.cached_master_repl_offset, m_ctx.cached_master_repl_cksm);
+            g_repl->GetReplLog().SetReplKey(m_ctx.cached_master_runid);
+            m_ctx.sync_repl_offset = m_ctx.cached_master_repl_offset;
+            m_ctx.sync_repl_cksm = m_ctx.cached_master_repl_cksm;
             m_ctx.snapshot.Close();
             m_ctx.state = SLAVE_STATE_REPLAYING_WAL;
             //Disconnect all slaves when all data resynced
-            g_repl->GetMaster().DisconnectAllSlaves();
+            //g_repl->GetMaster().DisconnectAllSlaves();
             ReplayWAL();
         }
     }
@@ -435,6 +476,10 @@ OP_NAMESPACE_BEGIN
         m_lastinteraction = m_ctx.master_link_down_time = time(NULL);
         m_client = NULL;
         m_ctx.Clear();
+        /*
+         * Current instance is disconnect from remote master, can not accept slaves now.
+         */
+        g_repl->GetMaster().DisconnectAllSlaves();
     }
 
     void Slave::Timeout()
@@ -454,6 +499,10 @@ OP_NAMESPACE_BEGIN
         {
             return 0;
         }
+        /*
+         * Current instance is syncing data from remote master, can not accept slaves now.
+         */
+        g_repl->GetMaster().DisconnectAllSlaves();
         m_client = g_repl->GetIOService().NewClientSocketChannel();
         m_decoder.Clear();
         m_client->GetPipeline().AddLast("decoder", &m_decoder);
@@ -471,10 +520,22 @@ OP_NAMESPACE_BEGIN
         return NULL != m_client && SLAVE_STATE_SYNCED == m_ctx.state;
     }
 
+    bool Slave::IsLoading()
+    {
+        return NULL != m_client && (SLAVE_STATE_LOADING_SNAPSHOT == m_ctx.state || SLAVE_STATE_REPLAYING_WAL == m_ctx.state);
+    }
+
     void Slave::Stop()
     {
         m_ctx.state = SLAVE_STATE_INVALID;
         Close();
+    }
+    void Slave::DoClose()
+    {
+        if (NULL != m_client)
+        {
+            m_client->Close();
+        }
     }
     void Slave::Close()
     {

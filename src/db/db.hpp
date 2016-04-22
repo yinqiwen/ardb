@@ -45,21 +45,7 @@
 #include <stack>
 #include <sparsehash/dense_hash_map>
 
-/* Command flags. Please check the command table defined in the redis.c file
- * for more information about the meaning of every flag. */
-#define ARDB_CMD_WRITE 1                   /* "w" flag */
-#define ARDB_CMD_READONLY 2                /* "r" flag */
-//#define ARDB_CMD_DENYOOM 4                 /* "m" flag */
-//#define ARDB_CMD_NOT_USED_1 8              /* no longer used flag */
-#define ARDB_CMD_ADMIN 16                  /* "a" flag */
-#define ARDB_CMD_PUBSUB 32                 /* "p" flag */
-#define ARDB_CMD_NOSCRIPT  64              /* "s" flag */
-#define ARDB_CMD_RANDOM 128                /* "R" flag */
-//#define ARDB_CMD_SORT_FOR_SCRIPT 256       /* "S" flag */
-//#define ARDB_CMD_LOADING 512               /* "l" flag */
-//#define ARDB_CMD_STALE 1024                /* "t" flag */
-//#define ARDB_CMD_SKIP_MONITOR 2048         /* "M" flag */
-//#define ARDB_CMD_ASKING 4096               /* "k" flag */
+
 
 using namespace ardb::codec;
 
@@ -83,6 +69,7 @@ OP_NAMESPACE_BEGIN
                     volatile uint64 microseconds;
                     volatile uint64 calls;
                     //CostTrack
+                    bool IsAllowedInScript() const;
             };
             struct RedisCommandHash
             {
@@ -122,6 +109,7 @@ OP_NAMESPACE_BEGIN
 
         private:
             Engine* m_engine;
+            bool m_loading_data;
             ArdbConfig m_conf;
             ThreadLocal<LUAInterpreter> m_lua;
 
@@ -159,6 +147,8 @@ OP_NAMESPACE_BEGIN
             ThreadLocal<ClientId> m_last_scan_clientid;
             SpinMutexLock m_clients_lock;
             ContextSet m_all_clients;
+
+            bool IsLoadingData();
 
             int WriteReply(Context& ctx, RedisReply* r, bool async);
 

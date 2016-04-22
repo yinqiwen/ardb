@@ -63,7 +63,14 @@ bool RedisReplyEncoder::Encode(Buffer& buf, RedisReply& reply)
         }
         case REDIS_REPLY_ERROR:
         {
-            buf.Printf("-ERR %s\r\n", reply.str.c_str());
+            if(!reply.str.empty() && reply.str[0] == '-')
+            {
+                buf.Printf("%s\r\n", reply.str.c_str());
+            }
+            else
+            {
+                buf.Printf("-ERR %s\r\n", reply.str.c_str());
+            }
             break;
         }
         case REDIS_REPLY_INTEGER:

@@ -513,7 +513,7 @@ namespace ardb
         }
 
         /* There are commands that are not allowed inside scripts. */
-        if (setting->flags & ARDB_CMD_NOSCRIPT)
+        if (!setting->IsAllowedInScript())
         {
             luaPushError(lua, "This Redis command is not allowed from scripts");
             return -1;

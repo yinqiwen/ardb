@@ -217,6 +217,26 @@ namespace ardb
         {
             switch (code)
             {
+                case ERR_LOADING:
+                {
+                    str.assign("-LOADING Ardb is loading the snapshot file.");
+                    break;
+                }
+                case ERR_MASTER_DOWN:
+                {
+                    str.assign("-MASTERDOWN Link with MASTER is down and slave-serve-stale-data is set to 'no'.");
+                    break;
+                }
+                case ERR_READONLY_SLAVE:
+                {
+                    str.assign("-READONLY You can't write against a read only slave.");
+                    break;
+                }
+                case ERR_NOREPLICAS:
+                {
+                    str.assign("-NOREPLICAS Not enough good slaves to write.");
+                    break;
+                }
                 case ERR_EXEC_ABORT:
                 {
                     str.assign("EXECABORT Transaction discarded because of previous errors.");

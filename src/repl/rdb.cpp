@@ -174,7 +174,7 @@ namespace ardb
     Snapshot::Snapshot() :
             m_read_fp(NULL), m_write_fp(NULL), m_cksm(0), m_routine_cb(
             NULL), m_routine_cbdata(
-            NULL), m_processed_bytes(0), m_file_size(0), m_is_saving(false), m_routinetime(0), m_read_buf(
+            NULL), m_processed_bytes(0), m_file_size(0), m_state(SNAPSHOT_INVALID), m_routinetime(0), m_read_buf(
             NULL), m_expected_data_size(0), m_writed_data_size(0), m_cached_repl_offset(0), m_cached_repl_cksm(0), m_save_time(0), m_type(ARDB_DUMP)
     {
 
@@ -729,7 +729,7 @@ namespace ardb
 
     int Snapshot::OpenReadFile(const std::string& file)
     {
-        if(m_file_path != file)
+        if (m_file_path != file)
         {
             this->m_file_path = file;
         }
@@ -761,7 +761,7 @@ namespace ardb
         m_routine_cbdata = data;
         if (NULL != m_routine_cb)
         {
-            m_routine_cb(ROUTINE_START, this, m_routine_cbdata);
+            m_routine_cb(LOAD_START, this, m_routine_cbdata);
         }
         uint64_t start_time = get_current_epoch_millis();
         bool is_redis_snapshot = IsRedisDumpFile(file);
@@ -785,9 +785,10 @@ namespace ardb
             uint64_t cost = get_current_epoch_millis() - start_time;
             INFO_LOG("Cost %.2fs to load snapshot file with type:%d.", cost / 1000.0, is_redis_snapshot ? REDIS_DUMP : ARDB_DUMP);
         }
+        m_state = ret == 0 ? LOAD_SUCCESS : LOAD_FAIL;
         if (NULL != m_routine_cb)
         {
-            m_routine_cb(ret == 0 ? ROUTINE_SUCCESS : ROUTINE_FAIL, this, m_routine_cbdata);
+            m_routine_cb(m_state, this, m_routine_cbdata);
         }
         return ret;
     }
@@ -799,7 +800,7 @@ namespace ardb
          */
         if (NULL != m_routine_cb && get_current_epoch_millis() - m_routinetime >= 100)
         {
-            int cbret = m_routine_cb(ROUTINING, this, m_routine_cbdata);
+            int cbret = m_routine_cb(DUMPING, this, m_routine_cbdata);
             if (0 != cbret)
             {
                 return cbret;
@@ -841,7 +842,7 @@ namespace ardb
          */
         if (NULL != m_routine_cb && get_current_epoch_millis() - m_routinetime >= 100)
         {
-            int cbret = m_routine_cb(ROUTINING, this, m_routine_cbdata);
+            int cbret = m_routine_cb(LODING, this, m_routine_cbdata);
             if (0 != cbret)
             {
                 return cbret;
@@ -873,7 +874,7 @@ namespace ardb
             return ret;
         }
         m_save_time = time(NULL);
-        m_is_saving = true;
+        m_state = DUMPING;
         this->m_routine_cb = cb;
         this->m_routine_cbdata = data;
         m_type = type;
@@ -887,7 +888,7 @@ namespace ardb
         int ret = 0;
         if (NULL != m_routine_cb)
         {
-            m_routine_cb(ROUTINE_START, this, m_routine_cbdata);
+            m_routine_cb(DUMP_START, this, m_routine_cbdata);
         }
         if (m_type == REDIS_DUMP)
         {
@@ -898,17 +899,27 @@ namespace ardb
             ret = ArdbSave();
         }
         Close();
-        m_is_saving = false;
+        m_state = ret == 0 ? DUMP_SUCCESS : DUMP_FAIL;
         if (NULL != m_routine_cb)
         {
-            m_routine_cb(ret == 0 ? ROUTINE_SUCCESS : ROUTINE_FAIL, this, m_routine_cbdata);
+            m_routine_cb(m_state, this, m_routine_cbdata);
         }
         return ret;
     }
 
+    bool Snapshot::IsSaving() const
+    {
+        return m_state == DUMPING;
+    }
+
+    bool Snapshot::IsReady() const
+    {
+        return m_state == DUMP_SUCCESS;
+    }
+
     int Snapshot::Save(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data)
     {
-        if (m_is_saving)
+        if (IsSaving())
         {
             return -1;
         }
@@ -921,7 +932,7 @@ namespace ardb
     }
     int Snapshot::BGSave(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data)
     {
-        if (m_is_saving)
+        if (IsSaving())
         {
             ERROR_LOG("There is already a background task saving data.");
             return -1;
@@ -1869,17 +1880,20 @@ namespace ardb
         while (it != m_snapshots.end())
         {
             Snapshot* s = *it;
-            int64 lag_distance = g_repl->GetReplLog().DataOffset() - s->CachedReplOffset();
-            if (s->GetType() == type && lag_distance < g_db->GetConf().snapshot_max_lag)
+            int64 offset_lag = g_repl->GetReplLog().WALEndOffset() - s->CachedReplOffset();
+            if (s->GetType() == type && offset_lag < g_db->GetConf().snapshot_max_lag_offset)
             {
-                return s;
+                if (s->IsSaving() || s->IsReady())
+                {
+                    return s;
+                }
             }
             it++;
         }
         Snapshot* snapshot = NULL;
         NEW(snapshot, Snapshot);
         char path[1024];
-        snprintf(path, sizeof(path) - 1, "%s/snapshot-%u", g_db->GetConf().backup_dir.c_str(), now);
+        snprintf(path, sizeof(path) - 1, "%s/master-snapshot.%u", g_db->GetConf().backup_dir.c_str(), now);
         if (0 == snapshot->BGSave(type, path, cb, data))
         {
             m_snapshots.push_back(snapshot);

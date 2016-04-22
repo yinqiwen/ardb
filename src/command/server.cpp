@@ -109,12 +109,13 @@ namespace ardb
 
     int Ardb::Import(Context& ctx, RedisCommandFrame& cmd)
     {
-        std::string file = GetConf().backup_dir + "/dump.ardb";
+        std::string file = GetConf().backup_dir + "/dump.snapshot";
         if (cmd.GetArguments().size() == 1)
         {
             file = cmd.GetArguments()[0];
         }
         int ret = 0;
+        m_loading_data = true;
 //        ChannelService& serv = ctx.client->GetService();
 //        uint32 conn_id = ctx.client->GetID();
 //        if (RedisDumpFile::IsRedisDumpFile(file) == 1)
@@ -139,7 +140,8 @@ namespace ardb
 //            }
 //            return 0;
 //        }
-        return -1;
+        m_loading_data = false;
+        return 0;
     }
 
     void Ardb::FillInfoResponse(const std::string& section, std::string& info)

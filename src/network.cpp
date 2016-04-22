@@ -224,39 +224,34 @@ OP_NAMESPACE_BEGIN
         ServerHandlerDataArray handler_datas(g_db->GetConf().servers.size());
         for (uint32 i = 0; i < g_db->GetConf().servers.size(); i++)
         {
-            const std::string& address = g_db->GetConf().servers[i].address;
             ServerSocketChannel* server = NULL;
-            if (address.find(":") == std::string::npos)
+            const std::string& host = g_db->GetConf().servers[i].host;
+            std::string address = host;
+            if (g_db->GetConf().servers[i].port == 0)
             {
-                SocketUnixAddress unix_address(address);
+                SocketUnixAddress unix_address(host);
                 server = m_service->NewServerSocketChannel();
                 if (!server->Bind(&unix_address))
                 {
-                    ERROR_LOG("Failed to bind on %s", address.c_str());
+                    ERROR_LOG("Failed to bind on %s", host.c_str());
                     goto sexit;
                 }
-                chmod(address.c_str(), g_db->GetConf().servers[i].unixsocketperm);
+                chmod(host.c_str(), g_db->GetConf().servers[i].unixsocketperm);
             }
             else
             {
-                std::vector<std::string> ss = split_string(address, ":");
-                uint32 port;
-                if (ss.size() != 2 || !string_touint32(ss[1], port))
-                {
-                    ERROR_LOG("Invalid server socket address %s", address.c_str());
-                    goto sexit;
-                }
-                SocketHostAddress socket_address(ss[0], port);
+                SocketHostAddress socket_address(host, g_db->GetConf().servers[i].port);
                 server = m_service->NewServerSocketChannel();
                 if (!server->Bind(&socket_address))
                 {
-                    ERROR_LOG("Failed to bind on %s", address.c_str());
+                    ERROR_LOG("Failed to bind on %s:%u", host.c_str(), g_db->GetConf().servers[i].port);
                     goto sexit;
                 }
+                address.append(":").append(stringfromll(g_db->GetConf().servers[i].port));
             }
             server->Configure(ops);
             handler_datas[i].listen = g_db->GetConf().servers[i];
-            handler_datas[i].qps.Name = g_db->GetConf().servers[i].address;
+            handler_datas[i].qps.Name = address;
             Statistics::GetSingleton().AddTrack(&handler_datas[i].qps);
             server->SetChannelPipelineInitializor(pipelineInit, &handler_datas[i]);
             server->SetChannelPipelineFinalizer(pipelineDestroy, NULL);

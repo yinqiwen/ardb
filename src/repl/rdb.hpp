@@ -43,12 +43,12 @@ namespace ardb
         REDIS_DUMP = 0, ARDB_DUMP
     };
 
-    enum RoutineState
+    enum SnapshotState
     {
-        ROUTINE_START = 0, ROUTINING, ROUTINE_SUCCESS, ROUTINE_FAIL
+        SNAPSHOT_INVALID = 0, DUMP_START = 1, DUMPING, DUMP_SUCCESS, DUMP_FAIL, LOAD_START = 10, LODING, LOAD_SUCCESS, LOAD_FAIL
     };
     class Snapshot;
-    typedef int SnapshotRoutine(RoutineState state, Snapshot* snapshot, void* cb);
+    typedef int SnapshotRoutine(SnapshotState state, Snapshot* snapshot, void* cb);
 
     class Snapshot
     {
@@ -61,7 +61,7 @@ namespace ardb
             void *m_routine_cbdata;
             uint64 m_processed_bytes;
             uint64 m_file_size;
-            bool m_is_saving;
+            SnapshotState m_state;
             uint64 m_routinetime;
             char* m_read_buf;
 
@@ -137,6 +137,8 @@ namespace ardb
             {
                 return m_save_time;
             }
+            bool IsSaving() const;
+            bool IsReady() const;
             void SetExpectedDataSize(int64 size);
             int64 DumpLeftDataSize();
             int64 ProcessLeftDataSize();

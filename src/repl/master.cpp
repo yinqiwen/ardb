@@ -57,7 +57,7 @@ OP_NAMESPACE_BEGIN
     };
 
     Master::Master() :
-            m_repl_noslaves_since(0)
+            m_repl_noslaves_since(0),m_repl_nolag_since(0),m_repl_good_slaves_count(0)
     {
     }
 
@@ -94,21 +94,6 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-//    void Master::ClearNilSlave()
-//    {
-//        SlaveContextSet::iterator it = m_slaves.begin();
-//        while (it != m_slaves.end())
-//        {
-//            SlaveContext* ctx = *it;
-//            if (it->second == NULL)
-//            {
-//                it = m_slaves.erase(it);
-//                continue;
-//            }
-//            it++;
-//        }
-//    }
-
     static void slave_pipeline_init(ChannelPipeline* pipeline, void* data)
     {
         pipeline->AddLast("decoder", new RedisCommandDecoder);
@@ -135,19 +120,19 @@ OP_NAMESPACE_BEGIN
         g_repl->GetMaster().CloseSlaveBySnapshot(snapshot);
     }
 
-    static int snapshot_dump_routine(RoutineState state, Snapshot* snapshot, void* cb)
+    static int snapshot_dump_routine(SnapshotState state, Snapshot* snapshot, void* cb)
     {
         Master* m = (Master*) cb;
         SlaveSyncContextSet::iterator fit = m->m_slaves.begin();
-        if (state == ROUTINE_SUCCESS)
+        if (state == DUMP_SUCCESS)
         {
             g_repl->GetIOService().AsyncIO(0, snapshot_dump_success, snapshot);
         }
-        else if (state == ROUTINE_FAIL)
+        else if (state == DUMP_FAIL)
         {
             g_repl->GetIOService().AsyncIO(0, snapshot_dump_fail, snapshot);
         }
-        else if (state == ROUTINING)
+        else if (state == DUMPING)
         {
             g_repl->GetIOService().Continue();
         }
@@ -156,6 +141,7 @@ OP_NAMESPACE_BEGIN
 
     int Master::PingSlaves()
     {
+        m_repl_good_slaves_count = 0;
         //Just process instructions  since the soft signal may loss
         if (!g_db->GetConf().master_host.empty())
         {
@@ -172,7 +158,8 @@ OP_NAMESPACE_BEGIN
         }
         m_repl_noslaves_since = 0;
         SlaveSyncContextSet::iterator fit = m_slaves.begin();
-        bool synced_slaves_count = 0;
+        bool wal_ping_saved = false;
+        time_t now = time(NULL);
         while (fit != m_slaves.end())
         {
             SlaveSyncContext* slave = *fit;
@@ -181,24 +168,29 @@ OP_NAMESPACE_BEGIN
                 Buffer newline;
                 newline.Write("\n", 1);
                 slave->conn->Write(newline);
-                //waiting_dump_slave_count++;
             }
             if (slave->state == SYNC_STATE_SYNCED)
             {
-                synced_slaves_count++;
+                //only master instance can generate ping command to slaves
+                if (!wal_ping_saved && g_db->GetConf().master_host.empty())
+                {
+                    wal_ping_saved = true;
+                    Buffer ping;
+                    ping.Printf("ping\r\n");
+                    g_repl->GetReplLog().WriteWAL(ping);
+                }
+                if (slave->sync_offset != g_repl->GetReplLog().WALStartOffset())
+                {
+                    SyncWAL(slave);
+                }
+
+                time_t lag = now - slave->acktime;
+                if(lag <= g_db->GetConf().repl_min_slaves_max_lag)
+                {
+                    m_repl_good_slaves_count++;
+                }
             }
             fit++;
-        }
-
-        //only master instance can generate ping command to slaves
-        if (synced_slaves_count > 0 && g_db->GetConf().master_host.empty())
-        {
-            m_repl_noslaves_since = 0;
-            Buffer ping;
-            ping.Printf("ping\r\n");
-            g_repl->GetReplLog().WriteWAL(ping);
-            SyncWAL();
-            DEBUG_LOG("Ping slaves.");
         }
         return 0;
     }
@@ -218,15 +210,29 @@ OP_NAMESPACE_BEGIN
     }
     void Master::CloseSlaveBySnapshot(Snapshot* snapshot)
     {
+        std::vector<SlaveSyncContext*> to_close;
         SlaveSyncContextSet::iterator it = m_slaves.begin();
         while (it != m_slaves.end())
         {
             SlaveSyncContext* slave = *it;
             if (slave != NULL && slave->snapshot == snapshot)
             {
-                //SendSnapshotToSlave(slave);
+                to_close.push_back(slave);
             }
             it++;
+        }
+
+        for (size_t i = 0; i < to_close.size(); i++)
+        {
+            CloseSlave(to_close[i]);
+        }
+    }
+
+    void Master::CloseSlave(SlaveSyncContext* slave)
+    {
+        if (NULL != slave && NULL != slave->conn)
+        {
+            slave->conn->Close();
         }
     }
 
@@ -235,8 +241,10 @@ OP_NAMESPACE_BEGIN
         SlaveSyncContext* slave = (SlaveSyncContext*) data;
         close(slave->repldbfd);
         slave->repldbfd = -1;
-        slave->state = SYNC_STATE_SYNCED;
         slave->snapshot = NULL;
+        slave->state = SYNC_STATE_SYNCED;
+        INFO_LOG("Send snapshot to slave:%s success.", slave->GetAddress().c_str());
+        g_repl->GetMaster().SyncSlave(slave);
     }
 
     static void OnSnapshotFileSendFailure(void* data)
@@ -244,6 +252,9 @@ OP_NAMESPACE_BEGIN
         SlaveSyncContext* slave = (SlaveSyncContext*) data;
         close(slave->repldbfd);
         slave->repldbfd = -1;
+        slave->snapshot = NULL;
+        WARN_LOG("Send snapshot to slave:%s failed.", slave->GetAddress().c_str());
+        //g_repl->GetMaster().CloseSlave(slave);
     }
 
     void Master::SendSnapshotToSlave(SlaveSyncContext* slave)
@@ -293,7 +304,6 @@ OP_NAMESPACE_BEGIN
         Buffer msg((char*) log, 0, loglen);
         slave->conn->Write(msg);
         slave->sync_offset += loglen;
-        //INFO_LOG("####%d %d %d", loglen, slave->sync_offset, g_repl->WALEndOffset());
         if (slave->sync_offset == g_repl->GetReplLog().WALEndOffset())
         {
             slave->conn->GetWritableOptions().auto_disable_writing = true;
@@ -324,7 +334,7 @@ OP_NAMESPACE_BEGIN
     void Master::SyncWAL()
     {
         SlaveSyncContextSet::iterator it = m_slaves.begin();
-        bool no_lag_slave = true;
+        //bool no_lag_slave = true;
         while (it != m_slaves.end())
         {
             SlaveSyncContext* slave = *it;
@@ -335,21 +345,16 @@ OP_NAMESPACE_BEGIN
                     if (slave->sync_offset != g_repl->GetReplLog().WALStartOffset())
                     {
                         SyncWAL(slave);
-                        no_lag_slave = false;
+                        //no_lag_slave = false;
                     }
                 }
                 else
                 {
-                    no_lag_slave = false;
+                    //no_lag_slave = false;
                 }
-
             }
             it++;
         }
-//        if (no_lag_slave)
-//        {
-//            swal_clear_replay_cache(g_repl->GetReplLog().GetWAL());
-//        }
     }
 
     void Master::SyncSlave(SlaveSyncContext* slave)
@@ -393,11 +398,23 @@ OP_NAMESPACE_BEGIN
             }
             else
             {
-                WARN_LOG("Create snapshot for full resync for slave runid:%s offset:%llu cksm:%llu, while current WAL runid:%s offset:%llu cksm:%llu",
+                WARN_LOG("Create snapshot for full resync for slave replid:%s offset:%llu cksm:%llu, while current WAL runid:%s offset:%llu cksm:%llu",
                         slave->repl_key.c_str(), slave->sync_offset, slave->sync_cksm, g_repl->GetReplLog().GetReplKey(), g_repl->GetReplLog().WALEndOffset(),
                         g_repl->GetReplLog().WALCksm());
                 slave->state = SYNC_STATE_WAITING_SNAPSHOT;
                 slave->snapshot = g_snapshot_manager->GetSyncSnapshot(slave->isRedisSlave ? REDIS_DUMP : ARDB_DUMP, snapshot_dump_routine, this);
+                if (NULL != slave->snapshot)
+                {
+                    if (slave->snapshot->IsReady())
+                    {
+                        FullResyncSlaves(slave->snapshot);
+                    }
+                }
+                else
+                {
+                    ERROR_LOG("Failed to get sync snapshot for slave:%s", slave->GetAddress().c_str());
+                    CloseSlave(slave);
+                }
             }
         }
     }
@@ -541,15 +558,20 @@ OP_NAMESPACE_BEGIN
 
     void Master::DisconnectAllSlaves()
     {
+        std::vector<SlaveSyncContext*> to_close;
         SlaveSyncContextSet::iterator it = m_slaves.begin();
         while (it != m_slaves.end())
         {
             SlaveSyncContext* slave = *it;
             if (NULL != slave)
             {
-                slave->conn->Close();
+                to_close.push_back(slave);
             }
             it++;
+        }
+        for (size_t i = 0; i < to_close.size(); i++)
+        {
+            CloseSlave(to_close[i]);
         }
     }
 

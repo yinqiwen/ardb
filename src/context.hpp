@@ -46,8 +46,12 @@ OP_NAMESPACE_BEGIN
             unsigned fuzzy_check :1;
             unsigned redis_compatible :1;
             unsigned iterate_multi_keys :1;
+            unsigned slave :1;
+            unsigned lua :1;
+            unsigned pubsub :1;
             CallFlags() :
-                    no_wal(0), no_fill_reply(0), create_if_notexist(0), fuzzy_check(0), redis_compatible(0), iterate_multi_keys(0)
+                    no_wal(0), no_fill_reply(0), create_if_notexist(0), fuzzy_check(0), redis_compatible(0),
+                    iterate_multi_keys(0), slave(0), lua(0), pubsub(0)
             {
             }
     };
@@ -165,7 +169,7 @@ OP_NAMESPACE_BEGIN
             int64 sequence;  //recv command sequence in the server, start from 1
             Context() :
                     reply(NULL), authenticated(true), keyslocked(false), current_cmd(NULL), last_cmdtype(REDIS_CMD_INVALID), client(NULL), transc(NULL), pubsub(
-                            NULL), bpop(NULL), dirty(0), transc_err(0), sequence(0)
+                    NULL), bpop(NULL), dirty(0), transc_err(0), sequence(0)
             {
                 ns.SetString("0", false);
             }
@@ -201,6 +205,7 @@ OP_NAMESPACE_BEGIN
                 SetReply(NULL);
                 current_cmd = NULL;
                 ClearFlags();
+                dirty = 0;
             }
             void ClearTransaction()
             {

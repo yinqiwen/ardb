@@ -38,12 +38,13 @@
 OP_NAMESPACE_BEGIN
     struct ListenPoint
     {
-            std::string address;
+            std::string host;
+            uint32 port;
             int64 thread_pool_size;
             int64 qps_limit;
             int64 unixsocketperm;
             ListenPoint() :
-                    thread_pool_size(1), qps_limit(0), unixsocketperm(755)
+                    port(0), thread_pool_size(1), qps_limit(0), unixsocketperm(755)
             {
             }
             int64 GetThreadPoolSize() const;
@@ -77,6 +78,9 @@ OP_NAMESPACE_BEGIN
             int64 repl_backlog_cache_size;
             int64 repl_backlog_sync_period;
             int64 repl_backlog_time_limit;
+            int64 repl_min_slaves_to_write;
+            int64 repl_min_slaves_max_lag;
+            bool repl_serve_stale_data;
             bool slave_cleardb_before_fullresync;
             bool slave_readonly;
             bool slave_serve_stale_data;
@@ -104,8 +108,6 @@ OP_NAMESPACE_BEGIN
 
             int64 reply_pool_size;
 
-            uint32 primary_port;
-
             int64 slave_client_output_buffer_limit;
             int64 pubsub_client_output_buffer_limit;
 
@@ -116,7 +118,7 @@ OP_NAMESPACE_BEGIN
             bool scan_redis_compatible;
             int64 scan_cursor_expire_after;
 
-            int64 snapshot_max_lag;
+            int64 snapshot_max_lag_offset;
 
             std::string conf_path;
             Properties conf_props;
@@ -131,15 +133,16 @@ OP_NAMESPACE_BEGIN
             ArdbConfig() :
                     daemonize(false), hz(10), max_open_files(100000), tcp_keepalive(0), timeout(0), engine("rocksdb"), slowlog_log_slower_than(10000), slowlog_max_len(
                             128), repl_data_dir("./repl"), backup_dir("./backup"), backup_redis_format(false), repl_ping_slave_period(10), repl_timeout(60), repl_backlog_size(
-                            100 * 1024 * 1024), repl_backlog_cache_size(100 * 1024 * 1024), repl_backlog_sync_period(1), repl_backlog_time_limit(3600), slave_cleardb_before_fullresync(
-                            true), slave_readonly(true), slave_serve_stale_data(true), slave_priority(100), lua_time_limit(0), master_port(0), loglevel("INFO"), hll_sparse_max_bytes(
-                            3000), reply_pool_size(5000), primary_port(0), slave_client_output_buffer_limit(256 * 1024 * 1024), pubsub_client_output_buffer_limit(
-                            32 * 1024 * 1024), slave_ignore_expire(false), slave_ignore_del(false), repl_disable_tcp_nodelay(false), scan_redis_compatible(
-                            true), scan_cursor_expire_after(60), snapshot_max_lag(500 * 1024 * 1024), lua_exec_atomic(true), redis_compatible(true)
+                            100 * 1024 * 1024), repl_backlog_cache_size(100 * 1024 * 1024), repl_backlog_sync_period(1), repl_backlog_time_limit(3600), repl_min_slaves_to_write(
+                            0), repl_min_slaves_max_lag(10), repl_serve_stale_data(false), slave_cleardb_before_fullresync(true), slave_readonly(true), slave_serve_stale_data(
+                            true), slave_priority(100), lua_time_limit(0), master_port(0), loglevel("INFO"), hll_sparse_max_bytes(3000), reply_pool_size(5000), slave_client_output_buffer_limit(
+                            256 * 1024 * 1024), pubsub_client_output_buffer_limit(32 * 1024 * 1024), slave_ignore_expire(false), slave_ignore_del(false), repl_disable_tcp_nodelay(
+                            false), scan_redis_compatible(true), scan_cursor_expire_after(60), snapshot_max_lag_offset(500 * 1024 * 1024), lua_exec_atomic(true), redis_compatible(
+                            true)
             {
             }
             bool Parse(const Properties& props);
-            uint32 PrimayPort();
+            uint32 PrimaryPort() const;
     };
 
 OP_NAMESPACE_END

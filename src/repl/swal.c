@@ -277,6 +277,10 @@ int swal_sync_meta(swal_t* wal)
 
 int swal_replay(swal_t* wal, size_t offset, int64_t limit_len, swal_replay_logfunc func, void* data)
 {
+    if(offset < wal->meta->log_start_offset)
+    {
+        return -1;
+    }
     size_t total = wal->meta->log_end_offset - offset;
     wal->last_replay_time = time(NULL);
     if (limit_len > 0 && limit_len < total)
@@ -313,27 +317,23 @@ int swal_replay(swal_t* wal, size_t offset, int64_t limit_len, swal_replay_logfu
     {
         wal->mmap_buf = (char*) mmap(NULL, wal->options.max_file_size, PROT_READ, MAP_SHARED, wal->fd, 0);
     }
-    if (offset >= wal->meta->log_start_offset)
+    size_t data_len = wal->meta->log_end_offset - offset;
+    if (wal->meta->log_file_pos >= data_len)
     {
-        size_t data_len = wal->meta->log_end_offset - offset;
-        if (wal->meta->log_file_pos >= data_len)
+        func(wal->mmap_buf + wal->meta->log_file_pos - data_len, total, data);
+    }
+    else
+    {
+        size_t start_pos = wal->options.max_file_size - total + wal->meta->log_file_pos;
+        if (total <= wal->options.max_file_size - start_pos)
         {
-            func(wal->mmap_buf + wal->meta->log_file_pos - data_len, total, data);
+            func(wal->mmap_buf + start_pos, total, data);
         }
         else
         {
-            size_t start_pos = wal->options.max_file_size - total + wal->meta->log_file_pos;
-            if (total <= wal->options.max_file_size - start_pos)
-            {
-                func(wal->mmap_buf + start_pos, total, data);
-            }
-            else
-            {
-                func(wal->mmap_buf + start_pos, wal->options.max_file_size - start_pos, data);
-                func(wal->mmap_buf, start_pos + total - wal->options.max_file_size, data);
-            }
+            func(wal->mmap_buf + start_pos, wal->options.max_file_size - start_pos, data);
+            func(wal->mmap_buf, start_pos + total - wal->options.max_file_size, data);
         }
-        return 0;
     }
     return 0;
 }
@@ -348,6 +348,7 @@ int swal_clear_replay_cache(swal_t* wal)
 }
 int swal_reset(swal_t* wal, size_t offset, uint64_t cksm)
 {
+    swal_clear_replay_cache(wal);
     wal->meta->log_start_offset = offset;
     wal->meta->log_end_offset = offset;
     wal->meta->log_file_pos = 0;

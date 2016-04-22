@@ -70,6 +70,10 @@ namespace ardb
             ERR_SCORE_NAN = -1011,
             ERR_EXEC_ABORT = -1012,
             ERR_UNSUPPORT_DIST_UNIT = -1013,
+            ERR_NOREPLICAS = -1014,
+            ERR_READONLY_SLAVE = -1015,
+            ERR_MASTER_DOWN = -1016,
+            ERR_LOADING = -1017,
             ERR_INVALID_ARGS = -3,
             ERR_INVALID_OPERATION = -4,
 

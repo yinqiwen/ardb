@@ -673,6 +673,14 @@ bool Channel::DoClose(bool inDestructor)
     }
     CancelFlushTimerTask();
 
+    if (NULL != m_file_sending)
+    {
+        if (NULL != m_file_sending->on_failure)
+        {
+            m_file_sending->on_failure(m_file_sending->data);
+        }
+    }
+
     bool ret = false;
     if (hasfd && DoClose() && !inDestructor)
     {
@@ -686,13 +694,7 @@ bool Channel::DoClose(bool inDestructor)
             }
         }
     }
-    if (NULL != m_file_sending)
-    {
-        if (NULL != m_file_sending->on_failure)
-        {
-            m_file_sending->on_failure(m_file_sending->data);
-        }
-    }
+
     DELETE(m_file_sending);
     if (!m_has_removed && !inDestructor)
     {

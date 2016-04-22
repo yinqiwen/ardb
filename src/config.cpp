@@ -108,9 +108,26 @@ OP_NAMESPACE_BEGIN
             char config_key[256];
             sprintf(config_key, "server[%d].listen", i);
             ListenPoint lp;
-            if (!conf_get_string(props, config_key, lp.address))
+            std::string address;
+            if (!conf_get_string(props, config_key, address))
             {
                 break;
+            }
+            if (address.find(":") == std::string::npos)
+            {
+                lp.host = address;
+            }
+            else
+            {
+                std::vector<std::string> ss = split_string(address, ":");
+                uint32 port;
+                if (ss.size() != 2 || !string_touint32(ss[1], port) || port > 65535)
+                {
+                    ERROR_LOG("Invalid listen address %s", address.c_str());
+                    return false;
+                }
+                lp.host = ss[0];
+                lp.port = port;
             }
             sprintf(config_key, "server[%d].thread-pool-size", i);
             conf_get_int64(props, config_key, lp.thread_pool_size);
@@ -124,7 +141,8 @@ OP_NAMESPACE_BEGIN
         if (servers.empty())
         {
             ListenPoint lp;
-            lp.address = "0.0.0.0:16379";
+            lp.host = "0.0.0.0";
+            lp.port = 16379;
             servers.push_back(lp);
         }
         conf_get_string(props, "engine", engine);
@@ -160,11 +178,18 @@ OP_NAMESPACE_BEGIN
         conf_get_int64(props, "repl-timeout", repl_timeout);
         conf_get_int64(props, "repl-backlog-sync-period", repl_backlog_sync_period);
         conf_get_int64(props, "repl-backlog-ttl", repl_backlog_time_limit);
+        conf_get_int64(props, "min-slaves-to-write", repl_min_slaves_to_write);
+        conf_get_int64(props, "min-slaves-max-lag", repl_min_slaves_max_lag);
+        conf_get_bool(props, "slave-serve-stale-data", repl_serve_stale_data);
+
         conf_get_bool(props, "repl-disable-tcp-nodelay", repl_disable_tcp_nodelay);
         conf_get_int64(props, "lua-time-limit", lua_time_limit);
 
-        conf_get_int64(props, "snapshot-max-lag", snapshot_max_lag);
-
+        conf_get_int64(props, "snapshot-max-lag-offset", snapshot_max_lag_offset);
+        if (snapshot_max_lag_offset > repl_backlog_size / 2)
+        {
+            snapshot_max_lag_offset = repl_backlog_size / 2;
+        }
 
         conf_get_int64(props, "hll-sparse-max-bytes", hll_sparse_max_bytes);
 
@@ -258,9 +283,16 @@ OP_NAMESPACE_BEGIN
         return true;
     }
 
-    uint32 ArdbConfig::PrimayPort()
+    uint32 ArdbConfig::PrimaryPort() const
     {
-        return primary_port;
+        for (size_t i = 0; i < servers.size(); i++)
+        {
+            if (servers[i].port != 0)
+            {
+                return servers[i].port;
+            }
+        }
+        return 0;
     }
 OP_NAMESPACE_END
 

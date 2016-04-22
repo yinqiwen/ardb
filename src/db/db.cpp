@@ -36,8 +36,30 @@
 #include "db.hpp"
 #include "rocksdb_engine.hpp"
 
+/* Command flags. Please check the command table defined in the redis.c file
+ * for more information about the meaning of every flag. */
+#define ARDB_CMD_WRITE 1                   /* "w" flag */
+#define ARDB_CMD_READONLY 2                /* "r" flag */
+#define ARDB_CMD_DENYOOM 4                 /* "m" flag */
+#define ARDB_CMD_NOT_USED_1 8              /* no longer used flag */
+#define ARDB_CMD_ADMIN 16                  /* "a" flag */
+#define ARDB_CMD_PUBSUB 32                 /* "p" flag */
+#define ARDB_CMD_NOSCRIPT  64              /* "s" flag */
+#define ARDB_CMD_RANDOM 128                /* "R" flag */
+#define ARDB_CMD_SORT_FOR_SCRIPT 256       /* "S" flag */
+#define ARDB_CMD_LOADING 512               /* "l" flag */
+#define ARDB_CMD_STALE 1024                /* "t" flag */
+#define ARDB_CMD_SKIP_MONITOR 2048         /* "M" flag */
+#define ARDB_CMD_ASKING 4096               /* "k" flag */
+#define ARDB_CMD_FAST 8192                 /* "F" flag */
+
 OP_NAMESPACE_BEGIN
     Ardb* g_db = NULL;
+
+    bool Ardb::RedisCommandHandlerSetting::IsAllowedInScript() const
+    {
+        return flags & ARDB_CMD_NOSCRIPT == 0;
+    }
 
     size_t Ardb::RedisCommandHash::operator ()(const std::string& t) const
     {
@@ -93,7 +115,7 @@ OP_NAMESPACE_BEGIN
     }
 
     Ardb::Ardb() :
-            m_engine(NULL), m_redis_cursor_seed(0)
+            m_engine(NULL), m_loading_data(false), m_redis_cursor_seed(0)
     {
         g_db = this;
         m_settings.set_empty_key("");
@@ -315,6 +337,24 @@ OP_NAMESPACE_BEGIN
                     case 'R':
                         settingTable[i].flags |= ARDB_CMD_RANDOM;
                         break;
+                    case 'S':
+                        settingTable[i].flags |= ARDB_CMD_SORT_FOR_SCRIPT;
+                        break;
+                    case 'l':
+                        settingTable[i].flags |= ARDB_CMD_LOADING;
+                        break;
+                    case 't':
+                        settingTable[i].flags |= ARDB_CMD_STALE;
+                        break;
+                    case 'M':
+                        settingTable[i].flags |= ARDB_CMD_SKIP_MONITOR;
+                        break;
+                    case 'k':
+                        settingTable[i].flags |= ARDB_CMD_ASKING;
+                        break;
+                    case 'F':
+                        settingTable[i].flags |= ARDB_CMD_FAST;
+                        break;
                     default:
                         break;
                 }
@@ -430,6 +470,7 @@ OP_NAMESPACE_BEGIN
         if (0 == ret)
         {
             TouchWatchKey(ctx, key);
+            ctx.dirty++;
         }
         return ret;
     }
@@ -439,6 +480,7 @@ OP_NAMESPACE_BEGIN
         if (0 == ret)
         {
             TouchWatchKey(ctx, key);
+            ctx.dirty++;
         }
         return ret;
     }
@@ -448,6 +490,7 @@ OP_NAMESPACE_BEGIN
         if (0 == ret)
         {
             TouchWatchKey(ctx, key);
+            ctx.dirty++;
         }
         return ret;
     }
@@ -810,6 +853,11 @@ OP_NAMESPACE_BEGIN
         }
     }
 
+    bool Ardb::IsLoadingData()
+    {
+        return g_repl->GetSlave().IsLoading() || m_loading_data;
+    }
+
     int Ardb::DoCall(Context& ctx, RedisCommandHandlerSetting& setting, RedisCommandFrame& args)
     {
         uint64 start_time = get_current_epoch_micros();
@@ -832,6 +880,99 @@ OP_NAMESPACE_BEGIN
         atomic_add_uint64(&(setting.microseconds), stop_time - start_time);
         TryPushSlowCommand(args, stop_time - start_time);
         DEBUG_LOG("Process recved cmd[%lld] cost %lluus", ctx.sequence, stop_time - start_time);
+
+//        /* When EVAL is called loading the AOF we don't want commands called
+//         * from Lua to go into the slowlog or to populate statistics. */
+//        if (server.loading && c->flags & CLIENT_LUA)
+//            flags &= ~(CMD_CALL_SLOWLOG | CMD_CALL_STATS);
+//
+//        /* If the caller is Lua, we want to force the EVAL caller to propagate
+//         * the script if the command flag or client flag are forcing the
+//         * propagation. */
+//        if (ctx.flags.lua && server.lua_caller)
+//        {
+//            if (c->flags & CLIENT_FORCE_REPL)
+//                server.lua_caller->flags |= CLIENT_FORCE_REPL;
+//            if (c->flags & CLIENT_FORCE_AOF)
+//                server.lua_caller->flags |= CLIENT_FORCE_AOF;
+//        }
+//
+//        /* Log the command into the Slow log if needed, and populate the
+//         * per-command statistics that we show in INFO commandstats. */
+//        if (flags & CMD_CALL_SLOWLOG && setting.type != REDIS_CMD_EXEC)
+//        {
+//            char *latency_event = (c->cmd->flags & CMD_FAST) ? "fast-command" : "command";
+//            latencyAddSampleIfNeeded(latency_event, duration / 1000);
+//            slowlogPushEntryIfNeeded(c->argv, c->argc, duration);
+//        }
+//        if (flags & CMD_CALL_STATS)
+//        {
+//            c->lastcmd->microseconds += duration;
+//            c->lastcmd->calls++;
+//        }
+//
+//        /* Propagate the command into the AOF and replication link */
+//        if (flags & CMD_CALL_PROPAGATE && (c->flags & CLIENT_PREVENT_PROP) != CLIENT_PREVENT_PROP)
+//        {
+//            int propagate_flags = PROPAGATE_NONE;
+//
+//            /* Check if the command operated changes in the data set. If so
+//             * set for replication / AOF propagation. */
+//            if (dirty)
+//                propagate_flags |= (PROPAGATE_AOF | PROPAGATE_REPL);
+//
+//            /* If the client forced AOF / replication of the command, set
+//             * the flags regardless of the command effects on the data set. */
+//            if (c->flags & CLIENT_FORCE_REPL)
+//                propagate_flags |= PROPAGATE_REPL;
+//            if (c->flags & CLIENT_FORCE_AOF)
+//                propagate_flags |= PROPAGATE_AOF;
+//
+//            /* However prevent AOF / replication propagation if the command
+//             * implementatino called preventCommandPropagation() or similar,
+//             * or if we don't have the call() flags to do so. */
+//            if (c->flags & CLIENT_PREVENT_REPL_PROP || !(flags & CMD_CALL_PROPAGATE_REPL))
+//                propagate_flags &= ~PROPAGATE_REPL;
+//            if (c->flags & CLIENT_PREVENT_AOF_PROP || !(flags & CMD_CALL_PROPAGATE_AOF))
+//                propagate_flags &= ~PROPAGATE_AOF;
+//
+//            /* Call propagate() only if at least one of AOF / replication
+//             * propagation is needed. */
+//            if (propagate_flags != PROPAGATE_NONE)
+//                propagate(c->cmd, c->db->id, c->argv, c->argc, propagate_flags);
+//        }
+//
+//        /* Restore the old replication flags, since call() can be executed
+//         * recursively. */
+//        c->flags &= ~(CLIENT_FORCE_AOF | CLIENT_FORCE_REPL | CLIENT_PREVENT_PROP);
+//        c->flags |= client_old_flags & (CLIENT_FORCE_AOF | CLIENT_FORCE_REPL | CLIENT_PREVENT_PROP);
+//
+//        /* Handle the alsoPropagate() API to handle commands that want to propagate
+//         * multiple separated commands. Note that alsoPropagate() is not affected
+//         * by CLIENT_PREVENT_PROP flag. */
+//        if (server.also_propagate.numops)
+//        {
+//            int j;
+//            redisOp *rop;
+//
+//            if (flags & CMD_CALL_PROPAGATE)
+//            {
+//                for (j = 0; j < server.also_propagate.numops; j++)
+//                {
+//                    rop = &server.also_propagate.ops[j];
+//                    int target = rop->target;
+//                    /* Whatever the command wish is, we honor the call() flags. */
+//                    if (!(flags & CMD_CALL_PROPAGATE_AOF))
+//                        target &= ~PROPAGATE_AOF;
+//                    if (!(flags & CMD_CALL_PROPAGATE_REPL))
+//                        target &= ~PROPAGATE_REPL;
+//                    if (target)
+//                        propagate(rop->cmd, rop->dbid, rop->argv, rop->argc, target);
+//                }
+//            }
+//            redisOpArrayFree(&server.also_propagate);
+//        }
+//        server.stat_numcommands++;
         return ret;
     }
 
@@ -920,6 +1061,41 @@ OP_NAMESPACE_BEGIN
             reply.SetErrCode(ERR_AUTH_FAILED);
             //fill_fix_error_reply(ctx.reply, "NOAUTH Authentication required");
             return ret;
+        }
+
+        /* Don't accept write commands if there are not enough good slaves and
+         * user configured the min-slaves-to-write option. */
+        if (GetConf().master_host.empty() && GetConf().repl_min_slaves_to_write > 0 && GetConf().repl_min_slaves_max_lag > 0
+                && (setting.flags & ARDB_CMD_WRITE) > 0 && g_repl->GetMaster().GoodSlavesCount() < GetConf().repl_min_slaves_to_write)
+        {
+            ctx.AbortTransaction();
+            reply.SetErrCode(ERR_NOREPLICAS);
+            return 0;
+        }
+
+        /* Don't accept write commands if this is a read only slave. But
+         * accept write commands if this is our master. */
+        if (!GetConf().master_host.empty() && GetConf().slave_readonly && !(ctx.flags.slave) && (setting.flags & ARDB_CMD_WRITE) > 0)
+        {
+            reply.SetErrCode(ERR_READONLY_SLAVE);
+            return 0;
+        }
+
+        /* Only allow INFO and SLAVEOF when slave-serve-stale-data is no and
+         * we are a slave with a broken link with master. */
+        if (!GetConf().master_host.empty() && !g_repl->GetSlave().IsSynced() && !GetConf().repl_serve_stale_data && !(setting.flags & ARDB_CMD_STALE))
+        {
+            ctx.AbortTransaction();
+            reply.SetErrCode(ERR_MASTER_DOWN);
+            return 0;
+        }
+
+        /* Loading DB? Return an error if the command has not the
+         * CMD_LOADING flag. */
+        if (IsLoadingData() && !(setting.flags & ARDB_CMD_LOADING))
+        {
+            reply.SetErrCode(ERR_LOADING);
+            return 0;
         }
 
         if (ctx.InTransaction())

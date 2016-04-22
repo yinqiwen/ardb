@@ -9,13 +9,13 @@ OP_NAMESPACE_BEGIN
     ReplicationService* g_repl = NULL;
     struct ReplMeta
     {
-            uint64_t data_cksm;
-            uint64_t data_offset;  //data offset saved in  store
+//            uint64_t data_cksm;
+//            uint64_t data_offset;  //data offset saved in  store
             char select_ns[ARDB_MAX_NAMESPACE_SIZE];
             char serverkey[SERVER_KEY_SIZE];
+            char replkey[SERVER_KEY_SIZE];
             uint16 select_ns_size;
-            ReplMeta() :
-                    data_cksm(0), data_offset(0),select_ns_size(0)
+            ReplMeta() :select_ns_size(0)
             {
             }
     };
@@ -53,10 +53,11 @@ OP_NAMESPACE_BEGIN
         {
             std::string randomkey = random_hex_string(SERVER_KEY_SIZE);
             memcpy(meta->serverkey, randomkey.data(), SERVER_KEY_SIZE);
+            memcpy(meta->replkey, randomkey.data(), SERVER_KEY_SIZE);
             memset(meta->select_ns, 0, ARDB_MAX_NAMESPACE_SIZE);
             meta->serverkey[SERVER_KEY_SIZE] = 0;
-            meta->data_cksm = 0;
-            meta->data_offset = 0;
+//            meta->data_cksm = 0;
+//            meta->data_offset = 0;
         }
         return 0;
     }
@@ -72,12 +73,12 @@ OP_NAMESPACE_BEGIN
     const char* ReplicationBacklog::GetReplKey()
     {
         ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
-        return meta->serverkey;
+        return meta->replkey;
     }
-    void ReplicationBacklog::SetServerKey(const std::string& str)
+    void ReplicationBacklog::SetReplKey(const std::string& str)
     {
         ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
-        memcpy(meta->serverkey, str.data(), str.size() < SERVER_KEY_SIZE ? str.size() : SERVER_KEY_SIZE);
+        memcpy(meta->replkey, str.data(), str.size() < SERVER_KEY_SIZE ? str.size() : SERVER_KEY_SIZE);
     }
     int ReplicationBacklog::WriteWAL(const Buffer& cmd)
     {
@@ -177,28 +178,28 @@ OP_NAMESPACE_BEGIN
     {
         return swal_end_offset(m_wal);
     }
-    void ReplicationBacklog::ResetDataOffsetCksm(uint64_t offset, uint64_t cksm)
-    {
-        ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
-        meta->data_cksm = cksm;
-        meta->data_offset = offset;
-    }
-    uint64_t ReplicationBacklog::DataOffset()
-    {
-        ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
-        return meta->data_offset;
-    }
-    uint64_t ReplicationBacklog::DataCksm()
-    {
-        ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
-        return meta->data_cksm;
-    }
-    void ReplicationBacklog::UpdateDataOffsetCksm(const Buffer& data)
-    {
-        ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
-        meta->data_offset += data.ReadableBytes();
-        meta->data_cksm = crc64(meta->data_offset, (const unsigned char *) (data.GetRawReadBuffer()), data.ReadableBytes());
-    }
+//    void ReplicationBacklog::ResetDataOffsetCksm(uint64_t offset, uint64_t cksm)
+//    {
+//        ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
+//        meta->data_cksm = cksm;
+//        meta->data_offset = offset;
+//    }
+//    uint64_t ReplicationBacklog::DataOffset()
+//    {
+//        ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
+//        return meta->data_offset;
+//    }
+//    uint64_t ReplicationBacklog::DataCksm()
+//    {
+//        ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
+//        return meta->data_cksm;
+//    }
+//    void ReplicationBacklog::UpdateDataOffsetCksm(const Buffer& data)
+//    {
+//        ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
+//        meta->data_offset += data.ReadableBytes();
+//        meta->data_cksm = crc64(meta->data_offset, (const unsigned char *) (data.GetRawReadBuffer()), data.ReadableBytes());
+//    }
     ReplicationBacklog::~ReplicationBacklog()
     {
     }
