@@ -34,6 +34,8 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include "repl.hpp"
+#include "redis/crc64.h"
+#include "db/db.hpp"
 
 OP_NAMESPACE_BEGIN
     enum SlaveState
@@ -60,6 +62,7 @@ OP_NAMESPACE_BEGIN
     {
         //m_slave_ctx.server_address = MASTER_SERVER_ADDRESS_NAME;
         m_ctx.ctx.flags.no_fill_reply = 1;
+        m_ctx.ctx.flags.slave = 1;
     }
 
     int Slave::Init()

@@ -51,8 +51,7 @@ using namespace ardb::codec;
 
 OP_NAMESPACE_BEGIN
 
-    class ArdbDumpFile;
-    class RedisDumpFile;
+    class Snapshot;
     class Ardb
     {
         public:
@@ -70,6 +69,7 @@ OP_NAMESPACE_BEGIN
                     volatile uint64 calls;
                     //CostTrack
                     bool IsAllowedInScript() const;
+                    bool IsWriteCommand() const;
             };
             struct RedisCommandHash
             {
@@ -414,8 +414,7 @@ OP_NAMESPACE_BEGIN
             void RenameCommand();
 
             friend class LUAInterpreter;
-            friend class ArdbDumpFile;
-            friend class RedisDumpFile;
+            friend class Snapshot;
             friend class Master;
             friend class Slave;
         public:

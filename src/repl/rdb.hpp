@@ -34,6 +34,7 @@
 #include "common.hpp"
 #include "buffer/buffer_helper.hpp"
 #include "context.hpp"
+#include "db/codec.hpp"
 
 namespace ardb
 {

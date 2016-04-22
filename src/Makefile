@@ -129,9 +129,10 @@ COMMAND_VPATH=command
 COMMAND_CPPFILES := $(foreach dir, $(COMMAND_VPATH), $(wildcard $(dir)/*.cpp))
 COMMAND_OBJECTS := $(patsubst %.cpp, %.o, $(COMMAND_CPPFILES))
 
-DB_VPATH=db
+DB_VPATH=db repl
 DB_CPPFILES := $(foreach dir, $(DB_VPATH), $(wildcard $(dir)/*.cpp))
-DB_OBJECTS := $(patsubst %.cpp, %.o, $(DB_CPPFILES))
+DB_CFILES := $(foreach dir, $(DB_VPATH), $(wildcard $(dir)/*.c))
+DB_OBJECTS := $(patsubst %.cpp, %.o, $(DB_CPPFILES)) $(patsubst %.c, %.o, $(DB_CFILES))
 
 CORE_OBJECTS :=  config.o cron.o logger.o network.o types.o statistics.o\
                 $(COMMON_OBJECTS)  $(COMMAND_OBJECTS) $(DB_OBJECTS) 

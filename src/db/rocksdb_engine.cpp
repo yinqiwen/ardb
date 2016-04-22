@@ -495,7 +495,7 @@ OP_NAMESPACE_BEGIN
                 {
                     rocksdb::ColumnFamilyHandle* handler = handlers[i];
                     Data ns;
-                    ns.SetString(column_families_descs[i].name, true);
+                    ns.SetString(column_families_descs[i].name, false);
                     m_handlers[ns] = handler;
                     m_idmapping[handlers[i]->GetID()] = ns;
                     INFO_LOG("RocksDB open column family:%s success.", column_families_descs[i].name.c_str());

@@ -7,7 +7,7 @@
 #include "repl.hpp"
 #include <fcntl.h>
 #include <sys/stat.h>
-#include "repl.hpp"
+#include "db/db.hpp"
 
 #define MAX_SEND_CACHE_SIZE 8192
 
@@ -122,8 +122,6 @@ OP_NAMESPACE_BEGIN
 
     static int snapshot_dump_routine(SnapshotState state, Snapshot* snapshot, void* cb)
     {
-        Master* m = (Master*) cb;
-        SlaveSyncContextSet::iterator fit = m->m_slaves.begin();
         if (state == DUMP_SUCCESS)
         {
             g_repl->GetIOService().AsyncIO(0, snapshot_dump_success, snapshot);
@@ -548,7 +546,7 @@ OP_NAMESPACE_BEGIN
         slave->GetService().DetachChannel(slave, true);
         if (g_repl->GetIOService().IsInLoopThread())
         {
-            AddSlave (&conn);
+            AddSlave (&ctx);
         }
         else
         {

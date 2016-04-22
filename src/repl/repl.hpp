@@ -21,6 +21,8 @@
 using namespace ardb::codec;
 
 OP_NAMESPACE_BEGIN
+    class Master;
+    class Slave;
     class ReplicationBacklog
     {
         private:
@@ -29,8 +31,9 @@ OP_NAMESPACE_BEGIN
             static void WriteWALCallback(Channel*, void* data);
             int WriteWAL(const Data& ns, const Buffer& cmd);
             int WriteWAL(const Buffer& cmd);
-            void Routine();
             void FlushSyncWAL();
+            friend class Master;
+            friend class Slave;
         public:
             ReplicationBacklog();
             int Init();
@@ -140,7 +143,6 @@ OP_NAMESPACE_BEGIN
 
             void SyncWAL(SlaveSyncContext* slave);
             void SendSnapshotToSlave(SlaveSyncContext* slave);
-            void AddSlave(SlaveSyncContext* slave);
         public:
             Master();
             int Init();
@@ -148,6 +150,7 @@ OP_NAMESPACE_BEGIN
             void CloseSlaveBySnapshot(Snapshot* snapshot);
             void CloseSlave(SlaveSyncContext* slave);
             void SyncSlave(SlaveSyncContext* slave);
+            void AddSlave(SlaveSyncContext* slave);
             void AddSlave(Channel* slave, RedisCommandFrame& cmd);
             void SetSlavePort(Channel* slave, uint32 port);
             size_t ConnectedSlaves();
@@ -167,6 +170,7 @@ OP_NAMESPACE_BEGIN
             ChannelService m_io_serv;
             Slave m_slave;
             Master m_master;
+            ReplicationBacklog m_repl_backlog;
             void Run();
         public:
             ReplicationService();

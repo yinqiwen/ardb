@@ -31,6 +31,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "network.hpp"
+#include "repl/repl.hpp"
 
 OP_NAMESPACE_BEGIN
     struct ServerHandlerData
@@ -201,6 +202,10 @@ OP_NAMESPACE_BEGIN
     }
     int Server::Start()
     {
+        if(0 != g_repl->Init())
+        {
+            return -1;
+        }
         uint32 worker_count = 0;
         for (uint32 i = 0; i < g_db->GetConf().servers.size(); i++)
         {
@@ -220,6 +225,8 @@ OP_NAMESPACE_BEGIN
         }
         g_total_qps.Name = "total_msg";
         Statistics::GetSingleton().AddTrack(&g_total_qps);
+
+
 
         ServerHandlerDataArray handler_datas(g_db->GetConf().servers.size());
         for (uint32 i = 0; i < g_db->GetConf().servers.size(); i++)
@@ -266,9 +273,11 @@ OP_NAMESPACE_BEGIN
 
         StartCrons();
 
+
         INFO_LOG("Ardb started with version %s", ARDB_VERSION);
         m_service->Start();
 
+        g_repl->Stop();
         sexit:
         DELETE(m_service);
         return 0;

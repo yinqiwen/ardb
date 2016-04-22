@@ -46,6 +46,7 @@ extern "C"
 #include <sys/stat.h>
 #include <unistd.h>
 #include "db/db.hpp"
+#include "repl.hpp"
 
 #define RETURN_NEGATIVE_EXPR(x)  do\
     {                    \
@@ -878,8 +879,8 @@ namespace ardb
         this->m_routine_cb = cb;
         this->m_routine_cbdata = data;
         m_type = type;
-        m_cached_repl_offset = g_repl->GetReplLog().DataOffset();
-        m_cached_repl_cksm = g_repl->GetReplLog().DataCksm();
+        m_cached_repl_offset = g_repl->GetReplLog().WALEndOffset();
+        m_cached_repl_cksm = g_repl->GetReplLog().WALCksm();
         return 0;
     }
 
@@ -1188,7 +1189,7 @@ namespace ardb
                         //push to list/set
                         if (REDIS_RDB_TYPE_SET == rdbtype)
                         {
-                            KeyObject member(ctx, KEY_SET_MEMBER, key);
+                            KeyObject member(ctx.ns, KEY_SET_MEMBER, key);
                             member.SetSetMember(str);
                             ValueObject member_val;
                             member_val.SetType(KEY_SET_MEMBER);
@@ -1196,7 +1197,7 @@ namespace ardb
                         }
                         else
                         {
-                            KeyObject lk(ctx, KEY_LIST_ELEMENT, key);
+                            KeyObject lk(ctx.ns, KEY_LIST_ELEMENT, key);
                             lk.SetListIndex(idx);
                             ValueObject lv;
                             lv.SetType(KEY_LIST_ELEMENT);
@@ -1550,7 +1551,7 @@ namespace ardb
                         std::string kstr;
                         k.GetKey().ToString(kstr);
                         DUMP_CHECK_WRITE(WriteRawString(kstr.data(), kstr.size()));
-                        current_keytype = v.GetType();
+                        current_keytype = (KeyType)v.GetType();
                         switch (current_keytype)
                         {
                             case KEY_STRING:
@@ -1658,7 +1659,7 @@ namespace ardb
          */
         if (NULL != m_routine_cb && get_current_epoch_millis() - m_routinetime >= 100)
         {
-            int cbret = m_routine_cb(ROUTINING, this, m_routine_cbdata);
+            int cbret = m_routine_cb(DUMPING, this, m_routine_cbdata);
             if (0 != cbret)
             {
                 return cbret;
@@ -1712,8 +1713,8 @@ namespace ardb
         for (size_t i = 0; i < nss.size(); i++)
         {
             dumpctx.ns = nss[i];
-            DUMP_CHECK_WRITE(WriteType(ARDB_RDB_OPCODE_SELECTDB));
-            DUMP_CHECK_WRITE(WriteStringObject(nss[i]));
+            RETURN_NEGATIVE_EXPR(WriteType(ARDB_RDB_OPCODE_SELECTDB));
+            RETURN_NEGATIVE_EXPR(WriteStringObject(nss[i]));
             KeyObject empty;
             empty.SetNameSpace(nss[i]);
             Iterator* iter = g_db->GetEngine()->Find(dumpctx, empty);
@@ -1868,6 +1869,10 @@ namespace ardb
     static SnapshotManager g_snapshot_manager_instance;
     SnapshotManager* g_snapshot_manager = &g_snapshot_manager_instance;
 
+    SnapshotManager::SnapshotManager()
+    {
+
+    }
     void SnapshotManager::RemoveExpiredSnapshots()
     {
 
@@ -1877,7 +1882,7 @@ namespace ardb
     {
         time_t now = time(NULL);
         SnapshotArray::reverse_iterator it = m_snapshots.rbegin();
-        while (it != m_snapshots.end())
+        while (it != m_snapshots.rend())
         {
             Snapshot* s = *it;
             int64 offset_lag = g_repl->GetReplLog().WALEndOffset() - s->CachedReplOffset();

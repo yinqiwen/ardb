@@ -1,5 +1,6 @@
 #include "repl.hpp"
 #include "redis/crc64.h"
+#include "db/db.hpp"
 
 
 #define SERVER_KEY_SIZE 40
@@ -208,14 +209,45 @@ OP_NAMESPACE_BEGIN
     {
         g_repl = this;
     }
+    ChannelService& ReplicationService::GetIOService()
+    {
+        return m_io_serv;
+    }
+    ReplicationBacklog& ReplicationService::GetReplLog()
+    {
+        return m_repl_backlog;
+    }
+    Master& ReplicationService::GetMaster()
+    {
+        return m_master;
+    }
+    Slave& ReplicationService::GetSlave()
+    {
+        return m_slave;
+    }
     void ReplicationService::Run()
     {
-        m_master.Init();
-        m_slave.Init();
+
+
         m_io_serv.Start();
     }
     int ReplicationService::Init()
     {
+        int err = m_repl_backlog.Init();
+        if(0 != err)
+        {
+            return err;
+        }
+        err = m_master.Init();
+        if(0 != err)
+        {
+            return err;
+        }
+        err = m_slave.Init();
+        if(0 != err)
+        {
+            return err;
+        }
         Start();
         return 0;
     }

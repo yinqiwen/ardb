@@ -58,9 +58,10 @@ namespace ardb
             bool lua_timeout;
             bool lua_kill;
             bool lua_abort;
-            Context* exec;
+            Context exec;
+            Context* caller;
             LuaExecContext() :
-                    lua_time_start(0), lua_executing_func(NULL), lua_timeout(false), lua_kill(false), lua_abort(false), exec(NULL)
+                    lua_time_start(0), lua_executing_func(NULL), lua_timeout(false), lua_kill(false), lua_abort(false), caller(NULL)
             {
             }
     };
@@ -133,9 +134,9 @@ namespace ardb
             }
             case REDIS_REPLY_ARRAY:
             {
-                if(reply.integer < 0)
+                if (reply.integer < 0)
                 {
-                    lua_pushboolean(lua,0);
+                    lua_pushboolean(lua, 0);
                 }
                 else
                 {
@@ -518,14 +519,28 @@ namespace ardb
             luaPushError(lua, "This Redis command is not allowed from scripts");
             return -1;
         }
-
-        //TODO consider forbid readonly slave to exec write cmd
         LuaExecContext* ctx = g_lua_exec_ctx.GetValue();
-        Context* lua_ctx = ctx->exec;
-        RedisReply& reply = lua_ctx->GetReply();
+
+        /* Write commands are forbidden against read-only slaves, or if a
+         * command marked as non-deterministic was already called in the context
+         * of this script. */
+        if (setting->IsWriteCommand())
+        {
+            if (!g_db->GetConf().master_host.empty() && g_db->GetConf().slave_readonly && !g_db->IsLoadingData() && !(ctx->caller->flags.slave))
+            {
+                luaPushError(lua, "-READONLY You can't write against a read only slave.");
+                return -1;
+            }
+        }
+
+
+        Context& lua_ctx = ctx->exec;
+        RedisReply& reply = lua_ctx.GetReply();
         reply.Clear();
-        lua_ctx->ClearFlags();
-        g_db->DoCall(*lua_ctx, *setting, cmd);
+        lua_ctx.ClearFlags();
+        lua_ctx.flags.no_wal = 1;
+        lua_ctx.flags.lua = 1;
+        g_db->DoCall(lua_ctx, *setting, cmd);
         if (raise_error && reply.type != REDIS_REPLY_ERROR)
         {
             raise_error = 0;
@@ -777,18 +792,17 @@ namespace ardb
         uint64 elapsed = get_current_epoch_millis() - ctx->lua_time_start;
         if (elapsed >= (uint64) g_db->GetConf().lua_time_limit && !ctx->lua_timeout)
         {
-            WARN_LOG("Lua slow script detected: %s still in execution after %llu milliseconds. You can try killing the script using the SCRIPT KILL command.",
-                    ctx->lua_executing_func, elapsed);
+            WARN_LOG("Lua slow script detected: %s still in execution after %llu milliseconds. You can try killing the script using the SCRIPT KILL command.", ctx->lua_executing_func, elapsed);
             ctx->lua_timeout = true;
-            if (NULL != ctx->exec->client)
+            if (NULL != ctx->caller)
             {
-                Channel* client = ctx->exec->client->client;
+                Channel* client = ctx->caller->client->client;
                 client->DetachFD();
             }
         }
-        if (ctx->lua_timeout && NULL != ctx->exec->client)
+        if (ctx->lua_timeout && NULL != ctx->caller->client)
         {
-            Channel* client = ctx->exec->client->client;
+            Channel* client = ctx->caller->client->client;
             client->GetService().Continue();
         }
         if (ctx->lua_kill)
@@ -977,7 +991,7 @@ namespace ardb
             lua_sethook(m_lua, MaskCountHook, LUA_MASKCOUNT, 100000);
             delhook = true;
         }
-        guard.ctx.exec = &ctx;
+        guard.ctx.caller = &ctx;
         guard.ctx.lua_time_start = get_current_epoch_millis();
         guard.ctx.lua_executing_func = funcname.c_str() + 2;
         guard.ctx.lua_kill = false;
