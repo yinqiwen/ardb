@@ -34,6 +34,7 @@
 #include <fcntl.h>
 #include "network.hpp"
 #include "db/db.hpp"
+#include "util/file_helper.hpp"
 
 void version()
 {
@@ -82,6 +83,8 @@ int main(int argc, char** argv)
     Ardb db;
     if (0 == db.Init(confpath))
     {
+        real_path(argv[0], db.GetMutableConf()._executable);
+        real_path(confpath, db.GetMutableConf()._conf_file);
         Server server;
         server.Start();
     }

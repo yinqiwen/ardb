@@ -112,7 +112,7 @@ bool RedisReplyEncoder::Encode(Buffer& buf, RedisReply& reply)
         }
         case REDIS_REPLY_STATUS:
         {
-            buf.Printf("+%s\r\n", reply.str.c_str());
+            buf.Printf("+%s\r\n", reply.Status().c_str());
             break;
         }
         default:

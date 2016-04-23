@@ -1052,7 +1052,7 @@ OP_NAMESPACE_BEGIN
         else
         {
             Iterator* iter = NULL;
-            ctx.flags.iterate_multi_keys = 1;
+            ctx.flags.iterate_no_upperbound = 1;
             for (size_t i = 0; i < setnum; i++)
             {
                 if (vs[i].GetType() == 0)

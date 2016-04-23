@@ -35,6 +35,7 @@
 #include "buffer/buffer_helper.hpp"
 #include "context.hpp"
 #include "db/codec.hpp"
+#include "thread/thread_mutex_lock.hpp"
 
 namespace ardb
 {
@@ -155,6 +156,7 @@ namespace ardb
             void Remove();
             int Rename(const std::string& default_file = "dump.rdb");
             void Close();
+            void SetRoutineCallback(SnapshotRoutine* cb, void *data);
             ~Snapshot();
 
             static int IsRedisDumpFile(const std::string& file);
@@ -164,11 +166,19 @@ namespace ardb
     {
         private:
             typedef std::deque<Snapshot*> SnapshotArray;
+            ThreadMutexLock m_snapshots_lock;
             SnapshotArray m_snapshots;
         public:
             SnapshotManager();
             void RemoveExpiredSnapshots();
             Snapshot* GetSyncSnapshot(SnapshotType type, SnapshotRoutine* cb, void *data);
+            Snapshot* NewSnapshot(SnapshotType type, bool bgsave, SnapshotRoutine* cb, void *data);
+            time_t LastSave();
+            int CurrentSaverNum();
+            time_t LastSaveCost();
+            int LastSaveErr();
+            time_t LastSaveStartUnixTime();
+
     };
 
     extern SnapshotManager* g_snapshot_manager;

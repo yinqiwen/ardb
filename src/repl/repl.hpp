@@ -39,13 +39,14 @@ OP_NAMESPACE_BEGIN
             int Init();
             void Routine();
             swal_t* GetWAL();
-            const char* GetReplKey();
+            std::string GetReplKey();
             void SetReplKey(const std::string& str);
             int WriteWAL(const Data& ns, RedisCommandFrame& cmd);
             bool IsValidOffsetCksm(int64_t offset, uint64_t cksm);
             uint64_t WALStartOffset();
             uint64_t WALEndOffset();
             uint64_t WALCksm();
+            std::string CurrentNamespace();
             void ResetWALOffsetCksm(uint64_t offset, uint64_t cksm);
 //            void ResetDataOffsetCksm(uint64_t offset, uint64_t cksm);
 //            uint64_t DataOffset();
@@ -67,6 +68,7 @@ OP_NAMESPACE_BEGIN
             uint64 sync_repl_cksm;
             uint32 cmd_recved_time;
             uint32 master_link_down_time;
+            time_t master_last_interaction_time;
             Buffer replay_cumulate_buffer;
             Snapshot snapshot;
             void UpdateSyncOffsetCksm(const Buffer& buffer);
@@ -81,10 +83,12 @@ OP_NAMESPACE_BEGIN
                 sync_repl_offset = 0;
                 sync_repl_cksm = 0;
                 snapshot.Close();
+                snapshot.SetRoutineCallback(NULL, NULL);
+                replay_cumulate_buffer.Clear();
             }
             SlaveContext() :
                     server_is_redis(false), server_support_psync(false), state(0), cached_master_repl_offset(0), cached_master_repl_cksm(0), sync_repl_offset(
-                            0), sync_repl_cksm(0), cmd_recved_time(0), master_link_down_time(0)
+                            0), sync_repl_cksm(0), cmd_recved_time(0), master_last_interaction_time(0),master_link_down_time(0)
             {
             }
     };
@@ -93,11 +97,10 @@ OP_NAMESPACE_BEGIN
     {
         private:
             Channel* m_client;
+            uint32 m_clientid;
             RedisMessageDecoder m_decoder;
             NullRedisReplyEncoder m_encoder;
             SlaveContext m_ctx;
-            //time_t m_routine_ts;
-            time_t m_lastinteraction;
 
             void HandleRedisCommand(Channel* ch, RedisCommandFrame& cmd);
             void HandleRedisReply(Channel* ch, RedisReply& reply);
@@ -118,8 +121,15 @@ OP_NAMESPACE_BEGIN
             void Close();
             void Stop();
             void ReplayWAL(const void* log, size_t loglen);
+            time_t GetMasterLastinteractionTime();
+            time_t GetMasterLinkDownTime();
             bool IsSynced();
             bool IsLoading();
+            bool IsConnected();
+            bool IsSyncing();
+            int64 SyncLeftBytes();
+            int64 LoadLeftBytes();
+
     };
 
     class SlaveSyncContext;
@@ -133,26 +143,26 @@ OP_NAMESPACE_BEGIN
             time_t m_repl_noslaves_since;
             time_t m_repl_nolag_since;
             uint32 m_repl_good_slaves_count;
-            int PingSlaves();
-
-            void ClearNilSlave();
+            uint32 m_slaves_count;
 
             void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e);
             void ChannelWritable(ChannelHandlerContext& ctx, ChannelStateEvent& e);
             void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e);
 
-            void SyncWAL(SlaveSyncContext* slave);
+            void SyncSlave(SlaveSyncContext* slave);
             void SendSnapshotToSlave(SlaveSyncContext* slave);
         public:
             Master();
             int Init();
+            int Routine();
             void FullResyncSlaves(Snapshot* snapshot);
             void CloseSlaveBySnapshot(Snapshot* snapshot);
             void CloseSlave(SlaveSyncContext* slave);
-            void SyncSlave(SlaveSyncContext* slave);
+
             void AddSlave(SlaveSyncContext* slave);
             void AddSlave(Channel* slave, RedisCommandFrame& cmd);
             void SetSlavePort(Channel* slave, uint32 port);
+            void SyncWAL(SlaveSyncContext* slave);
             size_t ConnectedSlaves();
             void SyncWAL();
             void PrintSlaves(std::string& str);
@@ -171,10 +181,12 @@ OP_NAMESPACE_BEGIN
             Slave m_slave;
             Master m_master;
             ReplicationBacklog m_repl_backlog;
+            bool m_inited;
             void Run();
         public:
             ReplicationService();
             int Init();
+            bool IsInited() const;
             ChannelService& GetIOService();
             ReplicationBacklog& GetReplLog();
             Master& GetMaster();

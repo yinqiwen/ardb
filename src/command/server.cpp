@@ -28,6 +28,8 @@
  */
 
 #include "db/db.hpp"
+#include "repl/rdb.hpp"
+#include "repl/repl.hpp"
 #include "util/socket_address.hpp"
 #include "util/lru.hpp"
 #include "util/system_helper.hpp"
@@ -39,112 +41,126 @@
 
 namespace ardb
 {
-    static int RDBSaveLoadRoutine(void* cb)
+    static int RDBSaveLoadRoutine(SnapshotState state, Snapshot* snapshot, void* cb)
     {
         ChannelService* serv = (ChannelService*) cb;
-        serv->Continue();
+        if (NULL != serv)
+        {
+            serv->Continue();
+        }
         return 0;
     }
 
     int Ardb::Save(Context& ctx, RedisCommandFrame& cmd)
     {
-//        char tmp[1024];
-//        uint32 now = time(NULL);
-//        ChannelService& serv = ctx.client->GetService();
-//        uint32 conn_id = ctx.client->GetID();
-//        if (m_cfg.backup_redis_format)
-//        {
-//            sprintf(tmp, "%s/dump-%u.rdb", m_cfg.backup_dir.c_str(), now);
-//        }
-//        else
-//        {
-//            sprintf(tmp, "%s/dump-%u.ardb", m_cfg.backup_dir.c_str(), now);
-//        }
-//        int ret = GetDataDumpFile().Save(tmp, RDBSaveLoadRoutine, &serv);
-//        if (serv.GetChannel(conn_id) != NULL)
-//        {
-//            if (ret == 0)
-//            {
-//                fill_status_reply(ctx.reply, "OK");
-//            }
-//            else
-//            {
-//                fill_error_reply(ctx.reply, "Save error");
-//            }
-//            return 0;
-//        }
-        return -1;
+        RedisReply& reply = ctx.GetReply();
+        SnapshotType type = REDIS_DUMP;
+        if (cmd.GetType() == REDIS_CMD_SAVE2)
+        {
+            type = ARDB_DUMP;
+        }
+        ChannelService* io_serv = NULL;
+        uint32 conn_id = 0;
+        if (NULL != ctx.client && NULL != ctx.client->client)
+        {
+            io_serv = &(ctx.client->client->GetService());
+            conn_id = ctx.client->client->GetID();
+            ctx.client->client->DetachFD();
+        }
+        Snapshot* snapshot = g_snapshot_manager->NewSnapshot(type, false, RDBSaveLoadRoutine, io_serv);
+        if (NULL == io_serv || io_serv->GetChannel(conn_id) != NULL)
+        {
+            if (NULL != snapshot)
+            {
+                reply.SetStatusCode(STATUS_OK);
+            }
+            else
+            {
+                reply.SetErrorReason("Save snapshot failed.");
+            }
+        }
+        if (NULL != ctx.client && NULL != ctx.client->client)
+        {
+            ctx.client->client->AttachFD();
+        }
+        return 0;
     }
 
     int Ardb::LastSave(Context& ctx, RedisCommandFrame& cmd)
     {
-//        int ret = GetDataDumpFile().LastSave();
-//        fill_int_reply(ctx.reply, ret);
+        RedisReply& reply = ctx.GetReply();
+        reply.SetInteger(g_snapshot_manager->LastSave());
         return 0;
     }
 
     int Ardb::BGSave(Context& ctx, RedisCommandFrame& cmd)
     {
-//        char tmp[1024];
-//        uint32 now = time(NULL);
-//        if (m_cfg.backup_redis_format)
-//        {
-//            sprintf(tmp, "%s/dump-%u.rdb", m_cfg.backup_dir.c_str(), now);
-//        }
-//        else
-//        {
-//            sprintf(tmp, "%s/dump-%u.ardb", m_cfg.backup_dir.c_str(), now);
-//        }
-//        int ret = GetDataDumpFile().BGSave(tmp);
-//        if (ret == 0)
-//        {
-//            fill_status_reply(ctx.reply, "OK");
-//        }
-//        else
-//        {
-//            fill_error_reply(ctx.reply, "save error");
-//        }
+        RedisReply& reply = ctx.GetReply();
+        SnapshotType type = REDIS_DUMP;
+        if (cmd.GetType() == REDIS_CMD_BGSAVE2)
+        {
+            type = ARDB_DUMP;
+        }
+        char tmp[1024];
+        uint32 now = time(NULL);
+        sprintf(tmp, "%s/save-snapshot.%u", GetConf().backup_dir.c_str(), now);
+        ChannelService* io_serv = NULL;
+        if (NULL != ctx.client && NULL != ctx.client->client)
+        {
+            io_serv = &(ctx.client->client->GetService());
+        }
+        Snapshot* snapshot = g_snapshot_manager->NewSnapshot(type, true, RDBSaveLoadRoutine, io_serv);
+        if (NULL != snapshot)
+        {
+            reply.SetStatusCode(STATUS_OK);
+        }
+        else
+        {
+            reply.SetErrorReason("BGSave snapshot failed.");
+        }
         return 0;
     }
 
     int Ardb::Import(Context& ctx, RedisCommandFrame& cmd)
     {
-        std::string file = GetConf().backup_dir + "/dump.snapshot";
-        if (cmd.GetArguments().size() == 1)
+        RedisReply& reply = ctx.GetReply();
+        if (IsLoadingData())
         {
-            file = cmd.GetArguments()[0];
+            reply.SetErrCode(ERR_LOADING);
+            return 0;
         }
-        int ret = 0;
+        const std::string& file = cmd.GetArguments()[0];
         m_loading_data = true;
-//        ChannelService& serv = ctx.client->GetService();
-//        uint32 conn_id = ctx.client->GetID();
-//        if (RedisDumpFile::IsRedisDumpFile(file) == 1)
-//        {
-//            RedisDumpFile rdb;
-//            rdb.Init(this);
-//            ret = rdb.Load(ctx.identity, file, RDBSaveLoadRoutine, &(ctx.client->GetService()));
-//        }
-//        else
-//        {
-//            ret = m_ardb_dump.Load(ctx.identity, file, RDBSaveLoadRoutine, &(ctx.client->GetService()));
-//        }
-//        if (serv.GetChannel(conn_id) != NULL)
-//        {
-//            if (ret == 0)
-//            {
-//                fill_status_reply(ctx.reply, "OK");
-//            }
-//            else
-//            {
-//                fill_error_reply(ctx.reply, "Import error");
-//            }
-//            return 0;
-//        }
+        ChannelService* io_serv = NULL;
+        uint32 conn_id = 0;
+        if (NULL != ctx.client && NULL != ctx.client->client)
+        {
+            io_serv = &(ctx.client->client->GetService());
+            conn_id = ctx.client->client->GetID();
+            ctx.client->client->DetachFD();
+        }
+        Snapshot snapshot;
+        int err = snapshot.Load(file, RDBSaveLoadRoutine, io_serv);
+        if (NULL == io_serv || io_serv->GetChannel(conn_id) != NULL)
+        {
+            if (err == 0)
+            {
+                reply.SetStatusCode(STATUS_OK);
+            }
+            else
+            {
+                reply.SetErrorReason("Import snapshot failed.");
+            }
+        }
         m_loading_data = false;
+        if (NULL != ctx.client && NULL != ctx.client->client)
+        {
+            ctx.client->client->AttachFD();
+        }
         return 0;
     }
 
-    void Ardb::FillInfoResponse(const std::string& section, std::string& info)
+    void Ardb::FillInfoResponse(Context& ctx, const std::string& section, std::string& info)
     {
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "server"))
         {
@@ -152,6 +168,7 @@ namespace ardb
             uname(&name);
             info.append("# Server\r\n");
             info.append("ardb_version:").append(ARDB_VERSION).append("\r\n");
+            info.append("redis_version:").append(GetConf().redis_compatible_version).append("\r\n");
             info.append("ardb_home:").append(GetConf().home).append("\r\n");
             info.append("os:").append(name.sysname).append(" ").append(name.release).append(" ").append(name.machine).append("\r\n");
             char tmp[256];
@@ -165,17 +182,32 @@ namespace ardb
             info.append("gcc_version:").append(tmp).append("\r\n");
             info.append("process_id:").append(stringfromll(getpid())).append("\r\n");
 
-//            if (NULL != m_repl_backlog.GetServerKey())
-//            {
-//                info.append("run_id:").append(m_repl_backlog.GetServerKey()).append("\r\n");
-//            }
-//            info.append("tcp_port:").append(stringfromll(m_cfg.PrimayPort())).append("\r\n");
-//            info.append("listen:").append(string_join_container(m_cfg.listen_addresses, ",")).append("\r\n");
-//            time_t uptime = time(NULL) - m_starttime;
-//            info.append("uptime_in_seconds:").append(stringfromll(uptime)).append("\r\n");
-//            info.append("uptime_in_days:").append(stringfromll(uptime / (3600 * 24))).append("\r\n");
+            if (!g_repl->GetReplLog().GetReplKey().empty())
+            {
+                info.append("run_id:").append(g_repl->GetReplLog().GetReplKey()).append("\r\n");
+            }
+            info.append("tcp_port:").append(stringfromll(GetConf().PrimaryPort())).append("\r\n");
+            for (size_t i = 0; i < GetConf().servers.size(); i++)
+            {
+                info.append("listen:").append(GetConf().servers[i].Address()).append("\r\n");
+            }
+            time_t uptime = time(NULL) - m_starttime;
+            info.append("uptime_in_seconds:").append(stringfromll(uptime)).append("\r\n");
+            info.append("uptime_in_days:").append(stringfromll(uptime / (3600 * 24))).append("\r\n");
+            info.append("executable:").append(GetConf()._executable).append("\r\n");
+            info.append("config_file:").append(GetConf()._conf_file).append("\r\n");
             info.append("\r\n");
         }
+        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "databases"))
+        {
+            info.append("# Databases\r\n");
+            info.append("data_dir:").append(GetConf().data_base_path).append("\r\n");
+            std::string stats;
+            m_engine->Stats(ctx, stats);
+            info.append(stats).append("\r\n");
+            info.append("\r\n");
+        }
+
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "clients"))
         {
             info.append("# Clients\r\n");
@@ -189,13 +221,24 @@ namespace ardb
             }
             info.append("\r\n");
         }
-        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "databases"))
+
+        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "persistence"))
         {
-            info.append("# Databases\r\n");
-//            info.append("data_dir:").append(m_cfg.data_base_path).append("\r\n");
-//            info.append(GetKeyValueEngine().Stats()).append("\r\n");
+            info.append("# Persistence\r\n");
+            info.append("loading:").append(IsLoadingData() ? " 1" : "0").append("\r\n");
+            info.append("rdb_last_save_time:").append(stringfromll(g_snapshot_manager->LastSave())).append("\r\n");
+            info.append("rdb_last_bgsave_status:").append(g_snapshot_manager->LastSaveErr() != 0 ? "error" : "ok").append("\r\n");
+            info.append("rdb_last_bgsave_time_sec:").append(stringfromll(g_snapshot_manager->LastSaveCost())).append("\r\n");
+            info.append("rdb_bgsave_in_progress:").append(g_snapshot_manager->CurrentSaverNum() > 0 ? "1" : "0").append("\r\n");
+            time_t lastsave_elapsed = 0;
+            if (g_snapshot_manager->LastSaveStartUnixTime() > 0)
+            {
+                lastsave_elapsed = time(NULL) - g_snapshot_manager->LastSaveStartUnixTime();
+            }
+            info.append("rdb_current_bgsave_time_sec:").append(stringfromll(lastsave_elapsed)).append("\r\n");
             info.append("\r\n");
         }
+
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "cpu"))
         {
             struct rusage self_ru;
@@ -221,75 +264,78 @@ namespace ardb
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "replication"))
         {
             info.append("# Replication\r\n");
-//            if (m_cfg.repl_backlog_size > 0)
-//            {
-//                if (m_slave.GetMasterAddress().GetHost().empty())
-//                {
-//                    info.append("role:master\r\n");
-//                }
-//                else
-//                {
-//                    info.append("role:slave\r\n");
-//                }
-//                info.append("repl_dir: ").append(m_cfg.repl_data_dir).append("\r\n");
-//            }
-//            else
-//            {
-//                info.append("role: singleton\r\n");
-//            }
+            if (GetConf().repl_backlog_size > 0)
+            {
+                if (GetConf().master_host.empty())
+                {
+                    info.append("role:master\r\n");
+                }
+                else
+                {
+                    info.append("role:slave\r\n");
+                }
+                info.append("repl_dir: ").append(GetConf().repl_data_dir).append("\r\n");
+            }
+            else
+            {
+                info.append("role: singleton\r\n");
+            }
 //
-//            if (m_repl_backlog.IsInited())
-//            {
-//                if (!m_cfg.master_host.empty())
-//                {
-//                    info.append("master_host:").append(m_cfg.master_host).append("\r\n");
-//                    info.append("master_port:").append(stringfromll(m_cfg.master_port)).append("\r\n");
-//                    info.append("master_link_status:").append(m_slave.IsConnected() ? "up" : "down").append("\r\n");
-//                    if (m_slave.IsConnected())
-//                    {
-//                        info.append("master_last_io_seconds_ago:").append(
-//                                stringfromll(time(NULL) - m_slave.GetMasterLastinteractionTime())).append("\r\n");
-//                    }
-//                    else
-//                    {
-//                        info.append("master_last_io_seconds_ago:").append("-1").append("\r\n");
-//                    }
-//                    info.append("master_sync_in_progress:").append(m_slave.IsSyncing() ? "1" : "0").append("\r\n");
-//                    if (m_slave.GetState() == SLAVE_STATE_SYNING_DUMP_DATA)
-//                    {
-//                        info.append("master_sync_left_bytes:").append(stringfromll(m_slave.SyncLeftBytes())).append(
-//                                "\r\n");
-//                    }
-//                    if (m_slave.GetState() == SLAVE_STATE_LOADING_DUMP_DATA)
-//                    {
-//                        info.append("slave_loading_left_bytes:").append(stringfromll(m_slave.LoadingLeftBytes())).append(
-//                                "\r\n");
-//                    }
-//                    info.append("slave_repl_offset:").append(stringfromll(m_repl_backlog.GetReplEndOffset())).append(
-//                            "\r\n");
-//                    if (!m_slave.IsConnected())
-//                    {
-//                        info.append("master_link_down_since_seconds:").append(
-//                                stringfromll(time(NULL) - m_slave.GetMasterLinkDownTime())).append("\r\n");
-//                    }
-//                    info.append("slave_priority:").append(stringfromll(m_cfg.slave_priority)).append("\r\n");
-//                }
-//
-//                info.append("connected_slaves: ").append(stringfromll(m_master.ConnectedSlaves())).append("\r\n");
-//                m_master.PrintSlaves(info);
-//                info.append("master_repl_offset: ").append(stringfromll(m_repl_backlog.GetReplEndOffset())).append(
-//                        "\r\n");
-//                info.append("repl_backlog_size: ").append(stringfromll(m_repl_backlog.GetBacklogSize())).append("\r\n");
-//                info.append("repl_backlog_first_byte_offset: ").append(
-//                        stringfromll(m_repl_backlog.GetReplStartOffset())).append("\r\n");
-//                info.append("repl_backlog_histlen: ").append(stringfromll(m_repl_backlog.GetHistLen())).append("\r\n");
-//                info.append("repl_backlog_cksm: ").append(base16_stringfromllu(m_repl_backlog.GetChecksum())).append(
-//                        "\r\n");
-//            }
-//            else
-//            {
-//                info.append("repl_backlog_size: 0").append("\r\n");
-//            }
+            if (g_repl->IsInited())
+            {
+                if (!GetConf().master_host.empty())
+                {
+                    info.append("master_host:").append(GetConf().master_host).append("\r\n");
+                    info.append("master_port:").append(stringfromll(GetConf().master_port)).append("\r\n");
+                    info.append("master_link_status:").append(g_repl->GetSlave().IsConnected() ? "up" : "down").append("\r\n");
+                    if (g_repl->GetSlave().IsConnected())
+                    {
+                        info.append("master_last_io_seconds_ago:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLastinteractionTime())).append("\r\n");
+                    }
+                    else
+                    {
+                        info.append("master_last_io_seconds_ago:-1").append("\r\n");
+                    }
+                    info.append("master_sync_in_progress:").append(g_repl->GetSlave().IsSyncing() ? "1" : "0").append("\r\n");
+                    info.append("slave_load_in_progress:").append(g_repl->GetSlave().IsLoading() ? "1" : "0").append("\r\n");
+                    if (g_repl->GetSlave().IsSyncing())
+                    {
+                        info.append("master_sync_left_bytes:").append(stringfromll(g_repl->GetSlave().SyncLeftBytes())).append("\r\n");
+                        info.append("master_sync_last_io_seconds_ago:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLastinteractionTime())).append("\r\n");
+                    }
+                    if (g_repl->GetSlave().IsLoading())
+                    {
+                        info.append("slave_loading_left_bytes:").append(stringfromll(g_repl->GetSlave().LoadLeftBytes())).append("\r\n");
+                    }
+                    info.append("slave_repl_offset:").append(stringfromll(g_repl->GetReplLog().WALEndOffset())).append("\r\n");
+                    if (!g_repl->GetSlave().IsConnected())
+                    {
+                        info.append("master_link_down_since_seconds:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLinkDownTime())).append("\r\n");
+                    }
+                    info.append("slave_priority:").append(stringfromll(GetConf().slave_priority)).append("\r\n");
+                    info.append("slave_read_only:").append(GetConf().slave_readonly ? "1" : "0").append("\r\n");
+                }
+                info.append("repl_current_namespace:").append(g_repl->GetReplLog().CurrentNamespace()).append("\r\n");
+                info.append("connected_slaves: ").append(stringfromll(g_repl->GetMaster().ConnectedSlaves())).append("\r\n");
+                /* If min-slaves-to-write is active, write the number of slaves
+                 * currently considered 'good'. */
+                if (GetConf().repl_min_slaves_to_write && GetConf().repl_min_slaves_max_lag)
+                {
+                    info.append("min_slaves_good_slaves:").append(stringfromll(g_repl->GetMaster().GoodSlavesCount())).append("\r\n");
+                }
+                g_repl->GetMaster().PrintSlaves(info);
+
+                info.append("master_repl_offset: ").append(stringfromll(g_repl->GetReplLog().WALEndOffset())).append("\r\n");
+                info.append("repl_backlog_size: ").append(stringfromll(GetConf().repl_backlog_size)).append("\r\n");
+                info.append("repl_backlog_cache_size: ").append(stringfromll(GetConf().repl_backlog_cache_size)).append("\r\n");
+                info.append("repl_backlog_first_byte_offset: ").append(stringfromll(g_repl->GetReplLog().WALStartOffset())).append("\r\n");
+                info.append("repl_backlog_histlen: ").append(stringfromll(g_repl->GetReplLog().WALEndOffset() - g_repl->GetReplLog().WALStartOffset() + 1)).append("\r\n");
+                info.append("repl_backlog_cksm: ").append(base16_stringfromllu(g_repl->GetReplLog().WALCksm())).append("\r\n");
+            }
+            else
+            {
+                info.append("repl_backlog_size: 0").append("\r\n");
+            }
             info.append("\r\n");
         }
 
@@ -304,54 +350,47 @@ namespace ardb
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "stats"))
         {
             info.append("# Stats\r\n");
+//            "total_connections_received:%lld\r\n"
+//                        "total_commands_processed:%lld\r\n"
+//                        "instantaneous_ops_per_sec:%lld\r\n"
+//                        "total_net_input_bytes:%lld\r\n"
+//                        "total_net_output_bytes:%lld\r\n"
+//                        "instantaneous_input_kbps:%.2f\r\n"
+//                        "instantaneous_output_kbps:%.2f\r\n"
+//                        "rejected_connections:%lld\r\n"
+//                        "sync_full:%lld\r\n"
+//                        "sync_partial_ok:%lld\r\n"
+//                        "sync_partial_err:%lld\r\n"
+//                        "expired_keys:%lld\r\n"
+//                        "evicted_keys:%lld\r\n"
+//                        "keyspace_hits:%lld\r\n"
+//                        "keyspace_misses:%lld\r\n"
+//                        "pubsub_channels:%ld\r\n"
+//                        "pubsub_patterns:%lu\r\n"
+//                        "latest_fork_usec:%lld\r\n"
+//                        "migrate_cached_sockets:%ld\r\n",
 //            std::string tmp;
 //            info.append(m_stat.PrintStat(tmp));
-//            WriteLockGuard<SpinRWLock> guard(m_pubsub_ctx_lock);
-//            info.append("pubsub_channels:").append(stringfromll(m_pubsub_channels.size())).append("\r\n");
-//            info.append("pubsub_patterns:").append(stringfromll(m_pubsub_patterns.size())).append("\r\n");
+            ReadLockGuard<SpinRWLock> guard(m_pubsub_lock);
+            info.append("pubsub_channels:").append(stringfromll(m_pubsub_channels.size())).append("\r\n");
+            info.append("pubsub_patterns:").append(stringfromll(m_pubsub_patterns.size())).append("\r\n");
             info.append("\r\n");
         }
 
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "keyspace"))
         {
-//            DBIDSet ids;
-//            //GetAllDBIDSet(ids);
-//            if (!ids.empty())
-//            {
-//                info.append("# Keyspace\r\n");
-//                DBIDSet::iterator it = ids.begin();
-//                while (it != ids.end())
-//                {
-//                    /*
-//                     * Can NOT tell how many keys now
-//                     */
-//                    info.append("db").append(stringfromll(*it)).append(":").append("keys=-1").append("\r\n");
-//                    it++;
-//                }
-//                info.append("\r\n");
-//            }
+            DataArray nss;
+            m_engine->ListNameSpaces(ctx, nss);
+            if (!nss.empty())
+            {
+                info.append("# Keyspace\r\n");
+                for (size_t i = 0; i < nss.size(); i++)
+                {
+                    info.append("db").append(nss[i].AsString()).append(":").append("keys=").append(stringfromll(m_engine->EstimateKeysNum(ctx, nss[i]))).append("\r\n");
+                }
+                info.append("\r\n");
+            }
         }
-
-//        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "compact"))
-//        {
-//            info.append("# Compact\r\n");
-//            info.append("compacting:").append(m_compacting ? "yes" : "no").append("\r\n");
-//            info.append("write_count_since_last_compact:").append(
-//                    stringfromll(m_stat.GetLatencyStat().write_count_since_last_compact)).append("\r\n");
-//            if (m_last_compact_start_time > 0)
-//            {
-//                struct tm tt;
-//                if (NULL != localtime_r(&m_last_compact_start_time, &tt))
-//                {
-//                    char tmp[1024];
-//                    strftime(tmp, sizeof(tmp), "%F %T", &tt);
-//                    info.append("last_compact_start_time:").append(tmp).append("\r\n");
-//                    info.append("last_compact_duration:").append(stringfromll(m_last_compact_duration)).append(
-//                            "ms\r\n");
-//                }
-//            }
-//            info.append("\r\n");
-//        }
 
         if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "commandstats"))
         {
@@ -362,30 +401,12 @@ namespace ardb
                 RedisCommandHandlerSetting& setting = cit->second;
                 if (setting.calls > 0)
                 {
-                    info.append("cmdstat_").append(setting.name).append(":").append("calls=").append(stringfromll(setting.calls)).append(",usec=").append(
-                            stringfromll(setting.microseconds)).append(",usecpercall=").append(stringfromll(setting.microseconds / setting.calls)).append(
-                            "\r\n");
+                    info.append("cmdstat_").append(setting.name).append(":").append("calls=").append(stringfromll(setting.calls)).append(",usec=").append(stringfromll(setting.microseconds)).append(",usecpercall=").append(
+                            stringfromll(setting.microseconds / setting.calls)).append("\r\n");
                 }
 
                 cit++;
             }
-            info.append("\r\n");
-        }
-
-        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "misc"))
-        {
-            info.append("# Misc\r\n");
-//            if (!m_cfg.additional_misc_info.empty())
-//            {
-//                string_replace(m_cfg.additional_misc_info, "\\n", "\r\n");
-//                info.append(m_cfg.additional_misc_info).append("\r\n");
-//            }
-//            if (m_cfg.scan_redis_compatible)
-//            {
-//                LockGuard<SpinMutexLock> guard(m_redis_cursor_lock);
-//                info.append("redis_scan_cursor_cache_size:").append(stringfromll(m_redis_cursor_table.size())).append(
-//                        "\r\n");
-//            }
             info.append("\r\n");
         }
     }
@@ -398,14 +419,15 @@ namespace ardb
         {
             section = cmd.GetArguments()[0];
         }
-        FillInfoResponse(section, info);
+        FillInfoResponse(ctx, section, info);
         ctx.GetReply().SetString(info);
         return 0;
     }
 
     int Ardb::DBSize(Context& ctx, RedisCommandFrame& cmd)
     {
-        //fill_int_reply(ctx.reply, file_size(m_cfg.data_base_path));
+        RedisReply& reply = ctx.GetReply();
+        reply.SetInteger(m_engine->EstimateKeysNum(ctx, ctx.ns));
         return 0;
     }
 
@@ -642,25 +664,23 @@ namespace ardb
 
     int Ardb::FlushDB(Context& ctx, RedisCommandFrame& cmd)
     {
-//        FlushDBData(ctx);
-//        fill_status_reply(ctx.reply, "OK");
-//
-//        DBIDSet ids;
-//        GetAllDBIDSet(ids);
-//        LockGuard<SpinMutexLock> guard(m_cached_dbids_lock);
-//        m_cached_dbids.erase(ctx.currentDB);
+        RedisReply& reply = ctx.GetReply();
+        reply.SetStatusCode(STATUS_OK);
+        FlushDB(ctx, ctx.ns);
         return 0;
     }
 
     int Ardb::FlushAll(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
+        reply.SetStatusCode(STATUS_OK);
+        FlushAll(ctx);
         return 0;
     }
 
     int Ardb::Shutdown(Context& ctx, RedisCommandFrame& cmd)
     {
-//        m_service->Stop();
-        return -1;
+        return -2;
     }
 
     int Ardb::CompactDB(Context& ctx, RedisCommandFrame& cmd)
@@ -698,25 +718,27 @@ namespace ardb
             reply.SetErrorReason("not enough arguments for slaveof.");
             return 0;
         }
-//        const std::string& host = cmd.GetArguments()[0];
-//        uint32 port = 0;
-//        if (!string_touint32(cmd.GetArguments()[1], port))
-//        {
-//            if (!strcasecmp(cmd.GetArguments()[0].c_str(), "no") && !strcasecmp(cmd.GetArguments()[1].c_str(), "one"))
-//            {
-//                fill_status_reply(ctx.reply, "OK");
-//                m_slave.Stop();
-//                m_cfg.master_host = "";
-//                m_cfg.master_port = 0;
-//                return 0;
-//            }
-//            fill_error_reply(ctx.reply, "value is not an integer or out of range");
-//            return 0;
-//        }
-//
-//        m_cfg.master_host = host;
-//        m_cfg.master_port = port;
-//        m_slave.ConnectMaster(host, port);
+        const std::string& host = cmd.GetArguments()[0];
+        uint32 port = 0;
+        if (!string_touint32(cmd.GetArguments()[1], port))
+        {
+            if (!strcasecmp(cmd.GetArguments()[0].c_str(), "no") && !strcasecmp(cmd.GetArguments()[1].c_str(), "one"))
+            {
+                reply.SetStatusCode(STATUS_OK);
+                g_repl->GetSlave().Stop();
+                m_conf.master_host = "";
+                m_conf.master_port = 0;
+                return 0;
+            }
+            reply.SetErrorReason("value is not an integer or out of range");
+            return 0;
+        }
+        if (GetConf().master_host != host || GetConf().master_port != port)
+        {
+            g_repl->GetSlave().Stop();
+        }
+        m_conf.master_host = host;
+        m_conf.master_port = port;
         reply.SetStatusCode(STATUS_OK);
         return 0;
     }
@@ -733,26 +755,20 @@ namespace ardb
         {
             if (!strcasecmp(cmd.GetArguments()[i].c_str(), "listening-port"))
             {
-//                uint32 port = 0;
-//                string_touint32(cmd.GetArguments()[i + 1], port);
-//                Address* addr = const_cast<Address*>(ctx.client->GetRemoteAddress());
-//                if (InstanceOf<SocketHostAddress>(addr).OK)
-//                {
-//                    SocketHostAddress* tmp = (SocketHostAddress*) addr;
-//                    const SocketHostAddress& master_addr = m_slave.GetMasterAddress();
-//                    if (master_addr.GetHost() == tmp->GetHost() && master_addr.GetPort() == port)
-//                    {
-//                        ERROR_LOG("Can NOT accept this slave connection from master[%s:%u]",
-//                                master_addr.GetHost().c_str(), master_addr.GetPort());
-//                        fill_error_reply(ctx.reply, "Reject connection as slave from master instance.");
-//                        return -1;
-//                    }
-//                }
-//                m_master.AddSlavePort(ctx.client, port);
+                uint32 port = 0;
+                string_touint32(cmd.GetArguments()[i + 1], port);
+                g_repl->GetMaster().SetSlavePort(ctx.client->client, port);
             }
             else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "ack"))
             {
                 //do nothing
+            }
+            else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "capa"))
+            {
+                //do nothing
+            }else
+            {
+                WARN_LOG("Unknown replcon key:%s", cmd.GetArguments()[i].c_str());
             }
         }
         reply.SetStatusCode(STATUS_OK);
@@ -761,11 +777,17 @@ namespace ardb
 
     int Ardb::Sync(Context& ctx, RedisCommandFrame& cmd)
     {
+        FreeClient(ctx);
+        g_repl->GetMaster().AddSlave(ctx.client->client, cmd);
+        ctx.GetReply().SetEmpty();
         return 0;
     }
 
     int Ardb::PSync(Context& ctx, RedisCommandFrame& cmd)
     {
+        FreeClient(ctx);
+        g_repl->GetMaster().AddSlave(ctx.client->client, cmd);
+        ctx.GetReply().SetEmpty();
         return 0;
     }
 }

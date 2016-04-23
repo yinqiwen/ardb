@@ -109,6 +109,7 @@ OP_NAMESPACE_BEGIN
 
         private:
             Engine* m_engine;
+            time_t m_starttime;
             bool m_loading_data;
             ArdbConfig m_conf;
             ThreadLocal<LUAInterpreter> m_lua;
@@ -164,6 +165,8 @@ OP_NAMESPACE_BEGIN
             int SetKeyValue(Context& ctx, const KeyObject& key, const ValueObject& val);
             int MergeKeyValue(Context& ctx, const KeyObject& key, uint16 op, const DataArray& args);
             int RemoveKey(Context& ctx, const KeyObject& key);
+            int FlushDB(Context& ctx, const Data& ns);
+            int FlushAll(Context& ctx);
 
             bool GetLongFromProtocol(Context& ctx, const std::string& str, int64_t& v);
 
@@ -176,7 +179,7 @@ OP_NAMESPACE_BEGIN
             void GetSlowlog(Context& ctx, uint32 len);
             int ObjectLen(Context& ctx, KeyType type, const std::string& key);
 
-            void FillInfoResponse(const std::string& section, std::string& info);
+            void FillInfoResponse(Context& ctx, const std::string& section, std::string& info);
 
             int SubscribeChannel(Context& ctx, const std::string& channel, bool is_pattern);
             int UnsubscribeChannel(Context& ctx, const std::string& channel, bool is_pattern, bool notify);
@@ -428,6 +431,10 @@ OP_NAMESPACE_BEGIN
             void AddClient(Context& ctx);
             void ScanClients();
             const ArdbConfig& GetConf() const
+            {
+                return m_conf;
+            }
+            ArdbConfig& GetMutableConf()
             {
                 return m_conf;
             }

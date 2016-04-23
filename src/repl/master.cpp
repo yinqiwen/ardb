@@ -57,40 +57,12 @@ OP_NAMESPACE_BEGIN
     };
 
     Master::Master() :
-            m_repl_noslaves_since(0),m_repl_nolag_since(0),m_repl_good_slaves_count(0)
+            m_repl_noslaves_since(0),m_repl_nolag_since(0),m_repl_good_slaves_count(0),m_slaves_count(0)
     {
     }
 
     int Master::Init()
     {
-//        struct HeartbeatTask: public Runnable
-//        {
-//                Master* serv;
-//                HeartbeatTask(Master* s) :
-//                        serv(s)
-//                {
-//                }
-//                void Run()
-//                {
-//                    serv->OnHeartbeat();
-//                }
-//        };
-//        struct RoutineTask: public Runnable
-//        {
-//                Master* serv;
-//                RoutineTask(Master* s) :
-//                        serv(s)
-//                {
-//                }
-//                void Run()
-//                {
-//                    serv->ClearNilSlave();
-//                }
-//        };
-//
-//        g_repl->GetTimer().ScheduleHeapTask(new HeartbeatTask(this), g_db->GetConfig().repl_ping_slave_period, g_db->GetConfig().repl_ping_slave_period,
-//                SECONDS);
-//        g_repl->GetTimer().ScheduleHeapTask(new RoutineTask(this), 1, 1, SECONDS);
         return 0;
     }
 
@@ -113,6 +85,7 @@ OP_NAMESPACE_BEGIN
     {
         Snapshot* snapshot = (Snapshot*) data;
         g_repl->GetMaster().FullResyncSlaves(snapshot);
+        INFO_LOG("Snapshot dump success");
     }
     static void snapshot_dump_fail(Channel*, void* data)
     {
@@ -122,6 +95,7 @@ OP_NAMESPACE_BEGIN
 
     static int snapshot_dump_routine(SnapshotState state, Snapshot* snapshot, void* cb)
     {
+        INFO_LOG("Snapshot dump state:%d %d", state,snapshot->GetType());
         if (state == DUMP_SUCCESS)
         {
             g_repl->GetIOService().AsyncIO(0, snapshot_dump_success, snapshot);
@@ -137,7 +111,7 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Master::PingSlaves()
+    int Master::Routine()
     {
         m_repl_good_slaves_count = 0;
         //Just process instructions  since the soft signal may loss
@@ -242,7 +216,7 @@ OP_NAMESPACE_BEGIN
         slave->snapshot = NULL;
         slave->state = SYNC_STATE_SYNCED;
         INFO_LOG("Send snapshot to slave:%s success.", slave->GetAddress().c_str());
-        g_repl->GetMaster().SyncSlave(slave);
+        g_repl->GetMaster().SyncWAL(slave);
     }
 
     static void OnSnapshotFileSendFailure(void* data)
@@ -264,11 +238,11 @@ OP_NAMESPACE_BEGIN
         slave->sync_cksm = slave->snapshot->CachedReplCksm();
         if (slave->isRedisSlave)
         {
-            msg.Printf("+FULLRESYNC %s %lld\r\n", g_repl->GetReplLog().GetReplKey(), slave->sync_offset);
+            msg.Printf("+FULLRESYNC %s %lld\r\n", g_repl->GetReplLog().GetReplKey().c_str(), slave->sync_offset);
         }
         else
         {
-            msg.Printf("+FULLRESYNC %s %lld %llu\r\n", g_repl->GetReplLog().GetReplKey(), slave->sync_offset, slave->sync_cksm);
+            msg.Printf("+FULLRESYNC %s %lld %llu\r\n", g_repl->GetReplLog().GetReplKey().c_str(), slave->sync_offset, slave->sync_cksm);
         }
         slave->conn->Write(msg);
         std::string dump_file_path = slave->snapshot->GetPath();
@@ -392,12 +366,13 @@ OP_NAMESPACE_BEGIN
                 msg.Printf("+CONTINUE\r\n");
                 slave->conn->Write(msg);
                 slave->state = SYNC_STATE_SYNCED;
+                INFO_LOG("[Master]Send +CONTINUE to slave %s.", slave->GetAddress().c_str());
                 SyncWAL();
             }
             else
             {
                 WARN_LOG("Create snapshot for full resync for slave replid:%s offset:%llu cksm:%llu, while current WAL runid:%s offset:%llu cksm:%llu",
-                        slave->repl_key.c_str(), slave->sync_offset, slave->sync_cksm, g_repl->GetReplLog().GetReplKey(), g_repl->GetReplLog().WALEndOffset(),
+                        slave->repl_key.c_str(), slave->sync_offset, slave->sync_cksm, g_repl->GetReplLog().GetReplKey().c_str(), g_repl->GetReplLog().WALEndOffset(),
                         g_repl->GetReplLog().WALCksm());
                 slave->state = SYNC_STATE_WAITING_SNAPSHOT;
                 slave->snapshot = g_snapshot_manager->GetSyncSnapshot(slave->isRedisSlave ? REDIS_DUMP : ARDB_DUMP, snapshot_dump_routine, this);
@@ -424,6 +399,7 @@ OP_NAMESPACE_BEGIN
         {
             WARN_LOG("Slave %s closed.", slave->GetAddress().c_str());
             m_slaves.erase(slave);
+            m_slaves_count = m_slaves.size();
         }
     }
     void Master::ChannelWritable(ChannelHandlerContext& ctx, ChannelStateEvent& e)
@@ -504,6 +480,7 @@ OP_NAMESPACE_BEGIN
         slave->conn->GetWritableOptions().auto_disable_writing = false;
 
         m_slaves.insert(slave);
+        m_slaves_count = m_slaves.size();
         SyncSlave(slave);
     }
 
@@ -528,6 +505,7 @@ OP_NAMESPACE_BEGIN
                 slave->Close();
                 return;
             }
+            ctx.sync_offset--;
             ctx.isRedisSlave = true;
             for (uint32 i = 2; i < cmd.GetArguments().size(); i += 2)
             {
@@ -575,7 +553,7 @@ OP_NAMESPACE_BEGIN
 
     size_t Master::ConnectedSlaves()
     {
-        return m_slaves.size();
+        return m_slaves_count;
     }
 
     void Master::PrintSlaves(std::string& str)

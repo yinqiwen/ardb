@@ -19,6 +19,67 @@
 
 OP_NAMESPACE_BEGIN
 
+    class RocksDBLogger: public rocksdb::Logger
+    {
+            // Write an entry to the log file with the specified format.
+            virtual void Logv(const char* format, va_list ap)
+            {
+                Logv(rocksdb::INFO_LEVEL, format, ap);
+            }
+            // Write an entry to the log file with the specified log level
+            // and format.  Any log with level under the internal log level
+            // of *this (see @SetInfoLogLevel and @GetInfoLogLevel) will not be
+            // printed.
+            void Logv(const rocksdb::InfoLogLevel log_level, const char* format, va_list ap)
+            {
+                LogLevel level = INFO_LOG_LEVEL;
+                switch (log_level)
+                {
+                    case rocksdb::INFO_LEVEL:
+                    {
+                        level = INFO_LOG_LEVEL;
+                        break;
+                    }
+                    case rocksdb::DEBUG_LEVEL:
+                    {
+                        level = DEBUG_LOG_LEVEL;
+                        break;
+                    }
+                    case rocksdb::WARN_LEVEL:
+                    {
+                        level = WARN_LOG_LEVEL;
+                        break;
+                    }
+                    case rocksdb::ERROR_LEVEL:
+                    {
+                        level = ERROR_LOG_LEVEL;
+                        break;
+                    }
+                    case rocksdb::FATAL_LEVEL:
+                    {
+                        level = ERROR_LOG_LEVEL;
+                        break;
+                    }
+                    case rocksdb::HEADER_LEVEL:
+                    {
+                        level = INFO_LOG_LEVEL;
+                        break;
+                    }
+                    default:
+                    {
+                        break;
+                    }
+                }
+                if (LOG_ENABLED(level))
+                {
+                    char buffer[1024];
+                    int n = vsnprintf(buffer, sizeof(buffer) - 1, format, ap);
+                    buffer[n] = 0;
+                    LOG_WITH_LEVEL(level, "%s", buffer);
+                }
+            }
+    };
+
     class RocksDBComparator: public rocksdb::Comparator
     {
         public:
@@ -153,8 +214,7 @@ OP_NAMESPACE_BEGIN
             {
                 return false;
             }
-            bool Filter(int level, const rocksdb::Slice& key, const rocksdb::Slice& existing_value, std::string* new_value,
-            bool* value_changed) const
+            bool Filter(int level, const rocksdb::Slice& key, const rocksdb::Slice& existing_value, std::string* new_value, bool* value_changed) const
             {
                 if (existing_value.size() == 0)
                 {
@@ -205,7 +265,7 @@ OP_NAMESPACE_BEGIN
     {
             std::unique_ptr<rocksdb::CompactionFilter> CreateCompactionFilter(const rocksdb::CompactionFilter::Context& context)
             {
-                return std::unique_ptr < rocksdb::CompactionFilter > (new RocksDBCompactionFilter(context.column_family_id));
+                return std::unique_ptr<rocksdb::CompactionFilter>(new RocksDBCompactionFilter(context.column_family_id));
             }
 
             const char* Name() const
@@ -241,8 +301,7 @@ OP_NAMESPACE_BEGIN
             // internal corruption. This will be treated as an error by the library.
             //
             // Also make use of the *logger for error messages.
-            bool FullMerge(const rocksdb::Slice& key, const rocksdb::Slice* existing_value, const std::deque<std::string>& operand_list, std::string* new_value,
-                    rocksdb::Logger* logger) const
+            bool FullMerge(const rocksdb::Slice& key, const rocksdb::Slice* existing_value, const std::deque<std::string>& operand_list, std::string* new_value, rocksdb::Logger* logger) const
             {
                 KeyObject key_obj;
                 Buffer keyBuffer(const_cast<char*>(key.data()), 0, key.size());
@@ -324,8 +383,7 @@ OP_NAMESPACE_BEGIN
             // If there is corruption in the data, handle it in the FullMerge() function,
             // and return false there.  The default implementation of PartialMerge will
             // always return false.
-            bool PartialMergeMulti(const rocksdb::Slice& key, const std::deque<rocksdb::Slice>& operand_list, std::string* new_value,
-                    rocksdb::Logger* logger) const
+            bool PartialMergeMulti(const rocksdb::Slice& key, const std::deque<rocksdb::Slice>& operand_list, std::string* new_value, rocksdb::Logger* logger) const
             {
                 if (operand_list.size() < 2)
                 {
@@ -382,8 +440,7 @@ OP_NAMESPACE_BEGIN
             // multiple times, where each time it only merges two operands.  Developers
             // should either implement PartialMergeMulti, or implement PartialMerge which
             // is served as the helper function of the default PartialMergeMulti.
-            bool PartialMerge(const rocksdb::Slice& key, const rocksdb::Slice& left_operand, const rocksdb::Slice& right_operand, std::string* new_value,
-                    rocksdb::Logger* logger) const
+            bool PartialMerge(const rocksdb::Slice& key, const rocksdb::Slice& left_operand, const rocksdb::Slice& right_operand, std::string* new_value, rocksdb::Logger* logger) const
             {
                 uint16 left_op = 0, right_op = 0;
                 DataArray left_args, right_args;
@@ -467,6 +524,15 @@ OP_NAMESPACE_BEGIN
         m_options.merge_operator.reset(new MergeOperator(this));
         m_options.prefix_extractor.reset(new RocksDBPrefixExtractor);
         m_options.compaction_filter_factory.reset(new RocksDBCompactionFilterFactory);
+        m_options.info_log.reset(new RocksDBLogger);
+        if (DEBUG_ENABLED())
+        {
+            m_options.info_log_level = rocksdb::DEBUG_LEVEL;
+        }
+        else
+        {
+            m_options.info_log_level = rocksdb::INFO_LEVEL;
+        }
         rocksdb::Status s = rocksdb::GetOptionsFromString(m_options, conf, &m_options);
         if (!s.ok())
         {
@@ -712,31 +778,36 @@ OP_NAMESPACE_BEGIN
 
     Iterator* RocksDBEngine::Find(Context& ctx, const KeyObject& key)
     {
+        RocksDBIterator* iter = NULL;
+        NEW(iter, RocksDBIterator(this,key.GetNameSpace()));
         rocksdb::ColumnFamilyHandle* cf = GetColumnFamilyHandle(ctx, key.GetNameSpace());
         if (NULL == cf)
         {
-            return NULL;
+            iter->MarkValid(false);
+            return iter;
         }
-        RocksDBIterator* iter = NULL;
-        NEW(iter, RocksDBIterator(this,key.GetNameSpace()));
+
         rocksdb::ReadOptions opt;
         opt.snapshot = GetSnpashot();
         if (key.GetType() > 0)
         {
-            opt.prefix_same_as_start = true;
             if (!ctx.flags.iterate_multi_keys)
             {
-                KeyObject& upperbound_key = iter->IterateUpperBoundKey();
-                upperbound_key.SetNameSpace(key.GetNameSpace());
-                if (key.GetType() == KEY_META)
+                opt.prefix_same_as_start = true;
+                if(!ctx.flags.iterate_no_upperbound)
                 {
-                    upperbound_key.SetType(KEY_END);
+                    KeyObject& upperbound_key = iter->IterateUpperBoundKey();
+                    upperbound_key.SetNameSpace(key.GetNameSpace());
+                    if (key.GetType() == KEY_META)
+                    {
+                        upperbound_key.SetType(KEY_END);
+                    }
+                    else
+                    {
+                        upperbound_key.SetType(key.GetType() + 1);
+                    }
+                    upperbound_key.SetKey(key.GetKey());
                 }
-                else
-                {
-                    upperbound_key.SetType(key.GetType() + 1);
-                }
-                upperbound_key.SetKey(key.GetKey());
             }
         }
         rocksdb::Iterator* rocksiter = m_db->NewIterator(opt, cf);
@@ -744,6 +815,9 @@ OP_NAMESPACE_BEGIN
         if (key.GetType() > 0)
         {
             iter->Jump(key);
+        }else
+        {
+            rocksiter->SeekToFirst();
         }
         return iter;
     }
@@ -792,7 +866,10 @@ OP_NAMESPACE_BEGIN
         ColumnFamilyHandleTable::iterator it = m_handlers.begin();
         while (it != m_handlers.end())
         {
-            nss.push_back(it->first);
+            if (it->first.AsString() != "default")
+            {
+                nss.push_back(it->first);
+            }
             it++;
         }
         return 0;
@@ -804,10 +881,109 @@ OP_NAMESPACE_BEGIN
         ColumnFamilyHandleTable::iterator found = m_handlers.find(ns);
         if (found != m_handlers.end())
         {
+            INFO_LOG("RocksDB drop column family:%s.", found->second->GetName().c_str());
             m_db->DropColumnFamily(found->second);
             m_handlers.erase(found);
         }
         return 0;
+    }
+
+    int64_t RocksDBEngine::EstimateKeysNum(Context& ctx, const Data& ns)
+    {
+        std::string cf_stat;
+        rocksdb::ColumnFamilyHandle* cf = GetColumnFamilyHandle(ctx, ns);
+        if (NULL == cf)
+            return 0;
+        uint64 value = 0;
+        m_db->GetIntProperty(cf, "rocksdb.estimate-num-keys", &value);
+        return (int64) value;
+    }
+
+    void RocksDBEngine::Stats(Context& ctx, std::string& all)
+    {
+        std::string str, version_info;
+        version_info.append("RocksDB version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(stringfromll(rocksdb::kMinorVersion)).append(".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
+        all.append(version_info);
+        DataArray nss;
+        ListNameSpaces(ctx, nss);
+        for (size_t i = 0; i < nss.size(); i++)
+        {
+            std::string cf_stat;
+            rocksdb::ColumnFamilyHandle* cf = GetColumnFamilyHandle(ctx, nss[i]);
+            if (NULL == cf)
+                continue;
+            m_db->GetProperty(cf, "rocksdb.stats", &cf_stat);
+            all.append(cf_stat).append("\r\n");
+//            all.append("** Misc Stats **\r\n");
+//            std::string sv;
+//            if (m_db->GetProperty(cf, "rocksdb.estimate-num-keys", &sv))
+//            {
+//                all.append("estimate-num-keys:").append(sv).append("\r\n");
+//            }
+//            if (m_db->GetProperty(cf, "rocksdb.num-immutable-mem-table", &sv))
+//            {
+//                all.append("num-immutable-mem-table:").append(sv).append("\r\n");
+//            }
+//            if (m_db->GetProperty(cf, "rocksdb.compaction-pending", &sv))
+//            {
+//                all.append("compaction-pending:").append(sv).append("\r\n");
+//            }
+//            if (m_db->GetProperty(cf, "rocksdb.background-errors", &sv))
+//            {
+//                all.append("background-errors:").append(sv).append("\r\n");
+//            }
+//            if (m_db->GetProperty(cf, "rocksdb.cur-size-active-mem-table", &sv))
+//            {
+//                all.append("cur-size-active-mem-table:").append(sv).append("\r\n");
+//            }
+//            if (m_db->GetProperty(cf, "rocksdb.num-entries-active-mem-table", &sv))
+//            {
+//                all.append("num-entries-active-mem-table:").append(sv).append("\r\n");
+//            }
+//            if (m_db->GetProperty(cf, "rocksdb.num-entries-imm-mem-tables", &sv))
+//            {
+//                all.append("num-entries-imm-mem-tables:").append(sv).append("\r\n");
+//            }
+//            if (m_db->GetProperty(cf, "rocksdb.estimate-table-readers-mem", &sv))
+//            {
+//                all.append("estimate-table-readers-mem:").append(sv).append("\r\n");
+//            }
+        }
+//        std::string sv;
+//        if (m_db->GetProperty("rocksdb.estimate-num-keys", &sv))
+//        {
+//            all.append("estimate-num-keys:").append(sv).append("\r\n");
+//        }
+//        if (m_db->GetProperty("rocksdb.num-immutable-mem-table", &sv))
+//        {
+//            all.append("num-immutable-mem-table:").append(sv).append("\r\n");
+//        }
+//        if (m_db->GetProperty("rocksdb.compaction-pending", &sv))
+//        {
+//            all.append("compaction-pending:").append(sv).append("\r\n");
+//        }
+//        if (m_db->GetProperty("rocksdb.background-errors", &sv))
+//        {
+//            all.append("background-errors:").append(sv).append("\r\n");
+//        }
+//        if (m_db->GetProperty("rocksdb.cur-size-active-mem-table", &sv))
+//        {
+//            all.append("cur-size-active-mem-table:").append(sv).append("\r\n");
+//        }
+//        if (m_db->GetProperty("rocksdb.num-entries-active-mem-table", &sv))
+//        {
+//            all.append("num-entries-active-mem-table:").append(sv).append("\r\n");
+//        }
+//        if (m_db->GetProperty("rocksdb.num-entries-imm-mem-tables", &sv))
+//        {
+//            all.append("num-entries-imm-mem-tables:").append(sv).append("\r\n");
+//        }
+//        if (m_db->GetProperty("rocksdb.estimate-table-readers-mem", &sv))
+//        {
+//            all.append("estimate-table-readers-mem:").append(sv).append("\r\n");
+//        }
+
+//        all.append(str);
     }
 
     bool RocksDBIterator::RocksDBIterator::Valid()

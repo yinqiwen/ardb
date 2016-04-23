@@ -42,6 +42,10 @@ OP_NAMESPACE_BEGIN
                     m_ns(ns), m_engine(engine), m_iter(NULL),m_valid(true)
             {
             }
+            void MarkValid(bool valid)
+            {
+                m_valid = valid;
+            }
             void SetIterator(rocksdb::Iterator* iter)
             {
                 m_iter = iter;
@@ -150,6 +154,8 @@ OP_NAMESPACE_BEGIN
             int Compact(Context& ctx, const KeyObject& start, const KeyObject& end);
             int ListNameSpaces(Context& ctx, DataArray& nss);
             int DropNameSpace(Context& ctx, const Data& ns);
+            void Stats(Context& ctx,std::string& str);
+            int64_t EstimateKeysNum(Context& ctx, const Data& ns);
 
             Iterator* Find(Context& ctx, const KeyObject& key);
     };

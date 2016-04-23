@@ -55,6 +55,10 @@ OP_NAMESPACE_BEGIN
 
             virtual int ListNameSpaces(Context& ctx, DataArray& nss) = 0;
             virtual int DropNameSpace(Context& ctx, const Data& ns) = 0;
+
+            virtual int64_t EstimateKeysNum(Context& ctx, const Data& ns) = 0;
+            virtual void Stats(Context& ctx,std::string& str) = 0;
+
             virtual ~Engine()
             {
             }

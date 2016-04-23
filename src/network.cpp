@@ -94,14 +94,16 @@ OP_NAMESPACE_BEGIN
                     delete this;
                     return;
                 }
-                if (ret >= 0)
+                if (reply.type != 0)
                 {
-                    if (reply.type != 0)
-                    {
-                        m_client_ctx.client->Write(reply);
-                    }
+                    m_client_ctx.client->Write(reply);
                 }
-                else
+                if(ret < -1)
+                {
+                    m_client_ctx.client->GetService().Stop();
+                    return;
+                }
+                else if(-1 == ret)
                 {
                     m_client_ctx.client->Close();
                 }
@@ -120,7 +122,7 @@ OP_NAMESPACE_BEGIN
                 m_client_ctx.client = ctx.GetChannel();
                 m_client_ctx.clientid.id = ctx.GetChannel()->GetID();
                 m_client_ctx.clientid.ctx = &m_ctx;
-                m_client_ctx.client->Attach(&m_ctx, NULL);
+                //m_client_ctx.client->Attach(&m_ctx, NULL);
                 if (!g_db->GetConf().requirepass.empty())
                 {
                     m_ctx.authenticated = false;
@@ -225,8 +227,6 @@ OP_NAMESPACE_BEGIN
         }
         g_total_qps.Name = "total_msg";
         Statistics::GetSingleton().AddTrack(&g_total_qps);
-
-
 
         ServerHandlerDataArray handler_datas(g_db->GetConf().servers.size());
         for (uint32 i = 0; i < g_db->GetConf().servers.size(); i++)

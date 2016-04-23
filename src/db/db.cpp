@@ -120,7 +120,7 @@ OP_NAMESPACE_BEGIN
     }
 
     Ardb::Ardb() :
-            m_engine(NULL), m_loading_data(false), m_redis_cursor_seed(0)
+            m_engine(NULL), m_starttime(0),m_loading_data(false), m_redis_cursor_seed(0)
     {
         g_db = this;
         m_settings.set_empty_key("");
@@ -128,21 +128,23 @@ OP_NAMESPACE_BEGIN
 
         struct RedisCommandHandlerSetting settingTable[] =
         {
-        { "ping", REDIS_CMD_PING, &Ardb::Ping, 0, 0, "r", 0, 0, 0 },
-        { "multi", REDIS_CMD_MULTI, &Ardb::Multi, 0, 0, "rs", 0, 0, 0 },
-        { "discard", REDIS_CMD_DISCARD, &Ardb::Discard, 0, 0, "r", 0, 0, 0 },
-        { "exec", REDIS_CMD_EXEC, &Ardb::Exec, 0, 0, "r", 0, 0, 0 },
-        { "watch", REDIS_CMD_WATCH, &Ardb::Watch, 0, -1, "rs", 0, 0, 0 },
-        { "unwatch", REDIS_CMD_UNWATCH, &Ardb::UnWatch, 0, 0, "rs", 0, 0, 0 },
-        { "subscribe", REDIS_CMD_SUBSCRIBE, &Ardb::Subscribe, 1, -1, "pr", 0, 0, 0 },
-        { "psubscribe", REDIS_CMD_PSUBSCRIBE, &Ardb::PSubscribe, 1, -1, "pr", 0, 0, 0 },
-        { "unsubscribe", REDIS_CMD_UNSUBSCRIBE, &Ardb::UnSubscribe, 0, -1, "pr", 0, 0, 0 },
-        { "punsubscribe", REDIS_CMD_PUNSUBSCRIBE, &Ardb::PUnSubscribe, 0, -1, "pr", 0, 0, 0 },
-        { "publish", REDIS_CMD_PUBLISH, &Ardb::Publish, 2, 2, "pr", 0, 0, 0 },
-        { "info", REDIS_CMD_INFO, &Ardb::Info, 0, 1, "r", 0, 0, 0 },
+        { "ping", REDIS_CMD_PING, &Ardb::Ping, 0, 0, "rtF", 0, 0, 0 },
+        { "multi", REDIS_CMD_MULTI, &Ardb::Multi, 0, 0, "rsF", 0, 0, 0 },
+        { "discard", REDIS_CMD_DISCARD, &Ardb::Discard, 0, 0, "rsF", 0, 0, 0 },
+        { "exec", REDIS_CMD_EXEC, &Ardb::Exec, 0, 0, "s", 0, 0, 0 },
+        { "watch", REDIS_CMD_WATCH, &Ardb::Watch, 0, -1, "rsF", 0, 0, 0 },
+        { "unwatch", REDIS_CMD_UNWATCH, &Ardb::UnWatch, 0, 0, "rsF", 0, 0, 0 },
+        { "subscribe", REDIS_CMD_SUBSCRIBE, &Ardb::Subscribe, 1, -1, "rpslt", 0, 0, 0 },
+        { "psubscribe", REDIS_CMD_PSUBSCRIBE, &Ardb::PSubscribe, 1, -1, "rpslt", 0, 0, 0 },
+        { "unsubscribe", REDIS_CMD_UNSUBSCRIBE, &Ardb::UnSubscribe, 0, -1, "rpslt", 0, 0, 0 },
+        { "punsubscribe", REDIS_CMD_PUNSUBSCRIBE, &Ardb::PUnSubscribe, 0, -1, "rpslt", 0, 0, 0 },
+        { "publish", REDIS_CMD_PUBLISH, &Ardb::Publish, 2, 2, "pltrF", 0, 0, 0 },
+        { "info", REDIS_CMD_INFO, &Ardb::Info, 0, 1, "rlt", 0, 0, 0 },
         { "save", REDIS_CMD_SAVE, &Ardb::Save, 0, 0, "ars", 0, 0, 0 },
+        { "save2", REDIS_CMD_SAVE2, &Ardb::Save, 0, 0, "ars", 0, 0, 0 },
         { "bgsave", REDIS_CMD_BGSAVE, &Ardb::BGSave, 0, 0, "ar", 0, 0, 0 },
-        { "import", REDIS_CMD_IMPORT, &Ardb::Import, 0, 1, "ars", 0, 0, 0 },
+        { "bgsave2", REDIS_CMD_BGSAVE2, &Ardb::BGSave, 0, 0, "ar", 0, 0, 0 },
+        { "import", REDIS_CMD_IMPORT, &Ardb::Import, 1, 1, "aws", 0, 0, 0 },
         { "lastsave", REDIS_CMD_LASTSAVE, &Ardb::LastSave, 0, 0, "r", 0, 0, 0 },
         { "slowlog", REDIS_CMD_SLOWLOG, &Ardb::SlowLog, 1, 2, "r", 0, 0, 0 },
         { "dbsize", REDIS_CMD_DBSIZE, &Ardb::DBSize, 0, 0, "r", 0, 0, 0 },
@@ -155,16 +157,15 @@ OP_NAMESPACE_BEGIN
         { "time", REDIS_CMD_TIME, &Ardb::Time, 0, 0, "ar", 0, 0, 0 },
         { "echo", REDIS_CMD_ECHO, &Ardb::Echo, 1, 1, "r", 0, 0, 0 },
         { "quit", REDIS_CMD_QUIT, &Ardb::Quit, 0, 0, "rs", 0, 0, 0 },
-        { "shutdown", REDIS_CMD_SHUTDOWN, &Ardb::Shutdown, 0, 1, "ar", 0, 0, 0 },
-        { "slaveof", REDIS_CMD_SLAVEOF, &Ardb::Slaveof, 2, -1, "as", 0, 0, 0 },
-        { "replconf", REDIS_CMD_REPLCONF, &Ardb::ReplConf, 0, -1, "ars", 0, 0, 0 },
+        { "shutdown", REDIS_CMD_SHUTDOWN, &Ardb::Shutdown, 0, 1, "arlt", 0, 0, 0 },
+        { "slaveof", REDIS_CMD_SLAVEOF, &Ardb::Slaveof, 2, -1, "ast", 0, 0, 0 },
+        { "replconf", REDIS_CMD_REPLCONF, &Ardb::ReplConf, 0, -1, "arslt", 0, 0, 0 },
         { "sync", REDIS_CMD_SYNC, &Ardb::Sync, 0, 2, "ars", 0, 0, 0 },
         { "psync", REDIS_CMD_PSYNC, &Ardb::PSync, 2, 2, "ars", 0, 0, 0 },
-        { "apsync", REDIS_CMD_PSYNC, &Ardb::PSync, 2, -1, "ars", 0, 0, 0 },
         { "select", REDIS_CMD_SELECT, &Ardb::Select, 1, 1, "r", 0, 0, 0 },
         { "append", REDIS_CMD_APPEND, &Ardb::Append, 2, 2, "w", 0, 0, 0 },
         { "append2", REDIS_CMD_APPEND2, &Ardb::Append, 2, 2, "w", 0, 0, 0 },
-        { "get", REDIS_CMD_GET, &Ardb::Get, 1, 1, "r", 0, 0, 0 },
+        { "get", REDIS_CMD_GET, &Ardb::Get, 1, 1, "rF", 0, 0, 0 },
         { "set", REDIS_CMD_SET, &Ardb::Set, 2, 7, "w", 0, 0, 0 },
         { "set2", REDIS_CMD_SET2, &Ardb::Set, 2, 7, "w", 0, 0, 0 },
         { "del", REDIS_CMD_DEL, &Ardb::Del, 1, -1, "w", 0, 0, 0 },
@@ -240,8 +241,8 @@ OP_NAMESPACE_BEGIN
         { "sismember", REDIS_CMD_SISMEMBER, &Ardb::SIsMember, 2, 2, "r", 0, 0, 0 },
         { "smembers", REDIS_CMD_SMEMBERS, &Ardb::SMembers, 1, 1, "r", 0, 0, 0 },
         { "smove", REDIS_CMD_SMOVE, &Ardb::SMove, 3, 3, "w", 0, 0, 0 },
-        { "spop", REDIS_CMD_SPOP, &Ardb::SPop, 1, 1, "w", 0, 0, 0 },
-        { "srandmember", REDIS_CMD_SRANMEMEBER, &Ardb::SRandMember, 1, 2, "r", 0, 0, 0 },
+        { "spop", REDIS_CMD_SPOP, &Ardb::SPop, 1, 1, "wR", 0, 0, 0 },
+        { "srandmember", REDIS_CMD_SRANMEMEBER, &Ardb::SRandMember, 1, 2, "rR", 0, 0, 0 },
         { "srem", REDIS_CMD_SREM, &Ardb::SRem, 2, -1, "w", 1, 0, 0 },
         { "srem2", REDIS_CMD_SREM2, &Ardb::SRem, 2, -1, "w", 1, 0, 0 },
         { "sunion", REDIS_CMD_SUNION, &Ardb::SUnion, 2, -1, "r", 0, 0, 0 },
@@ -284,10 +285,9 @@ OP_NAMESPACE_BEGIN
         { "rpush", REDIS_CMD_RPUSH, &Ardb::RPush, 2, -1, "w", 0, 0, 0 },
         { "rpushx", REDIS_CMD_RPUSHX, &Ardb::RPushx, 2, 2, "w", 0, 0, 0 },
         { "rpoplpush", REDIS_CMD_RPOPLPUSH, &Ardb::RPopLPush, 2, 2, "w", 0, 0, 0 },
-        { "blpop", REDIS_CMD_BLPOP, &Ardb::BLPop, 2, -1, "w", 0, 0, 0 },
-        { "brpop", REDIS_CMD_BRPOP, &Ardb::BRPop, 2, -1, "w", 0, 0, 0 },
-        { "brpoplpush", REDIS_CMD_BRPOPLPUSH, &Ardb::BRPopLPush, 3, 3, "w", 0, 0, 0 },
-        { "rpoplpush", REDIS_CMD_RPOPLPUSH, &Ardb::RPopLPush, 2, 2, "w", 0, 0, 0 },
+        { "blpop", REDIS_CMD_BLPOP, &Ardb::BLPop, 2, -1, "ws", 0, 0, 0 },
+        { "brpop", REDIS_CMD_BRPOP, &Ardb::BRPop, 2, -1, "ws", 0, 0, 0 },
+        { "brpoplpush", REDIS_CMD_BRPOPLPUSH, &Ardb::BRPopLPush, 3, 3, "ws", 0, 0, 0 },
         { "rpoplpush", REDIS_CMD_RPOPLPUSH, &Ardb::RPopLPush, 2, 2, "w", 0, 0, 0 },
         { "move", REDIS_CMD_MOVE, &Ardb::Move, 2, 2, "w", 0, 0, 0 },
         { "rename", REDIS_CMD_RENAME, &Ardb::Rename, 2, 2, "w", 0, 0, 0 },
@@ -299,17 +299,17 @@ OP_NAMESPACE_BEGIN
         { "__del__", REDIS_CMD_RAWDEL, &Ardb::RawDel, 1, 1, "w", 0, 0, 0 },
         { "eval", REDIS_CMD_EVAL, &Ardb::Eval, 2, -1, "s", 0, 0, 0 },
         { "evalsha", REDIS_CMD_EVALSHA, &Ardb::EvalSHA, 2, -1, "s", 0, 0, 0 },
-        { "script", REDIS_CMD_SCRIPT, &Ardb::Script, 1, -1, "s", 0, 0, 0 },
+        { "script", REDIS_CMD_SCRIPT, &Ardb::Script, 1, -1, "rs", 0, 0, 0 },
         { "randomkey", REDIS_CMD_RANDOMKEY, &Ardb::Randomkey, 0, 0, "r", 0, 0, 0 },
         { "scan", REDIS_CMD_SCAN, &Ardb::Scan, 1, 5, "r", 0, 0, 0 },
         { "scan2", REDIS_CMD_SCAN2, &Ardb::Scan, 1, 5, "r", 0, 0, 0 },
         { "geoadd", REDIS_CMD_GEO_ADD, &Ardb::GeoAdd, 4, -1, "w", 0, 0, 0 },
-        { "georadius", REDIS_CMD_GEO_RADIUS, &Ardb::GeoRadius, 5, -1, "r", 0, 0, 0 },
-        { "georadiusbymember", REDIS_CMD_GEO_RADIUSBYMEMBER, &Ardb::GeoRadiusByMember, 4, 10, "r", 0, 0, 0 },
+        { "georadius", REDIS_CMD_GEO_RADIUS, &Ardb::GeoRadius, 5, -1, "w", 0, 0, 0 },
+        { "georadiusbymember", REDIS_CMD_GEO_RADIUSBYMEMBER, &Ardb::GeoRadiusByMember, 4, 10, "w", 0, 0, 0 },
         { "geohash", REDIS_CMD_GEO_HASH, &Ardb::GeoHash, 2, -1, "r", 0, 0, 0 },
         { "geodist", REDIS_CMD_GEO_DIST, &Ardb::GeoDist, 3, 4, "r", 0, 0, 0 },
         { "geopos", REDIS_CMD_GEO_POS, &Ardb::GeoPos, 2, -1, "r", 0, 0, 0 },
-        { "auth", REDIS_CMD_AUTH, &Ardb::Auth, 1, 1, "r", 0, 0, 0 },
+        { "auth", REDIS_CMD_AUTH, &Ardb::Auth, 1, 1, "rsltF", 0, 0, 0 },
         { "pfadd", REDIS_CMD_PFADD, &Ardb::PFAdd, 2, -1, "w", 0, 0, 0 },
         { "pfadd2", REDIS_CMD_PFADD2, &Ardb::PFAdd, 2, -1, "w", 0, 0, 0 },
         { "pfcount", REDIS_CMD_PFCOUNT, &Ardb::PFCount, 1, -1, "w", 0, 0, 0 },
@@ -443,6 +443,7 @@ OP_NAMESPACE_BEGIN
                 DELETE(m_engine);
                 return -1;
             }
+            m_starttime = time(NULL);
             return 0;
         }
         else
@@ -498,6 +499,27 @@ OP_NAMESPACE_BEGIN
             ctx.dirty++;
         }
         return ret;
+    }
+
+    int Ardb::FlushDB(Context& ctx, const Data& ns)
+    {
+        m_engine->DropNameSpace(ctx, ns);
+        ctx.dirty += 1000; //makesure all
+        TouchWatchedKeysOnFlush(ctx, ns);
+        return 0;
+    }
+    int Ardb::FlushAll(Context& ctx)
+    {
+        DataArray nss;
+        m_engine->ListNameSpaces(ctx, nss);
+        for (size_t i = 0; i < nss.size(); i++)
+        {
+            m_engine->DropNameSpace(ctx, nss[i]);
+        }
+        ctx.dirty += 1000;
+        Data empty_ns; //indicate all namespaces
+        TouchWatchedKeysOnFlush(ctx, empty_ns);
+        return 0;
     }
 
     void Ardb::LockKey(KeyObject& key)
@@ -719,15 +741,16 @@ OP_NAMESPACE_BEGIN
             }
             if (meta.GetTTL() > 0 && meta.GetTTL() < get_current_epoch_millis())
             {
-                if (meta.GetType() == KEY_STRING)
+                if(GetConf().master_host.empty() || !GetConf().slave_readonly)
                 {
-                    RemoveKey(ctx, key);
-                }
-                else
-                {
-                    Iterator* iter = NULL;
-                    DelKey(ctx, key, iter);
-                    DELETE(iter);
+                    if (meta.GetType() == KEY_STRING)
+                    {
+                        RemoveKey(ctx, key);
+                    }
+                    else
+                    {
+                        DelKey(ctx, key);
+                    }
                 }
                 meta.Clear();
                 return true;
@@ -937,6 +960,7 @@ OP_NAMESPACE_BEGIN
             reply.SetErrorReason("unknown command:" + args.GetCommand());
             return -1;
         }
+        DEBUG_LOG("Process recved cmd[%lld]:%s  %p", ctx.sequence, args.ToString().c_str(), ctx.client);
         RedisCommandHandlerSetting& setting = *found;
         bool valid_cmd = true;
         if (setting.min_arity > 0)
@@ -954,7 +978,7 @@ OP_NAMESPACE_BEGIN
             reply.SetErrorReason("wrong number of arguments for command:" + args.GetCommand());
             return 0;
         }
-        DEBUG_LOG("Process recved cmd[%lld]:%s", ctx.sequence, args.ToString().c_str());
+
 //        if (err == ERR_OVERLOAD)
 //        {
 //            /*
@@ -995,10 +1019,20 @@ OP_NAMESPACE_BEGIN
 
         /* Don't accept write commands if this is a read only slave. But
          * accept write commands if this is our master. */
-        if (!GetConf().master_host.empty() && GetConf().slave_readonly && !(ctx.flags.slave) && (setting.flags & ARDB_CMD_WRITE) > 0)
+        if (!GetConf().master_host.empty() && (setting.flags & ARDB_CMD_WRITE) > 0)
         {
-            reply.SetErrCode(ERR_READONLY_SLAVE);
-            return 0;
+            if(!ctx.flags.slave) // from network
+            {
+                if(GetConf().slave_readonly)
+                {
+                    reply.SetErrCode(ERR_READONLY_SLAVE);
+                    return 0;
+                }
+                else
+                {
+                    ctx.flags.no_wal = 1; //do not feed wal in slave node
+                }
+            }
         }
 
         /* Only allow INFO and SLAVEOF when slave-serve-stale-data is no and
@@ -1010,6 +1044,7 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
 
+
         /* Loading DB? Return an error if the command has not the
          * CMD_LOADING flag. */
         if (IsLoadingData() && !(setting.flags & ARDB_CMD_LOADING))
@@ -1017,7 +1052,6 @@ OP_NAMESPACE_BEGIN
             reply.SetErrCode(ERR_LOADING);
             return 0;
         }
-
         if (ctx.InTransaction())
         {
             if (setting.type != REDIS_CMD_MULTI && setting.type != REDIS_CMD_EXEC && setting.type != REDIS_CMD_DISCARD && setting.type != REDIS_CMD_QUIT)

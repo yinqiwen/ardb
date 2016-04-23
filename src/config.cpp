@@ -259,7 +259,7 @@ OP_NAMESPACE_BEGIN
         conf_get_int64(props, "slave-client-output-buffer-limit", slave_client_output_buffer_limit);
         conf_get_int64(props, "pubsub-client-output-buffer-limit", pubsub_client_output_buffer_limit);
 
-        conf_get_bool(props, "lua-exec-atomic", lua_exec_atomic);
+        conf_get_string(props, "redis-compatible-version", redis_compatible_version);
 
         //trusted_ip.clear();
         Properties::const_iterator ip_it = props.find("trusted-ip");

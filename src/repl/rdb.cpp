@@ -47,6 +47,7 @@ extern "C"
 #include <unistd.h>
 #include "db/db.hpp"
 #include "repl.hpp"
+#include "thread/lock_guard.hpp"
 
 #define RETURN_NEGATIVE_EXPR(x)  do\
     {                    \
@@ -56,7 +57,7 @@ extern "C"
         }             \
     }while(0)
 
-#define REDIS_RDB_VERSION 6
+#define REDIS_RDB_VERSION 7
 
 #define ARDB_RDB_VERSION 1
 
@@ -88,6 +89,8 @@ extern "C"
 #define REDIS_RDB_ENC_LZF 3         /* string compressed with FASTLZ */
 
 /* Special RDB opcodes (saved/loaded with rdbSaveType/rdbLoadType). */
+#define RDB_OPCODE_AUX        250
+#define RDB_OPCODE_RESIZEDB   251
 #define REDIS_RDB_OPCODE_EXPIRETIME_MS 252
 #define REDIS_RDB_OPCODE_EXPIRETIME 253
 #define REDIS_RDB_OPCODE_SELECTDB   254
@@ -116,6 +119,11 @@ extern "C"
 namespace ardb
 {
 
+    static time_t g_lastsave = 0;
+    static int g_saver_num = 0;
+    static int g_lastsave_err = 0;
+    static time_t g_lastsave_cost = 0;
+    static time_t g_lastsave_start = 0;
     static const uint32 kloading_process_events_interval_bytes = 10 * 1024 * 1024;
     static const uint32 kmax_read_buffer_size = 10 * 1024 * 1024;
 
@@ -376,7 +384,7 @@ namespace ardb
                 }
                 default:
                 {
-                    ERROR_LOG("Unknown RDB encoding type");
+                    ERROR_LOG("Unknown RDB encoding type:%d", len);
                     abort();
                     break;
                 }
@@ -755,6 +763,12 @@ namespace ardb
         return Load(m_file_path, cb, data);
     }
 
+    void Snapshot::SetRoutineCallback(SnapshotRoutine* cb, void *data)
+    {
+        m_routine_cb = cb;
+        m_routine_cbdata = data;
+    }
+
     int Snapshot::Load(const std::string& file, SnapshotRoutine* cb, void *data)
     {
         int ret = 0;
@@ -804,6 +818,7 @@ namespace ardb
             int cbret = m_routine_cb(DUMPING, this, m_routine_cbdata);
             if (0 != cbret)
             {
+                ERROR_LOG("Routine return error:%d or snapshot file:%s", cbret, m_file_path.c_str());
                 return cbret;
             }
             m_routinetime = get_current_epoch_millis();
@@ -811,7 +826,7 @@ namespace ardb
 
         if (NULL == m_write_fp)
         {
-            ERROR_LOG("Failed to open redis dump file:%s to write", m_file_path.c_str());
+            ERROR_LOG("Failed to open snapshot file:%s to write", m_file_path.c_str());
             return -1;
         }
 
@@ -821,13 +836,17 @@ namespace ardb
         {
             size_t bytes_to_write = (max_write_bytes < buflen) ? max_write_bytes : buflen;
             if (fwrite(data, bytes_to_write, 1, m_write_fp) == 0)
+            {
+                ERROR_LOG("Failed to write %u bytes to snapshot file:%s to write", bytes_to_write, m_file_path.c_str());
                 return -1;
+            }
+
+            m_writed_data_size += bytes_to_write;
             //check sum here
             m_cksm = crc64(m_cksm, (unsigned char *) data, bytes_to_write);
             data += bytes_to_write;
             buflen -= bytes_to_write;
         }
-        m_writed_data_size += buflen;
         return 0;
     }
 
@@ -891,6 +910,9 @@ namespace ardb
         {
             m_routine_cb(DUMP_START, this, m_routine_cbdata);
         }
+        time_t start = time(NULL);
+        g_lastsave_start = start;
+        g_saver_num++;
         if (m_type == REDIS_DUMP)
         {
             ret = RedisSave();
@@ -905,6 +927,19 @@ namespace ardb
         {
             m_routine_cb(m_state, this, m_routine_cbdata);
         }
+        g_lastsave_err = ret;
+        if (0 == ret)
+        {
+            g_lastsave = time(NULL);
+            time_t end = time(NULL);
+            g_lastsave_cost = end - start;
+        }
+        g_saver_num--;
+        if (g_saver_num < 0)
+        {
+            g_saver_num = 0;
+        }
+        g_lastsave_start = 0;
         return ret;
     }
 
@@ -1356,6 +1391,30 @@ namespace ardb
                 }
                 break;
             }
+
+            case RDB_OPCODE_AUX:
+            {
+                std::string auxval;
+
+                if (!ReadString(auxval))
+                {
+                    return false;
+                }
+                if (key.size() > 0 && key[0] == '%')
+                {
+                    /* All the fields with a name staring with '%' are considered
+                     * information fields and are logged at startup with a log
+                     * level of NOTICE. */
+                    INFO_LOG("RDB '%s': %s", key.c_str(), auxval.c_str());
+                }
+                else
+                {
+                    /* We ignore fields we don't understand, as by AUX field
+                     * contract. */
+                    DEBUG_LOG("Unrecognized RDB AUX field: '%s' '%s'", key.c_str(), auxval.c_str());
+                }
+                break;
+            }
             default:
             {
                 ERROR_LOG("Unknown object type:%d", rdbtype);
@@ -1464,6 +1523,15 @@ namespace ardb
                 loadctx.ns.SetString(stringfromll(dbid), false);
                 continue;
             }
+            else if (type == RDB_OPCODE_RESIZEDB)
+            {
+                uint32_t db_size, expires_size;
+                if ((db_size = ReadLen(NULL)) == REDIS_RDB_LENERR)
+                    goto eoferr;
+                if ((expires_size = ReadLen(NULL)) == REDIS_RDB_LENERR)
+                    goto eoferr;
+                //donothing or readed data
+            }
             //load key, object
 
             if (!ReadString(key))
@@ -1508,7 +1576,7 @@ namespace ardb
     void Snapshot::RedisWriteMagicHeader()
     {
         char magic[10];
-        snprintf(magic, sizeof(magic), "REDIS%04d", REDIS_RDB_VERSION);
+        snprintf(magic, sizeof(magic), "REDIS%04d", 6);
         Write(magic, 9);
     }
 
@@ -1525,17 +1593,21 @@ namespace ardb
         {
             dumpctx.ns = nss[i];
             DUMP_CHECK_WRITE(WriteType(REDIS_RDB_OPCODE_SELECTDB));
-            DUMP_CHECK_WRITE(WriteLen(dumpctx.ns.GetInt64()));
+            int64 dbid = 0;
+            string_toint64(nss[i].AsString(), dbid);
+            DUMP_CHECK_WRITE(WriteLen(dbid));
             KeyObject empty;
             empty.SetNameSpace(nss[i]);
             Iterator* iter = g_db->GetEngine()->Find(dumpctx, empty);
             Data current_key;
             KeyType current_keytype;
             int64 objectlen = 0;
+
             while (iter->Valid())
             {
                 KeyObject& k = iter->Key();
                 ValueObject& v = iter->Value();
+                printf("###%d %s %d \n", k.GetType(), k.GetKey().AsString().c_str(), err);
                 switch (k.GetType())
                 {
                     case KEY_META:
@@ -1546,12 +1618,14 @@ namespace ardb
                             DUMP_CHECK_WRITE(WriteType(REDIS_RDB_OPCODE_EXPIRETIME_MS));
                             DUMP_CHECK_WRITE(WriteMillisecondTime(ttl));
                         }
-                        DUMP_CHECK_WRITE(WriteKeyType((KeyType )k.GetType()));
+                        current_keytype = (KeyType) v.GetType();
+                        DUMP_CHECK_WRITE(WriteKeyType(current_keytype));
                         current_key = k.GetKey();
                         std::string kstr;
                         k.GetKey().ToString(kstr);
                         DUMP_CHECK_WRITE(WriteRawString(kstr.data(), kstr.size()));
-                        current_keytype = (KeyType)v.GetType();
+
+                        printf("###key:%d %s %d \n", current_keytype, k.GetKey().AsString().c_str(), err);
                         switch (current_keytype)
                         {
                             case KEY_STRING:
@@ -1567,7 +1641,7 @@ namespace ardb
                                 g_db->ObjectLen(dumpctx, current_keytype, kstr);
                                 objectlen = dumpctx.GetReply().GetInteger();
                                 DUMP_CHECK_WRITE(WriteLen(objectlen));
-                                DUMP_CHECK_WRITE(WriteStringObject(v.GetStringValue()));
+                                //DUMP_CHECK_WRITE(WriteStringObject(v.GetStringValue()));
                                 break;
                             }
                         }
@@ -1878,9 +1952,60 @@ namespace ardb
 
     }
 
+    time_t SnapshotManager::LastSave()
+    {
+        return g_lastsave;
+    }
+    int SnapshotManager::CurrentSaverNum()
+    {
+        return g_saver_num;
+    }
+    time_t SnapshotManager::LastSaveCost()
+    {
+        return g_lastsave_cost;
+    }
+    int SnapshotManager::LastSaveErr()
+    {
+        return g_lastsave_err;
+    }
+    time_t SnapshotManager::LastSaveStartUnixTime()
+    {
+        return g_lastsave_start;
+    }
+
+    Snapshot* SnapshotManager::NewSnapshot(SnapshotType type, bool bgsave, SnapshotRoutine* cb, void *data)
+    {
+        time_t now = time(NULL);
+        Snapshot* snapshot = NULL;
+        NEW(snapshot, Snapshot);
+        char path[1024];
+        snprintf(path, sizeof(path) - 1, "%s/dump-snapshot.%u", g_db->GetConf().backup_dir.c_str(), now);
+        if (bgsave)
+        {
+            if (0 == snapshot->BGSave(type, path, cb, data))
+            {
+                LockGuard<ThreadMutexLock> guard(m_snapshots_lock);
+                m_snapshots.push_back(snapshot);
+                return snapshot;
+            }
+        }
+        else
+        {
+            if (0 == snapshot->Save(type, path, cb, data))
+            {
+                LockGuard<ThreadMutexLock> guard(m_snapshots_lock);
+                m_snapshots.push_back(snapshot);
+                return snapshot;
+            }
+        }
+        DELETE(snapshot);
+        return NULL;
+    }
+
     Snapshot* SnapshotManager::GetSyncSnapshot(SnapshotType type, SnapshotRoutine* cb, void *data)
     {
         time_t now = time(NULL);
+        LockGuard<ThreadMutexLock> guard(m_snapshots_lock);
         SnapshotArray::reverse_iterator it = m_snapshots.rbegin();
         while (it != m_snapshots.rend())
         {

@@ -119,7 +119,7 @@ namespace ardb
             WatchedContextTable::iterator wit = m_watched_ctxs.begin();
             while (wit != m_watched_ctxs.end())
             {
-                if(wit->first.ns == ns)
+                if(wit->first.ns == ns || ns.IsNil())
                 {
                     ContextSet::iterator cit = wit->second.begin();
                     while (cit != wit->second.end())

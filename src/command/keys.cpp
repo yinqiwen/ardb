@@ -364,6 +364,7 @@ OP_NAMESPACE_BEGIN
         {
             reply.SetInteger(0);
         }
+
         bool noregex = start == pattern;
         int64_t match_count = 0;
         KeyObject startkey(ctx.ns, KEY_META, start);
@@ -580,10 +581,15 @@ OP_NAMESPACE_BEGIN
         KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
         if (!ctx.flags.redis_compatible)
         {
+            reply.SetStatusCode(STATUS_OK);
+            if(!GetConf().master_host.empty() && GetConf().slave_ignore_expire)
+            {
+                return 0;
+            }
             Data merge_data;
             merge_data.SetInt64(mills);
             m_engine->Merge(ctx, key, REDIS_CMD_PEXPIREAT, merge_data);
-            reply.SetStatusCode(STATUS_OK);
+
         }
         else
         {
@@ -599,9 +605,13 @@ OP_NAMESPACE_BEGIN
             }
             else
             {
+                reply.SetInteger(1);
+                if(!GetConf().master_host.empty() && GetConf().slave_ignore_expire)
+                {
+                    return 0;
+                }
                 meta_value.SetTTL(mills);
                 SetKeyValue(ctx, key, meta_value);
-                reply.SetInteger(1);
             }
         }
         return 0;
@@ -706,7 +716,7 @@ OP_NAMESPACE_BEGIN
         RedisReply& reply = ctx.GetReply();
         Iterator* iter = NULL;
         int removed = 0;
-        ctx.flags.iterate_multi_keys = cmd.GetArguments().size() > 1 ? 1 : 0;
+        ctx.flags.iterate_no_upperbound = cmd.GetArguments().size() > 1 ? 1 : 0;
         for (size_t i = 0; i < cmd.GetArguments().size(); i++)
         {
             KeyObject meta(ctx.ns, KEY_META, cmd.GetArguments()[i]);

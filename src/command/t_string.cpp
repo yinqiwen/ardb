@@ -564,10 +564,13 @@ OP_NAMESPACE_BEGIN
                 merge_data.push_back(merge);
                 if (ttl > 0)
                 {
-                    op = REDIS_CMD_PSETEX;
-                    Data ttl_data;
-                    ttl_data.SetInt64(ttl);
-                    merge_data.push_back(ttl_data);
+                    if(GetConf().master_host.empty() || !GetConf().slave_ignore_expire)
+                    {
+                        op = REDIS_CMD_PSETEX;
+                        Data ttl_data;
+                        ttl_data.SetInt64(ttl);
+                        merge_data.push_back(ttl_data);
+                    }
                 }
                 err = MergeKeyValue(ctx, keyobj, op, merge_data);
             }

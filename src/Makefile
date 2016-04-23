@@ -34,15 +34,15 @@
 CXX=g++
 CC=gcc
 
-ARDB_VERSION=0.8.6
+ARDB_VERSION=0.9.0
 
 uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 
 LIB_PATH=$(PWD)/../deps
 
-LMDB_PATH=${LIB_PATH}/mdb-mdb/libraries/liblmdb
-LMDB_FILE=${LIB_PATH}/LMDB_0.9.14.tar.gz
-LMDB_LIBA=${LMDB_PATH}/liblmdb.a
+#LMDB_PATH=${LIB_PATH}/mdb-mdb/libraries/liblmdb
+#LMDB_FILE=${LIB_PATH}/LMDB_0.9.14.tar.gz
+#LMDB_LIBA=${LMDB_PATH}/liblmdb.a
 
 JEMALLOC_VER=jemalloc-4.1.0
 JEMALLOC_PATH=${LIB_PATH}/${JEMALLOC_VER}

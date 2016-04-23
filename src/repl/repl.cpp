@@ -2,12 +2,12 @@
 #include "redis/crc64.h"
 #include "db/db.hpp"
 
-
 #define SERVER_KEY_SIZE 40
 #define RUN_PERIOD(name, ms) static uint64_t name##_exec_ms = 0;  \
     if(ms > 0 && (now - name##_exec_ms >= ms) && (name##_exec_ms = now))
 OP_NAMESPACE_BEGIN
-    ReplicationService* g_repl = NULL;
+    static ReplicationService _repl_singleton;
+    ReplicationService* g_repl = &_repl_singleton;
     struct ReplMeta
     {
 //            uint64_t data_cksm;
@@ -16,7 +16,8 @@ OP_NAMESPACE_BEGIN
             char serverkey[SERVER_KEY_SIZE];
             char replkey[SERVER_KEY_SIZE];
             uint16 select_ns_size;
-            ReplMeta() :select_ns_size(0)
+            ReplMeta() :
+                    select_ns_size(0)
             {
             }
     };
@@ -56,9 +57,6 @@ OP_NAMESPACE_BEGIN
             memcpy(meta->serverkey, randomkey.data(), SERVER_KEY_SIZE);
             memcpy(meta->replkey, randomkey.data(), SERVER_KEY_SIZE);
             memset(meta->select_ns, 0, ARDB_MAX_NAMESPACE_SIZE);
-            meta->serverkey[SERVER_KEY_SIZE] = 0;
-//            meta->data_cksm = 0;
-//            meta->data_offset = 0;
         }
         return 0;
     }
@@ -71,10 +69,12 @@ OP_NAMESPACE_BEGIN
     {
         return m_wal;
     }
-    const char* ReplicationBacklog::GetReplKey()
+    std::string ReplicationBacklog::GetReplKey()
     {
         ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
-        return meta->replkey;
+        std::string str;
+        str.assign(meta->replkey, SERVER_KEY_SIZE);
+        return str;
     }
     void ReplicationBacklog::SetReplKey(const std::string& str)
     {
@@ -98,6 +98,7 @@ OP_NAMESPACE_BEGIN
                 select.Printf("select %s\r\n", ns.AsString().c_str());
                 len += WriteWAL(select);
                 memcpy(meta->select_ns, ns.CStr(), ns.StringLength());
+                meta->select_ns[ns.StringLength()] = 0;
                 meta->select_ns_size = ns.StringLength();
             }
             else
@@ -125,6 +126,10 @@ OP_NAMESPACE_BEGIN
 
     int ReplicationBacklog::WriteWAL(const Data& ns, RedisCommandFrame& cmd)
     {
+        if (!g_repl->IsInited())
+        {
+            return -1;
+        }
         ReplCommand* repl_cmd = new ReplCommand;
         repl_cmd->ns = ns;
         const Buffer& raw_protocol = cmd.GetRawProtocolData();
@@ -163,6 +168,16 @@ OP_NAMESPACE_BEGIN
         swal_replay(m_wal, offset, end_offset - offset, cksm_callback, &cksm);
         return cksm == dest_cksm;
     }
+    std::string ReplicationBacklog::CurrentNamespace()
+    {
+        ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
+        std::string str;
+        if(meta->select_ns_size > 0)
+        {
+            str.assign(meta->select_ns, meta->select_ns_size);
+        }
+        return str;
+    }
     uint64_t ReplicationBacklog::WALCksm()
     {
         return swal_cksm(m_wal);
@@ -179,33 +194,12 @@ OP_NAMESPACE_BEGIN
     {
         return swal_end_offset(m_wal);
     }
-//    void ReplicationBacklog::ResetDataOffsetCksm(uint64_t offset, uint64_t cksm)
-//    {
-//        ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
-//        meta->data_cksm = cksm;
-//        meta->data_offset = offset;
-//    }
-//    uint64_t ReplicationBacklog::DataOffset()
-//    {
-//        ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
-//        return meta->data_offset;
-//    }
-//    uint64_t ReplicationBacklog::DataCksm()
-//    {
-//        ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
-//        return meta->data_cksm;
-//    }
-//    void ReplicationBacklog::UpdateDataOffsetCksm(const Buffer& data)
-//    {
-//        ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
-//        meta->data_offset += data.ReadableBytes();
-//        meta->data_cksm = crc64(meta->data_offset, (const unsigned char *) (data.GetRawReadBuffer()), data.ReadableBytes());
-//    }
     ReplicationBacklog::~ReplicationBacklog()
     {
     }
 
-    ReplicationService::ReplicationService()
+    ReplicationService::ReplicationService() :
+            m_inited(false)
     {
         g_repl = this;
     }
@@ -227,28 +221,49 @@ OP_NAMESPACE_BEGIN
     }
     void ReplicationService::Run()
     {
-
-
+        struct RoutineTask: public Runnable
+        {
+                void Run()
+                {
+                    g_repl->GetMaster().Routine();
+                    g_repl->GetSlave().Routine();
+                    g_repl->GetReplLog().Routine();
+                }
+        };
+        m_io_serv.GetTimer().Schedule(new RoutineTask, 1, 1, SECONDS);
+        m_inited = true;
         m_io_serv.Start();
+    }
+    bool ReplicationService::IsInited() const
+    {
+        return m_inited;
     }
     int ReplicationService::Init()
     {
+        if (IsInited())
+        {
+            return 0;
+        }
         int err = m_repl_backlog.Init();
-        if(0 != err)
+        if (0 != err)
         {
             return err;
         }
         err = m_master.Init();
-        if(0 != err)
+        if (0 != err)
         {
             return err;
         }
         err = m_slave.Init();
-        if(0 != err)
+        if (0 != err)
         {
             return err;
         }
         Start();
+        while (!IsInited())
+        {
+            usleep(100);
+        }
         return 0;
     }
 OP_NAMESPACE_END

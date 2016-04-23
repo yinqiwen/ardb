@@ -803,7 +803,7 @@ OP_NAMESPACE_BEGIN
         }
         DataSet union_result;
         Iterator* iter = NULL;
-        ctx.flags.iterate_multi_keys = 1;
+        ctx.flags.iterate_no_upperbound = 1;
         for (size_t i = union_key_cursor; i < keys.size(); i++)
         {
             if (metas[i].GetType() == 0)
