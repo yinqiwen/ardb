@@ -342,7 +342,7 @@ OP_NAMESPACE_BEGIN
     int Ardb::Keys(Context& ctx, RedisCommandFrame& cmd)
     {
         const std::string& pattern = cmd.GetArguments()[0];
-        ctx.flags.iterate_multi_keys = 1;
+
         std::string start;
         for (size_t i = 0; i < pattern.size(); i++)
         {
@@ -368,7 +368,10 @@ OP_NAMESPACE_BEGIN
         bool noregex = start == pattern;
         int64_t match_count = 0;
         KeyObject startkey(ctx.ns, KEY_META, start);
+        ctx.flags.iterate_multi_keys = 1;
+        ctx.flags.iterate_no_upperbound = 1;
         Iterator* iter = m_engine->Find(ctx, startkey);
+        //printf("#### %d %s\n", iter->Valid(), start.c_str());
         while (iter->Valid())
         {
             KeyObject& k = iter->Key();
@@ -389,6 +392,15 @@ OP_NAMESPACE_BEGIN
                         break;
                     }
                 }
+            }
+            if(iter->Value().GetType() != KEY_STRING)
+            {
+                std::string keystr;
+                k.GetKey().ToString(keystr);
+                keystr.append(1, 0);
+                KeyObject next(ctx.ns, KEY_META, keystr);
+                iter->Jump(next);
+                continue;
             }
             iter->Next();
         }
@@ -468,7 +480,7 @@ OP_NAMESPACE_BEGIN
         RedisReply& reply = ctx.GetReply();
         KeyObject meta_key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
         ValueObject meta_value;
-        KeyLockGuard guard(ctx,meta_key);
+        KeyLockGuard guard(ctx, meta_key);
         if (!CheckMeta(ctx, meta_key, (KeyType) 0, meta_value))
         {
             return 0;
@@ -525,12 +537,16 @@ OP_NAMESPACE_BEGIN
         {
             return ERR_NOTPERFORMED;
         }
-        int64 ttl = ms + get_current_epoch_millis();
+        int64 ttl = ms;
         meta.SetTTL(ttl);
         return 0;
     }
     int Ardb::PExpireat(Context& ctx, RedisCommandFrame& cmd)
     {
+        if (ctx.flags.slave && GetConf().slave_ignore_expire)
+        {
+            return 0;
+        }
         RedisReply& reply = ctx.GetReply();
         int64 mills;
         if (cmd.GetArguments().size() == 2)
@@ -582,19 +598,14 @@ OP_NAMESPACE_BEGIN
         if (!ctx.flags.redis_compatible)
         {
             reply.SetStatusCode(STATUS_OK);
-            if(!GetConf().master_host.empty() && GetConf().slave_ignore_expire)
-            {
-                return 0;
-            }
             Data merge_data;
             merge_data.SetInt64(mills);
             m_engine->Merge(ctx, key, REDIS_CMD_PEXPIREAT, merge_data);
-
         }
         else
         {
             ValueObject meta_value;
-            KeyLockGuard guard(ctx,key);
+            KeyLockGuard guard(ctx, key);
             if (!CheckMeta(ctx, key, (KeyType) 0, meta_value))
             {
                 return 0;
@@ -606,10 +617,6 @@ OP_NAMESPACE_BEGIN
             else
             {
                 reply.SetInteger(1);
-                if(!GetConf().master_host.empty() && GetConf().slave_ignore_expire)
-                {
-                    return 0;
-                }
                 meta_value.SetTTL(mills);
                 SetKeyValue(ctx, key, meta_value);
             }
@@ -645,14 +652,20 @@ OP_NAMESPACE_BEGIN
             }
             return 0;
         }
-        if (cmd.GetType() == REDIS_CMD_PTTL)
+        int64 ttl = val.GetTTL();
+        if(ttl > 0)
         {
-            reply.SetInteger(val.GetTTL());
+            if (cmd.GetType() == REDIS_CMD_PTTL)
+            {
+                ttl -= get_current_epoch_millis();
+            }
+            else
+            {
+                ttl = ttl / 1000 - time(NULL);
+
+            }
         }
-        else
-        {
-            reply.SetInteger(val.GetTTL() / 1000);
-        }
+        reply.SetInteger(ttl);
         return 0;
     }
     int Ardb::TTL(Context& ctx, RedisCommandFrame& cmd)
@@ -699,8 +712,7 @@ OP_NAMESPACE_BEGIN
         {
             KeyObject& k = iter->Key();
             const Data& kdata = k.GetKey();
-            if (k.GetNameSpace().Compare(meta_key.GetNameSpace()) != 0 || kdata.StringLength() != meta_key.GetKey().StringLength()
-                    || strncmp(meta_key.GetKey().CStr(), kdata.CStr(), kdata.StringLength()) != 0)
+            if (k.GetNameSpace().Compare(meta_key.GetNameSpace()) != 0 || kdata.StringLength() != meta_key.GetKey().StringLength() || strncmp(meta_key.GetKey().CStr(), kdata.CStr(), kdata.StringLength()) != 0)
             {
                 break;
             }

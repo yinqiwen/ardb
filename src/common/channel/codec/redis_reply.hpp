@@ -255,8 +255,9 @@ namespace ardb
                         }
                     }
                 }
-                ~RedisReply();
+                virtual ~RedisReply();
         };
+
 
         class RedisReplyPool
         {

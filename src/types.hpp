@@ -181,6 +181,7 @@ OP_NAMESPACE_BEGIN
             Data(const Data& data);
             Data(int64_t v);
             Data(double v);
+            static Data WrapCStr(const std::string& str);
             Data& operator=(const Data& data);
             ~Data();
 
@@ -190,6 +191,7 @@ OP_NAMESPACE_BEGIN
 
             void SetString(const std::string& str, bool try_int_encoding);
             void SetString(const char* str, size_t len, bool clone);
+            void SetString(const std::string& str, bool try_int_encoding, bool clone);
             void SetInt64(int64 v);
             void SetFloat64(double v);
             int64 GetInt64() const;

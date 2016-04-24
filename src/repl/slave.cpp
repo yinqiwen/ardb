@@ -234,6 +234,16 @@ OP_NAMESPACE_BEGIN
                     return;
                 }
             }
+            ReportACK();
+
+        }
+        //m_routine_ts = now;
+    }
+
+    void Slave::ReportACK()
+    {
+        if (m_ctx.state == SLAVE_STATE_SYNCED || m_ctx.state == SLAVE_STATE_LOADING_SNAPSHOT)
+        {
             if (m_ctx.server_support_psync && NULL != m_client)
             {
                 Buffer ack;
@@ -241,7 +251,6 @@ OP_NAMESPACE_BEGIN
                 m_client->Write(ack);
             }
         }
-        //m_routine_ts = now;
     }
 
     void Slave::InfoMaster()
@@ -425,7 +434,7 @@ OP_NAMESPACE_BEGIN
         if (!chunk.chunk.empty())
         {
             int err = m_ctx.snapshot.Write(chunk.chunk.c_str(), chunk.chunk.size());
-            printf("####write err:%d with %d %d\n", err, chunk.chunk.size(), m_ctx.snapshot.DumpLeftDataSize());
+            //printf("####write err:%d with %d %d\n", err, chunk.chunk.size(), m_ctx.snapshot.DumpLeftDataSize());
         }
         if (chunk.IsLastChunk())
         {
@@ -589,6 +598,22 @@ OP_NAMESPACE_BEGIN
         {
             //async close
             g_repl->GetIOService().AsyncIO(m_clientid, async_close_callback, NULL);
+        }
+    }
+
+    void Slave::AsyncACKCallback(Channel* ch, void*)
+    {
+        if (NULL != ch)
+        {
+            g_repl->GetSlave().ReportACK();
+        }
+    }
+
+    void Slave::SendACK()
+    {
+        if (m_clientid > 0)
+        {
+            g_repl->GetIOService().AsyncIO(m_clientid, AsyncACKCallback, NULL);
         }
     }
 OP_NAMESPACE_END

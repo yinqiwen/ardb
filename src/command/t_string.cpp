@@ -153,6 +153,7 @@ OP_NAMESPACE_BEGIN
         {
             mills *= 1000;
         }
+        mills += get_current_epoch_millis();
         const std::string& key = cmd.GetArguments()[0];
         int err = SetString(ctx, key, cmd.GetArguments()[2], false, mills, -1);
         if (0 != err)
@@ -524,14 +525,13 @@ OP_NAMESPACE_BEGIN
     {
         ctx.flags.create_if_notexist = 1;
         int err = 0;
-        KeyObject keyobj(ctx.ns, KEY_META, key);
+        KeyObject keyobj(ctx.ns, KEY_META, Data::WrapCStr(key));
         uint64_t ttl = 0;
         if (px > 0)
         {
             ttl = px;
         }
-        Data merge;
-        merge.SetString(value, true);
+
         uint16 op = REDIS_CMD_SET;
         if (nx_xx != -1)
         {
@@ -544,6 +544,8 @@ OP_NAMESPACE_BEGIN
             {
                 return  ctx.GetReply().ErrCode();
             }
+            Data merge;
+            merge.SetString(value, true);
             err = MergeSet(ctx, keyobj, valueobj, op, merge, ttl);
             if (0 == err)
             {
@@ -556,11 +558,13 @@ OP_NAMESPACE_BEGIN
             {
                 valueobj.SetType(KEY_STRING);
                 valueobj.SetTTL(ttl);
-                valueobj.GetStringValue().SetString(value, true);
+                valueobj.GetStringValue().SetString(value, true, false);
                 err = SetKeyValue(ctx, keyobj, valueobj);
             }else
             {
                 DataArray merge_data;
+                Data merge;
+                merge.SetString(value, true);
                 merge_data.push_back(merge);
                 if (ttl > 0)
                 {
@@ -609,6 +613,7 @@ OP_NAMESPACE_BEGIN
                         ttl = iv;
                         ttl *= 1000;
                     }
+                    ttl += get_current_epoch_millis();
                     i++;
                 }
                 else if (!strcasecmp(arg.c_str(), "xx"))

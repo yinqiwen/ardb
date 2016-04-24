@@ -39,6 +39,12 @@ OP_NAMESPACE_BEGIN
     {
         memcpy(&data, &v, sizeof(data));
     }
+    Data Data::WrapCStr(const std::string& str)
+    {
+        Data data;
+        data.SetString(str.data(), str.size(), false);
+        return data;
+    }
     Data::~Data()
     {
         Clear();
@@ -191,24 +197,21 @@ OP_NAMESPACE_BEGIN
         len = slen;
     }
 
-    void Data::SetString(const std::string& str, bool try_int_encoding)
+    void Data::SetString(const std::string& str, bool try_int_encoding, bool clone)
     {
+        Clear();
         int64_t int_val;
         if (try_int_encoding && str.size() <= 21 && string2ll(str.data(), str.size(), &int_val))
         {
             SetInt64((int64) int_val);
             return;
         }
-        Clear();
-//        void* s = malloc(str.size());
-//        data = (int64_t) s;
-//        len = str.size();
-//        encoding = E_CSTR;
-        void* s = malloc(str.size());
-        data = (int64_t) s;
-        memcpy(s, str.c_str(), str.size());
-        len = str.size();
-        encoding = E_SDS;
+        SetString(str.data(), str.size(), clone);
+    }
+
+    void Data::SetString(const std::string& str, bool try_int_encoding)
+    {
+        SetString(str, try_int_encoding, true);
     }
     void Data::SetInt64(int64 v)
     {
@@ -323,6 +326,10 @@ OP_NAMESPACE_BEGIN
             other_raw_data = data_buf;
         }
         size_t min_len = left_len < right_len ? left_len : right_len;
+        if(min_len == 0)
+        {
+            return left_len - right_len;
+        }
         int ret = memcmp(raw_data, other_raw_data, min_len);
         if (ret < 0)
         {

@@ -42,7 +42,7 @@ namespace ardb
 
     enum SnapshotType
     {
-        REDIS_DUMP = 0, ARDB_DUMP
+        REDIS_DUMP = 1, ARDB_DUMP
     };
 
     enum SnapshotState

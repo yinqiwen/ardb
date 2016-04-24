@@ -98,23 +98,28 @@ OP_NAMESPACE_BEGIN
                     ~KeysLockGuard();
             };
 
-            struct ArdbState
-            {
-                    unsigned loading :1;
-                    ArdbState() :
-                            loading(0)
-                    {
-                    }
-            };
+
 
         private:
+
+//            struct ExpireIno
+//            {
+//                    int64 min_ttl;
+//                    uint64 last_scan_time;
+//                    ExpireIno() :
+//                        min_ttl(-1),last_scan_time(0)
+//                    {
+//                    }
+//            };
+
             Engine* m_engine;
             time_t m_starttime;
             bool m_loading_data;
             ArdbConfig m_conf;
             ThreadLocal<LUAInterpreter> m_lua;
 
-            ArdbState m_state;
+//            typedef TreeMap<Data, ExpireIno>::Type ExpireInoTable;
+//            ExpireInoTable m_expire_ino;
 
             typedef google::dense_hash_map<std::string, RedisCommandHandlerSetting, RedisCommandHash, RedisCommandEqual> RedisCommandHandlerSettingTable;
             RedisCommandHandlerSettingTable m_settings;
@@ -148,6 +153,8 @@ OP_NAMESPACE_BEGIN
             ThreadLocal<ClientId> m_last_scan_clientid;
             SpinMutexLock m_clients_lock;
             ContextSet m_all_clients;
+
+            //int64 ScanExpiredKeys();
 
             bool IsLoadingData();
 

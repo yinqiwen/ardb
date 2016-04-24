@@ -1,7 +1,7 @@
 /*
  * rocksdb_engine.cpp
  *
- *  Created on: 2015��9��21��
+ *  Created on: 2015-09-21
  *      Author: wangqiying
  */
 #include "rocksdb_engine.hpp"
@@ -11,13 +11,22 @@
 #include "thread/lock_guard.hpp"
 #include "db/db.hpp"
 
-#define ROCKSDB_SLICE(slice) rocksdb::Slice(slice.data(), slice.size())
-#define ARDB_SLICE(slice) Slice(slice.data(), slice.size())
+//#define to_rocksdb_slice(slice) rocksdb::Slice(slice.data(), slice.size())
+//#define to_ardb_slice(slice) Slice(slice.data(), slice.size())
 #define ROCKSDB_ERR(err)  (0 == err.code()? 0: (rocksdb::Status::kNotFound == err.code() ? ERR_ENTRY_NOT_EXIST:(0 -err.code()-2000)))
 
 //
 
 OP_NAMESPACE_BEGIN
+
+    static inline rocksdb::Slice to_rocksdb_slice(const Slice& slice)
+    {
+        return rocksdb::Slice(slice.data(), slice.size());
+    }
+    static inline Slice to_ardb_slice(const rocksdb::Slice& slice)
+    {
+        return Slice(slice.data(), slice.size());
+    }
 
     class RocksDBLogger: public rocksdb::Logger
     {
@@ -205,6 +214,7 @@ OP_NAMESPACE_BEGIN
             RocksDBCompactionFilter(uint32 id) :
                     cf_id(id)
             {
+                //INFO_LOG("####Create ilter:%d\n", id);
             }
             const char* Name() const
             {
@@ -226,17 +236,32 @@ OP_NAMESPACE_BEGIN
                 {
                     abort();
                 }
-//                std::string ss;
-//                k.GetKey().ToString(ss);
-//                printf("####compact %d %s %d\n", k.GetType(), ss.c_str(), pthread_self());
+
                 if (k.GetType() == KEY_META)
                 {
                     ValueObject meta;
                     Buffer val_buffer(const_cast<char*>(existing_value.data()), 0, existing_value.size());
                     if (!meta.Decode(val_buffer, false))
                     {
-                        abort();
+                        ERROR_LOG("Failed to decode value of key:%s with type:%u %u", k.GetKey().AsString().c_str(), meta.GetType(), existing_value.size());
+                        return false;
                     }
+                    if (meta.GetType() == 0)
+                    {
+                        ERROR_LOG("Invalid value for key:%s with type:%u %u", k.GetKey().AsString().c_str(), k.GetType(), existing_value.size());
+                        return false;
+                    }
+
+                    if (meta.GetMergeOp() != 0)
+                    {
+                        INFO_LOG("#### Filter key:%s merge op:%d\n", k.GetKey().AsString().c_str(), meta.GetMergeOp());
+                        return false;
+                    }
+                    if (meta.GetTTL() > 0)
+                    {
+                        INFO_LOG("#### Filter key:%s ttl:%lld %d\n", k.GetKey().AsString().c_str(), meta.GetTTL() - get_current_epoch_millis(), pthread_self());
+                    }
+                    //INFO_LOG("#### Filter key:%s ttl:%lld\n", k.GetKey().AsString().c_str(), meta.GetTTL());
                     if (meta.GetTTL() > 0 && meta.GetTTL() <= get_current_epoch_millis())
                     {
                         if (meta.GetType() != KEY_STRING)
@@ -303,9 +328,12 @@ OP_NAMESPACE_BEGIN
             // Also make use of the *logger for error messages.
             bool FullMerge(const rocksdb::Slice& key, const rocksdb::Slice* existing_value, const std::deque<std::string>& operand_list, std::string* new_value, rocksdb::Logger* logger) const
             {
+
                 KeyObject key_obj;
                 Buffer keyBuffer(const_cast<char*>(key.data()), 0, key.size());
                 key_obj.Decode(keyBuffer, false);
+
+                INFO_LOG("Do merge for key:%s in thread %d", key_obj.GetKey().AsString().c_str(), pthread_self());
 
                 ValueObject val_obj;
                 if (NULL != existing_value)
@@ -322,17 +350,16 @@ OP_NAMESPACE_BEGIN
                 bool value_changed = false;
                 for (size_t i = 0; i < operand_list.size(); i++)
                 {
-                    uint16 op = 0;
-                    DataArray args;
                     Buffer mergeBuffer(const_cast<char*>(operand_list[i].data()), 0, operand_list[i].size());
-                    if (!decode_merge_operation(mergeBuffer, op, args))
+                    ValueObject mergeValue;
+                    if (!mergeValue.Decode(mergeBuffer, false))
                     {
                         std::string ks;
                         key_obj.GetKey().ToString(ks);
                         WARN_LOG("Invalid merge op which decode faild for key:%s", ks.c_str());
                         continue;
                     }
-                    if (0 == g_db->MergeOperation(key_obj, val_obj, op, args))
+                    if (0 == g_db->MergeOperation(key_obj, val_obj, mergeValue.GetMergeOp(), mergeValue.GetMergeArgs()))
                     {
                         value_changed = true;
                     }
@@ -389,31 +416,30 @@ OP_NAMESPACE_BEGIN
                 {
                     return false;
                 }
-                uint16 ops[2];
-                DataArray ops_args[2];
+                ValueObject ops[2];
                 size_t left_pos = 0;
                 Buffer first_op_buffer(const_cast<char*>(operand_list[0].data()), 0, operand_list[0].size());
-                if (!decode_merge_operation(first_op_buffer, ops[0], ops_args[0]))
+                if (!ops[0].Decode(first_op_buffer, false))
                 {
                     WARN_LOG("Invalid first merge op.");
                     return false;
                 }
-                for (size_t i = 1; i < operand_list.size(); i += 2)
+                for (size_t i = 1; i < operand_list.size(); i++)
                 {
                     Buffer op_buffer(const_cast<char*>(operand_list[i].data()), 0, operand_list[i].size());
-                    if (!decode_merge_operation(op_buffer, ops[1 - left_pos], ops_args[1 - left_pos]))
+                    if (!ops[1 - left_pos].Decode(op_buffer, false))
                     {
                         WARN_LOG("Invalid merge op at:%u", i);
                         return false;
                     }
-                    if (0 != g_db->MergeOperands(ops[left_pos], ops_args[left_pos], ops[1 - left_pos], ops_args[1 - left_pos]))
+                    if (0 != g_db->MergeOperands(ops[left_pos].GetMergeOp(), ops[left_pos].GetMergeArgs(), ops[1 - left_pos].GetMergeOp(), ops[1 - left_pos].GetMergeArgs()))
                     {
                         return false;
                     }
                     left_pos = 1 - left_pos;
                 }
                 Buffer merge;
-                encode_merge_operation(merge, ops[left_pos], ops_args[left_pos]);
+                encode_merge_operation(merge, ops[left_pos].GetMergeOp(), ops[left_pos].GetMergeArgs());
                 new_value->assign(merge.GetRawReadBuffer(), merge.ReadableBytes());
                 return true;
             }
@@ -442,25 +468,24 @@ OP_NAMESPACE_BEGIN
             // is served as the helper function of the default PartialMergeMulti.
             bool PartialMerge(const rocksdb::Slice& key, const rocksdb::Slice& left_operand, const rocksdb::Slice& right_operand, std::string* new_value, rocksdb::Logger* logger) const
             {
-                uint16 left_op = 0, right_op = 0;
-                DataArray left_args, right_args;
+                ValueObject left_op, right_op;
                 Buffer left_mergeBuffer(const_cast<char*>(left_operand.data()), 0, left_operand.size());
                 Buffer right_mergeBuffer(const_cast<char*>(right_operand.data()), 0, right_operand.size());
-                if (!decode_merge_operation(left_mergeBuffer, left_op, left_args))
+                if (!left_op.Decode(left_mergeBuffer, false))
                 {
                     WARN_LOG("Invalid left merge op.");
                     return false;
                 }
-                if (!decode_merge_operation(right_mergeBuffer, right_op, right_args))
+                if (!right_op.Decode(right_mergeBuffer, false))
                 {
                     WARN_LOG("Invalid right merge op.");
                     return false;
                 }
-                int err = g_db->MergeOperands(left_op, left_args, right_op, right_args);
+                int err = g_db->MergeOperands(left_op.GetMergeOp(), left_op.GetMergeArgs(), right_op.GetMergeOp(), right_op.GetMergeArgs());
                 if (0 == err)
                 {
                     Buffer merge;
-                    encode_merge_operation(merge, right_op, right_args);
+                    encode_merge_operation(merge, right_op.GetMergeOp(), right_op.GetMergeArgs());
                     new_value->assign(merge.GetRawReadBuffer(), merge.ReadableBytes());
                     return true;
                 }
@@ -539,7 +564,8 @@ OP_NAMESPACE_BEGIN
             ERROR_LOG("Invalid rocksdb's options:%s with error reason:%s", conf.c_str(), s.ToString().c_str());
             return -1;
         }
-
+        m_options.OptimizeLevelStyleCompaction();
+        m_options.IncreaseParallelism();
         std::vector<std::string> column_families;
         s = rocksdb::DB::ListColumnFamilies(m_options, dir, &column_families);
         if (column_families.empty())
@@ -586,8 +612,8 @@ OP_NAMESPACE_BEGIN
         }
 
         rocksdb::WriteOptions opt;
-        rocksdb::Slice key_slice = ROCKSDB_SLICE(key);
-        rocksdb::Slice value_slice = ROCKSDB_SLICE(value);
+        rocksdb::Slice key_slice = to_rocksdb_slice(key);
+        rocksdb::Slice value_slice = to_rocksdb_slice(value);
         rocksdb::Status s;
         rocksdb::WriteBatch* batch = m_transc.GetValue().Ref();
         if (NULL != batch)
@@ -608,11 +634,12 @@ OP_NAMESPACE_BEGIN
         {
             return ERR_ENTRY_NOT_EXIST;
         }
-        rocksdb::WriteOptions opt;
-        rocksdb::Slice key_slice = ROCKSDB_SLICE(const_cast<KeyObject&>(key).Encode());
-        Buffer value_buffer;
-        rocksdb::Slice value_slice = ROCKSDB_SLICE(const_cast<ValueObject&>(value).Encode(value_buffer));
         rocksdb::Status s;
+        rocksdb::WriteOptions opt;
+        rocksdb::Slice key_slice = to_rocksdb_slice(const_cast<KeyObject&>(key).Encode());
+        Buffer value_buffer;
+        rocksdb::Slice value_slice = to_rocksdb_slice(const_cast<ValueObject&>(value).Encode(value_buffer));
+
         rocksdb::WriteBatch* batch = m_transc.GetValue().Ref();
         if (NULL != batch)
         {
@@ -635,7 +662,7 @@ OP_NAMESPACE_BEGIN
         std::vector<rocksdb::Slice> ks;
         for (size_t i = 0; i < keys.size(); i++)
         {
-            ks.push_back(ROCKSDB_SLICE(const_cast<KeyObject&>(keys[i]).Encode()));
+            ks.push_back(to_rocksdb_slice(const_cast<KeyObject&>(keys[i]).Encode()));
         }
         for (size_t i = 0; i < keys.size(); i++)
         {
@@ -668,7 +695,7 @@ OP_NAMESPACE_BEGIN
         rocksdb::ReadOptions opt;
         opt.snapshot = PeekSnpashot();
         std::string valstr;
-        rocksdb::Slice key_slice = ROCKSDB_SLICE(const_cast<KeyObject&>(key).Encode());
+        rocksdb::Slice key_slice = to_rocksdb_slice(const_cast<KeyObject&>(key).Encode());
         rocksdb::Status s = m_db->Get(opt, cf, key_slice, &valstr);
         int err = ROCKSDB_ERR(s);
         if (0 != err)
@@ -687,7 +714,7 @@ OP_NAMESPACE_BEGIN
             return ERR_ENTRY_NOT_EXIST;
         }
         rocksdb::WriteOptions opt;
-        rocksdb::Slice key_slice = ROCKSDB_SLICE(const_cast<KeyObject&>(key).Encode());
+        rocksdb::Slice key_slice = to_rocksdb_slice(const_cast<KeyObject&>(key).Encode());
         rocksdb::Status s;
         rocksdb::WriteBatch* batch = m_transc.GetValue().Ref();
         if (NULL != batch)
@@ -709,8 +736,9 @@ OP_NAMESPACE_BEGIN
             return ERR_ENTRY_NOT_EXIST;
         }
         rocksdb::WriteOptions opt;
-        rocksdb::Slice key_slice = ROCKSDB_SLICE(const_cast<KeyObject&>(key).Encode());
+        rocksdb::Slice key_slice = to_rocksdb_slice(const_cast<KeyObject&>(key).Encode());
         Buffer merge_buffer;
+
         encode_merge_operation(merge_buffer, op, args);
         rocksdb::Slice merge_slice(merge_buffer.GetRawReadBuffer(), merge_buffer.ReadableBytes());
         rocksdb::Status s;
@@ -737,7 +765,7 @@ OP_NAMESPACE_BEGIN
         rocksdb::ReadOptions opt;
         opt.snapshot = PeekSnpashot();
         std::string tmp;
-        rocksdb::Slice k = ROCKSDB_SLICE(const_cast<KeyObject&>(key).Encode());
+        rocksdb::Slice k = to_rocksdb_slice(const_cast<KeyObject&>(key).Encode());
         bool exist = m_db->KeyMayExist(opt, cf, k, &tmp, NULL);
         if (!exist)
         {
@@ -784,6 +812,7 @@ OP_NAMESPACE_BEGIN
         if (NULL == cf)
         {
             iter->MarkValid(false);
+            //printf("###mark valid alse");
             return iter;
         }
 
@@ -794,7 +823,7 @@ OP_NAMESPACE_BEGIN
             if (!ctx.flags.iterate_multi_keys)
             {
                 opt.prefix_same_as_start = true;
-                if(!ctx.flags.iterate_no_upperbound)
+                if (!ctx.flags.iterate_no_upperbound)
                 {
                     KeyObject& upperbound_key = iter->IterateUpperBoundKey();
                     upperbound_key.SetNameSpace(key.GetNameSpace());
@@ -809,13 +838,19 @@ OP_NAMESPACE_BEGIN
                     upperbound_key.SetKey(key.GetKey());
                 }
             }
+            else
+            {
+                opt.total_order_seek = true;
+            }
         }
         rocksdb::Iterator* rocksiter = m_db->NewIterator(opt, cf);
         iter->SetIterator(rocksiter);
         if (key.GetType() > 0)
         {
             iter->Jump(key);
-        }else
+            //printf("###jump valid:%d\n", rocksiter->Valid());
+        }
+        else
         {
             rocksiter->SeekToFirst();
         }
@@ -853,8 +888,8 @@ OP_NAMESPACE_BEGIN
         {
             return ERR_ENTRY_NOT_EXIST;
         }
-        rocksdb::Slice start_key = ROCKSDB_SLICE(const_cast<KeyObject&>(start).Encode());
-        rocksdb::Slice end_key = ROCKSDB_SLICE(const_cast<KeyObject&>(end).Encode());
+        rocksdb::Slice start_key = to_rocksdb_slice(const_cast<KeyObject&>(start).Encode());
+        rocksdb::Slice end_key = to_rocksdb_slice(const_cast<KeyObject&>(end).Encode());
         rocksdb::CompactRangeOptions opt;
         rocksdb::Status s = m_db->CompactRange(opt, cf, start.IsValid() ? &start_key : NULL, end.IsValid() ? &end_key : NULL);
         return ROCKSDB_ERR(s);
@@ -1024,7 +1059,7 @@ OP_NAMESPACE_BEGIN
     {
         ClearState();
         Slice key_slice = const_cast<KeyObject&>(next).Encode();
-        m_iter->Seek(ROCKSDB_SLICE(key_slice));
+        m_iter->Seek(to_rocksdb_slice(key_slice));
         CheckBound();
     }
     void RocksDBIterator::JumpToFirst()
@@ -1080,11 +1115,11 @@ OP_NAMESPACE_BEGIN
     }
     Slice RocksDBIterator::RawKey()
     {
-        return ARDB_SLICE(m_iter->key());
+        return to_ardb_slice(m_iter->key());
     }
     Slice RocksDBIterator::RawValue()
     {
-        return ARDB_SLICE(m_iter->value());
+        return to_ardb_slice(m_iter->value());
     }
     RocksDBIterator::~RocksDBIterator()
     {

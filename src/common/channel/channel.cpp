@@ -63,11 +63,9 @@ void Channel::IOEventCallback(struct aeEventLoop *eventLoop, int fd, void *clien
 }
 
 Channel::Channel(Channel* parent, ChannelService& service) :
-        m_user_configed(false), m_has_removed(false), m_parent_id(0), m_service(&service), m_id(0), m_fd(-1), m_flush_timertask_id(
-                -1), m_pipeline_initializor(
+        m_user_configed(false), m_has_removed(false), m_parent_id(0), m_service(&service), m_id(0), m_fd(-1), m_flush_timertask_id(-1), m_pipeline_initializor(
         NULL), m_pipeline_initailizor_user_data(NULL), m_pipeline_finallizer(
-        NULL), m_pipeline_finallizer_user_data(NULL), m_detached(false), m_close_after_write(false), m_block_read(
-                false), m_file_sending(
+        NULL), m_pipeline_finallizer_user_data(NULL), m_detached(false), m_close_after_write(false), m_block_read(false), m_file_sending(
         NULL), m_attach(NULL), m_attach_destructor(NULL)
 {
 
@@ -99,8 +97,7 @@ int Channel::GetReadFD()
 bool Channel::AttachFD()
 {
     int fd = GetReadFD();
-    if (fd
-            != -1&& aeCreateFileEvent(GetService().GetRawEventLoop(), fd, AE_READABLE, Channel::IOEventCallback, this) == AE_ERR)
+    if (fd != -1 && aeCreateFileEvent(GetService().GetRawEventLoop(), fd, AE_READABLE, Channel::IOEventCallback, this) == AE_ERR)
     {
         ::close(GetReadFD());
         ERROR_LOG("Failed to register event for fd:%d.", GetReadFD());
@@ -286,8 +283,7 @@ void Channel::CreateFlushTimerTask()
     if (-1 == m_flush_timertask_id)
     {
         DisableWriting();
-        m_flush_timertask_id = GetService().GetTimer().Schedule(this, m_options.user_write_buffer_flush_timeout_mills,
-                -1, MILLIS);
+        m_flush_timertask_id = GetService().GetTimer().Schedule(this, m_options.user_write_buffer_flush_timeout_mills, -1, MILLIS);
     }
 }
 
@@ -305,8 +301,7 @@ int32 Channel::WriteNow(Buffer* buffer)
         if (m_options.max_write_buffer_size > 0) //write buffer size limit enable
         {
             uint32 write_buffer_size = m_outputBuffer.ReadableBytes();
-            if (write_buffer_size > (uint32) m_options.max_write_buffer_size
-                    || (write_buffer_size + buf_len) > (uint32) m_options.max_write_buffer_size)
+            if (write_buffer_size > (uint32) m_options.max_write_buffer_size || (write_buffer_size + buf_len) > (uint32) m_options.max_write_buffer_size)
             {
                 //overflow
                 WARN_LOG("Channel:%u write buffer exceed limit:%d", m_id, m_options.max_write_buffer_size);
@@ -314,8 +309,7 @@ int32 Channel::WriteNow(Buffer* buffer)
             }
         }
         m_outputBuffer.Write(buffer, buf_len);
-        if (m_options.user_write_buffer_water_mark > 0
-                && m_outputBuffer.ReadableBytes() < m_options.user_write_buffer_water_mark)
+        if (m_options.user_write_buffer_water_mark > 0 && m_outputBuffer.ReadableBytes() < m_options.user_write_buffer_water_mark)
         {
             CreateFlushTimerTask();
         }
@@ -345,6 +339,7 @@ int32 Channel::WriteNow(Buffer* buffer)
                 {
                     EnableWriting();
                 }
+                else
                 {
                     CreateFlushTimerTask();
                 }
@@ -446,8 +441,7 @@ bool Channel::DoFlush()
             return HandleExceptionEvent(CHANNEL_EVENT_EOF);
         }
         m_outputBuffer.DiscardReadedBytes();
-        m_outputBuffer.Compact(
-                m_options.user_write_buffer_water_mark > 0 ? m_options.user_write_buffer_water_mark * 2 : 8192);
+        m_outputBuffer.Compact(m_options.user_write_buffer_water_mark > 0 ? m_options.user_write_buffer_water_mark * 2 : 8192);
         if ((uint32) ret < send_buf_len)
         {
             //EnableWriting();
@@ -460,8 +454,7 @@ bool Channel::DoFlush()
     }
     else
     {
-        m_outputBuffer.Compact(
-                m_options.user_write_buffer_water_mark > 0 ? m_options.user_write_buffer_water_mark : 8192);
+        m_outputBuffer.Compact(m_options.user_write_buffer_water_mark > 0 ? m_options.user_write_buffer_water_mark : 8192);
         return true;
     }
 

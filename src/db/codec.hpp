@@ -55,11 +55,12 @@ OP_NAMESPACE_BEGIN
         KEY_SET = 7, KEY_SET_MEMBER = 8,
 
         KEY_ZSET = 9, KEY_ZSET_SORT = 10, KEY_ZSET_SCORE = 11,
+
         /*
          * Reserver 20 types
          */
-
-        KEY_END = 31, /* max value for 1byte */
+//        KEY_TTL_SORT = 29,
+        KEY_MERGE = 30, KEY_END = 31, /* max value for 1byte */
     };
 
     struct KeyObject
@@ -224,10 +225,27 @@ OP_NAMESPACE_BEGIN
             {
                 return getElement(0).GetFloat64();
             }
+            void SetTTLKey(const Data& key)
+            {
+                setElement(key, 1);
+            }
+            const Data& GetTTLKey() const
+            {
+                return GetElement(0);
+            }
+            void SetTTL(int64 ttl)
+            {
+                getElement(0).SetInt64(ttl);
+            }
+            int64 GetTTL()
+            {
+                return GetElement(0).GetInt64();
+            }
             void SetMember(const Data& data, uint32 idx)
             {
                 getElement(idx).Clone(data);
             }
+
             bool IsValid() const;
             int Compare(const KeyObject& other) const;
 
@@ -235,6 +253,7 @@ OP_NAMESPACE_BEGIN
             void EncodePrefix(Buffer& buffer) const;
             bool DecodeNS(Buffer& buffer, bool clone_str);
             bool DecodeKey(Buffer& buffer, bool clone_str);
+            bool DecodeType(Buffer& buffer);
             bool DecodePrefix(Buffer& buffer, bool clone_str);
             //bool DecodeType(Buffer& buffer);
             //bool DecodeKey(Buffer& buffer, bool clone_str);
@@ -284,6 +303,7 @@ OP_NAMESPACE_BEGIN
     {
         private:
             uint8 type;
+            uint16 merge_op;
             DataArray vals;
             Data& getElement(uint32_t idx)
             {
@@ -295,21 +315,30 @@ OP_NAMESPACE_BEGIN
             }
         public:
             ValueObject() :
-                    type(0)
+                    type(0), merge_op(0)
             {
             }
             void Clear()
             {
                 type = 0;
+                merge_op = 0;
                 vals.clear();
             }
             uint8 GetType() const
             {
                 return type;
             }
+            uint16& GetMergeOp()
+            {
+                return merge_op;
+            }
             void SetType(uint8 t)
             {
                 type = t;
+            }
+            void SetMergeOp(uint16 op)
+            {
+                merge_op = op;
             }
             Meta& GetMeta();
             MKeyMeta& GetMKeyMeta();
@@ -350,6 +379,10 @@ OP_NAMESPACE_BEGIN
             void SetListElement(const Data& v)
             {
                 getElement(0).Clone(v);
+            }
+            DataArray& GetMergeArgs()
+            {
+                return vals;
             }
             bool SetMinMaxData(const Data& v);
             bool SetMinData(const Data& v, bool overwite = false);
@@ -512,7 +545,6 @@ OP_NAMESPACE_BEGIN
     };
 
     int encode_merge_operation(Buffer& buffer, uint16_t op, const DataArray& args);
-    bool decode_merge_operation(Buffer& buffer, uint16_t& op, DataArray& args);
     KeyType element_type(KeyType type);
 
     typedef std::vector<KeyObject> KeyObjectArray;

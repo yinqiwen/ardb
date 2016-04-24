@@ -261,6 +261,8 @@ OP_NAMESPACE_BEGIN
 
         conf_get_string(props, "redis-compatible-version", redis_compatible_version);
 
+        conf_get_bool(props, "redis-compatible-mode",redis_compatible);
+
         //trusted_ip.clear();
         Properties::const_iterator ip_it = props.find("trusted-ip");
         if (ip_it != props.end())

@@ -131,6 +131,11 @@ namespace ardb
                 op = REDIS_CMD_PFADD;
                 return true;
             }
+            case REDIS_CMD_PEXPIREAT:
+            {
+                op = REDIS_CMD_PEXPIREAT;
+               return true;
+            }
             default:
             {
                 ERROR_LOG("Not supported merge operation:%u", op);
@@ -220,6 +225,10 @@ namespace ardb
             case REDIS_CMD_PFADD:
             {
                 return MergePFAdd(merge_ctx, key, val, args, NULL);
+            }
+            case REDIS_CMD_PEXPIREAT:
+            {
+                return MergeExpire(merge_ctx, key, val, args[0].GetInt64());
             }
             default:
             {

@@ -121,12 +121,23 @@ OP_NAMESPACE_BEGIN
         {
             return false;
         }
-        if (buffer.ReadableBytes() < (keylen + 1))
+        if (buffer.ReadableBytes() < (keylen))
         {
             return false;
         }
         key.SetString(buffer.GetRawReadBuffer(), keylen, clone_str);
         buffer.AdvanceReadIndex(keylen);
+        return true;
+    }
+
+    bool KeyObject::DecodeType(Buffer& buffer)
+    {
+        if(!buffer.Readable())
+        {
+            return false;
+        }
+        type = (uint8) (buffer.GetRawReadBuffer()[0]);
+        buffer.AdvanceReadIndex(1);
         return true;
     }
 
@@ -136,9 +147,7 @@ OP_NAMESPACE_BEGIN
         {
             return false;
         }
-        type = (uint8) (buffer.GetRawReadBuffer()[0]);
-        buffer.AdvanceReadIndex(1);
-        return true;
+        return DecodeType(buffer);
     }
 
     int KeyObject::DecodeElementLength(Buffer& buffer)
@@ -267,7 +276,7 @@ OP_NAMESPACE_BEGIN
             }
             default:
             {
-                abort();
+                FATAL_LOG("Invalid type:%d to get ttl", type);
             }
         }
         return *(Meta*) meta.ReserveStringSpace(reserved_size);
@@ -368,13 +377,34 @@ OP_NAMESPACE_BEGIN
         return replaced;
     }
 
+    static void encode_value_object(Buffer& encode_buffer, uint8 type, uint16 merge_op, const DataArray& args)
+    {
+        encode_buffer.WriteByte((char) type);
+        switch (type)
+        {
+            case KEY_MERGE:
+            {
+                BufferHelper::WriteFixUInt16(encode_buffer, merge_op, true);
+                break;
+            }
+            default:
+            {
+                break;
+            }
+        }
+        encode_buffer.WriteByte((char) args.size());
+        for (size_t i = 0; i < args.size(); i++)
+        {
+            args[i].Encode(encode_buffer);
+        }
+    }
+
     Slice ValueObject::Encode(Buffer& encode_buffer)
     {
         if (0 == type)
         {
             return Slice();
         }
-        encode_buffer.WriteByte((char) type);
         switch (type)
         {
             case KEY_STRING:
@@ -391,11 +421,7 @@ OP_NAMESPACE_BEGIN
                 break;
             }
         }
-        encode_buffer.WriteByte((char) vals.size());
-        for (size_t i = 0; i < vals.size(); i++)
-        {
-            vals[i].Encode(encode_buffer);
-        }
+        encode_value_object(encode_buffer, type, merge_op, vals);
         return Slice(encode_buffer.GetRawReadBuffer(), encode_buffer.ReadableBytes());
     }
     bool ValueObject::Decode(Buffer& buffer, bool clone_str)
@@ -411,6 +437,14 @@ OP_NAMESPACE_BEGIN
             return false;
         }
         type = (uint8) tmp;
+        if (type == KEY_MERGE)
+        {
+            if (!BufferHelper::ReadFixUInt16(buffer, merge_op, true))
+            {
+                printf("DEcode merger op ail!\n");
+                return false;
+            }
+        }
         char lench;
         if (!buffer.ReadByte(lench))
         {
@@ -539,42 +573,8 @@ OP_NAMESPACE_BEGIN
 
     int encode_merge_operation(Buffer& buffer, uint16_t op, const DataArray& args)
     {
-        BufferHelper::WriteFixUInt16(buffer, op, true);
-        size_t len = args.size();
-        if (len >= 128)
-        {
-            FATAL_LOG("Merge operation args length exceed limit 128");
-        }
-        buffer.WriteByte((char) len);
-        for (size_t i = 0; i < len; i++)
-        {
-            args[i].Encode(buffer);
-        }
+        encode_value_object(buffer, KEY_MERGE, op, args);
         return 0;
-    }
-    bool decode_merge_operation(Buffer& buffer, uint16_t& op, DataArray& args)
-    {
-        if (!BufferHelper::ReadFixUInt16(buffer, op, true))
-        {
-            return false;
-        }
-        char len;
-        if (!buffer.ReadByte(len))
-        {
-            return false;
-        }
-        if (len > 0)
-        {
-            args.resize(len);
-            for (int i = 0; i < len; i++)
-            {
-                if (!args[i].Decode(buffer, false))
-                {
-                    return false;
-                }
-            }
-        }
-        return true;
     }
 
     KeyType element_type(KeyType type)

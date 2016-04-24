@@ -688,6 +688,7 @@ namespace ardb
         RedisReply& reply = ctx.GetReply();
         reply.SetStatusCode(STATUS_OK);
         KeyObject start, end;
+        start.SetNameSpace(ctx.ns);
         m_engine->Compact(ctx, start, end);
         return 0;
     }
@@ -766,7 +767,15 @@ namespace ardb
             else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "capa"))
             {
                 //do nothing
-            }else
+            }
+            else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "getack"))
+            {
+                if (!GetConf().master_host.empty() && g_repl->GetSlave().IsSynced())
+                {
+                    g_repl->GetSlave().SendACK();
+                }
+            }
+            else
             {
                 WARN_LOG("Unknown replcon key:%s", cmd.GetArguments()[i].c_str());
             }

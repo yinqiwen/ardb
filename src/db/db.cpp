@@ -120,7 +120,7 @@ OP_NAMESPACE_BEGIN
     }
 
     Ardb::Ardb() :
-            m_engine(NULL), m_starttime(0),m_loading_data(false), m_redis_cursor_seed(0)
+            m_engine(NULL), m_starttime(0), m_loading_data(false), m_redis_cursor_seed(0)
     {
         g_db = this;
         m_settings.set_empty_key("");
@@ -741,7 +741,7 @@ OP_NAMESPACE_BEGIN
             }
             if (meta.GetTTL() > 0 && meta.GetTTL() < get_current_epoch_millis())
             {
-                if(GetConf().master_host.empty() || !GetConf().slave_readonly)
+                if (GetConf().master_host.empty() || !GetConf().slave_readonly)
                 {
                     if (meta.GetType() == KEY_STRING)
                     {
@@ -806,6 +806,7 @@ OP_NAMESPACE_BEGIN
             m_all_clients.erase(&ctx);
         }
     }
+
 
 #define CLIENTS_CRON_MIN_ITERATIONS 5
     void Ardb::ScanClients()
@@ -903,7 +904,7 @@ OP_NAMESPACE_BEGIN
         }
         ctx.last_cmdtype = setting.type;
         int ret = (this->*(setting.handler))(ctx, args);
-        if(!ctx.flags.lua)
+        if (!ctx.flags.lua)
         {
             uint64 stop_time = get_current_epoch_micros();
             atomic_add_uint64(&(setting.calls), 1);
@@ -912,7 +913,7 @@ OP_NAMESPACE_BEGIN
             DEBUG_LOG("Process recved cmd[%lld] cost %lluus", ctx.sequence, stop_time - start_time);
         }
 
-        if(!ctx.flags.no_wal && ctx.dirty > 0)
+        if (!ctx.flags.no_wal && ctx.dirty > 0)
         {
             g_repl->GetReplLog().WriteWAL(ctx.ns, args);
         }
@@ -960,7 +961,7 @@ OP_NAMESPACE_BEGIN
             reply.SetErrorReason("unknown command:" + args.GetCommand());
             return -1;
         }
-        DEBUG_LOG("Process recved cmd[%lld]:%s  %p", ctx.sequence, args.ToString().c_str(), ctx.client);
+        DEBUG_LOG("Process recved cmd[%lld]:%s", ctx.sequence, args.ToString().c_str());
         RedisCommandHandlerSetting& setting = *found;
         bool valid_cmd = true;
         if (setting.min_arity > 0)
@@ -1009,8 +1010,7 @@ OP_NAMESPACE_BEGIN
 
         /* Don't accept write commands if there are not enough good slaves and
          * user configured the min-slaves-to-write option. */
-        if (GetConf().master_host.empty() && GetConf().repl_min_slaves_to_write > 0 && GetConf().repl_min_slaves_max_lag > 0
-                && (setting.flags & ARDB_CMD_WRITE) > 0 && g_repl->GetMaster().GoodSlavesCount() < GetConf().repl_min_slaves_to_write)
+        if (GetConf().master_host.empty() && GetConf().repl_min_slaves_to_write > 0 && GetConf().repl_min_slaves_max_lag > 0 && (setting.flags & ARDB_CMD_WRITE) > 0 && g_repl->GetMaster().GoodSlavesCount() < GetConf().repl_min_slaves_to_write)
         {
             ctx.AbortTransaction();
             reply.SetErrCode(ERR_NOREPLICAS);
@@ -1021,9 +1021,9 @@ OP_NAMESPACE_BEGIN
          * accept write commands if this is our master. */
         if (!GetConf().master_host.empty() && (setting.flags & ARDB_CMD_WRITE) > 0)
         {
-            if(!ctx.flags.slave) // from network
+            if (!ctx.flags.slave) // from network
             {
-                if(GetConf().slave_readonly)
+                if (GetConf().slave_readonly)
                 {
                     reply.SetErrCode(ERR_READONLY_SLAVE);
                     return 0;
@@ -1035,6 +1035,11 @@ OP_NAMESPACE_BEGIN
             }
         }
 
+        if (GetConf().slave_ignore_del && ctx.flags.slave && setting.type == REDIS_CMD_DEL)
+        {
+            return 0;
+        }
+
         /* Only allow INFO and SLAVEOF when slave-serve-stale-data is no and
          * we are a slave with a broken link with master. */
         if (!GetConf().master_host.empty() && !g_repl->GetSlave().IsSynced() && !GetConf().repl_serve_stale_data && !(setting.flags & ARDB_CMD_STALE))
@@ -1043,7 +1048,6 @@ OP_NAMESPACE_BEGIN
             reply.SetErrCode(ERR_MASTER_DOWN);
             return 0;
         }
-
 
         /* Loading DB? Return an error if the command has not the
          * CMD_LOADING flag. */
@@ -1063,8 +1067,7 @@ OP_NAMESPACE_BEGIN
         }
         else if (ctx.IsSubscribed())
         {
-            if (setting.type != REDIS_CMD_SUBSCRIBE && setting.type != REDIS_CMD_PSUBSCRIBE && setting.type != REDIS_CMD_PUNSUBSCRIBE
-                    && setting.type != REDIS_CMD_UNSUBSCRIBE && setting.type != REDIS_CMD_QUIT)
+            if (setting.type != REDIS_CMD_SUBSCRIBE && setting.type != REDIS_CMD_PSUBSCRIBE && setting.type != REDIS_CMD_PUNSUBSCRIBE && setting.type != REDIS_CMD_UNSUBSCRIBE && setting.type != REDIS_CMD_QUIT)
             {
                 reply.SetErrorReason("only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context");
                 return 0;

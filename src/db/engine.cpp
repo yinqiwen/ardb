@@ -1,7 +1,7 @@
 /*
  * engine.cpp
  *
- *  Created on: 2016��2��16��
+ *  Created on: 2016-02-16
  *      Author: wangqiying
  */
 #include "engine.hpp"
@@ -39,12 +39,13 @@ OP_NAMESPACE_BEGIN
         /*
          * 2. decode  prefix
          */
-        if(!key1.DecodePrefix(kbuf1, false))
+        if(!key1.DecodeKey(kbuf1, false))
         {
             abort();
         }
-        if(!key2.DecodePrefix(kbuf2, false))
+        if(!key2.DecodeKey(kbuf2, false))
         {
+            printf("###%d %d %d %s\n", k2_len,k2[0], k1_len, key1.GetKey().AsString().c_str());
             abort();
         }
 
@@ -52,6 +53,11 @@ OP_NAMESPACE_BEGIN
          * 3. compare key & type
          */
         ret = key1.GetKey().Compare(key2.GetKey(), true);
+        if (ret != 0)
+        {
+            return ret;
+        }
+        ret = (int)key1.DecodeType(kbuf1) - (int)key2.DecodeType(kbuf2);
         if (ret != 0)
         {
             return ret;

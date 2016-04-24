@@ -110,6 +110,7 @@ extern "C"
 #define REDIS_RDB_TYPE_SET_INTSET    11
 #define REDIS_RDB_TYPE_ZSET_ZIPLIST  12
 #define REDIS_RDB_TYPE_HASH_ZIPLIST  13
+#define REDIS_RDB_TYPE_LIST_QUICKLIST      14
 
 #define ARDB_RDB_TYPE_CHUNK 1
 #define ARDB_RDB_TYPE_SNAPPY_CHUNK 2
@@ -184,7 +185,7 @@ namespace ardb
             m_read_fp(NULL), m_write_fp(NULL), m_cksm(0), m_routine_cb(
             NULL), m_routine_cbdata(
             NULL), m_processed_bytes(0), m_file_size(0), m_state(SNAPSHOT_INVALID), m_routinetime(0), m_read_buf(
-            NULL), m_expected_data_size(0), m_writed_data_size(0), m_cached_repl_offset(0), m_cached_repl_cksm(0), m_save_time(0), m_type(ARDB_DUMP)
+            NULL), m_expected_data_size(0), m_writed_data_size(0), m_cached_repl_offset(0), m_cached_repl_cksm(0), m_save_time(0), m_type((SnapshotType) 0)
     {
 
     }
@@ -1181,6 +1182,7 @@ namespace ardb
         //TransactionGuard guard(ctx);
         KeyObject meta_key(ctx.ns, KEY_META, key);
         ValueObject meta_value;
+
         switch (rdbtype)
         {
             case REDIS_RDB_TYPE_STRING:
@@ -1214,6 +1216,7 @@ namespace ardb
                 {
                     meta_value.SetType(KEY_LIST);
                     meta_value.SetObjectLen(len);
+                    meta_value.GetListMeta().sequential = true;
                 }
                 int64 idx = 0;
                 while (len--)
@@ -1246,13 +1249,67 @@ namespace ardb
                         return false;
                     }
                 }
-                if (REDIS_RDB_TYPE_SET == rdbtype)
+                if (REDIS_RDB_TYPE_LIST == rdbtype)
                 {
                     meta_value.GetListMeta().sequential = true;
                     meta_value.SetListMinIdx(0);
                     meta_value.SetListMaxIdx(idx - 1);
                 }
                 //g_db->SetKeyValue(ctx, meta_key, zmeta);
+                break;
+            }
+            case REDIS_RDB_TYPE_LIST_QUICKLIST:
+            {
+                uint32 ziplen;
+                if ((ziplen = ReadLen(NULL)) == REDIS_RDB_LENERR)
+                    return false;
+                meta_value.SetType(KEY_LIST);
+                meta_value.GetListMeta().sequential = true;
+                int64 idx = 0;
+                while (ziplen--)
+                {
+                    std::string zipstr;
+                    if (ReadString(zipstr))
+                    {
+                        unsigned char* data = (unsigned char*) (&(zipstr[0]));
+                        unsigned char* iter = ziplistIndex(data, 0);
+                        while (iter != NULL)
+                        {
+                            unsigned char *vstr;
+                            unsigned int vlen;
+                            long long vlong;
+                            if (ziplistGet(iter, &vstr, &vlen, &vlong))
+                            {
+                                std::string value;
+                                if (vstr)
+                                {
+                                    value.assign((char*) vstr, vlen);
+                                }
+                                else
+                                {
+                                    value = stringfromll(vlong);
+                                }
+                                KeyObject lk(ctx.ns, KEY_LIST_ELEMENT, key);
+                                lk.SetListIndex(idx);
+                                ValueObject lv;
+                                lv.SetType(KEY_LIST_ELEMENT);
+                                lv.SetListElement(value);
+                                //g_db->Set
+                                idx++;
+                                g_db->SetKeyValue(ctx, lk, lv);
+                            }
+                            iter = ziplistNext(data, iter);
+                        }
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+                meta_value.GetListMeta().sequential = true;
+                meta_value.SetListMinIdx(0);
+                meta_value.SetListMaxIdx(idx - 1);
+                meta_value.SetObjectLen(idx);
                 break;
             }
             case REDIS_RDB_TYPE_ZSET:
@@ -1391,30 +1448,6 @@ namespace ardb
                 }
                 break;
             }
-
-            case RDB_OPCODE_AUX:
-            {
-                std::string auxval;
-
-                if (!ReadString(auxval))
-                {
-                    return false;
-                }
-                if (key.size() > 0 && key[0] == '%')
-                {
-                    /* All the fields with a name staring with '%' are considered
-                     * information fields and are logged at startup with a log
-                     * level of NOTICE. */
-                    INFO_LOG("RDB '%s': %s", key.c_str(), auxval.c_str());
-                }
-                else
-                {
-                    /* We ignore fields we don't understand, as by AUX field
-                     * contract. */
-                    DEBUG_LOG("Unrecognized RDB AUX field: '%s' '%s'", key.c_str(), auxval.c_str());
-                }
-                break;
-            }
             default:
             {
                 ERROR_LOG("Unknown object type:%d", rdbtype);
@@ -1463,6 +1496,7 @@ namespace ardb
         Context loadctx;
         loadctx.flags.no_fill_reply = 1;
         loadctx.flags.no_wal = 1;
+        loadctx.flags.create_if_notexist = 1;
         //BatchWriteGuard guard(tmpctx);
         if (!Read(buf, 9, true))
             goto eoferr;
@@ -1531,6 +1565,30 @@ namespace ardb
                 if ((expires_size = ReadLen(NULL)) == REDIS_RDB_LENERR)
                     goto eoferr;
                 //donothing or readed data
+                continue;
+            }
+            else if (type == RDB_OPCODE_AUX)
+            {
+                std::string auxkey, auxval;
+
+                if (!ReadString(auxkey) || !ReadString(auxval))
+                {
+                    return false;
+                }
+                if (auxkey.size() > 0 && auxkey[0] == '%')
+                {
+                    /* All the fields with a name staring with '%' are considered
+                     * information fields and are logged at startup with a log
+                     * level of NOTICE. */
+                    INFO_LOG("RDB '%s': %s", auxkey.c_str(), auxval.c_str());
+                }
+                else
+                {
+                    /* We ignore fields we don't understand, as by AUX field
+                     * contract. */
+                    DEBUG_LOG("Unrecognized RDB AUX field: '%s' '%s'", key.c_str(), auxval.c_str());
+                }
+                continue;
             }
             //load key, object
 
@@ -1566,7 +1624,7 @@ namespace ardb
             }
         }
         Close();
-        INFO_LOG("Redis dump file load finished.");
+        INFO_LOG("Redis snapshot file load finished.");
         return 0;
         eoferr: Close();
         WARN_LOG("Short read or OOM loading DB. Unrecoverable error, aborting now.");
@@ -1607,7 +1665,7 @@ namespace ardb
             {
                 KeyObject& k = iter->Key();
                 ValueObject& v = iter->Value();
-                printf("###%d %s %d \n", k.GetType(), k.GetKey().AsString().c_str(), err);
+                //printf("###%d %s %d \n", k.GetType(), k.GetKey().AsString().c_str(), err);
                 switch (k.GetType())
                 {
                     case KEY_META:
@@ -1625,7 +1683,7 @@ namespace ardb
                         k.GetKey().ToString(kstr);
                         DUMP_CHECK_WRITE(WriteRawString(kstr.data(), kstr.size()));
 
-                        printf("###key:%d %s %d \n", current_keytype, k.GetKey().AsString().c_str(), err);
+                        //printf("###key:%d %s %d \n", current_keytype, k.GetKey().AsString().c_str(), err);
                         switch (current_keytype)
                         {
                             case KEY_STRING:

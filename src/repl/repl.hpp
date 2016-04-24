@@ -110,10 +110,12 @@ OP_NAMESPACE_BEGIN
             void ChannelConnected(ChannelHandlerContext& ctx, ChannelStateEvent& e);
             void Timeout();
 
+            void ReportACK();
             void InfoMaster();
             int ConnectMaster();
             void ReplayWAL();
             void DoClose();
+            static void AsyncACKCallback(Channel* ch, void*);
         public:
             Slave();
             int Init();
@@ -129,6 +131,7 @@ OP_NAMESPACE_BEGIN
             bool IsSyncing();
             int64 SyncLeftBytes();
             int64 LoadLeftBytes();
+            void SendACK();
 
     };
 

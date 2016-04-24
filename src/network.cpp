@@ -55,6 +55,7 @@ OP_NAMESPACE_BEGIN
             void OnStart(ChannelService* serv, uint32 idx)
             {
                 serv->GetTimer().Schedule(this, 1, 1000 / g_db->GetConf().hz, MILLIS);
+                g_reply_pool.GetValue().SetMaxSize(g_db->GetConf().reply_pool_size);
             }
             void OnStop(ChannelService* serv, uint32 idx)
             {
@@ -73,7 +74,7 @@ OP_NAMESPACE_BEGIN
             ClientContext m_client_ctx;
             Context m_ctx;
             bool m_delete_after_processing;
-            RedisReplyPool& pool;
+            RedisReplyPool* pool;
 
             void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e)
             {
@@ -83,8 +84,12 @@ OP_NAMESPACE_BEGIN
                 ChannelService& serv = m_client_ctx.client->GetService();
                 uint32 channel_id = ctx.GetChannel()->GetID();
                 m_client_ctx.processing = true;
-                pool.Clear();
-                m_ctx.SetReply(&pool.Allocate());
+                if(NULL == pool)
+                {
+                    pool = &(g_reply_pool.GetValue());
+                }
+                pool->Clear();
+                m_ctx.SetReply(&(pool->Allocate()));
                 RedisReply& reply = m_ctx.GetReply();
                 int ret = g_db->Call(m_ctx, *cmd);
                 data->qps.IncMsgCount(1);
@@ -110,6 +115,7 @@ OP_NAMESPACE_BEGIN
                 m_client_ctx.processing = false;
                 m_client_ctx.last_interaction_ustime = get_current_epoch_micros();
                 m_ctx.ClearState();
+                //reply.Clear();
             }
             void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e)
             {
@@ -159,10 +165,12 @@ OP_NAMESPACE_BEGIN
             }
         public:
             RedisRequestHandler(ServerHandlerData* init_data) :
-                    data(init_data), m_delete_after_processing(false), pool(g_reply_pool.GetValue())
+                    data(init_data), m_delete_after_processing(false), pool(NULL)
             {
                 m_ctx.client = &m_client_ctx;
-                pool.SetMaxSize(g_db->GetConf().reply_pool_size);
+                //root_reply.SetPool(&pool);
+                //m_ctx.SetReply(&root_reply);
+                //pool.SetMaxSize(g_db->GetConf().reply_pool_size);
             }
             bool IsProcessing()
             {
@@ -225,6 +233,7 @@ OP_NAMESPACE_BEGIN
         {
             ops.keep_alive = g_db->GetConf().tcp_keepalive;
         }
+        //ops.async_write = true;
         g_total_qps.Name = "total_msg";
         Statistics::GetSingleton().AddTrack(&g_total_qps);
 
