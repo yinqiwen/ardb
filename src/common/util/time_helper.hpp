@@ -58,14 +58,14 @@ namespace ardb
 	uint64 get_current_epoch_micros();
 	uint32 get_current_epoch_seconds();
 
-	uint32 get_current_year_day();
-	uint32 get_current_hour();
-	uint32 get_current_minute();
-	uint32 get_current_year();
-	uint8 get_current_month();
-	uint8 get_current_month_day();
-	uint8 get_current_minute_secs();
-	struct tm& get_current_tm();
+	uint32 get_current_year_day(time_t now = 0);
+	uint32 get_current_hour(time_t now = 0);
+	uint32 get_current_minute(time_t now = 0);
+	uint32 get_current_year(time_t now = 0);
+	uint8 get_current_month(time_t now = 0);
+	uint8 get_current_month_day(time_t now = 0);
+	uint8 get_current_minute_secs(time_t now = 0);
+	struct tm& get_current_tm(time_t now = 0);
 }
 
 #endif /* TIMEHELPER_HPP_ */

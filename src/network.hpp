@@ -41,7 +41,7 @@ OP_NAMESPACE_BEGIN
     {
         private:
             ChannelService* m_service;
-            time_t m_uptime;
+            Thread* m_cron_thread;
             void StartCrons();
         public:
             Server();

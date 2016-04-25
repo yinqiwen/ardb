@@ -35,13 +35,38 @@
 #include "thread/spin_mutex_lock.hpp"
 #include "thread/lock_guard.hpp"
 #include "util/string_helper.hpp"
+#include <vector>
 #define ARDB_OPS_SEC_SAMPLES 16
+
+//dump flags
+#define STAT_DUMP_PERIOD        2   //dump periodically into log
+#define STAT_DUMP_INFO_CMD      4   //dump with info command
+#define STAT_DUMP_PERIOD_CLEAR  8   //clear after period dump
+#define STAT_DUMP_DEFAULT  (STAT_DUMP_PERIOD|STAT_DUMP_INFO_CMD)
+#define STAT_DUMP_ALL  (STAT_DUMP_PERIOD|STAT_DUMP_INFO_CMD|STAT_DUMP_PERIOD_CLEAR)
+
+#define STAT_TYPE_COUNT 1
+#define STAT_TYPE_COST  2
+#define STAT_TYPE_QPS   4
+#define STAT_TYPE_ALL   (STAT_TYPE_COUNT|STAT_TYPE_COST|STAT_TYPE_QPS)
 OP_NAMESPACE_BEGIN
+
+    typedef void TrackDumpCallback(const std::string& info, void* data);
 
     struct Track
     {
-            std::string Name;
-            virtual void Dump(std::string& str, bool clear) = 0;
+            std::string name;
+            int dump_flags;
+            Track() :
+                    dump_flags(STAT_DUMP_DEFAULT)
+            {
+            }
+            virtual int GetType() = 0;
+            virtual void Dump(TrackDumpCallback* cb, void* data) = 0;
+            virtual void Clear()
+            {
+
+            }
             virtual ~Track()
             {
             }
@@ -54,7 +79,11 @@ OP_NAMESPACE_BEGIN
                     count(0)
             {
             }
-            void Dump(std::string& str, bool clear);
+            int GetType()
+            {
+                return STAT_TYPE_COUNT;
+            }
+            void Dump(TrackDumpCallback* cb, void* data);
             uint64_t Add(uint64_t inc)
             {
                 return atomic_add_uint64(&count, inc);
@@ -74,7 +103,11 @@ OP_NAMESPACE_BEGIN
                     cb(callback), cbdata(data)
             {
             }
-            void Dump(std::string& str, bool clear);
+            int GetType()
+            {
+                return STAT_TYPE_COUNT;
+            }
+            void Dump(TrackDumpCallback* cb, void* data);
     };
 
     struct QPSTrack: public Track
@@ -89,6 +122,10 @@ OP_NAMESPACE_BEGIN
                     qpsSampleIdx(0), lastMsgCount(0), lastSampleTime(0), msgCount(0)
             {
                 memset(qpsSamples, 0, sizeof(qpsSamples));
+            }
+            int GetType()
+            {
+                return STAT_TYPE_QPS;
             }
             void trackQPSPerSecond()
             {
@@ -120,15 +157,15 @@ OP_NAMESPACE_BEGIN
             {
                 atomic_add_uint64(&msgCount, inc);
             }
-            void Dump(std::string& str, bool clear);
+            void Dump(TrackDumpCallback* cb, void* data);
     };
 
     struct CostRange
     {
             uint64 min;
             uint64 max;
-            CostRange() :
-                    min(0), max(0)
+            CostRange(uint64 v1 = 0, uint64 v2 = 0) :
+                    min(v1), max(v2)
             {
             }
     };
@@ -151,19 +188,29 @@ OP_NAMESPACE_BEGIN
             CostTrack();
             void SetCostRanges(const CostRanges& ranges);
             void AddCost(uint64 cost);
-            void Dump(std::string& str, bool clear);
+            void Dump(TrackDumpCallback* cb, void* data);
+            void Clear();
+            int GetType()
+            {
+                return STAT_TYPE_COST;
+            }
     };
 
     class Statistics
     {
         private:
-            typedef TreeMap<std::string, Track*>::Type TrackTable;
-            TrackTable m_tracks;
+            typedef std::vector<Track*> TrackArray;
+            TrackArray m_tracks;
+            TrackArray m_qps_tracks;
             Statistics();
         public:
             static Statistics& GetSingleton();
             int AddTrack(Track* track);
-            void Dump(std::string& info);
+            void Dump(TrackDumpCallback* cb, void* data, int flags, int type = STAT_TYPE_ALL);
+            void DumpString(std::string& info, int flags, int type = STAT_TYPE_ALL);
+            void DumpLog(int flags, int type = STAT_TYPE_ALL);
+            void Clear(int type = STAT_TYPE_ALL);
+            void TrackQPSPerSecond();
 
     };
 

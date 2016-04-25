@@ -201,6 +201,8 @@ OP_NAMESPACE_BEGIN
 
         conf_get_bool(props, "slave-cleardb-before-fullresync", slave_cleardb_before_fullresync);
 
+        conf_get_int64(props, "statistics-log-period", statistics_log_period);
+
         std::string slaveof;
         if (conf_get_string(props, "slaveof", slaveof))
         {

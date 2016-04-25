@@ -27,11 +27,57 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include "network.hpp"
+#include "statistics.hpp"
+#include "db/db.hpp"
 
 OP_NAMESPACE_BEGIN
+
+    struct ServerCronTask: public Runnable
+    {
+            void Run()
+            {
+                static time_t lastDumpTime = time(NULL);
+                time_t now = time(NULL);
+                Statistics::GetSingleton().TrackQPSPerSecond();
+
+                if (now - lastDumpTime >= g_db->GetConf().statistics_log_period)
+                {
+                    if(g_db->GetConf().statistics_log_period % 60 == 0)
+                    {
+                        if(get_current_minute_secs(now) != 0)
+                        {
+                            return;
+                        }
+                        int64 factor = g_db->GetConf().statistics_log_period / 60;
+                        if(get_current_minute(now) % factor != 0)
+                        {
+                            return;
+                        }
+                    }
+                    lastDumpTime = now;
+                    INFO_LOG("========================Period Statistics Dump Begin===========================");
+                    Statistics::GetSingleton().DumpLog(STAT_DUMP_PERIOD);
+                    INFO_LOG("========================Period Statistics Dump End===========================");
+                }
+            }
+    };
+    class ServerCronThread: public Thread
+    {
+            ChannelService serv;
+            void Run()
+            {
+                serv.GetTimer().ScheduleHeapTask(new ServerCronTask, 1, 1, SECONDS);
+                serv.Start();
+            }
+    };
+
     void Server::StartCrons()
     {
-
+        if (NULL == m_cron_thread)
+        {
+            NEW(m_cron_thread, ServerCronThread);
+            m_cron_thread->Start();
+        }
     }
 OP_NAMESPACE_END
 

@@ -214,17 +214,17 @@ OP_NAMESPACE_BEGIN
 
     static void init_statistics_setting()
     {
-        g_total_qps.Name = "total_commands_processed";
+        g_total_qps.name = "total_commands_processed";
         g_total_qps.qpsName = "instantaneous_ops_per_sec";
         Statistics::GetSingleton().AddTrack(&g_total_qps);
-        g_total_connections_received.Name = "total_connections_received";
+        g_total_connections_received.name = "total_connections_received";
         Statistics::GetSingleton().AddTrack(&g_total_connections_received);
-        g_rejected_connections.Name = "rejected_connections";
+        g_rejected_connections.name = "rejected_connections";
         Statistics::GetSingleton().AddTrack(&g_rejected_connections);
     }
 
     Server::Server() :
-            m_service(NULL), m_uptime(0)
+            m_service(NULL), m_cron_thread(NULL)
     {
 
     }
@@ -286,9 +286,10 @@ OP_NAMESPACE_BEGIN
             QPSTrack* serverQPSTrack = NULL;
             if(g_db->GetConf().servers.size() > 1)
             {
-                handler_datas[i].qps.Name = address;
-                Statistics::GetSingleton().AddTrack(&handler_datas[i].qps);
                 serverQPSTrack = &handler_datas[i].qps;
+                serverQPSTrack->name = address + "_total_commands_processed";
+                serverQPSTrack->qpsName = address + "_instantaneous_ops_per_sec";
+                Statistics::GetSingleton().AddTrack(serverQPSTrack);
             }
             server->SetChannelPipelineInitializor(pipelineInit, serverQPSTrack);
             server->SetChannelPipelineFinalizer(pipelineDestroy, NULL);
@@ -309,6 +310,7 @@ OP_NAMESPACE_BEGIN
         g_repl->Stop();
         sexit:
         DELETE(m_service);
+        DELETE(m_cron_thread);
         return 0;
     }
 OP_NAMESPACE_END

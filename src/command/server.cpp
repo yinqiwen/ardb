@@ -288,8 +288,7 @@ namespace ardb
                     info.append("master_link_status:").append(g_repl->GetSlave().IsConnected() ? "up" : "down").append("\r\n");
                     if (g_repl->GetSlave().IsConnected())
                     {
-                        info.append("master_last_io_seconds_ago:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLastinteractionTime())).append(
-                                "\r\n");
+                        info.append("master_last_io_seconds_ago:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLastinteractionTime())).append("\r\n");
                     }
                     else
                     {
@@ -300,8 +299,7 @@ namespace ardb
                     if (g_repl->GetSlave().IsSyncing())
                     {
                         info.append("master_sync_left_bytes:").append(stringfromll(g_repl->GetSlave().SyncLeftBytes())).append("\r\n");
-                        info.append("master_sync_last_io_seconds_ago:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLastinteractionTime())).append(
-                                "\r\n");
+                        info.append("master_sync_last_io_seconds_ago:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLastinteractionTime())).append("\r\n");
                     }
                     if (g_repl->GetSlave().IsLoading())
                     {
@@ -310,8 +308,7 @@ namespace ardb
                     info.append("slave_repl_offset:").append(stringfromll(g_repl->GetReplLog().WALEndOffset())).append("\r\n");
                     if (!g_repl->GetSlave().IsConnected())
                     {
-                        info.append("master_link_down_since_seconds:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLinkDownTime())).append(
-                                "\r\n");
+                        info.append("master_link_down_since_seconds:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLinkDownTime())).append("\r\n");
                     }
                     info.append("slave_priority:").append(stringfromll(GetConf().slave_priority)).append("\r\n");
                     info.append("slave_read_only:").append(GetConf().slave_readonly ? "1" : "0").append("\r\n");
@@ -330,8 +327,7 @@ namespace ardb
                 info.append("repl_backlog_size: ").append(stringfromll(GetConf().repl_backlog_size)).append("\r\n");
                 info.append("repl_backlog_cache_size: ").append(stringfromll(GetConf().repl_backlog_cache_size)).append("\r\n");
                 info.append("repl_backlog_first_byte_offset: ").append(stringfromll(g_repl->GetReplLog().WALStartOffset())).append("\r\n");
-                info.append("repl_backlog_histlen: ").append(stringfromll(g_repl->GetReplLog().WALEndOffset() - g_repl->GetReplLog().WALStartOffset() + 1)).append(
-                        "\r\n");
+                info.append("repl_backlog_histlen: ").append(stringfromll(g_repl->GetReplLog().WALEndOffset() - g_repl->GetReplLog().WALStartOffset() + 1)).append("\r\n");
                 info.append("repl_backlog_cksm: ").append(base16_stringfromllu(g_repl->GetReplLog().WALCksm())).append("\r\n");
             }
             else
@@ -352,16 +348,8 @@ namespace ardb
         if (!strcasecmp(section.c_str(), all) || !strcasecmp(section.c_str(), def) || !strcasecmp(section.c_str(), "stats"))
         {
             info.append("# Stats\r\n");
-//            "total_connections_received:%lld\r\n"
-//                        "total_commands_processed:%lld\r\n"
-//                        "instantaneous_ops_per_sec:%lld\r\n"
-//                        "total_net_input_bytes:%lld\r\n"
-//                        "total_net_output_bytes:%lld\r\n"
-//                        "instantaneous_input_kbps:%.2f\r\n"
-//                        "instantaneous_output_kbps:%.2f\r\n"
-//                        "rejected_connections:%lld\r\n"
             std::string tmp;
-            Statistics::GetSingleton.Dump(tmp);
+            Statistics::GetSingleton().DumpString(tmp, STAT_DUMP_INFO_CMD, STAT_TYPE_ALL&(~STAT_TYPE_COST));
             info.append(tmp);
             info.append("sync_full:").append(stringfromll(g_repl->GetMaster().FullSyncCount())).append("\r\n");
             info.append("sync_partial_ok:").append(stringfromll(g_repl->GetMaster().ParitialSyncOKCount())).append("\r\n");
@@ -387,8 +375,7 @@ namespace ardb
                 info.append("# Keyspace\r\n");
                 for (size_t i = 0; i < nss.size(); i++)
                 {
-                    info.append("db").append(nss[i].AsString()).append(":").append("keys=").append(stringfromll(m_engine->EstimateKeysNum(ctx, nss[i]))).append(
-                            "\r\n");
+                    info.append("db").append(nss[i].AsString()).append(":").append("keys=").append(stringfromll(m_engine->EstimateKeysNum(ctx, nss[i]))).append("\r\n");
                 }
                 info.append("\r\n");
             }
@@ -403,13 +390,21 @@ namespace ardb
                 RedisCommandHandlerSetting& setting = cit->second;
                 if (setting.calls > 0)
                 {
-                    info.append("cmdstat_").append(setting.name).append(":").append("calls=").append(stringfromll(setting.calls)).append(",usec=").append(
-                            stringfromll(setting.microseconds)).append(",usecpercall=").append(stringfromll(setting.microseconds / setting.calls)).append(
-                            "\r\n");
+                    info.append("cmdstat_").append(setting.name).append(":").append("calls=").append(stringfromll(setting.calls)).append(",usec=").append(stringfromll(setting.microseconds)).append(",usecpercall=").append(
+                            stringfromll(setting.microseconds / setting.calls)).append("\r\n");
                 }
 
                 cit++;
             }
+            info.append("\r\n");
+        }
+
+        if (!strcasecmp(section.c_str(), all) || !strcasecmp(section.c_str(), "coststats"))
+        {
+            info.append("# Coststats\r\n");
+            std::string tmp;
+            Statistics::GetSingleton().DumpString(tmp, STAT_DUMP_INFO_CMD, STAT_TYPE_COST);
+            info.append(tmp);
             info.append("\r\n");
         }
     }
@@ -559,7 +554,8 @@ namespace ardb
                 reply.SetErrorReason("Wrong number of arguments for CONFIG RESETSTAT");
                 return 0;
             }
-            reply.SetErrorReason("Not supported now");
+            Statistics::GetSingleton().Clear();
+            reply.SetStatusCode(STATUS_OK);
         }
         else if (arg0 == "get")
         {

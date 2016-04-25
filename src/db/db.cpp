@@ -36,6 +36,7 @@
 #include "db.hpp"
 #include "rocksdb_engine.hpp"
 #include "repl/repl.hpp"
+#include "statistics.hpp"
 
 /* Command flags. Please check the command table defined in the redis.c file
  * for more information about the meaning of every flag. */
@@ -118,6 +119,8 @@ OP_NAMESPACE_BEGIN
         g_db->UnlockKeys(ks);
         ctx.keyslocked = false;
     }
+
+    static CostTrack g_cmd_cost_tracks[REDIS_CMD_MAX];
 
     Ardb::Ardb() :
             m_engine(NULL), m_starttime(0), m_loading_data(false), m_redis_cursor_seed(0)
@@ -315,11 +318,30 @@ OP_NAMESPACE_BEGIN
         { "pfcount", REDIS_CMD_PFCOUNT, &Ardb::PFCount, 1, -1, "w", 0, 0, 0 },
         { "pfmerge", REDIS_CMD_PFMERGE, &Ardb::PFMerge, 2, -1, "w", 0, 0, 0 }, };
 
+        CostRanges cmdstat_ranges;
+        cmdstat_ranges.push_back(CostRange(0, 1000));
+        cmdstat_ranges.push_back(CostRange(1000, 5000));
+        cmdstat_ranges.push_back(CostRange(5000, 10000));
+        cmdstat_ranges.push_back(CostRange(10000, 20000));
+        cmdstat_ranges.push_back(CostRange(20000, 50000));
+        cmdstat_ranges.push_back(CostRange(50000, 100000));
+        cmdstat_ranges.push_back(CostRange(100000, 200000));
+        cmdstat_ranges.push_back(CostRange(200000, 500000));
+        cmdstat_ranges.push_back(CostRange(500000, 1000000));
+        cmdstat_ranges.push_back(CostRange(1000000, UINT64_MAX));
         uint32 arraylen = arraysize(settingTable);
         for (uint32 i = 0; i < arraylen; i++)
         {
             settingTable[i].flags = 0;
             const char* f = settingTable[i].sflags;
+
+            CostTrack& cost_track = g_cmd_cost_tracks[settingTable[i].type];
+            cost_track.dump_flags = STAT_DUMP_INFO_CMD | STAT_DUMP_PERIOD | STAT_DUMP_PERIOD_CLEAR;
+            cost_track.name = settingTable[i].name;
+
+            cost_track.SetCostRanges(cmdstat_ranges);
+            Statistics::GetSingleton().AddTrack(&cost_track);
+
             while (*f != '\0')
             {
                 switch (*f)
@@ -670,7 +692,7 @@ OP_NAMESPACE_BEGIN
 
     void Ardb::ExpireCheckTask::Run()
     {
-        while(GetState() == RUNNING)
+        while (GetState() == RUNNING)
         {
             g_db->ScanExpiredKeys();
             usleep(1000 * 1000);
@@ -988,6 +1010,7 @@ OP_NAMESPACE_BEGIN
             uint64 stop_time = get_current_epoch_micros();
             atomic_add_uint64(&(setting.calls), 1);
             atomic_add_uint64(&(setting.microseconds), stop_time - start_time);
+            g_cmd_cost_tracks[setting.type].AddCost((stop_time - start_time));
             TryPushSlowCommand(args, stop_time - start_time);
             DEBUG_LOG("Process recved cmd[%lld] cost %lluus", ctx.sequence, stop_time - start_time);
         }
@@ -1089,8 +1112,7 @@ OP_NAMESPACE_BEGIN
 
         /* Don't accept write commands if there are not enough good slaves and
          * user configured the min-slaves-to-write option. */
-        if (GetConf().master_host.empty() && GetConf().repl_min_slaves_to_write > 0 && GetConf().repl_min_slaves_max_lag > 0
-                && (setting.flags & ARDB_CMD_WRITE) > 0 && g_repl->GetMaster().GoodSlavesCount() < GetConf().repl_min_slaves_to_write)
+        if (GetConf().master_host.empty() && GetConf().repl_min_slaves_to_write > 0 && GetConf().repl_min_slaves_max_lag > 0 && (setting.flags & ARDB_CMD_WRITE) > 0 && g_repl->GetMaster().GoodSlavesCount() < GetConf().repl_min_slaves_to_write)
         {
             ctx.AbortTransaction();
             reply.SetErrCode(ERR_NOREPLICAS);
@@ -1147,8 +1169,7 @@ OP_NAMESPACE_BEGIN
         }
         else if (ctx.IsSubscribed())
         {
-            if (setting.type != REDIS_CMD_SUBSCRIBE && setting.type != REDIS_CMD_PSUBSCRIBE && setting.type != REDIS_CMD_PUNSUBSCRIBE
-                    && setting.type != REDIS_CMD_UNSUBSCRIBE && setting.type != REDIS_CMD_QUIT)
+            if (setting.type != REDIS_CMD_SUBSCRIBE && setting.type != REDIS_CMD_PSUBSCRIBE && setting.type != REDIS_CMD_PUNSUBSCRIBE && setting.type != REDIS_CMD_UNSUBSCRIBE && setting.type != REDIS_CMD_QUIT)
             {
                 reply.SetErrorReason("only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context");
                 return 0;

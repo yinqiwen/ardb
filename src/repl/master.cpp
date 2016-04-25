@@ -379,6 +379,10 @@ OP_NAMESPACE_BEGIN
                 if (NULL != slave->snapshot)
                 {
                     //FULLRESYNC
+                    /* We are going to accumulate the incremental changes for this
+                     * slave as well.Clear current namespace in order to force to re-emit
+                     * a SLEECT statement in the replication stream. */
+                    g_repl->GetReplLog().ClearCurrentNamespace();
                     Buffer msg;
                     slave->sync_offset = slave->snapshot->CachedReplOffset();
                     slave->sync_cksm = slave->snapshot->CachedReplCksm();

@@ -48,6 +48,7 @@ OP_NAMESPACE_BEGIN
             uint64_t WALEndOffset();
             uint64_t WALCksm();
             std::string CurrentNamespace();
+            void ClearCurrentNamespace();
             void ResetWALOffsetCksm(uint64_t offset, uint64_t cksm);
 //            void ResetDataOffsetCksm(uint64_t offset, uint64_t cksm);
 //            uint64_t DataOffset();

@@ -30,35 +30,48 @@
 OP_NAMESPACE_BEGIN
     static Statistics* g_singleton = NULL;
 
-    void CostTrack::Dump(std::string& str)
+    static void stringStatisticsCallback(const std::string& info, void* data)
     {
-
+        std::string* ss = (std::string*)data;
+        ss->append(info).append("\r\n");
+    }
+    static void logStatisticsCallback(const std::string& info, void* data)
+    {
+        INFO_LOG("%s", info.c_str());
     }
 
-    void QPSTrack::Dump(std::string& str, bool clear)
+    void QPSTrack::Dump(TrackDumpCallback* cb, void* data)
     {
-        str.append(Name).append(":").append(stringfromll(msgCount)).append("\r\n");
-        str.append(qpsName).append(":").append(stringfromll(QPS())).append("\r\n");
+        std::string str;
+        str.append(name).append(":").append(stringfromll(msgCount));
+        cb(str, data);
+        str.clear();
+        str.append(qpsName).append(":").append(stringfromll(QPS()));
+        cb(str, data);
     }
 
-    void CountRefTrack::Dump(std::string& str, bool clear)
+    void CountRefTrack::Dump(TrackDumpCallback* tcb, void* tdata)
     {
-        str.append(Name).append(":").append(stringfromll(cb(cbdata))).append("\r\n");
+        std::string str;
+        str.append(name).append(":").append(stringfromll(cb(cbdata)));
+        tcb(str, tdata);
     }
 
-    void CountTrack::Dump(std::string& str, bool clear)
+    void CountTrack::Dump(TrackDumpCallback* cb, void* data)
     {
-        str.append(Name).append(":").append(stringfromll(count)).append("\r\n");
+        std::string str;
+        str.append(name).append(":").append(stringfromll(count));
+        cb(str, data);
     }
 
     CostTrack::CostTrack()
     {
-
+        Clear();
     }
     void CostTrack::SetCostRanges(const CostRanges& ranges)
     {
         this->ranges = ranges;
-        recs.resize(ranges.size() + 1);
+        Clear();
     }
     void CostTrack::AddCost(uint64 cost)
     {
@@ -74,27 +87,46 @@ OP_NAMESPACE_BEGIN
             }
         }
     }
-    void CostTrack::Dump(std::string& str, bool clear)
+    void CostTrack::Dump(TrackDumpCallback* cb, void* data)
     {
-        if (recs[0].count == 0)
+        if (0 == recs[0].count)
         {
             return;
         }
         uint64 allCount = 0;
         for (size_t i = 0; i < recs.size(); i++)
         {
-            if (recs[i].count == 0)
+            if (0 == recs[i].count)
             {
                 continue;
             }
-            char field[1024];
-            std::string countKey, costKey;
+            char range[1024];
+            if (i == 0)
+            {
+                sprintf(range, "all");
+            }
+            else
+            {
+                if (ranges[i - 1].max == UINT64_MAX)
+                {
+                    snprintf(range, sizeof(range) - 1, "range[%llu-]", ranges[i - 1].min);
+                }
+                else
+                {
+                    snprintf(range, sizeof(range) - 1, "range[%llu-%llu]", ranges[i - 1].min, ranges[i - 1].max);
+                }
+            }
+
             char tmp[1024];
-            snprintf(tmp, sizeof(tmp) - 1, "%s:%d[%.4f%%]\r\n", recs[i].count, (double(recs[i].count) / double(recs[0].count)) * 100);
-            str.append(tmp);
-            snprintf(tmp, sizeof(tmp) - 1, "%s: %d\r\n", recs[i].cost);
-            str.append(tmp);
+            snprintf(tmp, sizeof(tmp) - 1, "coststat_%s_%s:calls=%llu,costs=%llu,percents=%.4f%%", name.c_str(), range, recs[i].count, recs[i].cost, (double(recs[i].count) / double(recs[0].count)) * 100);
+            cb(tmp, data);
         }
+    }
+
+    void CostTrack::Clear()
+    {
+        recs.clear();
+        recs.resize(ranges.size() + 1);
     }
 
     Statistics::Statistics()
@@ -111,13 +143,61 @@ OP_NAMESPACE_BEGIN
     }
     int Statistics::AddTrack(Track* track)
     {
-        m_tracks[track->Name] = track;
+        m_tracks.push_back(track);
+        if (InstanceOf<QPSTrack>(track).OK)
+        {
+            m_qps_tracks.push_back(track);
+        }
         return 0;
     }
 
-    void Statistics::Dump(std::string& info)
+    void Statistics::TrackQPSPerSecond()
     {
+        for (size_t i = 0; i < m_qps_tracks.size(); i++)
+        {
+            ((QPSTrack*) m_qps_tracks[i])->trackQPSPerSecond();
+        }
+    }
 
+    void Statistics::Clear(int type)
+    {
+        for (size_t i = 0; i < m_tracks.size(); i++)
+        {
+            if (m_tracks[i]->GetType() & type)
+            {
+                m_tracks[i]->Clear();
+            }
+        }
+    }
+
+    void Statistics::DumpString(std::string& info, int flags, int type)
+    {
+        Dump(stringStatisticsCallback, &info, flags, type);
+    }
+    void Statistics::DumpLog(int flags, int type)
+    {
+        Dump(logStatisticsCallback, NULL, flags, type);
+    }
+
+    void Statistics::Dump(TrackDumpCallback* cb, void* data, int flags, int type)
+    {
+        for (size_t i = 0; i < m_tracks.size(); i++)
+        {
+            if (m_tracks[i]->GetType() & type)
+            {
+                if (m_tracks[i]->dump_flags & flags)
+                {
+                    m_tracks[i]->Dump(cb, data);
+                    if (flags & STAT_DUMP_PERIOD & m_tracks[i]->dump_flags)
+                    {
+                        if (m_tracks[i]->dump_flags & STAT_DUMP_PERIOD_CLEAR)
+                        {
+                            m_tracks[i]->Clear();
+                        }
+                    }
+                }
+            }
+        }
     }
 
 OP_NAMESPACE_END

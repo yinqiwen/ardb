@@ -186,6 +186,11 @@ OP_NAMESPACE_BEGIN
         }
         return str;
     }
+    void ReplicationBacklog::ClearCurrentNamespace()
+    {
+        ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
+        meta->select_ns_size = 0;
+    }
     uint64_t ReplicationBacklog::WALCksm()
     {
         return swal_cksm(m_wal);

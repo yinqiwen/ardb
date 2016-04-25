@@ -253,6 +253,8 @@ namespace ardb
             REDIS_CMD_ZSCAN2 = 1033,
             REDIS_CMD_BGSAVE2 = 1034,
             REDIS_CMD_SAVE2 = 1035,
+
+            REDIS_CMD_MAX = 1100,
         };
 
         class RedisCommandDecoder;
