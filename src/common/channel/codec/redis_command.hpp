@@ -386,6 +386,14 @@ namespace ardb
                     }
                     return &(m_args[index]);
                 }
+                std::string* GetMutableArgument(uint32 index)
+                {
+                    if (index >= m_args.size())
+                    {
+                        return NULL;
+                    }
+                    return &(m_args[index]);
+                }
                 std::string ToString() const
                 {
                     std::string cmd;
@@ -399,6 +407,18 @@ namespace ardb
                         }
                     }
                     return cmd;
+                }
+                void ReserveArgs(size_t size)
+                {
+                    m_args.resize(size);
+                }
+                void Adapt()
+                {
+                    if (m_cmd.empty() && !m_args.empty())
+                    {
+                        m_cmd = m_args.front();
+                        m_args.pop_front();
+                    }
                 }
                 void Clear()
                 {

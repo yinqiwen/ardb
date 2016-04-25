@@ -54,6 +54,7 @@ struct swal_t
     void* mmap_buf;
     char* ring_cache;
     size_t ring_cache_start_offset;
+    //size_t ring_cache_end_offset;
     size_t ring_cache_idx;
     time_t last_replay_time;
 };
@@ -179,7 +180,7 @@ int swal_open(const char* dir, const swal_options_t* options, swal_t** wal)
             return SWAL_ERR_MALLOC_FAIL;
         }
         wal_log->ring_cache_idx = 0;
-        wal_log->ring_cache_start_offset = meta->log_start_offset;
+        wal_log->ring_cache_start_offset = meta->log_end_offset;
     }
     *wal = wal_log;
     return 0;
@@ -223,7 +224,7 @@ int swal_append(swal_t* wal, const void* log, size_t loglen)
         p += thislen;
     }
     wal->meta->log_end_offset += loglen;
-    if (wal->meta->log_end_offset - wal->meta->log_start_offset >= wal->options.max_file_size)
+    if (wal->meta->log_end_offset - wal->meta->log_start_offset >= (wal->options.max_file_size))
     {
         wal->meta->log_start_offset = wal->meta->log_end_offset - wal->options.max_file_size;
     }
@@ -249,7 +250,8 @@ int swal_append(swal_t* wal, const void* log, size_t loglen)
             len -= thislen;
             p += thislen;
         }
-        if (wal->meta->log_end_offset - wal->ring_cache_start_offset >= wal->options.ring_cache_size)
+        //wal->ring_cache_end_offset = wal->meta->log_end_offset;
+        if (wal->meta->log_end_offset - wal->ring_cache_start_offset >= (wal->options.ring_cache_size))
         {
             wal->ring_cache_start_offset = wal->meta->log_end_offset - wal->options.ring_cache_size;
         }
@@ -277,10 +279,11 @@ int swal_sync_meta(swal_t* wal)
 
 int swal_replay(swal_t* wal, size_t offset, int64_t limit_len, swal_replay_logfunc func, void* data)
 {
-    if(offset < wal->meta->log_start_offset)
+    if(offset < wal->meta->log_start_offset || offset > wal->meta->log_end_offset)
     {
         return -1;
     }
+
     size_t total = wal->meta->log_end_offset - offset;
     wal->last_replay_time = time(NULL);
     if (limit_len > 0 && limit_len < total)

@@ -1,8 +1,30 @@
 /*
- * rocksdb_engine.cpp
+ *Copyright (c) 2013-2016, yinqiwen <yinqiwen@gmail.com>
+ *All rights reserved.
  *
- *  Created on: 2015-09-21
- *      Author: wangqiying
+ *Redistribution and use in source and binary forms, with or without
+ *modification, are permitted provided that the following conditions are met:
+ *
+ *  * Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ *  * Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *  * Neither the name of Redis nor the names of its contributors may be used
+ *    to endorse or promote products derived from this software without
+ *    specific prior written permission.
+ *
+ *THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ *AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ *IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ *ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+ *BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ *CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ *SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ *INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ *CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+ *THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include "rocksdb_engine.hpp"
 #include "rocksdb/utilities/convenience.h"
@@ -208,13 +230,11 @@ OP_NAMESPACE_BEGIN
     class RocksDBCompactionFilter: public rocksdb::CompactionFilter
     {
         private:
-            uint32_t cf_id;
-            std::string delete_key;
+            Data ns;
         public:
-            RocksDBCompactionFilter(uint32 id) :
-                    cf_id(id)
+            RocksDBCompactionFilter(RocksDBEngine* engine, const rocksdb::CompactionFilter::Context& context)
             {
-                //INFO_LOG("####Create ilter:%d\n", id);
+                ns = engine->GetNamespaceByColumnFamilyId(context.column_family_id);
             }
             const char* Name() const
             {
@@ -230,13 +250,16 @@ OP_NAMESPACE_BEGIN
                 {
                     return true;
                 }
+                if(ns.IsNil())
+                {
+                    return false;
+                }
                 Buffer buffer(const_cast<char*>(key.data()), 0, key.size());
                 KeyObject k;
                 if (!k.DecodePrefix(buffer, false))
                 {
                     abort();
                 }
-
                 if (k.GetType() == KEY_META)
                 {
                     ValueObject meta;
@@ -254,43 +277,44 @@ OP_NAMESPACE_BEGIN
 
                     if (meta.GetMergeOp() != 0)
                     {
-                        INFO_LOG("#### Filter key:%s merge op:%d\n", k.GetKey().AsString().c_str(), meta.GetMergeOp());
+//                        INFO_LOG("#### Filter key:%s merge op:%d\n", k.GetKey().AsString().c_str(), meta.GetMergeOp());
                         return false;
                     }
-                    if (meta.GetTTL() > 0)
-                    {
-                        INFO_LOG("#### Filter key:%s ttl:%lld %d\n", k.GetKey().AsString().c_str(), meta.GetTTL() - get_current_epoch_millis(), pthread_self());
-                    }
+//                    if (meta.GetTTL() > 0)
+//                    {
+//                        INFO_LOG("#### Filter key:%s ttl:%lld %d\n", k.GetKey().AsString().c_str(), meta.GetTTL() - get_current_epoch_millis(), pthread_self());
+//                    }
                     //INFO_LOG("#### Filter key:%s ttl:%lld\n", k.GetKey().AsString().c_str(), meta.GetTTL());
                     if (meta.GetTTL() > 0 && meta.GetTTL() <= get_current_epoch_millis())
                     {
                         if (meta.GetType() != KEY_STRING)
                         {
-                            const_cast<RocksDBCompactionFilter*>(this)->delete_key.assign(k.GetKey().CStr(), k.GetKey().StringLength());
+                            g_db->AddExpiredKey(ns, k.GetKey());
+                            return false;
                         }
-                        return true;
-                    }
-                    const_cast<RocksDBCompactionFilter*>(this)->delete_key.clear();
-                }
-                else
-                {
-                    if (!delete_key.empty())
-                    {
-                        if (delete_key.size() == k.GetKey().StringLength() && !strncmp(delete_key.data(), k.GetKey().CStr(), delete_key.size()))
+                        else
                         {
                             return true;
                         }
                     }
                 }
+                else
+                {
+                }
                 return false;
             }
     };
 
-    class RocksDBCompactionFilterFactory: public rocksdb::CompactionFilterFactory
+    struct RocksDBCompactionFilterFactory: public rocksdb::CompactionFilterFactory
     {
+            RocksDBEngine* engine;
+            RocksDBCompactionFilterFactory(RocksDBEngine* e) :
+                    engine(e)
+            {
+            }
             std::unique_ptr<rocksdb::CompactionFilter> CreateCompactionFilter(const rocksdb::CompactionFilter::Context& context)
             {
-                return std::unique_ptr<rocksdb::CompactionFilter>(new RocksDBCompactionFilter(context.column_family_id));
+                return std::unique_ptr < rocksdb::CompactionFilter > (new RocksDBCompactionFilter(engine, context));
             }
 
             const char* Name() const
@@ -326,7 +350,8 @@ OP_NAMESPACE_BEGIN
             // internal corruption. This will be treated as an error by the library.
             //
             // Also make use of the *logger for error messages.
-            bool FullMerge(const rocksdb::Slice& key, const rocksdb::Slice* existing_value, const std::deque<std::string>& operand_list, std::string* new_value, rocksdb::Logger* logger) const
+            bool FullMerge(const rocksdb::Slice& key, const rocksdb::Slice* existing_value, const std::deque<std::string>& operand_list, std::string* new_value,
+                    rocksdb::Logger* logger) const
             {
 
                 KeyObject key_obj;
@@ -410,7 +435,8 @@ OP_NAMESPACE_BEGIN
             // If there is corruption in the data, handle it in the FullMerge() function,
             // and return false there.  The default implementation of PartialMerge will
             // always return false.
-            bool PartialMergeMulti(const rocksdb::Slice& key, const std::deque<rocksdb::Slice>& operand_list, std::string* new_value, rocksdb::Logger* logger) const
+            bool PartialMergeMulti(const rocksdb::Slice& key, const std::deque<rocksdb::Slice>& operand_list, std::string* new_value,
+                    rocksdb::Logger* logger) const
             {
                 if (operand_list.size() < 2)
                 {
@@ -432,7 +458,9 @@ OP_NAMESPACE_BEGIN
                         WARN_LOG("Invalid merge op at:%u", i);
                         return false;
                     }
-                    if (0 != g_db->MergeOperands(ops[left_pos].GetMergeOp(), ops[left_pos].GetMergeArgs(), ops[1 - left_pos].GetMergeOp(), ops[1 - left_pos].GetMergeArgs()))
+                    if (0
+                            != g_db->MergeOperands(ops[left_pos].GetMergeOp(), ops[left_pos].GetMergeArgs(), ops[1 - left_pos].GetMergeOp(),
+                                    ops[1 - left_pos].GetMergeArgs()))
                     {
                         return false;
                     }
@@ -466,7 +494,8 @@ OP_NAMESPACE_BEGIN
             // multiple times, where each time it only merges two operands.  Developers
             // should either implement PartialMergeMulti, or implement PartialMerge which
             // is served as the helper function of the default PartialMergeMulti.
-            bool PartialMerge(const rocksdb::Slice& key, const rocksdb::Slice& left_operand, const rocksdb::Slice& right_operand, std::string* new_value, rocksdb::Logger* logger) const
+            bool PartialMerge(const rocksdb::Slice& key, const rocksdb::Slice& left_operand, const rocksdb::Slice& right_operand, std::string* new_value,
+                    rocksdb::Logger* logger) const
             {
                 ValueObject left_op, right_op;
                 Buffer left_mergeBuffer(const_cast<char*>(left_operand.data()), 0, left_operand.size());
@@ -548,7 +577,7 @@ OP_NAMESPACE_BEGIN
         m_options.comparator = &comparator;
         m_options.merge_operator.reset(new MergeOperator(this));
         m_options.prefix_extractor.reset(new RocksDBPrefixExtractor);
-        m_options.compaction_filter_factory.reset(new RocksDBCompactionFilterFactory);
+        m_options.compaction_filter_factory.reset(new RocksDBCompactionFilterFactory(this));
         m_options.info_log.reset(new RocksDBLogger);
         if (DEBUG_ENABLED())
         {
@@ -601,6 +630,23 @@ OP_NAMESPACE_BEGIN
             return -1;
         }
         return 0;
+    }
+
+    Data RocksDBEngine::GetNamespaceByColumnFamilyId(uint32 id)
+    {
+        Data ns;
+        RWLockGuard<SpinRWLock> guard(m_lock, true);
+        ColumnFamilyHandleTable::iterator it = m_handlers.begin();
+        while (it != m_handlers.end())
+        {
+            if (it->second->GetID() == id)
+            {
+                ns.SetString(it->second->GetName(), false);
+                return ns;
+            }
+            it++;
+        }
+        return ns;
     }
 
     int RocksDBEngine::PutRaw(Context& ctx, const Slice& key, const Slice& value)
@@ -901,7 +947,7 @@ OP_NAMESPACE_BEGIN
         ColumnFamilyHandleTable::iterator it = m_handlers.begin();
         while (it != m_handlers.end())
         {
-            if (it->first.AsString() != "default")
+            if (it->first.AsString() != m_db->DefaultColumnFamily()->GetName())
             {
                 nss.push_back(it->first);
             }
@@ -937,7 +983,8 @@ OP_NAMESPACE_BEGIN
     void RocksDBEngine::Stats(Context& ctx, std::string& all)
     {
         std::string str, version_info;
-        version_info.append("RocksDB version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(stringfromll(rocksdb::kMinorVersion)).append(".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
+        version_info.append("RocksDB version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(stringfromll(rocksdb::kMinorVersion)).append(
+                ".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
         all.append(version_info);
         DataArray nss;
         ListNameSpaces(ctx, nss);

@@ -10,14 +10,13 @@ OP_NAMESPACE_BEGIN
     ReplicationService* g_repl = &_repl_singleton;
     struct ReplMeta
     {
-//            uint64_t data_cksm;
-//            uint64_t data_offset;  //data offset saved in  store
             char select_ns[ARDB_MAX_NAMESPACE_SIZE];
             char serverkey[SERVER_KEY_SIZE];
             char replkey[SERVER_KEY_SIZE];
             uint16 select_ns_size;
+            bool replkey_self_gen;
             ReplMeta() :
-                    select_ns_size(0)
+                    select_ns_size(0),replkey_self_gen(true)
             {
             }
     };
@@ -57,6 +56,7 @@ OP_NAMESPACE_BEGIN
             memcpy(meta->serverkey, randomkey.data(), SERVER_KEY_SIZE);
             memcpy(meta->replkey, randomkey.data(), SERVER_KEY_SIZE);
             memset(meta->select_ns, 0, ARDB_MAX_NAMESPACE_SIZE);
+            meta->replkey_self_gen = true;
         }
         return 0;
     }
@@ -76,10 +76,16 @@ OP_NAMESPACE_BEGIN
         str.assign(meta->replkey, SERVER_KEY_SIZE);
         return str;
     }
+    bool ReplicationBacklog::IsReplKeySelfGen()
+    {
+        ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
+        return meta->replkey_self_gen;
+    }
     void ReplicationBacklog::SetReplKey(const std::string& str)
     {
         ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
         memcpy(meta->replkey, str.data(), str.size() < SERVER_KEY_SIZE ? str.size() : SERVER_KEY_SIZE);
+        meta->replkey_self_gen = false;
     }
     int ReplicationBacklog::WriteWAL(const Buffer& cmd)
     {
@@ -94,8 +100,10 @@ OP_NAMESPACE_BEGIN
         {
             if (g_db->GetConf().master_host.empty())
             {
+                RedisCommandFrame select_cmd("select");
+                select_cmd.AddArg(ns.AsString());
                 Buffer select;
-                select.Printf("select %s\r\n", ns.AsString().c_str());
+                RedisCommandEncoder::Encode(select, select_cmd);
                 len += WriteWAL(select);
                 memcpy(meta->select_ns, ns.CStr(), ns.StringLength());
                 meta->select_ns[ns.StringLength()] = 0;
@@ -133,7 +141,7 @@ OP_NAMESPACE_BEGIN
         ReplCommand* repl_cmd = new ReplCommand;
         repl_cmd->ns = ns;
         const Buffer& raw_protocol = cmd.GetRawProtocolData();
-        if (raw_protocol.Readable())
+        if (raw_protocol.Readable() && !cmd.IsInLine())
         {
             repl_cmd->cmdbuf.Write(raw_protocol.GetRawReadBuffer(), raw_protocol.ReadableBytes());
         }
@@ -153,7 +161,7 @@ OP_NAMESPACE_BEGIN
     }
     bool ReplicationBacklog::IsValidOffsetCksm(int64_t offset, uint64_t cksm)
     {
-        bool valid_offset = offset > 0 && offset <= swal_end_offset(m_wal) && offset >= swal_start_offset(m_wal);
+        bool valid_offset = offset > 0 && offset <= (swal_end_offset(m_wal)) && offset >= swal_start_offset(m_wal);
         if (!valid_offset)
         {
             return false;

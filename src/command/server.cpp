@@ -33,6 +33,7 @@
 #include "util/socket_address.hpp"
 #include "util/lru.hpp"
 #include "util/system_helper.hpp"
+#include "statistics.hpp"
 #include <sstream>
 #include <sys/utsname.h>
 #include <sys/time.h>
@@ -162,7 +163,9 @@ namespace ardb
 
     void Ardb::FillInfoResponse(Context& ctx, const std::string& section, std::string& info)
     {
-        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "server"))
+        const char* all = "all";
+        const char* def = "default";
+        if (!strcasecmp(section.c_str(), all) || !strcasecmp(section.c_str(), def) || !strcasecmp(section.c_str(), "server"))
         {
             struct utsname name;
             uname(&name);
@@ -198,17 +201,21 @@ namespace ardb
             info.append("config_file:").append(GetConf()._conf_file).append("\r\n");
             info.append("\r\n");
         }
-        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "databases"))
+        if (!strcasecmp(section.c_str(), all) || !strcasecmp(section.c_str(), def) || !strcasecmp(section.c_str(), "databases"))
         {
             info.append("# Databases\r\n");
             info.append("data_dir:").append(GetConf().data_base_path).append("\r\n");
+            int64 filesize = file_size(GetConf().data_base_path);
+            char tmp[256];
+            sprintf(tmp, "%" PRId64, filesize);
+            info.append("used_disk_space:").append(tmp).append("\r\n");
             std::string stats;
             m_engine->Stats(ctx, stats);
             info.append(stats).append("\r\n");
             info.append("\r\n");
         }
 
-        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "clients"))
+        if (!strcasecmp(section.c_str(), all) || !strcasecmp(section.c_str(), def) || !strcasecmp(section.c_str(), "clients"))
         {
             info.append("# Clients\r\n");
             {
@@ -222,7 +229,7 @@ namespace ardb
             info.append("\r\n");
         }
 
-        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "persistence"))
+        if (!strcasecmp(section.c_str(), all) || !strcasecmp(section.c_str(), def) || !strcasecmp(section.c_str(), "persistence"))
         {
             info.append("# Persistence\r\n");
             info.append("loading:").append(IsLoadingData() ? " 1" : "0").append("\r\n");
@@ -239,7 +246,7 @@ namespace ardb
             info.append("\r\n");
         }
 
-        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "cpu"))
+        if (!strcasecmp(section.c_str(), all) || !strcasecmp(section.c_str(), def) || !strcasecmp(section.c_str(), "cpu"))
         {
             struct rusage self_ru;
             getrusage(RUSAGE_SELF, &self_ru);
@@ -252,16 +259,7 @@ namespace ardb
             info.append("\r\n");
 
         }
-        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "disk"))
-        {
-            info.append("# Disk\r\n");
-            int64 filesize = file_size(GetConf().data_base_path);
-            char tmp[256];
-            sprintf(tmp, "%" PRId64, filesize);
-            info.append("db_used_space:").append(tmp).append("\r\n");
-            info.append("\r\n");
-        }
-        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "replication"))
+        if (!strcasecmp(section.c_str(), all) || !strcasecmp(section.c_str(), def) || !strcasecmp(section.c_str(), "replication"))
         {
             info.append("# Replication\r\n");
             if (GetConf().repl_backlog_size > 0)
@@ -290,7 +288,8 @@ namespace ardb
                     info.append("master_link_status:").append(g_repl->GetSlave().IsConnected() ? "up" : "down").append("\r\n");
                     if (g_repl->GetSlave().IsConnected())
                     {
-                        info.append("master_last_io_seconds_ago:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLastinteractionTime())).append("\r\n");
+                        info.append("master_last_io_seconds_ago:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLastinteractionTime())).append(
+                                "\r\n");
                     }
                     else
                     {
@@ -301,7 +300,8 @@ namespace ardb
                     if (g_repl->GetSlave().IsSyncing())
                     {
                         info.append("master_sync_left_bytes:").append(stringfromll(g_repl->GetSlave().SyncLeftBytes())).append("\r\n");
-                        info.append("master_sync_last_io_seconds_ago:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLastinteractionTime())).append("\r\n");
+                        info.append("master_sync_last_io_seconds_ago:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLastinteractionTime())).append(
+                                "\r\n");
                     }
                     if (g_repl->GetSlave().IsLoading())
                     {
@@ -310,7 +310,8 @@ namespace ardb
                     info.append("slave_repl_offset:").append(stringfromll(g_repl->GetReplLog().WALEndOffset())).append("\r\n");
                     if (!g_repl->GetSlave().IsConnected())
                     {
-                        info.append("master_link_down_since_seconds:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLinkDownTime())).append("\r\n");
+                        info.append("master_link_down_since_seconds:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLinkDownTime())).append(
+                                "\r\n");
                     }
                     info.append("slave_priority:").append(stringfromll(GetConf().slave_priority)).append("\r\n");
                     info.append("slave_read_only:").append(GetConf().slave_readonly ? "1" : "0").append("\r\n");
@@ -329,7 +330,8 @@ namespace ardb
                 info.append("repl_backlog_size: ").append(stringfromll(GetConf().repl_backlog_size)).append("\r\n");
                 info.append("repl_backlog_cache_size: ").append(stringfromll(GetConf().repl_backlog_cache_size)).append("\r\n");
                 info.append("repl_backlog_first_byte_offset: ").append(stringfromll(g_repl->GetReplLog().WALStartOffset())).append("\r\n");
-                info.append("repl_backlog_histlen: ").append(stringfromll(g_repl->GetReplLog().WALEndOffset() - g_repl->GetReplLog().WALStartOffset() + 1)).append("\r\n");
+                info.append("repl_backlog_histlen: ").append(stringfromll(g_repl->GetReplLog().WALEndOffset() - g_repl->GetReplLog().WALStartOffset() + 1)).append(
+                        "\r\n");
                 info.append("repl_backlog_cksm: ").append(base16_stringfromllu(g_repl->GetReplLog().WALCksm())).append("\r\n");
             }
             else
@@ -339,7 +341,7 @@ namespace ardb
             info.append("\r\n");
         }
 
-        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "memory"))
+        if (!strcasecmp(section.c_str(), all) || !strcasecmp(section.c_str(), def) || !strcasecmp(section.c_str(), "memory"))
         {
             info.append("# Memory\r\n");
             std::string tmp;
@@ -347,7 +349,7 @@ namespace ardb
             info.append("\r\n");
         }
 
-        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "stats"))
+        if (!strcasecmp(section.c_str(), all) || !strcasecmp(section.c_str(), def) || !strcasecmp(section.c_str(), "stats"))
         {
             info.append("# Stats\r\n");
 //            "total_connections_received:%lld\r\n"
@@ -358,26 +360,25 @@ namespace ardb
 //                        "instantaneous_input_kbps:%.2f\r\n"
 //                        "instantaneous_output_kbps:%.2f\r\n"
 //                        "rejected_connections:%lld\r\n"
-//                        "sync_full:%lld\r\n"
-//                        "sync_partial_ok:%lld\r\n"
-//                        "sync_partial_err:%lld\r\n"
-//                        "expired_keys:%lld\r\n"
-//                        "evicted_keys:%lld\r\n"
-//                        "keyspace_hits:%lld\r\n"
-//                        "keyspace_misses:%lld\r\n"
-//                        "pubsub_channels:%ld\r\n"
-//                        "pubsub_patterns:%lu\r\n"
-//                        "latest_fork_usec:%lld\r\n"
-//                        "migrate_cached_sockets:%ld\r\n",
-//            std::string tmp;
-//            info.append(m_stat.PrintStat(tmp));
-            ReadLockGuard<SpinRWLock> guard(m_pubsub_lock);
-            info.append("pubsub_channels:").append(stringfromll(m_pubsub_channels.size())).append("\r\n");
-            info.append("pubsub_patterns:").append(stringfromll(m_pubsub_patterns.size())).append("\r\n");
+            std::string tmp;
+            Statistics::GetSingleton.Dump(tmp);
+            info.append(tmp);
+            info.append("sync_full:").append(stringfromll(g_repl->GetMaster().FullSyncCount())).append("\r\n");
+            info.append("sync_partial_ok:").append(stringfromll(g_repl->GetMaster().ParitialSyncOKCount())).append("\r\n");
+            info.append("sync_partial_err:").append(stringfromll(g_repl->GetMaster().ParitialSyncErrCount())).append("\r\n");
+            {
+                ReadLockGuard<SpinRWLock> guard(m_pubsub_lock);
+                info.append("pubsub_channels:").append(stringfromll(m_pubsub_channels.size())).append("\r\n");
+                info.append("pubsub_patterns:").append(stringfromll(m_pubsub_patterns.size())).append("\r\n");
+            }
+            {
+                LockGuard<SpinMutexLock> guard(m_expires_lock);
+                info.append("expire_scan_keys:").append(stringfromll(m_expires.size())).append("\r\n");
+            }
             info.append("\r\n");
         }
 
-        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "keyspace"))
+        if (!strcasecmp(section.c_str(), all) || !strcasecmp(section.c_str(), def) || !strcasecmp(section.c_str(), "keyspace"))
         {
             DataArray nss;
             m_engine->ListNameSpaces(ctx, nss);
@@ -386,13 +387,14 @@ namespace ardb
                 info.append("# Keyspace\r\n");
                 for (size_t i = 0; i < nss.size(); i++)
                 {
-                    info.append("db").append(nss[i].AsString()).append(":").append("keys=").append(stringfromll(m_engine->EstimateKeysNum(ctx, nss[i]))).append("\r\n");
+                    info.append("db").append(nss[i].AsString()).append(":").append("keys=").append(stringfromll(m_engine->EstimateKeysNum(ctx, nss[i]))).append(
+                            "\r\n");
                 }
                 info.append("\r\n");
             }
         }
 
-        if (!strcasecmp(section.c_str(), "all") || !strcasecmp(section.c_str(), "commandstats"))
+        if (!strcasecmp(section.c_str(), all) || !strcasecmp(section.c_str(), "commandstats"))
         {
             info.append("# Commandstats\r\n");
             RedisCommandHandlerSettingTable::iterator cit = m_settings.begin();
@@ -401,8 +403,9 @@ namespace ardb
                 RedisCommandHandlerSetting& setting = cit->second;
                 if (setting.calls > 0)
                 {
-                    info.append("cmdstat_").append(setting.name).append(":").append("calls=").append(stringfromll(setting.calls)).append(",usec=").append(stringfromll(setting.microseconds)).append(",usecpercall=").append(
-                            stringfromll(setting.microseconds / setting.calls)).append("\r\n");
+                    info.append("cmdstat_").append(setting.name).append(":").append("calls=").append(stringfromll(setting.calls)).append(",usec=").append(
+                            stringfromll(setting.microseconds)).append(",usecpercall=").append(stringfromll(setting.microseconds / setting.calls)).append(
+                            "\r\n");
                 }
 
                 cit++;
@@ -414,7 +417,7 @@ namespace ardb
     int Ardb::Info(Context& ctx, RedisCommandFrame& cmd)
     {
         std::string info;
-        std::string section = "all";
+        std::string section = "default";
         if (cmd.GetArguments().size() == 1)
         {
             section = cmd.GetArguments()[0];

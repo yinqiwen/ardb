@@ -38,6 +38,7 @@ namespace ardb
     namespace codec
     {
         class RedisMessageDecoder;
+        class FastRedisCommandDecoder;
         class RedisCommandDecoder: public StackFrameDecoder<RedisCommandFrame>
         {
             protected:
@@ -45,6 +46,7 @@ namespace ardb
                 static int ProcessMultibulkBuffer(Channel* ch, Buffer& buffer, RedisCommandFrame& frame);
                 bool Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, RedisCommandFrame& msg);
                 friend class RedisMessageDecoder;
+                friend class FastRedisCommandDecoder;
             public:
                 RedisCommandDecoder()
                 {
@@ -52,10 +54,35 @@ namespace ardb
                 static bool Decode(Channel* ch, Buffer& buffer, RedisCommandFrame& msg);
         };
 
+        class FastRedisCommandDecoder: public ChannelUpstreamHandler<Buffer>
+        {
+            protected:
+                int m_reqtype;
+                int m_multibulklen; /* number of multi bulk arguments left to read */
+                long m_bulklen; /* length of bulk argument in multi bulk request */
+                RedisCommandFrame m_cmd;
+                int m_argc;
+                void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<Buffer>& e);
+                void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e)
+                {
+                    ctx.SendUpstream(e);
+                }
+                void ExceptionCaught(ChannelHandlerContext& ctx, ExceptionEvent& e)
+                {
+                    ctx.SendUpstream(e);
+                }
+                int ProcessMultibulkBuffer(Buffer& buffer, std::string& err);
+            public:
+                FastRedisCommandDecoder() :
+                        m_reqtype(0), m_multibulklen(0), m_bulklen(-1), m_argc(0)
+                {
+                }
+        };
+
         class RedisCommandEncoder: public ChannelDownstreamHandler<RedisCommandFrame>
         {
             private:
-                Buffer m_buffer;
+                //Buffer m_buffer;
                 bool WriteRequested(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e);
             public:
                 static bool Encode(Buffer& buf, const RedisCommandFrame& cmd);

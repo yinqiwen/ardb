@@ -63,7 +63,7 @@ namespace ardb
 		class RedisReplyEncoder: public ChannelDownstreamHandler<RedisReply>
 		{
 			private:
-		        Buffer m_buffer;
+		        //Buffer m_buffer;
 				bool WriteRequested(ChannelHandlerContext& ctx, MessageEvent<RedisReply>& e);
 			public:
 				static bool Encode(Buffer& buf, RedisReply& reply);

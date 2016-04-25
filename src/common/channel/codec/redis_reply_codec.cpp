@@ -127,10 +127,10 @@ bool RedisReplyEncoder::Encode(Buffer& buf, RedisReply& reply)
 bool RedisReplyEncoder::WriteRequested(ChannelHandlerContext& ctx, MessageEvent<RedisReply>& e)
 {
     RedisReply* msg = e.GetMessage();
-    m_buffer.Clear();
-    if (Encode(m_buffer, *msg))
+    if (Encode(ctx.GetChannel()->GetOutputBuffer(), *msg))
     {
-        return ctx.GetChannel()->Write(m_buffer);
+        ctx.GetChannel()->EnableWriting();
+        return true;
     }
     return false;
 }

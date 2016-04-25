@@ -443,6 +443,7 @@ OP_NAMESPACE_BEGIN
                 DELETE(m_engine);
                 return -1;
             }
+            m_expire_check_task.Start();
             m_starttime = time(NULL);
             return 0;
         }
@@ -667,6 +668,85 @@ OP_NAMESPACE_BEGIN
         }
     }
 
+    void Ardb::ExpireCheckTask::Run()
+    {
+        while(GetState() == RUNNING)
+        {
+            g_db->ScanExpiredKeys();
+            usleep(1000 * 1000);
+        }
+    }
+
+    int64 Ardb::ScanExpiredKeys()
+    {
+        Data current_scan_ns;
+        KeyPrefix scan_key;
+        Iterator* iter = NULL;
+        Context scan_ctx;
+        scan_ctx.flags.iterate_multi_keys = 1;
+        uint32 max_scan_keys_one_iter = 100;
+        uint32 iter_scaned_keys_num = 0;
+        int64 total_expired_keys = 0;
+        while (true)
+        {
+            {
+                LockGuard<SpinMutexLock> guard(m_expires_lock);
+                if (!m_expires.empty())
+                {
+                    scan_key = *(m_expires.begin());
+                    m_expires.erase(m_expires.begin());
+                }
+            }
+            if (scan_key.IsNil())
+            {
+                break;
+            }
+            KeyObject key(scan_key.ns, KEY_META, scan_key.key);
+            KeyLockGuard keylocker(scan_ctx, key);
+            if (NULL == iter || current_scan_ns != scan_key.ns || iter_scaned_keys_num >= max_scan_keys_one_iter)
+            {
+                DELETE(iter);
+                iter = m_engine->Find(scan_ctx, key);
+                current_scan_ns = scan_key.ns;
+                iter_scaned_keys_num = 1;
+            }
+            else
+            {
+                iter->Jump(key);
+                iter_scaned_keys_num++;
+            }
+            while (iter->Valid())
+            {
+                KeyObject& iter_key = iter->Key();
+                if (iter_key.GetKey() != key.GetKey() || iter_key.GetNameSpace() != key.GetNameSpace())
+                {
+                    break;
+                }
+                if (iter_key.GetType() == KEY_META)
+                {
+                    uint64 ttl = iter->Value().GetTTL();
+                    if (ttl == 0 || ttl > get_current_epoch_millis())
+                    {
+                        break;
+                    }
+                    total_expired_keys++;
+                }
+                RemoveKey(scan_ctx, iter_key);
+                iter->Next();
+            }
+            scan_key.Clear();
+        }
+        return 0;
+    }
+    void Ardb::AddExpiredKey(const Data& ns, const Data& key)
+    {
+        KeyPrefix k;
+        k.key = key;
+        k.ns.SetString(key.CStr(), key.StringLength(), true);
+        LockGuard<SpinMutexLock> guard(m_expires_lock);
+        m_expires.insert(k);
+    }
+
     int Ardb::FindElementByRedisCursor(const std::string& cursor, std::string& element)
     {
         uint64 cursor_int = 0;
@@ -806,7 +886,6 @@ OP_NAMESPACE_BEGIN
             m_all_clients.erase(&ctx);
         }
     }
-
 
 #define CLIENTS_CRON_MIN_ITERATIONS 5
     void Ardb::ScanClients()
@@ -1010,7 +1089,8 @@ OP_NAMESPACE_BEGIN
 
         /* Don't accept write commands if there are not enough good slaves and
          * user configured the min-slaves-to-write option. */
-        if (GetConf().master_host.empty() && GetConf().repl_min_slaves_to_write > 0 && GetConf().repl_min_slaves_max_lag > 0 && (setting.flags & ARDB_CMD_WRITE) > 0 && g_repl->GetMaster().GoodSlavesCount() < GetConf().repl_min_slaves_to_write)
+        if (GetConf().master_host.empty() && GetConf().repl_min_slaves_to_write > 0 && GetConf().repl_min_slaves_max_lag > 0
+                && (setting.flags & ARDB_CMD_WRITE) > 0 && g_repl->GetMaster().GoodSlavesCount() < GetConf().repl_min_slaves_to_write)
         {
             ctx.AbortTransaction();
             reply.SetErrCode(ERR_NOREPLICAS);
@@ -1067,7 +1147,8 @@ OP_NAMESPACE_BEGIN
         }
         else if (ctx.IsSubscribed())
         {
-            if (setting.type != REDIS_CMD_SUBSCRIBE && setting.type != REDIS_CMD_PSUBSCRIBE && setting.type != REDIS_CMD_PUNSUBSCRIBE && setting.type != REDIS_CMD_UNSUBSCRIBE && setting.type != REDIS_CMD_QUIT)
+            if (setting.type != REDIS_CMD_SUBSCRIBE && setting.type != REDIS_CMD_PSUBSCRIBE && setting.type != REDIS_CMD_PUNSUBSCRIBE
+                    && setting.type != REDIS_CMD_UNSUBSCRIBE && setting.type != REDIS_CMD_QUIT)
             {
                 reply.SetErrorReason("only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context");
                 return 0;

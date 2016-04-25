@@ -102,15 +102,10 @@ OP_NAMESPACE_BEGIN
 
         private:
 
-//            struct ExpireIno
-//            {
-//                    int64 min_ttl;
-//                    uint64 last_scan_time;
-//                    ExpireIno() :
-//                        min_ttl(-1),last_scan_time(0)
-//                    {
-//                    }
-//            };
+            struct ExpireCheckTask:public Thread
+            {
+                void Run();
+            };
 
             Engine* m_engine;
             time_t m_starttime;
@@ -118,8 +113,10 @@ OP_NAMESPACE_BEGIN
             ArdbConfig m_conf;
             ThreadLocal<LUAInterpreter> m_lua;
 
-//            typedef TreeMap<Data, ExpireIno>::Type ExpireInoTable;
-//            ExpireInoTable m_expire_ino;
+            typedef TreeSet<KeyPrefix>::Type ExpireKeySet;
+            SpinMutexLock m_expires_lock;
+            ExpireKeySet m_expires;
+            ExpireCheckTask m_expire_check_task;
 
             typedef google::dense_hash_map<std::string, RedisCommandHandlerSetting, RedisCommandHash, RedisCommandEqual> RedisCommandHandlerSettingTable;
             RedisCommandHandlerSettingTable m_settings;
@@ -154,8 +151,7 @@ OP_NAMESPACE_BEGIN
             SpinMutexLock m_clients_lock;
             ContextSet m_all_clients;
 
-            //int64 ScanExpiredKeys();
-
+            int64 ScanExpiredKeys();
             bool IsLoadingData();
 
             int WriteReply(Context& ctx, RedisReply* r, bool async);
@@ -433,6 +429,7 @@ OP_NAMESPACE_BEGIN
             int Call(Context& ctx, RedisCommandFrame& cmd);
             int MergeOperation(KeyObject& key, ValueObject& val, uint16_t op, DataArray& args);
             int MergeOperands(uint16_t left, const DataArray& left_args, uint16_t& right, DataArray& right_args);
+            void AddExpiredKey(const Data& ns, const Data& key);
             int TouchWatchKey(Context& ctx, const KeyObject& key);
             void FreeClient(Context& ctx);
             void AddClient(Context& ctx);

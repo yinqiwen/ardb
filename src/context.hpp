@@ -74,6 +74,11 @@ OP_NAMESPACE_BEGIN
                 }
                 return key < other.key;
             }
+            void Clear()
+            {
+                ns.Clear();
+                key.Clear();
+            }
             bool IsNil() const
             {
                 return ns.IsNil() && key.IsNil();

@@ -234,7 +234,7 @@ namespace ardb
                 return m_outputBuffer.ReadableBytes();
             }
 
-            inline const Buffer& GetOutputBuffer() const
+            inline Buffer& GetOutputBuffer()
             {
                 return m_outputBuffer;
             }

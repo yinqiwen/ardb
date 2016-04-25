@@ -40,6 +40,7 @@ OP_NAMESPACE_BEGIN
             void Routine();
             swal_t* GetWAL();
             std::string GetReplKey();
+            bool IsReplKeySelfGen();
             void SetReplKey(const std::string& str);
             int WriteWAL(const Data& ns, RedisCommandFrame& cmd);
             bool IsValidOffsetCksm(int64_t offset, uint64_t cksm);
@@ -88,7 +89,7 @@ OP_NAMESPACE_BEGIN
             }
             SlaveContext() :
                     server_is_redis(false), server_support_psync(false), state(0), cached_master_repl_offset(0), cached_master_repl_cksm(0), sync_repl_offset(
-                            0), sync_repl_cksm(0), cmd_recved_time(0), master_last_interaction_time(0),master_link_down_time(0)
+                            0), sync_repl_cksm(0), cmd_recved_time(0), master_last_interaction_time(0), master_link_down_time(0)
             {
             }
     };
@@ -147,6 +148,9 @@ OP_NAMESPACE_BEGIN
             time_t m_repl_nolag_since;
             uint32 m_repl_good_slaves_count;
             uint32 m_slaves_count;
+            int64 m_sync_full_count;
+            int64 m_sync_partial_ok_count;
+            int64 m_sync_partial_err_count;
 
             void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e);
             void ChannelWritable(ChannelHandlerContext& ctx, ChannelStateEvent& e);
@@ -167,10 +171,22 @@ OP_NAMESPACE_BEGIN
             void SetSlavePort(Channel* slave, uint32 port);
             void SyncWAL(SlaveSyncContext* slave);
             size_t ConnectedSlaves();
+            int64 FullSyncCount()
+            {
+                return m_sync_full_count;
+            }
+            int64 ParitialSyncOKCount()
+            {
+                return m_sync_partial_ok_count;
+            }
+            int64 ParitialSyncErrCount()
+            {
+                return m_sync_partial_err_count;
+            }
             void SyncWAL();
             void PrintSlaves(std::string& str);
             void DisconnectAllSlaves();
-            uint32 GoodSlavesCount()const
+            uint32 GoodSlavesCount() const
             {
                 return m_repl_good_slaves_count;
             }

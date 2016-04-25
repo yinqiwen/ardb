@@ -45,6 +45,8 @@ OP_NAMESPACE_BEGIN
     typedef std::vector<ServerHandlerData> ServerHandlerDataArray;
     static ThreadLocal<RedisReplyPool> g_reply_pool;
     static QPSTrack g_total_qps;
+    static CountTrack g_total_connections_received;
+    static CountTrack g_rejected_connections;
 
     class ServerLifecycleHandler: public ChannelServiceLifeCycle, public Runnable
     {
@@ -70,7 +72,7 @@ OP_NAMESPACE_BEGIN
     class RedisRequestHandler: public ChannelUpstreamHandler<RedisCommandFrame>
     {
         private:
-            ServerHandlerData* data;
+            QPSTrack* qpsTrack;
             ClientContext m_client_ctx;
             Context m_ctx;
             bool m_delete_after_processing;
@@ -84,7 +86,7 @@ OP_NAMESPACE_BEGIN
                 ChannelService& serv = m_client_ctx.client->GetService();
                 uint32 channel_id = ctx.GetChannel()->GetID();
                 m_client_ctx.processing = true;
-                if(NULL == pool)
+                if (NULL == pool)
                 {
                     pool = &(g_reply_pool.GetValue());
                 }
@@ -92,7 +94,10 @@ OP_NAMESPACE_BEGIN
                 m_ctx.SetReply(&(pool->Allocate()));
                 RedisReply& reply = m_ctx.GetReply();
                 int ret = g_db->Call(m_ctx, *cmd);
-                data->qps.IncMsgCount(1);
+                if(NULL != qpsTrack)
+                {
+                    qpsTrack->IncMsgCount(1);
+                }
                 g_total_qps.IncMsgCount(1);
                 if (m_delete_after_processing)
                 {
@@ -103,12 +108,12 @@ OP_NAMESPACE_BEGIN
                 {
                     m_client_ctx.client->Write(reply);
                 }
-                if(ret < -1)
+                if (ret < -1)
                 {
                     m_client_ctx.client->GetService().Stop();
                     return;
                 }
-                else if(-1 == ret)
+                else if (-1 == ret)
                 {
                     m_client_ctx.client->Close();
                 }
@@ -123,6 +128,7 @@ OP_NAMESPACE_BEGIN
             }
             void ChannelConnected(ChannelHandlerContext& ctx, ChannelStateEvent& e)
             {
+                g_total_connections_received.Add(1);
                 m_client_ctx.uptime = get_current_epoch_micros();
                 m_client_ctx.last_interaction_ustime = get_current_epoch_micros();
                 m_client_ctx.client = ctx.GetChannel();
@@ -155,6 +161,7 @@ OP_NAMESPACE_BEGIN
                                 sit++;
                             }
                             ctx.GetChannel()->Close();
+                            g_rejected_connections.Add(1);
                         }
                     }
                 }
@@ -164,8 +171,8 @@ OP_NAMESPACE_BEGIN
                 }
             }
         public:
-            RedisRequestHandler(ServerHandlerData* init_data) :
-                    data(init_data), m_delete_after_processing(false), pool(NULL)
+            RedisRequestHandler(QPSTrack* track) :
+                qpsTrack(track), m_delete_after_processing(false), pool(NULL)
             {
                 m_ctx.client = &m_client_ctx;
                 //root_reply.SetPool(&pool);
@@ -183,8 +190,8 @@ OP_NAMESPACE_BEGIN
     };
     static void pipelineInit(ChannelPipeline* pipeline, void* data)
     {
-        ServerHandlerData* init_data = (ServerHandlerData*) data;
-        pipeline->AddLast("decoder", new RedisCommandDecoder);
+        QPSTrack* init_data = (QPSTrack*) data;
+        pipeline->AddLast("decoder", new FastRedisCommandDecoder);
         pipeline->AddLast("encoder", new RedisReplyEncoder);
         pipeline->AddLast("handler", new RedisRequestHandler(init_data));
     }
@@ -205,6 +212,17 @@ OP_NAMESPACE_BEGIN
         }
     }
 
+    static void init_statistics_setting()
+    {
+        g_total_qps.Name = "total_commands_processed";
+        g_total_qps.qpsName = "instantaneous_ops_per_sec";
+        Statistics::GetSingleton().AddTrack(&g_total_qps);
+        g_total_connections_received.Name = "total_connections_received";
+        Statistics::GetSingleton().AddTrack(&g_total_connections_received);
+        g_rejected_connections.Name = "rejected_connections";
+        Statistics::GetSingleton().AddTrack(&g_rejected_connections);
+    }
+
     Server::Server() :
             m_service(NULL), m_uptime(0)
     {
@@ -212,7 +230,7 @@ OP_NAMESPACE_BEGIN
     }
     int Server::Start()
     {
-        if(0 != g_repl->Init())
+        if (0 != g_repl->Init())
         {
             return -1;
         }
@@ -233,10 +251,8 @@ OP_NAMESPACE_BEGIN
         {
             ops.keep_alive = g_db->GetConf().tcp_keepalive;
         }
-        //ops.async_write = true;
-        g_total_qps.Name = "total_msg";
-        Statistics::GetSingleton().AddTrack(&g_total_qps);
 
+        init_statistics_setting();
         ServerHandlerDataArray handler_datas(g_db->GetConf().servers.size());
         for (uint32 i = 0; i < g_db->GetConf().servers.size(); i++)
         {
@@ -267,9 +283,14 @@ OP_NAMESPACE_BEGIN
             }
             server->Configure(ops);
             handler_datas[i].listen = g_db->GetConf().servers[i];
-            handler_datas[i].qps.Name = address;
-            Statistics::GetSingleton().AddTrack(&handler_datas[i].qps);
-            server->SetChannelPipelineInitializor(pipelineInit, &handler_datas[i]);
+            QPSTrack* serverQPSTrack = NULL;
+            if(g_db->GetConf().servers.size() > 1)
+            {
+                handler_datas[i].qps.Name = address;
+                Statistics::GetSingleton().AddTrack(&handler_datas[i].qps);
+                serverQPSTrack = &handler_datas[i].qps;
+            }
+            server->SetChannelPipelineInitializor(pipelineInit, serverQPSTrack);
             server->SetChannelPipelineFinalizer(pipelineDestroy, NULL);
             uint32 min = 0;
             for (uint32 j = 0; j < i; j++)
@@ -281,7 +302,6 @@ OP_NAMESPACE_BEGIN
         }
 
         StartCrons();
-
 
         INFO_LOG("Ardb started with version %s", ARDB_VERSION);
         m_service->Start();

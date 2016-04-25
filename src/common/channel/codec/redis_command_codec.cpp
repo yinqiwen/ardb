@@ -31,17 +31,198 @@
 #include "channel/all_includes.hpp"
 #include "redis_command_codec.hpp"
 #include "util/exception/api_exception.hpp"
-
+#include <string.h>
 #include <limits.h>
 
 using ardb::BufferHelper;
 using namespace ardb::codec;
 using namespace ardb;
 
+#define REDIS_INLINE_MAX_SIZE   (1024*64) /* Max size of inline reads */
+#define REDIS_MBULK_BIG_ARG     (1024*32)
+
 /* Client request types */
 static const uint32 REDIS_REQ_INLINE = 1;
 static const uint32 REDIS_REQ_MULTIBULK = 2;
 static const char* kCRLF = "\r\n";
+
+int FastRedisCommandDecoder::ProcessMultibulkBuffer(Buffer& buffer, std::string& err)
+{
+    const char *newline = NULL;
+    int pos = 0, ok;
+    int64_t ll;
+    //const char* querybuf = buffer.GetRawReadBuffer();
+    if (m_multibulklen == 0)
+    {
+        m_cmd.Clear();
+        m_argc = 0;
+        /* Multi bulk length cannot be read without a \r\n */
+        newline = strchr(buffer.GetRawReadBuffer(), '\r');
+        if (newline == NULL)
+        {
+            if (buffer.ReadableBytes() > REDIS_INLINE_MAX_SIZE)
+            {
+                err = "Protocol error: too big mbulk count string";
+                return -1;
+            }
+            return 0;
+        }
+        /* Buffer should also contain \n */
+        if (newline - buffer.GetRawReadBuffer() > (buffer.ReadableBytes() - 2))
+            return 0;
+
+        /* We know for sure there is a whole line since newline != NULL,
+         * so go ahead and find out the multi bulk length. */
+
+        ok = string2ll(buffer.GetRawReadBuffer() + 1, newline - (buffer.GetRawReadBuffer() + 1), &ll);
+        if (!ok || ll > 1024 * 1024)
+        {
+            err = "Protocol error: invalid multibulk length";
+            return -1;
+        }
+
+        pos = (newline - buffer.GetRawReadBuffer()) + 2;
+        if (ll <= 0)
+        {
+            buffer.AdvanceReadIndex(pos);
+            return 1;
+        }
+        m_multibulklen = ll;
+        m_cmd.ReserveArgs(ll);
+    }
+
+    while (m_multibulklen)
+    {
+        /* Read bulk length if unknown */
+        if (m_bulklen == -1)
+        {
+            newline = strchr(buffer.GetRawReadBuffer() + pos, '\r');
+            if (newline == NULL)
+            {
+                if (buffer.ReadableBytes() > REDIS_INLINE_MAX_SIZE)
+                {
+                    err = "Protocol error: too big bulk count string";
+                    return -1;
+                }
+                break;
+            }
+
+            /* Buffer should also contain \n */
+            if (newline - buffer.GetRawReadBuffer() > (buffer.ReadableBytes() - 2))
+                break;
+
+            if (buffer.GetRawReadBuffer()[pos] != '$')
+            {
+                err = "Protocol error: expected '$', got '%c'";
+                //err = "Protocol error: expected '$', got '%c'", c->querybuf[pos];
+                return -1;
+            }
+
+            ok = string2ll(buffer.GetRawReadBuffer() + pos + 1, newline - (buffer.GetRawReadBuffer() + pos + 1), &ll);
+            if (!ok || ll < 0 || ll > 512 * 1024 * 1024)
+            {
+                err = "Protocol error: invalid bulk length";
+                return -1;
+            }
+
+            pos += newline - (buffer.GetRawReadBuffer() + pos) + 2;
+            m_bulklen = ll;
+        }
+
+        /* Read bulk argument */
+        if (buffer.ReadableBytes() - pos < (unsigned) (m_bulklen + 2))
+        {
+            /* Not enough data (+2 == trailing \r\n) */
+            break;
+        }
+        else
+        {
+            /* Optimization: if the buffer contains JUST our bulk element
+             * instead of creating a new object by *copying* the sds we
+             * just use the current sds string. */
+            std::string* arg = m_cmd.GetMutableArgument(m_argc++);
+            arg->assign(buffer.GetRawReadBuffer() + pos, m_bulklen);
+            pos += m_bulklen + 2;
+            m_bulklen = -1;
+            m_multibulklen--;
+        }
+    }
+    /* Trim to pos */
+    if (pos)
+    {
+        buffer.AdvanceReadIndex(pos);
+    }
+
+    /* We're done when c->multibulk == 0 */
+    if (m_multibulklen == 0)
+    {
+        m_cmd.Adapt();
+        m_argc = 0;
+        return 1;
+    }
+    return 0;
+
+}
+
+void FastRedisCommandDecoder::MessageReceived(ChannelHandlerContext& ctx, MessageEvent<Buffer>& e)
+{
+    Buffer& buffer = *(e.GetMessage());
+    while (buffer.GetRawReadBuffer()[0] == '\r' || buffer.GetRawReadBuffer()[0] == '\n')
+    {
+        buffer.AdvanceReadIndex(1);
+    }
+    std::string err;
+    while (buffer.Readable())
+    {
+        /* Determine request type when unknown. */
+        if (!m_reqtype)
+        {
+            if (buffer.GetRawReadBuffer()[0] == '*')
+            {
+                m_reqtype = REDIS_REQ_MULTIBULK;
+            }
+            else
+            {
+                m_reqtype = REDIS_REQ_INLINE;
+            }
+        }
+
+        if (m_reqtype == REDIS_REQ_INLINE)
+        {
+            m_cmd.Clear();
+            if (RedisCommandDecoder::ProcessInlineBuffer(buffer, m_cmd) == 1)
+            {
+                fire_message_received<RedisCommandFrame>(ctx, &m_cmd, NULL);
+            }
+            else
+            {
+                break;
+            }
+        }
+        else if (m_reqtype == REDIS_REQ_MULTIBULK)
+        {
+            if (ProcessMultibulkBuffer(buffer, err) == 1)
+            {
+                fire_message_received<RedisCommandFrame>(ctx, &m_cmd, NULL);
+            }
+            else
+            {
+                break;
+            }
+        }
+        else
+        {
+            err = "Unknown request type";
+
+        }
+        if (!err.empty())
+        {
+            APIException ex(err);
+            fire_exception_caught(ctx.GetChannel(), ex);
+            ERROR_LOG("Exception:%s occured.", err.c_str());
+        }
+    }
+}
 
 int RedisCommandDecoder::ProcessInlineBuffer(Buffer& buffer, RedisCommandFrame& frame)
 {
@@ -254,10 +435,10 @@ bool RedisCommandEncoder::Encode(Buffer& buf, const RedisCommandFrame& cmd)
 bool RedisCommandEncoder::WriteRequested(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e)
 {
     RedisCommandFrame* msg = e.GetMessage();
-    m_buffer.Clear();
-    if (Encode(m_buffer, *msg))
+    if (Encode(ctx.GetChannel()->GetOutputBuffer(), *msg))
     {
-        return ctx.GetChannel()->Write(m_buffer);
+        ctx.GetChannel()->EnableWriting();
+        return true;
     }
     return false;
 }

@@ -41,7 +41,7 @@ OP_NAMESPACE_BEGIN
     struct Track
     {
             std::string Name;
-            virtual void Dump(std::string& str) = 0;
+            virtual void Dump(std::string& str, bool clear) = 0;
             virtual ~Track()
             {
             }
@@ -54,7 +54,7 @@ OP_NAMESPACE_BEGIN
                     count(0)
             {
             }
-            void Dump(std::string& str);
+            void Dump(std::string& str, bool clear);
             uint64_t Add(uint64_t inc)
             {
                 return atomic_add_uint64(&count, inc);
@@ -74,7 +74,7 @@ OP_NAMESPACE_BEGIN
                     cb(callback), cbdata(data)
             {
             }
-            void Dump(std::string& str);
+            void Dump(std::string& str, bool clear);
     };
 
     struct QPSTrack: public Track
@@ -84,6 +84,7 @@ OP_NAMESPACE_BEGIN
             uint64_t lastMsgCount;
             uint64_t lastSampleTime;
             uint64_t msgCount;
+            std::string qpsName;
             QPSTrack() :
                     qpsSampleIdx(0), lastMsgCount(0), lastSampleTime(0), msgCount(0)
             {
@@ -119,12 +120,38 @@ OP_NAMESPACE_BEGIN
             {
                 atomic_add_uint64(&msgCount, inc);
             }
-            void Dump(std::string& str);
+            void Dump(std::string& str, bool clear);
     };
+
+    struct CostRange
+    {
+            uint64 min;
+            uint64 max;
+            CostRange() :
+                    min(0), max(0)
+            {
+            }
+    };
+    struct CostRecord
+    {
+            uint64 cost;
+            uint64 count;
+            CostRecord() :
+                    cost(0), count(0)
+            {
+            }
+    };
+    typedef std::vector<CostRange> CostRanges;
+    typedef std::vector<CostRecord> CostRecords;
 
     struct CostTrack: public Track
     {
-            void Dump(std::string& str);
+            CostRanges ranges;
+            CostRecords recs;
+            CostTrack();
+            void SetCostRanges(const CostRanges& ranges);
+            void AddCost(uint64 cost);
+            void Dump(std::string& str, bool clear);
     };
 
     class Statistics
@@ -134,8 +161,9 @@ OP_NAMESPACE_BEGIN
             TrackTable m_tracks;
             Statistics();
         public:
-            int AddTrack(Track* track);
             static Statistics& GetSingleton();
+            int AddTrack(Track* track);
+            void Dump(std::string& info);
 
     };
 

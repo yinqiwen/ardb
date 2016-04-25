@@ -57,7 +57,8 @@ OP_NAMESPACE_BEGIN
     };
 
     Master::Master() :
-            m_repl_noslaves_since(0),m_repl_nolag_since(0),m_repl_good_slaves_count(0),m_slaves_count(0)
+            m_repl_noslaves_since(0), m_repl_nolag_since(0), m_repl_good_slaves_count(0), m_slaves_count(0), m_sync_full_count(0), m_sync_partial_ok_count(0), m_sync_partial_err_count(
+                    0)
     {
     }
 
@@ -95,7 +96,7 @@ OP_NAMESPACE_BEGIN
 
     static int snapshot_dump_routine(SnapshotState state, Snapshot* snapshot, void* cb)
     {
-        INFO_LOG("Snapshot dump state:%d %d", state,snapshot->GetType());
+        //INFO_LOG("Snapshot dump state:%d %d", state,snapshot->GetType());
         if (state == DUMP_SUCCESS)
         {
             g_repl->GetIOService().AsyncIO(0, snapshot_dump_success, snapshot);
@@ -106,7 +107,7 @@ OP_NAMESPACE_BEGIN
         }
         else if (state == DUMPING)
         {
-            g_repl->GetIOService().Continue();
+            //g_repl->GetIOService().Continue();
         }
         return 0;
     }
@@ -114,12 +115,6 @@ OP_NAMESPACE_BEGIN
     int Master::Routine()
     {
         m_repl_good_slaves_count = 0;
-        //Just process instructions  since the soft signal may loss
-        if (!g_db->GetConf().master_host.empty())
-        {
-            //let master feed 'ping' command
-            return 0;
-        }
         if (m_slaves.empty())
         {
             if (0 == m_repl_noslaves_since)
@@ -148,16 +143,16 @@ OP_NAMESPACE_BEGIN
                 {
                     wal_ping_saved = true;
                     Buffer ping;
-                    ping.Printf("ping\r\n");
+                    ping.Printf("*1\r\n$4\r\nping\r\n");
                     g_repl->GetReplLog().WriteWAL(ping);
                 }
-                if (slave->sync_offset != g_repl->GetReplLog().WALStartOffset())
+                if (slave->sync_offset < g_repl->GetReplLog().WALEndOffset())
                 {
                     SyncWAL(slave);
                 }
 
                 time_t lag = now - slave->acktime;
-                if(lag <= g_db->GetConf().repl_min_slaves_max_lag)
+                if (lag <= g_db->GetConf().repl_min_slaves_max_lag)
                 {
                     m_repl_good_slaves_count++;
                 }
@@ -232,19 +227,19 @@ OP_NAMESPACE_BEGIN
     void Master::SendSnapshotToSlave(SlaveSyncContext* slave)
     {
         slave->state = SYNC_STATE_SYNCING_SNAPSHOT;
-        //FULLRESYNC
-        Buffer msg;
-        slave->sync_offset = slave->snapshot->CachedReplOffset();
-        slave->sync_cksm = slave->snapshot->CachedReplCksm();
-        if (slave->isRedisSlave)
-        {
-            msg.Printf("+FULLRESYNC %s %lld\r\n", g_repl->GetReplLog().GetReplKey().c_str(), slave->sync_offset);
-        }
-        else
-        {
-            msg.Printf("+FULLRESYNC %s %lld %llu\r\n", g_repl->GetReplLog().GetReplKey().c_str(), slave->sync_offset, slave->sync_cksm);
-        }
-        slave->conn->Write(msg);
+//        //FULLRESYNC
+//        Buffer msg;
+//        slave->sync_offset = slave->snapshot->CachedReplOffset();
+//        slave->sync_cksm = slave->snapshot->CachedReplCksm();
+//        if (slave->isRedisSlave)
+//        {
+//            msg.Printf("+FULLRESYNC %s %lld\r\n", g_repl->GetReplLog().GetReplKey().c_str(), slave->sync_offset);
+//        }
+//        else
+//        {
+//            msg.Printf("+FULLRESYNC %s %lld %llu\r\n", g_repl->GetReplLog().GetReplKey().c_str(), slave->sync_offset, slave->sync_cksm);
+//        }
+//        slave->conn->Write(msg);
         std::string dump_file_path = slave->snapshot->GetPath();
         SendFileSetting setting;
         setting.fd = open(dump_file_path.c_str(), O_RDONLY);
@@ -367,17 +362,36 @@ OP_NAMESPACE_BEGIN
                 slave->conn->Write(msg);
                 slave->state = SYNC_STATE_SYNCED;
                 INFO_LOG("[Master]Send +CONTINUE to slave %s.", slave->GetAddress().c_str());
-                SyncWAL();
+                SyncWAL(slave);
             }
             else
             {
+                if(slave->repl_key != "?")
+                {
+                    m_sync_partial_err_count++;
+                }
+
                 WARN_LOG("Create snapshot for full resync for slave replid:%s offset:%llu cksm:%llu, while current WAL runid:%s offset:%llu cksm:%llu",
-                        slave->repl_key.c_str(), slave->sync_offset, slave->sync_cksm, g_repl->GetReplLog().GetReplKey().c_str(), g_repl->GetReplLog().WALEndOffset(),
-                        g_repl->GetReplLog().WALCksm());
+                        slave->repl_key.c_str(), slave->sync_offset, slave->sync_cksm, g_repl->GetReplLog().GetReplKey().c_str(),
+                        g_repl->GetReplLog().WALEndOffset(), g_repl->GetReplLog().WALCksm());
                 slave->state = SYNC_STATE_WAITING_SNAPSHOT;
                 slave->snapshot = g_snapshot_manager->GetSyncSnapshot(slave->isRedisSlave ? REDIS_DUMP : ARDB_DUMP, snapshot_dump_routine, this);
                 if (NULL != slave->snapshot)
                 {
+                    //FULLRESYNC
+                    Buffer msg;
+                    slave->sync_offset = slave->snapshot->CachedReplOffset();
+                    slave->sync_cksm = slave->snapshot->CachedReplCksm();
+                    if (slave->isRedisSlave)
+                    {
+                        msg.Printf("+FULLRESYNC %s %lld\r\n", g_repl->GetReplLog().GetReplKey().c_str(), slave->sync_offset);
+                    }
+                    else
+                    {
+                        msg.Printf("+FULLRESYNC %s %lld %llu\r\n", g_repl->GetReplLog().GetReplKey().c_str(), slave->sync_offset, slave->sync_cksm);
+                    }
+                    slave->conn->Write(msg);
+                    m_sync_full_count++;
                     if (slave->snapshot->IsReady())
                     {
                         FullResyncSlaves(slave->snapshot);
@@ -505,7 +519,6 @@ OP_NAMESPACE_BEGIN
                 slave->Close();
                 return;
             }
-            ctx.sync_offset--;
             ctx.isRedisSlave = true;
             for (uint32 i = 2; i < cmd.GetArguments().size(); i += 2)
             {
@@ -520,11 +533,15 @@ OP_NAMESPACE_BEGIN
                     }
                 }
             }
+            if (ctx.isRedisSlave)
+            {
+                ctx.sync_offset--;
+            }
         }
         slave->GetService().DetachChannel(slave, true);
         if (g_repl->GetIOService().IsInLoopThread())
         {
-            AddSlave (&ctx);
+            AddSlave(&ctx);
         }
         else
         {

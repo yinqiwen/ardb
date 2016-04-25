@@ -35,19 +35,66 @@ OP_NAMESPACE_BEGIN
 
     }
 
-    void QPSTrack::Dump(std::string& str)
+    void QPSTrack::Dump(std::string& str, bool clear)
+    {
+        str.append(Name).append(":").append(stringfromll(msgCount)).append("\r\n");
+        str.append(qpsName).append(":").append(stringfromll(QPS())).append("\r\n");
+    }
+
+    void CountRefTrack::Dump(std::string& str, bool clear)
+    {
+        str.append(Name).append(":").append(stringfromll(cb(cbdata))).append("\r\n");
+    }
+
+    void CountTrack::Dump(std::string& str, bool clear)
+    {
+        str.append(Name).append(":").append(stringfromll(count)).append("\r\n");
+    }
+
+    CostTrack::CostTrack()
     {
 
     }
-
-    void CountRefTrack::Dump(std::string& str)
+    void CostTrack::SetCostRanges(const CostRanges& ranges)
     {
-
+        this->ranges = ranges;
+        recs.resize(ranges.size() + 1);
     }
-
-    void CountTrack::Dump(std::string& str)
+    void CostTrack::AddCost(uint64 cost)
     {
-
+        atomic_add_uint64(&recs[0].cost, cost);
+        atomic_add_uint64(&recs[0].count, 1);
+        for (size_t i = 0; i < ranges.size(); i++)
+        {
+            if (cost >= ranges[i].min && cost <= ranges[i].max)
+            {
+                atomic_add_uint64(&recs[i + 1].cost, cost);
+                atomic_add_uint64(&recs[i + 1].count, 1);
+                return;
+            }
+        }
+    }
+    void CostTrack::Dump(std::string& str, bool clear)
+    {
+        if (recs[0].count == 0)
+        {
+            return;
+        }
+        uint64 allCount = 0;
+        for (size_t i = 0; i < recs.size(); i++)
+        {
+            if (recs[i].count == 0)
+            {
+                continue;
+            }
+            char field[1024];
+            std::string countKey, costKey;
+            char tmp[1024];
+            snprintf(tmp, sizeof(tmp) - 1, "%s:%d[%.4f%%]\r\n", recs[i].count, (double(recs[i].count) / double(recs[0].count)) * 100);
+            str.append(tmp);
+            snprintf(tmp, sizeof(tmp) - 1, "%s: %d\r\n", recs[i].cost);
+            str.append(tmp);
+        }
     }
 
     Statistics::Statistics()
@@ -66,6 +113,11 @@ OP_NAMESPACE_BEGIN
     {
         m_tracks[track->Name] = track;
         return 0;
+    }
+
+    void Statistics::Dump(std::string& info)
+    {
+
     }
 
 OP_NAMESPACE_END
