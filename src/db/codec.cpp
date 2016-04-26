@@ -399,12 +399,9 @@ OP_NAMESPACE_BEGIN
         }
     }
 
-    Slice ValueObject::Encode(Buffer& encode_buffer)
+    void ValueObject::SetType(uint8 t)
     {
-        if (0 == type)
-        {
-            return Slice();
-        }
+        type = t;
         switch (type)
         {
             case KEY_STRING:
@@ -421,6 +418,15 @@ OP_NAMESPACE_BEGIN
                 break;
             }
         }
+    }
+
+    Slice ValueObject::Encode(Buffer& encode_buffer)
+    {
+        if (0 == type)
+        {
+            return Slice();
+        }
+
         encode_value_object(encode_buffer, type, merge_op, vals);
         return Slice(encode_buffer.GetRawReadBuffer(), encode_buffer.ReadableBytes());
     }

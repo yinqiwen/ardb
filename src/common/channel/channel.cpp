@@ -235,6 +235,10 @@ bool Channel::IsEnableWriting()
 
 void Channel::EnableWriting()
 {
+//    if(GetOutputBuffer().ReadableBytes() > 512)
+//    {
+//        Flush();
+//    }
     if (IsEnableWriting())
     {
         return;

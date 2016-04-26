@@ -499,11 +499,12 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::SetKeyValue(Context& ctx, const KeyObject& key, const ValueObject& val)
     {
-        int ret = m_engine->Put(ctx, key, val);
+        int ret = 0;
+        ret = m_engine->Put(ctx, key, val);
         if (0 == ret)
         {
             TouchWatchKey(ctx, key);
-            ctx.dirty++;
+            ctx.dirty = 1;
         }
         return ret;
     }
@@ -1024,7 +1025,7 @@ OP_NAMESPACE_BEGIN
             atomic_add_uint64(&(setting.microseconds), stop_time - start_time);
             g_cmd_cost_tracks[setting.type].AddCost((stop_time - start_time));
             TryPushSlowCommand(args, stop_time - start_time);
-            DEBUG_LOG("Process recved cmd[%lld] cost %lluus", ctx.sequence, stop_time - start_time);
+            DEBUG_LOG("Process recved cmd cost %lluus", stop_time - start_time);
         }
 
         if (!ctx.flags.no_wal && ctx.dirty > 0)
@@ -1075,7 +1076,7 @@ OP_NAMESPACE_BEGIN
             reply.SetErrorReason("unknown command:" + args.GetCommand());
             return -1;
         }
-        DEBUG_LOG("Process recved cmd[%lld]:%s", ctx.sequence, args.ToString().c_str());
+        DEBUG_LOG("Process recved cmd:%s", args.ToString().c_str());
         RedisCommandHandlerSetting& setting = *found;
         bool valid_cmd = true;
         if (setting.min_arity > 0)

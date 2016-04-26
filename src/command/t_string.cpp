@@ -33,8 +33,9 @@ OP_NAMESPACE_BEGIN
     int Ardb::Get(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
+        KeyObject keyobj(ctx.ns, KEY_META, Data::WrapCStr(cmd.GetArguments()[0]));
         ValueObject v;
-        if (!CheckMeta(ctx, cmd.GetArguments()[0], KEY_STRING, v))
+        if (!CheckMeta(ctx, keyobj, KEY_STRING, v))
         {
             return 0;
         }
@@ -546,6 +547,7 @@ OP_NAMESPACE_BEGIN
             op = nx_xx == 0 ? REDIS_CMD_SETNX : REDIS_CMD_SETXX;
         }
         ValueObject valueobj;
+
         if (redis_compatible)
         {
             if (!CheckMeta(ctx, key, KEY_STRING, valueobj))
@@ -564,6 +566,7 @@ OP_NAMESPACE_BEGIN
         {
             if (REDIS_CMD_SET == op)
             {
+
                 valueobj.SetType(KEY_STRING);
                 valueobj.SetTTL(ttl);
                 valueobj.GetStringValue().SetString(value, true, false);

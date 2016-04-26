@@ -332,10 +332,7 @@ OP_NAMESPACE_BEGIN
             {
                 return merge_op;
             }
-            void SetType(uint8 t)
-            {
-                type = t;
-            }
+            void SetType(uint8 t);
             void SetMergeOp(uint16 op)
             {
                 merge_op = op;

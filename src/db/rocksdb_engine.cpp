@@ -324,7 +324,7 @@ OP_NAMESPACE_BEGIN
             }
             std::unique_ptr<rocksdb::CompactionFilter> CreateCompactionFilter(const rocksdb::CompactionFilter::Context& context)
             {
-                return std::unique_ptr < rocksdb::CompactionFilter > (new RocksDBCompactionFilter(engine, context));
+                return std::unique_ptr<rocksdb::CompactionFilter>(new RocksDBCompactionFilter(engine, context));
             }
 
             const char* Name() const
@@ -360,8 +360,7 @@ OP_NAMESPACE_BEGIN
             // internal corruption. This will be treated as an error by the library.
             //
             // Also make use of the *logger for error messages.
-            bool FullMerge(const rocksdb::Slice& key, const rocksdb::Slice* existing_value, const std::deque<std::string>& operand_list, std::string* new_value,
-                    rocksdb::Logger* logger) const
+            bool FullMerge(const rocksdb::Slice& key, const rocksdb::Slice* existing_value, const std::deque<std::string>& operand_list, std::string* new_value, rocksdb::Logger* logger) const
             {
 
                 KeyObject key_obj;
@@ -445,8 +444,7 @@ OP_NAMESPACE_BEGIN
             // If there is corruption in the data, handle it in the FullMerge() function,
             // and return false there.  The default implementation of PartialMerge will
             // always return false.
-            bool PartialMergeMulti(const rocksdb::Slice& key, const std::deque<rocksdb::Slice>& operand_list, std::string* new_value,
-                    rocksdb::Logger* logger) const
+            bool PartialMergeMulti(const rocksdb::Slice& key, const std::deque<rocksdb::Slice>& operand_list, std::string* new_value, rocksdb::Logger* logger) const
             {
                 if (operand_list.size() < 2)
                 {
@@ -468,9 +466,7 @@ OP_NAMESPACE_BEGIN
                         WARN_LOG("Invalid merge op at:%u", i);
                         return false;
                     }
-                    if (0
-                            != g_db->MergeOperands(ops[left_pos].GetMergeOp(), ops[left_pos].GetMergeArgs(), ops[1 - left_pos].GetMergeOp(),
-                                    ops[1 - left_pos].GetMergeArgs()))
+                    if (0 != g_db->MergeOperands(ops[left_pos].GetMergeOp(), ops[left_pos].GetMergeArgs(), ops[1 - left_pos].GetMergeOp(), ops[1 - left_pos].GetMergeArgs()))
                     {
                         return false;
                     }
@@ -504,8 +500,7 @@ OP_NAMESPACE_BEGIN
             // multiple times, where each time it only merges two operands.  Developers
             // should either implement PartialMergeMulti, or implement PartialMerge which
             // is served as the helper function of the default PartialMergeMulti.
-            bool PartialMerge(const rocksdb::Slice& key, const rocksdb::Slice& left_operand, const rocksdb::Slice& right_operand, std::string* new_value,
-                    rocksdb::Logger* logger) const
+            bool PartialMerge(const rocksdb::Slice& key, const rocksdb::Slice& left_operand, const rocksdb::Slice& right_operand, std::string* new_value, rocksdb::Logger* logger) const
             {
                 ValueObject left_op, right_op;
                 Buffer left_mergeBuffer(const_cast<char*>(left_operand.data()), 0, left_operand.size());
@@ -683,17 +678,20 @@ OP_NAMESPACE_BEGIN
 
     int RocksDBEngine::Put(Context& ctx, const KeyObject& key, const ValueObject& value)
     {
+        rocksdb::Status s;
+
+//        return 0;
+
         rocksdb::ColumnFamilyHandle* cf = GetColumnFamilyHandle(ctx, key.GetNameSpace());
         if (NULL == cf)
         {
             return ERR_ENTRY_NOT_EXIST;
         }
-        rocksdb::Status s;
+
         rocksdb::WriteOptions opt;
         rocksdb::Slice key_slice = to_rocksdb_slice(const_cast<KeyObject&>(key).Encode());
         Buffer value_buffer;
         rocksdb::Slice value_slice = to_rocksdb_slice(const_cast<ValueObject&>(value).Encode(value_buffer));
-
         rocksdb::WriteBatch* batch = m_transc.GetValue().Ref();
         if (NULL != batch)
         {
@@ -992,8 +990,7 @@ OP_NAMESPACE_BEGIN
     void RocksDBEngine::Stats(Context& ctx, std::string& all)
     {
         std::string str, version_info;
-        version_info.append("RocksDB version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(stringfromll(rocksdb::kMinorVersion)).append(
-                ".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
+        version_info.append("RocksDB version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(stringfromll(rocksdb::kMinorVersion)).append(".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
         all.append(version_info);
         DataArray nss;
         ListNameSpaces(ctx, nss);

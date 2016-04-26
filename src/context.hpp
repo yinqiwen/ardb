@@ -46,13 +46,12 @@ OP_NAMESPACE_BEGIN
             unsigned fuzzy_check :1;
             unsigned redis_compatible :1;
             unsigned iterate_multi_keys :1;
-            unsigned iterate_no_upperbound:1;
+            unsigned iterate_no_upperbound :1;
             unsigned slave :1;
             unsigned lua :1;
             unsigned pubsub :1;
             CallFlags() :
-                    no_wal(0), no_fill_reply(0), create_if_notexist(0), fuzzy_check(0), redis_compatible(0),
-                    iterate_multi_keys(0), iterate_no_upperbound(0), slave(0), lua(0), pubsub(0)
+                    no_wal(0), no_fill_reply(0), create_if_notexist(0), fuzzy_check(0), redis_compatible(0), iterate_multi_keys(0), iterate_no_upperbound(0), slave(0), lua(0), pubsub(0)
             {
             }
     };
@@ -119,7 +118,7 @@ OP_NAMESPACE_BEGIN
             int64 last_interaction_ustime;
             int64 resume_ustime;
             ClientContext() :
-                    processing(false), client(NULL), uptime(0), last_interaction_ustime(0),resume_ustime(-1)
+                    processing(false), client(NULL), uptime(0), last_interaction_ustime(0), resume_ustime(-1)
             {
             }
     };
@@ -159,24 +158,23 @@ OP_NAMESPACE_BEGIN
         private:
             RedisReply *reply;
         public:
-            bool authenticated;
-            bool keyslocked;
-            CallFlags flags;
             Data ns;
-
-            RedisCommandFrame* current_cmd;
-            RedisCommandType last_cmdtype;
             ClientContext* client;
             TransactionContext* transc;
             PubSubContext* pubsub;
             BlockingState* bpop;
-            int dirty;
+            RedisCommandFrame* current_cmd;
 
+            int dirty;
+            uint32 last_cmdtype;
             int transc_err;
-            int64 sequence;  //recv command sequence in the server, start from 1
+            CallFlags flags;
+            bool authenticated;
+            bool keyslocked;
+
             Context() :
-                    reply(NULL), authenticated(true), keyslocked(false), current_cmd(NULL), last_cmdtype(REDIS_CMD_INVALID), client(NULL), transc(NULL), pubsub(
-                    NULL), bpop(NULL), dirty(0), transc_err(0), sequence(0)
+                    reply(NULL), client(NULL), transc(NULL), pubsub(
+                    NULL), bpop(NULL), current_cmd(NULL), dirty(0), last_cmdtype(REDIS_CMD_INVALID), transc_err(0), authenticated(true), keyslocked(false)
             {
                 ns.SetString("0", false);
             }
