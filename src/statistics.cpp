@@ -32,7 +32,7 @@ OP_NAMESPACE_BEGIN
 
     static void stringStatisticsCallback(const std::string& info, void* data)
     {
-        std::string* ss = (std::string*)data;
+        std::string* ss = (std::string*) data;
         ss->append(info).append("\r\n");
     }
     static void logStatisticsCallback(const std::string& info, void* data)
@@ -118,7 +118,8 @@ OP_NAMESPACE_BEGIN
             }
 
             char tmp[1024];
-            snprintf(tmp, sizeof(tmp) - 1, "coststat_%s_%s:calls=%llu,costs=%llu,percents=%.4f%%", name.c_str(), range, recs[i].count, recs[i].cost, (double(recs[i].count) / double(recs[0].count)) * 100);
+            snprintf(tmp, sizeof(tmp) - 1, "coststat_%s_%s:calls=%llu,costs=%llu,cost_per_call=%llu,percents=%.4f%%", name.c_str(), range, recs[i].count,
+                    recs[i].cost, recs[i].cost / recs[i].count, (double(recs[i].count) / double(recs[0].count)) * 100);
             cb(tmp, data);
         }
     }

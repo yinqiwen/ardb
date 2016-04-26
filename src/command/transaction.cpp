@@ -113,11 +113,15 @@ namespace ardb
 
     int Ardb::TouchWatchedKeysOnFlush(Context& ctx, const Data& ns)
     {
-        LockGuard<SpinMutexLock> guard(m_watched_keys_lock);
-        if (!m_watched_ctxs.empty())
+        if(NULL == m_watched_ctxs)
         {
-            WatchedContextTable::iterator wit = m_watched_ctxs.begin();
-            while (wit != m_watched_ctxs.end())
+            return 0;
+        }
+        LockGuard<SpinMutexLock> guard(m_watched_keys_lock);
+        if (!m_watched_ctxs->empty())
+        {
+            WatchedContextTable::iterator wit = m_watched_ctxs->begin();
+            while (wit != m_watched_ctxs->end())
             {
                 if(wit->first.ns == ns || ns.IsNil())
                 {
@@ -136,14 +140,18 @@ namespace ardb
 
     int Ardb::TouchWatchKey(Context& ctx, const KeyObject& key)
     {
+        if(NULL == m_watched_ctxs)
+        {
+            return 0;
+        }
         LockGuard<SpinMutexLock> guard(m_watched_keys_lock);
-        if (!m_watched_ctxs.empty())
+        if (!m_watched_ctxs->empty())
         {
             KeyPrefix prefix;
             prefix.ns = key.GetNameSpace();
             prefix.key = key.GetKey();
-            WatchedContextTable::iterator found = m_watched_ctxs.find(prefix);
-            if (found != m_watched_ctxs.end())
+            WatchedContextTable::iterator found = m_watched_ctxs->find(prefix);
+            if (found != m_watched_ctxs->end())
             {
                 ContextSet::iterator cit = found->second.begin();
                 while (cit != found->second.end())
@@ -159,31 +167,42 @@ namespace ardb
     int Ardb::WatchForKey(Context& ctx, const std::string& key)
     {
         LockGuard<SpinMutexLock> guard(m_watched_keys_lock);
+        if(NULL == m_watched_ctxs)
+        {
+            NEW(m_watched_ctxs, WatchedContextTable);
+        }
         KeyPrefix prefix;
         prefix.ns = ctx.ns;
         prefix.key.SetString(key, false);
-        m_watched_ctxs[prefix].insert(&ctx);
+        (*m_watched_ctxs)[prefix].insert(&ctx);
         ctx.GetTransaction().watched_keys.insert(prefix);
         return 0;
     }
 
     int Ardb::UnwatchKeys(Context& ctx)
     {
+        if(NULL == m_watched_ctxs)
+        {
+            return 0;
+        }
         LockGuard<SpinMutexLock> guard(m_watched_keys_lock);
-        if (ctx.transc != NULL && !m_watched_ctxs.empty())
+        if (ctx.transc != NULL && m_watched_ctxs->empty())
         {
             TransactionContext::WatchKeySet::iterator it = ctx.GetTransaction().watched_keys.begin();
             while (it != ctx.GetTransaction().watched_keys.end())
             {
                 const KeyPrefix& prefix = *it;
-                m_watched_ctxs[prefix].erase(&ctx);
-                if (m_watched_ctxs[prefix].size() == 0)
+                (*m_watched_ctxs)[prefix].erase(&ctx);
+                if ((*m_watched_ctxs)[prefix].size() == 0)
                 {
-                    m_watched_ctxs.erase(prefix);
+                    (*m_watched_ctxs).erase(prefix);
                 }
                 it++;
             }
-
+        }
+        if(m_watched_ctxs->empty())
+        {
+            DELETE(m_watched_ctxs);
         }
         return 0;
     }

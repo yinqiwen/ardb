@@ -40,19 +40,19 @@ namespace ardb
     void conf_del(Properties& conf, const std::string& name, const std::string& value)
     {
         ConfItemsArray& arrays = conf[name];
-        if(!arrays.empty())
+        if (!arrays.empty())
         {
             ConfItemsArray::iterator it = arrays.begin();
-            while(it != arrays.end())
+            while (it != arrays.end())
             {
-                if(it->at(0) == value)
+                if (it->at(0) == value)
                 {
                     arrays.erase(it);
                     break;
                 }
                 it++;
             }
-            if(arrays.empty())
+            if (arrays.empty())
             {
                 conf.erase(name);
             }
@@ -62,7 +62,7 @@ namespace ardb
     void conf_set(Properties& conf, const std::string& name, const std::string& value, bool replace)
     {
         ConfItemsArray& arrays = conf[name];
-        if(replace)
+        if (replace)
         {
             arrays.clear();
         }
@@ -90,14 +90,14 @@ namespace ardb
                 lineno++;
                 continue;
             }
-            if(line[strlen(line)-1] == '\\')
+            if (line[strlen(line) - 1] == '\\')
             {
                 concat_last_line = true;
                 line = trim_str(line, "\\\r\n\t ");
                 last_line.append(line);
                 continue;
             }
-            if(concat_last_line)
+            if (concat_last_line)
             {
                 last_line.append(line);
                 concat_last_line = false;
@@ -119,7 +119,7 @@ namespace ardb
             }
             result[key].push_back(values);
             lineno++;
-            if(!concat_last_line)
+            if (!concat_last_line)
             {
                 last_line.clear();
             }
@@ -294,5 +294,96 @@ namespace ardb
             replace_env_var(sub_props);
             it++;
         }
+    }
+
+    bool rewrite_conf_file(const std::string& file, const Properties& conf, const char* sep)
+    {
+        char buf[kConfigLineMax + 1];
+        FILE *fp;
+        if ((fp = fopen(file.c_str(), "r")) == NULL)
+        {
+            return false;
+        }
+        Properties towrite_props = conf;
+        std::string tmp_file = file + ".rewrite";
+        FILE * rewrite_fp;
+        if ((rewrite_fp = fopen(tmp_file.c_str(), "w")) == NULL)
+        {
+            fclose(fp);
+            return false;
+        }
+        uint32 lineno = 1;
+        bool concat_last_line = false;
+        std::string last_line;
+        while (fgets(buf, kConfigLineMax, fp) != NULL)
+        {
+            char* line = trim_str(buf, "\r\n\t ");
+            if (line[0] == '#' || line[0] == '\0')
+            {
+                fprintf(rewrite_fp, "%s\n", line);
+                lineno++;
+                continue;
+            }
+            if (line[strlen(line) - 1] == '\\')
+            {
+                concat_last_line = true;
+                line = trim_str(line, "\\\r\n\t ");
+                last_line.append(line);
+                continue;
+            }
+            if (concat_last_line)
+            {
+                last_line.append(line);
+                concat_last_line = false;
+                line = &last_line[0];
+            }
+            std::vector<char*> sp_ret = split_str(line, sep);
+            if (sp_ret.size() < 2)
+            {
+                ERROR_LOG("Invalid config line at line:%u", lineno);
+                fclose(fp);
+                return false;
+            }
+            char* key = trim_str(sp_ret[0], "\r\n\t ");
+            //result[key].push_back(values);
+            if (towrite_props.count(key) > 0)
+            {
+                ConfItemsArray& conf_items = towrite_props[key];
+                for (size_t i = 0; i < conf_items.size(); i++)
+                {
+                    fprintf(rewrite_fp, "%s%s", key, sep);
+                    for(size_t j = 0; j < conf_items[i].size(); j++)
+                    {
+                        fprintf(rewrite_fp, "%s%s", conf_items[i][j].c_str(), sep);
+                    }
+                    fprintf(rewrite_fp, "\n");
+                }
+                towrite_props.erase(key);
+            }
+            lineno++;
+            if (!concat_last_line)
+            {
+                last_line.clear();
+            }
+        }
+        fclose(fp);
+        while (!towrite_props.empty())
+        {
+            std::string key = towrite_props.begin()->first;
+            ConfItemsArray& conf_items = towrite_props.begin()->second;
+            for (size_t i = 0; i < conf_items.size(); i++)
+            {
+                fprintf(rewrite_fp, "%s%s", key.c_str(), sep);
+                for(size_t j = 0; j < conf_items[i].size(); j++)
+                {
+                    fprintf(rewrite_fp, "%s%s", conf_items[i][j].c_str(), sep);
+                }
+                fprintf(rewrite_fp, "\n");
+            }
+            towrite_props.erase(key);
+        }
+        fclose(rewrite_fp);
+        rename(tmp_file.c_str(), file.c_str());
+        return true;
     }
 }

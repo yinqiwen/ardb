@@ -32,6 +32,7 @@ OP_NAMESPACE_BEGIN
     int Ardb::Quit(Context& ctx, RedisCommandFrame& cmd)
     {
         ctx.GetReply().SetStatusCode(STATUS_OK);
+        //-1 means close connection
         return -1;
     }
     int Ardb::Ping(Context& ctx, RedisCommandFrame& cmd)

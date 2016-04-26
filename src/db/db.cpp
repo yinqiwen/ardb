@@ -123,7 +123,7 @@ OP_NAMESPACE_BEGIN
     static CostTrack g_cmd_cost_tracks[REDIS_CMD_MAX];
 
     Ardb::Ardb() :
-            m_engine(NULL), m_starttime(0), m_loading_data(false), m_redis_cursor_seed(0)
+            m_engine(NULL), m_starttime(0), m_loading_data(false), m_redis_cursor_seed(0),m_watched_ctxs(NULL)
     {
         g_db = this;
         m_settings.set_empty_key("");
@@ -429,11 +429,15 @@ OP_NAMESPACE_BEGIN
     int Ardb::Init(const std::string& conf_file)
     {
         Properties props;
-        if (!parse_conf_file(conf_file, props, " "))
+        if (!conf_file.empty())
         {
-            printf("Error: Failed to parse conf file:%s\n", conf_file.c_str());
-            return -1;
+            if (!parse_conf_file(conf_file, props, " "))
+            {
+                printf("Error: Failed to parse conf file:%s\n", conf_file.c_str());
+                return -1;
+            }
         }
+
         if (!m_conf.Parse(props))
         {
             printf("Failed to parse config file:%s\n", conf_file.c_str());
@@ -956,6 +960,14 @@ OP_NAMESPACE_BEGIN
                     to_close.push_back(client);
                 }
             }
+            if(NULL != client->client && NULL != client->client->client)
+            {
+                if(client->client->resume_ustime > 0 && now <= client->client->resume_ustime)
+                {
+                    client->client->client->AttachFD();
+                    client->client->resume_ustime = -1;
+                }
+            }
             it++;
         }
         for (size_t i = 0; i < to_close.size(); i++)
@@ -1112,7 +1124,8 @@ OP_NAMESPACE_BEGIN
 
         /* Don't accept write commands if there are not enough good slaves and
          * user configured the min-slaves-to-write option. */
-        if (GetConf().master_host.empty() && GetConf().repl_min_slaves_to_write > 0 && GetConf().repl_min_slaves_max_lag > 0 && (setting.flags & ARDB_CMD_WRITE) > 0 && g_repl->GetMaster().GoodSlavesCount() < GetConf().repl_min_slaves_to_write)
+        if (GetConf().master_host.empty() && GetConf().repl_min_slaves_to_write > 0 && GetConf().repl_min_slaves_max_lag > 0
+                && (setting.flags & ARDB_CMD_WRITE) > 0 && g_repl->GetMaster().GoodSlavesCount() < GetConf().repl_min_slaves_to_write)
         {
             ctx.AbortTransaction();
             reply.SetErrCode(ERR_NOREPLICAS);
@@ -1169,7 +1182,8 @@ OP_NAMESPACE_BEGIN
         }
         else if (ctx.IsSubscribed())
         {
-            if (setting.type != REDIS_CMD_SUBSCRIBE && setting.type != REDIS_CMD_PSUBSCRIBE && setting.type != REDIS_CMD_PUNSUBSCRIBE && setting.type != REDIS_CMD_UNSUBSCRIBE && setting.type != REDIS_CMD_QUIT)
+            if (setting.type != REDIS_CMD_SUBSCRIBE && setting.type != REDIS_CMD_PSUBSCRIBE && setting.type != REDIS_CMD_PUNSUBSCRIBE
+                    && setting.type != REDIS_CMD_UNSUBSCRIBE && setting.type != REDIS_CMD_QUIT)
             {
                 reply.SetErrorReason("only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context");
                 return 0;

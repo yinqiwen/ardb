@@ -471,52 +471,40 @@ OP_NAMESPACE_BEGIN
         int64_t rangelen = (end - start) + 1;
         reply.ReserveMember(0);
 
+        KeyObject ele_key(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
+        int64 cursor = 0;
         if (meta.GetListMeta().sequential)
         {
-            KeyObjectArray ks;
-            for (size_t i = 0; i < rangelen; i++)
-            {
-                KeyObject key(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
-                key.SetListIndex((int64) (meta.GetListMinIdx() + i + start));
-                ks.push_back(key);
-            }
-            ValueObjectArray vs;
-            ErrCodeArray errs;
-            m_engine->MultiGet(ctx, ks, vs, errs);
-            for (size_t i = 0; i < vs.size(); i++)
-            {
-                RedisReply& r = reply.AddMember();
-                r.SetString(vs[i].GetListElement());
-            }
+            ele_key.SetListIndex(meta.GetListMinIdx() + start);
+            cursor = start;
         }
         else
         {
-            KeyObject ele_key(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
             ele_key.SetListIndex(meta.GetMin());
-            Iterator* iter = m_engine->Find(ctx, ele_key);
-            int64 cursor = 0;
-            while (NULL != iter && iter->Valid())
-            {
-                KeyObject& field = iter->Key();
-                if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != key.GetKey())
-                {
-                    break;
-                }
-
-                if (cursor >= start)
-                {
-                    RedisReply& r = reply.AddMember();
-                    r.SetString(iter->Value().GetListElement());
-                }
-                if (cursor == end)
-                {
-                    break;
-                }
-                cursor++;
-                iter->Next();
-            }
-            DELETE(iter);
+            cursor = 0;
         }
+        ctx.flags.iterate_no_upperbound = 1;
+        Iterator* iter = m_engine->Find(ctx, ele_key);
+        while (NULL != iter && iter->Valid())
+        {
+            KeyObject& field = iter->Key();
+            if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != key.GetKey())
+            {
+                break;
+            }
+            if (cursor >= start)
+            {
+                RedisReply& r = reply.AddMember();
+                r.SetString(iter->Value().GetListElement());
+            }
+            if (cursor == end)
+            {
+                break;
+            }
+            cursor++;
+            iter->Next();
+        }
+        DELETE(iter);
         return 0;
     }
     int Ardb::LRem(Context& ctx, RedisCommandFrame& cmd)

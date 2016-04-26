@@ -55,6 +55,8 @@ namespace ardb
 
 	bool parse_ini_conf_file(const std::string& path, INIProperties& result,
 			const char* sep = "=");
+
+	bool rewrite_conf_file(const std::string& file, const Properties& conf, const char* sep);
 }
 
 #endif /* CONFIG_HELPER_HPP_ */

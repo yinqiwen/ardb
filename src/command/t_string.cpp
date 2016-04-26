@@ -82,7 +82,7 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::MergeAppend(Context& ctx,KeyObject& key, ValueObject& val, const std::string& append)
+    int Ardb::MergeAppend(Context& ctx, KeyObject& key, ValueObject& val, const std::string& append)
     {
         if (val.GetType() != 0 && val.GetType() != KEY_STRING)
         {
@@ -126,7 +126,7 @@ OP_NAMESPACE_BEGIN
         {
             return 0;
         }
-        MergeAppend(ctx,key, v, append);
+        MergeAppend(ctx, key, v, append);
         err = SetKeyValue(ctx, key, v);
         if (err < 0)
         {
@@ -183,14 +183,22 @@ OP_NAMESPACE_BEGIN
                 KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[i]);
                 if (!ctx.flags.redis_compatible)
                 {
-                    uint16_t merge_op = REDIS_CMD_SET;
                     if (cmd.GetType() == REDIS_CMD_MSETNX || cmd.GetType() == REDIS_CMD_MSETNX2)
                     {
+                        uint16_t merge_op = REDIS_CMD_SETNX;
                         merge_op = REDIS_CMD_SETNX;
+                        Data v;
+                        v.SetString(cmd.GetArguments()[i + 1], true, false);
+                        m_engine->Merge(ctx, key, merge_op, v);
                     }
-                    Data v;
-                    v.SetString(cmd.GetArguments()[i + 1], true);
-                    m_engine->Merge(ctx, key, merge_op, v);
+                    else
+                    {
+                        ValueObject valueobj;
+                        valueobj.SetType(KEY_STRING);
+                        valueobj.SetTTL(0);
+                        valueobj.GetStringValue().SetString(cmd.GetArguments()[i + 1], true, false);
+                        SetKeyValue(ctx, key, valueobj);
+                    }
                 }
                 else
                 {
@@ -210,7 +218,7 @@ OP_NAMESPACE_BEGIN
                     }
                     ValueObject value;
                     value.SetType(KEY_STRING);
-                    value.GetStringValue().SetString(cmd.GetArguments()[i + 1], true);
+                    value.GetStringValue().SetString(cmd.GetArguments()[i + 1], true, false);
                     SetKeyValue(ctx, key, value);
                 }
             }
@@ -231,7 +239,7 @@ OP_NAMESPACE_BEGIN
         return MSet(ctx, cmd);
     }
 
-    int Ardb::MergeIncrByFloat(Context& ctx,KeyObject& key, ValueObject& val, double inc)
+    int Ardb::MergeIncrByFloat(Context& ctx, KeyObject& key, ValueObject& val, double inc)
     {
         if (val.GetType() > 0)
         {
@@ -297,7 +305,7 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::MergeIncrBy(Context& ctx,KeyObject& key, ValueObject& val, int64_t incr)
+    int Ardb::MergeIncrBy(Context& ctx, KeyObject& key, ValueObject& val, int64_t incr)
     {
         if (val.GetType() > 0)
         {
@@ -348,7 +356,7 @@ OP_NAMESPACE_BEGIN
         err = m_engine->Get(ctx, key, v);
         if (err == ERR_ENTRY_NOT_EXIST || 0 == err)
         {
-            switch(cmd.GetType())
+            switch (cmd.GetType())
             {
                 case REDIS_CMD_DECR:
                 {
@@ -490,7 +498,7 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::MergeSet(Context& ctx,KeyObject& key, ValueObject& val, uint16_t op, const Data& data, int64 ttl)
+    int Ardb::MergeSet(Context& ctx, KeyObject& key, ValueObject& val, uint16_t op, const Data& data, int64 ttl)
     {
         uint8 val_type = val.GetType();
         if (val_type > 0 && val_type != KEY_STRING)
@@ -542,7 +550,7 @@ OP_NAMESPACE_BEGIN
         {
             if (!CheckMeta(ctx, key, KEY_STRING, valueobj))
             {
-                return  ctx.GetReply().ErrCode();
+                return ctx.GetReply().ErrCode();
             }
             Data merge;
             merge.SetString(value, true);
@@ -554,13 +562,14 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-            if(REDIS_CMD_SET == op)
+            if (REDIS_CMD_SET == op)
             {
                 valueobj.SetType(KEY_STRING);
                 valueobj.SetTTL(ttl);
                 valueobj.GetStringValue().SetString(value, true, false);
                 err = SetKeyValue(ctx, keyobj, valueobj);
-            }else
+            }
+            else
             {
                 DataArray merge_data;
                 Data merge;
@@ -568,7 +577,7 @@ OP_NAMESPACE_BEGIN
                 merge_data.push_back(merge);
                 if (ttl > 0)
                 {
-                    if(GetConf().master_host.empty() || !GetConf().slave_ignore_expire)
+                    if (GetConf().master_host.empty() || !GetConf().slave_ignore_expire)
                     {
                         op = REDIS_CMD_PSETEX;
                         Data ttl_data;
@@ -674,21 +683,22 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-        	if(!redis_compatible)
-        	{
-        		reply.SetStatusCode(STATUS_OK);
-        	}else
-        	{
+            if (!redis_compatible)
+            {
+                reply.SetStatusCode(STATUS_OK);
+            }
+            else
+            {
                 reply.SetInteger(1);
-        	}
+            }
         }
         return 0;
     }
 
-    int Ardb::MergeSetRange(Context& ctx,KeyObject& key, ValueObject& val, int64_t offset, const std::string& range)
+    int Ardb::MergeSetRange(Context& ctx, KeyObject& key, ValueObject& val, int64_t offset, const std::string& range)
     {
         uint8 val_type = val.GetType();
-        if(val_type > 0)
+        if (val_type > 0)
         {
             if (val_type != KEY_STRING)
             {
@@ -762,9 +772,9 @@ OP_NAMESPACE_BEGIN
                 return 0;
             }
             err = MergeSetRange(ctx, keyobj, valueobj, offset, cmd.GetArguments()[2]);
-            if(0 == err)
+            if (0 == err)
             {
-            	err = SetKeyValue(ctx, keyobj, valueobj);
+                err = SetKeyValue(ctx, keyobj, valueobj);
             }
             if (0 != err)
             {

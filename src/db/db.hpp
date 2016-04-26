@@ -138,7 +138,7 @@ OP_NAMESPACE_BEGIN
 
             SpinMutexLock m_watched_keys_lock;
             typedef TreeMap<KeyPrefix, ContextSet>::Type WatchedContextTable;
-            WatchedContextTable m_watched_ctxs;
+            WatchedContextTable* m_watched_ctxs;
 
             SpinMutexLock m_block_keys_lock;
             typedef TreeMap<KeyPrefix, ContextSet>::Type BlockedContextTable;

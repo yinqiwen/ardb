@@ -50,6 +50,16 @@ OP_NAMESPACE_BEGIN
         return Slice(slice.data(), slice.size());
     }
 
+    struct ColumnFamilyHandleIndex
+    {
+            int idx;
+            uint32 id;
+            ColumnFamilyHandleIndex() :
+                    idx(-1), id(0)
+            {
+            }
+    };
+
     class RocksDBLogger: public rocksdb::Logger
     {
             // Write an entry to the log file with the specified format.
@@ -250,7 +260,7 @@ OP_NAMESPACE_BEGIN
                 {
                     return true;
                 }
-                if(ns.IsNil())
+                if (ns.IsNil())
                 {
                     return false;
                 }
@@ -358,7 +368,7 @@ OP_NAMESPACE_BEGIN
                 Buffer keyBuffer(const_cast<char*>(key.data()), 0, key.size());
                 key_obj.Decode(keyBuffer, false);
 
-                INFO_LOG("Do merge for key:%s in thread %d", key_obj.GetKey().AsString().c_str(), pthread_self());
+                //INFO_LOG("Do merge for key:%s in thread %d", key_obj.GetKey().AsString().c_str(), pthread_self());
 
                 ValueObject val_obj;
                 if (NULL != existing_value)
@@ -563,7 +573,6 @@ OP_NAMESPACE_BEGIN
         if (s.ok())
         {
             m_handlers[ns] = cfh;
-            m_idmapping[cfh->GetID()] = ns;
             INFO_LOG("Create ColumnFamilyHandle with name:%s success.", name.c_str());
             return cfh;
         }
@@ -618,7 +627,6 @@ OP_NAMESPACE_BEGIN
                     Data ns;
                     ns.SetString(column_families_descs[i].name, false);
                     m_handlers[ns] = handler;
-                    m_idmapping[handlers[i]->GetID()] = ns;
                     INFO_LOG("RocksDB open column family:%s success.", column_families_descs[i].name.c_str());
                 }
             }
@@ -964,6 +972,7 @@ OP_NAMESPACE_BEGIN
         {
             INFO_LOG("RocksDB drop column family:%s.", found->second->GetName().c_str());
             m_db->DropColumnFamily(found->second);
+            //m_droped_handlers.push_back(found->second);
             m_handlers.erase(found);
         }
         return 0;

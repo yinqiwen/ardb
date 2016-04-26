@@ -67,7 +67,6 @@ OP_NAMESPACE_BEGIN
         }
         if(!key2.DecodeKey(kbuf2, false))
         {
-            printf("###%d %d %d %s\n", k2_len,k2[0], k1_len, key1.GetKey().AsString().c_str());
             abort();
         }
 

@@ -55,13 +55,12 @@ OP_NAMESPACE_BEGIN
             ValueObject m_value;
             RocksDBEngine* m_engine;
             rocksdb::Iterator* m_iter;
-            KeyObject m_iterate_upper_bound_key;
-            bool m_valid;
+            KeyObject m_iterate_upper_bound_key;bool m_valid;
             void ClearState();
             void CheckBound();
         public:
             RocksDBIterator(RocksDBEngine* engine, const Data& ns) :
-                    m_ns(ns), m_engine(engine), m_iter(NULL),m_valid(true)
+                    m_ns(ns), m_engine(engine), m_iter(NULL), m_valid(true)
             {
             }
             void MarkValid(bool valid)
@@ -146,12 +145,25 @@ OP_NAMESPACE_BEGIN
                     }
             };
 
+            struct ColumnFamilyHandleContext
+            {
+                    Data name;
+                    rocksdb::ColumnFamilyHandle* handler;
+                    time_t create_time;
+                    time_t droped_time;
+                    ColumnFamilyHandleContext() :
+                            handler(0), create_time(0), droped_time(0)
+                    {
+                    }
+            };
+
             typedef TreeMap<Data, rocksdb::ColumnFamilyHandle*>::Type ColumnFamilyHandleTable;
+            typedef std::vector<ColumnFamilyHandleContext> ColumnFamilyHandleArray;
             typedef TreeMap<uint32_t, Data>::Type ColumnFamilyHandleIDTable;
             rocksdb::DB* m_db;
             rocksdb::Options m_options;
             ColumnFamilyHandleTable m_handlers;
-            ColumnFamilyHandleIDTable m_idmapping;
+            ColumnFamilyHandleArray m_droped_handlers;
             SpinRWLock m_lock;
             ThreadLocal<RocksTransaction> m_transc;
             ThreadLocal<RocksSnapshot> m_snapshot;
@@ -179,7 +191,7 @@ OP_NAMESPACE_BEGIN
             int Compact(Context& ctx, const KeyObject& start, const KeyObject& end);
             int ListNameSpaces(Context& ctx, DataArray& nss);
             int DropNameSpace(Context& ctx, const Data& ns);
-            void Stats(Context& ctx,std::string& str);
+            void Stats(Context& ctx, std::string& str);
             int64_t EstimateKeysNum(Context& ctx, const Data& ns);
 
             Iterator* Find(Context& ctx, const KeyObject& key);

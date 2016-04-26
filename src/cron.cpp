@@ -32,33 +32,46 @@
 
 OP_NAMESPACE_BEGIN
 
+    static void period_dump_statistics()
+    {
+        static time_t nextDumpTime = 0;
+        time_t now = time(NULL);
+        /*
+         * Period dump statistics into log
+         */
+        if (0 == nextDumpTime)
+        {
+            if (g_db->GetConf().statistics_log_period % 60 == 0)
+            {
+                if (get_current_minute_secs(now) != 0)
+                {
+                    return;
+                }
+                int64 factor = g_db->GetConf().statistics_log_period / 60;
+                if (get_current_minute(now) % factor != 0)
+                {
+                    return;
+                }
+            }
+            nextDumpTime = now;
+        }
+
+        if (now >= nextDumpTime)
+        {
+            nextDumpTime += g_db->GetConf().statistics_log_period;
+            INFO_LOG("========================Period Statistics Dump Begin===========================");
+            Statistics::GetSingleton().DumpLog(STAT_DUMP_PERIOD);
+            INFO_LOG("========================Period Statistics Dump End===========================");
+        }
+    }
+
     struct ServerCronTask: public Runnable
     {
+
             void Run()
             {
-                static time_t lastDumpTime = time(NULL);
-                time_t now = time(NULL);
                 Statistics::GetSingleton().TrackQPSPerSecond();
-
-                if (now - lastDumpTime >= g_db->GetConf().statistics_log_period)
-                {
-                    if(g_db->GetConf().statistics_log_period % 60 == 0)
-                    {
-                        if(get_current_minute_secs(now) != 0)
-                        {
-                            return;
-                        }
-                        int64 factor = g_db->GetConf().statistics_log_period / 60;
-                        if(get_current_minute(now) % factor != 0)
-                        {
-                            return;
-                        }
-                    }
-                    lastDumpTime = now;
-                    INFO_LOG("========================Period Statistics Dump Begin===========================");
-                    Statistics::GetSingleton().DumpLog(STAT_DUMP_PERIOD);
-                    INFO_LOG("========================Period Statistics Dump End===========================");
-                }
+                period_dump_statistics();
             }
     };
     class ServerCronThread: public Thread

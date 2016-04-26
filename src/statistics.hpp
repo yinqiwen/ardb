@@ -63,10 +63,7 @@ OP_NAMESPACE_BEGIN
             }
             virtual int GetType() = 0;
             virtual void Dump(TrackDumpCallback* cb, void* data) = 0;
-            virtual void Clear()
-            {
-
-            }
+            virtual void Clear() = 0;
             virtual ~Track()
             {
             }
@@ -82,6 +79,10 @@ OP_NAMESPACE_BEGIN
             int GetType()
             {
                 return STAT_TYPE_COUNT;
+            }
+            void Clear()
+            {
+                count = 0;
             }
             void Dump(TrackDumpCallback* cb, void* data);
             uint64_t Add(uint64_t inc)
@@ -106,6 +107,9 @@ OP_NAMESPACE_BEGIN
             int GetType()
             {
                 return STAT_TYPE_COUNT;
+            }
+            void Clear()
+            {
             }
             void Dump(TrackDumpCallback* cb, void* data);
     };
@@ -156,6 +160,14 @@ OP_NAMESPACE_BEGIN
             void IncMsgCount(uint64_t inc)
             {
                 atomic_add_uint64(&msgCount, inc);
+            }
+            void Clear()
+            {
+                memset(qpsSamples, 0, sizeof(qpsSamples));
+                qpsSampleIdx = 0;
+                lastMsgCount = 0;
+                msgCount = 0;
+                lastSampleTime = 0;
             }
             void Dump(TrackDumpCallback* cb, void* data);
     };

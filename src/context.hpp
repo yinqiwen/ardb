@@ -117,8 +117,9 @@ OP_NAMESPACE_BEGIN
             ClientId clientid;
             int64 uptime;
             int64 last_interaction_ustime;
+            int64 resume_ustime;
             ClientContext() :
-                    processing(false), client(NULL), uptime(0), last_interaction_ustime(0)
+                    processing(false), client(NULL), uptime(0), last_interaction_ustime(0),resume_ustime(-1)
             {
             }
     };

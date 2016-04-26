@@ -56,14 +56,6 @@ OP_NAMESPACE_BEGIN
         return true;
     }
 
-    int64 ListenPoint::GetThreadPoolSize() const
-    {
-        if (thread_pool_size > 0)
-        {
-            return thread_pool_size;
-        }
-        return available_processors();
-    }
     bool ArdbConfig::Parse(const Properties& props)
     {
         conf_props = props;
@@ -91,6 +83,11 @@ OP_NAMESPACE_BEGIN
         replace_env_var(const_cast<Properties&>(props));
 
         conf_get_string(props, "pidfile", pidfile);
+        conf_get_int64(props, "thread-pool-size", thread_pool_size);
+        if(thread_pool_size <= 0)
+        {
+            thread_pool_size = available_processors();
+        }
         conf_get_int64(props, "hz", hz);
         if (hz < CONFIG_MIN_HZ)
             hz = CONFIG_MIN_HZ;
@@ -129,8 +126,6 @@ OP_NAMESPACE_BEGIN
                 lp.host = ss[0];
                 lp.port = port;
             }
-            sprintf(config_key, "server[%d].thread-pool-size", i);
-            conf_get_int64(props, config_key, lp.thread_pool_size);
             sprintf(config_key, "server[%d].qps-limit", i);
             conf_get_int64(props, config_key, lp.qps_limit);
             sprintf(config_key, "server[%d].unixsocketperm", i);

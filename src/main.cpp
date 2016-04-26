@@ -84,7 +84,10 @@ int main(int argc, char** argv)
     if (0 == db.Init(confpath))
     {
         real_path(argv[0], db.GetMutableConf()._executable);
-        real_path(confpath, db.GetMutableConf()._conf_file);
+        if(!confpath.empty())
+        {
+            real_path(confpath, db.GetMutableConf()._conf_file);
+        }
         Server server;
         server.Start();
     }

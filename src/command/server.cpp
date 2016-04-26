@@ -288,7 +288,8 @@ namespace ardb
                     info.append("master_link_status:").append(g_repl->GetSlave().IsConnected() ? "up" : "down").append("\r\n");
                     if (g_repl->GetSlave().IsConnected())
                     {
-                        info.append("master_last_io_seconds_ago:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLastinteractionTime())).append("\r\n");
+                        info.append("master_last_io_seconds_ago:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLastinteractionTime())).append(
+                                "\r\n");
                     }
                     else
                     {
@@ -299,7 +300,8 @@ namespace ardb
                     if (g_repl->GetSlave().IsSyncing())
                     {
                         info.append("master_sync_left_bytes:").append(stringfromll(g_repl->GetSlave().SyncLeftBytes())).append("\r\n");
-                        info.append("master_sync_last_io_seconds_ago:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLastinteractionTime())).append("\r\n");
+                        info.append("master_sync_last_io_seconds_ago:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLastinteractionTime())).append(
+                                "\r\n");
                     }
                     if (g_repl->GetSlave().IsLoading())
                     {
@@ -308,7 +310,8 @@ namespace ardb
                     info.append("slave_repl_offset:").append(stringfromll(g_repl->GetReplLog().WALEndOffset())).append("\r\n");
                     if (!g_repl->GetSlave().IsConnected())
                     {
-                        info.append("master_link_down_since_seconds:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLinkDownTime())).append("\r\n");
+                        info.append("master_link_down_since_seconds:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLinkDownTime())).append(
+                                "\r\n");
                     }
                     info.append("slave_priority:").append(stringfromll(GetConf().slave_priority)).append("\r\n");
                     info.append("slave_read_only:").append(GetConf().slave_readonly ? "1" : "0").append("\r\n");
@@ -327,7 +330,8 @@ namespace ardb
                 info.append("repl_backlog_size: ").append(stringfromll(GetConf().repl_backlog_size)).append("\r\n");
                 info.append("repl_backlog_cache_size: ").append(stringfromll(GetConf().repl_backlog_cache_size)).append("\r\n");
                 info.append("repl_backlog_first_byte_offset: ").append(stringfromll(g_repl->GetReplLog().WALStartOffset())).append("\r\n");
-                info.append("repl_backlog_histlen: ").append(stringfromll(g_repl->GetReplLog().WALEndOffset() - g_repl->GetReplLog().WALStartOffset() + 1)).append("\r\n");
+                info.append("repl_backlog_histlen: ").append(stringfromll(g_repl->GetReplLog().WALEndOffset() - g_repl->GetReplLog().WALStartOffset() + 1)).append(
+                        "\r\n");
                 info.append("repl_backlog_cksm: ").append(base16_stringfromllu(g_repl->GetReplLog().WALCksm())).append("\r\n");
             }
             else
@@ -349,7 +353,7 @@ namespace ardb
         {
             info.append("# Stats\r\n");
             std::string tmp;
-            Statistics::GetSingleton().DumpString(tmp, STAT_DUMP_INFO_CMD, STAT_TYPE_ALL&(~STAT_TYPE_COST));
+            Statistics::GetSingleton().DumpString(tmp, STAT_DUMP_INFO_CMD, STAT_TYPE_ALL & (~STAT_TYPE_COST));
             info.append(tmp);
             info.append("sync_full:").append(stringfromll(g_repl->GetMaster().FullSyncCount())).append("\r\n");
             info.append("sync_partial_ok:").append(stringfromll(g_repl->GetMaster().ParitialSyncOKCount())).append("\r\n");
@@ -375,7 +379,8 @@ namespace ardb
                 info.append("# Keyspace\r\n");
                 for (size_t i = 0; i < nss.size(); i++)
                 {
-                    info.append("db").append(nss[i].AsString()).append(":").append("keys=").append(stringfromll(m_engine->EstimateKeysNum(ctx, nss[i]))).append("\r\n");
+                    info.append("db").append(nss[i].AsString()).append(":").append("keys=").append(stringfromll(m_engine->EstimateKeysNum(ctx, nss[i]))).append(
+                            "\r\n");
                 }
                 info.append("\r\n");
             }
@@ -390,8 +395,9 @@ namespace ardb
                 RedisCommandHandlerSetting& setting = cit->second;
                 if (setting.calls > 0)
                 {
-                    info.append("cmdstat_").append(setting.name).append(":").append("calls=").append(stringfromll(setting.calls)).append(",usec=").append(stringfromll(setting.microseconds)).append(",usecpercall=").append(
-                            stringfromll(setting.microseconds / setting.calls)).append("\r\n");
+                    info.append("cmdstat_").append(setting.name).append(":").append("calls=").append(stringfromll(setting.calls)).append(",usec=").append(
+                            stringfromll(setting.microseconds)).append(",usecpercall=").append(stringfromll(setting.microseconds / setting.calls)).append(
+                            "\r\n");
                 }
 
                 cit++;
@@ -429,11 +435,18 @@ namespace ardb
         return 0;
     }
 
-    static void ChannelCloseCallback(Channel* ch, void*)
+    static void channel_close_callback(Channel* ch, void*)
     {
         if (NULL != ch)
         {
             ch->Close();
+        }
+    }
+    static void channel_pause_callback(Channel* ch, void*)
+    {
+        if (NULL != ch)
+        {
+            ch->DetachFD();
         }
     }
 
@@ -463,13 +476,43 @@ namespace ardb
                 reply.SetErrorReason("Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | PAUSE timeout)");
                 return 0;
             }
-            reply.SetString(ctx.client->name);
+            if (ctx.client->name.empty())
+            {
+                reply.Clear();
+            }
+            else
+            {
+                reply.SetString(ctx.client->name);
+            }
         }
         else if (subcmd == "pause")
         {
             //pause all clients
-            //todo
-            reply.SetErrorReason("NOT supported now");
+            if (cmd.GetArguments().size() != 2)
+            {
+                reply.SetErrorReason("Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | PAUSE timeout)");
+                return 0;
+            }
+            uint32 timeout;
+            if (!string_touint32(cmd.GetArguments()[1], timeout) || timeout == 0)
+            {
+                reply.SetErrorReason("timeout is not an integer or out of range");
+                return 0;
+            }
+            LockGuard<SpinMutexLock> guard(m_clients_lock);
+            ContextSet::iterator it = m_all_clients.begin();
+            while (it != m_all_clients.end())
+            {
+                Context* client = *it;
+                if (NULL != client->client && NULL != client->client->client)
+                {
+                    SocketChannel* conn = (SocketChannel*) (client->client->client);
+                    conn->GetService().AsyncIO(conn->GetID(), channel_pause_callback, NULL);
+                    client->client->resume_ustime = get_current_epoch_micros() + timeout * 1000;
+                }
+                it++;
+            }
+            reply.SetStatusCode(STATUS_OK);
         }
         else if (subcmd == "kill")
         {
@@ -486,7 +529,7 @@ namespace ardb
                 SocketChannel* conn = (SocketChannel*) (client->client->client);
                 if (conn->GetRemoteStringAddress() == cmd.GetArguments()[1])
                 {
-                    conn->GetService().AsyncIO(conn->GetID(), ChannelCloseCallback, NULL);
+                    conn->GetService().AsyncIO(conn->GetID(), channel_close_callback, NULL);
                     break;
                 }
                 it++;
@@ -542,9 +585,9 @@ namespace ardb
     {
         RedisReply& reply = ctx.GetReply();
         std::string arg0 = string_tolower(cmd.GetArguments()[0]);
-        if (arg0 != "get" && arg0 != "set" && arg0 != "resetstat" && arg0 != "add" && arg0 != "del" && arg0 != "reload")
+        if (arg0 != "get" && arg0 != "set" && arg0 != "resetstat" && arg0 != "reload" && arg0 != "rewrite")
         {
-            reply.SetErrorReason("CONFIG subcommand must be one of GET, SET, RESETSTAT, ADD, DEL");
+            reply.SetErrorReason("CONFIG subcommand must be one of GET, SET, RESETSTAT, REWRITE, RELOAD");
             return 0;
         }
         if (arg0 == "resetstat")
@@ -564,88 +607,72 @@ namespace ardb
                 reply.SetErrorReason("Wrong number of arguments for CONFIG GET");
                 return 0;
             }
-//            ctx.reply.type = REDIS_REPLY_ARRAY;
-//            Properties::iterator it = m_cfg.conf_props.begin();
-//            while (it != m_cfg.conf_props.end())
-//            {
-//                if (stringmatchlen(cmd.GetArguments()[1].c_str(), cmd.GetArguments()[1].size(), it->first.c_str(), it->first.size(), 0) == 1)
-//                {
-//                    RedisReply& r = ctx.reply.AddMember();
-//                    fill_str_reply(r, it->first);
-//
-//                    std::string buf;
-//                    ConfItemsArray::iterator cit = it->second.begin();
-//                    while (cit != it->second.end())
-//                    {
-//                        ConfItems::iterator ccit = cit->begin();
-//                        while (ccit != cit->end())
-//                        {
-//                            buf.append(*ccit).append(" ");
-//                            ccit++;
-//                        }
-//                        cit++;
-//                    }
-//                    RedisReply& r1 = ctx.reply.AddMember();
-//                    fill_str_reply(r1, trim_string(buf, " "));
-//                }
-//                it++;
-//            }
+            reply.ReserveMember(0);
+            WriteLockGuard<SpinRWLock> guard(m_conf.lock);
+            Properties::iterator it = m_conf.conf_props.begin();
+            while (it != m_conf.conf_props.end())
+            {
+                if (stringmatchlen(cmd.GetArguments()[1].c_str(), cmd.GetArguments()[1].size(), it->first.c_str(), it->first.size(), 0) == 1)
+                {
+                    RedisReply& r = reply.AddMember();
+                    r.SetString(it->first);
+                    std::string buf;
+                    ConfItemsArray::iterator cit = it->second.begin();
+                    while (cit != it->second.end())
+                    {
+                        ConfItems::iterator ccit = cit->begin();
+                        while (ccit != cit->end())
+                        {
+                            buf.append(*ccit).append(" ");
+                            ccit++;
+                        }
+                        cit++;
+                    }
+                    RedisReply& r1 = reply.AddMember();
+                    r1.SetString(trim_string(buf, " "));
+                }
+                it++;
+            }
         }
         else if (arg0 == "set")
         {
-//            if (cmd.GetArguments().size() != 3)
-//            {
-//                fill_error_reply(ctx.reply, "Wrong number of arguments for CONFIG SET");
-//                return 0;
-//            }
-//            conf_set(m_cfg.conf_props, cmd.GetArguments()[1], cmd.GetArguments()[2]);
-//            WriteLockGuard<SpinRWLock> guard(m_cfg_lock);
-//            m_cfg.Parse(m_cfg.conf_props);
-//            fill_status_reply(ctx.reply, "OK");
-        }
-        else if (arg0 == "add")
-        {
-//            if (cmd.GetArguments().size() != 3)
-//            {
-//                fill_error_reply(ctx.reply, "Wrong number of arguments for CONFIG ADD");
-//                return 0;
-//            }
-//            conf_set(m_cfg.conf_props, cmd.GetArguments()[1], cmd.GetArguments()[2], false);
-//            WriteLockGuard<SpinRWLock> guard(m_cfg_lock);
-//            m_cfg.Parse(m_cfg.conf_props);
-//            fill_status_reply(ctx.reply, "OK");
-        }
-        else if (arg0 == "del")
-        {
-//            if (cmd.GetArguments().size() != 3)
-//            {
-//                fill_error_reply(ctx.reply, "Wrong number of arguments for CONFIG DEL");
-//                return 0;
-//            }
-//            conf_del(m_cfg.conf_props, cmd.GetArguments()[1], cmd.GetArguments()[2]);
-//            WriteLockGuard<SpinRWLock> guard(m_cfg_lock);
-//            m_cfg.Parse(m_cfg.conf_props);
-//            fill_status_reply(ctx.reply, "OK");
+            if (cmd.GetArguments().size() != 3)
+            {
+                reply.SetErrorReason("Wrong number of arguments for CONFIG SET");
+                return 0;
+            }
+            conf_set(m_conf.conf_props, cmd.GetArguments()[1], cmd.GetArguments()[2]);
+            WriteLockGuard<SpinRWLock> guard(m_conf.lock);
+            m_conf.Parse(m_conf.conf_props);
+            reply.SetStatusCode(STATUS_OK);
         }
         else if (arg0 == "reload")
         {
-//            if (!m_cfg.conf_path.empty())
-//            {
-//                Properties props;
-//                if (parse_conf_file(m_cfg.conf_path, props, " ") && m_cfg.Parse(props))
-//                {
-//                    m_cfg.conf_props = props;
-//                    m_stat.Init();
-//                    fill_status_reply(ctx.reply, "OK");
-//                    return 0;
-//                }
-//            }
-//            fill_error_reply(ctx.reply, "Failed to reload config");
+            if (!m_conf._conf_file.empty())
+            {
+                Properties props;
+                if (parse_conf_file(m_conf._conf_file, props, " ") && m_conf.Parse(props))
+                {
+                    m_conf.conf_props = props;
+                    reply.SetStatusCode(STATUS_OK);
+                    return 0;
+                }
+            }
+            reply.SetErrorReason("Failed to reload config");
         }
-        else
+        else if (arg0 == "rewrite")
         {
-            //just return error
-//            fill_error_reply(ctx.reply, "Not supported now");
+            if (GetConf()._conf_file.empty())
+            {
+                reply.SetErrorReason("The server is running without a config file");
+                return 0;
+            }
+            if (!rewrite_conf_file(GetConf()._conf_file, GetConf().conf_props, " "))
+            {
+                reply.SetErrorReason("Rewriting config file failed.");
+                return 0;
+            }
+            reply.SetStatusCode(STATUS_OK);
         }
         return 0;
     }
@@ -679,6 +706,7 @@ namespace ardb
 
     int Ardb::Shutdown(Context& ctx, RedisCommandFrame& cmd)
     {
+        //less than -1 means shutdown server
         return -2;
     }
 

@@ -34,15 +34,6 @@
 #include "repl/repl.hpp"
 
 OP_NAMESPACE_BEGIN
-    struct ServerHandlerData
-    {
-            ListenPoint listen;
-            QPSTrack qps;
-            ServerHandlerData()
-            {
-            }
-    };
-    typedef std::vector<ServerHandlerData> ServerHandlerDataArray;
     static ThreadLocal<RedisReplyPool> g_reply_pool;
     static QPSTrack g_total_qps;
     static CountTrack g_total_connections_received;
@@ -191,7 +182,7 @@ OP_NAMESPACE_BEGIN
     static void pipelineInit(ChannelPipeline* pipeline, void* data)
     {
         QPSTrack* init_data = (QPSTrack*) data;
-        pipeline->AddLast("decoder", new FastRedisCommandDecoder);
+        pipeline->AddLast("decoder", new RedisCommandDecoder);
         pipeline->AddLast("encoder", new RedisReplyEncoder);
         pipeline->AddLast("handler", new RedisRequestHandler(init_data));
     }
@@ -234,13 +225,8 @@ OP_NAMESPACE_BEGIN
         {
             return -1;
         }
-        uint32 worker_count = 0;
-        for (uint32 i = 0; i < g_db->GetConf().servers.size(); i++)
-        {
-            worker_count += g_db->GetConf().servers[i].GetThreadPoolSize();
-        }
         m_service = new ChannelService(g_db->GetConf().max_open_files);
-        m_service->SetThreadPoolSize(worker_count);
+        m_service->SetThreadPoolSize(g_db->GetConf().thread_pool_size);
         ServerLifecycleHandler lifecycle;
         m_service->RegisterLifecycleCallback(&lifecycle);
 
@@ -253,7 +239,9 @@ OP_NAMESPACE_BEGIN
         }
 
         init_statistics_setting();
-        ServerHandlerDataArray handler_datas(g_db->GetConf().servers.size());
+
+        std::vector<QPSTrack> serverQpsTracks;
+        serverQpsTracks.resize(g_db->GetConf().servers.size());
         for (uint32 i = 0; i < g_db->GetConf().servers.size(); i++)
         {
             ServerSocketChannel* server = NULL;
@@ -282,23 +270,16 @@ OP_NAMESPACE_BEGIN
                 address.append(":").append(stringfromll(g_db->GetConf().servers[i].port));
             }
             server->Configure(ops);
-            handler_datas[i].listen = g_db->GetConf().servers[i];
             QPSTrack* serverQPSTrack = NULL;
             if(g_db->GetConf().servers.size() > 1)
             {
-                serverQPSTrack = &handler_datas[i].qps;
+                serverQPSTrack = &serverQpsTracks[i];
                 serverQPSTrack->name = address + "_total_commands_processed";
                 serverQPSTrack->qpsName = address + "_instantaneous_ops_per_sec";
                 Statistics::GetSingleton().AddTrack(serverQPSTrack);
             }
             server->SetChannelPipelineInitializor(pipelineInit, serverQPSTrack);
             server->SetChannelPipelineFinalizer(pipelineDestroy, NULL);
-            uint32 min = 0;
-            for (uint32 j = 0; j < i; j++)
-            {
-                min += min + g_db->GetConf().servers[j].GetThreadPoolSize();
-            }
-            server->BindThreadPool(min, min + g_db->GetConf().servers[i].GetThreadPoolSize());
             INFO_LOG("Ardb will accept connections on %s", address.c_str());
         }
 
