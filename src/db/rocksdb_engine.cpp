@@ -121,6 +121,11 @@ OP_NAMESPACE_BEGIN
                 key_encode_buffer_cache.Clear();
                 return key_encode_buffer_cache;
             }
+            Buffer& GetValueEncodeBuferCache()
+            {
+                value_encode_buffer_cache.Clear();
+                return value_encode_buffer_cache;
+            }
             std::vector<string>& GetMultiStringCache(size_t num)
             {
                 if (multi_string_cache.size() < num)
@@ -766,11 +771,9 @@ OP_NAMESPACE_BEGIN
         }
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         rocksdb::WriteOptions opt;
-        Buffer& key_encode_buffer = rocks_ctx.key_encode_buffer_cache;
-        key_encode_buffer.Clear();
+        Buffer& key_encode_buffer = rocks_ctx.GetKeyEncodeBuferCache();
         rocksdb::Slice key_slice = to_rocksdb_slice(key.Encode(key_encode_buffer));
-        Buffer& value_buffer = rocks_ctx.value_encode_buffer_cache;
-        value_buffer.Clear();
+        Buffer& value_buffer = rocks_ctx.GetValueEncodeBuferCache();
         rocksdb::Slice value_slice = to_rocksdb_slice(value.Encode(value_buffer));
         rocksdb::WriteBatch* batch = rocks_ctx.transc.Ref();
         if (NULL != batch)
@@ -841,8 +844,7 @@ OP_NAMESPACE_BEGIN
         opt.snapshot = rocks_ctx.PeekSnapshot();
         std::string& valstr = rocks_ctx.string_cache;
         valstr.clear();
-        Buffer& key_encode_buffer = rocks_ctx.key_encode_buffer_cache;
-        key_encode_buffer.Clear();
+        Buffer& key_encode_buffer = rocks_ctx.GetKeyEncodeBuferCache();
         rocksdb::Slice key_slice = to_rocksdb_slice(key.Encode(key_encode_buffer));
         rocksdb::Status s = m_db->Get(opt, cf, key_slice, &valstr);
         int err = ROCKSDB_ERR(s);
@@ -865,8 +867,7 @@ OP_NAMESPACE_BEGIN
         }
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         rocksdb::WriteOptions opt;
-        Buffer& key_encode_buffer = rocks_ctx.key_encode_buffer_cache;
-        key_encode_buffer.Clear();
+        Buffer& key_encode_buffer = rocks_ctx.GetKeyEncodeBuferCache();
         rocksdb::Slice key_slice = to_rocksdb_slice(key.Encode(key_encode_buffer));
         rocksdb::Status s;
         rocksdb::WriteBatch* batch = rocks_ctx.transc.Ref();
@@ -890,12 +891,10 @@ OP_NAMESPACE_BEGIN
             return ERR_ENTRY_NOT_EXIST;
         }
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
-        Buffer& key_encode_buffer = rocks_ctx.key_encode_buffer_cache;
-        key_encode_buffer.Clear();
+        Buffer& key_encode_buffer = rocks_ctx.GetKeyEncodeBuferCache();
         rocksdb::WriteOptions opt;
         rocksdb::Slice key_slice = to_rocksdb_slice(key.Encode(key_encode_buffer));
-        Buffer& merge_buffer = rocks_ctx.value_encode_buffer_cache;
-        merge_buffer.Clear();
+        Buffer& merge_buffer = rocks_ctx.GetValueEncodeBuferCache();
         encode_merge_operation(merge_buffer, op, args);
         rocksdb::Slice merge_slice(merge_buffer.GetRawReadBuffer(), merge_buffer.ReadableBytes());
         rocksdb::Status s;
@@ -921,9 +920,8 @@ OP_NAMESPACE_BEGIN
         }
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         rocksdb::ReadOptions opt;
-        opt.snapshot = rocks_ctx.snapshot.snapshot;
-        Buffer& key_encode_buffer = rocks_ctx.key_encode_buffer_cache;
-        key_encode_buffer.Clear();
+        opt.snapshot = rocks_ctx.PeekSnapshot();
+        Buffer& key_encode_buffer = rocks_ctx.GetKeyEncodeBuferCache();
         std::string& tmp = rocks_ctx.string_cache;
         tmp.clear();
         rocksdb::Slice k = to_rocksdb_slice(key.Encode(key_encode_buffer));
