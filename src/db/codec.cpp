@@ -221,26 +221,24 @@ OP_NAMESPACE_BEGIN
         }
         return Slice(buffer.GetRawBuffer() + mark, buffer.GetWriteIndex() - mark);
     }
-//    Slice KeyObject::Encode(bool verify)
-//    {
-//        if (verify && !IsValid())
-//        {
-//            return Slice();
-//        }
-//        if (!encode_buffer.Readable())
-//        {
-//            //encode_buffer.WriteByte((char) type);
-//            //key.Encode(encode_buffer);
-//            EncodePrefix(encode_buffer);
-//            encode_buffer.WriteByte((char) elements.size());
-//            for (size_t i = 0; i < elements.size(); i++)
-//            {
-//                elements[i].Encode(encode_buffer);
-//            }
-//        }
-//        return Slice(encode_buffer.GetRawReadBuffer(), encode_buffer.ReadableBytes());
-//    }
-
+    void KeyObject::CloneStringPart()
+    {
+        if (ns.IsString())
+        {
+            ns.ToMutableStr();
+        }
+        if (key.IsString())
+        {
+            key.ToMutableStr();
+        }
+        for (size_t i = 0; i < elements.size(); i++)
+        {
+            if (elements[i].IsString())
+            {
+                elements[i].ToMutableStr();
+            }
+        }
+    }
     bool KeyObject::IsValid() const
     {
         switch (type)

@@ -93,7 +93,7 @@ OP_NAMESPACE_BEGIN
             DELETE(iter);
             return -1;
         }
-        KeyObject& min_key = iter->Key();
+        KeyObject& min_key = iter->Key(true);
         if (min_key.GetKey() != key.GetKey() || min_key.GetType() != ele_type || min_key.GetNameSpace() != key.GetNameSpace())
         {
             WARN_LOG("Invalid start iterator to fetch max element");

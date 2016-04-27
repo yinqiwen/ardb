@@ -56,7 +56,8 @@ OP_NAMESPACE_BEGIN
             ValueObject m_value;
             RocksDBEngine* m_engine;
             rocksdb::Iterator* m_iter;
-            KeyObject m_iterate_upper_bound_key;bool m_valid;
+            KeyObject m_iterate_upper_bound_key;
+            bool m_valid;
             void ClearState();
             void CheckBound();
         public:
@@ -82,8 +83,8 @@ OP_NAMESPACE_BEGIN
             void Jump(const KeyObject& next);
             void JumpToFirst();
             void JumpToLast();
-            KeyObject& Key();
-            ValueObject& Value();
+            KeyObject& Key(bool clone_str);
+            ValueObject& Value(bool clone_str);
             Slice RawKey();
             Slice RawValue();
             ~RocksDBIterator();

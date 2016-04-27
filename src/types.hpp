@@ -231,6 +231,7 @@ OP_NAMESPACE_BEGIN
             }
             bool IsNil() const;
             bool IsString() const;
+            bool IsCStr() const;
             uint32 StringLength() const;
             void Clear();
             const char* CStr() const;

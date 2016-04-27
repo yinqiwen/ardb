@@ -1018,7 +1018,7 @@ OP_NAMESPACE_BEGIN
                 inter_union_result[result_cursor].clear();
                 while (iters[i]->Valid())
                 {
-                    KeyObject& k = iters[i]->Key();
+                    KeyObject& k = iters[i]->Key(true);
                     if (k.GetType() != start.GetType() || k.GetKey() != keys[i].GetKey() || k.GetNameSpace() != keys[i].GetNameSpace()
                             || k.GetSetMember() > max)
                     {
@@ -1070,7 +1070,7 @@ OP_NAMESPACE_BEGIN
                 }
                 while (NULL != iter && iter->Valid())
                 {
-                    KeyObject& k = iter->Key();
+                    KeyObject& k = iter->Key(true);
                     if (k.GetType() != ele.GetType() || k.GetKey() != keys[i].GetKey() || k.GetNameSpace() != keys[i].GetNameSpace())
                     {
                         break;

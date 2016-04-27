@@ -43,10 +43,14 @@ OP_NAMESPACE_BEGIN
             virtual void Jump(const KeyObject& next) = 0;
             virtual void JumpToFirst() = 0;
             virtual void JumpToLast() = 0;
-            virtual KeyObject& Key() = 0;
+            /*
+             * 'clone_str' indicate that if the string part of key should clone or not
+             * In some situation, if the string part of key cached for later use, the clone flag should be setting to true.
+             */
+            virtual KeyObject& Key(bool clone_str = false) = 0;
             virtual Slice RawKey() = 0;
             virtual Slice RawValue() = 0;
-            virtual ValueObject& Value() = 0;
+            virtual ValueObject& Value(bool clone_str= false) = 0;
             virtual ~Iterator()
             {
             }
@@ -122,6 +126,7 @@ OP_NAMESPACE_BEGIN
     };
 
     int compare_keys(const char* k1, size_t k1_len, const char* k2, size_t k2_len, bool has_ns);
+    int compare_keyslices(const Slice& k1, const Slice& k2, bool has_ns);
 
 OP_NAMESPACE_END
 

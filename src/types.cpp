@@ -258,6 +258,7 @@ OP_NAMESPACE_BEGIN
             void* s = malloc(other.len);
             data = (int64_t) s;
             memcpy(s, other.CStr(), other.StringLength());
+            encoding = E_SDS;
         }
         else
         {
@@ -357,6 +358,11 @@ OP_NAMESPACE_BEGIN
     bool Data::IsString() const
     {
         return encoding == E_SDS || encoding == E_CSTR;
+    }
+
+    bool Data::IsCStr() const
+    {
+        return encoding == E_CSTR;
     }
 
     uint32 Data::StringLength() const

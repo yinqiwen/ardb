@@ -533,7 +533,7 @@ namespace ardb
             //printf("###%.2f\n", range.min.GetFloat64());
             while (iter->Valid())
             {
-                KeyObject& zkey = iter->Key();
+                KeyObject& zkey = iter->Key(true);
                 if (zkey.GetType() != KEY_ZSET_SORT || zkey.GetKey() != zmember.GetKey() || zkey.GetNameSpace() != ctx.ns)
                 {
                     break;
@@ -544,6 +544,7 @@ namespace ardb
                     GeoPoint point;
                     point.score = (int64_t) zkey.GetZSetScore();
                     point.value = zkey.GetZSetMember();
+                    //printf("###Find %lld %s\n", point.score, point.value.AsString().c_str());
                     if (GeoHashHelper::GetXYByHash(GEO_WGS84_TYPE, GEO_STEP_MAX, (uint64) point.score, point.x, point.y))
                     {
                         point.distance = GeoHashHelper::GetWGS84Distance(x, y, point.x, point.y);

@@ -145,7 +145,7 @@ OP_NAMESPACE_BEGIN
             SpinMutexLock m_clients_lock;
             ContextSet m_all_clients;
 
-            int64 ScanExpiredKeys();
+
             bool IsLoadingData();
 
             int WriteReply(Context& ctx, RedisReply* r, bool async);
@@ -428,6 +428,7 @@ OP_NAMESPACE_BEGIN
             void FreeClient(Context& ctx);
             void AddClient(Context& ctx);
             void ScanClients();
+            int64 ScanExpiredKeys();
             const ArdbConfig& GetConf() const
             {
                 return m_conf;

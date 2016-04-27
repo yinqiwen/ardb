@@ -31,6 +31,11 @@
 
 OP_NAMESPACE_BEGIN
 
+    int compare_keyslices(const Slice& k1, const Slice& k2, bool has_ns)
+    {
+        return compare_keys(k1.data(), k1.size(), k2.data(), k2.size(), has_ns);
+    }
+
     int compare_keys(const char* k1, size_t k1_len, const char* k2, size_t k2_len, bool has_ns)
     {
         Buffer kbuf1(const_cast<char*>(k1), 0, k1_len);
@@ -43,11 +48,11 @@ OP_NAMESPACE_BEGIN
             /*
              * 1. compare namespace
              */
-            if(!key1.DecodeNS(kbuf1, false))
+            if (!key1.DecodeNS(kbuf1, false))
             {
                 abort();
             }
-            if(!key2.DecodeNS(kbuf2, false))
+            if (!key2.DecodeNS(kbuf2, false))
             {
                 abort();
             }
@@ -61,11 +66,11 @@ OP_NAMESPACE_BEGIN
         /*
          * 2. decode  prefix
          */
-        if(!key1.DecodeKey(kbuf1, false))
+        if (!key1.DecodeKey(kbuf1, false))
         {
             abort();
         }
-        if(!key2.DecodeKey(kbuf2, false))
+        if (!key2.DecodeKey(kbuf2, false))
         {
             abort();
         }
@@ -78,7 +83,7 @@ OP_NAMESPACE_BEGIN
         {
             return ret;
         }
-        ret = (int)key1.DecodeType(kbuf1) - (int)key2.DecodeType(kbuf2);
+        ret = (int) key1.DecodeType(kbuf1) - (int) key2.DecodeType(kbuf2);
         if (ret != 0)
         {
             return ret;
@@ -100,9 +105,9 @@ OP_NAMESPACE_BEGIN
         {
             int elen1 = key1.DecodeElementLength(kbuf1);
             int elen2 = key2.DecodeElementLength(kbuf2);
-            if(elen1 < 0 || elen2 < 0)
+            if (elen1 < 0 || elen2 < 0)
             {
-            	 FATAL_LOG("Invalid element length");
+                FATAL_LOG("Invalid element length");
             }
             ret = elen1 - elen2;
             if (ret != 0)
@@ -111,11 +116,11 @@ OP_NAMESPACE_BEGIN
             }
             for (int i = 0; i < elen1; i++)
             {
-                if(!key1.DecodeElement(kbuf1, false, i))
+                if (!key1.DecodeElement(kbuf1, false, i))
                 {
                     abort();
                 }
-                if(!key2.DecodeElement(kbuf2, false, i))
+                if (!key2.DecodeElement(kbuf2, false, i))
                 {
                     abort();
                 }

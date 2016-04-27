@@ -72,6 +72,7 @@ OP_NAMESPACE_BEGIN
             {
                 Statistics::GetSingleton().TrackQPSPerSecond();
                 period_dump_statistics();
+                g_db->ScanExpiredKeys();
             }
     };
     class ServerCronThread: public Thread

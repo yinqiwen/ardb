@@ -529,7 +529,7 @@ OP_NAMESPACE_BEGIN
         DataSet diff_result;
         while (iters[diff_key_cursor]->Valid())
         {
-            KeyObject& k = iters[diff_key_cursor]->Key();
+            KeyObject& k = iters[diff_key_cursor]->Key(true);
             if (k.GetType() != KEY_SET_MEMBER || k.GetKey() != keys[diff_key_cursor].GetKey() || k.GetNameSpace() != keys[diff_key_cursor].GetNameSpace())
             {
                 break;
@@ -555,7 +555,7 @@ OP_NAMESPACE_BEGIN
             iters[i]->Jump(start);
             while (iters[i]->Valid())
             {
-                KeyObject& k = iters[i]->Key();
+                KeyObject& k = iters[i]->Key(false);
                 if (k.GetType() != KEY_SET_MEMBER || k.GetKey() != keys[i].GetKey() || k.GetNameSpace() != keys[i].GetNameSpace() || k.GetSetMember() > max)
                 {
                     break;
@@ -702,7 +702,7 @@ OP_NAMESPACE_BEGIN
             inter_result[inter_result_cursor].clear();
             while (iters[i]->Valid())
             {
-                KeyObject& k = iters[i]->Key();
+                KeyObject& k = iters[i]->Key(true);
                 if (k.GetType() != KEY_SET_MEMBER || k.GetKey() != keys[i].GetKey() || k.GetNameSpace() != keys[i].GetNameSpace() || k.GetSetMember() > max)
                 {
                     break;
@@ -822,7 +822,7 @@ OP_NAMESPACE_BEGIN
             }
             while (NULL != iter && iter->Valid())
             {
-                KeyObject& k = iter->Key();
+                KeyObject& k = iter->Key(true);
                 if (k.GetType() != KEY_SET_MEMBER || k.GetKey() != keys[i].GetKey() || k.GetNameSpace() != keys[i].GetNameSpace())
                 {
                     break;
@@ -832,7 +832,6 @@ OP_NAMESPACE_BEGIN
             }
         }
         DELETE(iter);
-
         if (cmd.GetType() == REDIS_CMD_SUNIONSTORE)
         {
             if (metas[0].GetType() > 0)
@@ -841,6 +840,7 @@ OP_NAMESPACE_BEGIN
                 DelKey(ctx, keys[0], iter);
                 DELETE(iter);
             }
+
             if (!union_result.empty())
             {
                 DataSet::iterator it = union_result.begin();

@@ -272,7 +272,7 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         ValueObject v;
-        if (!CheckMeta(ctx, cmd.GetArguments()[0], KEY_STRING, v))
+        if (!CheckMeta(ctx, key, KEY_STRING, v))
         {
             return 0;
         }
@@ -288,6 +288,7 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
+
             reply.SetInteger(oldbit);
         }
         return 0;
@@ -315,7 +316,6 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         Data& str = v.GetStringValue();
-
         if (str.IsString())
         {
             if (str.StringLength() < byte)

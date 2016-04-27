@@ -112,6 +112,15 @@ OP_NAMESPACE_BEGIN
             Buffer value_encode_buffer_cache;
             std::string string_cache;
             std::vector<std::string> multi_string_cache;
+            const rocksdb::Snapshot* PeekSnapshot() const
+            {
+                return snapshot.snapshot;
+            }
+            Buffer& GetKeyEncodeBuferCache()
+            {
+                key_encode_buffer_cache.Clear();
+                return key_encode_buffer_cache;
+            }
             std::vector<string>& GetMultiStringCache(size_t num)
             {
                 if (multi_string_cache.size() < num)
@@ -785,21 +794,26 @@ OP_NAMESPACE_BEGIN
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         std::vector<rocksdb::ColumnFamilyHandle*> cfs;
         std::vector<rocksdb::Slice> ks;
-        std::vector<Buffer> key_encode_buffers;
-        key_encode_buffers.resize(keys.size());
+        std::vector<size_t> positions;
+        Buffer& key_encode_buffers = rocks_ctx.GetKeyEncodeBuferCache();
+        ks.resize(keys.size());
         std::vector<std::string>& vs = rocks_ctx.GetMultiStringCache(keys.size());
         for (size_t i = 0; i < keys.size(); i++)
         {
             vs[i].clear();
-            ks.push_back(to_rocksdb_slice(keys[i].Encode(key_encode_buffers[i])));
+            size_t mark = key_encode_buffers.GetWriteIndex();
+            keys[i].Encode(key_encode_buffers);
+            positions.push_back(key_encode_buffers.GetWriteIndex() - mark);
         }
         for (size_t i = 0; i < keys.size(); i++)
         {
             cfs.push_back(cf);
+            ks[i] = rocksdb::Slice(key_encode_buffers.GetRawReadBuffer(), positions[i]);
+            key_encode_buffers.AdvanceReadIndex(positions[i]);
         }
 
         rocksdb::ReadOptions opt;
-        opt.snapshot = rocks_ctx.snapshot.snapshot;
+        opt.snapshot = rocks_ctx.PeekSnapshot();
         std::vector<rocksdb::Status> ss = m_db->MultiGet(opt, cfs, ks, &vs);
         errs.resize(ss.size());
         values.resize(ss.size());
@@ -824,7 +838,7 @@ OP_NAMESPACE_BEGIN
         }
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         rocksdb::ReadOptions opt;
-        opt.snapshot = rocks_ctx.snapshot.snapshot;
+        opt.snapshot = rocks_ctx.PeekSnapshot();
         std::string& valstr = rocks_ctx.string_cache;
         valstr.clear();
         Buffer& key_encode_buffer = rocks_ctx.key_encode_buffer_cache;
@@ -838,6 +852,7 @@ OP_NAMESPACE_BEGIN
         }
         Buffer valBuffer(const_cast<char*>(valstr.data()), 0, valstr.size());
         value.Decode(valBuffer, true);
+
         return 0;
     }
     int RocksDBEngine::Del(Context& ctx, const KeyObject& key)
@@ -939,11 +954,16 @@ OP_NAMESPACE_BEGIN
     {
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         RocksSnapshot& snapshot = rocks_ctx.snapshot;
+        if(snapshot.snapshot == NULL)
+        {
+            return;
+        }
         snapshot.ref--;
-        if (0 == snapshot.ref)
+        if (snapshot.ref <= 0)
         {
             m_db->ReleaseSnapshot(snapshot.snapshot);
             snapshot.snapshot = NULL;
+            snapshot.ref = 0;
         }
     }
 
@@ -979,6 +999,7 @@ OP_NAMESPACE_BEGIN
                         upperbound_key.SetType(key.GetType() + 1);
                     }
                     upperbound_key.SetKey(key.GetKey());
+                    upperbound_key.CloneStringPart();
                 }
             }
             else
@@ -1120,7 +1141,7 @@ OP_NAMESPACE_BEGIN
         {
             if (m_iter->Valid())
             {
-                if (Key().Compare(m_iterate_upper_bound_key) >= 0)
+                if (Key(false).Compare(m_iterate_upper_bound_key) >= 0)
                 {
                     m_valid = false;
                 }
@@ -1154,8 +1175,7 @@ OP_NAMESPACE_BEGIN
             return;
         }
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
-        rocks_ctx.key_encode_buffer_cache.Clear();
-        Slice key_slice = next.Encode(rocks_ctx.key_encode_buffer_cache);
+        Slice key_slice = next.Encode(rocks_ctx.GetKeyEncodeBuferCache());
         m_iter->Seek(to_rocksdb_slice(key_slice));
         CheckBound();
     }
@@ -1195,19 +1215,25 @@ OP_NAMESPACE_BEGIN
             m_iter->SeekToLast();
         }
     }
-    KeyObject& RocksDBIterator::Key()
+
+
+    KeyObject& RocksDBIterator::Key(bool clone_str)
     {
         if (m_key.GetType() > 0)
         {
+            if(clone_str && m_key.GetKey().IsCStr())
+            {
+                m_key.CloneStringPart();
+            }
             return m_key;
         }
         rocksdb::Slice key = m_iter->key();
         Buffer kbuf(const_cast<char*>(key.data()), 0, key.size());
-        m_key.Decode(kbuf, false);
+        m_key.Decode(kbuf, clone_str);
         m_key.SetNameSpace(m_ns);
         return m_key;
     }
-    ValueObject& RocksDBIterator::Value()
+    ValueObject& RocksDBIterator::Value(bool clone_str)
     {
         if (m_value.GetType() > 0)
         {
@@ -1215,7 +1241,7 @@ OP_NAMESPACE_BEGIN
         }
         rocksdb::Slice key = m_iter->value();
         Buffer kbuf(const_cast<char*>(key.data()), 0, key.size());
-        m_value.Decode(kbuf, false);
+        m_value.Decode(kbuf, clone_str);
         return m_value;
     }
     Slice RocksDBIterator::RawKey()
