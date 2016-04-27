@@ -43,6 +43,7 @@
 #include "engine.hpp"
 #include <vector>
 #include <sparsehash/dense_hash_map>
+#include <memory>
 
 OP_NAMESPACE_BEGIN
 
@@ -92,72 +93,22 @@ OP_NAMESPACE_BEGIN
     class RocksDBEngine: public Engine
     {
         private:
-            class RocksTransaction
-            {
-                private:
-                    rocksdb::WriteBatch batch;
-                    uint32_t ref;
-                public:
-                    RocksTransaction() :
-                            ref(0)
-                    {
-                    }
-                    rocksdb::WriteBatch& GetBatch()
-                    {
-                        return batch;
-                    }
-                    rocksdb::WriteBatch* Ref()
-                    {
-                        if (ref > 0)
-                        {
-                            return &batch;
-                        }
-                        return NULL;
-                    }
-                    uint32 AddRef()
-                    {
-                        ref++;
-                        batch.SetSavePoint();
-                        return ref;
-                    }
-                    uint32 ReleaseRef(bool rollback)
-                    {
-                        ref--;
-                        if (rollback)
-                        {
-                            batch.RollbackToSavePoint();
-                        }
-                        return ref;
-                    }
-                    void Clear()
-                    {
-                        batch.Clear();
-                        ref = 0;
-                    }
-            };
-            struct RocksSnapshot
-            {
-                    const rocksdb::Snapshot* snapshot;
-                    uint32_t ref;
-                    RocksSnapshot() :
-                            snapshot(NULL), ref(0)
-                    {
-                    }
-            };
-
             struct ColumnFamilyHandleContext
             {
                     Data name;
                     rocksdb::ColumnFamilyHandle* handler;
                     time_t create_time;
                     time_t droped_time;
+                    uint32 ref;
                     ColumnFamilyHandleContext() :
-                            handler(0), create_time(0), droped_time(0)
+                            handler(0), create_time(0), droped_time(0),ref(0)
                     {
                     }
+                    rocksdb::ColumnFamilyHandle* Get();
+                    void Release();
             };
-
-            typedef TreeMap<Data, rocksdb::ColumnFamilyHandle*>::Type ColumnFamilyHandleTable;
+            typedef std::shared_ptr<rocksdb::ColumnFamilyHandle> ColumnFamilyHandlePtr;
+            typedef TreeMap<Data, ColumnFamilyHandlePtr>::Type ColumnFamilyHandleTable;
             typedef std::vector<ColumnFamilyHandleContext> ColumnFamilyHandleArray;
             typedef TreeMap<uint32_t, Data>::Type ColumnFamilyHandleIDTable;
             rocksdb::DB* m_db;
@@ -165,12 +116,10 @@ OP_NAMESPACE_BEGIN
             ColumnFamilyHandleTable m_handlers;
             ColumnFamilyHandleArray m_droped_handlers;
             SpinRWLock m_lock;
-            ThreadLocal<RocksTransaction> m_transc;
-            ThreadLocal<RocksSnapshot> m_snapshot;
 
-            rocksdb::ColumnFamilyHandle* GetColumnFamilyHandle(Context& ctx, const Data& name);
+            ColumnFamilyHandlePtr GetColumnFamilyHandle(Context& ctx, const Data& name, bool create_if_noexist);
             const rocksdb::Snapshot* GetSnpashot();
-            const rocksdb::Snapshot* PeekSnpashot();
+
             void ReleaseSnpashot();
             Data GetNamespaceByColumnFamilyId(uint32 id);
             friend class RocksDBIterator;

@@ -50,15 +50,83 @@ OP_NAMESPACE_BEGIN
         return Slice(slice.data(), slice.size());
     }
 
-    struct ColumnFamilyHandleIndex
+    class RocksTransaction
     {
-            int idx;
-            uint32 id;
-            ColumnFamilyHandleIndex() :
-                    idx(-1), id(0)
+        private:
+            rocksdb::WriteBatch batch;
+            uint32_t ref;
+        public:
+            RocksTransaction() :
+                    ref(0)
+            {
+            }
+            rocksdb::WriteBatch& GetBatch()
+            {
+                return batch;
+            }
+            rocksdb::WriteBatch* Ref()
+            {
+                if (ref > 0)
+                {
+                    return &batch;
+                }
+                return NULL;
+            }
+            uint32 AddRef()
+            {
+                ref++;
+                batch.SetSavePoint();
+                return ref;
+            }
+            uint32 ReleaseRef(bool rollback)
+            {
+                ref--;
+                if (rollback)
+                {
+                    batch.RollbackToSavePoint();
+                }
+                return ref;
+            }
+            void Clear()
+            {
+                batch.Clear();
+                ref = 0;
+            }
+    };
+    struct RocksSnapshot
+    {
+            const rocksdb::Snapshot* snapshot;
+            uint32_t ref;
+            RocksSnapshot() :
+                    snapshot(NULL), ref(0)
             {
             }
     };
+
+#define DEFAULT_ROCKS_LOCAL_MULTI_CACHE_SIZE 10
+    struct RocksDBLocalContext
+    {
+            RocksTransaction transc;
+            RocksSnapshot snapshot;
+            Buffer key_encode_buffer_cache;
+            Buffer value_encode_buffer_cache;
+            std::string string_cache;
+            std::vector<std::string> multi_string_cache;
+            std::vector<string>& GetMultiStringCache(size_t num)
+            {
+                if (multi_string_cache.size() < num)
+                {
+                    multi_string_cache.resize(num);
+                }
+                else
+                {
+                    multi_string_cache.resize(DEFAULT_ROCKS_LOCAL_MULTI_CACHE_SIZE);
+                }
+                return multi_string_cache;
+            }
+    };
+
+    static ThreadLocal<RocksDBLocalContext> g_rocks_context;
 
     class RocksDBLogger: public rocksdb::Logger
     {
@@ -324,7 +392,7 @@ OP_NAMESPACE_BEGIN
             }
             std::unique_ptr<rocksdb::CompactionFilter> CreateCompactionFilter(const rocksdb::CompactionFilter::Context& context)
             {
-                return std::unique_ptr<rocksdb::CompactionFilter>(new RocksDBCompactionFilter(engine, context));
+                return std::unique_ptr < rocksdb::CompactionFilter > (new RocksDBCompactionFilter(engine, context));
             }
 
             const char* Name() const
@@ -360,7 +428,8 @@ OP_NAMESPACE_BEGIN
             // internal corruption. This will be treated as an error by the library.
             //
             // Also make use of the *logger for error messages.
-            bool FullMerge(const rocksdb::Slice& key, const rocksdb::Slice* existing_value, const std::deque<std::string>& operand_list, std::string* new_value, rocksdb::Logger* logger) const
+            bool FullMerge(const rocksdb::Slice& key, const rocksdb::Slice* existing_value, const std::deque<std::string>& operand_list, std::string* new_value,
+                    rocksdb::Logger* logger) const
             {
 
                 KeyObject key_obj;
@@ -444,7 +513,8 @@ OP_NAMESPACE_BEGIN
             // If there is corruption in the data, handle it in the FullMerge() function,
             // and return false there.  The default implementation of PartialMerge will
             // always return false.
-            bool PartialMergeMulti(const rocksdb::Slice& key, const std::deque<rocksdb::Slice>& operand_list, std::string* new_value, rocksdb::Logger* logger) const
+            bool PartialMergeMulti(const rocksdb::Slice& key, const std::deque<rocksdb::Slice>& operand_list, std::string* new_value,
+                    rocksdb::Logger* logger) const
             {
                 if (operand_list.size() < 2)
                 {
@@ -466,7 +536,9 @@ OP_NAMESPACE_BEGIN
                         WARN_LOG("Invalid merge op at:%u", i);
                         return false;
                     }
-                    if (0 != g_db->MergeOperands(ops[left_pos].GetMergeOp(), ops[left_pos].GetMergeArgs(), ops[1 - left_pos].GetMergeOp(), ops[1 - left_pos].GetMergeArgs()))
+                    if (0
+                            != g_db->MergeOperands(ops[left_pos].GetMergeOp(), ops[left_pos].GetMergeArgs(), ops[1 - left_pos].GetMergeOp(),
+                                    ops[1 - left_pos].GetMergeArgs()))
                     {
                         return false;
                     }
@@ -500,7 +572,8 @@ OP_NAMESPACE_BEGIN
             // multiple times, where each time it only merges two operands.  Developers
             // should either implement PartialMergeMulti, or implement PartialMerge which
             // is served as the helper function of the default PartialMergeMulti.
-            bool PartialMerge(const rocksdb::Slice& key, const rocksdb::Slice& left_operand, const rocksdb::Slice& right_operand, std::string* new_value, rocksdb::Logger* logger) const
+            bool PartialMerge(const rocksdb::Slice& key, const rocksdb::Slice& left_operand, const rocksdb::Slice& right_operand, std::string* new_value,
+                    rocksdb::Logger* logger) const
             {
                 ValueObject left_op, right_op;
                 Buffer left_mergeBuffer(const_cast<char*>(left_operand.data()), 0, left_operand.size());
@@ -539,16 +612,12 @@ OP_NAMESPACE_BEGIN
 
     RocksDBEngine::~RocksDBEngine()
     {
-        ColumnFamilyHandleTable::iterator it = m_handlers.begin();
-        while (it != m_handlers.end())
-        {
-            DELETE(it->second);
-            it++;
-        }
+        RWLockGuard<SpinRWLock> guard(m_lock, true);
+        m_handlers.clear();
         DELETE(m_db);
     }
 
-    rocksdb::ColumnFamilyHandle* RocksDBEngine::GetColumnFamilyHandle(Context& ctx, const Data& ns)
+    RocksDBEngine::ColumnFamilyHandlePtr RocksDBEngine::GetColumnFamilyHandle(Context& ctx, const Data& ns, bool create_if_noexist)
     {
         RWLockGuard<SpinRWLock> guard(m_lock, !ctx.flags.create_if_notexist);
         ColumnFamilyHandleTable::iterator found = m_handlers.find(ns);
@@ -556,7 +625,7 @@ OP_NAMESPACE_BEGIN
         {
             return found->second;
         }
-        if (!ctx.flags.create_if_notexist)
+        if (!create_if_noexist)
         {
             return NULL;
         }
@@ -567,9 +636,9 @@ OP_NAMESPACE_BEGIN
         rocksdb::Status s = m_db->CreateColumnFamily(cf_options, name, &cfh);
         if (s.ok())
         {
-            m_handlers[ns] = cfh;
+            m_handlers[ns].reset(cfh);
             INFO_LOG("Create ColumnFamilyHandle with name:%s success.", name.c_str());
-            return cfh;
+            return m_handlers[ns];
         }
         ERROR_LOG("Failed to create column family:%s for reason:%s", name.c_str(), s.ToString().c_str());
         return NULL;
@@ -621,7 +690,7 @@ OP_NAMESPACE_BEGIN
                     rocksdb::ColumnFamilyHandle* handler = handlers[i];
                     Data ns;
                     ns.SetString(column_families_descs[i].name, false);
-                    m_handlers[ns] = handler;
+                    m_handlers[ns].reset(handler);
                     INFO_LOG("RocksDB open column family:%s success.", column_families_descs[i].name.c_str());
                 }
             }
@@ -654,17 +723,18 @@ OP_NAMESPACE_BEGIN
 
     int RocksDBEngine::PutRaw(Context& ctx, const Slice& key, const Slice& value)
     {
-        rocksdb::ColumnFamilyHandle* cf = GetColumnFamilyHandle(ctx, ctx.ns);
+        ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, ctx.ns, ctx.flags.create_if_notexist);
+        rocksdb::ColumnFamilyHandle* cf = cfp.get();
         if (NULL == cf)
         {
             return ERR_ENTRY_NOT_EXIST;
         }
-
+        RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         rocksdb::WriteOptions opt;
         rocksdb::Slice key_slice = to_rocksdb_slice(key);
         rocksdb::Slice value_slice = to_rocksdb_slice(value);
         rocksdb::Status s;
-        rocksdb::WriteBatch* batch = m_transc.GetValue().Ref();
+        rocksdb::WriteBatch* batch = rocks_ctx.transc.Ref();
         if (NULL != batch)
         {
             batch->Put(cf, key_slice, value_slice);
@@ -679,20 +749,21 @@ OP_NAMESPACE_BEGIN
     int RocksDBEngine::Put(Context& ctx, const KeyObject& key, const ValueObject& value)
     {
         rocksdb::Status s;
-
-//        return 0;
-
-        rocksdb::ColumnFamilyHandle* cf = GetColumnFamilyHandle(ctx, key.GetNameSpace());
+        ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, key.GetNameSpace(), ctx.flags.create_if_notexist);
+        rocksdb::ColumnFamilyHandle* cf = cfp.get();
         if (NULL == cf)
         {
             return ERR_ENTRY_NOT_EXIST;
         }
-
+        RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         rocksdb::WriteOptions opt;
-        rocksdb::Slice key_slice = to_rocksdb_slice(const_cast<KeyObject&>(key).Encode());
-        Buffer value_buffer;
-        rocksdb::Slice value_slice = to_rocksdb_slice(const_cast<ValueObject&>(value).Encode(value_buffer));
-        rocksdb::WriteBatch* batch = m_transc.GetValue().Ref();
+        Buffer& key_encode_buffer = rocks_ctx.key_encode_buffer_cache;
+        key_encode_buffer.Clear();
+        rocksdb::Slice key_slice = to_rocksdb_slice(key.Encode(key_encode_buffer));
+        Buffer& value_buffer = rocks_ctx.value_encode_buffer_cache;
+        value_buffer.Clear();
+        rocksdb::Slice value_slice = to_rocksdb_slice(value.Encode(value_buffer));
+        rocksdb::WriteBatch* batch = rocks_ctx.transc.Ref();
         if (NULL != batch)
         {
             batch->Put(cf, key_slice, value_slice);
@@ -705,24 +776,30 @@ OP_NAMESPACE_BEGIN
     }
     int RocksDBEngine::MultiGet(Context& ctx, const KeyObjectArray& keys, ValueObjectArray& values, ErrCodeArray& errs)
     {
-        rocksdb::ColumnFamilyHandle* cf = GetColumnFamilyHandle(ctx, ctx.ns);
+        ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, ctx.ns, false);
+        rocksdb::ColumnFamilyHandle* cf = cfp.get();
         if (NULL == cf)
         {
             return ERR_ENTRY_NOT_EXIST;
         }
+        RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         std::vector<rocksdb::ColumnFamilyHandle*> cfs;
         std::vector<rocksdb::Slice> ks;
+        std::vector<Buffer> key_encode_buffers;
+        key_encode_buffers.resize(keys.size());
+        std::vector<std::string>& vs = rocks_ctx.GetMultiStringCache(keys.size());
         for (size_t i = 0; i < keys.size(); i++)
         {
-            ks.push_back(to_rocksdb_slice(const_cast<KeyObject&>(keys[i]).Encode()));
+            vs[i].clear();
+            ks.push_back(to_rocksdb_slice(keys[i].Encode(key_encode_buffers[i])));
         }
         for (size_t i = 0; i < keys.size(); i++)
         {
             cfs.push_back(cf);
         }
-        std::vector<std::string> vs;
+
         rocksdb::ReadOptions opt;
-        opt.snapshot = PeekSnpashot();
+        opt.snapshot = rocks_ctx.snapshot.snapshot;
         std::vector<rocksdb::Status> ss = m_db->MultiGet(opt, cfs, ks, &vs);
         errs.resize(ss.size());
         values.resize(ss.size());
@@ -739,15 +816,20 @@ OP_NAMESPACE_BEGIN
     }
     int RocksDBEngine::Get(Context& ctx, const KeyObject& key, ValueObject& value)
     {
-        rocksdb::ColumnFamilyHandle* cf = GetColumnFamilyHandle(ctx, key.GetNameSpace());
+        ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, key.GetNameSpace(),false);
+        rocksdb::ColumnFamilyHandle* cf = cfp.get();
         if (NULL == cf)
         {
             return ERR_ENTRY_NOT_EXIST;
         }
+        RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         rocksdb::ReadOptions opt;
-        opt.snapshot = PeekSnpashot();
-        std::string valstr;
-        rocksdb::Slice key_slice = to_rocksdb_slice(const_cast<KeyObject&>(key).Encode());
+        opt.snapshot = rocks_ctx.snapshot.snapshot;
+        std::string& valstr = rocks_ctx.string_cache;
+        valstr.clear();
+        Buffer& key_encode_buffer = rocks_ctx.key_encode_buffer_cache;
+        key_encode_buffer.Clear();
+        rocksdb::Slice key_slice = to_rocksdb_slice(key.Encode(key_encode_buffer));
         rocksdb::Status s = m_db->Get(opt, cf, key_slice, &valstr);
         int err = ROCKSDB_ERR(s);
         if (0 != err)
@@ -760,15 +842,19 @@ OP_NAMESPACE_BEGIN
     }
     int RocksDBEngine::Del(Context& ctx, const KeyObject& key)
     {
-        rocksdb::ColumnFamilyHandle* cf = GetColumnFamilyHandle(ctx, key.GetNameSpace());
+        ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, key.GetNameSpace(), false);
+        rocksdb::ColumnFamilyHandle* cf = cfp.get();
         if (NULL == cf)
         {
             return ERR_ENTRY_NOT_EXIST;
         }
+        RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         rocksdb::WriteOptions opt;
-        rocksdb::Slice key_slice = to_rocksdb_slice(const_cast<KeyObject&>(key).Encode());
+        Buffer& key_encode_buffer = rocks_ctx.key_encode_buffer_cache;
+        key_encode_buffer.Clear();
+        rocksdb::Slice key_slice = to_rocksdb_slice(key.Encode(key_encode_buffer));
         rocksdb::Status s;
-        rocksdb::WriteBatch* batch = m_transc.GetValue().Ref();
+        rocksdb::WriteBatch* batch = rocks_ctx.transc.Ref();
         if (NULL != batch)
         {
             batch->Delete(cf, key_slice);
@@ -782,19 +868,23 @@ OP_NAMESPACE_BEGIN
 
     int RocksDBEngine::Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args)
     {
-        rocksdb::ColumnFamilyHandle* cf = GetColumnFamilyHandle(ctx, key.GetNameSpace());
+        ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, key.GetNameSpace(), ctx.flags.create_if_notexist);
+        rocksdb::ColumnFamilyHandle* cf = cfp.get();
         if (NULL == cf)
         {
             return ERR_ENTRY_NOT_EXIST;
         }
+        RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
+        Buffer& key_encode_buffer = rocks_ctx.key_encode_buffer_cache;
+        key_encode_buffer.Clear();
         rocksdb::WriteOptions opt;
-        rocksdb::Slice key_slice = to_rocksdb_slice(const_cast<KeyObject&>(key).Encode());
-        Buffer merge_buffer;
-
+        rocksdb::Slice key_slice = to_rocksdb_slice(key.Encode(key_encode_buffer));
+        Buffer& merge_buffer = rocks_ctx.value_encode_buffer_cache;
+        merge_buffer.Clear();
         encode_merge_operation(merge_buffer, op, args);
         rocksdb::Slice merge_slice(merge_buffer.GetRawReadBuffer(), merge_buffer.ReadableBytes());
         rocksdb::Status s;
-        rocksdb::WriteBatch* batch = m_transc.GetValue().Ref();
+        rocksdb::WriteBatch* batch = rocks_ctx.transc.Ref();
         if (NULL != batch)
         {
             batch->Merge(cf, key_slice, merge_slice);
@@ -808,16 +898,20 @@ OP_NAMESPACE_BEGIN
 
     bool RocksDBEngine::Exists(Context& ctx, const KeyObject& key)
     {
-        ctx.flags.create_if_notexist = false;
-        rocksdb::ColumnFamilyHandle* cf = GetColumnFamilyHandle(ctx, key.GetNameSpace());
+        ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, key.GetNameSpace(), false);
+        rocksdb::ColumnFamilyHandle* cf = cfp.get();
         if (NULL == cf)
         {
-            return ERR_ENTRY_NOT_EXIST;
+            return false;
         }
+        RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         rocksdb::ReadOptions opt;
-        opt.snapshot = PeekSnpashot();
-        std::string tmp;
-        rocksdb::Slice k = to_rocksdb_slice(const_cast<KeyObject&>(key).Encode());
+        opt.snapshot = rocks_ctx.snapshot.snapshot;
+        Buffer& key_encode_buffer = rocks_ctx.key_encode_buffer_cache;
+        key_encode_buffer.Clear();
+        std::string& tmp = rocks_ctx.string_cache;
+        tmp.clear();
+        rocksdb::Slice k = to_rocksdb_slice(key.Encode(key_encode_buffer));
         bool exist = m_db->KeyMayExist(opt, cf, k, &tmp, NULL);
         if (!exist)
         {
@@ -832,7 +926,8 @@ OP_NAMESPACE_BEGIN
 
     const rocksdb::Snapshot* RocksDBEngine::GetSnpashot()
     {
-        RocksSnapshot& snapshot = m_snapshot.GetValue();
+        RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
+        RocksSnapshot& snapshot = rocks_ctx.snapshot;
         snapshot.ref++;
         if (snapshot.snapshot == NULL)
         {
@@ -840,14 +935,10 @@ OP_NAMESPACE_BEGIN
         }
         return snapshot.snapshot;
     }
-    const rocksdb::Snapshot* RocksDBEngine::PeekSnpashot()
-    {
-        RocksSnapshot& snapshot = m_snapshot.GetValue();
-        return snapshot.snapshot;
-    }
     void RocksDBEngine::ReleaseSnpashot()
     {
-        RocksSnapshot& snapshot = m_snapshot.GetValue();
+        RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
+        RocksSnapshot& snapshot = rocks_ctx.snapshot;
         snapshot.ref--;
         if (0 == snapshot.ref)
         {
@@ -860,11 +951,11 @@ OP_NAMESPACE_BEGIN
     {
         RocksDBIterator* iter = NULL;
         NEW(iter, RocksDBIterator(this,key.GetNameSpace()));
-        rocksdb::ColumnFamilyHandle* cf = GetColumnFamilyHandle(ctx, key.GetNameSpace());
+        ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, key.GetNameSpace(), false);
+        rocksdb::ColumnFamilyHandle* cf = cfp.get();
         if (NULL == cf)
         {
             iter->MarkValid(false);
-            //printf("###mark valid alse");
             return iter;
         }
 
@@ -911,37 +1002,42 @@ OP_NAMESPACE_BEGIN
 
     int RocksDBEngine::BeginTransaction()
     {
-        m_transc.GetValue().AddRef();
+        RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
+        rocks_ctx.transc.AddRef();
         return 0;
     }
     int RocksDBEngine::CommitTransaction()
     {
-        if (m_transc.GetValue().ReleaseRef(false) == 0)
+        RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
+        if (rocks_ctx.transc.ReleaseRef(false) == 0)
         {
             rocksdb::WriteOptions opt;
-            m_db->Write(opt, &m_transc.GetValue().GetBatch());
-            m_transc.GetValue().Clear();
+            m_db->Write(opt, &rocks_ctx.transc.GetBatch());
+            rocks_ctx.transc.Clear();
         }
         return 0;
     }
     int RocksDBEngine::DiscardTransaction()
     {
-        if (m_transc.GetValue().ReleaseRef(true) == 0)
+        RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
+        if (rocks_ctx.transc.ReleaseRef(true) == 0)
         {
-            m_transc.GetValue().Clear();
+            rocks_ctx.transc.Clear();
         }
         return 0;
     }
 
     int RocksDBEngine::Compact(Context& ctx, const KeyObject& start, const KeyObject& end)
     {
-        rocksdb::ColumnFamilyHandle* cf = GetColumnFamilyHandle(ctx, start.GetNameSpace());
+        ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, start.GetNameSpace(), false);
+        rocksdb::ColumnFamilyHandle* cf = cfp.get();
         if (NULL == cf)
         {
             return ERR_ENTRY_NOT_EXIST;
         }
-        rocksdb::Slice start_key = to_rocksdb_slice(const_cast<KeyObject&>(start).Encode());
-        rocksdb::Slice end_key = to_rocksdb_slice(const_cast<KeyObject&>(end).Encode());
+        Buffer start_buffer, end_buffer;
+        rocksdb::Slice start_key = to_rocksdb_slice(start.Encode(start_buffer));
+        rocksdb::Slice end_key = to_rocksdb_slice(end.Encode(end_buffer));
         rocksdb::CompactRangeOptions opt;
         rocksdb::Status s = m_db->CompactRange(opt, cf, start.IsValid() ? &start_key : NULL, end.IsValid() ? &end_key : NULL);
         return ROCKSDB_ERR(s);
@@ -969,7 +1065,7 @@ OP_NAMESPACE_BEGIN
         if (found != m_handlers.end())
         {
             INFO_LOG("RocksDB drop column family:%s.", found->second->GetName().c_str());
-            m_db->DropColumnFamily(found->second);
+            m_db->DropColumnFamily(found->second.get());
             //m_droped_handlers.push_back(found->second);
             m_handlers.erase(found);
         }
@@ -979,7 +1075,8 @@ OP_NAMESPACE_BEGIN
     int64_t RocksDBEngine::EstimateKeysNum(Context& ctx, const Data& ns)
     {
         std::string cf_stat;
-        rocksdb::ColumnFamilyHandle* cf = GetColumnFamilyHandle(ctx, ns);
+        ColumnFamilyHandlePtr cfp =  GetColumnFamilyHandle(ctx, ns, false);
+        rocksdb::ColumnFamilyHandle* cf = cfp.get();
         if (NULL == cf)
             return 0;
         uint64 value = 0;
@@ -990,88 +1087,21 @@ OP_NAMESPACE_BEGIN
     void RocksDBEngine::Stats(Context& ctx, std::string& all)
     {
         std::string str, version_info;
-        version_info.append("RocksDB version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(stringfromll(rocksdb::kMinorVersion)).append(".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
+        version_info.append("RocksDB version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(stringfromll(rocksdb::kMinorVersion)).append(
+                ".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
         all.append(version_info);
         DataArray nss;
         ListNameSpaces(ctx, nss);
         for (size_t i = 0; i < nss.size(); i++)
         {
             std::string cf_stat;
-            rocksdb::ColumnFamilyHandle* cf = GetColumnFamilyHandle(ctx, nss[i]);
+            ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, nss[i], false);
+            rocksdb::ColumnFamilyHandle* cf = cfp.get();
             if (NULL == cf)
                 continue;
             m_db->GetProperty(cf, "rocksdb.stats", &cf_stat);
             all.append(cf_stat).append("\r\n");
-//            all.append("** Misc Stats **\r\n");
-//            std::string sv;
-//            if (m_db->GetProperty(cf, "rocksdb.estimate-num-keys", &sv))
-//            {
-//                all.append("estimate-num-keys:").append(sv).append("\r\n");
-//            }
-//            if (m_db->GetProperty(cf, "rocksdb.num-immutable-mem-table", &sv))
-//            {
-//                all.append("num-immutable-mem-table:").append(sv).append("\r\n");
-//            }
-//            if (m_db->GetProperty(cf, "rocksdb.compaction-pending", &sv))
-//            {
-//                all.append("compaction-pending:").append(sv).append("\r\n");
-//            }
-//            if (m_db->GetProperty(cf, "rocksdb.background-errors", &sv))
-//            {
-//                all.append("background-errors:").append(sv).append("\r\n");
-//            }
-//            if (m_db->GetProperty(cf, "rocksdb.cur-size-active-mem-table", &sv))
-//            {
-//                all.append("cur-size-active-mem-table:").append(sv).append("\r\n");
-//            }
-//            if (m_db->GetProperty(cf, "rocksdb.num-entries-active-mem-table", &sv))
-//            {
-//                all.append("num-entries-active-mem-table:").append(sv).append("\r\n");
-//            }
-//            if (m_db->GetProperty(cf, "rocksdb.num-entries-imm-mem-tables", &sv))
-//            {
-//                all.append("num-entries-imm-mem-tables:").append(sv).append("\r\n");
-//            }
-//            if (m_db->GetProperty(cf, "rocksdb.estimate-table-readers-mem", &sv))
-//            {
-//                all.append("estimate-table-readers-mem:").append(sv).append("\r\n");
-//            }
         }
-//        std::string sv;
-//        if (m_db->GetProperty("rocksdb.estimate-num-keys", &sv))
-//        {
-//            all.append("estimate-num-keys:").append(sv).append("\r\n");
-//        }
-//        if (m_db->GetProperty("rocksdb.num-immutable-mem-table", &sv))
-//        {
-//            all.append("num-immutable-mem-table:").append(sv).append("\r\n");
-//        }
-//        if (m_db->GetProperty("rocksdb.compaction-pending", &sv))
-//        {
-//            all.append("compaction-pending:").append(sv).append("\r\n");
-//        }
-//        if (m_db->GetProperty("rocksdb.background-errors", &sv))
-//        {
-//            all.append("background-errors:").append(sv).append("\r\n");
-//        }
-//        if (m_db->GetProperty("rocksdb.cur-size-active-mem-table", &sv))
-//        {
-//            all.append("cur-size-active-mem-table:").append(sv).append("\r\n");
-//        }
-//        if (m_db->GetProperty("rocksdb.num-entries-active-mem-table", &sv))
-//        {
-//            all.append("num-entries-active-mem-table:").append(sv).append("\r\n");
-//        }
-//        if (m_db->GetProperty("rocksdb.num-entries-imm-mem-tables", &sv))
-//        {
-//            all.append("num-entries-imm-mem-tables:").append(sv).append("\r\n");
-//        }
-//        if (m_db->GetProperty("rocksdb.estimate-table-readers-mem", &sv))
-//        {
-//            all.append("estimate-table-readers-mem:").append(sv).append("\r\n");
-//        }
-
-//        all.append(str);
     }
 
     bool RocksDBIterator::RocksDBIterator::Valid()
@@ -1100,29 +1130,51 @@ OP_NAMESPACE_BEGIN
     void RocksDBIterator::Next()
     {
         ClearState();
+        if(NULL == m_iter)
+        {
+            return;
+        }
         m_iter->Next();
         CheckBound();
     }
     void RocksDBIterator::Prev()
     {
         ClearState();
+        if(NULL == m_iter)
+        {
+            return;
+        }
         m_iter->Prev();
     }
     void RocksDBIterator::Jump(const KeyObject& next)
     {
         ClearState();
-        Slice key_slice = const_cast<KeyObject&>(next).Encode();
+        if(NULL == m_iter)
+        {
+            return;
+        }
+        RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
+        rocks_ctx.key_encode_buffer_cache.Clear();
+        Slice key_slice = next.Encode(rocks_ctx.key_encode_buffer_cache);
         m_iter->Seek(to_rocksdb_slice(key_slice));
         CheckBound();
     }
     void RocksDBIterator::JumpToFirst()
     {
         ClearState();
+        if(NULL == m_iter)
+        {
+            return;
+        }
         m_iter->SeekToFirst();
     }
     void RocksDBIterator::JumpToLast()
     {
         ClearState();
+        if(NULL == m_iter)
+        {
+            return;
+        }
         if (m_iterate_upper_bound_key.GetType() > 0)
         {
             Jump(m_iterate_upper_bound_key);
@@ -1151,7 +1203,7 @@ OP_NAMESPACE_BEGIN
         }
         rocksdb::Slice key = m_iter->key();
         Buffer kbuf(const_cast<char*>(key.data()), 0, key.size());
-        m_key.Decode(kbuf, true);
+        m_key.Decode(kbuf, false);
         m_key.SetNameSpace(m_ns);
         return m_key;
     }
@@ -1163,7 +1215,7 @@ OP_NAMESPACE_BEGIN
         }
         rocksdb::Slice key = m_iter->value();
         Buffer kbuf(const_cast<char*>(key.data()), 0, key.size());
-        m_value.Decode(kbuf, true);
+        m_value.Decode(kbuf, false);
         return m_value;
     }
     Slice RocksDBIterator::RawKey()

@@ -71,15 +71,8 @@ OP_NAMESPACE_BEGIN
             Data key;
             DataArray elements;
 
-            Buffer encode_buffer;
-            inline void clearEncodeBuffer()
-            {
-                encode_buffer.Clear();
-            }
-
             Data& getElement(uint32_t idx)
             {
-                clearEncodeBuffer();
                 if (elements.size() <= idx)
                 {
                     elements.resize(idx + 1);
@@ -109,7 +102,6 @@ OP_NAMESPACE_BEGIN
             }
             void Clear()
             {
-                clearEncodeBuffer();
                 type = 0;
                 ns.Clear();
                 key.Clear();
@@ -248,8 +240,8 @@ OP_NAMESPACE_BEGIN
 
             bool IsValid() const;
             int Compare(const KeyObject& other) const;
-
-            Slice Encode(bool verify = true);
+            Slice Encode(Buffer& buffer, bool verify = true) const;
+//            Slice Encode(bool verify = true);
             void EncodePrefix(Buffer& buffer) const;
             bool DecodeNS(Buffer& buffer, bool clone_str);
             bool DecodeKey(Buffer& buffer, bool clone_str);
@@ -435,7 +427,7 @@ OP_NAMESPACE_BEGIN
             {
                 return vals;
             }
-            Slice Encode(Buffer& buffer);
+            Slice Encode(Buffer& buffer)const;
             bool Decode(Buffer& buffer, bool clone_str);
     };
 

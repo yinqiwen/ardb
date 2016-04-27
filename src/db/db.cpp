@@ -469,7 +469,6 @@ OP_NAMESPACE_BEGIN
                 DELETE(m_engine);
                 return -1;
             }
-            m_expire_check_task.Start();
             m_starttime = time(NULL);
             return 0;
         }
@@ -692,15 +691,6 @@ OP_NAMESPACE_BEGIN
         {
             LockGuard<ThreadMutexLock> guard(*lock);
             lock->Notify();
-        }
-    }
-
-    void Ardb::ExpireCheckTask::Run()
-    {
-        while (GetState() == RUNNING)
-        {
-            g_db->ScanExpiredKeys();
-            usleep(1000 * 1000);
         }
     }
 

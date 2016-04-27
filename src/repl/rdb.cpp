@@ -1480,7 +1480,7 @@ namespace ardb
         fclose(fp);
         if (memcmp(buf, "REDIS", 5) != 0)
         {
-            WARN_LOG("Wrong signature trying to load DB from file:%s", file.c_str());
+            //WARN_LOG("Wrong signature trying to load DB from file:%s", file.c_str());
             return 0;
         }
         return 1;
@@ -1891,6 +1891,7 @@ namespace ardb
         Context loadctx;
         loadctx.flags.no_fill_reply = 1;
         loadctx.flags.no_wal = 1;
+        loadctx.flags.create_if_notexist = 1;
         if (!Read(buf, 8, true))
             goto eoferr;
         buf[9] = '\0';

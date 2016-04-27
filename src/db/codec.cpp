@@ -132,7 +132,7 @@ OP_NAMESPACE_BEGIN
 
     bool KeyObject::DecodeType(Buffer& buffer)
     {
-        if(!buffer.Readable())
+        if (!buffer.Readable())
         {
             return false;
         }
@@ -206,26 +206,40 @@ OP_NAMESPACE_BEGIN
         buffer.Write(key.CStr(), key.StringLength());
         buffer.WriteByte((char) type);
     }
-
-    Slice KeyObject::Encode(bool verify)
+    Slice KeyObject::Encode(Buffer& buffer, bool verify) const
     {
         if (verify && !IsValid())
         {
             return Slice();
         }
-        if (!encode_buffer.Readable())
+        size_t mark = buffer.GetWriteIndex();
+        EncodePrefix(buffer);
+        buffer.WriteByte((char) elements.size());
+        for (size_t i = 0; i < elements.size(); i++)
         {
-            //encode_buffer.WriteByte((char) type);
-            //key.Encode(encode_buffer);
-            EncodePrefix(encode_buffer);
-            encode_buffer.WriteByte((char) elements.size());
-            for (size_t i = 0; i < elements.size(); i++)
-            {
-                elements[i].Encode(encode_buffer);
-            }
+            elements[i].Encode(buffer);
         }
-        return Slice(encode_buffer.GetRawReadBuffer(), encode_buffer.ReadableBytes());
+        return Slice(buffer.GetRawBuffer() + mark, buffer.GetWriteIndex() - mark);
     }
+//    Slice KeyObject::Encode(bool verify)
+//    {
+//        if (verify && !IsValid())
+//        {
+//            return Slice();
+//        }
+//        if (!encode_buffer.Readable())
+//        {
+//            //encode_buffer.WriteByte((char) type);
+//            //key.Encode(encode_buffer);
+//            EncodePrefix(encode_buffer);
+//            encode_buffer.WriteByte((char) elements.size());
+//            for (size_t i = 0; i < elements.size(); i++)
+//            {
+//                elements[i].Encode(encode_buffer);
+//            }
+//        }
+//        return Slice(encode_buffer.GetRawReadBuffer(), encode_buffer.ReadableBytes());
+//    }
 
     bool KeyObject::IsValid() const
     {
@@ -420,13 +434,12 @@ OP_NAMESPACE_BEGIN
         }
     }
 
-    Slice ValueObject::Encode(Buffer& encode_buffer)
+    Slice ValueObject::Encode(Buffer& encode_buffer) const
     {
         if (0 == type)
         {
             return Slice();
         }
-
         encode_value_object(encode_buffer, type, merge_op, vals);
         return Slice(encode_buffer.GetRawReadBuffer(), encode_buffer.ReadableBytes());
     }

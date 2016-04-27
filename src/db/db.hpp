@@ -102,11 +102,6 @@ OP_NAMESPACE_BEGIN
 
         private:
 
-            struct ExpireCheckTask:public Thread
-            {
-                void Run();
-            };
-
             Engine* m_engine;
             time_t m_starttime;
             bool m_loading_data;
@@ -116,7 +111,6 @@ OP_NAMESPACE_BEGIN
             typedef TreeSet<KeyPrefix>::Type ExpireKeySet;
             SpinMutexLock m_expires_lock;
             ExpireKeySet m_expires;
-            ExpireCheckTask m_expire_check_task;
 
             typedef google::dense_hash_map<std::string, RedisCommandHandlerSetting, RedisCommandHash, RedisCommandEqual> RedisCommandHandlerSettingTable;
             RedisCommandHandlerSettingTable m_settings;
