@@ -50,10 +50,6 @@ OP_NAMESPACE_BEGIN
             std::string CurrentNamespace();
             void ClearCurrentNamespace();
             void ResetWALOffsetCksm(uint64_t offset, uint64_t cksm);
-//            void ResetDataOffsetCksm(uint64_t offset, uint64_t cksm);
-//            uint64_t DataOffset();
-//            uint64_t DataCksm();
-//            void UpdateDataOffsetCksm(const Buffer& data);
             ~ReplicationBacklog();
     };
 

@@ -162,6 +162,7 @@ OP_NAMESPACE_BEGIN
         }
 
         conf_get_string(props, "zookeeper-servers", zookeeper_servers);
+        conf_get_string(props, "zk-clientid-file", zk_clientid_file);
 
         conf_get_string(props, "loglevel", loglevel);
         conf_get_string(props, "logfile", logfile);

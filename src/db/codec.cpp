@@ -317,12 +317,10 @@ OP_NAMESPACE_BEGIN
 
     int64_t ValueObject::GetTTL()
     {
-        assert(type != 0);
         return GetMeta().ttl;
     }
     void ValueObject::SetTTL(int64_t v)
     {
-        assert(type != 0);
         GetMeta().ttl = v;
     }
     void ValueObject::ClearMinMaxData()
@@ -441,6 +439,43 @@ OP_NAMESPACE_BEGIN
         encode_value_object(encode_buffer, type, merge_op, vals);
         return Slice(encode_buffer.GetRawReadBuffer(), encode_buffer.ReadableBytes());
     }
+
+    bool ValueObject::DecodeMeta(Buffer& buffer, bool clone_str)
+    {
+        Clear();
+        if (!buffer.Readable())
+        {
+            return true;
+        }
+        char tmp;
+        if (!buffer.ReadByte(tmp))
+        {
+            return false;
+        }
+        type = (uint8) tmp;
+        if (type == KEY_MERGE)
+        {
+            if (!BufferHelper::ReadFixUInt16(buffer, merge_op, true))
+            {
+                return false;
+            }
+        }
+        char lench;
+        if (!buffer.ReadByte(lench))
+        {
+            return false;
+        }
+        uint8 len = (uint8) lench;
+        if (len > 0)
+        {
+            /*
+             * Meta value is the first element
+             */
+            return vals[0].Decode(buffer, clone_str);
+        }
+        return false;
+    }
+
     bool ValueObject::Decode(Buffer& buffer, bool clone_str)
     {
         Clear();
@@ -458,7 +493,6 @@ OP_NAMESPACE_BEGIN
         {
             if (!BufferHelper::ReadFixUInt16(buffer, merge_op, true))
             {
-                printf("DEcode merger op ail!\n");
                 return false;
             }
         }

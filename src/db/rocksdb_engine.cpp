@@ -356,7 +356,7 @@ OP_NAMESPACE_BEGIN
                 {
                     ValueObject meta;
                     Buffer val_buffer(const_cast<char*>(existing_value.data()), 0, existing_value.size());
-                    if (!meta.Decode(val_buffer, false))
+                    if (!meta.DecodeMeta(val_buffer, false))
                     {
                         ERROR_LOG("Failed to decode value of key:%s with type:%u %u", k.GetKey().AsString().c_str(), meta.GetType(), existing_value.size());
                         return false;
@@ -366,17 +366,10 @@ OP_NAMESPACE_BEGIN
                         ERROR_LOG("Invalid value for key:%s with type:%u %u", k.GetKey().AsString().c_str(), k.GetType(), existing_value.size());
                         return false;
                     }
-
                     if (meta.GetMergeOp() != 0)
                     {
-//                        INFO_LOG("#### Filter key:%s merge op:%d\n", k.GetKey().AsString().c_str(), meta.GetMergeOp());
                         return false;
                     }
-//                    if (meta.GetTTL() > 0)
-//                    {
-//                        INFO_LOG("#### Filter key:%s ttl:%lld %d\n", k.GetKey().AsString().c_str(), meta.GetTTL() - get_current_epoch_millis(), pthread_self());
-//                    }
-                    //INFO_LOG("#### Filter key:%s ttl:%lld\n", k.GetKey().AsString().c_str(), meta.GetTTL());
                     if (meta.GetTTL() > 0 && meta.GetTTL() <= get_current_epoch_millis())
                     {
                         if (meta.GetType() != KEY_STRING)
@@ -627,7 +620,7 @@ OP_NAMESPACE_BEGIN
     RocksDBEngine::~RocksDBEngine()
     {
         RWLockGuard<SpinRWLock> guard(m_lock, true);
-        m_handlers.clear();
+        m_handlers.clear(); //handlers MUST be deleted before m_db
         DELETE(m_db);
     }
 

@@ -111,6 +111,8 @@ OP_NAMESPACE_BEGIN
             std::string pidfile;
 
             std::string zookeeper_servers;
+            std::string zk_clientid_file;
+            std::string cluster_name;
 
             std::string requirepass;
 

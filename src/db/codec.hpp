@@ -427,6 +427,7 @@ OP_NAMESPACE_BEGIN
                 return vals;
             }
             Slice Encode(Buffer& buffer)const;
+            bool DecodeMeta(Buffer& buffer, bool clone_str);
             bool Decode(Buffer& buffer, bool clone_str);
     };
 

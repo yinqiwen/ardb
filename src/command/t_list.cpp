@@ -411,6 +411,7 @@ OP_NAMESPACE_BEGIN
                     SetKeyValue(ctx, ele, ele_value);
                     meta.SetObjectLen(meta.GetObjectLen() + 1);
                 }
+                meta.SetTTL(0); //clear ttl setting
                 SetKeyValue(ctx, key, meta);
             }
             err = ctx.transc_err;

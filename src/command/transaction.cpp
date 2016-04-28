@@ -113,7 +113,7 @@ namespace ardb
 
     int Ardb::TouchWatchedKeysOnFlush(Context& ctx, const Data& ns)
     {
-        if(NULL == m_watched_ctxs)
+        if (NULL == m_watched_ctxs)
         {
             return 0;
         }
@@ -123,7 +123,7 @@ namespace ardb
             WatchedContextTable::iterator wit = m_watched_ctxs->begin();
             while (wit != m_watched_ctxs->end())
             {
-                if(wit->first.ns == ns || ns.IsNil())
+                if (ns.IsNil() || wit->first.ns == ns)
                 {
                     ContextSet::iterator cit = wit->second.begin();
                     while (cit != wit->second.end())
@@ -140,7 +140,7 @@ namespace ardb
 
     int Ardb::TouchWatchKey(Context& ctx, const KeyObject& key)
     {
-        if(NULL == m_watched_ctxs)
+        if (NULL == m_watched_ctxs)
         {
             return 0;
         }
@@ -167,7 +167,7 @@ namespace ardb
     int Ardb::WatchForKey(Context& ctx, const std::string& key)
     {
         LockGuard<SpinMutexLock> guard(m_watched_keys_lock);
-        if(NULL == m_watched_ctxs)
+        if (NULL == m_watched_ctxs)
         {
             NEW(m_watched_ctxs, WatchedContextTable);
         }
@@ -181,7 +181,7 @@ namespace ardb
 
     int Ardb::UnwatchKeys(Context& ctx)
     {
-        if(NULL == m_watched_ctxs)
+        if (NULL == m_watched_ctxs)
         {
             return 0;
         }
@@ -200,7 +200,7 @@ namespace ardb
                 it++;
             }
         }
-        if(m_watched_ctxs->empty())
+        if (m_watched_ctxs->empty())
         {
             DELETE(m_watched_ctxs);
         }

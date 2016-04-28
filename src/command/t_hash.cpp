@@ -108,6 +108,7 @@ OP_NAMESPACE_BEGIN
             }
             meta.SetType(KEY_HASH);
             meta.SetObjectLen(-1);
+            meta.SetTTL(0); //clear ttl setting
             SetKeyValue(ctx, key, meta);
 
             for (size_t i = 1; i < cmd.GetArguments().size(); i += 2)
@@ -162,6 +163,7 @@ OP_NAMESPACE_BEGIN
                 {
                     meta.SetType(KEY_HASH);
                     meta.SetObjectLen(-1);
+                    meta.SetTTL(0); //clear ttl setting
                     SetKeyValue(ctx, key, meta);
                     SetKeyValue(ctx, field, field_value);
                 }
@@ -203,6 +205,7 @@ OP_NAMESPACE_BEGIN
         }
         if (0 == err)
         {
+            vals[0].SetTTL(0);
             {
                 TransactionGuard batch(ctx, m_engine);
                 SetKeyValue(ctx, keys[0], vals[0]);
