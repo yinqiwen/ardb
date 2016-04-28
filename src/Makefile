@@ -77,8 +77,11 @@ XC_BUILD=
 
 LUA_VER=lua
 LUA_PATH=${LIB_PATH}/${LUA_VER}
-#LUA_FILE=${LUA_PATH}.tar.gz
 LUA_LIBA=${LUA_PATH}/src/liblua.a
+
+CJSON_VER=cJSON
+CJSON_PATH=${LIB_PATH}/${CJSON_VER}
+CJSON_LIBA=${CJSON_PATH}/libcjson.a
 
 OPTIMIZATION?=-O2
 OPT=$(OPTIMIZATION)
@@ -288,6 +291,15 @@ $(LUA_LIBA):
 	cd ${LUA_PATH}/src && \
 	$(MAKE) all CFLAGS="$(LUA_CFLAGS)" MYLDFLAGS="$(LUA_LDFLAGS)" && \
 	echo ">>>>> Done building LUA"
+	
+.PHONY: cjson
+cjson: $(CJSON_LIBA)
+$(CJSON_LIBA):
+	echo ">>>>> Building cJSON" && \
+	cd ${LIB_PATH} && \
+	cd ${CJSON_PATH} && \
+	$(MAKE) && \
+	echo ">>>>> Done building cJSON"
 
 .PHONY: zookeeper
 zookeeper: $(ZOOKEEPER_LIBA)

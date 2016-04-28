@@ -37,6 +37,7 @@
 #include "thread/lock_guard.hpp"
 #include "context.hpp"
 #include "rdb.hpp"
+#include "zookeeper.h"
 #include <map>
 #include <vector>
 
@@ -71,6 +72,7 @@ OP_NAMESPACE_BEGIN
     {
         private:
             zhandle_t* m_zk;
+            clientid_t m_zk_clientid;
             uint8 m_state;
             struct ACL_vector m_zk_acl;
             typedef std::vector<Partition> PartitionArray;
@@ -81,9 +83,11 @@ OP_NAMESPACE_BEGIN
             PartitionTable m_slot2partitions;
             void Routine();
             void BuildNodeTopoFromZk(const PartitionArray& partitions, const NodeArray& nodes);
-            void UpdateClusterTopo();
+            int FetchClusterTopo();
             int CreateZookeeperPath();
-            static void ZKInitWatcher(zhandle_t *zzh, int type, int state, const char *path, void* context);
+            void OnInitWatcher(zhandle_t *zzh, int type, int state, const char *path);
+            static void ZKInitWatcherCallback(zhandle_t *zzh, int type, int state, const char *path, void* context);
+            static void ZKGetWatchCallback(zhandle_t *zh, int type, int state, const char *path, void *watcherCtx);
         public:
             Cluster();
             int Init();
