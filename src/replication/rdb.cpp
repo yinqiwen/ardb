@@ -826,7 +826,7 @@ namespace ardb
                         }
                         else
                         {
-                            m_db->ListInsert(tmpctx, zmeta, NULL, str, true, false);
+                            m_db->ListInsert(tmpctx, zmeta, NULL, str, false, false);
                         }
                     }
                     else
