@@ -34,6 +34,8 @@
 #include <cmath>
 #include <float.h>
 
+static const uint8 kCurrentMetaFormat = 0;
+
 OP_NAMESPACE_BEGIN
 
     void KeyObject::SetType(uint8 t)
@@ -263,65 +265,105 @@ OP_NAMESPACE_BEGIN
             }
         }
     }
-
-    Meta& ValueObject::GetMeta()
+    MetaObject::MetaObject() :
+            format(kCurrentMetaFormat), ttl(0), size(-1), list_sequential(true)
     {
-        Data& meta = getElement(0);
-        size_t reserved_size = sizeof(Meta);
+
+    }
+    void MetaObject::Clear()
+    {
+        format = kCurrentMetaFormat;
+        ttl = 0;
+        size = -1;
+        list_sequential = true;
+    }
+    void MetaObject::Encode(Buffer& buffer, uint8 type) const
+    {
+        buffer.WriteByte((char) format);
+        BufferHelper::WriteVarInt64(buffer, ttl);
         switch (type)
         {
-            case KEY_LIST:
-            {
-                reserved_size = sizeof(ListMeta);
-                break;
-            }
-            case KEY_HASH:
-            case KEY_SET:
-            case KEY_ZSET:
-            {
-                reserved_size = sizeof(MKeyMeta);
-                break;
-            }
             case KEY_STRING:
             {
+                //do nothing
+                break;
+            }
+            case KEY_LIST:
+            case KEY_SET:
+            case KEY_ZSET:
+            case KEY_HASH:
+            {
+                BufferHelper::WriteVarInt64(buffer, size);
+                if (type == KEY_LIST)
+                {
+                    buffer.WriteByte(list_sequential ? 1 : 0);
+                }
                 break;
             }
             default:
             {
-                FATAL_LOG("Invalid type:%d to get ttl", type);
+                break;
             }
         }
-        return *(Meta*) meta.ReserveStringSpace(reserved_size);
+    }
+    bool MetaObject::Decode(Buffer& buffer, uint8 type)
+    {
+        char tmp;
+        if (!buffer.ReadByte(tmp))
+        {
+            return false;
+        }
+        format = (uint8) tmp;
+        if (!BufferHelper::ReadVarInt64(buffer, ttl))
+        {
+            return false;
+        }
+        switch (type)
+        {
+            case KEY_STRING:
+            {
+                //do nothing
+                break;
+            }
+            case KEY_LIST:
+            case KEY_SET:
+            case KEY_ZSET:
+            case KEY_HASH:
+            {
+                if (!BufferHelper::ReadVarInt64(buffer, size))
+                {
+                    return false;
+                }
+                if (type == KEY_LIST)
+                {
+                    if (!buffer.ReadByte(tmp))
+                    {
+                        return false;
+                    }
+                    list_sequential = (bool) tmp;
+                }
+                break;
+            }
+            default:
+            {
+                FATAL_LOG("Invalid type for mata object");
+            }
+        }
+        return true;
     }
 
-    MKeyMeta& ValueObject::GetMKeyMeta()
+    MetaObject& ValueObject::GetMetaObject()
     {
-        return (MKeyMeta&) GetMeta();
-    }
-    ListMeta& ValueObject::GetListMeta()
-    {
-        return (ListMeta&) GetMeta();
-    }
-    HashMeta& ValueObject::GetHashMeta()
-    {
-        return GetMKeyMeta();
-    }
-    SetMeta& ValueObject::GetSetMeta()
-    {
-        return GetMKeyMeta();
-    }
-    ZSetMeta& ValueObject::GetZSetMeta()
-    {
-        return GetMKeyMeta();
+        return meta;
     }
 
     int64_t ValueObject::GetTTL()
     {
-        return GetMeta().ttl;
+        return GetMetaObject().ttl;
     }
     void ValueObject::SetTTL(int64_t v)
     {
-        GetMeta().ttl = v;
+        GetMetaObject().ttl = v;
     }
     void ValueObject::ClearMinMaxData()
     {
@@ -331,14 +373,14 @@ OP_NAMESPACE_BEGIN
     bool ValueObject::SetMinData(const Data& v, bool overwite)
     {
         bool replaced = false;
-        if (vals.size() < 3)
+        if (vals.size() < 2)
         {
-            vals.resize(3);
+            vals.resize(2);
             replaced = true;
         }
-        if (overwite || vals[1] > v || vals[1].IsNil())
+        if (overwite || GetMin() > v || GetMin().IsNil())
         {
-            vals[1] = v;
+            GetMin() = v;
             replaced = true;
         }
         return replaced;
@@ -346,14 +388,14 @@ OP_NAMESPACE_BEGIN
     bool ValueObject::SetMaxData(const Data& v, bool overwite)
     {
         bool replaced = false;
-        if (vals.size() < 3)
+        if (vals.size() < 2)
         {
-            vals.resize(3);
+            vals.resize(2);
             replaced = true;
         }
-        if (overwite || vals[2] < v || vals[2].IsNil())
+        if (overwite || GetMax() < v || GetMax().IsNil())
         {
-            vals[2] = v;
+            GetMax() = v;
             replaced = true;
         }
         return replaced;
@@ -361,33 +403,33 @@ OP_NAMESPACE_BEGIN
     bool ValueObject::SetMinMaxData(const Data& v)
     {
         bool replaced = false;
-        if (vals.size() < 3)
+        if (vals.size() < 2)
         {
-            vals.resize(3);
+            vals.resize(2);
             replaced = true;
         }
-        if (vals[2].IsNil() && vals[1].IsNil())
+        if (GetMin().IsNil() && GetMax().IsNil())
         {
-            vals[1] = v;
-            vals[2] = v;
+            GetMin() = v;
+            GetMax() = v;
         }
         else
         {
-            if (vals[1] > v || vals[1].IsNil())
+            if (GetMin() > v || GetMin().IsNil())
             {
-                vals[1] = v;
+                GetMin() = v;
                 replaced = true;
             }
-            if (vals[2] < v)
+            if (GetMax() < v)
             {
-                vals[2] = v;
+                GetMax() = v;
                 replaced = true;
             }
         }
         return replaced;
     }
 
-    static void encode_value_object(Buffer& encode_buffer, uint8 type, uint16 merge_op, const DataArray& args)
+    static void encode_value_object(Buffer& encode_buffer, uint8 type, uint16 merge_op, const DataArray& args, const MetaObject* meta)
     {
         encode_buffer.WriteByte((char) type);
         switch (type)
@@ -395,6 +437,15 @@ OP_NAMESPACE_BEGIN
             case KEY_MERGE:
             {
                 BufferHelper::WriteFixUInt16(encode_buffer, merge_op, true);
+                break;
+            }
+            case KEY_STRING:
+            case KEY_LIST:
+            case KEY_SET:
+            case KEY_ZSET:
+            case KEY_HASH:
+            {
+                meta->Encode(encode_buffer, type);
                 break;
             }
             default:
@@ -412,22 +463,6 @@ OP_NAMESPACE_BEGIN
     void ValueObject::SetType(uint8 t)
     {
         type = t;
-        switch (type)
-        {
-            case KEY_STRING:
-            case KEY_HASH:
-            case KEY_LIST:
-            case KEY_SET:
-            case KEY_ZSET:
-            {
-                GetMeta();
-                break;
-            }
-            default:
-            {
-                break;
-            }
-        }
     }
 
     Slice ValueObject::Encode(Buffer& encode_buffer) const
@@ -436,11 +471,11 @@ OP_NAMESPACE_BEGIN
         {
             return Slice();
         }
-        encode_value_object(encode_buffer, type, merge_op, vals);
+        encode_value_object(encode_buffer, type, merge_op, vals, &meta);
         return Slice(encode_buffer.GetRawReadBuffer(), encode_buffer.ReadableBytes());
     }
 
-    bool ValueObject::DecodeMeta(Buffer& buffer, bool clone_str)
+    bool ValueObject::DecodeMeta(Buffer& buffer)
     {
         Clear();
         if (!buffer.Readable())
@@ -453,48 +488,41 @@ OP_NAMESPACE_BEGIN
             return false;
         }
         type = (uint8) tmp;
-        if (type == KEY_MERGE)
+        switch (type)
         {
-            if (!BufferHelper::ReadFixUInt16(buffer, merge_op, true))
+            case KEY_MERGE:
             {
-                return false;
+                if (!BufferHelper::ReadFixUInt16(buffer, merge_op, true))
+                {
+                    return false;
+                }
+                break;
+            }
+            case KEY_STRING:
+            case KEY_LIST:
+            case KEY_SET:
+            case KEY_ZSET:
+            case KEY_HASH:
+            {
+                if(!meta.Decode(buffer, type))
+                {
+                    return false;
+                }
+                break;
+            }
+            default:
+            {
+                break;
             }
         }
-        char lench;
-        if (!buffer.ReadByte(lench))
-        {
-            return false;
-        }
-        uint8 len = (uint8) lench;
-        if (len > 0)
-        {
-            /*
-             * Meta value is the first element
-             */
-            return vals[0].Decode(buffer, clone_str);
-        }
-        return false;
+        return true;
     }
 
     bool ValueObject::Decode(Buffer& buffer, bool clone_str)
     {
-        Clear();
-        if (!buffer.Readable())
-        {
-            return true;
-        }
-        char tmp;
-        if (!buffer.ReadByte(tmp))
+        if (!DecodeMeta(buffer))
         {
             return false;
-        }
-        type = (uint8) tmp;
-        if (type == KEY_MERGE)
-        {
-            if (!BufferHelper::ReadFixUInt16(buffer, merge_op, true))
-            {
-                return false;
-            }
         }
         char lench;
         if (!buffer.ReadByte(lench))
@@ -624,7 +652,7 @@ OP_NAMESPACE_BEGIN
 
     int encode_merge_operation(Buffer& buffer, uint16_t op, const DataArray& args)
     {
-        encode_value_object(buffer, KEY_MERGE, op, args);
+        encode_value_object(buffer, KEY_MERGE, op, args, NULL);
         return 0;
     }
 

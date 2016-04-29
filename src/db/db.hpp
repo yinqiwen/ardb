@@ -138,7 +138,7 @@ OP_NAMESPACE_BEGIN
             typedef TreeMap<KeyPrefix, ContextSet>::Type BlockedContextTable;
             typedef TreeSet<KeyPrefix>::Type ReadyKeySet;
             BlockedContextTable m_blocked_ctxs;
-            ReadyKeySet m_ready_keys;
+            ReadyKeySet* m_ready_keys;
 
             ThreadLocal<ClientIdSet> m_clients;
             ThreadLocal<ClientId> m_last_scan_clientid;

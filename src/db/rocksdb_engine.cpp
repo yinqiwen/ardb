@@ -30,6 +30,8 @@
 #include "rocksdb/utilities/convenience.h"
 #include "rocksdb/compaction_filter.h"
 #include "rocksdb/slice_transform.h"
+#include "rocksdb/utilities/memory_util.h"
+#include "rocksdb/table.h"
 #include "thread/lock_guard.hpp"
 #include "db/db.hpp"
 
@@ -108,23 +110,17 @@ OP_NAMESPACE_BEGIN
     {
             RocksTransaction transc;
             RocksSnapshot snapshot;
-            Buffer key_encode_buffer_cache;
-            Buffer value_encode_buffer_cache;
+            Buffer encode_buffer_cache;
             std::string string_cache;
             std::vector<std::string> multi_string_cache;
             const rocksdb::Snapshot* PeekSnapshot() const
             {
                 return snapshot.snapshot;
             }
-            Buffer& GetKeyEncodeBuferCache()
+            Buffer& GetEncodeBuferCache()
             {
-                key_encode_buffer_cache.Clear();
-                return key_encode_buffer_cache;
-            }
-            Buffer& GetValueEncodeBuferCache()
-            {
-                value_encode_buffer_cache.Clear();
-                return value_encode_buffer_cache;
+                encode_buffer_cache.Clear();
+                return encode_buffer_cache;
             }
             std::vector<string>& GetMultiStringCache(size_t num)
             {
@@ -356,7 +352,7 @@ OP_NAMESPACE_BEGIN
                 {
                     ValueObject meta;
                     Buffer val_buffer(const_cast<char*>(existing_value.data()), 0, existing_value.size());
-                    if (!meta.DecodeMeta(val_buffer, false))
+                    if (!meta.DecodeMeta(val_buffer))
                     {
                         ERROR_LOG("Failed to decode value of key:%s with type:%u %u", k.GetKey().AsString().c_str(), meta.GetType(), existing_value.size());
                         return false;
@@ -667,6 +663,7 @@ OP_NAMESPACE_BEGIN
         {
             m_options.info_log_level = rocksdb::INFO_LEVEL;
         }
+
         rocksdb::Status s = rocksdb::GetOptionsFromString(m_options, conf, &m_options);
         if (!s.ok())
         {
@@ -675,6 +672,7 @@ OP_NAMESPACE_BEGIN
         }
         m_options.OptimizeLevelStyleCompaction();
         m_options.IncreaseParallelism();
+        m_options.stats_dump_period_sec = (unsigned int)g_db->GetConf().statistics_log_period;
         std::vector<std::string> column_families;
         s = rocksdb::DB::ListColumnFamilies(m_options, dir, &column_families);
         if (column_families.empty())
@@ -764,10 +762,13 @@ OP_NAMESPACE_BEGIN
         }
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         rocksdb::WriteOptions opt;
-        Buffer& key_encode_buffer = rocks_ctx.GetKeyEncodeBuferCache();
-        rocksdb::Slice key_slice = to_rocksdb_slice(key.Encode(key_encode_buffer));
-        Buffer& value_buffer = rocks_ctx.GetValueEncodeBuferCache();
-        rocksdb::Slice value_slice = to_rocksdb_slice(value.Encode(value_buffer));
+        Buffer& encode_buffer = rocks_ctx.GetEncodeBuferCache();
+        key.Encode(encode_buffer);
+        size_t key_len = encode_buffer.ReadableBytes();
+        value.Encode(encode_buffer);
+        size_t value_len = encode_buffer.ReadableBytes() - key_len;
+        rocksdb::Slice key_slice(encode_buffer.GetRawBuffer(), key_len);
+        rocksdb::Slice value_slice(encode_buffer.GetRawBuffer() + key_len, value_len);
         rocksdb::WriteBatch* batch = rocks_ctx.transc.Ref();
         if (NULL != batch)
         {
@@ -791,7 +792,7 @@ OP_NAMESPACE_BEGIN
         std::vector<rocksdb::ColumnFamilyHandle*> cfs;
         std::vector<rocksdb::Slice> ks;
         std::vector<size_t> positions;
-        Buffer& key_encode_buffers = rocks_ctx.GetKeyEncodeBuferCache();
+        Buffer& key_encode_buffers = rocks_ctx.GetEncodeBuferCache();
         ks.resize(keys.size());
         std::vector<std::string>& vs = rocks_ctx.GetMultiStringCache(keys.size());
         for (size_t i = 0; i < keys.size(); i++)
@@ -826,7 +827,7 @@ OP_NAMESPACE_BEGIN
     }
     int RocksDBEngine::Get(Context& ctx, const KeyObject& key, ValueObject& value)
     {
-        ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, key.GetNameSpace(),false);
+        ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, key.GetNameSpace(), false);
         rocksdb::ColumnFamilyHandle* cf = cfp.get();
         if (NULL == cf)
         {
@@ -837,7 +838,7 @@ OP_NAMESPACE_BEGIN
         opt.snapshot = rocks_ctx.PeekSnapshot();
         std::string& valstr = rocks_ctx.string_cache;
         valstr.clear();
-        Buffer& key_encode_buffer = rocks_ctx.GetKeyEncodeBuferCache();
+        Buffer& key_encode_buffer = rocks_ctx.GetEncodeBuferCache();
         rocksdb::Slice key_slice = to_rocksdb_slice(key.Encode(key_encode_buffer));
         rocksdb::Status s = m_db->Get(opt, cf, key_slice, &valstr);
         int err = ROCKSDB_ERR(s);
@@ -860,7 +861,7 @@ OP_NAMESPACE_BEGIN
         }
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         rocksdb::WriteOptions opt;
-        Buffer& key_encode_buffer = rocks_ctx.GetKeyEncodeBuferCache();
+        Buffer& key_encode_buffer = rocks_ctx.GetEncodeBuferCache();
         rocksdb::Slice key_slice = to_rocksdb_slice(key.Encode(key_encode_buffer));
         rocksdb::Status s;
         rocksdb::WriteBatch* batch = rocks_ctx.transc.Ref();
@@ -884,12 +885,14 @@ OP_NAMESPACE_BEGIN
             return ERR_ENTRY_NOT_EXIST;
         }
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
-        Buffer& key_encode_buffer = rocks_ctx.GetKeyEncodeBuferCache();
         rocksdb::WriteOptions opt;
-        rocksdb::Slice key_slice = to_rocksdb_slice(key.Encode(key_encode_buffer));
-        Buffer& merge_buffer = rocks_ctx.GetValueEncodeBuferCache();
-        encode_merge_operation(merge_buffer, op, args);
-        rocksdb::Slice merge_slice(merge_buffer.GetRawReadBuffer(), merge_buffer.ReadableBytes());
+        Buffer& encode_buffer = rocks_ctx.GetEncodeBuferCache();
+        key.Encode(encode_buffer);
+        size_t key_len = encode_buffer.ReadableBytes();
+        encode_merge_operation(encode_buffer, op, args);
+        size_t merge_len = encode_buffer.ReadableBytes() - key_len;
+        rocksdb::Slice key_slice(encode_buffer.GetRawBuffer(), key_len);
+        rocksdb::Slice merge_slice(encode_buffer.GetRawBuffer() + key_len, merge_len);
         rocksdb::Status s;
         rocksdb::WriteBatch* batch = rocks_ctx.transc.Ref();
         if (NULL != batch)
@@ -914,7 +917,7 @@ OP_NAMESPACE_BEGIN
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         rocksdb::ReadOptions opt;
         opt.snapshot = rocks_ctx.PeekSnapshot();
-        Buffer& key_encode_buffer = rocks_ctx.GetKeyEncodeBuferCache();
+        Buffer& key_encode_buffer = rocks_ctx.GetEncodeBuferCache();
         std::string& tmp = rocks_ctx.string_cache;
         tmp.clear();
         rocksdb::Slice k = to_rocksdb_slice(key.Encode(key_encode_buffer));
@@ -945,7 +948,7 @@ OP_NAMESPACE_BEGIN
     {
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         RocksSnapshot& snapshot = rocks_ctx.snapshot;
-        if(snapshot.snapshot == NULL)
+        if (snapshot.snapshot == NULL)
         {
             return;
         }
@@ -1087,7 +1090,7 @@ OP_NAMESPACE_BEGIN
     int64_t RocksDBEngine::EstimateKeysNum(Context& ctx, const Data& ns)
     {
         std::string cf_stat;
-        ColumnFamilyHandlePtr cfp =  GetColumnFamilyHandle(ctx, ns, false);
+        ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, ns, false);
         rocksdb::ColumnFamilyHandle* cf = cfp.get();
         if (NULL == cf)
             return 0;
@@ -1099,9 +1102,48 @@ OP_NAMESPACE_BEGIN
     void RocksDBEngine::Stats(Context& ctx, std::string& all)
     {
         std::string str, version_info;
-        version_info.append("RocksDB version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(stringfromll(rocksdb::kMinorVersion)).append(
+        version_info.append("rocksdb_version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(stringfromll(rocksdb::kMinorVersion)).append(
                 ".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
         all.append(version_info);
+        std::map<rocksdb::MemoryUtil::UsageType, uint64_t> usage_by_type;
+        std::unordered_set<const rocksdb::Cache*> cache_set;
+        std::vector<rocksdb::DB*> dbs(1, m_db);
+        rocksdb::MemoryUtil::GetApproximateMemoryUsageByType(dbs, cache_set, &usage_by_type);
+        for (size_t i = 0; i < rocksdb::MemoryUtil::kNumUsageTypes; ++i)
+        {
+            if (usage_by_type.count((rocksdb::MemoryUtil::UsageType) i) > 0)
+            {
+                std::string name;
+                switch (i)
+                {
+                    case rocksdb::MemoryUtil::kMemTableTotal:
+                    {
+                        name = "rocksdb_memtable_total";
+                        break;
+                    }
+                    case rocksdb::MemoryUtil::kMemTableUnFlushed:
+                    {
+                        name = "rocksdb_memtable_unflushed";
+                        break;
+                    }
+                    case rocksdb::MemoryUtil::kTableReadersTotal:
+                    {
+                        name = "rocksdb_table_readers_total";
+                        break;
+                    }
+                    case rocksdb::MemoryUtil::kCacheTotal:
+                    {
+                        name = "rocksdb_cache_total";
+                        break;
+                    }
+                    default:
+                    {
+                        continue;
+                    }
+                }
+                all.append(name).append(":").append(stringfromll(usage_by_type[(rocksdb::MemoryUtil::UsageType) i])).append("\r\n");
+            }
+        }
         DataArray nss;
         ListNameSpaces(ctx, nss);
         for (size_t i = 0; i < nss.size(); i++)
@@ -1142,7 +1184,7 @@ OP_NAMESPACE_BEGIN
     void RocksDBIterator::Next()
     {
         ClearState();
-        if(NULL == m_iter)
+        if (NULL == m_iter)
         {
             return;
         }
@@ -1152,7 +1194,7 @@ OP_NAMESPACE_BEGIN
     void RocksDBIterator::Prev()
     {
         ClearState();
-        if(NULL == m_iter)
+        if (NULL == m_iter)
         {
             return;
         }
@@ -1161,19 +1203,19 @@ OP_NAMESPACE_BEGIN
     void RocksDBIterator::Jump(const KeyObject& next)
     {
         ClearState();
-        if(NULL == m_iter)
+        if (NULL == m_iter)
         {
             return;
         }
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
-        Slice key_slice = next.Encode(rocks_ctx.GetKeyEncodeBuferCache());
+        Slice key_slice = next.Encode(rocks_ctx.GetEncodeBuferCache());
         m_iter->Seek(to_rocksdb_slice(key_slice));
         CheckBound();
     }
     void RocksDBIterator::JumpToFirst()
     {
         ClearState();
-        if(NULL == m_iter)
+        if (NULL == m_iter)
         {
             return;
         }
@@ -1182,7 +1224,7 @@ OP_NAMESPACE_BEGIN
     void RocksDBIterator::JumpToLast()
     {
         ClearState();
-        if(NULL == m_iter)
+        if (NULL == m_iter)
         {
             return;
         }
@@ -1207,12 +1249,11 @@ OP_NAMESPACE_BEGIN
         }
     }
 
-
     KeyObject& RocksDBIterator::Key(bool clone_str)
     {
         if (m_key.GetType() > 0)
         {
-            if(clone_str && m_key.GetKey().IsCStr())
+            if (clone_str && m_key.GetKey().IsCStr())
             {
                 m_key.CloneStringPart();
             }

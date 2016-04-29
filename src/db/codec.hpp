@@ -60,7 +60,8 @@ OP_NAMESPACE_BEGIN
          * Reserver 20 types
          */
 //        KEY_TTL_SORT = 29,
-        KEY_MERGE = 30, KEY_END = 31, /* max value for 1byte */
+        KEY_MERGE = 30,
+        KEY_END = 31, /* max value for 1byte */
     };
 
     struct KeyObject
@@ -267,34 +268,26 @@ OP_NAMESPACE_BEGIN
             }
     };
 
-    typedef Meta StringMeta;
-
-    struct MKeyMeta: public Meta
+    struct MetaObject
     {
+            uint8 format;          //meta format version
+            int64_t ttl;
             int64_t size;
-            MKeyMeta() :
-                    size(-1)
-            {
-            }
+            bool list_sequential;  //indicate that list is sequential ot not
+            MetaObject();
+            void Encode(Buffer& buffer, uint8 type) const;
+            bool Decode(Buffer& buffer, uint8 type);
+            void Clear();
     };
-    typedef MKeyMeta HashMeta;
-    typedef MKeyMeta SetMeta;
-    typedef MKeyMeta ZSetMeta;
 
-    struct ListMeta: public MKeyMeta
-    {
-            bool sequential;
-            ListMeta() :
-                    sequential(true)
-            {
-            }
-    };
+
 
     class ValueObject
     {
         private:
             uint8 type;
             uint16 merge_op;
+            MetaObject meta;
             DataArray vals;
             Data& getElement(uint32_t idx)
             {
@@ -314,6 +307,7 @@ OP_NAMESPACE_BEGIN
                 type = 0;
                 merge_op = 0;
                 vals.clear();
+                meta.Clear();
             }
             uint8 GetType() const
             {
@@ -328,25 +322,20 @@ OP_NAMESPACE_BEGIN
             {
                 merge_op = op;
             }
-            Meta& GetMeta();
-            MKeyMeta& GetMKeyMeta();
-            ListMeta& GetListMeta();
-            HashMeta& GetHashMeta();
-            SetMeta& GetSetMeta();
-            ZSetMeta& GetZSetMeta();
+            MetaObject& GetMetaObject();
             int64 GetObjectLen()
             {
                 if (type == 0)
                     return 0;
-                return GetMKeyMeta().size;
+                return GetMetaObject().size;
             }
             void SetObjectLen(int64 v)
             {
-                GetMKeyMeta().size = v;
+                GetMetaObject().size = v;
             }
             Data& GetStringValue()
             {
-                return getElement(1);
+                return getElement(0);
             }
             void SetStringValue(const std::string& v)
             {
@@ -378,11 +367,11 @@ OP_NAMESPACE_BEGIN
             void ClearMinMaxData();
             Data& GetMin()
             {
-                return getElement(1);
+                return getElement(0);
             }
             Data& GetMax()
             {
-                return getElement(2);
+                return getElement(1);
             }
             int64 GetListMinIdx()
             {
@@ -426,8 +415,8 @@ OP_NAMESPACE_BEGIN
             {
                 return vals;
             }
-            Slice Encode(Buffer& buffer)const;
-            bool DecodeMeta(Buffer& buffer, bool clone_str);
+            Slice Encode(Buffer& buffer) const;
+            bool DecodeMeta(Buffer& buffer);
             bool Decode(Buffer& buffer, bool clone_str);
     };
 

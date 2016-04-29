@@ -323,7 +323,7 @@ namespace ardb
             ValueObject store_meta;
             store_meta.SetType(KEY_LIST);
             store_meta.SetObjectLen(value_list.size());
-            store_meta.GetListMeta().sequential = true;
+            store_meta.GetMetaObject().list_sequential = true;
             store_meta.SetListMinIdx(0);
             DataArray::iterator it = value_list.begin();
             int64_t idx = 0;

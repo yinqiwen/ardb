@@ -468,6 +468,7 @@ ServerSocketChannel* ChannelService::NewServerSocketChannel()
         c->m_id = (((c->m_id) << 4) + TCP_SERVER_SOCKET_CHANNEL_ID_BIT_MASK);
         m_channel_table[c->m_id] = c;
         ch->GetPipeline().Attach(ch);
+        ch->BindThreadPool(0, m_thread_pool_size);
     }
     return ch;
 }

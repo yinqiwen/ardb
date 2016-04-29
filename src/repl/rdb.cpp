@@ -1033,7 +1033,7 @@ namespace ardb
         listmeta.SetObjectLen(idx);
         listmeta.SetListMinIdx(0);
         listmeta.SetListMaxIdx(idx - 1);
-        listmeta.GetListMeta().sequential = true;
+        listmeta.GetMetaObject().list_sequential = true;
     }
 
     static double zzlGetScore(unsigned char *sptr)
@@ -1216,7 +1216,7 @@ namespace ardb
                 {
                     meta_value.SetType(KEY_LIST);
                     meta_value.SetObjectLen(len);
-                    meta_value.GetListMeta().sequential = true;
+                    meta_value.GetMetaObject().list_sequential = true;
                 }
                 int64 idx = 0;
                 while (len--)
@@ -1251,7 +1251,7 @@ namespace ardb
                 }
                 if (REDIS_RDB_TYPE_LIST == rdbtype)
                 {
-                    meta_value.GetListMeta().sequential = true;
+                    meta_value.GetMetaObject().list_sequential = true;
                     meta_value.SetListMinIdx(0);
                     meta_value.SetListMaxIdx(idx - 1);
                 }
@@ -1264,7 +1264,7 @@ namespace ardb
                 if ((ziplen = ReadLen(NULL)) == REDIS_RDB_LENERR)
                     return false;
                 meta_value.SetType(KEY_LIST);
-                meta_value.GetListMeta().sequential = true;
+                meta_value.GetMetaObject().list_sequential = true;
                 int64 idx = 0;
                 while (ziplen--)
                 {
@@ -1306,7 +1306,7 @@ namespace ardb
                         return false;
                     }
                 }
-                meta_value.GetListMeta().sequential = true;
+                meta_value.GetMetaObject().list_sequential = true;
                 meta_value.SetListMinIdx(0);
                 meta_value.SetListMaxIdx(idx - 1);
                 meta_value.SetObjectLen(idx);

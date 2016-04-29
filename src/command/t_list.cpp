@@ -64,7 +64,7 @@ OP_NAMESPACE_BEGIN
             reply.Clear();
             return 0;
         }
-        if (v.GetListMeta().sequential)
+        if (v.GetMetaObject().list_sequential)
         {
             KeyObject ele(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
             ele.SetListIndex(v.GetListMinIdx() + index);
@@ -136,7 +136,7 @@ OP_NAMESPACE_BEGIN
         {
 
             TransactionGuard batch(ctx, m_engine);
-            if (meta.GetListMeta().sequential)
+            if (meta.GetMetaObject().list_sequential)
             {
                 KeyObject ele_key(ctx.ns, KEY_LIST_ELEMENT, keystr);
                 ValueObject ele_value;
@@ -327,7 +327,7 @@ OP_NAMESPACE_BEGIN
                 TransactionGuard batch(ctx, m_engine);
                 SetKeyValue(ctx, insert, insert_val);
                 meta.SetObjectLen(meta.GetObjectLen() + 1);
-                meta.GetListMeta().sequential = false;
+                meta.GetMetaObject().list_sequential = false;
                 meta.SetMinMaxData(insert_ele_idx);
                 SetKeyValue(ctx, key, meta);
             }
@@ -369,7 +369,7 @@ OP_NAMESPACE_BEGIN
                 meta.SetObjectLen(0);
                 meta.SetListMaxIdx(0);
                 meta.SetListMinIdx(0);
-                meta.GetListMeta().sequential = true;
+                meta.GetMetaObject().list_sequential = true;
             }
             {
                 TransactionGuard batch(ctx, m_engine);
@@ -474,7 +474,7 @@ OP_NAMESPACE_BEGIN
 
         KeyObject ele_key(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
         int64 cursor = 0;
-        if (meta.GetListMeta().sequential)
+        if (meta.GetMetaObject().list_sequential)
         {
             ele_key.SetListIndex(meta.GetListMinIdx() + start);
             cursor = start;
@@ -585,7 +585,7 @@ OP_NAMESPACE_BEGIN
                 }
             }
             DELETE(iter);
-            meta.GetListMeta().sequential = false;
+            meta.GetMetaObject().list_sequential = false;
             meta.SetObjectLen(meta.GetObjectLen() - removed);
             if (meta.GetObjectLen() == 0)
             {
@@ -637,7 +637,7 @@ OP_NAMESPACE_BEGIN
             reply.SetErrCode(ERR_OUTOFRANGE);
             return 0;
         }
-        if (v.GetListMeta().sequential)
+        if (v.GetMetaObject().list_sequential)
         {
             KeyObject ele(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
             ele.SetListIndex((int64_t) (v.GetListMinIdx() + index));
@@ -740,7 +740,7 @@ OP_NAMESPACE_BEGIN
             rtrim = llen - end - 1;
         }
         int64_t trimed_count = 0;
-        if (meta.GetListMeta().sequential)
+        if (meta.GetMetaObject().list_sequential)
         {
             for (int64_t i = 0; i < ltrim; i++)
             {
@@ -1009,7 +1009,11 @@ OP_NAMESPACE_BEGIN
         {
             return -1;
         }
-        m_ready_keys.insert(prefix);
+        if(NULL == m_ready_keys)
+        {
+            NEW(m_ready_keys, ReadyKeySet);
+        }
+        m_ready_keys->insert(prefix);
         return 0;
     }
 
@@ -1052,15 +1056,23 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::WakeClientsBlockingOnList(Context& ctx)
     {
+        if(NULL == m_ready_keys)
+        {
+            return 0;
+        }
         ReadyKeySet ready_keys;
         {
             LockGuard<SpinMutexLock> guard(m_block_keys_lock);
-            if (m_ready_keys.empty())
+            if(NULL == m_ready_keys)
             {
                 return 0;
             }
-            ready_keys = m_ready_keys;
-            m_ready_keys.clear();
+            if (m_ready_keys->empty())
+            {
+                return 0;
+            }
+            ready_keys = *m_ready_keys;
+            DELETE(m_ready_keys);
         }
         while (!ready_keys.empty())
         {

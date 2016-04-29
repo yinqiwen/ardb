@@ -280,6 +280,7 @@ OP_NAMESPACE_BEGIN
             }
             server->SetChannelPipelineInitializor(pipelineInit, serverQPSTrack);
             server->SetChannelPipelineFinalizer(pipelineDestroy, NULL);
+            server->BindThreadPool(0, g_db->GetConf().thread_pool_size);
             INFO_LOG("Ardb will accept connections on %s", address.c_str());
         }
 

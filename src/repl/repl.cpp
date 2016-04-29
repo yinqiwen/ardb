@@ -16,7 +16,7 @@ OP_NAMESPACE_BEGIN
             uint16 select_ns_size;
             bool replkey_self_gen;
             ReplMeta() :
-                    select_ns_size(0),replkey_self_gen(true)
+                    select_ns_size(0), replkey_self_gen(true)
             {
             }
     };
@@ -35,6 +35,11 @@ OP_NAMESPACE_BEGIN
     }
     int ReplicationBacklog::Init()
     {
+        if (g_db->GetConf().repl_backlog_size <= 0)
+        {
+            WARN_LOG("Replication backlog is not enable, current instance can NOT serve as master and accept any slave instance.");
+            return -1;
+        }
         swal_options_t* options = swal_options_create();
         options->create_ifnotexist = true;
         options->user_meta_size = 4096;
@@ -124,11 +129,39 @@ OP_NAMESPACE_BEGIN
             Buffer cmdbuf;
     };
 
+    static std::deque<ReplCommand*> g_repl_cmd_buffer;
+    static SpinMutexLock g_repl_cmd_buffer_lock;
+
+    static inline ReplCommand* get_repl_cmd()
+    {
+        LockGuard<SpinMutexLock> guard(g_repl_cmd_buffer_lock);
+        if (!g_repl_cmd_buffer.empty())
+        {
+            ReplCommand* repl_cmd = g_repl_cmd_buffer.front();
+            g_repl_cmd_buffer.pop_front();
+            repl_cmd->cmdbuf.Clear();
+            return repl_cmd;
+        }
+        ReplCommand* repl_cmd = new ReplCommand;
+        return repl_cmd;
+    }
+    static inline void recycle_repl_cmd(ReplCommand* cmd)
+    {
+        LockGuard<SpinMutexLock> guard(g_repl_cmd_buffer_lock);
+        if (g_repl_cmd_buffer.size() >= 10)
+        {
+            DELETE(cmd);
+            return;
+        }
+        g_repl_cmd_buffer.push_back(cmd);
+    }
+
     void ReplicationBacklog::WriteWALCallback(Channel*, void* data)
     {
         ReplCommand* cmd = (ReplCommand*) data;
         g_repl->GetReplLog().WriteWAL(cmd->ns, cmd->cmdbuf);
-        DELETE(cmd);
+        //DELETE(cmd);
+        recycle_repl_cmd(cmd);
         g_repl->GetMaster().SyncWAL();
     }
 
@@ -138,7 +171,8 @@ OP_NAMESPACE_BEGIN
         {
             return -1;
         }
-        ReplCommand* repl_cmd = new ReplCommand;
+        //ReplCommand* repl_cmd = new ReplCommand;
+        ReplCommand* repl_cmd = get_repl_cmd();
         repl_cmd->ns = ns;
         const Buffer& raw_protocol = cmd.GetRawProtocolData();
         if (raw_protocol.Readable() && !cmd.IsInLine())
@@ -180,7 +214,7 @@ OP_NAMESPACE_BEGIN
     {
         ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
         std::string str;
-        if(meta->select_ns_size > 0)
+        if (meta->select_ns_size > 0)
         {
             str.assign(meta->select_ns, meta->select_ns_size);
         }
@@ -260,7 +294,10 @@ OP_NAMESPACE_BEGIN
         int err = m_repl_backlog.Init();
         if (0 != err)
         {
-            return err;
+            /*
+             * just return 0 if backlog is not init
+             */
+            return 0;
         }
         err = m_master.Init();
         if (0 != err)

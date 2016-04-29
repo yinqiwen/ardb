@@ -89,8 +89,8 @@ OP_NAMESPACE_BEGIN
             case E_FLOAT64:
             case E_INT64:
             {
-                buf.Write(&data, sizeof(data));
-                //BufferHelper::WriteVarInt64(buf, GetInt64());
+                //buf.Write(&data, sizeof(data));
+                BufferHelper::WriteVarInt64(buf, data);
                 return;
             }
             case E_CSTR:
@@ -125,21 +125,15 @@ OP_NAMESPACE_BEGIN
             case E_INT64:
             case E_FLOAT64:
             {
-//                int64_t v;
-//                data = *(int64_t*) buf.GetRawReadBuffer();
-                if (buf.ReadableBytes() < sizeof(data))
-                {
-                    return false;
-                }
-                memcpy(&data, buf.GetRawReadBuffer(), sizeof(data));
-                buf.AdvanceReadIndex(sizeof(data));
-//                buf.Read(&data, sizeof(data));
-//                if (!BufferHelper::ReadVarInt64(buf, v))
+                return BufferHelper::ReadVarInt64(buf, data);
+
+//                if (buf.ReadableBytes() < sizeof(data))
 //                {
 //                    return false;
 //                }
-//                SetInt64(v);
-                return true;
+//                memcpy(&data, buf.GetRawReadBuffer(), sizeof(data));
+//                buf.AdvanceReadIndex(sizeof(data));
+//                return true;
             }
             case E_CSTR:
             case E_SDS:

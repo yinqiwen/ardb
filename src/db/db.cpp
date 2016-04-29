@@ -123,7 +123,7 @@ OP_NAMESPACE_BEGIN
     static CostTrack g_cmd_cost_tracks[REDIS_CMD_MAX];
 
     Ardb::Ardb() :
-            m_engine(NULL), m_starttime(0), m_loading_data(false), m_redis_cursor_seed(0),m_watched_ctxs(NULL)
+            m_engine(NULL), m_starttime(0), m_loading_data(false), m_redis_cursor_seed(0), m_watched_ctxs(NULL), m_ready_keys(NULL)
     {
         g_db = this;
         m_settings.set_empty_key("");
@@ -395,6 +395,8 @@ OP_NAMESPACE_BEGIN
     Ardb::~Ardb()
     {
         DELETE(m_engine);
+        DELETE(m_ready_keys);
+        DELETE(m_watched_ctxs);
         ArdbLogger::DestroyDefaultLogger();
     }
 
@@ -951,9 +953,9 @@ OP_NAMESPACE_BEGIN
                     to_close.push_back(client);
                 }
             }
-            if(NULL != client->client && NULL != client->client->client)
+            if (NULL != client->client && NULL != client->client->client)
             {
-                if(client->client->resume_ustime > 0 && now <= client->client->resume_ustime)
+                if (client->client->resume_ustime > 0 && now <= client->client->resume_ustime)
                 {
                     client->client->client->AttachFD();
                     client->client->resume_ustime = -1;

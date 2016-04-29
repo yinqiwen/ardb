@@ -38,6 +38,7 @@
 #define CONFIG_DEFAULT_HZ        10      /* Time interrupt calls/sec. */
 #define CONFIG_MIN_HZ            1
 #define CONFIG_MAX_HZ            500
+#define DEFAULT_STAT_LOG_PERIOD_SECS   600
 
 OP_NAMESPACE_BEGIN
 
@@ -84,7 +85,7 @@ OP_NAMESPACE_BEGIN
 
         conf_get_string(props, "pidfile", pidfile);
         conf_get_int64(props, "thread-pool-size", thread_pool_size);
-        if(thread_pool_size <= 0)
+        if (thread_pool_size <= 0)
         {
             thread_pool_size = available_processors();
         }
@@ -198,6 +199,10 @@ OP_NAMESPACE_BEGIN
         conf_get_bool(props, "slave-cleardb-before-fullresync", slave_cleardb_before_fullresync);
 
         conf_get_int64(props, "statistics-log-period", statistics_log_period);
+        if (statistics_log_period <= 0)
+        {
+            statistics_log_period = DEFAULT_STAT_LOG_PERIOD_SECS;
+        }
 
         std::string slaveof;
         if (conf_get_string(props, "slaveof", slaveof))
@@ -259,7 +264,7 @@ OP_NAMESPACE_BEGIN
 
         conf_get_string(props, "redis-compatible-version", redis_compatible_version);
 
-        conf_get_bool(props, "redis-compatible-mode",redis_compatible);
+        conf_get_bool(props, "redis-compatible-mode", redis_compatible);
 
         //trusted_ip.clear();
         Properties::const_iterator ip_it = props.find("trusted-ip");

@@ -486,16 +486,16 @@ OP_NAMESPACE_BEGIN
         if (vals[0].GetType() == 0)
         {
             vals[0].SetType(KEY_HASH);
-            vals[0].GetHashMeta().size = 1;
+            vals[0].SetObjectLen(1);
             meta_change = true;
         }
         else
         {
             if (vals[1].GetType() == 0)
             {
-                if (vals[0].GetHashMeta().size >= 0)
+                if (vals[0].GetObjectLen() >= 0)
                 {
-                    vals[0].GetHashMeta().size++;
+                    vals[0].SetObjectLen(vals[0].GetObjectLen() + 1);
                     meta_change = true;
                 }
             }
