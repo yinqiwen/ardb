@@ -45,12 +45,12 @@
 #include <stack>
 #include <sparsehash/dense_hash_map>
 
-
-
 using namespace ardb::codec;
 
 OP_NAMESPACE_BEGIN
 
+    class ObjectIO;
+    class ObjectBuffer;
     class Snapshot;
     class Ardb
     {
@@ -98,8 +98,6 @@ OP_NAMESPACE_BEGIN
                     ~KeysLockGuard();
             };
 
-
-
         private:
 
             Engine* m_engine;
@@ -145,6 +143,7 @@ OP_NAMESPACE_BEGIN
             SpinMutexLock m_clients_lock;
             ContextSet m_all_clients;
 
+            static void MigrateCoroTask(void* data);
 
             bool IsLoadingData();
 
@@ -409,11 +408,18 @@ OP_NAMESPACE_BEGIN
             int PFCount(Context& ctx, RedisCommandFrame& cmd);
             int PFMerge(Context& ctx, RedisCommandFrame& cmd);
 
+            int Dump(Context& ctx, RedisCommandFrame& cmd);
+            int Restore(Context& ctx, RedisCommandFrame& cmd);
+            int Migrate(Context& ctx, RedisCommandFrame& cmd);
+            int MigrateDB(Context& ctx, RedisCommandFrame& cmd);
+
             int DoCall(Context& ctx, RedisCommandHandlerSetting& setting, RedisCommandFrame& cmd);
             RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(RedisCommandFrame& cmd);
             void RenameCommand();
 
             friend class LUAInterpreter;
+            friend class ObjectIO;
+            friend class ObjectBuffer;
             friend class Snapshot;
             friend class Master;
             friend class Slave;

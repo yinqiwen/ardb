@@ -70,7 +70,7 @@ namespace ardb
 				void CallDecode(ChannelHandlerContext& context,
 						Channel* channel, Buffer& cumulation)
 				{
-					while (cumulation.Readable())
+					while (!channel->IsReadBlocked() && cumulation.Readable())
 					{
 						uint32 oldReadableBytes = cumulation.ReadableBytes();
 						T msg;

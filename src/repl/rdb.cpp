@@ -181,21 +181,7 @@ namespace ardb
         return EncodeInteger(value, enc);
     }
 
-    Snapshot::Snapshot() :
-            m_read_fp(NULL), m_write_fp(NULL), m_cksm(0), m_routine_cb(
-            NULL), m_routine_cbdata(
-            NULL), m_processed_bytes(0), m_file_size(0), m_state(SNAPSHOT_INVALID), m_routinetime(0), m_read_buf(
-            NULL), m_expected_data_size(0), m_writed_data_size(0), m_cached_repl_offset(0), m_cached_repl_cksm(0), m_save_time(0), m_type((SnapshotType) 0)
-    {
-
-    }
-    Snapshot::~Snapshot()
-    {
-        Close();
-        DELETE_A(m_read_buf);
-    }
-
-    int Snapshot::ReadType()
+    int ObjectIO::ReadType()
     {
         unsigned char type;
         if (Read(&type, 1) == 0)
@@ -203,14 +189,14 @@ namespace ardb
         return type;
     }
 
-    time_t Snapshot::ReadTime()
+    time_t ObjectIO::ReadTime()
     {
         int32_t t32;
         if (Read(&t32, 4) == 0)
             return -1;
         return (time_t) t32;
     }
-    int64 Snapshot::ReadMillisecondTime()
+    int64 ObjectIO::ReadMillisecondTime()
     {
         int64_t t64;
         if (Read(&t64, 8) == 0)
@@ -218,7 +204,7 @@ namespace ardb
         return (long long) t64;
     }
 
-    uint32_t Snapshot::ReadLen(int *isencoded)
+    uint32_t ObjectIO::ReadLen(int *isencoded)
     {
         unsigned char buf[2];
         uint32_t len;
@@ -257,7 +243,7 @@ namespace ardb
         }
     }
 
-    bool Snapshot::ReadLzfStringObject(std::string& str)
+    bool ObjectIO::ReadLzfStringObject(std::string& str)
     {
         unsigned int len, clen;
         unsigned char *c = NULL;
@@ -287,7 +273,7 @@ namespace ardb
         return true;
     }
 
-    bool Snapshot::ReadInteger(int enctype, int64& val)
+    bool ObjectIO::ReadInteger(int enctype, int64& val)
     {
         unsigned char enc[4];
 
@@ -323,7 +309,7 @@ namespace ardb
     }
 
     /* For information about double serialization check rdbSaveDoubleValue() */
-    int Snapshot::ReadDoubleValue(double&val)
+    int ObjectIO::ReadDoubleValue(double&val)
     {
         static double R_Zero = 0.0;
         static double R_PosInf = 1.0 / R_Zero;
@@ -354,7 +340,7 @@ namespace ardb
         }
     }
 
-    bool Snapshot::ReadString(std::string& str)
+    bool ObjectIO::ReadString(std::string& str)
     {
         str.clear();
         int isencoded;
@@ -404,13 +390,13 @@ namespace ardb
         return true;
     }
 
-    int Snapshot::WriteType(uint8 type)
+    int ObjectIO::WriteType(uint8 type)
     {
         return Write(&type, 1);
     }
 
     /* Like rdbSaveStringObjectRaw() but handle encoded objects */
-    int Snapshot::WriteStringObject(const Data& o)
+    int ObjectIO::WriteStringObject(const Data& o)
     {
         /* Avoid to decode the object, then encode it again, if the
          * object is alrady integer encoded. */
@@ -428,7 +414,7 @@ namespace ardb
 
     /* Save a string objet as [len][data] on disk. If the object is a string
      * representation of an integer value we try to save it in a special form */
-    int Snapshot::WriteRawString(const char *s, size_t len)
+    int ObjectIO::WriteRawString(const char *s, size_t len)
     {
         int enclen;
         int n, nwritten = 0;
@@ -470,7 +456,7 @@ namespace ardb
         return nwritten;
     }
 
-    int Snapshot::WriteLzfStringObject(const char *s, size_t len)
+    int ObjectIO::WriteLzfStringObject(const char *s, size_t len)
     {
         size_t comprlen, outlen;
         unsigned char byte;
@@ -515,7 +501,7 @@ namespace ardb
     }
 
     /* Save a long long value as either an encoded string or a string. */
-    int Snapshot::WriteLongLongAsStringObject(long long value)
+    int ObjectIO::WriteLongLongAsStringObject(long long value)
     {
         unsigned char buf[32];
         int n, nwritten = 0;
@@ -538,7 +524,7 @@ namespace ardb
         return nwritten;
     }
 
-    int Snapshot::WriteLen(uint32 len)
+    int ObjectIO::WriteLen(uint32 len)
     {
         unsigned char buf[2];
         size_t nwritten;
@@ -574,7 +560,7 @@ namespace ardb
         return nwritten;
     }
 
-    int Snapshot::WriteKeyType(KeyType type)
+    int ObjectIO::WriteKeyType(KeyType type)
     {
         switch (type)
         {
@@ -610,7 +596,7 @@ namespace ardb
         }
     }
 
-    int Snapshot::WriteDouble(double val)
+    int ObjectIO::WriteDouble(double val)
     {
         unsigned char buf[128];
         int len;
@@ -645,7 +631,7 @@ namespace ardb
             }
             else
 #endif
-                snprintf((char*) buf + 1, sizeof(buf) - 1, "%.17g", val);
+            snprintf((char*) buf + 1, sizeof(buf) - 1, "%.17g", val);
             buf[0] = strlen((char*) buf + 1);
             len = buf[0] + 1;
         }
@@ -653,15 +639,728 @@ namespace ardb
 
     }
 
-    int Snapshot::WriteMillisecondTime(uint64 ts)
+    int ObjectIO::WriteMillisecondTime(uint64 ts)
     {
         return Write(&ts, 8);
     }
 
-    int Snapshot::WriteTime(time_t t)
+    int ObjectIO::WriteTime(time_t t)
     {
         int32_t t32 = (int32_t) t;
         return Write(&t32, 4);
+    }
+
+    void ObjectIO::RedisWriteMagicHeader()
+    {
+        char magic[10];
+        snprintf(magic, sizeof(magic), "REDIS%04d", 6);
+        Write(magic, 9);
+    }
+
+    void ObjectIO::RedisLoadListZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& listmeta)
+    {
+        unsigned char* iter = ziplistIndex(data, 0);
+        listmeta.SetType(KEY_LIST);
+        //BatchWriteGuard guard(g_db->GetKeyValueEngine());
+        int64 idx = 0;
+        while (iter != NULL)
+        {
+            unsigned char *vstr;
+            unsigned int vlen;
+            long long vlong;
+            if (ziplistGet(iter, &vstr, &vlen, &vlong))
+            {
+                std::string value;
+                if (vstr)
+                {
+                    value.assign((char*) vstr, vlen);
+                }
+                else
+                {
+                    value = stringfromll(vlong);
+                }
+                KeyObject lk(ctx.ns, KEY_LIST_ELEMENT, key);
+                lk.SetListIndex(idx);
+                ValueObject lv;
+                lv.SetType(KEY_LIST_ELEMENT);
+                lv.SetListElement(value);
+                //g_db->Set
+                idx++;
+                g_db->SetKeyValue(ctx, lk, lv);
+            }
+            iter = ziplistNext(data, iter);
+        }
+        listmeta.SetObjectLen(idx);
+        listmeta.SetListMinIdx(0);
+        listmeta.SetListMaxIdx(idx - 1);
+        listmeta.GetMetaObject().list_sequential = true;
+    }
+
+    static double zzlGetScore(unsigned char *sptr)
+    {
+        unsigned char *vstr;
+        unsigned int vlen;
+        long long vlong;
+        char buf[128];
+        double score;
+
+        ASSERT(sptr != NULL);
+        ASSERT(ziplistGet(sptr, &vstr, &vlen, &vlong));
+        if (vstr)
+        {
+            memcpy(buf, vstr, vlen);
+            buf[vlen] = '\0';
+            score = strtod(buf, NULL);
+        }
+        else
+        {
+            score = vlong;
+        }
+        return score;
+    }
+    void ObjectIO::RedisLoadZSetZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value)
+    {
+        meta_value.SetType(KEY_ZSET);
+        meta_value.SetObjectLen(ziplistLen(data));
+        unsigned char* iter = ziplistIndex(data, 0);
+        while (iter != NULL)
+        {
+            unsigned char *vstr;
+            unsigned int vlen;
+            long long vlong;
+            std::string value;
+            if (ziplistGet(iter, &vstr, &vlen, &vlong))
+            {
+                if (vstr)
+                {
+                    value.assign((char*) vstr, vlen);
+                }
+                else
+                {
+                    value = stringfromll(vlong);
+                }
+            }
+            iter = ziplistNext(data, iter);
+            if (NULL == iter)
+            {
+                break;
+            }
+            double score = zzlGetScore(iter);
+            KeyObject zsort(ctx.ns, KEY_ZSET_SORT, key);
+            zsort.SetZSetMember(value);
+            zsort.SetZSetScore(score);
+            ValueObject zsort_value;
+            zsort_value.SetType(KEY_ZSET_SORT);
+            KeyObject zscore(ctx.ns, KEY_ZSET_SCORE, key);
+            zscore.SetZSetMember(value);
+            ValueObject zscore_value;
+            zscore_value.SetType(KEY_ZSET_SCORE);
+            zscore_value.SetZSetScore(score);
+            g_db->SetKeyValue(ctx, zsort, zscore_value);
+            g_db->SetKeyValue(ctx, zscore, zscore_value);
+            iter = ziplistNext(data, iter);
+        }
+    }
+
+    void ObjectIO::RedisLoadHashZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value)
+    {
+        meta_value.SetType(KEY_HASH);
+        meta_value.SetObjectLen(ziplistLen(data));
+        //BatchWriteGuard guard(g_db->GetKeyValueEngine());
+        unsigned char* iter = ziplistIndex(data, 0);
+        while (iter != NULL)
+        {
+            unsigned char *vstr, *fstr;
+            unsigned int vlen, flen;
+            long long vlong, flong;
+            std::string field, value;
+            if (ziplistGet(iter, &fstr, &flen, &flong))
+            {
+                if (fstr)
+                {
+                    field.assign((char*) fstr, flen);
+                }
+                else
+                {
+                    field = stringfromll(flong);
+                }
+            }
+            else
+            {
+                break;
+            }
+            iter = ziplistNext(data, iter);
+            if (NULL == iter)
+            {
+                break;
+            }
+            if (ziplistGet(iter, &vstr, &vlen, &vlong))
+            {
+                if (vstr)
+                {
+                    value.assign((char*) vstr, vlen);
+                }
+                else
+                {
+                    value = stringfromll(vlong);
+                }
+                KeyObject fkey(ctx.ns, KEY_HASH_FIELD, key);
+                fkey.SetHashField(field);
+                ValueObject fvalue;
+                fvalue.SetType(KEY_HASH_FIELD);
+                fvalue.SetHashValue(value);
+                g_db->SetKeyValue(ctx, fkey, fvalue);
+            }
+            iter = ziplistNext(data, iter);
+        }
+        //        KeyObject hkey(ctx.ns, KEY_META, key);
+        //        g_db->SetKeyValue(ctx, hkey, hmeta);
+    }
+
+    void ObjectIO::RedisLoadSetIntSet(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value)
+    {
+        int ii = 0;
+        int64_t llele = 0;
+        meta_value.SetType(KEY_SET);
+        meta_value.SetObjectLen(intsetLen((intset*) data));
+        while (!intsetGet((intset*) data, ii++, &llele))
+        {
+            KeyObject member(ctx.ns, KEY_SET_MEMBER, key);
+            member.SetSetMember(stringfromll(llele));
+            ValueObject member_value;
+            member_value.SetType(KEY_SET_MEMBER);
+            g_db->SetKeyValue(ctx, member, member_value);
+        }
+        //        KeyObject skey(ctx.ns, KEY_META, key);
+        //        g_db->SetKeyValue(ctx, skey, smeta);
+    }
+
+    bool ObjectIO::RedisLoadObject(Context& ctx, int rdbtype, const std::string& key, int64 expiretime)
+    {
+        //TransactionGuard guard(ctx);
+        KeyObject meta_key(ctx.ns, KEY_META, key);
+        ValueObject meta_value;
+
+        switch (rdbtype)
+        {
+            case REDIS_RDB_TYPE_STRING:
+            {
+                std::string str;
+                if (ReadString(str))
+                {
+                    ValueObject string_value;
+                    meta_value.SetType(KEY_STRING);
+                    meta_value.SetStringValue(str);
+                }
+                else
+                {
+                    return false;
+                }
+                break;
+            }
+            case REDIS_RDB_TYPE_LIST:
+            case REDIS_RDB_TYPE_SET:
+            {
+                uint32 len;
+                if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR)
+                    return false;
+
+                if (REDIS_RDB_TYPE_SET == rdbtype)
+                {
+                    meta_value.SetType(KEY_SET);
+                    meta_value.SetObjectLen(len);
+                }
+                else
+                {
+                    meta_value.SetType(KEY_LIST);
+                    meta_value.SetObjectLen(len);
+                    meta_value.GetMetaObject().list_sequential = true;
+                }
+                int64 idx = 0;
+                while (len--)
+                {
+                    std::string str;
+                    if (ReadString(str))
+                    {
+                        //push to list/set
+                        if (REDIS_RDB_TYPE_SET == rdbtype)
+                        {
+                            KeyObject member(ctx.ns, KEY_SET_MEMBER, key);
+                            member.SetSetMember(str);
+                            ValueObject member_val;
+                            member_val.SetType(KEY_SET_MEMBER);
+                            g_db->SetKeyValue(ctx, member, member_val);
+                        }
+                        else
+                        {
+                            KeyObject lk(ctx.ns, KEY_LIST_ELEMENT, key);
+                            lk.SetListIndex(idx);
+                            ValueObject lv;
+                            lv.SetType(KEY_LIST_ELEMENT);
+                            lv.SetListElement(str);
+                            g_db->SetKeyValue(ctx, lk, lv);
+                            idx++;
+                        }
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+                if (REDIS_RDB_TYPE_LIST == rdbtype)
+                {
+                    meta_value.GetMetaObject().list_sequential = true;
+                    meta_value.SetListMinIdx(0);
+                    meta_value.SetListMaxIdx(idx - 1);
+                }
+                //g_db->SetKeyValue(ctx, meta_key, zmeta);
+                break;
+            }
+            case REDIS_RDB_TYPE_LIST_QUICKLIST:
+            {
+                uint32 ziplen;
+                if ((ziplen = ReadLen(NULL)) == REDIS_RDB_LENERR)
+                    return false;
+                meta_value.SetType(KEY_LIST);
+                meta_value.GetMetaObject().list_sequential = true;
+                int64 idx = 0;
+                while (ziplen--)
+                {
+                    std::string zipstr;
+                    if (ReadString(zipstr))
+                    {
+                        unsigned char* data = (unsigned char*) (&(zipstr[0]));
+                        unsigned char* iter = ziplistIndex(data, 0);
+                        while (iter != NULL)
+                        {
+                            unsigned char *vstr;
+                            unsigned int vlen;
+                            long long vlong;
+                            if (ziplistGet(iter, &vstr, &vlen, &vlong))
+                            {
+                                std::string value;
+                                if (vstr)
+                                {
+                                    value.assign((char*) vstr, vlen);
+                                }
+                                else
+                                {
+                                    value = stringfromll(vlong);
+                                }
+                                KeyObject lk(ctx.ns, KEY_LIST_ELEMENT, key);
+                                lk.SetListIndex(idx);
+                                ValueObject lv;
+                                lv.SetType(KEY_LIST_ELEMENT);
+                                lv.SetListElement(value);
+                                //g_db->Set
+                                idx++;
+                                g_db->SetKeyValue(ctx, lk, lv);
+                            }
+                            iter = ziplistNext(data, iter);
+                        }
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+                meta_value.GetMetaObject().list_sequential = true;
+                meta_value.SetListMinIdx(0);
+                meta_value.SetListMaxIdx(idx - 1);
+                meta_value.SetObjectLen(idx);
+                break;
+            }
+            case REDIS_RDB_TYPE_ZSET:
+            {
+                uint32 len;
+                if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR)
+                    return false;
+                meta_value.SetType(KEY_ZSET);
+                meta_value.SetObjectLen(len);
+                while (len--)
+                {
+                    std::string str;
+                    double score;
+                    if (ReadString(str) && 0 == ReadDoubleValue(score))
+                    {
+                        //save value score
+                        //g_db->ZAdd(m_current_db, key, score, str);
+                        KeyObject zsort(ctx.ns, KEY_ZSET_SORT, key);
+                        zsort.SetZSetMember(str);
+                        zsort.SetZSetScore(score);
+                        ValueObject zsort_value;
+                        zsort_value.SetType(KEY_ZSET_SORT);
+                        KeyObject zscore(ctx.ns, KEY_ZSET_SCORE, key);
+                        zscore.SetZSetMember(str);
+                        ValueObject zscore_value;
+                        zscore_value.SetType(KEY_ZSET_SCORE);
+                        zscore_value.SetZSetScore(score);
+                        g_db->SetKeyValue(ctx, zsort, zscore_value);
+                        g_db->SetKeyValue(ctx, zscore, zscore_value);
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+                //g_db->SetKeyValue(ctx, meta_key, zmeta);
+                break;
+            }
+            case REDIS_RDB_TYPE_HASH:
+            {
+                uint32 len;
+                if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR)
+                    return false;
+                meta_value.SetType(KEY_HASH);
+                meta_value.SetObjectLen(len);
+                while (len--)
+                {
+                    std::string field, str;
+                    if (ReadString(field) && ReadString(str))
+                    {
+                        //save hash value
+                        KeyObject fkey(ctx.ns, KEY_HASH_FIELD, key);
+                        fkey.SetHashField(field);
+                        ValueObject fvalue;
+                        fvalue.SetType(KEY_HASH_FIELD);
+                        fvalue.SetHashValue(str);
+                        g_db->SetKeyValue(ctx, fkey, fvalue);
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+                //g_db->SetKeyValue(ctx, meta_key, hmeta);
+                break;
+            }
+            case REDIS_RDB_TYPE_HASH_ZIPMAP:
+            case REDIS_RDB_TYPE_LIST_ZIPLIST:
+            case REDIS_RDB_TYPE_SET_INTSET:
+            case REDIS_RDB_TYPE_ZSET_ZIPLIST:
+            case REDIS_RDB_TYPE_HASH_ZIPLIST:
+            {
+                std::string aux;
+                if (!ReadString(aux))
+                {
+                    return false;
+                }
+                unsigned char* data = (unsigned char*) (&(aux[0]));
+                switch (rdbtype)
+                {
+                    case REDIS_RDB_TYPE_HASH_ZIPMAP:
+                    {
+                        unsigned char *zi = zipmapRewind(data);
+                        unsigned char *fstr, *vstr;
+                        unsigned int flen, vlen;
+                        //                        unsigned int maxlen = 0;
+                        //                      ValueObject hmeta;
+                        meta_value.SetType(KEY_HASH);
+                        int64 hlen = 0;
+                        while ((zi = zipmapNext(zi, &fstr, &flen, &vstr, &vlen)) != NULL)
+                        {
+                            //                            if (flen > maxlen)
+                            //                                maxlen = flen;
+                            //                            if (vlen > maxlen)
+                            //                                maxlen = vlen;
+                            std::string fstring, fvstring;
+                            fstring.assign((char*) fstr, flen);
+                            fvstring.assign((char*) vstr, vlen);
+                            KeyObject fkey(ctx.ns, KEY_HASH_FIELD, key);
+                            fkey.SetHashField(fstring);
+                            ValueObject fvalue;
+                            fvalue.SetType(KEY_HASH_FIELD);
+                            fvalue.SetHashValue(fvstring);
+                            g_db->SetKeyValue(ctx, fkey, fvalue);
+                            hlen++;
+                        }
+                        meta_value.SetObjectLen(hlen);
+                        //g_db->SetKeyValue(ctx, meta_key, hmeta);
+                        break;
+                    }
+                    case REDIS_RDB_TYPE_LIST_ZIPLIST:
+                    {
+                        RedisLoadListZipList(ctx, data, key, meta_value);
+                        break;
+                    }
+                    case REDIS_RDB_TYPE_SET_INTSET:
+                    {
+                        RedisLoadSetIntSet(ctx, data, key, meta_value);
+                        break;
+                    }
+                    case REDIS_RDB_TYPE_ZSET_ZIPLIST:
+                    {
+                        RedisLoadZSetZipList(ctx, data, key, meta_value);
+                        break;
+                    }
+                    case REDIS_RDB_TYPE_HASH_ZIPLIST:
+                    {
+                        RedisLoadHashZipList(ctx, data, key, meta_value);
+                        break;
+                    }
+                    default:
+                    {
+                        ERROR_LOG("Unknown encoding");
+                        abort();
+                    }
+                }
+                break;
+            }
+            default:
+            {
+                ERROR_LOG("Unknown object type:%d", rdbtype);
+                abort();
+            }
+        }
+        if (expiretime > 0)
+        {
+            meta_value.SetTTL(expiretime);
+        }
+        g_db->SetKeyValue(ctx, meta_key, meta_value);
+        return true;
+    }
+
+    int ObjectIO::ArdbWriteMagicHeader()
+    {
+        char magic[10];
+        snprintf(magic, sizeof(magic), "ARDB%04d", ARDB_RDB_VERSION);
+        return Write(magic, 8);
+    }
+
+    int ObjectIO::ArdbLoadBuffer(Context& ctx, Buffer& buffer)
+    {
+        while (buffer.Readable())
+        {
+            Slice key, value;
+            RETURN_NEGATIVE_EXPR(BufferHelper::ReadVarSlice(buffer, key));
+            RETURN_NEGATIVE_EXPR(BufferHelper::ReadVarSlice(buffer, value));
+            g_db->GetEngine()->PutRaw(ctx, ctx.ns, key, value);
+        }
+        return 0;
+    }
+
+    ObjectBuffer::ObjectBuffer()
+    {
+
+    }
+    ObjectBuffer::ObjectBuffer(const std::string& content)
+    {
+        m_buffer.WrapReadableContent(content.data(), content.size());
+    }
+
+    bool ObjectBuffer::Read(void* buf, size_t buflen, bool cksm)
+    {
+        if (m_buffer.ReadableBytes() < buflen)
+        {
+            return false;
+        }
+        m_buffer.Read(buf, buflen);
+        return true;
+    }
+    int ObjectBuffer::Write(const void* buf, size_t buflen)
+    {
+        m_buffer.Write(buf, buflen);
+        return 0;
+    }
+
+    bool ObjectBuffer::CheckReadPayload()
+    {
+        const unsigned char *footer;
+        uint16_t rdbver;
+        uint64_t crc;
+
+        size_t len = m_buffer.ReadableBytes();
+        /* At least 2 bytes of RDB version and 8 of CRC64 should be present. */
+        if (len < 10)
+            return false;
+        footer = (const unsigned char *)(m_buffer.GetRawReadBuffer() + (len - 10));
+
+        /* Verify RDB version */
+        rdbver = (footer[1] << 8) | footer[0];
+        if (rdbver > REDIS_RDB_VERSION)
+            return false;
+
+        /* Verify CRC64 */
+        crc = crc64(0, (const unsigned char*)m_buffer.GetRawReadBuffer(), len - 8);
+        memrev64ifbe(&crc);
+        return memcmp(&crc, footer + 2, 8) == 0;
+    }
+
+    bool ObjectBuffer::RedisLoad(Context& ctx, const std::string& key, int64 ttl)
+    {
+        if(!CheckReadPayload())
+        {
+            return false;
+        }
+        int type;
+        if ((type = ReadType()) == -1)
+        {
+            return false;
+        }
+        return RedisLoadObject(ctx, type, key, ttl);
+    }
+
+    bool ObjectBuffer::RedisSave(Context& ctx, const std::string& key, std::string& content, uint64* ttl)
+    {
+        unsigned char buf[2];
+        uint64_t crc;
+        KeyObject start(ctx.ns, KEY_META, key);
+        Iterator* iter = g_db->GetEngine()->Find(ctx, start);
+        int64 objectlen = 0;
+        KeyType current_keytype;
+        bool iter_continue = true;
+        bool success = false;
+
+        while (iter_continue && iter->Valid())
+        {
+            KeyObject& k = iter->Key();
+
+            if (start.GetKey() != k.GetKey() || k.GetNameSpace() != start.GetNameSpace())
+            {
+                //printf("####cmp %s %d\n", key.c_str(), k.GetNameSpace() != start.GetNameSpace());
+                break;
+            }
+            ValueObject& v = iter->Value();
+            switch (k.GetType())
+            {
+                case KEY_META:
+                {
+                    if(NULL != ttl)
+                    {
+                        *ttl = v.GetTTL();
+                    }
+//                    int64 ttl = v.GetTTL();
+//                    if (ttl > 0)
+//                    {
+//                        WriteType(REDIS_RDB_OPCODE_EXPIRETIME_MS);
+//                        WriteMillisecondTime(ttl);
+//                    }
+                    //printf("####type %d\n", current_keytype);
+                    current_keytype = (KeyType) v.GetType();
+                    WriteKeyType(current_keytype);
+//                    std::string kstr;
+//                    k.GetKey().ToString(kstr);
+//                    WriteRawString(kstr.data(), kstr.size());
+                    success = true;
+                    switch (current_keytype)
+                    {
+                        case KEY_STRING:
+                        {
+                            WriteStringObject(v.GetStringValue());
+                            iter_continue = false;
+                            break;
+                        }
+                        case KEY_LIST:
+                        case KEY_ZSET:
+                        case KEY_SET:
+                        case KEY_HASH:
+                        {
+                            g_db->ObjectLen(ctx, current_keytype, k.GetKey().AsString());
+                            objectlen = ctx.GetReply().GetInteger();
+                            WriteLen(objectlen);
+                            //DUMP_CHECK_WRITE(WriteStringObject(v.GetStringValue()));
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case KEY_LIST_ELEMENT:
+                {
+                    if (current_keytype != KEY_LIST || objectlen <= 0)
+                    {
+                        iter_continue = false;
+                        break;
+                    }
+                    WriteStringObject(v.GetListElement());
+                    objectlen--;
+                    break;
+                }
+                case KEY_SET_MEMBER:
+                {
+                    if (current_keytype != KEY_SET || objectlen <= 0)
+                    {
+                        iter_continue = false;
+                        break;
+                    }
+                    WriteStringObject(k.GetSetMember());
+                    objectlen--;
+                    break;
+                }
+                case KEY_ZSET_SORT:
+                {
+                    if (current_keytype != KEY_ZSET || objectlen <= 0)
+                    {
+                        break;
+                    }
+                    WriteStringObject(k.GetZSetMember());
+                    WriteDouble(k.GetZSetScore());
+                    objectlen--;
+                    break;
+                }
+                case KEY_HASH_FIELD:
+                {
+                    if (current_keytype != KEY_HASH || objectlen <= 0)
+                    {
+                        iter_continue = false;
+                        break;
+                    }
+                    WriteStringObject(k.GetHashField());
+                    WriteStringObject(v.GetHashValue());
+                    objectlen--;
+                    break;
+                }
+                case KEY_ZSET_SCORE:
+                {
+                    iter_continue = false;
+                    break;
+                }
+                default:
+                {
+                    break;
+                }
+            }
+            iter->Next();
+        }
+        DELETE(iter);
+
+        success = (success && objectlen == 0);
+        if (success)
+        {
+            /* Write the footer, this is how it looks like:
+             * ----------------+---------------------+---------------+
+             * ... RDB payload | 2 bytes RDB version | 8 bytes CRC64 |
+             * ----------------+---------------------+---------------+
+             * RDB version and CRC are both in little endian.
+             */
+
+            /* RDB version */
+            buf[0] = REDIS_RDB_VERSION & 0xff;
+            buf[1] = (REDIS_RDB_VERSION >> 8) & 0xff;
+            m_buffer.Write(buf, 2);
+            //payload->io.buffer.ptr = sdscatlen(payload->io.buffer.ptr,buf,2);
+
+            /* CRC64 */
+            crc = crc64(0, (unsigned char*) m_buffer.GetRawReadBuffer(), m_buffer.ReadableBytes());
+            memrev64ifbe(&crc);
+            m_buffer.Write(&crc, 8);
+
+            content.assign(m_buffer.GetRawBuffer(), m_buffer.ReadableBytes());
+        }
+        return success;
+    }
+
+    Snapshot::Snapshot() :
+            m_read_fp(NULL), m_write_fp(NULL), m_cksm(0), m_routine_cb(
+            NULL), m_routine_cbdata(
+            NULL), m_processed_bytes(0), m_file_size(0), m_state(SNAPSHOT_INVALID), m_routinetime(0), m_read_buf(
+            NULL), m_expected_data_size(0), m_writed_data_size(0), m_cached_repl_offset(0), m_cached_repl_cksm(0), m_save_time(0), m_type((SnapshotType) 0)
+    {
+
+    }
+    Snapshot::~Snapshot()
+    {
+        Close();
+        DELETE_A(m_read_buf);
     }
 
     void Snapshot::SetExpectedDataSize(int64 size)
@@ -997,471 +1696,6 @@ namespace ardb
         return 0;
     }
 
-    void Snapshot::RedisLoadListZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& listmeta)
-    {
-        unsigned char* iter = ziplistIndex(data, 0);
-        listmeta.SetType(KEY_LIST);
-        //BatchWriteGuard guard(g_db->GetKeyValueEngine());
-        int64 idx = 0;
-        while (iter != NULL)
-        {
-            unsigned char *vstr;
-            unsigned int vlen;
-            long long vlong;
-            if (ziplistGet(iter, &vstr, &vlen, &vlong))
-            {
-                std::string value;
-                if (vstr)
-                {
-                    value.assign((char*) vstr, vlen);
-                }
-                else
-                {
-                    value = stringfromll(vlong);
-                }
-                KeyObject lk(ctx.ns, KEY_LIST_ELEMENT, key);
-                lk.SetListIndex(idx);
-                ValueObject lv;
-                lv.SetType(KEY_LIST_ELEMENT);
-                lv.SetListElement(value);
-                //g_db->Set
-                idx++;
-                g_db->SetKeyValue(ctx, lk, lv);
-            }
-            iter = ziplistNext(data, iter);
-        }
-        listmeta.SetObjectLen(idx);
-        listmeta.SetListMinIdx(0);
-        listmeta.SetListMaxIdx(idx - 1);
-        listmeta.GetMetaObject().list_sequential = true;
-    }
-
-    static double zzlGetScore(unsigned char *sptr)
-    {
-        unsigned char *vstr;
-        unsigned int vlen;
-        long long vlong;
-        char buf[128];
-        double score;
-
-        ASSERT(sptr != NULL);
-        ASSERT(ziplistGet(sptr, &vstr, &vlen, &vlong));
-        if (vstr)
-        {
-            memcpy(buf, vstr, vlen);
-            buf[vlen] = '\0';
-            score = strtod(buf, NULL);
-        }
-        else
-        {
-            score = vlong;
-        }
-        return score;
-    }
-    void Snapshot::RedisLoadZSetZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value)
-    {
-        meta_value.SetType(KEY_ZSET);
-        meta_value.SetObjectLen(ziplistLen(data));
-        unsigned char* iter = ziplistIndex(data, 0);
-        while (iter != NULL)
-        {
-            unsigned char *vstr;
-            unsigned int vlen;
-            long long vlong;
-            std::string value;
-            if (ziplistGet(iter, &vstr, &vlen, &vlong))
-            {
-                if (vstr)
-                {
-                    value.assign((char*) vstr, vlen);
-                }
-                else
-                {
-                    value = stringfromll(vlong);
-                }
-            }
-            iter = ziplistNext(data, iter);
-            if (NULL == iter)
-            {
-                break;
-            }
-            double score = zzlGetScore(iter);
-            KeyObject zsort(ctx.ns, KEY_ZSET_SORT, key);
-            zsort.SetZSetMember(value);
-            zsort.SetZSetScore(score);
-            ValueObject zsort_value;
-            zsort_value.SetType(KEY_ZSET_SORT);
-            KeyObject zscore(ctx.ns, KEY_ZSET_SCORE, key);
-            zscore.SetZSetMember(value);
-            ValueObject zscore_value;
-            zscore_value.SetType(KEY_ZSET_SCORE);
-            zscore_value.SetZSetScore(score);
-            g_db->SetKeyValue(ctx, zsort, zscore_value);
-            g_db->SetKeyValue(ctx, zscore, zscore_value);
-            iter = ziplistNext(data, iter);
-        }
-//        KeyObject zkey(ctx.ns, KEY_META, key);
-//        g_db->SetKeyValue(ctx, zkey, zmeta);
-    }
-
-    void Snapshot::RedisLoadHashZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value)
-    {
-        meta_value.SetType(KEY_HASH);
-        meta_value.SetObjectLen(ziplistLen(data));
-        //BatchWriteGuard guard(g_db->GetKeyValueEngine());
-        unsigned char* iter = ziplistIndex(data, 0);
-        while (iter != NULL)
-        {
-            unsigned char *vstr, *fstr;
-            unsigned int vlen, flen;
-            long long vlong, flong;
-            std::string field, value;
-            if (ziplistGet(iter, &fstr, &flen, &flong))
-            {
-                if (fstr)
-                {
-                    field.assign((char*) fstr, flen);
-                }
-                else
-                {
-                    field = stringfromll(flong);
-                }
-            }
-            else
-            {
-                break;
-            }
-            iter = ziplistNext(data, iter);
-            if (NULL == iter)
-            {
-                break;
-            }
-            if (ziplistGet(iter, &vstr, &vlen, &vlong))
-            {
-                if (vstr)
-                {
-                    value.assign((char*) vstr, vlen);
-                }
-                else
-                {
-                    value = stringfromll(vlong);
-                }
-                KeyObject fkey(ctx.ns, KEY_HASH_FIELD, key);
-                fkey.SetHashField(field);
-                ValueObject fvalue;
-                fvalue.SetType(KEY_HASH_FIELD);
-                fvalue.SetHashValue(value);
-                g_db->SetKeyValue(ctx, fkey, fvalue);
-            }
-            iter = ziplistNext(data, iter);
-        }
-//        KeyObject hkey(ctx.ns, KEY_META, key);
-//        g_db->SetKeyValue(ctx, hkey, hmeta);
-    }
-
-    void Snapshot::RedisLoadSetIntSet(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value)
-    {
-        int ii = 0;
-        int64_t llele = 0;
-        meta_value.SetType(KEY_SET);
-        meta_value.SetObjectLen(intsetLen((intset*) data));
-        while (!intsetGet((intset*) data, ii++, &llele))
-        {
-            KeyObject member(ctx.ns, KEY_SET_MEMBER, key);
-            member.SetSetMember(stringfromll(llele));
-            ValueObject member_value;
-            member_value.SetType(KEY_SET_MEMBER);
-            g_db->SetKeyValue(ctx, member, member_value);
-        }
-//        KeyObject skey(ctx.ns, KEY_META, key);
-//        g_db->SetKeyValue(ctx, skey, smeta);
-    }
-
-    bool Snapshot::RedisLoadObject(Context& ctx, int rdbtype, const std::string& key, int64 expiretime)
-    {
-        //TransactionGuard guard(ctx);
-        KeyObject meta_key(ctx.ns, KEY_META, key);
-        ValueObject meta_value;
-
-        switch (rdbtype)
-        {
-            case REDIS_RDB_TYPE_STRING:
-            {
-                std::string str;
-                if (ReadString(str))
-                {
-                    ValueObject string_value;
-                    meta_value.SetType(KEY_STRING);
-                    meta_value.SetStringValue(str);
-                }
-                else
-                {
-                    return false;
-                }
-                break;
-            }
-            case REDIS_RDB_TYPE_LIST:
-            case REDIS_RDB_TYPE_SET:
-            {
-                uint32 len;
-                if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR)
-                    return false;
-
-                if (REDIS_RDB_TYPE_SET == rdbtype)
-                {
-                    meta_value.SetType(KEY_SET);
-                    meta_value.SetObjectLen(len);
-                }
-                else
-                {
-                    meta_value.SetType(KEY_LIST);
-                    meta_value.SetObjectLen(len);
-                    meta_value.GetMetaObject().list_sequential = true;
-                }
-                int64 idx = 0;
-                while (len--)
-                {
-                    std::string str;
-                    if (ReadString(str))
-                    {
-                        //push to list/set
-                        if (REDIS_RDB_TYPE_SET == rdbtype)
-                        {
-                            KeyObject member(ctx.ns, KEY_SET_MEMBER, key);
-                            member.SetSetMember(str);
-                            ValueObject member_val;
-                            member_val.SetType(KEY_SET_MEMBER);
-                            g_db->SetKeyValue(ctx, member, member_val);
-                        }
-                        else
-                        {
-                            KeyObject lk(ctx.ns, KEY_LIST_ELEMENT, key);
-                            lk.SetListIndex(idx);
-                            ValueObject lv;
-                            lv.SetType(KEY_LIST_ELEMENT);
-                            lv.SetListElement(str);
-                            g_db->SetKeyValue(ctx, lk, lv);
-                            idx++;
-                        }
-                    }
-                    else
-                    {
-                        return false;
-                    }
-                }
-                if (REDIS_RDB_TYPE_LIST == rdbtype)
-                {
-                    meta_value.GetMetaObject().list_sequential = true;
-                    meta_value.SetListMinIdx(0);
-                    meta_value.SetListMaxIdx(idx - 1);
-                }
-                //g_db->SetKeyValue(ctx, meta_key, zmeta);
-                break;
-            }
-            case REDIS_RDB_TYPE_LIST_QUICKLIST:
-            {
-                uint32 ziplen;
-                if ((ziplen = ReadLen(NULL)) == REDIS_RDB_LENERR)
-                    return false;
-                meta_value.SetType(KEY_LIST);
-                meta_value.GetMetaObject().list_sequential = true;
-                int64 idx = 0;
-                while (ziplen--)
-                {
-                    std::string zipstr;
-                    if (ReadString(zipstr))
-                    {
-                        unsigned char* data = (unsigned char*) (&(zipstr[0]));
-                        unsigned char* iter = ziplistIndex(data, 0);
-                        while (iter != NULL)
-                        {
-                            unsigned char *vstr;
-                            unsigned int vlen;
-                            long long vlong;
-                            if (ziplistGet(iter, &vstr, &vlen, &vlong))
-                            {
-                                std::string value;
-                                if (vstr)
-                                {
-                                    value.assign((char*) vstr, vlen);
-                                }
-                                else
-                                {
-                                    value = stringfromll(vlong);
-                                }
-                                KeyObject lk(ctx.ns, KEY_LIST_ELEMENT, key);
-                                lk.SetListIndex(idx);
-                                ValueObject lv;
-                                lv.SetType(KEY_LIST_ELEMENT);
-                                lv.SetListElement(value);
-                                //g_db->Set
-                                idx++;
-                                g_db->SetKeyValue(ctx, lk, lv);
-                            }
-                            iter = ziplistNext(data, iter);
-                        }
-                    }
-                    else
-                    {
-                        return false;
-                    }
-                }
-                meta_value.GetMetaObject().list_sequential = true;
-                meta_value.SetListMinIdx(0);
-                meta_value.SetListMaxIdx(idx - 1);
-                meta_value.SetObjectLen(idx);
-                break;
-            }
-            case REDIS_RDB_TYPE_ZSET:
-            {
-                uint32 len;
-                if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR)
-                    return false;
-                meta_value.SetType(KEY_ZSET);
-                meta_value.SetObjectLen(len);
-                while (len--)
-                {
-                    std::string str;
-                    double score;
-                    if (ReadString(str) && 0 == ReadDoubleValue(score))
-                    {
-                        //save value score
-                        //g_db->ZAdd(m_current_db, key, score, str);
-                        KeyObject zsort(ctx.ns, KEY_ZSET_SORT, key);
-                        zsort.SetZSetMember(str);
-                        zsort.SetZSetScore(score);
-                        ValueObject zsort_value;
-                        zsort_value.SetType(KEY_ZSET_SORT);
-                        KeyObject zscore(ctx.ns, KEY_ZSET_SCORE, key);
-                        zscore.SetZSetMember(str);
-                        ValueObject zscore_value;
-                        zscore_value.SetType(KEY_ZSET_SCORE);
-                        zscore_value.SetZSetScore(score);
-                        g_db->SetKeyValue(ctx, zsort, zscore_value);
-                        g_db->SetKeyValue(ctx, zscore, zscore_value);
-                    }
-                    else
-                    {
-                        return false;
-                    }
-                }
-                //g_db->SetKeyValue(ctx, meta_key, zmeta);
-                break;
-            }
-            case REDIS_RDB_TYPE_HASH:
-            {
-                uint32 len;
-                if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR)
-                    return false;
-                meta_value.SetType(KEY_HASH);
-                meta_value.SetObjectLen(len);
-                while (len--)
-                {
-                    std::string field, str;
-                    if (ReadString(field) && ReadString(str))
-                    {
-                        //save hash value
-                        KeyObject fkey(ctx.ns, KEY_HASH_FIELD, key);
-                        fkey.SetHashField(field);
-                        ValueObject fvalue;
-                        fvalue.SetType(KEY_HASH_FIELD);
-                        fvalue.SetHashValue(str);
-                        g_db->SetKeyValue(ctx, fkey, fvalue);
-                    }
-                    else
-                    {
-                        return false;
-                    }
-                }
-                //g_db->SetKeyValue(ctx, meta_key, hmeta);
-                break;
-            }
-            case REDIS_RDB_TYPE_HASH_ZIPMAP:
-            case REDIS_RDB_TYPE_LIST_ZIPLIST:
-            case REDIS_RDB_TYPE_SET_INTSET:
-            case REDIS_RDB_TYPE_ZSET_ZIPLIST:
-            case REDIS_RDB_TYPE_HASH_ZIPLIST:
-            {
-                std::string aux;
-                if (!ReadString(aux))
-                {
-                    return false;
-                }
-                unsigned char* data = (unsigned char*) (&(aux[0]));
-                switch (rdbtype)
-                {
-                    case REDIS_RDB_TYPE_HASH_ZIPMAP:
-                    {
-                        unsigned char *zi = zipmapRewind(data);
-                        unsigned char *fstr, *vstr;
-                        unsigned int flen, vlen;
-//                        unsigned int maxlen = 0;
-//                      ValueObject hmeta;
-                        meta_value.SetType(KEY_HASH);
-                        int64 hlen = 0;
-                        while ((zi = zipmapNext(zi, &fstr, &flen, &vstr, &vlen)) != NULL)
-                        {
-//                            if (flen > maxlen)
-//                                maxlen = flen;
-//                            if (vlen > maxlen)
-//                                maxlen = vlen;
-                            std::string fstring, fvstring;
-                            fstring.assign((char*) fstr, flen);
-                            fvstring.assign((char*) vstr, vlen);
-                            KeyObject fkey(ctx.ns, KEY_HASH_FIELD, key);
-                            fkey.SetHashField(fstring);
-                            ValueObject fvalue;
-                            fvalue.SetType(KEY_HASH_FIELD);
-                            fvalue.SetHashValue(fvstring);
-                            g_db->SetKeyValue(ctx, fkey, fvalue);
-                            hlen++;
-                        }
-                        meta_value.SetObjectLen(hlen);
-                        //g_db->SetKeyValue(ctx, meta_key, hmeta);
-                        break;
-                    }
-                    case REDIS_RDB_TYPE_LIST_ZIPLIST:
-                    {
-                        RedisLoadListZipList(ctx, data, key, meta_value);
-                        break;
-                    }
-                    case REDIS_RDB_TYPE_SET_INTSET:
-                    {
-                        RedisLoadSetIntSet(ctx, data, key, meta_value);
-                        break;
-                    }
-                    case REDIS_RDB_TYPE_ZSET_ZIPLIST:
-                    {
-                        RedisLoadZSetZipList(ctx, data, key, meta_value);
-                        break;
-                    }
-                    case REDIS_RDB_TYPE_HASH_ZIPLIST:
-                    {
-                        RedisLoadHashZipList(ctx, data, key, meta_value);
-                        break;
-                    }
-                    default:
-                    {
-                        ERROR_LOG("Unknown encoding");
-                        abort();
-                    }
-                }
-                break;
-            }
-            default:
-            {
-                ERROR_LOG("Unknown object type:%d", rdbtype);
-                abort();
-            }
-        }
-        if (expiretime > 0)
-        {
-            meta_value.SetTTL(expiretime);
-        }
-        g_db->SetKeyValue(ctx, meta_key, meta_value);
-        return true;
-    }
-
     int Snapshot::IsRedisDumpFile(const std::string& file)
     {
         FILE* fp = NULL;
@@ -1609,7 +1843,7 @@ namespace ardb
         if (rdbver >= 5)
         {
             uint64_t cksum, expected = m_cksm;
-            if (!Read(&cksum, 8))
+            if (!Read(&cksum, 8, true))
             {
                 goto eoferr;
             }memrev64ifbe(&cksum);
@@ -1629,13 +1863,6 @@ namespace ardb
         eoferr: Close();
         WARN_LOG("Short read or OOM loading DB. Unrecoverable error, aborting now.");
         return -1;
-    }
-
-    void Snapshot::RedisWriteMagicHeader()
-    {
-        char magic[10];
-        snprintf(magic, sizeof(magic), "REDIS%04d", 6);
-        Write(magic, 9);
     }
 
     int Snapshot::RedisSave()
@@ -1679,6 +1906,7 @@ namespace ardb
                         current_keytype = (KeyType) v.GetType();
                         DUMP_CHECK_WRITE(WriteKeyType(current_keytype));
                         current_key = k.GetKey();
+                        current_key.ToMutableStr();
                         std::string kstr;
                         k.GetKey().ToString(kstr);
                         DUMP_CHECK_WRITE(WriteRawString(kstr.data(), kstr.size()));
@@ -1777,13 +2005,6 @@ namespace ardb
         return 0;
     }
 
-    int Snapshot::ArdbWriteMagicHeader()
-    {
-        char magic[10];
-        snprintf(magic, sizeof(magic), "ARDB%04d", ARDB_RDB_VERSION);
-        return Write(magic, 8);
-    }
-
     int Snapshot::ArdbSaveRawKeyValue(const Slice& key, const Slice& value)
     {
         /*
@@ -1868,18 +2089,6 @@ namespace ardb
         uint64 cksm = m_cksm;
         memrev64ifbe(&cksm);
         Write(&cksm, sizeof(cksm));
-        return 0;
-    }
-
-    int Snapshot::ArdbLoadBuffer(Context& ctx, Buffer& buffer)
-    {
-        while (buffer.Readable())
-        {
-            Slice key, value;
-            RETURN_NEGATIVE_EXPR(BufferHelper::ReadVarSlice(buffer, key));
-            RETURN_NEGATIVE_EXPR(BufferHelper::ReadVarSlice(buffer, value));
-            g_db->GetEngine()->PutRaw(ctx, key, value);
-        }
         return 0;
     }
 

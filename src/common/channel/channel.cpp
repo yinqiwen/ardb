@@ -94,6 +94,37 @@ int Channel::GetReadFD()
     return m_fd;
 }
 
+bool Channel::BlockRead()
+{
+    if (GetReadFD() > 0 && !m_block_read)
+    {
+        aeDeleteFileEvent(GetService().GetRawEventLoop(), GetReadFD(),
+        AE_READABLE);
+        m_block_read = true;
+    }
+    return true;
+}
+bool Channel::UnblockRead()
+{
+    if (!m_block_read)
+    {
+        return true;
+    }
+    int fd = GetReadFD();
+    if (fd != -1 && aeCreateFileEvent(GetService().GetRawEventLoop(), fd, AE_READABLE, Channel::IOEventCallback, this) == AE_ERR)
+    {
+        ::close(GetReadFD());
+        ERROR_LOG("Failed to register event for fd:%d.", GetReadFD());
+        return false;
+    }
+    m_block_read = false;
+    if(m_inputBuffer.ReadableBytes() > 0)
+    {
+        fire_message_received<Buffer>(this, &m_inputBuffer, NULL);
+    }
+    return true;
+}
+
 bool Channel::AttachFD()
 {
     int fd = GetReadFD();

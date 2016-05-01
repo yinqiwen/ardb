@@ -303,13 +303,11 @@ namespace ardb
             void EnableWriting();
             void DisableWriting();
 
-            inline void BlockRead()
+            bool BlockRead();
+            bool UnblockRead();
+            bool IsReadBlocked()
             {
-                m_block_read = true;
-            }
-            inline void UnblockRead()
-            {
-                m_block_read = false;
+                return m_block_read;
             }
 
             inline void SetChannelPipelineInitializor(ChannelPipelineInitializer* initializor, void* data = NULL)

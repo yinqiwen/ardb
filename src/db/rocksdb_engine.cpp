@@ -655,6 +655,7 @@ OP_NAMESPACE_BEGIN
         m_options.prefix_extractor.reset(new RocksDBPrefixExtractor);
         m_options.compaction_filter_factory.reset(new RocksDBCompactionFilterFactory(this));
         m_options.info_log.reset(new RocksDBLogger);
+        //m_options.statistics
         if (DEBUG_ENABLED())
         {
             m_options.info_log_level = rocksdb::DEBUG_LEVEL;
@@ -673,6 +674,7 @@ OP_NAMESPACE_BEGIN
         m_options.OptimizeLevelStyleCompaction();
         m_options.IncreaseParallelism();
         m_options.stats_dump_period_sec = (unsigned int)g_db->GetConf().statistics_log_period;
+        //m_options.statistics = rocksdb::CreateDBStatistics();
         std::vector<std::string> column_families;
         s = rocksdb::DB::ListColumnFamilies(m_options, dir, &column_families);
         if (column_families.empty())
@@ -726,9 +728,9 @@ OP_NAMESPACE_BEGIN
         return ns;
     }
 
-    int RocksDBEngine::PutRaw(Context& ctx, const Slice& key, const Slice& value)
+    int RocksDBEngine::PutRaw(Context& ctx, const Data& ns, const Slice& key, const Slice& value)
     {
-        ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, ctx.ns, ctx.flags.create_if_notexist);
+        ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, ns, ctx.flags.create_if_notexist);
         rocksdb::ColumnFamilyHandle* cf = cfp.get();
         if (NULL == cf)
         {

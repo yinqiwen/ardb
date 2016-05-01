@@ -964,6 +964,7 @@ OP_NAMESPACE_BEGIN
             }
             ctx.ClearBPop();
         }
+        ctx.client->client->UnblockRead();
         return 0;
     }
 
@@ -982,7 +983,7 @@ OP_NAMESPACE_BEGIN
         {
             ctx.GetBPop().timeout = timeout * 1000 * 1000 + get_current_epoch_micros();
         }
-
+        ctx.client->client->BlockRead();
         LockGuard<SpinMutexLock> guard(m_block_keys_lock);
         for (size_t i = 0; i < keys.size(); i++)
         {

@@ -27,6 +27,7 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include "db/db.hpp"
+#include "repl/rdb.hpp"
 
 OP_NAMESPACE_BEGIN
     int Ardb::ObjectLen(Context& ctx, KeyType type, const std::string& keystr)
@@ -393,7 +394,7 @@ OP_NAMESPACE_BEGIN
                     }
                 }
             }
-            if(iter->Value().GetType() != KEY_STRING)
+            if (iter->Value().GetType() != KEY_STRING)
             {
                 std::string keystr;
                 k.GetKey().ToString(keystr);
@@ -653,7 +654,7 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         int64 ttl = val.GetTTL();
-        if(ttl > 0)
+        if (ttl > 0)
         {
             if (cmd.GetType() == REDIS_CMD_PTTL)
             {
@@ -740,8 +741,94 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
+    int Ardb::Dump(Context& ctx, RedisCommandFrame& cmd)
+    {
+        RedisReply& reply = ctx.GetReply();
+        ObjectBuffer buffer;
+        KeyObject meta(ctx.ns, KEY_META, cmd.GetArguments()[0]);
+        KeyLockGuard guard(ctx, meta);
+        if (!buffer.RedisSave(ctx, cmd.GetArguments()[0], reply.str))
+        {
+            reply.Clear();
+            return 0;
+        }
+        reply.type = REDIS_REPLY_STRING;
+        return 0;
+    }
+    int Ardb::Restore(Context& ctx, RedisCommandFrame& cmd)
+    {
+        printf("###restore 22?\n");
+        RedisReply& reply = ctx.GetReply();
+        bool replace = false;
+        int64 ttl = 0;
+        bool delete_exist = true;
+        if(cmd.GetArguments().size() == 4)
+        {
+            if(!strcasecmp(cmd.GetArguments()[3].c_str(), "replace"))
+            {
+                replace = true;
+            }
+            else
+            {
+                printf("###restore 5?\n");
+                reply.SetErrCode(ERR_INVALID_SYNTAX);
+                return 0;
+            }
+        }
+        if (!string_toint64(cmd.GetArguments()[1], ttl) || ttl < 0)
+        {
+            printf("###restore 4?\n");
+            reply.SetErrorReason("Invalid TTL value, must be >= 0");
+            return 0;
+        }
+        if(ttl > 0)
+        {
+            ttl += get_current_epoch_millis();
+        }
+        ObjectBuffer buffer(cmd.GetArguments()[2]);
+        if(!buffer.CheckReadPayload())
+        {
+            printf("###restore 3?\n");
+            reply.SetErrorReason("DUMP payload version or checksum are wrong");
+            return 0;
+        }
+        KeyObject meta(ctx.ns, KEY_META, cmd.GetArguments()[0]);
+        KeyLockGuard guard(ctx, meta);
+        if (!replace)
+        {
+            if (m_engine->Exists(ctx, meta))
+            {
+                printf("###restore 2?\n");
+                reply.SetErrorReason("-BUSYKEY Target key name already exists.");
+                return 0;
+            }
+            delete_exist = false;  //no need to delete
+        }
+        if (delete_exist)
+        {
+            DelKey(ctx, meta);
+        }
+        ctx.flags.create_if_notexist = 1;
+        if (buffer.RedisLoad(ctx, cmd.GetArguments()[0], ttl))
+        {
+            printf("###restore ss for key:%s at %s\n", cmd.GetArguments()[0].c_str(), ctx.ns.AsString().c_str());
+            reply.SetStatusCode(STATUS_OK);
+        }
+        else
+        {
+            printf("###restore 1?\n");
+            reply.SetErrorReason("Bad data format");
+        }
+        return 0;
+    }
+
     int Ardb::RawSet(Context& ctx, RedisCommandFrame& cmd)
     {
+        Data ns;
+        ns.SetString(cmd.GetArguments()[0], false);
+        Slice key(cmd.GetArguments()[1]);
+        Slice value(cmd.GetArguments()[1]);
+        m_engine->PutRaw(ctx, ns, key, value);
         return 0;
     }
     int Ardb::RawDel(Context& ctx, RedisCommandFrame& cmd)

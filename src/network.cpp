@@ -223,6 +223,7 @@ OP_NAMESPACE_BEGIN
     {
         if (0 != g_repl->Init())
         {
+            ERROR_LOG("Failed to init replication service.");
             return -1;
         }
         m_service = new ChannelService(g_db->GetConf().max_open_files);

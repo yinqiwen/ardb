@@ -98,7 +98,7 @@ namespace ardb
 
         enum StatusCode
         {
-            STATUS_OK = 1000, STATUS_PONG = 1001, STATUS_QUEUED = 1002,
+            STATUS_OK = 1000, STATUS_PONG = 1001, STATUS_QUEUED = 1002, STATUS_NOKEY = 1003,
         };
 
         struct RedisDumpFileChunk
@@ -273,8 +273,12 @@ namespace ardb
                 void Clear();
         };
 
+        typedef std::vector<RedisReply*> RedisReplyArray;
+
         void reply_status_string(int code, std::string& str);
         void reply_error_string(int code, std::string& str);
+
+        void clone_redis_reply(RedisReply& src, RedisReply& dst);
     }
 }
 

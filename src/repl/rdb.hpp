@@ -52,31 +52,11 @@ namespace ardb
     class Snapshot;
     typedef int SnapshotRoutine(SnapshotState state, Snapshot* snapshot, void* cb);
 
-    class Snapshot
+    class ObjectIO
     {
         protected:
-            FILE* m_read_fp;
-            FILE* m_write_fp;
-            std::string m_file_path;
-            uint64 m_cksm;
-            SnapshotRoutine* m_routine_cb;
-            void *m_routine_cbdata;
-            uint64 m_processed_bytes;
-            uint64 m_file_size;
-            SnapshotState m_state;
-            uint64 m_routinetime;
-            char* m_read_buf;
-
-            int64 m_expected_data_size;
-            int64 m_writed_data_size;
-
-            Buffer m_write_buffer;
-            uint64 m_cached_repl_offset;
-            uint64 m_cached_repl_cksm;
-            time_t m_save_time;
-            SnapshotType m_type;
-            bool Read(void* buf, size_t buflen, bool cksm = true);
-
+            virtual bool Read(void* buf, size_t buflen, bool cksm = true) = 0;
+            virtual int Write(const void* buf, size_t buflen) = 0;
             int WriteType(uint8 type);
             int WriteKeyType(KeyType type);
             int WriteLen(uint32 len);
@@ -102,16 +82,92 @@ namespace ardb
             void RedisLoadHashZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
             void RedisLoadZSetZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
             void RedisLoadSetIntSet(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
-
             void RedisWriteMagicHeader();
+
+            int ArdbWriteMagicHeader();
+            bool ArdbReadChunk(Buffer& buffer);
+            bool ArdbReadSnappyChunk(Buffer& buffer);
+            int ArdbLoadBuffer(Context& ctx, Buffer& buffer);
+        public:
+            virtual ~ObjectIO()
+            {
+            }
+    };
+
+    class ObjectBuffer:public ObjectIO
+    {
+        private:
+            Buffer m_buffer;
+            bool Read(void* buf, size_t buflen, bool cksm);
+            int Write(const void* buf, size_t buflen);
+        public:
+            ObjectBuffer();
+            ObjectBuffer(const std::string& content);
+            bool RedisSave(Context& ctx, const std::string& key, std::string& content, uint64* ttl = NULL);
+            bool RedisLoad(Context& ctx, const std::string& key, int64 ttl);
+            bool CheckReadPayload();
+
+    };
+
+    class Snapshot:public ObjectIO
+    {
+        protected:
+            FILE* m_read_fp;
+            FILE* m_write_fp;
+            std::string m_file_path;
+            uint64 m_cksm;
+            SnapshotRoutine* m_routine_cb;
+            void *m_routine_cbdata;
+            uint64 m_processed_bytes;
+            uint64 m_file_size;
+            SnapshotState m_state;
+            uint64 m_routinetime;
+            char* m_read_buf;
+
+            int64 m_expected_data_size;
+            int64 m_writed_data_size;
+
+            Buffer m_write_buffer;
+            uint64 m_cached_repl_offset;
+            uint64 m_cached_repl_cksm;
+            time_t m_save_time;
+            SnapshotType m_type;
+            bool Read(void* buf, size_t buflen, bool cksm);
+
+//            int WriteType(uint8 type);
+//            int WriteKeyType(KeyType type);
+//            int WriteLen(uint32 len);
+//            int WriteMillisecondTime(uint64 ts);
+//            int WriteDouble(double v);
+//            int WriteLongLongAsStringObject(long long value);
+//            int WriteRawString(const char *s, size_t len);
+//            int WriteLzfStringObject(const char *s, size_t len);
+//            int WriteTime(time_t t);
+//            int WriteStringObject(const Data& o);
+//
+//            int ReadType();
+//            time_t ReadTime();
+//            int64 ReadMillisecondTime();
+//            uint32_t ReadLen(int *isencoded);
+//            bool ReadInteger(int enctype, int64& v);
+//            bool ReadLzfStringObject(std::string& str);
+//            bool ReadString(std::string& str);
+//            int ReadDoubleValue(double&val);
+
+//            bool RedisLoadObject(Context& ctx, int type, const std::string& key, int64 expiretime);
+//            void RedisLoadListZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
+//            void RedisLoadHashZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
+//            void RedisLoadZSetZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
+//            void RedisLoadSetIntSet(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
+//            void RedisWriteMagicHeader();
 
             int RedisLoad();
             int RedisSave();
 
-            int ArdbWriteMagicHeader();
+//            int ArdbWriteMagicHeader();
             int ArdbSaveRawKeyValue(const Slice& key, const Slice& value);
             int ArdbFlushWriteBuffer();
-            int ArdbLoadBuffer(Context& ctx, Buffer& buffer);
+//            int ArdbLoadBuffer(Context& ctx, Buffer& buffer);
             int ArdbSave();
             int ArdbLoad();
 

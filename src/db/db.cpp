@@ -298,7 +298,7 @@ OP_NAMESPACE_BEGIN
         { "sort", REDIS_CMD_SORT, &Ardb::Sort, 1, -1, "w", 0, 0, 0 },
         { "keys", REDIS_CMD_KEYS, &Ardb::Keys, 1, 6, "r", 0, 0, 0 },
         { "keyscount", REDIS_CMD_KEYSCOUNT, &Ardb::KeysCount, 1, 6, "r", 0, 0, 0 },
-        { "__set__", REDIS_CMD_RAWSET, &Ardb::RawSet, 2, 2, "w", 0, 0, 0 },
+        { "__set__", REDIS_CMD_RAWSET, &Ardb::RawSet, 3, 3, "w", 0, 0, 0 },
         { "__del__", REDIS_CMD_RAWDEL, &Ardb::RawDel, 1, 1, "w", 0, 0, 0 },
         { "eval", REDIS_CMD_EVAL, &Ardb::Eval, 2, -1, "s", 0, 0, 0 },
         { "evalsha", REDIS_CMD_EVALSHA, &Ardb::EvalSHA, 2, -1, "s", 0, 0, 0 },
@@ -316,7 +316,10 @@ OP_NAMESPACE_BEGIN
         { "pfadd", REDIS_CMD_PFADD, &Ardb::PFAdd, 2, -1, "w", 0, 0, 0 },
         { "pfadd2", REDIS_CMD_PFADD2, &Ardb::PFAdd, 2, -1, "w", 0, 0, 0 },
         { "pfcount", REDIS_CMD_PFCOUNT, &Ardb::PFCount, 1, -1, "w", 0, 0, 0 },
-        { "pfmerge", REDIS_CMD_PFMERGE, &Ardb::PFMerge, 2, -1, "w", 0, 0, 0 }, };
+        { "pfmerge", REDIS_CMD_PFMERGE, &Ardb::PFMerge, 2, -1, "w", 0, 0, 0 },
+        { "dump", REDIS_CMD_DUMP, &Ardb::Dump, 1, 1, "r", 0, 0, 0 },
+        { "restore", REDIS_CMD_RESTORE, &Ardb::Restore, 3, 4, "w", 0, 0, 0 },
+        { "migrate", REDIS_CMD_MIGRATE, &Ardb::Migrate, 5, -1, "w", 0, 0, 0 },};
 
         CostRanges cmdstat_ranges;
         cmdstat_ranges.push_back(CostRange(0, 1000));

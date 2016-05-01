@@ -101,8 +101,12 @@ INCS=-I./ -I./common -I${LIB_PATH}/cpp-btree -I${LUA_PATH}/src -I${SNAPPY_PATH} 
 # Default allocator
 ifeq ($(uname_S),Linux)
 	MALLOC=jemalloc
+	CXXFLAGS+=-DCORO_ASM
+	CCFLAGS+=-DCORO_ASM
 else
 	MALLOC=libc
+	CXXFLAGS+=-DCORO_UCONTEXT -D_XOPEN_SOURCE
+	CCFLAGS+=-DCORO_UCONTEXT -D_XOPEN_SOURCE
 endif
 
 
@@ -123,7 +127,7 @@ LIBS= ${LUA_LIBA} ${MALLOC_LIBA} ${SNAPPY_LIBA} -lpthread
 
 
 COMMON_VPATH=common/channel common/channel/socket common/channel/fifo common/channel/codec common/channel/timer common/channel/signal \
-             common/util common/util/exception  common/thread  common/redis common/buffer common/geo common/channel/redis
+             common/util common/util/exception  common/thread  common/coro common/redis common/buffer common/geo common/channel/redis
 COMMON_CPPFILES := $(foreach dir, $(COMMON_VPATH), $(wildcard $(dir)/*.cpp))
 COMMON_CFILES := $(foreach dir, $(COMMON_VPATH), $(wildcard $(dir)/*.c))
 COMMON_OBJECTS := $(patsubst %.cpp, %.o, $(COMMON_CPPFILES)) $(patsubst %.c, %.o, $(COMMON_CFILES))

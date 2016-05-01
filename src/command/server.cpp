@@ -66,7 +66,7 @@ namespace ardb
         {
             io_serv = &(ctx.client->client->GetService());
             conn_id = ctx.client->client->GetID();
-            ctx.client->client->DetachFD();
+            ctx.client->client->BlockRead();
         }
         Snapshot* snapshot = g_snapshot_manager->NewSnapshot(type, false, RDBSaveLoadRoutine, io_serv);
         if (NULL == io_serv || io_serv->GetChannel(conn_id) != NULL)
@@ -82,7 +82,7 @@ namespace ardb
         }
         if (NULL != ctx.client && NULL != ctx.client->client)
         {
-            ctx.client->client->AttachFD();
+            ctx.client->client->UnblockRead();
         }
         return 0;
     }
@@ -138,7 +138,7 @@ namespace ardb
         {
             io_serv = &(ctx.client->client->GetService());
             conn_id = ctx.client->client->GetID();
-            ctx.client->client->DetachFD();
+            ctx.client->client->BlockRead();
         }
         Snapshot snapshot;
         int err = snapshot.Load(file, RDBSaveLoadRoutine, io_serv);
@@ -156,7 +156,7 @@ namespace ardb
         m_loading_data = false;
         if (NULL != ctx.client && NULL != ctx.client->client)
         {
-            ctx.client->client->AttachFD();
+            ctx.client->client->UnblockRead();
         }
         return 0;
     }
@@ -813,6 +813,12 @@ namespace ardb
 
     int Ardb::Sync(Context& ctx, RedisCommandFrame& cmd)
     {
+        if(!g_repl->IsInited())
+        {
+            WARN_LOG("Replication service is NOT intied to serve as master.");
+            ctx.GetReply().SetErrorReason("server is singleton only.");
+            return -1;
+        }
         FreeClient(ctx);
         g_repl->GetMaster().AddSlave(ctx.client->client, cmd);
         ctx.GetReply().SetEmpty();
@@ -821,6 +827,12 @@ namespace ardb
 
     int Ardb::PSync(Context& ctx, RedisCommandFrame& cmd)
     {
+        if(!g_repl->IsInited())
+        {
+            WARN_LOG("Replication service is NOT intied to serve as master.");
+            ctx.GetReply().SetErrorReason("server is singleton only.");
+            return -1;
+        }
         FreeClient(ctx);
         g_repl->GetMaster().AddSlave(ctx.client->client, cmd);
         ctx.GetReply().SetEmpty();

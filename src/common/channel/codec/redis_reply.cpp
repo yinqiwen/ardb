@@ -188,6 +188,36 @@ namespace ardb
             Clear();
         }
 
+        void clone_redis_reply(RedisReply& src, RedisReply& dst)
+        {
+            dst.integer = src.integer;
+            dst.type = src.type;
+            switch(src.type)
+            {
+                case REDIS_REPLY_STATUS:
+                case REDIS_REPLY_STRING:
+                case REDIS_REPLY_ERROR:
+                {
+                    dst.str = src.str;
+                    break;
+                }
+                case REDIS_REPLY_ARRAY:
+                {
+                    for(size_t i = 0; i < src.MemberSize(); i++)
+                    {
+                        RedisReply& child = src.MemberAt(i);
+                        RedisReply& clone_child =  dst.AddMember();
+                        clone_redis_reply(child, clone_child);
+                    }
+                    break;
+                }
+                default:
+                {
+                    break;
+                }
+            }
+        }
+
         void reply_status_string(int code, std::string& str)
         {
             switch (code)
@@ -285,6 +315,11 @@ namespace ardb
                 case STATUS_QUEUED:
                 {
                     str.assign("QUEUED", 5);
+                    break;
+                }
+                case STATUS_NOKEY:
+                {
+                    str.assign("NOKEY", 5);
                     break;
                 }
                 default:

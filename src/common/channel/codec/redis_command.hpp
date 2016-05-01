@@ -102,6 +102,10 @@ namespace ardb
             REDIS_CMD_KEYS = 65,
             REDIS_CMD_SCAN = 66,
             REDIS_CMD_KEYSCOUNT = 67,
+            REDIS_CMD_MIGRATE = 68,
+            REDIS_CMD_DUMP = 69,
+            REDIS_CMD_RESTORE = 70,
+            REDIS_CMD_MIGRATEDB = 71,
 
             //'string' commands
             REDIS_CMD_APPEND = 100,

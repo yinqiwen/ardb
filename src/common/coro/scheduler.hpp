@@ -14,6 +14,7 @@
 
 OP_NAMESPACE_BEGIN
 
+
     typedef void CoroutineFunc(void* data);
 
     typedef uint64_t coro_id;
@@ -38,8 +39,15 @@ OP_NAMESPACE_BEGIN
             CoroutineStack m_deleteing_coros;
             CoroutineTable m_join_table;
             CoroutineTable m_exec_table;
+            Coroutine* m_current_coro;
             void Clean();
+
+            void SetCurrentCoroutine(Coroutine* coro)
+            {
+                m_current_coro = coro;
+            }
         public:
+            Scheduler();
             /*
              * Wakeup waiting coroutine
              */
@@ -55,15 +63,21 @@ OP_NAMESPACE_BEGIN
 
             int Join(coro_id cid);
 
-            static bool IsInMainCoro();
+            bool IsInMainCoro();
 
             uint32 GetCoroNum()
             {
-            	return m_exec_table.size();
+                return m_exec_table.size();
             }
-    };
 
-    extern Coroutine* g_current_coro;
+            Coroutine* GetCurrentCoroutine()
+            {
+                return m_current_coro;
+            }
+
+            static Scheduler& CurrentScheduler();
+
+    };
 
 OP_NAMESPACE_END
 

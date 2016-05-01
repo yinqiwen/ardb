@@ -6,10 +6,11 @@
  */
 
 #include "scheduler.hpp"
+#include "thread/thread_local.hpp"
 
 OP_NAMESPACE_BEGIN
 
-    Coroutine* g_current_coro = NULL;
+    static ThreadLocal<Scheduler> g_local_scheduler;
     static uint64 g_coro_id_seed = 0;
     Coroutine::Coroutine(CoroutineFunc* f, void* data, uint32 stack_size) :
             id(0), func(f)
@@ -32,6 +33,12 @@ OP_NAMESPACE_BEGIN
         coro_destroy(&ctx);
     }
 
+    Scheduler::Scheduler() :
+            m_current_coro(NULL)
+    {
+
+    }
+
     void Scheduler::Clean()
     {
         while (!m_deleteing_coros.empty())
@@ -45,20 +52,25 @@ OP_NAMESPACE_BEGIN
     void Scheduler::Wakeup(Coroutine* coro)
     {
         Clean();
-        Coroutine* current = g_current_coro;
+        Coroutine* current = GetCurrentCoroutine();
         //bool create_coro = false;
         if (NULL == current)
         {
             current = new Coroutine;
             //create_coro = true;
         }
+        if(current == coro)
+        {
+            return;
+        }
         m_pending_coros.push(current);
-        g_current_coro = coro;
+        SetCurrentCoroutine(coro);
         coro_transfer(&(current->ctx), &(coro->ctx));
         /*
          * resume global coroutine
          */
-        g_current_coro = current;
+        SetCurrentCoroutine(current);
+        //g_current_coro = current;
     }
 
     void Scheduler::Wait(Coroutine* coro)
@@ -68,7 +80,8 @@ OP_NAMESPACE_BEGIN
         {
             Coroutine* top = m_pending_coros.top();
             m_pending_coros.pop();
-            g_current_coro = top;
+            //g_current_coro = top;
+            SetCurrentCoroutine(top);
             coro_transfer(&(coro->ctx), &(top->ctx));
         }
         else
@@ -88,7 +101,7 @@ OP_NAMESPACE_BEGIN
     {
         CoroutineContext* ctx = (CoroutineContext*) data;
         Scheduler* scheduler = ctx->scheduler;
-        Coroutine* coro = g_current_coro;
+        Coroutine* coro = scheduler->GetCurrentCoroutine();
         ctx->func(ctx->data);
         DELETE(ctx);
         scheduler->DestroyCoro(coro);
@@ -107,7 +120,8 @@ OP_NAMESPACE_BEGIN
         {
             Coroutine* waiting = jit->second;
             m_join_table.erase(jit);
-            g_current_coro = waiting;
+            SetCurrentCoroutine(waiting);
+            //g_current_coro = waiting;
             coro_transfer(&(coro->ctx), &(waiting->ctx));
         }
         else
@@ -116,7 +130,8 @@ OP_NAMESPACE_BEGIN
             {
                 Coroutine* top = m_pending_coros.top();
                 m_pending_coros.pop();
-                g_current_coro = top;
+                //g_current_coro = top;
+                SetCurrentCoroutine(top);
                 coro_transfer(&(coro->ctx), &(top->ctx));
             }
             else
@@ -157,15 +172,21 @@ OP_NAMESPACE_BEGIN
         {
             return -2;
         }
-
-        m_join_table[cid] = g_current_coro;
-        Wait(g_current_coro);
+        Coroutine* current_coro = GetCurrentCoroutine();
+        m_join_table[cid] = current_coro;
+        Wait(current_coro);
         return 0;
     }
 
     bool Scheduler::IsInMainCoro()
     {
-        return NULL == g_current_coro || NULL == g_current_coro->func;
+        Coroutine* current_coro = GetCurrentCoroutine();
+        return NULL == current_coro || NULL == current_coro->func;
+    }
+
+    Scheduler& Scheduler::CurrentScheduler()
+    {
+        return g_local_scheduler.GetValue();
     }
 
 OP_NAMESPACE_END

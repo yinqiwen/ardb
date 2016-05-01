@@ -171,8 +171,9 @@ void FastRedisCommandDecoder::MessageReceived(ChannelHandlerContext& ctx, Messag
     {
         buffer.AdvanceReadIndex(1);
     }
+    Channel* ch = ctx.GetChannel();
     std::string err;
-    while (buffer.Readable())
+    while (buffer.Readable() && !ch->IsReadBlocked())
     {
         /* Determine request type when unknown. */
         if (!m_reqtype)
