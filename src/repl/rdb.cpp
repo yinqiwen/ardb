@@ -1139,6 +1139,78 @@ namespace ardb
         return 0;
     }
 
+    int ObjectIO::ArdbSaveRawKeyValue(const Slice& key, const Slice& value, Buffer& buffer)
+    {
+        BufferHelper::WriteVarSlice(buffer, key);
+        BufferHelper::WriteVarSlice(buffer, value);
+        return 0;
+    }
+
+    int ObjectIO::ArdbFlushWriteBuffer(Buffer& buffer)
+    {
+        if (buffer.Readable())
+        {
+            std::string compressed;
+            snappy::Compress(buffer.GetRawReadBuffer(), buffer.ReadableBytes(), &compressed);
+            if (compressed.size() > (buffer.ReadableBytes() + 4))
+            {
+                RETURN_NEGATIVE_EXPR(WriteType(ARDB_RDB_TYPE_CHUNK));
+                uint32 len = buffer.ReadableBytes();
+                RETURN_NEGATIVE_EXPR(WriteLen(len));
+                RETURN_NEGATIVE_EXPR(Write(buffer.GetRawReadBuffer(), buffer.ReadableBytes()));
+            }
+            else
+            {
+                RETURN_NEGATIVE_EXPR(WriteType(ARDB_RDB_TYPE_SNAPPY_CHUNK));
+                uint32 rawlen = buffer.ReadableBytes();
+                RETURN_NEGATIVE_EXPR(WriteLen(rawlen));
+                RETURN_NEGATIVE_EXPR(WriteLen(compressed.size()));
+                RETURN_NEGATIVE_EXPR(Write(compressed.data(), compressed.size()));
+            }
+            buffer.Clear();
+        }
+        return 0;
+    }
+
+    int ObjectIO::ArdbLoadChunk(Context& ctx, int type)
+    {
+        if (type == ARDB_RDB_TYPE_CHUNK)
+        {
+            Buffer buffer;
+            uint32 len = ReadLen(NULL);
+            buffer.EnsureWritableBytes(len);
+            char* newbuf = const_cast<char*>(buffer.GetRawWriteBuffer());
+            if (!Read(newbuf, len, true))
+            {
+                return -1;
+            }
+            RETURN_NEGATIVE_EXPR(ArdbLoadBuffer(ctx, buffer));
+        }
+        else if (type == ARDB_RDB_TYPE_SNAPPY_CHUNK)
+        {
+            uint32 rawlen = ReadLen(NULL);
+            uint32 compressedlen = ReadLen(NULL);
+            char* newbuf = NULL;
+            NEW(newbuf, char[compressedlen]);
+            if (!Read(newbuf, compressedlen, true))
+            {
+                DELETE_A(newbuf);
+                return -1;
+            }
+            std::string origin;
+            origin.reserve(rawlen);
+            if (!snappy::Uncompress(newbuf, compressedlen, &origin))
+            {
+                DELETE_A(newbuf);
+                return -1;
+            }
+            DELETE_A(newbuf);
+            Buffer readbuf(const_cast<char*>(origin.data()), 0, origin.size());
+            RETURN_NEGATIVE_EXPR(ArdbLoadBuffer(ctx, readbuf));
+        }
+        return -1;
+    }
+
     ObjectBuffer::ObjectBuffer()
     {
 
@@ -1173,7 +1245,7 @@ namespace ardb
         /* At least 2 bytes of RDB version and 8 of CRC64 should be present. */
         if (len < 10)
             return false;
-        footer = (const unsigned char *)(m_buffer.GetRawReadBuffer() + (len - 10));
+        footer = (const unsigned char *) (m_buffer.GetRawReadBuffer() + (len - 10));
 
         /* Verify RDB version */
         rdbver = (footer[1] << 8) | footer[0];
@@ -1181,14 +1253,14 @@ namespace ardb
             return false;
 
         /* Verify CRC64 */
-        crc = crc64(0, (const unsigned char*)m_buffer.GetRawReadBuffer(), len - 8);
+        crc = crc64(0, (const unsigned char*) m_buffer.GetRawReadBuffer(), len - 8);
         memrev64ifbe(&crc);
         return memcmp(&crc, footer + 2, 8) == 0;
     }
 
     bool ObjectBuffer::RedisLoad(Context& ctx, const std::string& key, int64 ttl)
     {
-        if(!CheckReadPayload())
+        if (!CheckReadPayload())
         {
             return false;
         }
@@ -1198,6 +1270,21 @@ namespace ardb
             return false;
         }
         return RedisLoadObject(ctx, type, key, ttl);
+    }
+
+    bool ObjectBuffer::ArdbLoad(Context& ctx)
+    {
+        int type = 0;
+        if ((type = ReadType()) == -1)
+            return false;
+        if (type == ARDB_RDB_TYPE_CHUNK || type == ARDB_RDB_TYPE_SNAPPY_CHUNK)
+        {
+            return ArdbLoadChunk(ctx, type) == 0;
+        }
+        else
+        {
+            return false;
+        }
     }
 
     bool ObjectBuffer::RedisSave(Context& ctx, const std::string& key, std::string& content, uint64* ttl)
@@ -1225,7 +1312,7 @@ namespace ardb
             {
                 case KEY_META:
                 {
-                    if(NULL != ttl)
+                    if (NULL != ttl)
                     {
                         *ttl = v.GetTTL();
                     }
@@ -2005,55 +2092,43 @@ namespace ardb
         return 0;
     }
 
-    int Snapshot::ArdbSaveRawKeyValue(const Slice& key, const Slice& value)
-    {
-        /*
-         * routine callback every 100ms
-         */
-        if (NULL != m_routine_cb && get_current_epoch_millis() - m_routinetime >= 100)
-        {
-            int cbret = m_routine_cb(DUMPING, this, m_routine_cbdata);
-            if (0 != cbret)
-            {
-                return cbret;
-            }
-            m_routinetime = get_current_epoch_millis();
-        }
-        BufferHelper::WriteVarSlice(m_write_buffer, key);
-        BufferHelper::WriteVarSlice(m_write_buffer, value);
-        if (m_write_buffer.ReadableBytes() >= 1024 * 1024)
-        {
-            return ArdbFlushWriteBuffer();
-        }
-        return 0;
-    }
-
-    int Snapshot::ArdbFlushWriteBuffer()
-    {
-        if (m_write_buffer.Readable())
-        {
-            std::string compressed;
-            snappy::Compress(m_write_buffer.GetRawReadBuffer(), m_write_buffer.ReadableBytes(), &compressed);
-            if (compressed.size() > (m_write_buffer.ReadableBytes() + 4))
-            {
-                RETURN_NEGATIVE_EXPR(WriteType(ARDB_RDB_TYPE_CHUNK));
-                uint32 len = m_write_buffer.ReadableBytes();
-                RETURN_NEGATIVE_EXPR(WriteLen(len));
-                RETURN_NEGATIVE_EXPR(Write(m_write_buffer.GetRawReadBuffer(), m_write_buffer.ReadableBytes()));
-            }
-            else
-            {
-                RETURN_NEGATIVE_EXPR(WriteType(ARDB_RDB_TYPE_SNAPPY_CHUNK));
-                uint32 rawlen = m_write_buffer.ReadableBytes();
-                RETURN_NEGATIVE_EXPR(WriteLen(rawlen));
-                RETURN_NEGATIVE_EXPR(WriteLen(compressed.size()));
-                RETURN_NEGATIVE_EXPR(Write(compressed.data(), compressed.size()));
-            }
-            m_write_buffer.Clear();
-        }
-        Flush();
-        return 0;
-    }
+//    int Snapshot::ArdbSaveRawKeyValue(const Slice& key, const Slice& value)
+//    {
+//        BufferHelper::WriteVarSlice(m_write_buffer, key);
+//        BufferHelper::WriteVarSlice(m_write_buffer, value);
+//        if (m_write_buffer.ReadableBytes() >= 1024 * 1024)
+//        {
+//            return ArdbFlushWriteBuffer();
+//        }
+//        return 0;
+//    }
+//
+//    int Snapshot::ArdbFlushWriteBuffer()
+//    {
+//        if (m_write_buffer.Readable())
+//        {
+//            std::string compressed;
+//            snappy::Compress(m_write_buffer.GetRawReadBuffer(), m_write_buffer.ReadableBytes(), &compressed);
+//            if (compressed.size() > (m_write_buffer.ReadableBytes() + 4))
+//            {
+//                RETURN_NEGATIVE_EXPR(WriteType(ARDB_RDB_TYPE_CHUNK));
+//                uint32 len = m_write_buffer.ReadableBytes();
+//                RETURN_NEGATIVE_EXPR(WriteLen(len));
+//                RETURN_NEGATIVE_EXPR(Write(m_write_buffer.GetRawReadBuffer(), m_write_buffer.ReadableBytes()));
+//            }
+//            else
+//            {
+//                RETURN_NEGATIVE_EXPR(WriteType(ARDB_RDB_TYPE_SNAPPY_CHUNK));
+//                uint32 rawlen = m_write_buffer.ReadableBytes();
+//                RETURN_NEGATIVE_EXPR(WriteLen(rawlen));
+//                RETURN_NEGATIVE_EXPR(WriteLen(compressed.size()));
+//                RETURN_NEGATIVE_EXPR(Write(compressed.data(), compressed.size()));
+//            }
+//            m_write_buffer.Clear();
+//        }
+//        Flush();
+//        return 0;
+//    }
 
     int Snapshot::ArdbSave()
     {
@@ -2073,16 +2148,20 @@ namespace ardb
             Iterator* iter = g_db->GetEngine()->Find(dumpctx, empty);
             while (iter->Valid())
             {
-                int ret = ArdbSaveRawKeyValue(iter->RawKey(), iter->RawValue());
+                int ret = ArdbSaveRawKeyValue(iter->RawKey(), iter->RawValue(), m_write_buffer);
                 if (0 != ret)
                 {
                     DELETE(iter);
                     Close();
                     return ret;
                 }
+                if (m_write_buffer.ReadableBytes() >= 1024 * 1024)
+                {
+                    ArdbFlushWriteBuffer(m_write_buffer);
+                }
                 iter->Next();
             }
-            ArdbFlushWriteBuffer();
+            ArdbFlushWriteBuffer(m_write_buffer);
             DELETE(iter);
         }
         WriteType(REDIS_RDB_OPCODE_EOF);
@@ -2138,47 +2217,18 @@ namespace ardb
                 loadctx.ns.SetString(ns, false);
             }
             /* Handle SELECT DB opcode as a special case */
-            else if (type == ARDB_RDB_TYPE_CHUNK)
+            else if (type == ARDB_RDB_TYPE_CHUNK || type == ARDB_RDB_TYPE_SNAPPY_CHUNK)
             {
-                uint32 len = ReadLen(NULL);
-                char* newbuf = NULL;
-                NEW(newbuf, char[len]);
-                if (!Read(newbuf, len, true))
+                if (0 != ArdbLoadChunk(loadctx, type))
                 {
-                    DELETE_A(newbuf);
                     goto eoferr;
                 }
-                Buffer readbuf(newbuf, 0, len);
-                RETURN_NEGATIVE_EXPR(ArdbLoadBuffer(loadctx, readbuf));
-            }
-            else if (type == ARDB_RDB_TYPE_SNAPPY_CHUNK)
-            {
-                uint32 rawlen = ReadLen(NULL);
-                uint32 compressedlen = ReadLen(NULL);
-                char* newbuf = NULL;
-                NEW(newbuf, char[compressedlen]);
-                if (!Read(newbuf, compressedlen, true))
-                {
-                    DELETE_A(newbuf);
-                    goto eoferr;
-                }
-                std::string origin;
-                origin.reserve(rawlen);
-                if (!snappy::Uncompress(newbuf, compressedlen, &origin))
-                {
-                    DELETE_A(newbuf);
-                    goto eoferr;
-                }
-                DELETE_A(newbuf);
-                Buffer readbuf(const_cast<char*>(origin.data()), 0, origin.size());
-                RETURN_NEGATIVE_EXPR(ArdbLoadBuffer(loadctx, readbuf));
             }
             else
             {
                 ERROR_LOG("Invalid type:%d.", type);
                 goto eoferr;
             }
-
         }
 
         if (true)

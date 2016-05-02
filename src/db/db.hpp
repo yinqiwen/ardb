@@ -143,9 +143,16 @@ OP_NAMESPACE_BEGIN
             SpinMutexLock m_clients_lock;
             ContextSet m_all_clients;
 
+            SpinMutexLock m_restoring_lock;
+            DataSet* m_restoring_nss;
+
             static void MigrateCoroTask(void* data);
+            static void MigrateDBCoroTask(void* data);
 
             bool IsLoadingData();
+
+            bool MarkRestoring(Context& ctx, bool enable);
+            bool IsRestoring(Context& ctx, const Data& ns);
 
             int WriteReply(Context& ctx, RedisReply* r, bool async);
 
@@ -412,6 +419,8 @@ OP_NAMESPACE_BEGIN
             int Restore(Context& ctx, RedisCommandFrame& cmd);
             int Migrate(Context& ctx, RedisCommandFrame& cmd);
             int MigrateDB(Context& ctx, RedisCommandFrame& cmd);
+            int RestoreDB(Context& ctx, RedisCommandFrame& cmd);
+            int RestoreChunk(Context& ctx, RedisCommandFrame& cmd);
 
             int DoCall(Context& ctx, RedisCommandHandlerSetting& setting, RedisCommandFrame& cmd);
             RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(RedisCommandFrame& cmd);

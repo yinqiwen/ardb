@@ -1,4 +1,4 @@
- /*
+/*
  *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
@@ -27,7 +27,6 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #ifndef SYSTEM_HELPER_HPP_
 #define SYSTEM_HELPER_HPP_
 #include <stdlib.h>
@@ -40,8 +39,18 @@
 
 namespace ardb
 {
-	uint32 available_processors();
-	size_t mem_rss_size();
+    uint32 available_processors();
+    size_t mem_rss_size();
+    inline bool is_bigendian()
+    {
+        static int bigendian = -1;
+        if (bigendian == -1)
+        {
+            const int i = 1;
+            bigendian = ((*(char*) &i) == 0) ? 1 : 0;
+        }
+        return bigendian;
+    }
 }
 
 #endif /* SYSTEM_HELPER_HPP_ */

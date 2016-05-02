@@ -33,6 +33,228 @@
 
 OP_NAMESPACE_BEGIN
 
+    bool Ardb::MarkRestoring(Context& ctx, bool enable)
+    {
+        RedisReply& reply = ctx.GetReply();
+        LockGuard<SpinMutexLock> guard(m_restoring_lock);
+        if (enable)
+        {
+            if (NULL == m_restoring_nss)
+            {
+                NEW(m_restoring_nss, DataSet);
+            }
+            if (m_restoring_nss->count(ctx.ns) > 0)
+            {
+                reply.SetErrorReason("current db already restoring.");
+                return false;
+            }
+            m_restoring_nss->insert(ctx.ns);
+        }
+        else
+        {
+            if (NULL == m_restoring_nss || m_restoring_nss->erase(ctx.ns) == 0)
+            {
+                reply.SetErrorReason("current db is not restoring");
+                return false;
+            }
+            if (m_restoring_nss->empty())
+            {
+                DELETE(m_restoring_nss);
+            }
+        }
+        reply.SetStatusCode(STATUS_OK);
+        return true;
+    }
+    bool Ardb::IsRestoring(Context& ctx, const Data& ns)
+    {
+        if (NULL == m_restoring_nss)
+        {
+            return false;
+        }
+        LockGuard<SpinMutexLock> guard(m_restoring_lock);
+        if (NULL == m_restoring_nss)
+        {
+            return false;
+        }
+        return m_restoring_nss->count(ns) > 0;
+    }
+
+    int Ardb::RestoreChunk(Context& ctx, RedisCommandFrame& cmd)
+    {
+        ObjectBuffer obuffer(cmd.GetArguments()[0]);
+        if (obuffer.ArdbLoad(ctx))
+        {
+            ctx.GetReply().SetStatusCode(STATUS_OK);
+        }
+        else
+        {
+            ctx.GetReply().SetErrorReason("Bad chunk format");
+        }
+        return 0;
+    }
+
+    /*
+     * RESTOREDB  START|END|ABORT
+     */
+    int Ardb::RestoreDB(Context& ctx, RedisCommandFrame& cmd)
+    {
+        if (!strcasecmp(cmd.GetArguments()[0].c_str(), "start"))
+        {
+            if (!MarkRestoring(ctx, true))
+            {
+                return 0;
+            }
+            FlushDB(ctx, ctx.ns);
+            INFO_LOG("RestoreDB %s started, flush it first.", ctx.ns.AsString().c_str());
+        }
+        else if (!strcasecmp(cmd.GetArguments()[0].c_str(), "end"))
+        {
+            if (!MarkRestoring(ctx, false))
+            {
+                return 0;
+            }
+            INFO_LOG("RestoreDB %s completed.", ctx.ns.AsString().c_str());
+        }
+        else if (!strcasecmp(cmd.GetArguments()[0].c_str(), "abort"))
+        {
+            if (!MarkRestoring(ctx, false))
+            {
+                return 0;
+            }
+            FlushDB(ctx, ctx.ns);
+            INFO_LOG("RestoreDB %s aborted, flush broken content.", ctx.ns.AsString().c_str());
+        }
+        else
+        {
+            ctx.GetReply().SetErrCode(ERR_INVALID_SYNTAX);
+        }
+        return 0;
+    }
+
+    struct MigrateDBContext
+    {
+            ChannelService* io_serv;
+            uint32 clientid;
+            std::string host;
+            uint16 port;
+            uint32 timeout;
+            Data src_db;
+            bool copy;
+
+            MigrateDBContext() :
+                    io_serv(NULL), clientid(0), port(0), timeout(1000), copy(false)
+            {
+            }
+    };
+
+    void Ardb::MigrateDBCoroTask(void* data)
+    {
+        Context migtare_dbctx;
+        MigrateDBContext* ctx = (MigrateDBContext*) data;
+        RedisReply r;
+        Channel* src_client = NULL;
+        RedisReply* restore_reply = NULL;
+        RedisReplyArray* migrate_reply = NULL;
+        migtare_dbctx.ns = ctx->src_db;
+        bool migrate_success = false;
+        RedisCommandFrameArray commands;
+        RedisCommandFrame rawset;
+        Buffer buffer;
+        ObjectBuffer obuffer;
+        KeyObject startkey(ctx->src_db, KEY_META, "");
+        Iterator* iter = NULL;
+        CoroRedisClient redis_client(ctx->io_serv->NewClientSocketChannel());
+        redis_client.Init();
+        SocketHostAddress remote_address(ctx->host, ctx->port);
+        if (!redis_client.SyncConnect(&remote_address, ctx->timeout))
+        {
+            goto _coro_exit;
+        }
+
+        //1. select & restordb & flushdb first
+        commands.resize(2);
+        commands[0].SetFullCommand("select %s", ctx->src_db.AsString().c_str());
+        commands[1].SetFullCommand("restoredb start");
+        migrate_reply = redis_client.SyncMultiCall(commands, ctx->timeout);
+        if(NULL == migrate_reply || migrate_reply->size() != commands.size())
+        {
+            goto _coro_exit;
+        }
+        for(size_t i = 0; i < migrate_reply->size(); i++)
+        {
+            if(NULL == migrate_reply->at(i) || migrate_reply->at(i)->IsErr())
+            {
+                if(NULL != migrate_reply->at(i))
+                {
+                    r.SetErrorReason(migrate_reply->at(i)->Error());
+                }
+                goto _coro_exit;
+            }
+        }
+
+        //2. iterate all kv and send them to remote
+        migtare_dbctx.flags.iterate_multi_keys = 1;
+        migtare_dbctx.flags.iterate_no_upperbound = 1;
+        iter = g_db->GetEngine()->Find(migtare_dbctx, startkey);
+
+        migrate_success = true;
+        while (iter->Valid())
+        {
+            KeyObject& k = iter->Key();
+            obuffer.ArdbSaveRawKeyValue(iter->RawKey(), iter->RawValue(), buffer);
+            if (buffer.ReadableBytes() >= 512 * 1024)
+            {
+                obuffer.ArdbFlushWriteBuffer(buffer);
+                rawset.Clear();
+                rawset.SetCommand("RestoreChunk");
+                rawset.ReserveArgs(1);
+                rawset.GetMutableArgument(0)->assign(obuffer.GetInternalBuffer().GetRawReadBuffer(), obuffer.GetInternalBuffer().ReadableBytes());
+                obuffer.Reset();
+                restore_reply = redis_client.SyncCall(rawset, ctx->timeout);
+                if(NULL == restore_reply || restore_reply->IsErr())
+                {
+                    migrate_success = false;
+                    if(NULL != restore_reply)
+                    {
+                        r.SetErrorReason(restore_reply->Error());
+                    }
+                    break;
+                }
+            }
+            iter->Next();
+        }
+        DELETE(iter);
+        _coro_exit: commands[1].SetFullCommand("restoredb %s", migrate_success ? "end" : "abort");
+        redis_client.SyncCall(commands[1], ctx->timeout);
+        redis_client.Close();
+        if (migrate_success)
+        {
+            r.SetStatusCode(STATUS_OK);
+        }
+        else if (r.IsNil())
+        {
+            r.SetErrorReason("migrate db failed.");
+        }
+        src_client = ctx->io_serv->GetChannel(ctx->clientid);
+        if (NULL != src_client)
+        {
+            src_client->Write(r);
+            src_client->UnblockRead();
+        }
+        DELETE(ctx);
+    }
+
+    /*
+     * this command only works with ardb instances.
+     */
+    int Ardb::MigrateDB(Context& ctx, RedisCommandFrame& cmd)
+    {
+        MigrateDBContext* migrate_ctx = NULL;
+        ctx.client->client->BlockRead(); //do not read any data from client until the migrate task finish
+        Scheduler::CurrentScheduler().StartCoro(0, MigrateDBCoroTask, migrate_ctx);
+        return 0;
+    }
+
     struct MigrateContext
     {
             ChannelService* io_serv;
@@ -124,13 +346,14 @@ OP_NAMESPACE_BEGIN
                         if (!r.IsErr())
                         {
                             std::string err = "Target instance replied with error:";
-                            if(NULL != migrate_reply->at(i))
+                            if (NULL != migrate_reply->at(i))
                             {
                                 const std::string& target_err = migrate_reply->at(i)->Error();
-                                if(!target_err.empty() && target_err[0] == '-')
+                                if (!target_err.empty() && target_err[0] == '-')
                                 {
                                     err.append(target_err.c_str() + 1);
-                                }else
+                                }
+                                else
                                 {
                                     err.append(target_err);
                                 }
@@ -151,6 +374,10 @@ OP_NAMESPACE_BEGIN
             else
             {
                 migrate_success = false;
+                if (redis_client.IsTimeout())
+                {
+                    r.SetErrorReason("migrate keys timeout.");
+                }
             }
         }
         _coro_exit: redis_client.Close();
@@ -169,25 +396,6 @@ OP_NAMESPACE_BEGIN
             src_client->UnblockRead();
         }
         DELETE(ctx);
-    }
-
-    int Ardb::MigrateDB(Context& ctx, RedisCommandFrame& cmd)
-    {
-        Channel* remote = NULL;
-        KeyObject startkey(ctx.ns, KEY_META, "");
-        ctx.flags.iterate_multi_keys = 1;
-        ctx.flags.iterate_no_upperbound = 1;
-        Iterator* iter = m_engine->Find(ctx, startkey);
-        while (iter->Valid())
-        {
-            KeyObject& k = iter->Key();
-            RedisCommandFrame rawset;
-
-            remote->Write(rawset);
-            iter->Next();
-        }
-        DELETE(iter);
-        return 0;
     }
 
     int Ardb::Migrate(Context& ctx, RedisCommandFrame& cmd)

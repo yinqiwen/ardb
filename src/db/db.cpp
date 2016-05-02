@@ -123,7 +123,7 @@ OP_NAMESPACE_BEGIN
     static CostTrack g_cmd_cost_tracks[REDIS_CMD_MAX];
 
     Ardb::Ardb() :
-            m_engine(NULL), m_starttime(0), m_loading_data(false), m_redis_cursor_seed(0), m_watched_ctxs(NULL), m_ready_keys(NULL)
+            m_engine(NULL), m_starttime(0), m_loading_data(false), m_redis_cursor_seed(0), m_watched_ctxs(NULL), m_ready_keys(NULL),m_restoring_nss(NULL)
     {
         g_db = this;
         m_settings.set_empty_key("");
@@ -298,8 +298,7 @@ OP_NAMESPACE_BEGIN
         { "sort", REDIS_CMD_SORT, &Ardb::Sort, 1, -1, "w", 0, 0, 0 },
         { "keys", REDIS_CMD_KEYS, &Ardb::Keys, 1, 6, "r", 0, 0, 0 },
         { "keyscount", REDIS_CMD_KEYSCOUNT, &Ardb::KeysCount, 1, 6, "r", 0, 0, 0 },
-        { "__set__", REDIS_CMD_RAWSET, &Ardb::RawSet, 3, 3, "w", 0, 0, 0 },
-        { "__del__", REDIS_CMD_RAWDEL, &Ardb::RawDel, 1, 1, "w", 0, 0, 0 },
+        { "__set__", REDIS_CMD_RAWSET, &Ardb::RawSet, 1, 1, "w", 0, 0, 0 },
         { "eval", REDIS_CMD_EVAL, &Ardb::Eval, 2, -1, "s", 0, 0, 0 },
         { "evalsha", REDIS_CMD_EVALSHA, &Ardb::EvalSHA, 2, -1, "s", 0, 0, 0 },
         { "script", REDIS_CMD_SCRIPT, &Ardb::Script, 1, -1, "rs", 0, 0, 0 },
@@ -319,7 +318,9 @@ OP_NAMESPACE_BEGIN
         { "pfmerge", REDIS_CMD_PFMERGE, &Ardb::PFMerge, 2, -1, "w", 0, 0, 0 },
         { "dump", REDIS_CMD_DUMP, &Ardb::Dump, 1, 1, "r", 0, 0, 0 },
         { "restore", REDIS_CMD_RESTORE, &Ardb::Restore, 3, 4, "w", 0, 0, 0 },
-        { "migrate", REDIS_CMD_MIGRATE, &Ardb::Migrate, 5, -1, "w", 0, 0, 0 },};
+        { "migrate", REDIS_CMD_MIGRATE, &Ardb::Migrate, 5, -1, "w", 0, 0, 0 },
+        { "restorechunk", REDIS_CMD_RESTORECHUNK, &Ardb::RestoreChunk, 1, 1, "w", 0, 0, 0 },
+        { "restoredb", REDIS_CMD_RESTOREDB, &Ardb::RestoreDB, 1, 1, "w", 0, 0, 0 },};
 
         CostRanges cmdstat_ranges;
         cmdstat_ranges.push_back(CostRange(0, 1000));
@@ -907,6 +908,7 @@ OP_NAMESPACE_BEGIN
             LockGuard<SpinMutexLock> guard(m_clients_lock);
             m_all_clients.erase(&ctx);
         }
+        MarkRestoring(ctx, false);
     }
 
 #define CLIENTS_CRON_MIN_ITERATIONS 5
@@ -1162,7 +1164,7 @@ OP_NAMESPACE_BEGIN
 
         /* Loading DB? Return an error if the command has not the
          * CMD_LOADING flag. */
-        if (IsLoadingData() && !(setting.flags & ARDB_CMD_LOADING))
+        if ((IsLoadingData() || IsRestoring(ctx, ctx.ns)) && !(setting.flags & ARDB_CMD_LOADING))
         {
             reply.SetErrCode(ERR_LOADING);
             return 0;

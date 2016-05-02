@@ -84,6 +84,10 @@ OP_NAMESPACE_BEGIN
         KeyType ele_type = element_type((KeyType) meta.GetType());
         KeyObject start_element(ctx.ns, ele_type, key.GetKey());
         start_element.SetMember(meta.GetMin(), 0);
+        if (meta.GetMax().IsNil())
+        {
+            ctx.flags.iterate_total_order = 1;
+        }
         iter = m_engine->Find(ctx, start_element);
         if (!meta.GetMin().IsNil() && !meta.GetMax().IsNil())
         {
@@ -757,7 +761,6 @@ OP_NAMESPACE_BEGIN
     }
     int Ardb::Restore(Context& ctx, RedisCommandFrame& cmd)
     {
-        printf("###restore 22?\n");
         RedisReply& reply = ctx.GetReply();
         bool replace = false;
         int64 ttl = 0;
@@ -770,14 +773,12 @@ OP_NAMESPACE_BEGIN
             }
             else
             {
-                printf("###restore 5?\n");
                 reply.SetErrCode(ERR_INVALID_SYNTAX);
                 return 0;
             }
         }
         if (!string_toint64(cmd.GetArguments()[1], ttl) || ttl < 0)
         {
-            printf("###restore 4?\n");
             reply.SetErrorReason("Invalid TTL value, must be >= 0");
             return 0;
         }
@@ -788,7 +789,6 @@ OP_NAMESPACE_BEGIN
         ObjectBuffer buffer(cmd.GetArguments()[2]);
         if(!buffer.CheckReadPayload())
         {
-            printf("###restore 3?\n");
             reply.SetErrorReason("DUMP payload version or checksum are wrong");
             return 0;
         }
@@ -798,7 +798,6 @@ OP_NAMESPACE_BEGIN
         {
             if (m_engine->Exists(ctx, meta))
             {
-                printf("###restore 2?\n");
                 reply.SetErrorReason("-BUSYKEY Target key name already exists.");
                 return 0;
             }
@@ -811,12 +810,11 @@ OP_NAMESPACE_BEGIN
         ctx.flags.create_if_notexist = 1;
         if (buffer.RedisLoad(ctx, cmd.GetArguments()[0], ttl))
         {
-            printf("###restore ss for key:%s at %s\n", cmd.GetArguments()[0].c_str(), ctx.ns.AsString().c_str());
+            //printf("###restore ss for key:%s at %s\n", cmd.GetArguments()[0].c_str(), ctx.ns.AsString().c_str());
             reply.SetStatusCode(STATUS_OK);
         }
         else
         {
-            printf("###restore 1?\n");
             reply.SetErrorReason("Bad data format");
         }
         return 0;
@@ -824,11 +822,11 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::RawSet(Context& ctx, RedisCommandFrame& cmd)
     {
-        Data ns;
-        ns.SetString(cmd.GetArguments()[0], false);
+        ObjectBuffer buffer;
+
         Slice key(cmd.GetArguments()[1]);
         Slice value(cmd.GetArguments()[1]);
-        m_engine->PutRaw(ctx, ns, key, value);
+        m_engine->PutRaw(ctx, ctx.ns, key, value);
         return 0;
     }
     int Ardb::RawDel(Context& ctx, RedisCommandFrame& cmd)

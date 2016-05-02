@@ -85,10 +85,11 @@ namespace ardb
             void RedisWriteMagicHeader();
 
             int ArdbWriteMagicHeader();
-            bool ArdbReadChunk(Buffer& buffer);
-            bool ArdbReadSnappyChunk(Buffer& buffer);
+            int ArdbLoadChunk(Context& ctx, int type);
             int ArdbLoadBuffer(Context& ctx, Buffer& buffer);
         public:
+            int ArdbSaveRawKeyValue(const Slice& key, const Slice& value, Buffer& buffer);
+            int ArdbFlushWriteBuffer(Buffer& buffer);
             virtual ~ObjectIO()
             {
             }
@@ -106,6 +107,16 @@ namespace ardb
             bool RedisSave(Context& ctx, const std::string& key, std::string& content, uint64* ttl = NULL);
             bool RedisLoad(Context& ctx, const std::string& key, int64 ttl);
             bool CheckReadPayload();
+
+            Buffer& GetInternalBuffer()
+            {
+                return m_buffer;
+            }
+            bool ArdbLoad(Context& ctx);
+            void Reset()
+            {
+                m_buffer.Clear();
+            }
 
     };
 
@@ -165,8 +176,8 @@ namespace ardb
             int RedisSave();
 
 //            int ArdbWriteMagicHeader();
-            int ArdbSaveRawKeyValue(const Slice& key, const Slice& value);
-            int ArdbFlushWriteBuffer();
+//            int ArdbSaveRawKeyValue(const Slice& key, const Slice& value);
+//            int ArdbFlushWriteBuffer();
 //            int ArdbLoadBuffer(Context& ctx, Buffer& buffer);
             int ArdbSave();
             int ArdbLoad();
@@ -234,7 +245,6 @@ namespace ardb
             time_t LastSaveCost();
             int LastSaveErr();
             time_t LastSaveStartUnixTime();
-
     };
 
     extern SnapshotManager* g_snapshot_manager;

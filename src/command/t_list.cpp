@@ -161,6 +161,10 @@ OP_NAMESPACE_BEGIN
             else
             {
                 KeyObject ele_key(ctx.ns, KEY_LIST_ELEMENT, keystr);
+                if (!is_lpop)
+                {
+                    ctx.flags.iterate_total_order = 1;
+                }
                 ele_key.SetListIndex(is_lpop ? meta.GetMin() : meta.GetMax());
                 Iterator* iter = m_engine->Find(ctx, ele_key);
                 if (!is_lpop)
@@ -545,6 +549,10 @@ OP_NAMESPACE_BEGIN
         {
             ele_key.SetListIndex(meta.GetMin());
         }
+        if (count < 0)
+        {
+            ctx.flags.iterate_total_order = 1;
+        }
         iter = m_engine->Find(ctx, ele_key);
         if (count < 0)
         {
@@ -774,6 +782,7 @@ OP_NAMESPACE_BEGIN
             {
                 KeyObject elekey(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
                 elekey.SetListIndex(meta.GetMin());
+                ctx.flags.iterate_total_order = 1;
                 iter = m_engine->Find(ctx, elekey);
                 while (NULL != iter && iter->Valid())
                 {

@@ -436,7 +436,7 @@ OP_NAMESPACE_BEGIN
         {
             case KEY_MERGE:
             {
-                BufferHelper::WriteFixUInt16(encode_buffer, merge_op, true);
+                BufferHelper::WriteFixUInt16(encode_buffer, merge_op, false);
                 break;
             }
             case KEY_STRING:
@@ -492,7 +492,7 @@ OP_NAMESPACE_BEGIN
         {
             case KEY_MERGE:
             {
-                if (!BufferHelper::ReadFixUInt16(buffer, merge_op, true))
+                if (!BufferHelper::ReadFixUInt16(buffer, merge_op, false))
                 {
                     return false;
                 }

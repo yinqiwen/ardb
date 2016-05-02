@@ -30,32 +30,13 @@
 #include <arpa/inet.h>
 #include "buffer_helper.hpp"
 #include "util/network_helper.hpp"
+#include "util/system_helper.hpp"
+#include "util/math_helper.hpp"
 
 namespace ardb
 {
 	static const int kMaxVarintBytes = 10;
 	static const int kMaxVarint32Bytes = 5;
-
-//	static uint64_t htonll(uint64_t v)
-//	{
-//		int num = 42;
-//		//big or little
-//		if (*(char *) &num == 42)
-//		{
-//			uint64_t temp = htonl(v & 0xFFFFFFFF);
-//			temp <<= 32;
-//			return temp | htonl(v >> 32);
-//		} else
-//		{
-//			return v;
-//		}
-//
-//	}
-//
-//	static uint64_t ntohll(uint64_t v)
-//	{
-//		return htonll(v);
-//	}
 
 	static inline uint32_t ZigZagEncode32(int32_t n)
 	{
@@ -91,66 +72,82 @@ namespace ardb
 	}
 
 	bool BufferHelper::ReadFixUInt64(Buffer& buffer, uint64_t& i,
-			bool fromNetwork)
+			bool bigendian)
 	{
 		uint64_t u;
 		if (buffer.Read(&u, sizeof(uint64_t)) != sizeof(uint64_t))
 		{
 			return false;
 		}
-		if (!fromNetwork)
+		if(bigendian == is_bigendian())
 		{
-			i = u;
-		} else
+		    i = u;
+		}
+		else
 		{
-			i = ntoh_u64(u);
+	        i = swap_uint64(u);
 		}
 		return true;
 	}
 
 	bool BufferHelper::ReadFixInt64(Buffer& buffer, int64_t& i,
-			bool fromNetwork)
+			bool bigendian)
 	{
-		uint64_t u;
-		if (!ReadFixUInt64(buffer, u, fromNetwork))
-		{
-			return false;
-		}
-		i = u;
-		return true;
+        int64_t u;
+        if (buffer.Read(&u, sizeof(int64_t)) != sizeof(int64_t))
+        {
+            return false;
+        }
+        if(bigendian == is_bigendian())
+        {
+            i = u;
+        }
+        else
+        {
+            i = swap_int64(u);
+        }
+        return true;
 	}
 
 	bool BufferHelper::ReadFixUInt32(Buffer& buffer, uint32_t& i,
-			bool fromNetwork)
+			bool bigendian)
 	{
-		uint32_t u;
-		if (buffer.Read(&u, sizeof(uint32_t)) != sizeof(uint32_t))
-		{
-			return false;
-		}
-		if (!fromNetwork)
-		{
-			i = u;
-		} else
-		{
-			i = ntohl(u);
-		}
-		return true;
+        uint32_t u;
+        if (buffer.Read(&u, sizeof(uint32_t)) != sizeof(uint32_t))
+        {
+            return false;
+        }
+        if(bigendian == is_bigendian())
+        {
+            i = u;
+        }
+        else
+        {
+            i = swap_uint32(u);
+        }
+        return true;
 	}
 
 	bool BufferHelper::ReadFixInt32(Buffer& buffer, int32_t& i,
-			bool fromNetwork)
+			bool bigendian)
 	{
-		uint32_t u;
-		if (!ReadFixUInt32(buffer, u, fromNetwork))
-		{
-			return false;
-		}
-		i = u;
-		return true;
+        int32_t u;
+        if (buffer.Read(&u, sizeof(int32_t)) != sizeof(int32_t))
+        {
+            return false;
+        }
+        if(bigendian == is_bigendian())
+        {
+            i = u;
+        }
+        else
+        {
+            i = swap_int32(u);
+        }
+        return true;
 	}
 
-	bool BufferHelper::ReadFixFloat(Buffer& buffer, float& i, bool fromNetwork)
+	bool BufferHelper::ReadFixFloat(Buffer& buffer, float& i, bool bigendian)
 	{
 		union
 		{
@@ -158,7 +155,7 @@ namespace ardb
 				uint32_t ull;
 		} u;
 
-		if (!ReadFixUInt32(buffer, u.ull, fromNetwork))
+		if (!ReadFixUInt32(buffer, u.ull, bigendian))
 		{
 			return false;
 		}
@@ -167,7 +164,7 @@ namespace ardb
 	}
 
 	bool BufferHelper::ReadFixDouble(Buffer& buffer, double& i,
-			bool fromNetwork)
+			bool bigendian)
 	{
 		union
 		{
@@ -175,7 +172,7 @@ namespace ardb
 				uint64_t ull;
 		} u;
 
-		if (!ReadFixUInt64(buffer, u.ull, fromNetwork))
+		if (!ReadFixUInt64(buffer, u.ull, bigendian))
 		{
 			return false;
 		}
@@ -184,33 +181,41 @@ namespace ardb
 	}
 
 	bool BufferHelper::ReadFixUInt16(Buffer& buffer, uint16_t& i,
-			bool fromNetwork)
+			bool bigendian)
 	{
-		uint16_t u;
-		if (buffer.Read(&u, sizeof(uint16_t)) != sizeof(uint16_t))
-		{
-			return false;
-		}
-		if (!fromNetwork)
-		{
-			i = u;
-		} else
-		{
-			i = ntohs(u);
-		}
-		return true;
+	    uint16_t u;
+        if (buffer.Read(&u, sizeof(uint16_t)) != sizeof(uint16_t))
+        {
+            return false;
+        }
+        if(bigendian == is_bigendian())
+        {
+            i = u;
+        }
+        else
+        {
+            i = swap_uint16(u);
+        }
+        return true;
 	}
 
 	bool BufferHelper::ReadFixInt16(Buffer& buffer, int16_t& i,
-			bool fromNetwork)
+			bool bigendian)
 	{
-		uint16_t u;
-		if (!ReadFixUInt16(buffer, u, fromNetwork))
-		{
-			return false;
-		}
-		i = u;
-		return true;
+        int16_t u;
+        if (buffer.Read(&u, sizeof(int16_t)) != sizeof(int16_t))
+        {
+            return false;
+        }
+        if(bigendian == is_bigendian())
+        {
+            i = u;
+        }
+        else
+        {
+            i = swap_int16(u);
+        }
+        return true;
 	}
 
 	bool BufferHelper::ReadFixUInt8(Buffer& buffer, uint8_t& i)
@@ -223,10 +228,10 @@ namespace ardb
 	}
 
 	bool BufferHelper::ReadFixString(Buffer& buffer, string& str,
-			bool fromNetwork)
+			bool bigendian)
 	{
 		uint32_t len;
-		if (!ReadFixUInt32(buffer, len, fromNetwork))
+		if (!ReadFixUInt32(buffer, len, bigendian))
 		{
 			return false;
 		}
@@ -244,10 +249,10 @@ namespace ardb
 	}
 
 	bool BufferHelper::ReadFixString(Buffer& buffer, char*& str,
-			bool fromNetwork)
+			bool bigendian)
 	{
 		uint32_t len;
-		if (!ReadFixUInt32(buffer, len, fromNetwork))
+		if (!ReadFixUInt32(buffer, len, bigendian))
 		{
 			return false;
 		}
@@ -448,58 +453,64 @@ namespace ardb
 	}
 
 	bool BufferHelper::WriteFixUInt64(Buffer& buffer, uint64_t i,
-			bool toNetwork)
+			bool bigendian)
 	{
-		if (toNetwork)
+		if (bigendian != is_bigendian())
 		{
-			i = hton_u64(i);
+			 i = swap_uint64(i);
 		}
 		return sizeof(uint64_t) == buffer.Write(&i, sizeof(uint64_t));
 	}
 
-	bool BufferHelper::WriteFixInt64(Buffer& buffer, int64_t i, bool toNetwork)
+	bool BufferHelper::WriteFixInt64(Buffer& buffer, int64_t i, bool bigendian)
 	{
-		uint64_t u = i;
-		return WriteFixUInt64(buffer, u, toNetwork);
+        if (bigendian != is_bigendian())
+        {
+             i = swap_int64(i);
+        }
+        return sizeof(uint64_t) == buffer.Write(&i, sizeof(int64_t));
 	}
 
 	bool BufferHelper::WriteFixUInt32(Buffer& buffer, uint32_t i,
-			bool toNetwork)
+			bool bigendian)
 	{
-		if (toNetwork)
-		{
-			i = htonl(i);
-		}
-		return sizeof(uint32_t) == buffer.Write(&i, sizeof(uint32_t));
+        if (bigendian != is_bigendian())
+        {
+             i = swap_uint32(i);
+        }
+        return sizeof(uint64_t) == buffer.Write(&i, sizeof(uint32_t));
 	}
 
-	bool BufferHelper::WriteFixInt32(Buffer& buffer, int32_t i, bool toNetwork)
+	bool BufferHelper::WriteFixInt32(Buffer& buffer, int32_t i, bool bigendian)
 	{
-		uint32_t u = i;
-		return WriteFixUInt32(buffer, u, toNetwork);
+        if (bigendian != is_bigendian())
+        {
+             i = swap_int32(i);
+        }
+        return sizeof(uint64_t) == buffer.Write(&i, sizeof(int32_t));
 	}
 
-	bool BufferHelper::WriteFixFloat(Buffer& buffer, float i, bool toNetwork)
+	bool BufferHelper::WriteFixFloat(Buffer& buffer, float i, bool bigendian)
 	{
 		union
 		{
 				float d;
-				uint32_t ul;
+				int32_t ul;
 		} u;
 		u.d = i;
-		return WriteFixUInt32(buffer, u.ul, toNetwork);
+		return WriteFixInt32(buffer, u.ul, bigendian);
 	}
 
-	bool BufferHelper::WriteFixDouble(Buffer& buffer, double i, bool toNetwork)
+	bool BufferHelper::WriteFixDouble(Buffer& buffer, double i, bool bigendian)
 	{
 
 		union
 		{
 				double d;
-				uint64_t ul;
+				int64_t ul;
 		} u;
 		u.d = i;
-		return WriteFixUInt64(buffer, u.ul, toNetwork);
+		return WriteFixInt64(buffer, u.ul, bigendian);
 	}
 
 	bool BufferHelper::WriteFixUInt8(Buffer& buffer, uint8_t i)
@@ -513,38 +524,41 @@ namespace ardb
 	}
 
 	bool BufferHelper::WriteFixUInt16(Buffer& buffer, uint16_t i,
-			bool toNetwork)
+			bool bigendian)
 	{
-		if (toNetwork)
-		{
-			i = htons(i);
-		}
-		return sizeof(uint16_t) == buffer.Write(&i, sizeof(uint16_t));
+        if (bigendian != is_bigendian())
+        {
+             i = swap_uint16(i);
+        }
+        return sizeof(uint64_t) == buffer.Write(&i, sizeof(uint16_t));
 	}
 
-	bool BufferHelper::WriteFixInt16(Buffer& buffer, int16_t i, bool toNetwork)
+	bool BufferHelper::WriteFixInt16(Buffer& buffer, int16_t i, bool bigendian)
 	{
-		uint16_t u = i;
-		return WriteFixUInt16(buffer, u, toNetwork);
+        if (bigendian != is_bigendian())
+        {
+             i = swap_int16(i);
+        }
+        return sizeof(uint64_t) == buffer.Write(&i, sizeof(int16_t));
 	}
 
 	bool BufferHelper::WriteFixString(Buffer& buffer, const string& str,
-			bool toNetwork)
+			bool bigendian)
 	{
-		return WriteFixUInt32(buffer, str.size(), toNetwork)
+		return WriteFixUInt32(buffer, str.size(), bigendian)
 				&& str.size() == (size_t) buffer.Write(str.c_str(), str.size());
 	}
 
 	bool BufferHelper::WriteFixString(Buffer& buffer, const char* str,
-			bool toNetwork)
+			bool bigendian)
 	{
 		if (NULL == str)
 		{
-			return WriteFixUInt32(buffer, 0, toNetwork);
+			return WriteFixUInt32(buffer, 0, bigendian);
 		} else
 		{
 			size_t len = strlen(str);
-			return WriteFixUInt32(buffer, len, toNetwork)
+			return WriteFixUInt32(buffer, len, bigendian)
 					&& len == (size_t) buffer.Write(str, len);
 		}
 	}

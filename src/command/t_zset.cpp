@@ -283,6 +283,10 @@ OP_NAMESPACE_BEGIN
         if (end >= meta.GetObjectLen())
             end = meta.GetObjectLen() - 1;
         KeyObject sort_key(ctx.ns, KEY_ZSET_SORT, key.GetKey());
+        if(reverse)
+        {
+            ctx.flags.iterate_total_order = 1;
+        }
         Iterator* iter = m_engine->Find(ctx, sort_key);
         if (reverse)
         {
@@ -443,6 +447,10 @@ OP_NAMESPACE_BEGIN
         }
         KeyObject sort_key(ctx.ns, KEY_ZSET_SORT, key.GetKey());
         sort_key.SetZSetScore(reverse ? range.max.GetFloat64() : range.min.GetFloat64());
+        if(reverse)
+        {
+            ctx.flags.iterate_total_order = 1;
+        }
         Iterator* iter = m_engine->Find(ctx, sort_key);
         if (reverse && !iter->Valid())
         {
@@ -565,6 +573,10 @@ OP_NAMESPACE_BEGIN
             Data member;
             member.SetString(cmd.GetArguments()[1], false);
             KeyObject sort_key(ctx.ns, KEY_ZSET_SORT, cmd.GetArguments()[0]);
+            if (cmd.GetType() == REDIS_CMD_ZREVRANK)
+            {
+                ctx.flags.iterate_total_order = 1;
+            }
             Iterator* iter = m_engine->Find(ctx, sort_key);
             if (cmd.GetType() == REDIS_CMD_ZREVRANK)
             {
@@ -756,6 +768,10 @@ OP_NAMESPACE_BEGIN
         }
         KeyObject sort_key(ctx.ns, KEY_ZSET_SCORE, key.GetKey());
         sort_key.SetZSetMember(reverse ? range.max : range.min);
+        if(reverse)
+        {
+            ctx.flags.iterate_total_order = 1;
+        }
         Iterator* iter = m_engine->Find(ctx, sort_key);
         if (reverse && !iter->Valid())
         {

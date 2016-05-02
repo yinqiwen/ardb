@@ -106,6 +106,8 @@ namespace ardb
             REDIS_CMD_DUMP = 69,
             REDIS_CMD_RESTORE = 70,
             REDIS_CMD_MIGRATEDB = 71,
+            REDIS_CMD_RESTOREDB = 72,
+            REDIS_CMD_RESTORECHUNK = 73,
 
             //'string' commands
             REDIS_CMD_APPEND = 100,

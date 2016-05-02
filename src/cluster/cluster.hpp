@@ -84,6 +84,7 @@ OP_NAMESPACE_BEGIN
             void Routine();
             void BuildNodeTopoFromZk(const PartitionArray& partitions, const NodeArray& nodes);
             int FetchClusterTopo();
+            int FetchClusterConfig();
             int CreateZookeeperPath();
             void OnInitWatcher(zhandle_t *zzh, int type, int state, const char *path);
             static void ZKInitWatcherCallback(zhandle_t *zzh, int type, int state, const char *path, void* context);

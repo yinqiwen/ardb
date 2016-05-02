@@ -31,17 +31,17 @@ OP_NAMESPACE_BEGIN
                 m_readed_content = buf;
             }
             void Run();
-            bool IsTimeout();
+
             void CreateTimeoutTask(int timeout);
             void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<Buffer>& e);
             void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e);
             void ChannelConnected(ChannelHandlerContext& ctx, ChannelStateEvent& e);
             void ChannelWritable(ChannelHandlerContext& ctx, ChannelStateEvent& e);
-
         public:
             CoroChannel(Channel* ch);
             void Init();
             void Close();
+            bool IsTimeout();
             bool SyncConnect(Address* addr, int timeout);
             int SyncRead(Buffer& buffer, int timeout);
             int SyncWrite(Buffer& buffer, int timeout);
@@ -55,10 +55,12 @@ OP_NAMESPACE_BEGIN
             RedisReplyArray m_multi_replies;
             RedisReplyDecoder m_decoder;
             RedisCommandEncoder m_encoder;
+            RedisReply m_error_reply;
             void SetReply(RedisReply* buf);
             void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisReply>& e);
             void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e);
             void ChannelConnected(ChannelHandlerContext& ctx, ChannelStateEvent& e);
+            void FillErrorReply();
             void Clear();
         public:
             CoroRedisClient(Channel* ch);

@@ -32,7 +32,7 @@ OP_NAMESPACE_BEGIN
     void CoroChannel::CreateTimeoutTask(int timeout)
     {
         m_timeout = false;
-        if(NULL != m_ch && timeout > 0)
+        if (NULL != m_ch && timeout > 0)
         {
             m_ch->GetService().GetTimer().Schedule(this, timeout, -1, MILLIS);
         }
@@ -89,7 +89,7 @@ OP_NAMESPACE_BEGIN
         }
         CreateTimeoutTask(timeout);
         scheduler.Wait(scheduler.GetCurrentCoroutine());
-        if(IsTimeout())
+        if (IsTimeout())
         {
             return false;
         }
@@ -154,7 +154,10 @@ OP_NAMESPACE_BEGIN
         {
             for (size_t i = 0; i < m_multi_replies.size(); i++)
             {
-                DELETE(m_multi_replies[i]);
+                if (m_multi_replies[i] != &m_error_reply)
+                {
+                    DELETE(m_multi_replies[i]);
+                }
             }
         }
         m_multi_replies.clear();
@@ -175,6 +178,14 @@ OP_NAMESPACE_BEGIN
         SetConnectResult(true);
     }
 
+    void CoroRedisClient::FillErrorReply()
+    {
+        while (m_multi_replies.size() < m_expected_multi_reply_count)
+        {
+            m_multi_replies.push_back(&m_error_reply);
+        }
+    }
+
     void CoroRedisClient::SetReply(RedisReply* reply)
     {
         if (1 == m_expected_multi_reply_count)
@@ -186,12 +197,15 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-            m_multi_replies.resize(m_multi_replies.size() + 1);
             if (NULL != reply)
             {
                 RedisReply* clone = new RedisReply;
                 clone_redis_reply(*reply, *clone);
-                m_multi_replies[m_multi_replies.size() - 1] = clone;
+                m_multi_replies.push_back(clone);
+            }
+            else
+            {
+                m_multi_replies.push_back(NULL);
             }
             if (m_multi_replies.size() == m_expected_multi_reply_count)
             {
@@ -214,7 +228,15 @@ OP_NAMESPACE_BEGIN
         scheduler.Wait(scheduler.GetCurrentCoroutine());
         if (!m_connect_success)
         {
-            return NULL;
+            m_error_reply.SetErrorReason("client connection closed.");
+            FillErrorReply();
+            return &m_multi_replies;
+        }
+        if (IsTimeout())
+        {
+            m_error_reply.SetErrorReason("server timeout.");
+            FillErrorReply();
+            return &m_multi_replies;
         }
         return &m_multi_replies;
     }
@@ -229,7 +251,13 @@ OP_NAMESPACE_BEGIN
         scheduler.Wait(scheduler.GetCurrentCoroutine());
         if (!m_connect_success)
         {
-            return NULL;
+            m_error_reply.SetErrorReason("client connection closed.");
+            return &m_error_reply;
+        }
+        if (IsTimeout())
+        {
+            m_error_reply.SetErrorReason("server timeout");
+            return &m_error_reply;
         }
         RedisReply* r = NULL;
         if (m_multi_replies.size() > 0)

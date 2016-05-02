@@ -1000,8 +1000,12 @@ OP_NAMESPACE_BEGIN
             }
             else
             {
-                opt.total_order_seek = true;
+                //opt.total_order_seek = true;
             }
+        }
+        if(ctx.flags.iterate_total_order)
+        {
+            opt.total_order_seek = true;
         }
         rocksdb::Iterator* rocksiter = m_db->NewIterator(opt, cf);
         iter->SetIterator(rocksiter);
