@@ -43,9 +43,11 @@ OP_NAMESPACE_BEGIN
             ChannelService* m_service;
             Thread* m_cron_thread;
             void StartCrons();
+            void StopCrons();
         public:
             Server();
             int Start();
+            ~Server();
     };
 OP_NAMESPACE_END
 #endif /* NETWORK_HPP_ */

@@ -37,7 +37,7 @@ using namespace ardb;
 
 ChannelService::ChannelService(uint32 setsize) :
         m_setsize(setsize), m_eventLoop(NULL), m_timer(NULL), m_signal_channel(
-        NULL), m_self_soft_signal_channel(NULL), m_running(false), m_thread_pool_size(1), m_tid(0), m_lifecycle_callback(NULL),m_pool_index(0)
+        NULL), m_self_soft_signal_channel(NULL), m_running(false), m_thread_pool_size(1), m_tid(0), m_lifecycle_callback(NULL), m_pool_index(0), m_parent(NULL)
 {
     m_eventLoop = aeCreateEventLoop(m_setsize);
     m_self_soft_signal_channel = NewSoftSignalChannel();
@@ -58,7 +58,7 @@ ChannelService::ChannelService(uint32 setsize) :
 //}
 void ChannelService::RegisterLifecycleCallback(ChannelServiceLifeCycle* callback)
 {
-   m_lifecycle_callback = callback;
+    m_lifecycle_callback = callback;
 }
 
 void ChannelService::FireUserEvent(uint32 ev)
@@ -103,21 +103,21 @@ ChannelService& ChannelService::GetNextChannelService()
     return *(m_sub_pool[idx++]);
 }
 
-ChannelService& ChannelService::GetIdlestChannelService(uint32 min , uint32 max)
+ChannelService& ChannelService::GetIdlestChannelService(uint32 min, uint32 max)
 {
     if (m_sub_pool.empty())
     {
         return *this;
     }
-    if(max >= m_sub_pool.size())
+    if (max >= m_sub_pool.size())
     {
         max = m_sub_pool.size();
     }
-    if(min >= m_sub_pool.size())
+    if (min >= m_sub_pool.size())
     {
         min = m_sub_pool.size() - 1;
     }
-    if(min == max)
+    if (min == max)
     {
         max = min + 1;
     }
@@ -321,6 +321,7 @@ void ChannelService::StartSubPool()
         for (uint32 i = 0; i < m_thread_pool_size; i++)
         {
             ChannelService* s = new ChannelService(m_setsize);
+            s->SetParent(this);
             s->m_pool_index = i + 1;
             s->RegisterLifecycleCallback(m_lifecycle_callback);
 //            s->RegisterUserEventCallback(m_user_cb, m_user_cb_data);
@@ -340,7 +341,7 @@ void ChannelService::Start()
         GetTimer().Schedule(this, 1000, 1000);
         m_running = true;
         m_tid = Thread::CurrentThreadID();
-        if(NULL != m_lifecycle_callback)
+        if (NULL != m_lifecycle_callback)
         {
             m_lifecycle_callback->OnStart(this, m_pool_index);
         }
@@ -353,33 +354,46 @@ void ChannelService::Continue()
     aeProcessEvents(m_eventLoop, AE_FILE_EVENTS | AE_DONT_WAIT);
 }
 
+void ChannelService::OnStopCB(Channel*, void* data)
+{
+    ChannelService* serv = (ChannelService*) data;
+    ChannelServicePool::iterator it = serv->m_sub_pool.begin();
+    while (it != serv->m_sub_pool.end())
+    {
+        ChannelService* sub = *it;
+        sub->AsyncIO(0, OnStopCB, sub);
+        it++;
+    }
+    aeStop(serv->m_eventLoop);
+    serv->Wakeup();
+}
+
 void ChannelService::Stop()
 {
     if (m_running)
     {
         m_running = false;
-        if(NULL != m_lifecycle_callback)
+        if (NULL != m_lifecycle_callback)
         {
             m_lifecycle_callback->OnStop(this, m_pool_index);
         }
-        aeStop(m_eventLoop);
+
         if (!IsInLoopThread())
         {
-            Wakeup();
+            AsyncIO(0, OnStopCB, this);
         }
-        ChannelServicePool::iterator it = m_sub_pool.begin();
-        while (it != m_sub_pool.end())
+        else
         {
-            (*it)->Stop();
-            it++;
+            OnStopCB(NULL, this);
         }
-        ThreadVector::iterator tit = m_sub_pool_ts.begin();
-        while (tit != m_sub_pool_ts.end())
-        {
-            (*tit)->Join();
-            delete *tit;
-            tit++;
-        }
+
+//        ThreadVector::iterator tit = m_sub_pool_ts.begin();
+//        while (tit != m_sub_pool_ts.end())
+//        {
+//            (*tit)->Join();
+//            delete *tit;
+//            tit++;
+//        }
     }
 }
 
@@ -589,7 +603,7 @@ void ChannelService::AttachAcceptedChannel(SocketChannel *ch)
 
 void ChannelService::Routine()
 {
-    if(NULL != m_lifecycle_callback)
+    if (NULL != m_lifecycle_callback)
     {
         m_lifecycle_callback->OnRoutine(this, m_pool_index);
     }
@@ -653,4 +667,11 @@ ChannelService::~ChannelService()
 {
     CloseAllChannels(false);
     aeDeleteEventLoop(m_eventLoop);
+    ThreadVector::iterator tit = m_sub_pool_ts.begin();
+    while (tit != m_sub_pool_ts.end())
+    {
+        (*tit)->Join();
+        delete *tit;
+        tit++;
+    }
 }

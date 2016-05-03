@@ -34,9 +34,13 @@
 #include <fcntl.h>
 #include <sstream>
 #include "db.hpp"
-#include "rocksdb_engine.hpp"
 #include "repl/repl.hpp"
 #include "statistics.hpp"
+#if defined __USE_LMDB__
+#include "lmdb/lmdb_engine.hpp"
+#elif defined __USE_ROCKSDB__
+#include "rocksdb/rocksdb_engine.hpp"
+#endif
 
 /* Command flags. Please check the command table defined in the redis.c file
  * for more information about the meaning of every flag. */
@@ -123,7 +127,7 @@ OP_NAMESPACE_BEGIN
     static CostTrack g_cmd_cost_tracks[REDIS_CMD_MAX];
 
     Ardb::Ardb() :
-            m_engine(NULL), m_starttime(0), m_loading_data(false), m_redis_cursor_seed(0), m_watched_ctxs(NULL), m_ready_keys(NULL),m_restoring_nss(NULL)
+            m_engine(NULL), m_starttime(0), m_loading_data(false), m_redis_cursor_seed(0), m_watched_ctxs(NULL), m_ready_keys(NULL), m_restoring_nss(NULL)
     {
         g_db = this;
         m_settings.set_empty_key("");
@@ -320,7 +324,7 @@ OP_NAMESPACE_BEGIN
         { "restore", REDIS_CMD_RESTORE, &Ardb::Restore, 3, 4, "w", 0, 0, 0 },
         { "migrate", REDIS_CMD_MIGRATE, &Ardb::Migrate, 5, -1, "w", 0, 0, 0 },
         { "restorechunk", REDIS_CMD_RESTORECHUNK, &Ardb::RestoreChunk, 1, 1, "w", 0, 0, 0 },
-        { "restoredb", REDIS_CMD_RESTOREDB, &Ardb::RestoreDB, 1, 1, "w", 0, 0, 0 },};
+        { "restoredb", REDIS_CMD_RESTOREDB, &Ardb::RestoreDB, 1, 1, "w", 0, 0, 0 }, };
 
         CostRanges cmdstat_ranges;
         cmdstat_ranges.push_back(CostRange(0, 1000));
@@ -466,23 +470,28 @@ OP_NAMESPACE_BEGIN
         }
         ArdbLogger::InitDefaultLogger(m_conf.loglevel, m_conf.logfile);
 
-        if (GetConf().engine == "rocksdb")
+#if defined __USE_LMDB__
+        NEW(m_engine, LMDBEngine);
+        if (0 != ((LMDBEngine*) m_engine)->Init(GetConf().data_base_path, GetConf().conf_props))
         {
-            NEW(m_engine, RocksDBEngine);
-            if (0 != ((RocksDBEngine*) m_engine)->Init(GetConf().data_base_path, GetConf().rocksdb_options))
-            {
-                ERROR_LOG("Failed to init rocksdb.");
-                DELETE(m_engine);
-                return -1;
-            }
-            m_starttime = time(NULL);
-            return 0;
-        }
-        else
-        {
-            ERROR_LOG("Unsupported storage engine:%s", GetConf().engine.c_str());
+            ERROR_LOG("Failed to init lmdb.");
+            DELETE(m_engine);
             return -1;
         }
+#elif defined __USE_ROCKSDB__
+        NEW(m_engine, RocksDBEngine);
+        if (0 != ((RocksDBEngine*) m_engine)->Init(GetConf().data_base_path, GetConf().rocksdb_options))
+        {
+            ERROR_LOG("Failed to init rocksdb.");
+            DELETE(m_engine);
+            return -1;
+        }
+#else
+        ERROR_LOG("Unsupported storage engine specified at compile time");
+        return -1;
+#endif
+        m_starttime = time(NULL);
+        return 0;
     }
 
     void Ardb::RenameCommand()
@@ -1122,8 +1131,7 @@ OP_NAMESPACE_BEGIN
 
         /* Don't accept write commands if there are not enough good slaves and
          * user configured the min-slaves-to-write option. */
-        if (GetConf().master_host.empty() && GetConf().repl_min_slaves_to_write > 0 && GetConf().repl_min_slaves_max_lag > 0
-                && (setting.flags & ARDB_CMD_WRITE) > 0 && g_repl->GetMaster().GoodSlavesCount() < GetConf().repl_min_slaves_to_write)
+        if (GetConf().master_host.empty() && GetConf().repl_min_slaves_to_write > 0 && GetConf().repl_min_slaves_max_lag > 0 && (setting.flags & ARDB_CMD_WRITE) > 0 && g_repl->GetMaster().GoodSlavesCount() < GetConf().repl_min_slaves_to_write)
         {
             ctx.AbortTransaction();
             reply.SetErrCode(ERR_NOREPLICAS);
@@ -1180,8 +1188,7 @@ OP_NAMESPACE_BEGIN
         }
         else if (ctx.IsSubscribed())
         {
-            if (setting.type != REDIS_CMD_SUBSCRIBE && setting.type != REDIS_CMD_PSUBSCRIBE && setting.type != REDIS_CMD_PUNSUBSCRIBE
-                    && setting.type != REDIS_CMD_UNSUBSCRIBE && setting.type != REDIS_CMD_QUIT)
+            if (setting.type != REDIS_CMD_SUBSCRIBE && setting.type != REDIS_CMD_PSUBSCRIBE && setting.type != REDIS_CMD_PUNSUBSCRIBE && setting.type != REDIS_CMD_UNSUBSCRIBE && setting.type != REDIS_CMD_QUIT)
             {
                 reply.SetErrorReason("only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context");
                 return 0;

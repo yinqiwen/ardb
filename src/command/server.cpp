@@ -707,6 +707,7 @@ namespace ardb
     int Ardb::Shutdown(Context& ctx, RedisCommandFrame& cmd)
     {
         //less than -1 means shutdown server
+        ctx.GetReply().SetEmpty();
         return -2;
     }
 

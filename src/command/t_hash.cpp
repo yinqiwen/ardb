@@ -30,7 +30,7 @@
 #include "db/db.hpp"
 
 OP_NAMESPACE_BEGIN
-    int Ardb::MergeHSet(Context& ctx, KeyObject& key, ValueObject& value, uint16_t op, const Data& opv)
+    int Ardb::MergeHSet(Context& ctx, const KeyObject& key, ValueObject& value, uint16_t op, const Data& opv)
     {
         bool nx = (op == REDIS_CMD_HSETNX || op == REDIS_CMD_HSETNX2);
         bool set_meta = key.GetType() == KEY_META;
@@ -355,7 +355,7 @@ OP_NAMESPACE_BEGIN
         return ObjectLen(ctx, KEY_HASH, cmd.GetArguments()[0]);
     }
 
-    int Ardb::MergeHIncrby(Context& ctx, KeyObject& key, ValueObject& value, uint16_t op, const Data& v)
+    int Ardb::MergeHIncrby(Context& ctx, const KeyObject& key, ValueObject& value, uint16_t op, const Data& v)
     {
         if (op == REDIS_CMD_HINCR)
         {

@@ -147,7 +147,8 @@ CORE_OBJECTS :=  config.o cron.o logger.o network.o types.o statistics.o\
         
 TESTOBJ := ../test/test_main.o
 SERVEROBJ := main.o  
-ROCKSDB_ENGINE :=  db/rocksdb/rocksdb_engine.o  
+ROCKSDB_ENGINE :=  db/rocksdb/rocksdb_engine.o 
+LMDB_ENGINE :=  db/lmdb/lmdb_engine.o   
 
 #DIST_LIB = libardb.so
 DIST_LIBA = libardb.a
@@ -197,7 +198,7 @@ ifeq ($(storage_engine), $(LAST_ENGINE))
 #do nothing
 else
    $(shell sh -c 'echo $(storage_engine) > .kv_engine')
-   PREBUILD = clean_launch_obj clean_test
+   PREBUILD = clean_db_obj
 endif
 #
 
@@ -207,13 +208,13 @@ all: ${PREBUILD}  test server
 
 $(STORAGE_ENGINE_OBJ): $(STORAGE_ENGINE)
 
-$(DIST_LIB): $(CORE_OBJECTS)
+$(DIST_LIB): $(STORAGE_ENGINE_OBJ) $(CORE_OBJECTS) 
 	${CXX} -shared -o $@ $^
 
-$(DIST_LIBA):$(CORE_OBJECTS)
+$(DIST_LIBA):$(STORAGE_ENGINE_OBJ) $(CORE_OBJECTS)
 	ar rcs $@ $^
 
-lib: $(DEP_LIBS) lua snappy sparsehash $(storage_engine) $(DIST_LIBA)
+lib: $(DEP_LIBS) lua snappy sparsehash $(storage_engine) $(DIST_LIBA) 
 
 server: lib $(CORE_OBJECTS) ${SERVEROBJ}
 	${CXX} -o ardb-server $(SERVEROBJ)  $(CORE_OBJECTS) ${STORAGE_ENGINE_OBJ} $(LIBS)
@@ -335,8 +336,8 @@ $(SPARSEHASH_CONFIG):
 	${MAKE} src/sparsehash/internal/sparseconfig.h && \
 	echo ">>>>> Done building sparsehash"
 
-clean_launch_obj:
-	rm -f main.o
+clean_db_obj:
+	rm -f db/db.o
 
 clean_test:
 	rm -f ${TESTOBJ};rm -f ardb-test

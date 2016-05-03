@@ -28,8 +28,10 @@
  */
 
 #include "lmdb_engine.hpp"
-#include "codec.hpp"
+#include "db/codec.hpp"
+#include "db/db.hpp"
 #include "util/helpers.hpp"
+#include "thread/lock_guard.hpp"
 #include <string.h>
 #include <unistd.h>
 
@@ -47,11 +49,13 @@
 #define LMDB_DEL_OP 2
 #define LMDB_CKP_OP 3
 
+#define LMDB_ERR(err)  (MDB_NOTFOUND == err ? ERR_ENTRY_NOT_EXIST:err)
+
 namespace ardb
 {
     static int LMDBCompareFunc(const MDB_val *a, const MDB_val *b)
     {
-        return compare_keys((const char*) a->mv_data, a->mv_size, (const char*) b->mv_data, b->mv_size);
+        return compare_keys((const char*) a->mv_data, a->mv_size, (const char*) b->mv_data, b->mv_size, false);
     }
 
     struct WriteOperation
@@ -154,6 +158,10 @@ namespace ardb
             {
                 return running;
             }
+            void AdviceStop()
+            {
+                running = false;
+            }
             void Put(MDB_dbi dbi, MDB_val k, MDB_val v)
             {
                 WriteOperation* op = new WriteOperation;
@@ -233,15 +241,16 @@ namespace ardb
                 if (NULL != txn)
                 {
                     txn_ref--;
+                    //printf("#### %d %d\n", txn_ref, txn_abort);
                     if (!txn_abort)
                     {
-                        txn_abort = success;
+                        txn_abort = !success;
                     }
                     if (txn_ref == 0)
                     {
                         if (txn_abort)
                         {
-                            rc = mdb_txn_abort(txn);
+                            mdb_txn_abort(txn);
                         }
                         else
                         {
@@ -264,6 +273,11 @@ namespace ardb
             {
                 encode_buffer_cache.Clear();
                 return encode_buffer_cache;
+            }
+            ~LMDBLocalContext()
+            {
+                bgwriter.AdviceStop();
+                bgwriter.Join();
             }
     };
     static ThreadLocal<LMDBLocalContext> g_ctx_local;
@@ -289,7 +303,7 @@ namespace ardb
                     }
                     else
                     {
-                        rc = mdb_txn_abort(txn);
+                        mdb_txn_abort(txn);
                     }
                 }
                 err = rc;
@@ -319,18 +333,25 @@ namespace ardb
         {
             return false;
         }
-        MDB_txn *txn;
-        CHECK_RET(mdb_txn_begin(m_env, NULL, 0, &txn), false);
+        LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
+        MDB_txn *txn = local_ctx.txn;
+        if (NULL == txn)
+        {
+            CHECK_RET(mdb_txn_begin(m_env, NULL, 0, &txn), false);
+        }
         CHECK_RET(mdb_open(txn, ns.AsString().c_str(), MDB_CREATE, &dbi), false);
         mdb_set_compare(txn, dbi, LMDBCompareFunc);
         CHECK_RET(mdb_txn_commit(txn), false);
+        if (txn == local_ctx.txn)
+        {
+            CHECK_RET(mdb_txn_begin(m_env, NULL, 0, &local_ctx.txn), false);
+        }
         m_dbis[ns] = dbi;
         return true;
     }
 
     int LMDBEngine::Init(const std::string& dir, const Properties& props)
     {
-        conf_get_string(props, "data-dir", m_cfg.path);
         conf_get_int64(props, "lmdb.database_maxsize", m_cfg.max_dbsize);
         conf_get_int64(props, "lmdb.database_maxdbs", m_cfg.max_dbs);
         conf_get_int64(props, "lmdb.batch_commit_watermark", m_cfg.batch_commit_watermark);
@@ -364,11 +385,11 @@ namespace ardb
         MDB_val key, data;
         while ((rc = mdb_cursor_get(cursor, &key, &data, MDB_NEXT)) == 0)
         {
-            std::string name((const char*)key.mv_data, key.mv_size);
-            if(has_prefix(name, "ns:"))
+            std::string name((const char*) key.mv_data, key.mv_size);
+            if (has_prefix(name, "ns:"))
             {
                 Data ns;
-                ns.SetString((const char*)data.mv_data, data.mv_size, true);
+                ns.SetString((const char*) data.mv_data, data.mv_size, true);
                 MDB_dbi dbi;
                 CHECK_RET(mdb_open(txn, ns.AsString().c_str(), MDB_CREATE, &dbi), -1);
                 m_dbis[ns] = dbi;
@@ -376,6 +397,7 @@ namespace ardb
         }
         mdb_cursor_close(cursor);
         CHECK_RET(mdb_txn_commit(txn), false);
+        INFO_LOG("Success to open lmdb at %s", dir.c_str());
         return 0;
     }
 
@@ -479,17 +501,74 @@ namespace ardb
         if (0 == rc)
         {
             rc = mdb_get(txn, dbi, &k, &v);
+            if (0 == rc)
+            {
+                Buffer valBuffer((char*) (v.mv_data), 0, v.mv_size);
+                value.Decode(valBuffer, true);
+            }
+            if (NULL == local_ctx.txn)
+            {
+                mdb_txn_commit(txn);
+            }
+        }
+        return LMDB_ERR(rc);
+    }
+
+    int LMDBEngine::MultiGet(Context& ctx, const KeyObjectArray& keys, ValueObjectArray& values, ErrCodeArray& errs)
+    {
+        MDB_dbi dbi;
+        if (!GetDBI(ctx, ctx.ns, false, dbi))
+        {
+            return ERR_ENTRY_NOT_EXIST;
+        }
+        LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
+        Buffer& key_encode_buffers = local_ctx.GetEncodeBuferCache();
+        std::vector<size_t> positions;
+        std::vector<MDB_val> ks;
+        ks.resize(keys.size());
+        values.resize(keys.size());
+        errs.resize(keys.size());
+        for (size_t i = 0; i < keys.size(); i++)
+        {
+            size_t mark = key_encode_buffers.GetWriteIndex();
+            keys[i].Encode(key_encode_buffers);
+            positions.push_back(key_encode_buffers.GetWriteIndex() - mark);
+        }
+        for (size_t i = 0; i < keys.size(); i++)
+        {
+            ks[i].mv_data = (void*) key_encode_buffers.GetRawReadBuffer();
+            ks[i].mv_size = positions[i];
+            key_encode_buffers.AdvanceReadIndex(positions[i]);
+        }
+
+        MDB_txn *txn = local_ctx.txn;
+        int rc = 0;
+        if (NULL == txn)
+        {
+            rc = mdb_txn_begin(m_env, NULL, MDB_RDONLY, &txn);
+        }
+        if (0 == rc)
+        {
+            for (size_t i = 0; i < keys.size(); i++)
+            {
+                MDB_val v;
+                rc = mdb_get(txn, dbi, &ks[i], &v);
+                if (0 == rc)
+                {
+                    Buffer valBuffer((char*) (v.mv_data), 0, v.mv_size);
+                    values[i].Decode(valBuffer, true);
+                }
+                else
+                {
+                    errs[i] = LMDB_ERR(rc);
+                }
+            }
             if (NULL == local_ctx.txn)
             {
                 mdb_txn_commit(txn);
             }
         }
         return rc;
-    }
-
-    int LMDBEngine::MultiGet(Context& ctx, const KeyObjectArray& keys, ValueObjectArray& values, ErrCodeArray& errs)
-    {
-        return -1;
     }
     int LMDBEngine::Del(Context& ctx, const KeyObject& key)
     {
@@ -515,7 +594,7 @@ namespace ardb
         }
         if (NULL == txn)
         {
-            rc = mdb_txn_begin(m_env, NULL, MDB_RDONLY, &txn);
+            rc = mdb_txn_begin(m_env, NULL, 0, &txn);
         }
         if (0 == rc)
         {
@@ -530,12 +609,23 @@ namespace ardb
 
     int LMDBEngine::Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args)
     {
-        return ERR_NOTSUPPORTED;
+        ValueObject current;
+        int err = Get(ctx, key, current);
+        if(0 == err || ERR_ENTRY_NOT_EXIST == err)
+        {
+            err = g_db->MergeOperation(key, current, op, const_cast<DataArray&>(args));
+            if(0 == err)
+            {
+                return Put(ctx, key, current);
+            }
+        }
+        return err;
     }
 
     bool LMDBEngine::Exists(Context& ctx, const KeyObject& key)
     {
-        return -1;
+        ValueObject val;
+        return Get(ctx, key, val) == 0;
     }
 
     int LMDBEngine::BeginTransaction()
@@ -601,7 +691,7 @@ namespace ardb
     }
     int64_t LMDBEngine::EstimateKeysNum(Context& ctx, const Data& ns)
     {
-        return ERR_NOTSUPPORTED;
+        return 0;
     }
 
     Iterator* LMDBEngine::Find(Context& ctx, const KeyObject& key)
@@ -619,7 +709,7 @@ namespace ardb
         if (0 != rc)
         {
             iter->MarkValid(false);
-            return rc;
+            return iter;
         }
         MDB_cursor* cursor;
         rc = mdb_cursor_open(local_ctx.txn, dbi, &cursor);
@@ -734,7 +824,7 @@ namespace ardb
         }
         LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
         Slice key_slice = next.Encode(local_ctx.GetEncodeBuferCache());
-        m_raw_key.mv_data = key_slice.data();
+        m_raw_key.mv_data = (void *) key_slice.data();
         m_raw_key.mv_size = key_slice.size();
         int rc = mdb_cursor_get(m_cursor, &m_raw_key, &m_raw_val, MDB_SET_RANGE);
         m_valid = rc == 0;
@@ -800,7 +890,7 @@ namespace ardb
             }
             return m_key;
         }
-        Buffer kbuf(const_cast<char*>(m_raw_key.mv_data), 0, m_raw_key.mv_size);
+        Buffer kbuf((char*) (m_raw_key.mv_data), 0, m_raw_key.mv_size);
         m_key.Decode(kbuf, clone_str);
         m_key.SetNameSpace(m_ns);
         return m_key;
@@ -811,7 +901,7 @@ namespace ardb
         {
             return m_value;
         }
-        Buffer kbuf(const_cast<char*>(m_raw_val.mv_data), 0, m_raw_val.mv_size);
+        Buffer kbuf((char*) (m_raw_val.mv_data), 0, m_raw_val.mv_size);
         m_value.Decode(kbuf, clone_str);
         return m_value;
     }

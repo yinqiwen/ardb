@@ -101,7 +101,12 @@ OP_NAMESPACE_BEGIN
                 }
                 if (ret < -1)
                 {
-                    m_client_ctx.client->GetService().Stop();
+                    ChannelService* root = &(m_client_ctx.client->GetService());
+                    while(root->GetParent() != NULL)
+                    {
+                        root = root->GetParent();
+                    }
+                    root->Stop();
                     return;
                 }
                 else if (-1 == ret)
@@ -289,12 +294,16 @@ OP_NAMESPACE_BEGIN
 
         INFO_LOG("Ardb started with version %s", ARDB_VERSION);
         m_service->Start();
-
-        g_repl->Stop();
+        StopCrons();
+        g_repl->StopService();
         sexit:
         DELETE(m_service);
-        DELETE(m_cron_thread);
         return 0;
+    }
+
+    Server::~Server()
+    {
+        StopCrons();
     }
 OP_NAMESPACE_END
 

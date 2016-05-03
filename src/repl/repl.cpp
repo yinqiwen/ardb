@@ -316,5 +316,15 @@ OP_NAMESPACE_BEGIN
         }
         return 0;
     }
+
+    void ReplicationService::StopService()
+    {
+        if(!IsInited())
+        {
+            return;
+        }
+        m_io_serv.Stop();
+        Join();
+    }
 OP_NAMESPACE_END
 

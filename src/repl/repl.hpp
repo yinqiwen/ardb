@@ -207,6 +207,7 @@ OP_NAMESPACE_BEGIN
             ReplicationBacklog& GetReplLog();
             Master& GetMaster();
             Slave& GetSlave();
+            void StopService();
 
     };
     extern ReplicationService* g_repl;

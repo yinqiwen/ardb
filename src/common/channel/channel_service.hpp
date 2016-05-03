@@ -118,6 +118,8 @@ namespace ardb
              */
             uint32 m_pool_index;
 
+            ChannelService* m_parent;
+
             bool EventSunk(ChannelPipeline* pipeline, ChannelEvent& e)
             {
                 ERROR_LOG("Not support this operation!Please register a channel handler to handle this event.");
@@ -129,6 +131,7 @@ namespace ardb
 
             void OnSoftSignal(uint32 soft_signo, uint32 appendinfo);
 
+            static void OnStopCB(Channel*, void*);
             void Run();
             friend class Channel;
             friend class ChannelPipeline;
@@ -151,7 +154,10 @@ namespace ardb
             void AttachAcceptedChannel(SocketChannel *ch);
             void AsyncIO(const ChannelAsyncIOContext& ctx);
             void Routine();
-
+            void SetParent(ChannelService* parent)
+            {
+                m_parent = parent;
+            }
         public:
             ChannelService(uint32 setsize = 10240);
             void SetThreadPoolSize(uint32 size);
@@ -196,6 +202,11 @@ namespace ardb
             void RegisterLifecycleCallback(ChannelServiceLifeCycle* callback);
             void FireUserEvent(uint32 ev);
             void AsyncIO(uint32 id, ChannelAsyncIOCallback* cb, void* data);
+
+            ChannelService* GetParent()
+            {
+                return m_parent;
+            }
             ~ChannelService();
     };
 }

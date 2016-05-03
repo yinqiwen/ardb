@@ -195,16 +195,16 @@ OP_NAMESPACE_BEGIN
             int ListPush(Context& ctx, RedisCommandFrame& cmd, bool lock_key = true);
 
             bool AdjustMergeOp(uint16& op, DataArray& args);
-            int MergeAppend(Context& ctx, KeyObject& key, ValueObject& val, const std::string& append);
-            int MergeIncrBy(Context& ctx, KeyObject& key, ValueObject& val, int64_t inc);
-            int MergeIncrByFloat(Context& ctx, KeyObject& key, ValueObject& val, double inc);
-            int MergeSet(Context& ctx, KeyObject& key, ValueObject& val, uint16_t op, const Data& data, int64_t ttl);
-            int MergeSetRange(Context& ctx, KeyObject& key, ValueObject& val, int64_t offset, const std::string& range);
-            int MergeHSet(Context& ctx, KeyObject& key, ValueObject& value, uint16_t op, const Data& v);
-            int MergeHIncrby(Context& ctx, KeyObject& key, ValueObject& value, uint16_t op, const Data& v);
+            int MergeAppend(Context& ctx, const KeyObject& key, ValueObject& val, const std::string& append);
+            int MergeIncrBy(Context& ctx, const KeyObject& key, ValueObject& val, int64_t inc);
+            int MergeIncrByFloat(Context& ctx, const KeyObject& key, ValueObject& val, double inc);
+            int MergeSet(Context& ctx, const KeyObject& key, ValueObject& val, uint16_t op, const Data& data, int64_t ttl);
+            int MergeSetRange(Context& ctx, const KeyObject& key, ValueObject& val, int64_t offset, const std::string& range);
+            int MergeHSet(Context& ctx, const KeyObject& key, ValueObject& value, uint16_t op, const Data& v);
+            int MergeHIncrby(Context& ctx, const KeyObject& key, ValueObject& value, uint16_t op, const Data& v);
             int MergeExpire(Context& ctx, const KeyObject& key, ValueObject& meta, int64 ms);
             int MergeSetBit(Context& ctx, const KeyObject& key, ValueObject& meta, int64 offset, uint8 bit, uint8* oldbit);
-            int MergePFAdd(Context& ctx, KeyObject& key, ValueObject& value, const DataArray& ms, int* updated = NULL);
+            int MergePFAdd(Context& ctx, const KeyObject& key, ValueObject& value, const DataArray& ms, int* updated = NULL);
 
             bool CheckMeta(Context& ctx, const std::string& key, KeyType expected);
             bool CheckMeta(Context& ctx, const std::string& key, KeyType expected, ValueObject& meta);
@@ -436,7 +436,7 @@ OP_NAMESPACE_BEGIN
             Ardb();
             int Init(const std::string& conf_file);
             int Call(Context& ctx, RedisCommandFrame& cmd);
-            int MergeOperation(KeyObject& key, ValueObject& val, uint16_t op, DataArray& args);
+            int MergeOperation(const KeyObject& key, ValueObject& val, uint16_t op, DataArray& args);
             int MergeOperands(uint16_t left, const DataArray& left_args, uint16_t& right, DataArray& right_args);
             void AddExpiredKey(const Data& ns, const Data& key);
             int TouchWatchKey(Context& ctx, const KeyObject& key);

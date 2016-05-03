@@ -1344,7 +1344,7 @@ bool isHLLObjectOrReply(std::string& value)
 
 namespace ardb
 {
-    int Ardb::MergePFAdd(Context& ctx, KeyObject& key, ValueObject& meta, const DataArray& ms, int* up)
+    int Ardb::MergePFAdd(Context& ctx, const KeyObject& key, ValueObject& meta, const DataArray& ms, int* up)
     {
         std::string hllvalue;
         int updated = 0;

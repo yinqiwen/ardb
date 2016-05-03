@@ -36,6 +36,7 @@
 #include "util/config_helper.hpp"
 #include "thread/thread_local.hpp"
 #include "thread/thread_mutex_lock.hpp"
+#include "thread/spin_rwlock.hpp"
 #include "thread/event_condition.hpp"
 #include "util/concurrent_queue.hpp"
 #include <stack>
@@ -54,10 +55,10 @@ namespace ardb
             MDB_val m_raw_key;
             MDB_val m_raw_val;
             KeyObject m_iterate_upper_bound_key;
+            bool m_valid;
 
             void DoJump(const KeyObject& next);
 
-            bool m_valid;
             bool Valid();
             void Next();
             void Prev();
@@ -106,7 +107,7 @@ namespace ardb
     };
 
     class LMDBEngineFactory;
-    class LMDBEngine: public Engine, public Runnable
+    class LMDBEngine: public Engine
     {
         private:
             MDB_env *m_env;

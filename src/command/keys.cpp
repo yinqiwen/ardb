@@ -713,10 +713,12 @@ OP_NAMESPACE_BEGIN
             iter->Jump(meta_key);
         }
         int removed = 0;
+
         while (NULL != iter && iter->Valid())
         {
             KeyObject& k = iter->Key();
             const Data& kdata = k.GetKey();
+
             if (k.GetNameSpace().Compare(meta_key.GetNameSpace()) != 0 || kdata.StringLength() != meta_key.GetKey().StringLength() || strncmp(meta_key.GetKey().CStr(), kdata.CStr(), kdata.StringLength()) != 0)
             {
                 break;
@@ -741,6 +743,7 @@ OP_NAMESPACE_BEGIN
             removed += DelKey(ctx, meta, iter);
         }
         DELETE(iter);
+
         reply.SetInteger(removed);
         return 0;
     }

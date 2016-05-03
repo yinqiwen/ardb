@@ -171,7 +171,7 @@ namespace ardb
         return -1;
     }
 
-    int Ardb::MergeOperation(KeyObject& key, ValueObject& val, uint16_t op, DataArray& args)
+    int Ardb::MergeOperation(const KeyObject& key, ValueObject& val, uint16_t op, DataArray& args)
     {
         Context merge_ctx;
         int err = 0;

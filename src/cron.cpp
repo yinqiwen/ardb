@@ -75,7 +75,7 @@ OP_NAMESPACE_BEGIN
                 g_db->ScanExpiredKeys();
             }
     };
-    class ServerCronThread: public Thread
+    struct ServerCronThread: public Thread
     {
             ChannelService serv;
             void Run()
@@ -91,6 +91,16 @@ OP_NAMESPACE_BEGIN
         {
             NEW(m_cron_thread, ServerCronThread);
             m_cron_thread->Start();
+        }
+    }
+
+    void Server::StopCrons()
+    {
+        if(NULL != m_cron_thread)
+        {
+            ((ServerCronThread*)m_cron_thread)->serv.Stop();
+            m_cron_thread->Join();
+            DELETE(m_cron_thread);
         }
     }
 OP_NAMESPACE_END

@@ -83,7 +83,7 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::MergeAppend(Context& ctx, KeyObject& key, ValueObject& val, const std::string& append)
+    int Ardb::MergeAppend(Context& ctx, const KeyObject& key, ValueObject& val, const std::string& append)
     {
         if (val.GetType() != 0 && val.GetType() != KEY_STRING)
         {
@@ -240,7 +240,7 @@ OP_NAMESPACE_BEGIN
         return MSet(ctx, cmd);
     }
 
-    int Ardb::MergeIncrByFloat(Context& ctx, KeyObject& key, ValueObject& val, double inc)
+    int Ardb::MergeIncrByFloat(Context& ctx, const KeyObject& key, ValueObject& val, double inc)
     {
         if (val.GetType() > 0)
         {
@@ -306,7 +306,7 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::MergeIncrBy(Context& ctx, KeyObject& key, ValueObject& val, int64_t incr)
+    int Ardb::MergeIncrBy(Context& ctx, const KeyObject& key, ValueObject& val, int64_t incr)
     {
         if (val.GetType() > 0)
         {
@@ -499,7 +499,7 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::MergeSet(Context& ctx, KeyObject& key, ValueObject& val, uint16_t op, const Data& data, int64 ttl)
+    int Ardb::MergeSet(Context& ctx, const KeyObject& key, ValueObject& val, uint16_t op, const Data& data, int64 ttl)
     {
         uint8 val_type = val.GetType();
         if (val_type > 0 && val_type != KEY_STRING)
@@ -698,7 +698,7 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::MergeSetRange(Context& ctx, KeyObject& key, ValueObject& val, int64_t offset, const std::string& range)
+    int Ardb::MergeSetRange(Context& ctx, const KeyObject& key, ValueObject& val, int64_t offset, const std::string& range)
     {
         uint8 val_type = val.GetType();
         if (val_type > 0)

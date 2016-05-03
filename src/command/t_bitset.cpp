@@ -530,6 +530,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::Bitop(Context& ctx, RedisCommandFrame& cmd)
     {
+
         RedisReply& reply = ctx.GetReply();
         const std::string& opname = cmd.GetArguments()[0];
         std::string targetkey;
@@ -586,6 +587,7 @@ OP_NAMESPACE_BEGIN
                 return 0;
             }
         }
+        //printf("####%s %s\n", vals[0].GetStringValue().AsString().c_str(),vals[1].GetStringValue().AsString().c_str());
 
         size_t numkeys = keys.size() - destkey_count;
         for (size_t j = destkey_count; j < keys.size(); j++)
