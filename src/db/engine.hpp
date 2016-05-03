@@ -119,8 +119,8 @@ OP_NAMESPACE_BEGIN
                     else
                     {
                         engine->DiscardTransaction();
-                        ctx.transc_err = err;
                     }
+                    ctx.transc_err = err;
                 }
             }
     };

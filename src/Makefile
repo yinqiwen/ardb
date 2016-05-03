@@ -40,9 +40,10 @@ uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 
 LIB_PATH=$(PWD)/../deps
 
-#LMDB_PATH=${LIB_PATH}/mdb-mdb/libraries/liblmdb
-#LMDB_FILE=${LIB_PATH}/LMDB_0.9.14.tar.gz
-#LMDB_LIBA=${LMDB_PATH}/liblmdb.a
+LMDB_VER=LMDB_0.9.18
+LMDB_PATH=${LIB_PATH}/lmdb-${LMDB_VER}/libraries/liblmdb
+LMDB_FILE=${LIB_PATH}/${LMDB_VER}.tar.gz
+LMDB_LIBA=${LMDB_PATH}/liblmdb.a
 
 JEMALLOC_VER=jemalloc-4.1.0
 JEMALLOC_PATH=${LIB_PATH}/${JEMALLOC_VER}
@@ -145,7 +146,8 @@ CORE_OBJECTS :=  config.o cron.o logger.o network.o types.o statistics.o\
                 $(COMMON_OBJECTS)  $(COMMAND_OBJECTS) $(DB_OBJECTS) 
         
 TESTOBJ := ../test/test_main.o
-SERVEROBJ := main.o
+SERVEROBJ := main.o  
+ROCKSDB_ENGINE :=  db/rocksdb/rocksdb_engine.o  
 
 #DIST_LIB = libardb.so
 DIST_LIBA = libardb.a

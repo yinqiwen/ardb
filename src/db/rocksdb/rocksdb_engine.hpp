@@ -40,7 +40,7 @@
 #include "rocksdb/filter_policy.h"
 #include "rocksdb/statistics.h"
 #include "rocksdb/merge_operator.h"
-#include "engine.hpp"
+#include "db/engine.hpp"
 #include <vector>
 #include <sparsehash/dense_hash_map>
 #include <memory>
@@ -143,7 +143,6 @@ OP_NAMESPACE_BEGIN
             int DropNameSpace(Context& ctx, const Data& ns);
             void Stats(Context& ctx, std::string& str);
             int64_t EstimateKeysNum(Context& ctx, const Data& ns);
-
             Iterator* Find(Context& ctx, const KeyObject& key);
     };
 

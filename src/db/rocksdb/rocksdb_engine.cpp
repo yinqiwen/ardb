@@ -1089,8 +1089,9 @@ OP_NAMESPACE_BEGIN
             m_db->DropColumnFamily(found->second.get());
             //m_droped_handlers.push_back(found->second);
             m_handlers.erase(found);
+            return 0;
         }
-        return 0;
+        return ERR_ENTRY_NOT_EXIST;
     }
 
     int64_t RocksDBEngine::EstimateKeysNum(Context& ctx, const Data& ns)
@@ -1164,7 +1165,7 @@ OP_NAMESPACE_BEGIN
         }
     }
 
-    bool RocksDBIterator::RocksDBIterator::Valid()
+    bool RocksDBIterator::Valid()
     {
         return m_valid && NULL != m_iter && m_iter->Valid();
     }

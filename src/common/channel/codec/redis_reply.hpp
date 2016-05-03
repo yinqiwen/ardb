@@ -74,6 +74,7 @@ namespace ardb
             ERR_READONLY_SLAVE = -1015,
             ERR_MASTER_DOWN = -1016,
             ERR_LOADING = -1017,
+            ERR_NOTSUPPORTED = -1018,
             ERR_INVALID_ARGS = -3,
             ERR_INVALID_OPERATION = -4,
 
