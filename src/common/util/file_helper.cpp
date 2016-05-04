@@ -180,6 +180,19 @@ namespace ardb
         return 0;
     }
 
+    int file_append_content(const std::string& path, const std::string& content)
+    {
+        make_file(path);
+        FILE *fp;
+        if ((fp = fopen(path.c_str(), "ab")) == NULL)
+        {
+            return -1;
+        }
+        fwrite(content.c_str(), content.size(), 1, fp);
+        fclose(fp);
+        return 0;
+    }
+
     int file_read_full(const std::string& path, std::string& content)
     {
         FILE *fp;
@@ -350,7 +363,7 @@ namespace ardb
     int real_path(const std::string& path, std::string& real_path)
     {
         char* tmp = realpath(path.c_str(), NULL);
-        if(NULL != tmp)
+        if (NULL != tmp)
         {
             real_path.assign(tmp);
             free(tmp);

@@ -44,6 +44,14 @@
     }\
 }while(0)
 
+#define CHECK_EXPR(expr)  do{\
+    int __rc__ = expr; \
+    if (MDB_SUCCESS != __rc__)\
+    {           \
+       ERROR_LOG("LMDB operation:%s error:%s at line:%u", #expr,  mdb_strerror(__rc__), __LINE__); \
+    }\
+}while(0)
+
 #define DEFAULT_LMDB_LOCAL_MULTI_CACHE_SIZE 10
 #define LMDB_PUT_OP 1
 #define LMDB_DEL_OP 2
@@ -79,18 +87,22 @@ namespace ardb
             void Run()
             {
                 running = true;
+                MDB_txn* txn = NULL;
                 while (running)
                 {
-                    MDB_txn* txn;
-                    if (NULL == g_mdb_env || 0 != mdb_txn_begin(g_mdb_env, NULL, 0, &txn))
+                    if (NULL == txn)
                     {
-                        Thread::Sleep(10, MILLIS);
-                        continue;
+                        if (NULL == g_mdb_env || 0 != mdb_txn_begin(g_mdb_env, NULL, 0, &txn))
+                        {
+                            Thread::Sleep(10, MILLIS);
+                            continue;
+                        }
                     }
                     WriteOperation* op = NULL;
                     int count = 0;
                     while (write_queue.Pop(op))
                     {
+                        count++;
                         switch (op->type)
                         {
                             case LMDB_PUT_OP:
@@ -100,7 +112,7 @@ namespace ardb
                                 k.mv_size = op->key.size();
                                 v.mv_data = const_cast<char*>(op->value.data());
                                 v.mv_size = op->value.size();
-                                mdb_put(txn, op->dbi, &k, &v, 0);
+                                CHECK_EXPR(mdb_put(txn, op->dbi, &k, &v, 0));
                                 DELETE(op);
                                 break;
                             }
@@ -110,12 +122,13 @@ namespace ardb
                                 k.mv_data = const_cast<char*>(op->key.data());
                                 k.mv_size = op->key.size();
                                 mdb_del(txn, op->dbi, &k, NULL);
+                                //CHECK_EXPR(mdb_del(txn, op->dbi, &k, NULL));
                                 DELETE(op);
                                 break;
                             }
                             case LMDB_CKP_OP:
                             {
-                                mdb_txn_commit(txn);
+                                CHECK_EXPR(mdb_txn_commit(txn));
                                 txn = NULL;
                                 event_cond.Notify();
                                 break;
@@ -125,18 +138,15 @@ namespace ardb
                                 break;
                             }
                         }
-                        count++;
                     }
-                    if (NULL != txn)
-                    {
-                        int rc = mdb_txn_commit(txn);
-                        if (0 != rc)
-                        {
-                            ERROR_LOG("Transaction commit error:%s", mdb_strerror(rc));
-                        }
-                    }
+
                     if (count == 0)
                     {
+                        if (NULL != txn)
+                        {
+                            CHECK_EXPR(mdb_txn_commit(txn));
+                            txn = NULL;
+                        }
                         queue_cond.Lock();
                         queue_cond.Wait(5);
                         queue_cond.Unlock();
@@ -151,7 +161,8 @@ namespace ardb
                 queue_cond.Unlock();
             }
         public:
-            BGWriteThread() : running(false)
+            BGWriteThread() :
+                    running(false)
             {
             }
             bool IsRunning()
@@ -218,17 +229,24 @@ namespace ardb
                 }
                 return bgwriter;
             }
-            int AcquireTransanction()
+            int AcquireTransanction(bool from_iterator = false)
             {
                 int rc = 0;
                 if (NULL == txn)
                 {
                     rc = mdb_txn_begin(g_mdb_env, NULL, 0, &txn);
                     txn_abort = false;
+                    txn_ref = 0;
+                    iter_ref = 0;
+                    write_dispatched = false;
                 }
                 if (0 == rc)
                 {
                     txn_ref++;
+                    if (from_iterator)
+                    {
+                        iter_ref++;
+                    }
                 }
                 return rc;
             }
@@ -281,34 +299,6 @@ namespace ardb
     };
     static ThreadLocal<LMDBLocalContext> g_ctx_local;
 
-    struct LMDBTransactionGuard
-    {
-            MDB_env *env;
-            MDB_txn *txn;
-            int rc;
-            int& err;
-            LMDBTransactionGuard(MDB_env* e, int& errcode) :
-                    env(e), txn(NULL), rc(0), err(errcode)
-            {
-                rc = mdb_txn_begin(env, NULL, 0, &txn);
-            }
-            ~LMDBTransactionGuard()
-            {
-                if (NULL != txn)
-                {
-                    if (0 == rc)
-                    {
-                        rc = mdb_txn_commit(txn);
-                    }
-                    else
-                    {
-                        mdb_txn_abort(txn);
-                    }
-                }
-                err = rc;
-            }
-    };
-
     LMDBEngine::LMDBEngine() :
             m_env(NULL), m_meta_dbi(0)
     {
@@ -328,26 +318,70 @@ namespace ardb
             dbi = found->second;
             return true;
         }
-        if (!create_if_noexist)
-        {
-            return false;
-        }
         LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
+        bool recreate_local_txn = false;
         MDB_txn *txn = local_ctx.txn;
         if (NULL == txn)
         {
             CHECK_RET(mdb_txn_begin(m_env, NULL, 0, &txn), false);
         }
-        CHECK_RET(mdb_open(txn, ns.AsString().c_str(), MDB_CREATE, &dbi), false);
-        mdb_set_compare(txn, dbi, LMDBCompareFunc);
-        CHECK_RET(mdb_txn_commit(txn), false);
-        if (txn == local_ctx.txn)
+        else
         {
-            CHECK_RET(mdb_txn_begin(m_env, NULL, 0, &local_ctx.txn), false);
+            recreate_local_txn = true;
         }
-        m_dbis[ns] = dbi;
-        return true;
+        CHECK_RET(mdb_open(txn, ns.AsString().c_str(), create_if_noexist?MDB_CREATE:0, &dbi), false);
+        mdb_set_compare(txn, dbi, LMDBCompareFunc);
+        bool success = true;
+        if (0 != mdb_txn_commit(txn))
+        {
+            success = false;
+        }
+        if (recreate_local_txn)
+        {
+            local_ctx.txn = NULL;
+            int err = mdb_txn_begin(m_env, NULL, 0, &local_ctx.txn);
+            if (0 != err)
+            {
+                FATAL_LOG("Can NOT create transaction for reason:(%d)%s", err, mdb_strerror(err));
+            }
+        }
+        if (success)
+        {
+            m_dbis[ns] = dbi;
+        }
+        return success;
     }
+
+//    void LMDBEngine::LoadNamespacesFromFile(DataArray& nss)
+//    {
+//        const char* path = NULL;
+//        mdb_env_get_path(m_env, &path);
+//        if (NULL == path)
+//        {
+//            return;
+//        }
+//        std::string content;
+//        file_read_full(path, content);
+//        std::vector<std::string> ss = split_string(content, "\n");
+//        for (size_t i = 0; i < ss.size(); i++)
+//        {
+//            ss[i] = trim_string(ss[i], "\r\n ");
+//            Data ns;
+//            ns.SetString(ss[i], false);
+//            nss.push_back(ns);
+//        }
+//
+//    }
+//    void LMDBEngine::AppendNamespaceToFile(const Data& ns)
+//    {
+//        const char* path = NULL;
+//        mdb_env_get_path(m_env, &path);
+//        if (NULL == path)
+//        {
+//            return;
+//        }
+//        file_append_content(path, ns.AsString() + "\n");
+//    }
 
     int LMDBEngine::Init(const std::string& dir, const Properties& props)
     {
@@ -377,26 +411,7 @@ namespace ardb
             ERROR_LOG("Failed to open mdb:%s", mdb_strerror(rc));
             return -1;
         }
-        MDB_txn *txn;
-        CHECK_RET(mdb_txn_begin(m_env, NULL, 0, &txn), -1);
-        CHECK_RET(mdb_open(txn, "__lmdb_meta__", MDB_CREATE, &m_meta_dbi), -1);
-        MDB_cursor* cursor;
-        CHECK_RET(mdb_cursor_open(txn, m_meta_dbi, &cursor), -1);
-        MDB_val key, data;
-        while ((rc = mdb_cursor_get(cursor, &key, &data, MDB_NEXT)) == 0)
-        {
-            std::string name((const char*) key.mv_data, key.mv_size);
-            if (has_prefix(name, "ns:"))
-            {
-                Data ns;
-                ns.SetString((const char*) data.mv_data, data.mv_size, true);
-                MDB_dbi dbi;
-                CHECK_RET(mdb_open(txn, ns.AsString().c_str(), MDB_CREATE, &dbi), -1);
-                m_dbis[ns] = dbi;
-            }
-        }
-        mdb_cursor_close(cursor);
-        CHECK_RET(mdb_txn_commit(txn), false);
+
         INFO_LOG("Success to open lmdb at %s", dir.c_str());
         return 0;
     }
@@ -419,29 +434,24 @@ namespace ardb
         k.mv_size = key_len;
         v.mv_data = const_cast<char*>(encode_buffer.GetRawBuffer() + key_len);
         v.mv_size = value_len;
-        MDB_txn *txn = local_ctx.txn;
-        if (NULL == txn)
+
+        /*
+         * write operation MUST dispatch to background write thread if there is exiting iterators,
+         * because write operation would invalid current iterator in the same thread.
+         */
+        if (local_ctx.iter_ref > 0)
         {
-            CHECK_RET(mdb_txn_begin(m_env, NULL, 0, &txn), -1);
-            CHECK_RET(mdb_put(txn, dbi, &k, &v, 0), -1);
-            CHECK_RET(mdb_txn_commit(txn), -1);
+            local_ctx.write_dispatched = true;
+            local_ctx.GetBGWriter().Put(dbi, k, v);
             return 0;
         }
-        else
+        int err = local_ctx.AcquireTransanction(false);
+        if (0 == err)
         {
-            /*
-             * write operation MUST spread to write thread if there is exiting iterators,
-             * because write operation would invalid current iterator in the same thread.
-             */
-            if (local_ctx.iter_ref > 0)
-            {
-                local_ctx.write_dispatched = true;
-                local_ctx.GetBGWriter().Put(dbi, k, v);
-                return 0;
-            }
-            CHECK_RET(mdb_put(local_ctx.txn, dbi, &k, &v, 0), -1);
-            return 0;
+            err = mdb_put(local_ctx.txn, dbi, &k, &v, 0);
+            local_ctx.TryReleaseTransanction(err == 0, false);
         }
+        return LMDB_ERR(err);
     }
     int LMDBEngine::PutRaw(Context& ctx, const Data& ns, const Slice& key, const Slice& value)
     {
@@ -457,25 +467,19 @@ namespace ardb
         k.mv_size = key.size();
         v.mv_data = const_cast<char*>(value.data());
         v.mv_size = value.size();
-        MDB_txn *txn = local_ctx.txn;
-        if (NULL == txn)
+        if (local_ctx.iter_ref > 0)
         {
-            CHECK_RET(mdb_txn_begin(m_env, NULL, 0, &txn), -1);
-            CHECK_RET(mdb_put(txn, dbi, &k, &v, 0), -1);
-            CHECK_RET(mdb_txn_commit(txn), -1);
+            local_ctx.write_dispatched = true;
+            local_ctx.GetBGWriter().Put(dbi, k, v);
             return 0;
         }
-        else
+        int err = local_ctx.AcquireTransanction(false);
+        if (0 == err)
         {
-            if (local_ctx.iter_ref > 0)
-            {
-                local_ctx.write_dispatched = true;
-                local_ctx.GetBGWriter().Put(dbi, k, v);
-                return 0;
-            }
-            CHECK_RET(mdb_put(local_ctx.txn, dbi, &k, &v, 0), -1);
-            return 0;
+            err = mdb_put(local_ctx.txn, dbi, &k, &v, 0);
+            local_ctx.TryReleaseTransanction(err == 0, false);
         }
+        return LMDB_ERR(err);
     }
 
     int LMDBEngine::Get(Context& ctx, const KeyObject& key, ValueObject& value)
@@ -581,28 +585,22 @@ namespace ardb
         Buffer& encode_buffer = local_ctx.GetEncodeBuferCache();
         key.Encode(encode_buffer);
         size_t key_len = encode_buffer.ReadableBytes();
-        MDB_val k, v;
+        MDB_val k;
         k.mv_data = const_cast<char*>(encode_buffer.GetRawBuffer());
         k.mv_size = key_len;
         int rc = 0;
-        MDB_txn *txn = local_ctx.txn;
         if (local_ctx.iter_ref > 0)
         {
             local_ctx.write_dispatched = true;
             local_ctx.GetBGWriter().Del(dbi, k);
             return 0;
         }
-        if (NULL == txn)
-        {
-            rc = mdb_txn_begin(m_env, NULL, 0, &txn);
-        }
+        rc = local_ctx.AcquireTransanction(false);
         if (0 == rc)
         {
-            rc = mdb_del(txn, dbi, &k, NULL);
-            if (NULL == local_ctx.txn)
-            {
-                mdb_txn_commit(txn);
-            }
+            rc = mdb_del(local_ctx.txn, dbi, &k, NULL);
+            rc = LMDB_NERR(rc);
+            local_ctx.TryReleaseTransanction(0 == rc, false);
         }
         return LMDB_NERR(rc);
     }
@@ -618,7 +616,7 @@ namespace ardb
             {
                 return Put(ctx, key, current);
             }
-            if(err == ERR_NOTPERFORMED)
+            if (err == ERR_NOTPERFORMED)
             {
                 err = 0;
             }
@@ -635,16 +633,7 @@ namespace ardb
     int LMDBEngine::BeginTransaction()
     {
         LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
-        if (local_ctx.txn == NULL)
-        {
-            int rc = mdb_txn_begin(m_env, NULL, 0, &local_ctx.txn);
-            if (0 != rc)
-            {
-                return rc;
-            }
-        }
-        local_ctx.txn_ref++;
-        return 0;
+        return local_ctx.AcquireTransanction(false);
     }
     int LMDBEngine::CommitTransaction()
     {
@@ -678,24 +667,29 @@ namespace ardb
         {
             return ERR_ENTRY_NOT_EXIST;
         }
-        LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
-        if (NULL != local_ctx.txn)
-        {
-            return -1;
-        }
         int rc = 0;
+        LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
+        if (0 == local_ctx.AcquireTransanction())
         {
-            LMDBTransactionGuard guard(m_env, rc);
-            if (NULL != guard.txn)
-            {
-                mdb_drop(guard.txn, dbi, 0);
-            }
+            rc = mdb_drop(local_ctx.txn, dbi, 0);
+            CHECK_EXPR(rc);
+            local_ctx.TryReleaseTransanction(rc == 0, false);
         }
         return rc;
     }
     int64_t LMDBEngine::EstimateKeysNum(Context& ctx, const Data& ns)
     {
-        return 0;
+        MDB_dbi dbi;
+        if (!GetDBI(ctx, ns, false, dbi))
+        {
+            return 0;
+        }
+        MDB_stat stat;
+        LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
+        local_ctx.AcquireTransanction();
+        mdb_stat(local_ctx.txn, dbi, &stat);
+        local_ctx.TryReleaseTransanction(true, false);
+        return stat.ms_entries;
     }
 
     Iterator* LMDBEngine::Find(Context& ctx, const KeyObject& key)
@@ -709,20 +703,19 @@ namespace ardb
             return iter;
         }
         LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
-        int rc = local_ctx.AcquireTransanction();
+        int rc = local_ctx.AcquireTransanction(true);
         if (0 != rc)
         {
             iter->MarkValid(false);
             return iter;
         }
-        local_ctx.iter_ref++;
         MDB_cursor* cursor;
         rc = mdb_cursor_open(local_ctx.txn, dbi, &cursor);
         if (0 != rc)
         {
             ERROR_LOG("Failed to create cursor for reason:%s", mdb_strerror(rc));
-            //CloseTransaction();
             iter->MarkValid(false);
+            local_ctx.TryReleaseTransanction(true, true);
             return iter;
         }
         iter->SetCursor(cursor);
@@ -757,20 +750,33 @@ namespace ardb
 
     void LMDBEngine::Stats(Context& ctx, std::string& stat_info)
     {
-        MDB_stat stat;
-        MDB_txn* txn;
-        int rc = mdb_txn_begin(m_env, NULL, MDB_RDONLY, &txn);
-        if (0 == rc)
+        MDB_envinfo envinfo;
+        mdb_env_info(m_env, &envinfo);
+        stat_info.append("lmdb_version:").append(mdb_version(NULL, NULL, NULL)).append("\r\n");
+        stat_info.append("lmdb_mapsize:").append(stringfromll(envinfo.me_mapsize)).append("\r\n");
+        stat_info.append("lmdb_maxreaders:").append(stringfromll(envinfo.me_maxreaders)).append("\r\n");
+        stat_info.append("lmdb_numreaders:").append(stringfromll(envinfo.me_numreaders)).append("\r\n");
+
+        DataArray nss;
+        ListNameSpaces(ctx, nss);
+        for (size_t i = 0; i < nss.size(); i++)
         {
-            //mdb_stat(txn, m_dbi, &stat);
-            mdb_txn_commit(txn);
-            stat_info.append("lmdb version:").append(mdb_version(NULL, NULL, NULL)).append("\r\n");
-            stat_info.append("db page size:").append(stringfromll(stat.ms_psize)).append("\r\n");
-            stat_info.append("b-tree depath:").append(stringfromll(stat.ms_depth)).append("\r\n");
-            stat_info.append("branch pages:").append(stringfromll(stat.ms_branch_pages)).append("\r\n");
-            stat_info.append("leaf pages:").append(stringfromll(stat.ms_leaf_pages)).append("\r\n");
-            stat_info.append("overflow oages:").append(stringfromll(stat.ms_overflow_pages)).append("\r\n");
-            stat_info.append("data items:").append(stringfromll(stat.ms_entries));
+            MDB_dbi dbi;
+            if (GetDBI(ctx, nss[i], false, dbi))
+            {
+                stat_info.append("\r\nDB[").append(nss[i].AsString()).append("] Stats:\r\n");
+                MDB_stat stat;
+                LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
+                local_ctx.AcquireTransanction();
+                mdb_stat(local_ctx.txn, dbi, &stat);
+                local_ctx.TryReleaseTransanction(true, false);
+                stat_info.append("ms_psize:").append(stringfromll(stat.ms_psize)).append("\r\n");
+                stat_info.append("ms_depth:").append(stringfromll(stat.ms_depth)).append("\r\n");
+                stat_info.append("ms_branch_pages:").append(stringfromll(stat.ms_branch_pages)).append("\r\n");
+                stat_info.append("ms_leaf_pages:").append(stringfromll(stat.ms_leaf_pages)).append("\r\n");
+                stat_info.append("ms_overflow_pages:").append(stringfromll(stat.ms_overflow_pages)).append("\r\n");
+                stat_info.append("ms_entries:").append(stringfromll(stat.ms_entries)).append("\r\n");
+            }
         }
     }
 
@@ -921,9 +927,12 @@ namespace ardb
 
     LMDBIterator::~LMDBIterator()
     {
-        mdb_cursor_close(m_cursor);
-        LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
-        local_ctx.TryReleaseTransanction(true, true);
+        if (NULL != m_cursor)
+        {
+            mdb_cursor_close(m_cursor);
+            LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
+            local_ctx.TryReleaseTransanction(true, true);
+        }
     }
 }
 

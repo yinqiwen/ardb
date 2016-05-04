@@ -42,7 +42,7 @@ LIB_PATH=$(PWD)/../deps
 
 LMDB_VER=LMDB_0.9.18
 LMDB_PATH=${LIB_PATH}/lmdb-${LMDB_VER}/libraries/liblmdb
-LMDB_FILE=${LIB_PATH}/${LMDB_VER}.tar.gz
+LMDB_FILE=${LIB_PATH}/lmdb-${LMDB_VER}.tar.gz
 LMDB_LIBA=${LMDB_PATH}/liblmdb.a
 
 JEMALLOC_VER=jemalloc-4.1.0

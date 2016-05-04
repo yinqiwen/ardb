@@ -543,6 +543,19 @@ OP_NAMESPACE_BEGIN
             return ERR_NOTPERFORMED;
         }
         int64 ttl = ms;
+        int64 old_ttl = meta.GetTTL();
+        if (old_ttl > 0)
+        {
+            /*
+             * if the storage engine underly do NOT support custom compact filter,
+             * another k/v should stored for the later expire work.
+             */
+            //
+        }
+        if (old_ttl == ttl)
+        {
+            return ERR_NOTPERFORMED;
+        }
         meta.SetTTL(ttl);
         return 0;
     }
@@ -622,8 +635,10 @@ OP_NAMESPACE_BEGIN
             else
             {
                 reply.SetInteger(1);
-                meta_value.SetTTL(mills);
-                SetKeyValue(ctx, key, meta_value);
+                if (0 == MergeExpire(ctx, key, meta_value, mills))
+                {
+                    SetKeyValue(ctx, key, meta_value);
+                }
             }
         }
         return 0;
@@ -719,7 +734,8 @@ OP_NAMESPACE_BEGIN
             KeyObject& k = iter->Key();
             const Data& kdata = k.GetKey();
 
-            if (k.GetNameSpace().Compare(meta_key.GetNameSpace()) != 0 || kdata.StringLength() != meta_key.GetKey().StringLength() || strncmp(meta_key.GetKey().CStr(), kdata.CStr(), kdata.StringLength()) != 0)
+            if (k.GetNameSpace().Compare(meta_key.GetNameSpace()) != 0 || kdata.StringLength() != meta_key.GetKey().StringLength()
+                    || strncmp(meta_key.GetKey().CStr(), kdata.CStr(), kdata.StringLength()) != 0)
             {
                 break;
             }
@@ -768,9 +784,9 @@ OP_NAMESPACE_BEGIN
         bool replace = false;
         int64 ttl = 0;
         bool delete_exist = true;
-        if(cmd.GetArguments().size() == 4)
+        if (cmd.GetArguments().size() == 4)
         {
-            if(!strcasecmp(cmd.GetArguments()[3].c_str(), "replace"))
+            if (!strcasecmp(cmd.GetArguments()[3].c_str(), "replace"))
             {
                 replace = true;
             }
@@ -785,12 +801,12 @@ OP_NAMESPACE_BEGIN
             reply.SetErrorReason("Invalid TTL value, must be >= 0");
             return 0;
         }
-        if(ttl > 0)
+        if (ttl > 0)
         {
             ttl += get_current_epoch_millis();
         }
         ObjectBuffer buffer(cmd.GetArguments()[2]);
-        if(!buffer.CheckReadPayload())
+        if (!buffer.CheckReadPayload())
         {
             reply.SetErrorReason("DUMP payload version or checksum are wrong");
             return 0;

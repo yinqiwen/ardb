@@ -76,6 +76,11 @@ OP_NAMESPACE_BEGIN
     }
     std::string ReplicationBacklog::GetReplKey()
     {
+        if(NULL == m_wal)
+        {
+            static std::string tmpid =  random_hex_string(SERVER_KEY_SIZE);
+            return tmpid;
+        }
         ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
         std::string str;
         str.assign(meta->replkey, SERVER_KEY_SIZE);

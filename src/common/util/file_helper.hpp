@@ -47,6 +47,7 @@ namespace ardb
 
     int file_read_full(const std::string& path, std::string& content);
     int file_write_content(const std::string& path, const std::string& content);
+    int file_append_content(const std::string& path, const std::string& content);
 
     int list_subdirs(const std::string& path, std::deque<std::string>& dirs);
     int list_subfiles(const std::string& path, std::deque<std::string>& fs);

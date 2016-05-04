@@ -119,6 +119,8 @@ namespace ardb
             SpinRWLock m_lock;
             friend class LMDBIterator;
             bool GetDBI(Context& ctx, const Data& name, bool create_if_noexist, MDB_dbi& dbi);
+//            void LoadNamespacesFromFile(DataArray& nss);
+//            void AppendNamespaceToFile(const Data& ns);
         public:
             LMDBEngine();
             ~LMDBEngine();
