@@ -566,7 +566,6 @@ OP_NAMESPACE_BEGIN
         {
             if (REDIS_CMD_SET == op)
             {
-
                 valueobj.SetType(KEY_STRING);
                 valueobj.SetTTL(ttl);
                 valueobj.GetStringValue().SetString(value, true, false);
@@ -590,7 +589,6 @@ OP_NAMESPACE_BEGIN
                 }
                 err = MergeKeyValue(ctx, keyobj, op, merge_data);
             }
-
         }
         return err;
     }

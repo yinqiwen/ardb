@@ -212,6 +212,7 @@ OP_NAMESPACE_BEGIN
         if (0 != err)
         {
             reply.SetErrCode(err);
+            printf("####here\n");
             return 0;
         }
         if (!CheckMeta(ctx, ks[0], KEY_SET, vs[0], false) || !CheckMeta(ctx, ks[1], KEY_SET, vs[1], false))

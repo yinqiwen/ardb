@@ -483,26 +483,21 @@ OP_NAMESPACE_BEGIN
             reply.SetErrCode(ERR_INVALID_TYPE);
             return 0;
         }
+
         if (vals[0].GetType() == 0)
         {
             vals[0].SetType(KEY_HASH);
-            vals[0].SetObjectLen(1);
+            vals[0].SetObjectLen(0);
             meta_change = true;
-        }
-        else
-        {
-            if (vals[1].GetType() == 0)
-            {
-                if (vals[0].GetObjectLen() >= 0)
-                {
-                    vals[0].SetObjectLen(vals[0].GetObjectLen() + 1);
-                    meta_change = true;
-                }
-            }
         }
         if (vals[1].GetType() == 0)
         {
             vals[1].SetType(KEY_HASH_FIELD);
+            if (vals[0].GetObjectLen() >= 0)
+            {
+                vals[0].SetObjectLen(vals[0].GetObjectLen() + 1);
+                meta_change = true;
+            }
             if (inc_float)
             {
                 vals[1].GetHashValue().SetFloat64(increment_float);
@@ -522,21 +517,30 @@ OP_NAMESPACE_BEGIN
                 {
                     err = ERR_INVALID_TYPE;
                 }
-                float_val = vals[1].GetHashValue().GetFloat64();
-                float_val += increment_float;
-                vals[1].GetHashValue().SetFloat64(float_val);
+                else
+                {
+                    float_val = vals[1].GetHashValue().GetFloat64();
+                    float_val += increment_float;
+                    vals[1].GetHashValue().SetFloat64(float_val);
+                }
+
             }
             else
             {
                 if (!vals[1].GetHashValue().IsInteger())
                 {
+
                     err = ERR_INVALID_TYPE;
                 }
-                int_val = vals[1].GetHashValue().GetInt64();
-                int_val += increment_integer;
-                vals[1].GetHashValue().SetInt64(int_val);
+                else
+                {
+                    int_val = vals[1].GetHashValue().GetInt64();
+                    int_val += increment_integer;
+                    vals[1].GetHashValue().SetInt64(int_val);
+                }
             }
         }
+        printf("#####err = %d %d\n", err,vals[1].GetHashValue().encoding);
         if (0 == err)
         {
             TransactionGuard batch(ctx, m_engine);
@@ -545,6 +549,7 @@ OP_NAMESPACE_BEGIN
                 SetKeyValue(ctx, keys[0], vals[0]);
             }
             SetKeyValue(ctx, keys[1], vals[1]);
+            printf("####Write %d %d\n",vals[1].GetType(), vals[1].GetHashValue().GetInt64());
         }
         err = ctx.transc_err;
         if (0 != err)

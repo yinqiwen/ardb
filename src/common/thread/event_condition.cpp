@@ -27,7 +27,7 @@ namespace ardb
         while ((ret = read(m_read_fd, &buf, 1)) != 1)
             ;
         //atomic_sub_uint32(&m_waiting_num, 1);
-        return 0;
+        return buf;
     }
     int EventCondition::Notify()
     {

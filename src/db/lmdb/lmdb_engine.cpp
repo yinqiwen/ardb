@@ -50,6 +50,7 @@
 #define LMDB_CKP_OP 3
 
 #define LMDB_ERR(err)  (MDB_NOTFOUND == err ? ERR_ENTRY_NOT_EXIST:err)
+#define LMDB_NERR(err)  (MDB_NOTFOUND == err ? 0:err)
 
 namespace ardb
 {
@@ -57,6 +58,8 @@ namespace ardb
     {
         return compare_keys((const char*) a->mv_data, a->mv_size, (const char*) b->mv_data, b->mv_size, false);
     }
+
+    static MDB_env *g_mdb_env = NULL;
 
     struct WriteOperation
     {
@@ -69,7 +72,6 @@ namespace ardb
     class BGWriteThread: public Thread
     {
         private:
-            MDB_env *env;
             bool running;
             MPSCQueue<WriteOperation*> write_queue;
             ThreadMutexLock queue_cond;
@@ -80,8 +82,7 @@ namespace ardb
                 while (running)
                 {
                     MDB_txn* txn;
-                    int rc = mdb_txn_begin(env, NULL, 0, &txn);
-                    if (rc != 0)
+                    if (NULL == g_mdb_env || 0 != mdb_txn_begin(g_mdb_env, NULL, 0, &txn))
                     {
                         Thread::Sleep(10, MILLIS);
                         continue;
@@ -150,8 +151,7 @@ namespace ardb
                 queue_cond.Unlock();
             }
         public:
-            BGWriteThread() :
-                    env(NULL), running(false)
+            BGWriteThread() : running(false)
             {
             }
             bool IsRunning()
@@ -186,7 +186,6 @@ namespace ardb
                 PushWriteOp(op);
                 event_cond.Wait();
             }
-
     };
 
     struct LMDBLocalContext
@@ -195,14 +194,12 @@ namespace ardb
             uint32 txn_ref;
             uint32 iter_ref;
             bool txn_abort;
-            bool iter_writable;
+            bool write_dispatched;
             EventCondition cond;
             Buffer encode_buffer_cache;
-            std::string string_cache;
-            std::vector<std::string> multi_string_cache;
             BGWriteThread bgwriter;
             LMDBLocalContext() :
-                    txn(NULL), txn_ref(0), iter_ref(0), txn_abort(false), iter_writable(false)
+                    txn(NULL), txn_ref(0), iter_ref(0), txn_abort(false), write_dispatched(false)
             //, iter_txn(NULL),iter_txn_ref(0)
             {
             }
@@ -221,12 +218,12 @@ namespace ardb
                 }
                 return bgwriter;
             }
-            int AcquireTransanction(MDB_env *env)
+            int AcquireTransanction()
             {
                 int rc = 0;
                 if (NULL == txn)
                 {
-                    rc = mdb_txn_begin(env, NULL, MDB_RDONLY, &txn);
+                    rc = mdb_txn_begin(g_mdb_env, NULL, 0, &txn);
                     txn_abort = false;
                 }
                 if (0 == rc)
@@ -241,7 +238,7 @@ namespace ardb
                 if (NULL != txn)
                 {
                     txn_ref--;
-                    //printf("#### %d %d\n", txn_ref, txn_abort);
+                    //printf("#### %d %d %d \n", txn_ref, txn_abort, write_dispatched);
                     if (!txn_abort)
                     {
                         txn_abort = !success;
@@ -257,15 +254,17 @@ namespace ardb
                             rc = mdb_txn_commit(txn);
                         }
                         txn = NULL;
+
+                        if (write_dispatched)
+                        {
+                            GetBGWriter().WaitWriteComplete();
+                        }
+                        write_dispatched = false;
                     }
                 }
                 if (from_iterator && iter_ref > 0)
                 {
                     iter_ref--;
-                    if (iter_ref == 0 && iter_writable)
-                    {
-                        GetBGWriter().WaitWriteComplete();
-                    }
                 }
                 return rc;
             }
@@ -366,6 +365,7 @@ namespace ardb
             ERROR_LOG("Invalid db size:%llu for reason:%s", m_cfg.max_dbsize, mdb_strerror(rc));
             return -1;
         }
+        g_mdb_env = m_env;
         int env_opt = MDB_NOSYNC | MDB_NOMETASYNC | MDB_WRITEMAP | MDB_MAPASYNC;
         if (!m_cfg.readahead)
         {
@@ -435,7 +435,7 @@ namespace ardb
              */
             if (local_ctx.iter_ref > 0)
             {
-                local_ctx.iter_writable = true;
+                local_ctx.write_dispatched = true;
                 local_ctx.GetBGWriter().Put(dbi, k, v);
                 return 0;
             }
@@ -469,7 +469,7 @@ namespace ardb
         {
             if (local_ctx.iter_ref > 0)
             {
-                local_ctx.iter_writable = true;
+                local_ctx.write_dispatched = true;
                 local_ctx.GetBGWriter().Put(dbi, k, v);
                 return 0;
             }
@@ -568,7 +568,7 @@ namespace ardb
                 mdb_txn_commit(txn);
             }
         }
-        return rc;
+        return LMDB_NERR(rc);
     }
     int LMDBEngine::Del(Context& ctx, const KeyObject& key)
     {
@@ -588,7 +588,7 @@ namespace ardb
         MDB_txn *txn = local_ctx.txn;
         if (local_ctx.iter_ref > 0)
         {
-            local_ctx.iter_writable = true;
+            local_ctx.write_dispatched = true;
             local_ctx.GetBGWriter().Del(dbi, k);
             return 0;
         }
@@ -604,19 +604,23 @@ namespace ardb
                 mdb_txn_commit(txn);
             }
         }
-        return rc;
+        return LMDB_NERR(rc);
     }
 
     int LMDBEngine::Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args)
     {
         ValueObject current;
         int err = Get(ctx, key, current);
-        if(0 == err || ERR_ENTRY_NOT_EXIST == err)
+        if (0 == err || ERR_ENTRY_NOT_EXIST == err)
         {
             err = g_db->MergeOperation(key, current, op, const_cast<DataArray&>(args));
-            if(0 == err)
+            if (0 == err)
             {
                 return Put(ctx, key, current);
+            }
+            if(err == ERR_NOTPERFORMED)
+            {
+                err = 0;
             }
         }
         return err;
@@ -705,12 +709,13 @@ namespace ardb
             return iter;
         }
         LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
-        int rc = local_ctx.AcquireTransanction(m_env);
+        int rc = local_ctx.AcquireTransanction();
         if (0 != rc)
         {
             iter->MarkValid(false);
             return iter;
         }
+        local_ctx.iter_ref++;
         MDB_cursor* cursor;
         rc = mdb_cursor_open(local_ctx.txn, dbi, &cursor);
         if (0 != rc)
