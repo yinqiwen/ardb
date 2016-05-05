@@ -94,20 +94,6 @@ OP_NAMESPACE_BEGIN
     class RocksDBEngine: public Engine
     {
         private:
-            struct ColumnFamilyHandleContext
-            {
-                    Data name;
-                    rocksdb::ColumnFamilyHandle* handler;
-                    time_t create_time;
-                    time_t droped_time;
-                    uint32 ref;
-                    ColumnFamilyHandleContext() :
-                            handler(0), create_time(0), droped_time(0),ref(0)
-                    {
-                    }
-                    rocksdb::ColumnFamilyHandle* Get();
-                    void Release();
-            };
             typedef std::shared_ptr<rocksdb::ColumnFamilyHandle> ColumnFamilyHandlePtr;
             typedef TreeMap<Data, ColumnFamilyHandlePtr>::Type ColumnFamilyHandleTable;
             typedef std::vector<ColumnFamilyHandleContext> ColumnFamilyHandleArray;
@@ -115,7 +101,6 @@ OP_NAMESPACE_BEGIN
             rocksdb::DB* m_db;
             rocksdb::Options m_options;
             ColumnFamilyHandleTable m_handlers;
-            ColumnFamilyHandleArray m_droped_handlers;
             SpinRWLock m_lock;
 
             ColumnFamilyHandlePtr GetColumnFamilyHandle(Context& ctx, const Data& name, bool create_if_noexist);

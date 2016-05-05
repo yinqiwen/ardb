@@ -1,5 +1,5 @@
 /*
- *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
+ *Copyright (c) 2013-2016, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  *
  *Redistribution and use in source and binary forms, with or without
@@ -27,10 +27,10 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef LMDB_ENGINE_HPP_
-#define LMDB_ENGINE_HPP_
+#ifndef FORESTDB_ENGINE_HPP_
+#define FORESTDB_ENGINE_HPP_
 
-#include "lmdb.h"
+#include "forestdb.h"
 #include "db/engine.hpp"
 #include "channel/all_includes.hpp"
 #include "util/config_helper.hpp"
@@ -43,19 +43,17 @@
 
 namespace ardb
 {
-    class LMDBEngine;
-    class LMDBIterator: public Iterator
+    class ForestDBEngine;
+    class ForestDBIterator: public Iterator
     {
         private:
-            LMDBEngine *m_engine;
-            MDB_cursor * m_cursor;
+            ForestDBEngine *m_engine;
+            fdb_iterator* m_iter;
+            fdb_doc* m_raw;
             Data m_ns;
             KeyObject m_key;
             ValueObject m_value;
-            MDB_val m_raw_key;
-            MDB_val m_raw_val;
-            KeyObject m_iterate_upper_bound_key;
-            bool m_valid;
+            KeyObject m_iterate_upper_bound_key;bool m_valid;
 
             void DoJump(const KeyObject& next);
 
@@ -70,16 +68,16 @@ namespace ardb
             Slice RawKey();
             Slice RawValue();
 
-            void SetCursor(MDB_cursor *cursor)
+            void SetIterator(fdb_iterator *cursor)
             {
-                m_cursor = cursor;
+                m_iter = cursor;
             }
             void ClearState();
             void CheckBound();
             friend class LMDBEngine;
         public:
-            LMDBIterator(LMDBEngine * e, const Data& ns) :
-                    m_engine(e), m_cursor(NULL),m_ns(ns), m_valid(true)
+            ForestDBIterator(ForestDBEngine * e, const Data& ns) :
+                    m_engine(e), m_iter(NULL), m_raw(NULL), m_ns(ns), m_valid(true)
             {
             }
             KeyObject& IterateUpperBoundKey()
@@ -90,47 +88,23 @@ namespace ardb
             {
                 m_valid = valid;
             }
-            ~LMDBIterator();
+            ~ForestDBIterator();
     };
 
-    struct LMDBConfig
-    {
-            std::string path;
-            int64 max_dbsize;
-            int64 max_dbs;
-            int64 batch_commit_watermark;
-            bool readahead;
-            LMDBConfig() :
-                    max_dbsize(10 * 1024 * 1024 * 1024LL), max_dbs(4096), batch_commit_watermark(1024), readahead(false)
-            {
-            }
-    };
-
-    class LMDBEngine: public Engine
+    class ForestDBEngine: public Engine
     {
         private:
-            MDB_env *m_env;
-            MDB_dbi m_meta_dbi;
-            typedef TreeMap<Data, MDB_dbi>::Type DBITable;
-            LMDBConfig m_cfg;
-
-            DBITable m_dbis;
-            SpinRWLock m_lock;
-            friend class LMDBIterator;
-            bool GetDBI(Context& ctx, const Data& name, bool create_if_noexist, MDB_dbi& dbi);
-//            void LoadNamespacesFromFile(DataArray& nss);
-//            void AppendNamespaceToFile(const Data& ns);
+            fdb_kvs_handle* GetKVStore(Context& ctx, const Data& name, bool create_if_noexist);
         public:
-            LMDBEngine();
-            ~LMDBEngine();
+            ForestDBEngine();
+            ~ForestDBEngine();
             int Init(const std::string& dir, const Properties& props);
             int Put(Context& ctx, const KeyObject& key, const ValueObject& value);
             int PutRaw(Context& ctx, const Data& ns, const Slice& key, const Slice& value);
             int Get(Context& ctx, const KeyObject& key, ValueObject& value);
             int MultiGet(Context& ctx, const KeyObjectArray& keys, ValueObjectArray& values, ErrCodeArray& errs);
             int Del(Context& ctx, const KeyObject& key);
-            int Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args);
-            bool Exists(Context& ctx, const KeyObject& key);
+            int Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args);bool Exists(Context& ctx, const KeyObject& key);
             int BeginTransaction();
             int CommitTransaction();
             int DiscardTransaction();

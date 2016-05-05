@@ -736,7 +736,7 @@ namespace ardb
         return 0;
     }
     /*
-     *  SlaveOf host port [include 1|2|3] [exclude 0|1|2]
+     *  SlaveOf host port
      *  Slaveof no one
      */
     int Ardb::Slaveof(Context& ctx, RedisCommandFrame& cmd)

@@ -176,15 +176,15 @@ OP_NAMESPACE_BEGIN
         commands[0].SetFullCommand("select %s", ctx->src_db.AsString().c_str());
         commands[1].SetFullCommand("restoredb start");
         migrate_reply = redis_client.SyncMultiCall(commands, ctx->timeout);
-        if(NULL == migrate_reply || migrate_reply->size() != commands.size())
+        if (NULL == migrate_reply || migrate_reply->size() != commands.size())
         {
             goto _coro_exit;
         }
-        for(size_t i = 0; i < migrate_reply->size(); i++)
+        for (size_t i = 0; i < migrate_reply->size(); i++)
         {
-            if(NULL == migrate_reply->at(i) || migrate_reply->at(i)->IsErr())
+            if (NULL == migrate_reply->at(i) || migrate_reply->at(i)->IsErr())
             {
-                if(NULL != migrate_reply->at(i))
+                if (NULL != migrate_reply->at(i))
                 {
                     r.SetErrorReason(migrate_reply->at(i)->Error());
                 }
@@ -211,10 +211,10 @@ OP_NAMESPACE_BEGIN
                 rawset.GetMutableArgument(0)->assign(obuffer.GetInternalBuffer().GetRawReadBuffer(), obuffer.GetInternalBuffer().ReadableBytes());
                 obuffer.Reset();
                 restore_reply = redis_client.SyncCall(rawset, ctx->timeout);
-                if(NULL == restore_reply || restore_reply->IsErr())
+                if (NULL == restore_reply || restore_reply->IsErr())
                 {
                     migrate_success = false;
-                    if(NULL != restore_reply)
+                    if (NULL != restore_reply)
                     {
                         r.SetErrorReason(restore_reply->Error());
                     }
@@ -250,6 +250,27 @@ OP_NAMESPACE_BEGIN
     int Ardb::MigrateDB(Context& ctx, RedisCommandFrame& cmd)
     {
         MigrateDBContext* migrate_ctx = NULL;
+        RedisReply& reply = ctx.GetReply();
+        const std::string& host = cmd.GetArguments()[0];
+        uint32 port;
+        int copy = 0, replace = 0;
+        int64 timeout;
+        if (!string_toint64(cmd.GetArguments()[2], timeout) || !string_touint32(cmd.GetArguments()[1], port))
+        {
+            reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
+            return 0;
+        }
+        if (timeout < 0)
+        {
+            timeout = 0;
+        }
+        NEW(migrate_ctx, MigrateDBContext);
+        migrate_ctx->io_serv = &(ctx.client->client->GetService());
+        migrate_ctx->clientid = ctx.client->client->GetID();
+        migrate_ctx->host = host;
+        migrate_ctx->port = port;
+        migrate_ctx->copy = copy;
+        migrate_ctx->src_db = ctx.ns;
         ctx.client->client->BlockRead(); //do not read any data from client until the migrate task finish
         Scheduler::CurrentScheduler().StartCoro(0, MigrateDBCoroTask, migrate_ctx);
         return 0;
@@ -405,7 +426,7 @@ OP_NAMESPACE_BEGIN
         uint32 port;
         int copy = 0, replace = 0;
         int64 timeout;
-        if (!string_toint64(cmd.GetArguments()[1], timeout) || !string_touint32(cmd.GetArguments()[1], port))
+        if (!string_toint64(cmd.GetArguments()[2], timeout) || !string_touint32(cmd.GetArguments()[1], port))
         {
             reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
             return 0;
