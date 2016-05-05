@@ -40,11 +40,6 @@ uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 
 LIB_PATH=$(PWD)/../deps
 
-LMDB_VER=LMDB_0.9.18
-LMDB_PATH=${LIB_PATH}/lmdb-${LMDB_VER}/libraries/liblmdb
-LMDB_FILE=${LIB_PATH}/lmdb-${LMDB_VER}.tar.gz
-LMDB_LIBA=${LMDB_PATH}/liblmdb.a
-
 JEMALLOC_VER=jemalloc-4.1.0
 JEMALLOC_PATH=${LIB_PATH}/${JEMALLOC_VER}
 JEMALLOC_FILE=${JEMALLOC_PATH}.tar.bz2
@@ -59,6 +54,16 @@ ROCKSDB_VER=rocksdb-4.3.1
 ROCKSDB_PATH=${LIB_PATH}/${ROCKSDB_VER}
 ROCKSDB_FILE=${ROCKSDB_PATH}.tar.gz
 ROCKSDB_LIBA=${ROCKSDB_PATH}/librocksdb.a
+
+LMDB_VER=LMDB_0.9.18
+LMDB_PATH=${LIB_PATH}/lmdb-${LMDB_VER}/libraries/liblmdb
+LMDB_FILE=${LIB_PATH}/lmdb-${LMDB_VER}.tar.gz
+LMDB_LIBA=${LMDB_PATH}/liblmdb.a
+
+FORESTDB_VER=forestdb-1.1
+FORESTDB_PATH=${LIB_PATH}/${FORESTDB_VER}
+FORESTDB_FILE=${LIB_PATH}/${FORESTDB_VER}.tar.gz
+FORESTDB_LIBA=${FORESTDB_PATH}/build/libforestdb.a
 
 ZOOKEEPER_VER=zookeeper-3.4.5
 ZOOKEEPER_PATH=${LIB_PATH}/${ZOOKEEPER_VER}
@@ -149,18 +154,20 @@ TESTOBJ := ../test/test_main.o
 SERVEROBJ := main.o  
 ROCKSDB_ENGINE :=  db/rocksdb/rocksdb_engine.o 
 LMDB_ENGINE :=  db/lmdb/lmdb_engine.o   
+FORESTDB_ENGINE :=  db/forestdb/forestdb_engine.o  
 
 #DIST_LIB = libardb.so
 DIST_LIBA = libardb.a
 
 storage_engine?=rocksdb
 
-ifeq ($(storage_engine), leveldb)
-  STORAGE_ENGINE_OBJ=${LEVELDB_ENGINE}
-  STORAGE_ENGINE=$(LEVELDB_LIBA)
-  STORAGE_ENGINE_PATH=$(LEVELDB_PATH)
-  INCS+=-I${LEVELDB_PATH}/include
-  LIBS:=${LEVELDB_LIBA} ${SNAPPY_LIBA} ${LIBS}
+ifeq ($(storage_engine), forestdb)
+  STORAGE_ENGINE_OBJ=${FORESTDB_ENGINE}
+  STORAGE_ENGINE=$(FORESTDB_LIBA)
+  STORAGE_ENGINE_PATH=$(FORESTDB_PATH)
+  INCS+=-I${FORESTDB_PATH}/include
+  LIBS:=${FORESTDB_LIBA} ${SNAPPY_LIBA} ${LIBS}
+    CXXFLAGS+=-D__USE_FORESTDB__
 else
 ifeq ($(storage_engine), lmdb)
   STORAGE_ENGINE_OBJ=${LMDB_ENGINE}
@@ -283,6 +290,12 @@ $(ROCKSDB_LIBA): $(SNAPPY_LIBA) $(ROCKSDB_PATH)
 	cd ${ROCKSDB_PATH} && \
 	CXXFLAGS="-I${SNAPPY_PATH}" CFLAGS="-I${SNAPPY_PATH}" LDFLAGS="${SNAPPY_PATH}/.libs" $(MAKE) static_lib && \
 	echo "<<<<< Done building ROCKSDB"
+
+.PHONY: forestdb
+forestdb: $(FORESTDB_LIBA)
+$(FORESTDB_LIBA): $(SNAPPY_LIBA) $(FORESTDB_PATH)
+	echo ">>>>> Building forestdb" && \
+	echo "<<<<< Done building forestdb"
 
 $(ROCKSDB_PATH):
 	echo ">>>>> Unpacking ROCKSDB" && \

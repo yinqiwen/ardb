@@ -40,6 +40,8 @@
 #include "lmdb/lmdb_engine.hpp"
 #elif defined __USE_ROCKSDB__
 #include "rocksdb/rocksdb_engine.hpp"
+#elif defined __USE_FORESTDB__
+#include "forestdb/forestdb_engine.hpp"
 #endif
 
 /* Command flags. Please check the command table defined in the redis.c file
@@ -483,6 +485,14 @@ OP_NAMESPACE_BEGIN
         if (0 != ((RocksDBEngine*) m_engine)->Init(GetConf().data_base_path, GetConf().rocksdb_options))
         {
             ERROR_LOG("Failed to init rocksdb.");
+            DELETE(m_engine);
+            return -1;
+        }
+#elif defined __USE_FORESTDB__
+        NEW(m_engine, ForestDBEngine);
+        if (0 != ((ForestDBEngine*) m_engine)->Init(GetConf().data_base_path, GetConf().conf_props))
+        {
+            ERROR_LOG("Failed to init forestdb.");
             DELETE(m_engine);
             return -1;
         }

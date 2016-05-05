@@ -35,27 +35,14 @@
 #include <unistd.h>
 #include "forestdb_engine.hpp"
 
-#define CHECK_RET(expr, fail)  do{\
-    int __rc__ = expr; \
-    if (MDB_SUCCESS != __rc__)\
-    {           \
-       ERROR_LOG("LMDB operation:%s error:%s at line:%u", #expr,  mdb_strerror(__rc__), __LINE__); \
-       return fail;\
-    }\
-}while(0)
-
 #define CHECK_EXPR(expr)  do{\
     int __rc__ = expr; \
-    if (MDB_SUCCESS != __rc__)\
+    if (FDB_RESULT_SUCCESS != __rc__)\
     {           \
-       ERROR_LOG("LMDB operation:%s error:%s at line:%u", #expr,  mdb_strerror(__rc__), __LINE__); \
+       ERROR_LOG("forestdb operation:%s error:%s at line:%u", #expr,  fdb_error_msg((fdb_status)__rc__), __LINE__); \
     }\
 }while(0)
-
 #define DEFAULT_LMDB_LOCAL_MULTI_CACHE_SIZE 10
-#define LMDB_PUT_OP 1
-#define LMDB_DEL_OP 2
-#define LMDB_CKP_OP 3
 
 #define FORESTDB_ERR(err)  (FDB_RESULT_KEY_NOT_FOUND == err ? ERR_ENTRY_NOT_EXIST:err)
 #define FORESTDB_NERR(err)  (FDB_RESULT_KEY_NOT_FOUND == err ? 0:err)
@@ -64,83 +51,120 @@ namespace ardb
 {
     static int fdb_cmp_callback(void *a, size_t len_a, void *b, size_t len_b)
     {
+
         return compare_keys((const char*) a, len_a, (const char*) b, len_b, false);
     }
 
-    static fdb_compact_decision ardb_fdb_compaction_callback(fdb_file_handle *fhandle, fdb_compaction_status status, const char *kv_store_name, fdb_doc *doc,
-            uint64_t last_oldfile_offset, uint64_t last_newfile_offset, void *ctx)
+    static fdb_compact_decision ardb_fdb_compaction_callback(fdb_file_handle *fhandle, fdb_compaction_status status, const char *kv_store_name, fdb_doc *doc, uint64_t last_oldfile_offset, uint64_t last_newfile_offset, void *ctx)
     {
         return FDB_CS_KEEP_DOC;
     }
+
+    static ForestDBEngine* g_fdb_engine = NULL;
 
     struct ForestDBLocalContext
     {
             fdb_file_handle* fdb;
             typedef TreeMap<Data, fdb_kvs_handle*>::Type KVStoreTable;
             KVStoreTable kv_stores;
-            uint32 txn_ref;
-            uint32 iter_ref;bool txn_abort;
+            uint32 txn_ref;bool txn_abort;
             Buffer encode_buffer_cache;bool inited;
             ForestDBLocalContext() :
-                    fdb(NULL), txn_ref(0), iter_ref(0), txn_abort(false), inited(false)
+                    fdb(NULL), txn_ref(0), txn_abort(false), inited(false)
             {
             }
-
-            void Init()
+            fdb_kvs_handle* GetKVStore(const Data& ns, bool create_if_missing)
+            {
+                KVStoreTable::iterator found = kv_stores.find(ns);
+                if (found != kv_stores.end())
+                {
+                    return found->second;
+                }
+//                if (!create_if_missing)
+//                {
+//                    return NULL;
+//                }
+                fdb_kvs_config config = fdb_get_default_kvs_config();
+                config.create_if_missing = create_if_missing;
+                config.custom_cmp = fdb_cmp_callback;
+                fdb_kvs_handle* kvs;
+                fdb_status fs = fdb_kvs_open(fdb, &kvs, ns.AsString().c_str(), &config);
+                if (0 != fs)
+                {
+                    ERROR_LOG("Failed to open kv store:%s for reason:(%d)%s", ns.AsString().c_str(), fs, fdb_error_msg(fs));
+                    return NULL;
+                }
+                INFO_LOG("Success to open db:%s", ns.AsString().c_str());
+                kv_stores[ns] = kvs;
+                g_fdb_engine->AddNamespace(ns);
+                return kvs;
+            }
+            bool Init()
             {
                 if (inited)
                 {
-                    return;
+                    return true;
                 }
                 fdb_config config = fdb_get_default_config();
-                config.multi_kv_instances = true;
-                config.buffercache_size = 0;
-                config.flags = FDB_OPEN_FLAG_RDONLY;
-
-                std::string dbfile = dir;
-                DataArray nss;
-                fdb_status fs = fdb_open(&fdb, dbfile.c_str(), &config);
-                if (fs == FDB_RESULT_SUCCESS)
-                {
-                    fdb_kvs_name_list name_list;
-                    fdb_get_kvs_name_list(fdb, &name_list);
-                    for (size_t i = 0; i < name_list.num_kvs_names; i++)
-                    {
-                        Data ns;
-                        ns.SetString(name_list.kvs_names[i], strlen(name_list.kvs_names[i]), false);
-                        nss.push_back(ns);
-                    }
-                    fdb_free_kvs_name_list(&name_list);
-                    fdb_close (m_db);
-                }
                 config = fdb_get_default_config();
                 config.multi_kv_instances = true;
-                fs = fdb_open_custom_cmp(&fdb, dbfile.c_str(), &config, nss.size(), NULL, NULL);
+//                config.cleanup_cache_onclose = true;
+//                config.auto_commit = true;
+                config.compaction_cb = ardb_fdb_compaction_callback;
+                //config.compaction_mode = FDB_COMPACTION_AUTO;
+
+                std::string dbfile = g_db->GetConf().data_base_path + "/ardb.fdb";
+                DataArray nss;
+                g_fdb_engine->ListNameSpaces(nss);
+                fdb_status fs;
+                if (nss.empty())
+                {
+                    fs = fdb_open(&fdb, dbfile.c_str(), &config);
+                }
+                else
+                {
+                    const char* names[nss.size()];
+                    fdb_custom_cmp_variable cmps[nss.size()];
+                    for (size_t i = 0; i < nss.size(); i++)
+                    {
+                        names[i] = nss[i].CStr();
+                        cmps[i] = fdb_cmp_callback;
+                    }
+                    fs = fdb_open_custom_cmp(&fdb, dbfile.c_str(), &config, nss.size(), (char **) names, cmps);
+                    if (0 == fs)
+                    {
+                        for (size_t i = 0; i < nss.size(); i++)
+                        {
+                            GetKVStore(nss[i], false);
+                        }
+                    }
+                }
+                if (0 != fs)
+                {
+                    ERROR_LOG("Failed to  open db for reason:(%d)%s", fs, fdb_error_msg(fs));
+                    return false;
+                }
                 inited = true;
-                INFO_LOG("Success to open forestdb at %s", dbfile.c_str());
+                INFO_LOG("Success to open forestdb at %s in thread:%d", dbfile.c_str(), pthread_self());
+                return true;
             }
 
-            int AcquireTransanction(bool from_iterator = false)
+            int AcquireTransanction()
             {
-                fdb_status rc = 0;
+                int rc = 0;
                 if (0 == txn_ref)
                 {
                     rc = fdb_begin_transaction(fdb, FDB_ISOLATION_READ_COMMITTED);
                     txn_abort = false;
                     txn_ref = 0;
-                    iter_ref = 0;
                 }
                 if (0 == rc)
                 {
                     txn_ref++;
-                    if (from_iterator)
-                    {
-                        iter_ref++;
-                    }
                 }
                 return rc;
             }
-            int TryReleaseTransanction(bool success, bool from_iterator)
+            int TryReleaseTransanction(bool success)
             {
                 int rc = 0;
                 if (txn_ref > 0)
@@ -163,10 +187,6 @@ namespace ardb
                         }
                     }
                 }
-                if (from_iterator && iter_ref > 0)
-                {
-                    iter_ref--;
-                }
                 return rc;
             }
             Buffer& GetEncodeBuferCache()
@@ -176,12 +196,27 @@ namespace ardb
             }
             ~ForestDBLocalContext()
             {
+                KVStoreTable::iterator it = kv_stores.begin();
+                while (it != kv_stores.end())
+                {
+                    fdb_kvs_close(it->second);
+                    it++;
+                }
+                fdb_close(fdb);
             }
     };
     static ThreadLocal<ForestDBLocalContext> g_ctx_local;
-
-    ForestDBEngine::ForestDBEngine()
+    static ForestDBLocalContext& GetDBLocalContext()
     {
+        ForestDBLocalContext& local_ctx = g_ctx_local.GetValue();
+        local_ctx.Init();
+        return local_ctx;
+    }
+
+    ForestDBEngine::ForestDBEngine() :
+            m_meta_db(NULL), m_meta_kv(NULL)
+    {
+        g_fdb_engine = this;
     }
 
     ForestDBEngine::~ForestDBEngine()
@@ -189,59 +224,78 @@ namespace ardb
         //Close();
     }
 
+    void ForestDBEngine::AddNamespace(const Data& ns)
+    {
+        RWLockGuard<SpinRWLock> guard(m_lock, false);
+        fdb_status fs;
+        std::string key = "ns:" + ns.AsString();
+        std::string val = ns.AsString();
+        CHECK_EXPR(fs = fdb_set_kv(m_meta_kv, (const void* ) key.data(), key.size(), (const void* ) val.data(), val.size()));
+        CHECK_EXPR(fs = fdb_commit(m_meta_db, FDB_COMMIT_NORMAL));
+        m_nss.insert(ns);
+    }
+    int ForestDBEngine::ListNameSpaces(DataArray& nss)
+    {
+        DataSet::iterator it = m_nss.begin();
+        while (it != m_nss.end())
+        {
+            Data ns = *it;
+            nss.push_back(ns);
+            it++;
+        }
+        return 0;
+    }
     fdb_kvs_handle* ForestDBEngine::GetKVStore(Context& ctx, const Data& ns, bool create_if_noexist)
     {
-        RWLockGuard<SpinRWLock> guard(m_lock, !ctx.flags.create_if_notexist);
-        KVStoreTable::iterator found = m_kv_stores.find(ns);
-        if (found != m_kv_stores.end())
-        {
-            return found->second;
-        }
-        if (!create_if_noexist)
-        {
-            return NULL;
-        }
-        fdb_kvs_config config = fdb_get_default_kvs_config();
-        config.create_if_missing = true;
-        config.custom_cmp = fdb_cmp_callback;
-        fdb_kvs_handle* kvs;
-        fdb_status fs = fdb_kvs_open(m_db, &kvs, ns.AsString().c_str(), &config);
-        if (0 != fs)
-        {
-            ERROR_LOG("Failed to open kv store:%s for reason:(%d)%s", ns.AsString().c_str(), fs, fdb_error_msg(fs));
-            return NULL;
-        }
-        m_kv_stores[ns] = kvs;
-        return kvs;
+        fdb_kvs_handle* kv = NULL;
+        ForestDBLocalContext& local_ctx = GetDBLocalContext();
+        kv = local_ctx.GetKVStore(ns, create_if_noexist);
+        return kv;
     }
 
     int ForestDBEngine::Init(const std::string& dir, const Properties& props)
     {
+        std::string dbfile = g_db->GetConf().data_base_path + "/ardb.meta.fdb.";
         fdb_config config = fdb_get_default_config();
-        config.multi_kv_instances = true;
-        config.buffercache_size = 0;
-        config.flags = FDB_OPEN_FLAG_RDONLY;
-
-        std::string dbfile = dir;
-        DataArray nss;
-        fdb_status fs = fdb_open(&m_db, dbfile.c_str(), &config);
-        if (fs == FDB_RESULT_SUCCESS)
+        fdb_status fs;
+        CHECK_EXPR(fs = fdb_open(&m_meta_db, dbfile.c_str(), &config));
+        if (0 != fs)
         {
-            fdb_kvs_name_list name_list;
-            fdb_get_kvs_name_list(m_db, &name_list);
-            for (size_t i = 0; i < name_list.num_kvs_names; i++)
+            return fs;
+        }
+        fdb_kvs_config kv_conig = fdb_get_default_kvs_config();
+        CHECK_EXPR(fs = fdb_kvs_open_default(m_meta_db, &m_meta_kv, &kv_conig));
+        if (0 != fs)
+        {
+            return fs;
+        }
+        fdb_iterator* iter = NULL;
+        fdb_iterator_opt_t opt = 0;
+        CHECK_EXPR(fs = fdb_iterator_init(m_meta_kv, &iter, NULL, 0, NULL, 0, 0x0));
+        if (0 != fs)
+        {
+            return fs;
+        }
+        do
+        {
+
+            fdb_doc tmp;
+            fdb_doc* doc = &tmp;
+            CHECK_EXPR(fs = fdb_iterator_get(iter, &doc));
+            if (fs != FDB_RESULT_SUCCESS)
+            {
+                break;
+            }
+            std::string key((const char*) doc->key, doc->keylen);
+            if (has_prefix(key, "ns:"))
             {
                 Data ns;
-                ns.SetString(name_list.kvs_names[i], strlen(name_list.kvs_names[i]), false);
-                nss.push_back(ns);
+                ns.SetString((const char*) doc->body, doc->bodylen, false);
+                m_nss.insert(ns);
             }
-            fdb_free_kvs_name_list(&name_list);
-            fdb_close (m_db);
-        }
-        config = fdb_get_default_config();
-        config.multi_kv_instances = true;
-        fs = fdb_open_custom_cmp(&m_db, dbfile.c_str(), &config, nss.size(), NULL, NULL);
-        INFO_LOG("Success to open forestdb at %s", dir.c_str());
+            fdb_doc_free(doc);
+        } while (fdb_iterator_next(iter) != FDB_RESULT_ITERATOR_FAIL);
+        fdb_iterator_close(iter);
         return 0;
     }
 
@@ -252,13 +306,15 @@ namespace ardb
         {
             return ERR_ENTRY_NOT_EXIST;
         }
-        ForestDBLocalContext& local_ctx = g_ctx_local.GetValue();
+        ForestDBLocalContext& local_ctx = GetDBLocalContext();
         Buffer& encode_buffer = local_ctx.GetEncodeBuferCache();
         key.Encode(encode_buffer);
         size_t key_len = encode_buffer.ReadableBytes();
         value.Encode(encode_buffer);
         size_t value_len = encode_buffer.ReadableBytes() - key_len;
         fdb_status fs = fdb_set_kv(kv, (const void*) encode_buffer.GetRawBuffer(), key_len, (const void*) (encode_buffer.GetRawBuffer() + key_len), value_len);
+        CHECK_EXPR(fs);
+        fdb_commit(local_ctx.fdb, FDB_COMMIT_NORMAL);
         return FORESTDB_ERR(fs);
     }
     int ForestDBEngine::PutRaw(Context& ctx, const Data& ns, const Slice& key, const Slice& value)
@@ -268,7 +324,9 @@ namespace ardb
         {
             return ERR_ENTRY_NOT_EXIST;
         }
+        ForestDBLocalContext& local_ctx = GetDBLocalContext();
         fdb_status fs = fdb_set_kv(kv, (const void*) key.data(), key.size(), (const void*) value.data(), value.size());
+        fdb_commit(local_ctx.fdb, FDB_COMMIT_NORMAL);
         return FORESTDB_ERR(fs);
     }
 
@@ -279,7 +337,7 @@ namespace ardb
         {
             return ERR_ENTRY_NOT_EXIST;
         }
-        ForestDBLocalContext& local_ctx = g_ctx_local.GetValue();
+        ForestDBLocalContext& local_ctx = GetDBLocalContext();
         Buffer& encode_buffer = local_ctx.GetEncodeBuferCache();
         key.Encode(encode_buffer);
         size_t key_len = encode_buffer.ReadableBytes();
@@ -290,12 +348,20 @@ namespace ardb
         {
             Buffer valBuffer((char*) (val), 0, val_len);
             value.Decode(valBuffer, true);
+            free(val);
         }
         return FORESTDB_ERR(fs);
     }
 
     int ForestDBEngine::MultiGet(Context& ctx, const KeyObjectArray& keys, ValueObjectArray& values, ErrCodeArray& errs)
     {
+        values.resize(keys.size());
+        errs.resize(keys.size());
+        for (size_t i = 0; i < keys.size(); i++)
+        {
+            int err = Get(ctx, keys[i], values[i]);
+            errs[i] = err;
+        }
         return 0;
     }
     int ForestDBEngine::Del(Context& ctx, const KeyObject& key)
@@ -305,11 +371,12 @@ namespace ardb
         {
             return ERR_ENTRY_NOT_EXIST;
         }
-        ForestDBLocalContext& local_ctx = g_ctx_local.GetValue();
+        ForestDBLocalContext& local_ctx = GetDBLocalContext();
         Buffer& encode_buffer = local_ctx.GetEncodeBuferCache();
         key.Encode(encode_buffer);
         size_t key_len = encode_buffer.ReadableBytes();
         fdb_status fs = fdb_del_kv(kv, (const void*) encode_buffer.GetRawBuffer(), key_len);
+        fdb_commit(local_ctx.fdb, FDB_COMMIT_NORMAL);
         return FORESTDB_NERR(fs);
     }
 
@@ -340,34 +407,33 @@ namespace ardb
 
     int ForestDBEngine::BeginTransaction()
     {
-        ForestDBLocalContext& local_ctx = g_ctx_local.GetValue();
-        return local_ctx.AcquireTransanction(false);
+        ForestDBLocalContext& local_ctx = GetDBLocalContext();
+        return local_ctx.AcquireTransanction();
     }
     int ForestDBEngine::CommitTransaction()
     {
-        ForestDBLocalContext& local_ctx = g_ctx_local.GetValue();
-        return local_ctx.TryReleaseTransanction(true, false);
+        ForestDBLocalContext& local_ctx = GetDBLocalContext();
+        return local_ctx.TryReleaseTransanction(true);
     }
     int ForestDBEngine::DiscardTransaction()
     {
-        ForestDBLocalContext& local_ctx = g_ctx_local.GetValue();
-        return local_ctx.TryReleaseTransanction(false, false);
+        ForestDBLocalContext& local_ctx = GetDBLocalContext();
+        return local_ctx.TryReleaseTransanction(false);
     }
     int ForestDBEngine::Compact(Context& ctx, const KeyObject& start, const KeyObject& end)
     {
-        ForestDBLocalContext& local_ctx = g_ctx_local.GetValue();
+        ForestDBLocalContext& local_ctx = GetDBLocalContext();
         //fdb_compact_upto();
         return ERR_NOTSUPPORTED;
     }
     int ForestDBEngine::ListNameSpaces(Context& ctx, DataArray& nss)
     {
-
         return 0;
     }
     int ForestDBEngine::DropNameSpace(Context& ctx, const Data& ns)
     {
         int rc = 0;
-        ForestDBLocalContext& local_ctx = g_ctx_local.GetValue();
+        ForestDBLocalContext& local_ctx = GetDBLocalContext();
         rc = fdb_kvs_remove(local_ctx.fdb, ns.AsString().c_str());
         return rc;
     }
@@ -383,23 +449,26 @@ namespace ardb
         fdb_kvs_handle* kv = GetKVStore(ctx, key.GetNameSpace(), false);
         if (NULL == kv)
         {
-            return ERR_ENTRY_NOT_EXIST;
-        }
-        ForestDBLocalContext& local_ctx = g_ctx_local.GetValue();
-        int rc = local_ctx.AcquireTransanction(true);
-        if (0 != rc)
-        {
             iter->MarkValid(false);
             return iter;
         }
+        const void *start_key = NULL;
+        size_t start_keylen = 0;
+        const void *end_key = NULL;
+        size_t end_keylen = 0;
+        ForestDBLocalContext& local_ctx = GetDBLocalContext();
         fdb_iterator* fdb_iter = NULL;
+        fdb_iterator_opt_t opt = FDB_ITR_NO_DELETES;
         if (key.GetType() > 0)
         {
+            Buffer& encode_buffer = local_ctx.GetEncodeBuferCache();
+            key.Encode(encode_buffer);
+            start_keylen = encode_buffer.ReadableBytes();
             if (!ctx.flags.iterate_multi_keys)
             {
                 if (!ctx.flags.iterate_no_upperbound)
                 {
-                    KeyObject& upperbound_key = iter->IterateUpperBoundKey();
+                    KeyObject upperbound_key;
                     upperbound_key.SetNameSpace(key.GetNameSpace());
                     if (key.GetType() == KEY_META)
                     {
@@ -410,21 +479,23 @@ namespace ardb
                         upperbound_key.SetType(key.GetType() + 1);
                     }
                     upperbound_key.SetKey(key.GetKey());
-                    upperbound_key.CloneStringPart();
+                    upperbound_key.Encode(encode_buffer, false);
+                    end_keylen = encode_buffer.ReadableBytes() - start_keylen;
+                    end_key = (const void *) (encode_buffer.GetRawBuffer() + start_keylen);
+                    opt |= FDB_ITR_SKIP_MAX_KEY;
                 }
             }
-            iter->Jump(key);
+            start_key = (const void *) encode_buffer.GetRawBuffer();
         }
         else
         {
-            iter->JumpToFirst();
+            //do nothing
         }
-        rc = fdb_iterator_init(kv, &fdb_iter, NULL, 0, NULL, 0, FDB_ITR_NO_DELETES | FDB_ITR_SKIP_MAX_KEY);
+        fdb_status rc = fdb_iterator_init(kv, &fdb_iter, start_key, start_keylen, end_key, end_keylen, opt);
         if (0 != rc)
         {
-            ERROR_LOG("Failed to create cursor for reason:%s", mdb_strerror(rc));
+            ERROR_LOG("Failed to create cursor for reason:(%d)%s", rc, fdb_error_msg(rc));
             iter->MarkValid(false);
-            local_ctx.TryReleaseTransanction(true, true);
             return iter;
         }
         iter->SetIterator(fdb_iter);
@@ -433,7 +504,7 @@ namespace ardb
 
     void ForestDBEngine::Stats(Context& ctx, std::string& stat_info)
     {
-        ForestDBLocalContext& local_ctx = g_ctx_local.GetValue();
+        ForestDBLocalContext& local_ctx = GetDBLocalContext();
         stat_info.append("forestdb_version:").append(fdb_get_lib_version()).append("\r\n");
         if (local_ctx.fdb != NULL)
         {
@@ -476,16 +547,7 @@ namespace ardb
     }
     void ForestDBIterator::CheckBound()
     {
-        if (m_valid && NULL != m_iter && m_iterate_upper_bound_key.GetType() > 0)
-        {
-            if (m_valid)
-            {
-                if (Key(false).Compare(m_iterate_upper_bound_key) >= 0)
-                {
-                    m_valid = false;
-                }
-            }
-        }
+        //do nothing
     }
     bool ForestDBIterator::Valid()
     {
@@ -521,7 +583,7 @@ namespace ardb
         {
             return;
         }
-        ForestDBLocalContext& local_ctx = g_ctx_local.GetValue();
+        ForestDBLocalContext& local_ctx = GetDBLocalContext();
         Slice key_slice = next.Encode(local_ctx.GetEncodeBuferCache());
         int rc = fdb_iterator_seek(m_iter, (const void *) key_slice.data(), key_slice.size(), FDB_ITR_SEEK_HIGHER);
         m_valid = rc == 0;

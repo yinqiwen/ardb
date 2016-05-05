@@ -30,7 +30,7 @@
 #ifndef FORESTDB_ENGINE_HPP_
 #define FORESTDB_ENGINE_HPP_
 
-#include "forestdb.h"
+#include "libforestdb/forestdb.h"
 #include "db/engine.hpp"
 #include "channel/all_includes.hpp"
 #include "util/config_helper.hpp"
@@ -53,7 +53,7 @@ namespace ardb
             Data m_ns;
             KeyObject m_key;
             ValueObject m_value;
-            KeyObject m_iterate_upper_bound_key;bool m_valid;
+            bool m_valid;
 
             void DoJump(const KeyObject& next);
 
@@ -74,15 +74,11 @@ namespace ardb
             }
             void ClearState();
             void CheckBound();
-            friend class LMDBEngine;
+            friend class ForestDBEngine;
         public:
             ForestDBIterator(ForestDBEngine * e, const Data& ns) :
                     m_engine(e), m_iter(NULL), m_raw(NULL), m_ns(ns), m_valid(true)
             {
-            }
-            KeyObject& IterateUpperBoundKey()
-            {
-                return m_iterate_upper_bound_key;
             }
             void MarkValid(bool valid)
             {
@@ -90,11 +86,18 @@ namespace ardb
             }
             ~ForestDBIterator();
     };
-
+    class ForestDBLocalContext;
     class ForestDBEngine: public Engine
     {
         private:
+            fdb_file_handle* m_meta_db;
+            fdb_kvs_handle* m_meta_kv;
+            DataSet m_nss;
+            SpinRWLock m_lock;
             fdb_kvs_handle* GetKVStore(Context& ctx, const Data& name, bool create_if_noexist);
+            void AddNamespace(const Data& ns);
+            int ListNameSpaces(DataArray& nss);
+            friend class ForestDBLocalContext;
         public:
             ForestDBEngine();
             ~ForestDBEngine();
