@@ -29,6 +29,7 @@
 
 #include "db/codec.hpp"
 #include "db/db.hpp"
+#include "db/db_utils.hpp"
 #include "util/helpers.hpp"
 #include "thread/lock_guard.hpp"
 #include <string.h>
@@ -51,7 +52,6 @@ namespace ardb
 {
     static int fdb_cmp_callback(void *a, size_t len_a, void *b, size_t len_b)
     {
-
         return compare_keys((const char*) a, len_a, (const char*) b, len_b, false);
     }
 
@@ -96,7 +96,7 @@ namespace ardb
                 }
                 INFO_LOG("Success to open db:%s", ns.AsString().c_str());
                 kv_stores[ns] = kvs;
-                g_fdb_engine->AddNamespace(ns);
+                DBHelper::AddNameSpace(ns);
                 return kvs;
             }
             bool Init()
@@ -115,7 +115,7 @@ namespace ardb
 
                 std::string dbfile = g_db->GetConf().data_base_path + "/ardb.fdb";
                 DataArray nss;
-                g_fdb_engine->ListNameSpaces(nss);
+                DBHelper::ListNameSpaces(nss);
                 fdb_status fs;
                 if (nss.empty())
                 {
@@ -213,8 +213,8 @@ namespace ardb
         return local_ctx;
     }
 
-    ForestDBEngine::ForestDBEngine() :
-            m_meta_db(NULL), m_meta_kv(NULL)
+    ForestDBEngine::ForestDBEngine()
+    //:m_meta_db(NULL), m_meta_kv(NULL)
     {
         g_fdb_engine = this;
     }
@@ -224,27 +224,27 @@ namespace ardb
         //Close();
     }
 
-    void ForestDBEngine::AddNamespace(const Data& ns)
-    {
-        RWLockGuard<SpinRWLock> guard(m_lock, false);
-        fdb_status fs;
-        std::string key = "ns:" + ns.AsString();
-        std::string val = ns.AsString();
-        CHECK_EXPR(fs = fdb_set_kv(m_meta_kv, (const void* ) key.data(), key.size(), (const void* ) val.data(), val.size()));
-        CHECK_EXPR(fs = fdb_commit(m_meta_db, FDB_COMMIT_NORMAL));
-        m_nss.insert(ns);
-    }
-    int ForestDBEngine::ListNameSpaces(DataArray& nss)
-    {
-        DataSet::iterator it = m_nss.begin();
-        while (it != m_nss.end())
-        {
-            Data ns = *it;
-            nss.push_back(ns);
-            it++;
-        }
-        return 0;
-    }
+//    void ForestDBEngine::AddNamespace(const Data& ns)
+//    {
+//        RWLockGuard<SpinRWLock> guard(m_lock, false);
+//        fdb_status fs;
+//        std::string key = "ns:" + ns.AsString();
+//        std::string val = ns.AsString();
+//        CHECK_EXPR(fs = fdb_set_kv(m_meta_kv, (const void* ) key.data(), key.size(), (const void* ) val.data(), val.size()));
+//        CHECK_EXPR(fs = fdb_commit(m_meta_db, FDB_COMMIT_NORMAL));
+//        m_nss.insert(ns);
+//    }
+//    int ForestDBEngine::ListNameSpaces(DataArray& nss)
+//    {
+//        DataSet::iterator it = m_nss.begin();
+//        while (it != m_nss.end())
+//        {
+//            Data ns = *it;
+//            nss.push_back(ns);
+//            it++;
+//        }
+//        return 0;
+//    }
     fdb_kvs_handle* ForestDBEngine::GetKVStore(Context& ctx, const Data& ns, bool create_if_noexist)
     {
         fdb_kvs_handle* kv = NULL;
@@ -255,47 +255,47 @@ namespace ardb
 
     int ForestDBEngine::Init(const std::string& dir, const Properties& props)
     {
-        std::string dbfile = g_db->GetConf().data_base_path + "/ardb.meta.fdb.";
-        fdb_config config = fdb_get_default_config();
-        fdb_status fs;
-        CHECK_EXPR(fs = fdb_open(&m_meta_db, dbfile.c_str(), &config));
-        if (0 != fs)
-        {
-            return fs;
-        }
-        fdb_kvs_config kv_conig = fdb_get_default_kvs_config();
-        CHECK_EXPR(fs = fdb_kvs_open_default(m_meta_db, &m_meta_kv, &kv_conig));
-        if (0 != fs)
-        {
-            return fs;
-        }
-        fdb_iterator* iter = NULL;
-        fdb_iterator_opt_t opt = 0;
-        CHECK_EXPR(fs = fdb_iterator_init(m_meta_kv, &iter, NULL, 0, NULL, 0, 0x0));
-        if (0 != fs)
-        {
-            return fs;
-        }
-        do
-        {
-
-            fdb_doc tmp;
-            fdb_doc* doc = &tmp;
-            CHECK_EXPR(fs = fdb_iterator_get(iter, &doc));
-            if (fs != FDB_RESULT_SUCCESS)
-            {
-                break;
-            }
-            std::string key((const char*) doc->key, doc->keylen);
-            if (has_prefix(key, "ns:"))
-            {
-                Data ns;
-                ns.SetString((const char*) doc->body, doc->bodylen, false);
-                m_nss.insert(ns);
-            }
-            fdb_doc_free(doc);
-        } while (fdb_iterator_next(iter) != FDB_RESULT_ITERATOR_FAIL);
-        fdb_iterator_close(iter);
+//        std::string dbfile = g_db->GetConf().data_base_path + "/ardb.meta.fdb.";
+//        fdb_config config = fdb_get_default_config();
+//        fdb_status fs;
+//        CHECK_EXPR(fs = fdb_open(&m_meta_db, dbfile.c_str(), &config));
+//        if (0 != fs)
+//        {
+//            return fs;
+//        }
+//        fdb_kvs_config kv_conig = fdb_get_default_kvs_config();
+//        CHECK_EXPR(fs = fdb_kvs_open_default(m_meta_db, &m_meta_kv, &kv_conig));
+//        if (0 != fs)
+//        {
+//            return fs;
+//        }
+//        fdb_iterator* iter = NULL;
+//        fdb_iterator_opt_t opt = 0;
+//        CHECK_EXPR(fs = fdb_iterator_init(m_meta_kv, &iter, NULL, 0, NULL, 0, 0x0));
+//        if (0 != fs)
+//        {
+//            return fs;
+//        }
+//        do
+//        {
+//
+//            fdb_doc tmp;
+//            fdb_doc* doc = &tmp;
+//            CHECK_EXPR(fs = fdb_iterator_get(iter, &doc));
+//            if (fs != FDB_RESULT_SUCCESS)
+//            {
+//                break;
+//            }
+//            std::string key((const char*) doc->key, doc->keylen);
+//            if (has_prefix(key, "ns:"))
+//            {
+//                Data ns;
+//                ns.SetString((const char*) doc->body, doc->bodylen, false);
+//                m_nss.insert(ns);
+//            }
+//            fdb_doc_free(doc);
+//        } while (fdb_iterator_next(iter) != FDB_RESULT_ITERATOR_FAIL);
+//        fdb_iterator_close(iter);
         return 0;
     }
 
@@ -434,7 +434,11 @@ namespace ardb
     {
         int rc = 0;
         ForestDBLocalContext& local_ctx = GetDBLocalContext();
-        rc = fdb_kvs_remove(local_ctx.fdb, ns.AsString().c_str());
+        CHECK_EXPR(rc = fdb_kvs_remove(local_ctx.fdb, ns.AsString().c_str()));
+        if(0 == rc)
+        {
+            DBHelper::DelNamespace(ns);
+        }
         return rc;
     }
     int64_t ForestDBEngine::EstimateKeysNum(Context& ctx, const Data& ns)

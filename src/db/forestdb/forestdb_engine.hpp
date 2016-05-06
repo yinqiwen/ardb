@@ -90,13 +90,13 @@ namespace ardb
     class ForestDBEngine: public Engine
     {
         private:
-            fdb_file_handle* m_meta_db;
-            fdb_kvs_handle* m_meta_kv;
-            DataSet m_nss;
-            SpinRWLock m_lock;
+//            fdb_file_handle* m_meta_db;
+//            fdb_kvs_handle* m_meta_kv;
+//            DataSet m_nss;
+//            SpinRWLock m_lock;
             fdb_kvs_handle* GetKVStore(Context& ctx, const Data& name, bool create_if_noexist);
-            void AddNamespace(const Data& ns);
-            int ListNameSpaces(DataArray& nss);
+//            void AddNamespace(const Data& ns);
+//            int ListNameSpaces(DataArray& nss);
             friend class ForestDBLocalContext;
         public:
             ForestDBEngine();
