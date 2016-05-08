@@ -212,7 +212,6 @@ OP_NAMESPACE_BEGIN
         if (0 != err)
         {
             reply.SetErrCode(err);
-            printf("####here\n");
             return 0;
         }
         if (!CheckMeta(ctx, ks[0], KEY_SET, vs[0], false) || !CheckMeta(ctx, ks[1], KEY_SET, vs[1], false))
@@ -541,6 +540,7 @@ OP_NAMESPACE_BEGIN
 
         for (size_t i = diff_key_cursor + 1; i < metas.size(); i++)
         {
+
             if (metas[i].GetType() == 0)
             {
                 continue;
@@ -554,6 +554,7 @@ OP_NAMESPACE_BEGIN
             KeyObject start(ctx.ns, KEY_SET_MEMBER, keys[i].GetKey());
             start.SetSetMember(min);
             iters[i]->Jump(start);
+
             while (iters[i]->Valid())
             {
                 KeyObject& k = iters[i]->Key(false);

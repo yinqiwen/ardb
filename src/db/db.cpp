@@ -38,10 +38,21 @@
 #include "statistics.hpp"
 #if defined __USE_LMDB__
 #include "lmdb/lmdb_engine.hpp"
+#define __ENGINE_NAME__ "lmdb"
 #elif defined __USE_ROCKSDB__
 #include "rocksdb/rocksdb_engine.hpp"
+#define __ENGINE_NAME__ "rocksdb"
 #elif defined __USE_FORESTDB__
 #include "forestdb/forestdb_engine.hpp"
+#define __ENGINE_NAME__ "forestdb"
+#elif defined __USE_LEVELDB__
+#include "leveldb/leveldb_engine.hpp"
+#define __ENGINE_NAME__ "leveldb"
+#elif defined D__USE_WIREDTIGER__
+#include "wiredtiger/wiredtiger_engine.hpp"
+#define __ENGINE_NAME__ "wiredtiger"
+#else
+#define __ENGINE_NAME__ "unknown"
 #endif
 
 /* Command flags. Please check the command table defined in the redis.c file
@@ -63,6 +74,7 @@
 
 OP_NAMESPACE_BEGIN
     Ardb* g_db = NULL;
+    Engine* g_engine = NULL;
 
     bool Ardb::RedisCommandHandlerSetting::IsAllowedInScript() const
     {
@@ -472,9 +484,11 @@ OP_NAMESPACE_BEGIN
         }
         ArdbLogger::InitDefaultLogger(m_conf.loglevel, m_conf.logfile);
 
+        std::string dbdir = GetConf().data_base_path + "/" + __ENGINE_NAME__;
+        make_dir(dbdir);
 #if defined __USE_LMDB__
         NEW(m_engine, LMDBEngine);
-        if (0 != ((LMDBEngine*) m_engine)->Init(GetConf().data_base_path, GetConf().conf_props))
+        if (0 != ((LMDBEngine*) m_engine)->Init(dbdir, GetConf().conf_props))
         {
             ERROR_LOG("Failed to init lmdb.");
             DELETE(m_engine);
@@ -482,25 +496,42 @@ OP_NAMESPACE_BEGIN
         }
 #elif defined __USE_ROCKSDB__
         NEW(m_engine, RocksDBEngine);
-        if (0 != ((RocksDBEngine*) m_engine)->Init(GetConf().data_base_path, GetConf().rocksdb_options))
+        if (0 != ((RocksDBEngine*) m_engine)->Init(dbdir, GetConf().rocksdb_options))
         {
             ERROR_LOG("Failed to init rocksdb.");
             DELETE(m_engine);
             return -1;
         }
+#elif defined __USE_LEVELDB__
+        NEW(m_engine, LevelDBEngine);
+        if (0 != ((LevelDBEngine*) m_engine)->Init(dbdir, GetConf().conf_props))
+        {
+            ERROR_LOG("Failed to init leveldb.");
+            DELETE(m_engine);
+            return -1;
+        }
 #elif defined __USE_FORESTDB__
         NEW(m_engine, ForestDBEngine);
-        if (0 != ((ForestDBEngine*) m_engine)->Init(GetConf().data_base_path, GetConf().conf_props))
+        if (0 != ((ForestDBEngine*) m_engine)->Init(dbdir, GetConf().conf_props))
         {
             ERROR_LOG("Failed to init forestdb.");
             DELETE(m_engine);
             return -1;
         }
+#elif defined D__USE_WIREDTIGER__
+        NEW(m_engine, WiredTigerEngine);
+        if (0 != ((WiredTigerEngine*) m_engine)->Init(dbdir, GetConf().conf_props))
+        {
+            ERROR_LOG("Failed to init wiredtiger.");
+            DELETE(m_engine);
+            return -1;
+        }
 #else
-        ERROR_LOG("Unsupported storage engine specified at compile time");
+        ERROR_LOG("Unsupported storage engine specified at compile time.");
         return -1;
 #endif
         m_starttime = time(NULL);
+        g_engine = m_engine;
         return 0;
     }
 

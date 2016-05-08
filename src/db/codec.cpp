@@ -177,9 +177,16 @@ OP_NAMESPACE_BEGIN
         }
         return elements[idx].Decode(buffer, clone_str);
     }
-    bool KeyObject::Decode(Buffer& buffer, bool clone_str)
+    bool KeyObject::Decode(Buffer& buffer, bool clone_str, bool with_ns)
     {
         Clear();
+        if(with_ns)
+        {
+            if(!ns.Decode(buffer, clone_str))
+            {
+                return false;
+            }
+        }
         if (!DecodePrefix(buffer, clone_str))
         {
             return false;
@@ -208,13 +215,17 @@ OP_NAMESPACE_BEGIN
         buffer.Write(key.CStr(), key.StringLength());
         buffer.WriteByte((char) type);
     }
-    Slice KeyObject::Encode(Buffer& buffer, bool verify) const
+    Slice KeyObject::Encode(Buffer& buffer, bool verify,bool with_ns) const
     {
         if (verify && !IsValid())
         {
             return Slice();
         }
         size_t mark = buffer.GetWriteIndex();
+        if(with_ns)
+        {
+            ns.Encode(buffer);
+        }
         EncodePrefix(buffer);
         buffer.WriteByte((char) elements.size());
         for (size_t i = 0; i < elements.size(); i++)

@@ -1,5 +1,5 @@
 /*
- *Copyright (c) 2013-2014, yinqiwen <yinqiwen@gmail.com>
+ *Copyright (c) 2013-2013, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
  *Redistribution and use in source and binary forms, with or without
@@ -26,34 +26,53 @@
  *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF 
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef WIREDTIGER_ENGINE_HPP_
-#define WIREDTIGER_ENGINE_HPP_
+#ifndef LEVELDB_ENGINE_HPP_
+#define LEVELDB_ENGINE_HPP_
 
-#include "engine.hpp"
+#include "leveldb/db.h"
+#include "leveldb/write_batch.h"
+#include "leveldb/comparator.h"
+#include "leveldb/cache.h"
+#include "leveldb/filter_policy.h"
+#include "db/engine.hpp"
 #include "util/config_helper.hpp"
-#include "thread/thread.hpp"
 #include "thread/thread_local.hpp"
-#include "thread/thread_mutex_lock.hpp"
-#include "util/concurrent_queue.hpp"
+#include "thread/spin_rwlock.hpp"
 #include <stack>
-#include <wiredtiger.h>
 
 namespace ardb
 {
-    class WiredTigerEngine;
-    class WiredTigerIterator: public Iterator
+    class LevelDBEngine;
+    class LevelDBIterator: public Iterator
     {
         private:
-            WiredTigerEngine* m_engine;
-            WT_CURSOR* m_cursor;
             Data m_ns;
             KeyObject m_key;
             ValueObject m_value;
+            LevelDBEngine* m_engine;
+            leveldb::Iterator* m_iter;
             KeyObject m_iterate_upper_bound_key;
-
-            void DoJump(const KeyObject& next);
-
             bool m_valid;
+            void ClearState();
+            void CheckBound();
+            friend class LevelDBEngine;
+        public:
+            LevelDBIterator(LevelDBEngine* engine, const Data& ns) :
+                    m_ns(ns), m_engine(engine), m_iter(NULL), m_valid(true)
+            {
+            }
+            void MarkValid(bool valid)
+            {
+                m_valid = valid;
+            }
+            void SetIterator(leveldb::Iterator* iter)
+            {
+                m_iter = iter;
+            }
+            KeyObject& IterateUpperBoundKey()
+            {
+                return m_iterate_upper_bound_key;
+            }
             bool Valid();
             void Next();
             void Prev();
@@ -64,49 +83,38 @@ namespace ardb
             ValueObject& Value(bool clone_str);
             Slice RawKey();
             Slice RawValue();
-
-            void ClearState();
-            void CheckBound();
-            void SetCursor(WT_CURSOR* c)
-            {
-                m_cursor = c;
-            }
-            KeyObject& IterateUpperBoundKey()
-            {
-                return m_iterate_upper_bound_key;
-            }
-            friend class WiredTigerEngine;
-        public:
-            WiredTigerIterator(WiredTigerEngine * e, const Data& ns) :
-                m_engine(e), m_cursor(NULL), m_ns(ns), m_valid(true)
-            {
-            }
-            void MarkValid(bool valid)
-            {
-                m_valid = valid;
-            }
-            ~WiredTigerIterator();
+            ~LevelDBIterator();
     };
 
-    class WiredTigerLocalContext;
-    class WiredTigerEngine: public Engine
+    struct LevelDBConfig
+    {
+            std::string path;
+            int64 block_cache_size;
+            int64 write_buffer_size;
+            int64 max_open_files;
+            int64 block_size;
+            int64 block_restart_interval;
+            int64 bloom_bits;
+            int64 batch_commit_watermark;
+            std::string compression;
+            bool logenable;
+            LevelDBConfig() :
+                    block_cache_size(0), write_buffer_size(0), max_open_files(10240), block_size(0), block_restart_interval(0), bloom_bits(10), batch_commit_watermark(1024), compression("snappy"), logenable(false)
+            {
+            }
+    };
+    class LevelDBEngine: public Engine
     {
         private:
-            WT_CONNECTION* m_db;
             DataSet m_nss;
             SpinRWLock m_lock;
-            friend class WiredTigerIterator;
-            friend class WiredTigerLocalContext;
-            //bool ContNamespace
-            bool GetTable(const Data& ns, bool create_if_missing);
-            WT_CONNECTION* GetWTConn()
-            {
-                return m_db;
-            }
-            void Close();
+            leveldb::DB* m_db;
+            LevelDBConfig m_cfg;
+            leveldb::Options m_options;
+            bool GetNamespace(const Data& ns, bool create_if_missing);
         public:
-            WiredTigerEngine();
-            ~WiredTigerEngine();
+            LevelDBEngine();
+            ~LevelDBEngine();
             int Init(const std::string& dir, const Properties& props);
             int Put(Context& ctx, const KeyObject& key, const ValueObject& value);
             int PutRaw(Context& ctx, const Data& ns, const Slice& key, const Slice& value);
@@ -128,9 +136,10 @@ namespace ardb
             {
                 FeatureSet features;
                 features.support_compactilter = 0;
-                features.support_namespace = 1;
+                features.support_namespace = 0;
                 return features;
             }
     };
+
 }
 #endif

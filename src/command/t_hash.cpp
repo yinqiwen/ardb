@@ -540,7 +540,6 @@ OP_NAMESPACE_BEGIN
                 }
             }
         }
-        printf("#####err = %d %d\n", err,vals[1].GetHashValue().encoding);
         if (0 == err)
         {
             TransactionGuard batch(ctx, m_engine);
@@ -549,7 +548,6 @@ OP_NAMESPACE_BEGIN
                 SetKeyValue(ctx, keys[0], vals[0]);
             }
             SetKeyValue(ctx, keys[1], vals[1]);
-            printf("####Write %d %d\n",vals[1].GetType(), vals[1].GetHashValue().GetInt64());
         }
         err = ctx.transc_err;
         if (0 != err)

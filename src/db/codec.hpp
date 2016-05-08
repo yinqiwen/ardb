@@ -241,7 +241,7 @@ OP_NAMESPACE_BEGIN
 
             bool IsValid() const;
             int Compare(const KeyObject& other) const;
-            Slice Encode(Buffer& buffer, bool verify = true) const;
+            Slice Encode(Buffer& buffer, bool verify = true, bool with_ns = false) const;
             void EncodePrefix(Buffer& buffer) const;
             bool DecodeNS(Buffer& buffer, bool clone_str);
             bool DecodeKey(Buffer& buffer, bool clone_str);
@@ -249,7 +249,7 @@ OP_NAMESPACE_BEGIN
             bool DecodePrefix(Buffer& buffer, bool clone_str);
             int DecodeElementLength(Buffer& buffer);
             bool DecodeElement(Buffer& buffer, bool clone_str, int idx);
-            bool Decode(Buffer& buffer, bool clone_str);
+            bool Decode(Buffer& buffer, bool clone_str, bool with_ns = false);
 
             void CloneStringPart();
 

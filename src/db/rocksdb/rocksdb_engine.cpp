@@ -122,6 +122,11 @@ OP_NAMESPACE_BEGIN
                 encode_buffer_cache.Clear();
                 return encode_buffer_cache;
             }
+            std::string& GetStringCache()
+            {
+                string_cache.clear();
+                return string_cache;
+            }
             std::vector<string>& GetMultiStringCache(size_t num)
             {
                 if (multi_string_cache.size() < num)
@@ -838,8 +843,7 @@ OP_NAMESPACE_BEGIN
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         rocksdb::ReadOptions opt;
         opt.snapshot = rocks_ctx.PeekSnapshot();
-        std::string& valstr = rocks_ctx.string_cache;
-        valstr.clear();
+        std::string& valstr = rocks_ctx.GetStringCache();
         Buffer& key_encode_buffer = rocks_ctx.GetEncodeBuferCache();
         rocksdb::Slice key_slice = to_rocksdb_slice(key.Encode(key_encode_buffer));
         rocksdb::Status s = m_db->Get(opt, cf, key_slice, &valstr);
@@ -920,8 +924,7 @@ OP_NAMESPACE_BEGIN
         rocksdb::ReadOptions opt;
         opt.snapshot = rocks_ctx.PeekSnapshot();
         Buffer& key_encode_buffer = rocks_ctx.GetEncodeBuferCache();
-        std::string& tmp = rocks_ctx.string_cache;
-        tmp.clear();
+        std::string& tmp = rocks_ctx.GetStringCache();
         rocksdb::Slice k = to_rocksdb_slice(key.Encode(key_encode_buffer));
         bool exist = m_db->KeyMayExist(opt, cf, k, &tmp, NULL);
         if (!exist)

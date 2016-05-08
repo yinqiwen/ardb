@@ -96,7 +96,6 @@ OP_NAMESPACE_BEGIN
         private:
             typedef std::shared_ptr<rocksdb::ColumnFamilyHandle> ColumnFamilyHandlePtr;
             typedef TreeMap<Data, ColumnFamilyHandlePtr>::Type ColumnFamilyHandleTable;
-            typedef std::vector<ColumnFamilyHandleContext> ColumnFamilyHandleArray;
             typedef TreeMap<uint32_t, Data>::Type ColumnFamilyHandleIDTable;
             rocksdb::DB* m_db;
             rocksdb::Options m_options;
@@ -129,6 +128,13 @@ OP_NAMESPACE_BEGIN
             void Stats(Context& ctx, std::string& str);
             int64_t EstimateKeysNum(Context& ctx, const Data& ns);
             Iterator* Find(Context& ctx, const KeyObject& key);
+            const FeatureSet GetFeatureSet()
+            {
+                FeatureSet features;
+                features.support_compactilter = 1;
+                features.support_namespace = 1;
+                return features;
+            }
     };
 
 OP_NAMESPACE_END

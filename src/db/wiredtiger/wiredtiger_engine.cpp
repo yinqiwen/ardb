@@ -32,22 +32,36 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define LEVELDB_SLICE(slice) leveldb::Slice(slice.data(), slice.size())
-#define ARDB_SLICE(slice) Slice(slice.data(), slice.size())
-
 #define CHECK_WT_RETURN(ret)         do{\
-                                       if (0 != ret) \
+                                       int rc = (ret);\
+                                       if (0 != rc) \
                                         {             \
-                                           ERROR_LOG("WiredTiger Error: %s at %s:%d", wiredtiger_strerror(ret), __FILE__, __LINE__);\
-                                            ret = -1;  \
+                                           ERROR_LOG("WiredTiger Error: %s at %s:%d", wiredtiger_strerror(rc), __FILE__, __LINE__);\
+                                           return rc;  \
+                                         }\
+                                       }while(0)
+#define LOG_WTERROR(ret)         do{\
+                                       int rc = (ret);\
+                                       if (0 != rc) \
+                                        {             \
+                                           ERROR_LOG("WiredTiger Error: %s at %s:%d", wiredtiger_strerror(rc), __FILE__, __LINE__);\
                                          }\
                                        }while(0)
 
 #define ARDB_TABLE "table:ardb"
+#define WT_URI          "table:ardb"
+#define WT_TABLE_CONFIG "type=lsm,split_pct=100,leaf_item_max=1KB," \
+    "lsm=(chunk_size=100MB,bloom_config=(leaf_page_max=8MB)),"
+#define WT_CONN_CONFIG                                                  \
+        "log=(enabled),checkpoint=(wait=180),checkpoint_sync=false,"    \
+        "session_max=8192,mmap=false,"                                  \
+        "transaction_sync=(enabled=true,method=none),create,"
+#define WT_ERR(err)  (WT_NOTFOUND == err ? ERR_ENTRY_NOT_EXIST:err)
+#define WT_NERR(err)  (WT_NOTFOUND == err ? 0:err)
 
 namespace ardb
 {
-    static WT_CONNECTION* g_wdb = NULL;
+    static WiredTigerEngine* g_wdb = NULL;
     static WT_CURSOR* create_wiredtiger_cursor(WT_SESSION* session)
     {
         WT_CURSOR* cursor = NULL;
@@ -61,37 +75,81 @@ namespace ardb
         return cursor;
     }
 
+    struct WTConfig
+    {
+            size_t block_size;
+            size_t chunk_size;
+            size_t bloom_bits;
+            size_t session_max;
+            bool mmap;
+    };
+
+    static WTConfig g_wt_conig;
+
+    static const std::string table_url(const Data& ns)
+    {
+        return "table:" + ns.AsString();
+    }
+
     struct WiredTigerLocalContext
     {
             WT_SESSION* wsession;
-            WT_CURSOR* iocursor;
-            DataSet kv_stores;
+            typedef TreeMap<Data, WT_CURSOR*>::Type KVTable;
+            KVTable kv_stores;
             uint32 txn_ref;
             bool txn_abort;
             Buffer encode_buffer_cache;
             bool inited;
             WiredTigerLocalContext() :
-                    wsession(NULL), iocursor(NULL), txn_ref(0), txn_abort(false), inited(false)
+                    wsession(NULL), txn_ref(0), txn_abort(false), inited(false)
             {
             }
-            bool TryCreateTable(const Data& ns, bool create_if_missing)
+            void RecycleCursor(const Data& ns, WT_CURSOR* cursor)
             {
-                DataSet::iterator found = kv_stores.find(ns);
-                if (found != kv_stores.end())
+                KVTable::iterator found = kv_stores.find(ns);
+                if (found != kv_stores.end() && NULL == found->second)
                 {
-                    return true;
+                    found->second = cursor;
                 }
-                std::string table_options = "key_format=u,value_format=u,prefix_compression=true,collator=ardb_comparator";
-                std::string table = "table:" + ns.AsString();
-                int ret = wsession->create(wsession, table.c_str(), table_options.c_str());
-                if (0 != ret)
+                else
                 {
-                    ERROR_LOG("Failed to open table:%s for reason:(%d)%s", ns.AsString().c_str(), ret, wiredtiger_strerror(ret));
-                    return false;
+                    cursor->close(cursor);
                 }
-                INFO_LOG("Success to open db:%s", ns.AsString().c_str());
-                kv_stores.insert(ns);
-                DBHelper::AddNameSpace(ns);
+            }
+            WT_CURSOR* GetKVStore(const Data& ns, bool create_if_missing, bool acquire = false)
+            {
+                WT_CURSOR* c = NULL;
+                KVTable::iterator found = kv_stores.find(ns);
+                if (found != kv_stores.end() && NULL != found->second)
+                {
+                    c = found->second;
+                    if (acquire)
+                    {
+                        found->second = NULL;
+                    }
+                    return c;
+                }
+                if (found == kv_stores.end())
+                {
+                    /*
+                     * other thread may create table
+                     */
+                    if (!g_wdb->GetTable(ns, create_if_missing))
+                    {
+                        return NULL;
+                    }
+                }
+                int ret;
+                if ((ret = wsession->open_cursor(wsession, table_url(ns).c_str(), NULL, NULL, &c)) != 0)
+                {
+                    ERROR_LOG("Failed to open cursor on %s: %s\n", ns.AsString().c_str(), wiredtiger_strerror(ret));
+                    return NULL;
+                }
+                kv_stores[ns] = c;
+                if (acquire)
+                {
+                    kv_stores[ns] = NULL;
+                }
                 return true;
             }
             bool Init()
@@ -101,27 +159,13 @@ namespace ardb
                     return true;
                 }
                 int ret = 0;
-                if ((ret = g_wdb->open_session(g_wdb, NULL, NULL, &wsession)) != 0)
+                WT_CONNECTION* conn = g_wdb->GetWTConn();
+                if ((ret = conn->open_session(conn, NULL, NULL, &wsession)) != 0)
                 {
                     ERROR_LOG("Error opening a session for reason:(%d)%s", ret, wiredtiger_strerror(ret));
-                }
-                DataArray nss;
-                DBHelper::ListNameSpaces(nss);
-                if (!nss.empty())
-                {
-                    const char* names[nss.size()];
-                    fdb_custom_cmp_variable cmps[nss.size()];
-                    for (size_t i = 0; i < nss.size(); i++)
-                    {
-                        TryCreateTable(nss[i], true);
-                    }
-                }
-                else
-                {
-
+                    return false;
                 }
                 inited = true;
-                INFO_LOG("Success to open wiredtiger thread:%d", pthread_self());
                 return true;
             }
 
@@ -130,7 +174,7 @@ namespace ardb
                 int rc = 0;
                 if (0 == txn_ref)
                 {
-                    rc = fdb_begin_transaction(fdb, FDB_ISOLATION_READ_COMMITTED);
+                    //rc = fdb_begin_transaction(fdb, FDB_ISOLATION_READ_COMMITTED);
                     txn_abort = false;
                     txn_ref = 0;
                 }
@@ -155,11 +199,11 @@ namespace ardb
                     {
                         if (txn_abort)
                         {
-                            fdb_abort_transaction (fdb);
+                            //fdb_abort_transaction (fdb);
                         }
                         else
                         {
-                            rc = fdb_end_transaction(fdb, FDB_COMMIT_NORMAL);
+                            //rc = fdb_end_transaction(fdb, FDB_COMMIT_NORMAL);
                         }
                     }
                 }
@@ -172,13 +216,6 @@ namespace ardb
             }
             ~WiredTigerLocalContext()
             {
-                KVStoreTable::iterator it = kv_stores.begin();
-                while (it != kv_stores.end())
-                {
-                    fdb_kvs_close(it->second);
-                    it++;
-                }
-                fdb_close (fdb);
             }
     };
     static ThreadLocal<WiredTigerLocalContext> g_ctx_local;
@@ -189,67 +226,6 @@ namespace ardb
         return local_ctx;
     }
 
-    void WiredTigerIterator::SeekToFirst()
-    {
-        m_iter_ret = m_iter->reset(m_iter);
-    }
-    void WiredTigerIterator::SeekToLast()
-    {
-        m_iter->reset(m_iter);
-        m_iter_ret = m_iter->prev(m_iter);
-    }
-    void WiredTigerIterator::Seek(const Slice& target)
-    {
-        WT_ITEM key_item;
-        key_item.data = target.data();
-        key_item.size = target.size();
-        m_iter->set_key(m_iter, &key_item);
-        int exact;
-        if ((m_iter_ret = m_iter->search_near(m_iter, &exact)) == 0)
-        {
-            if (exact < 0)
-            {
-                Next();
-            }
-        }
-    }
-    void WiredTigerIterator::Next()
-    {
-        m_iter_ret = m_iter->next(m_iter);
-    }
-    void WiredTigerIterator::Prev()
-    {
-        m_iter_ret = m_iter->prev(m_iter);
-    }
-    Slice WiredTigerIterator::Key() const
-    {
-        return Slice((const char*) m_key_item.data, m_key_item.size);
-    }
-    Slice WiredTigerIterator::Value() const
-    {
-        if (0 == m_iter->get_value(m_iter, &m_value_item))
-        {
-            return Slice((const char*) m_value_item.data, m_value_item.size);
-        }
-        return Slice();
-    }
-    bool WiredTigerIterator::Valid()
-    {
-        if (0 == m_iter_ret)
-        {
-            m_iter_ret = m_iter->get_key(m_iter, &m_key_item);
-        }
-        return 0 == m_iter_ret;
-    }
-    WiredTigerIterator::~WiredTigerIterator()
-    {
-        if (NULL != m_iter)
-        {
-            m_iter->close(m_iter);
-            m_engine->GetContextHolder().ReleaseTranscRef();
-        }
-    }
-
     WiredTigerEngine::WiredTigerEngine() :
             m_db(NULL)
     {
@@ -257,18 +233,55 @@ namespace ardb
     }
     WiredTigerEngine::~WiredTigerEngine()
     {
-        Close();
     }
 
-    void WiredTigerEngine::Close()
+    bool WiredTigerEngine::GetTable(const Data& ns, bool create_if_missing)
     {
-//        m_running = false;
-//        DELETE(m_background);
-        if (NULL != m_db)
+        RWLockGuard<SpinRWLock> guard(m_lock, !create_if_missing);
+        if (m_nss.count(ns) > 0)
         {
-            m_db->close(m_db, NULL);
-            DELETE(m_db);
+            return true;
         }
+        if (!create_if_missing)
+        {
+            return false;
+        }
+        std::stringstream s_table;
+        s_table << WT_TABLE_CONFIG;
+        s_table << "internal_page_max=" << g_wt_conig.block_size << ",";
+        s_table << "leaf_page_max=" << g_wt_conig.block_size << ",";
+        s_table << "leaf_item_max=" << g_wt_conig.block_size / 4 << ",";
+        s_table << "block_compressor=snappy,";
+        s_table << "lsm=(";
+        s_table << "chunk_size=" << g_wt_conig.chunk_size << ",";
+        int bits = g_wt_conig.bloom_bits;
+        s_table << "bloom_bit_count=" << bits << ",";
+        // Approximate the optimal number of hashes
+        s_table << "bloom_hash_count=" << (int) (0.6 * bits) << ",";
+        s_table << "),";
+        int ret;
+        std: string table_name = table_url(ns);
+
+        WT_SESSION *session;
+        std::string table_config = s_table.str();
+        if ((ret = m_db->open_session(m_db, NULL, NULL, &session)) != 0)
+        {
+            LOG_WTERROR(ret);
+            return false;
+        }
+        if ((ret = session->create(session, table_name.c_str(), table_config.c_str())) != 0)
+        {
+            LOG_WTERROR(ret);
+            return false;
+        }
+        if ((ret = session->close(session, NULL)) != 0)
+        {
+            LOG_WTERROR(ret);
+            return false;
+        }
+        m_nss.insert(ns);
+        INFO_LOG("Success to open db:%s", ns.AsString().c_str());
+        return true;
     }
 
     static int __ardb_compare_keys(WT_COLLATOR *collator, WT_SESSION *session, const WT_ITEM *v1, const WT_ITEM *v2, int *cmp)
@@ -287,320 +300,276 @@ namespace ardb
 
     int WiredTigerEngine::Init(const std::string& dir, const Properties& props)
     {
-        std::string init_options = "create,cache_size=500M,statistics=(fast)";
+        std::stringstream s_conn;
+        s_conn << WT_CONN_CONFIG;
+        //if (options.error_if_exists)
+        s_conn << "exclusive,";
+        size_t cache_size = 512 * 1024 * 1024;
+        s_conn << "cache_size=" << cache_size << ",";
+        std::string conn_config = s_conn.str();
+
+        WT_CONNECTION *conn;
+        INFO_LOG("Open: home %s config %s", dir.c_str(), conn_config.c_str());
         int ret = 0;
-        if ((ret = wiredtiger_open(dir.c_str(), NULL, init_options.c_str(), &m_db)) != 0)
+        CHECK_WT_RETURN(ret = ::wiredtiger_open(dir.c_str(), NULL, conn_config.c_str(), &conn));
+        CHECK_WT_RETURN(ret = m_db->add_collator(m_db, "ardb_comparator", &ardb_comparator, NULL));
+
+        WT_SESSION* session = NULL;
+        WT_CURSOR *cursor = NULL;
+        CHECK_WT_RETURN(ret = conn->open_session(conn, NULL, "isolation=snapshot", &session));
+        WT_CURSOR *c;
+        CHECK_WT_RETURN(ret = session->open_cursor(session, "metadata:", NULL, NULL, &c));
+        c->set_key(c, "table:");
+        /* Position on the first table entry */
+        int cmp;
+        ret = c->search_near(c, &cmp);
+        if (ret != 0 || (cmp < 0 && (ret = c->next(c)) != 0))
         {
-            ERROR_LOG("Error connecting to %s: %s", dir.c_str(), wiredtiger_strerror(ret));
-            return -1;
+            //do nothing
         }
-        ret = m_db->add_collator(m_db, "ardb_comparator", &ardb_comparator, NULL);
-        CHECK_WT_RETURN(ret);
+        else
+        {
+            /* Add entries while we are getting "table" URIs. */
+            for (; ret == 0; ret = c->next(c))
+            {
+                const char *key;
+                if ((ret = c->get_key(c, &key)) != 0)
+                {
+                    break;
+                }
+                if (strncmp(key, "table:", strlen("table:")) != 0)
+                {
+                    break;
+                }
+                Data ns;
+                ns.SetString(std::string(key + strlen("table:")), false);
+                m_nss.insert(ns);
+            }
+        }
+        c->close(c);
+        session->close(session, NULL);
         return 0;
     }
 
     int WiredTigerEngine::Put(Context& ctx, const KeyObject& key, const ValueObject& value)
     {
         WiredTigerLocalContext& local_ctx = GetDBLocalContext();
+        WT_CURSOR *cursor = local_ctx.GetKVStore(key.GetNameSpace(), ctx.flags.create_if_notexist);
+        if (NULL == cursor)
+        {
+            return ERR_ENTRY_NOT_EXIST;
+        }
         Buffer& encode_buffer = local_ctx.GetEncodeBuferCache();
         key.Encode(encode_buffer);
         size_t key_len = encode_buffer.ReadableBytes();
         value.Encode(encode_buffer);
         size_t value_len = encode_buffer.ReadableBytes() - key_len;
         WT_ITEM key_item, value_item;
-        key_item.data = (const void *)encode_buffer.GetRawReadBuffer();
+        key_item.data = (const void *) encode_buffer.GetRawReadBuffer();
         key_item.size = key_len;
-        value_item.data = (const void *)(encode_buffer.GetRawReadBuffer() + key_len);
-        local_ctx.iocursor->set_key(local_ctx.iocursor, &key_item);
-        local_ctx.iocursor->set_value(local_ctx.iocursor, &value_item);
-        int ret = local_ctx.iocursor->insert(local_ctx.iocursor);
-        if (0 != ret)
-        {
-            ERROR_LOG("Error write data for reason: %s", wiredtiger_strerror(ret));
-        }
+        value_item.data = (const void *) (encode_buffer.GetRawReadBuffer() + key_len);
+        cursor->set_key(cursor, &key_item);
+        cursor->set_value(cursor, &value_item);
+        int ret = cursor->insert(cursor);
         return ret;
     }
 
     int WiredTigerEngine::PutRaw(Context& ctx, const Data& ns, const Slice& key, const Slice& value)
     {
-
-    }
-
-    int WiredTigerEngine::BeginBatchWrite()
-    {
-        ContextHolder& holder = GetContextHolder();
-        WT_SESSION* session = holder.session;
-        if (NULL == session)
-        {
-            return -1;
-        }
-        holder.AddBatchRef();
-        return 0;
-    }
-    int WiredTigerEngine::CommitBatchWrite()
-    {
-        ContextHolder& holder = GetContextHolder();
-        holder.ReleaseBatchRef();
-//        if (holder.batch_ref == 0)
-//        {
-//            CheckPointOperation* ck = new CheckPointOperation(holder.cond);
-//            m_write_queue.Push(ck);
-//            NotifyBackgroundThread();
-//            ck->Wait();
-//            DELETE(ck);
-//        }
-        return 0;
-    }
-    int WiredTigerEngine::DiscardBatchWrite()
-    {
-        ContextHolder& holder = GetContextHolder();
-        holder.ReleaseBatchRef();
-//        if (holder.batch_ref == 0)
-//        {
-//            CheckPointOperation* ck = new CheckPointOperation(holder.cond);
-//            m_write_queue.Push(ck);
-//            NotifyBackgroundThread();
-//            ck->Wait();
-//            DELETE(ck);
-//        }
-        return 0;
-    }
-
-    void WiredTigerEngine::CompactRange(const Slice& begin, const Slice& end)
-    {
-        ContextHolder& holder = GetContextHolder();
-        WT_SESSION* session = holder.session;
-        if (NULL == session)
-        {
-            return;
-        }
-        session->compact(session, ARDB_TABLE, NULL);
-    }
-
-    void WiredTigerEngine::ContextHolder::AddTranscRef()
-    {
-        trasc_ref++;
-        if (trasc_ref == 1)
-        {
-            int ret = session->begin_transaction(session, "isolation=snapshot");
-            CHECK_WT_RETURN(ret);
-            readonly_transc = true;
-        }
-    }
-    void WiredTigerEngine::ContextHolder::ReleaseTranscRef()
-    {
-        if (trasc_ref > 0)
-        {
-            trasc_ref--;
-            if (0 == trasc_ref)
-            {
-                int ret = session->commit_transaction(session, NULL);
-                CHECK_WT_RETURN(ret);
-                if (!readonly_transc)
-                {
-                    //engine->WaitWriteComplete(*this);
-                }
-            }
-        }
-    }
-
-    void WiredTigerEngine::ContextHolder::AddBatchRef()
-    {
-        batch_ref++;
-        if (batch_ref == 1 && NULL == batch)
-        {
-            batch = create_wiredtiger_cursor(session);
-        }
-    }
-    void WiredTigerEngine::ContextHolder::ReleaseBatchRef()
-    {
-        batch_ref--;
-        if (0 == batch_ref && NULL != batch)
-        {
-            batch->close(batch);
-            batch = NULL;
-        }
-    }
-    void WiredTigerEngine::ContextHolder::IncBatchWriteCount()
-    {
-        batch_write_count++;
-    }
-    void WiredTigerEngine::ContextHolder::RestartBatchWrite()
-    {
-        batch_write_count = 0;
-        if (NULL != batch)
-        {
-            batch->close(batch);
-        }
-        batch = create_wiredtiger_cursor(session);
-    }
-
-    int WiredTigerEngine::Put(Context& ctx, const KeyObject& key, const ValueObject& value)
-    {
-        ContextHolder& holder = GetContextHolder();
-        WT_SESSION* session = holder.session;
-        if (NULL == session)
-        {
-            return -1;
-        }
-//        if (holder.trasc_ref > 0)
-//        {
-//            PutOperation* op = new PutOperation;
-//            op->key.assign((const char*) key.data(), key.size());
-//            op->value.assign((const char*) value.data(), value.size());
-//            m_write_queue.Push(op);
-//            holder.readonly_transc = false;
-//            return 0;
-//        }
-        int ret = 0;
-        WT_CURSOR *cursor = holder.batch == NULL ? create_wiredtiger_cursor(session) : holder.batch;
+        WiredTigerLocalContext& local_ctx = GetDBLocalContext();
+        WT_CURSOR *cursor = local_ctx.GetKVStore(ns, ctx.flags.create_if_notexist);
         if (NULL == cursor)
         {
-            return -1;
+            return ERR_ENTRY_NOT_EXIST;
         }
+
         WT_ITEM key_item, value_item;
-        key_item.data = key.data();
+        key_item.data = (const void *) key.data();
         key_item.size = key.size();
-        value_item.data = value.data();
+        value_item.data = (const void *) (value.data());
         value_item.size = value.size();
         cursor->set_key(cursor, &key_item);
         cursor->set_value(cursor, &value_item);
-        ret = cursor->insert(cursor);
-        if (0 != ret)
-        {
-            ERROR_LOG("Error write data for reason: %s", wiredtiger_strerror(ret));
-            ret = -1;
-        }
-        if (holder.batch == NULL)
-        {
-            ret = cursor->close(cursor);
-            CHECK_WT_RETURN(ret);
-        }
-        else
-        {
-            holder.IncBatchWriteCount();
-            if (holder.batch_write_count >= m_cfg.batch_commit_watermark)
-            {
-                holder.RestartBatchWrite();
-            }
-        }
+        int ret = cursor->insert(cursor);
         return ret;
     }
-    int WiredTigerEngine::Get(const Slice& key, std::string* value, const Options& options)
+
+    int WiredTigerEngine::Get(Context& ctx, const KeyObject& key, ValueObject& value)
     {
-        WT_SESSION* session = GetContextHolder().session;
-        if (NULL == session)
-        {
-            return -1;
-        }
-        WT_CURSOR *cursor = create_wiredtiger_cursor(session);
+        WiredTigerLocalContext& local_ctx = GetDBLocalContext();
+        WT_CURSOR *cursor = local_ctx.GetKVStore(key.GetNameSpace(), false);
         if (NULL == cursor)
         {
-            return -1;
+            return ERR_ENTRY_NOT_EXIST;
         }
-        WT_ITEM key_item, value_item;
-        key_item.data = key.data();
-        key_item.size = key.size();
-        cursor->set_key(cursor, &key_item);
-        int ret = 0;
-        if ((ret = cursor->search(cursor)) == 0)
+        Buffer& key_encode_buffer = local_ctx.GetEncodeBuferCache();
+        key.Encode(key_encode_buffer);
+        WT_ITEM item;
+        item.data = (const void *) (key_encode_buffer.GetRawReadBuffer());
+        item.size = key_encode_buffer.ReadableBytes();
+        cursor->set_key(cursor, &item);
+        int ret;
+        if ((ret = cursor->search(cursor)) == 0 && (ret = cursor->get_value(cursor, &item)) == 0)
         {
-            ret = cursor->get_value(cursor, &value_item);
-            if (0 == ret)
-            {
-                if (NULL != value)
-                {
-                    value->assign((const char*) value_item.data, value_item.size);
-                }
-            }
-            else
-            {
-                CHECK_WT_RETURN(ret);
-            }
+            Buffer valBuffer((char*) item.data, 0, item.size);
+            value.Decode(valBuffer, true);
+            ret = cursor->reset(cursor);
         }
-        cursor->close(cursor);
-        return ret;
+        return WT_ERR(ret);
     }
-    int WiredTigerEngine::Del(const Slice& key, const Options& options)
+
+    int WiredTigerEngine::MultiGet(Context& ctx, const KeyObjectArray& keys, ValueObjectArray& values, ErrCodeArray& errs)
     {
-        ContextHolder& holder = GetContextHolder();
-        WT_SESSION* session = holder.session;
-        if (NULL == session)
+        values.resize(keys.size());
+        errs.resize(keys.size());
+        for (size_t i = 0; i < keys.size(); i++)
         {
-            return -1;
-        }
-//        if (holder.trasc_ref > 0)
-//        {
-//            DelOperation* op = new DelOperation;
-//            op->key.assign((const char*) key.data(), key.size());
-//            m_write_queue.Push(op);
-//            holder.readonly_transc = false;
-//            return 0;
-//        }
-        int ret = 0;
-        WT_CURSOR *cursor = holder.batch == NULL ? create_wiredtiger_cursor(session) : holder.batch;
-        if (NULL == cursor)
-        {
-            return -1;
-        }
-        WT_ITEM key_item;
-        key_item.data = key.data();
-        key_item.size = key.size();
-        cursor->set_key(cursor, &key_item);
-        ret = cursor->remove(cursor);
-        CHECK_WT_RETURN(ret);
-        if (holder.batch == NULL)
-        {
-            cursor->close(cursor);
-            CHECK_WT_RETURN(ret);
-        }
-        else
-        {
-            holder.IncBatchWriteCount();
-            if (holder.batch_write_count >= m_cfg.batch_commit_watermark)
-            {
-                holder.RestartBatchWrite();
-            }
+            int err = Get(ctx, keys[i], values[i]);
+            errs[i] = err;
         }
         return 0;
     }
-
-    Iterator* WiredTigerEngine::Find(const Slice& findkey, const Options& options)
+    int WiredTigerEngine::Del(Context& ctx, const KeyObject& key)
     {
-        ContextHolder& holder = GetContextHolder();
-        WT_SESSION* session = holder.session;
-        if (NULL == session)
-        {
-            return NULL;
-        }
-        int ret, exact;
-        holder.AddTranscRef();
-        WT_CURSOR *cursor = create_wiredtiger_cursor(session);
+        WiredTigerLocalContext& local_ctx = GetDBLocalContext();
+        WT_CURSOR *cursor = local_ctx.GetKVStore(key.GetNameSpace(), false);
         if (NULL == cursor)
         {
-            holder.ReleaseTranscRef();
-            return NULL;
+            return ERR_ENTRY_NOT_EXIST;
         }
-        WT_ITEM key_item;
-        key_item.data = findkey.data();
-        key_item.size = findkey.size();
-        cursor->set_key(cursor, &key_item);
-
-        if ((ret = cursor->search_near(cursor, &exact)) == 0)
+        Buffer& key_encode_buffer = local_ctx.GetEncodeBuferCache();
+        key.Encode(key_encode_buffer);
+        WT_ITEM item;
+        item.data = (const void *) (key_encode_buffer.GetRawReadBuffer());
+        item.size = key_encode_buffer.ReadableBytes();
+        cursor->set_key(cursor, &item);
+        int ret;
+        ret = cursor->remove(cursor);
+        // Reset the WiredTiger cursor so it doesn't keep any pages pinned.
+        // Track failures in debug builds since we don't expect failure, but
+        // don't pass failures on - it's not necessary for correct operation.
+        cursor->reset(cursor);
+        return WT_NERR(ret);
+    }
+    int WiredTigerEngine::Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args)
+    {
+        ValueObject current;
+        int err = Get(ctx, key, current);
+        if (0 == err || ERR_ENTRY_NOT_EXIST == err)
         {
-            if (exact < 0)
+            err = g_db->MergeOperation(key, current, op, const_cast<DataArray&>(args));
+            if (0 == err)
             {
-                ret = cursor->next(cursor);
+                return Put(ctx, key, current);
             }
-            if (0 == ret)
+            if (err == ERR_NOTPERFORMED)
             {
-                return new WiredTigerIterator(this, cursor);
+                err = 0;
             }
         }
-        DEBUG_LOG("Error find data for reason: %s", wiredtiger_strerror(ret));
-        cursor->close(cursor);
-        holder.ReleaseTranscRef();
-        return NULL;
+        return err;
+    }
+    bool WiredTigerEngine::Exists(Context& ctx, const KeyObject& key)
+    {
+        ValueObject val;
+        return Get(ctx, key, val) == 0;
+    }
+    int WiredTigerEngine::BeginTransaction()
+    {
+        /*
+         * do nothing now
+         */
+        return 0;
+    }
+    int WiredTigerEngine::CommitTransaction()
+    {
+        /*
+         * do nothing now
+         */
+        return 0;
+    }
+    int WiredTigerEngine::DiscardTransaction()
+    {
+        /*
+         * do nothing now
+         */
+        return 0;
+    }
+    int WiredTigerEngine::Compact(Context& ctx, const KeyObject& start, const KeyObject& end)
+    {
+        return ERR_NOTSUPPORTED;
+    }
+    int WiredTigerEngine::ListNameSpaces(Context& ctx, DataArray& nss)
+    {
+        RWLockGuard<SpinRWLock> guard(m_lock, true);
+        DataSet::iterator it = m_nss.begin();
+        while (it != m_nss.end())
+        {
+            nss.push_back(*it);
+            it++;
+        }
+        return 0;
+    }
+    int WiredTigerEngine::DropNameSpace(Context& ctx, const Data& ns)
+    {
+        WiredTigerLocalContext& local_ctx = GetDBLocalContext();
+        WT_CURSOR *cursor = local_ctx.GetKVStore(ns, false);
+        if (NULL == cursor)
+        {
+            return ERR_ENTRY_NOT_EXIST;
+        }
+        WT_SESSION *session = local_ctx.wsession;
+        int ret = session->drop(session, table_url(ns), NULL);
+        if (0 == ret)
+        {
+            RWLockGuard<SpinRWLock> guard(m_lock, false);
+            m_nss.erase(ns);
+        }
+        return WT_ERR(ret);
+    }
+    int64_t WiredTigerEngine::EstimateKeysNum(Context& ctx, const Data& ns)
+    {
+        return 0;
+    }
+    Iterator* WiredTigerEngine::Find(Context& ctx, const KeyObject& key)
+    {
+        WiredTigerIterator* iter = NULL;
+        NEW(iter, WiredTigerIterator(this,key.GetNameSpace()));
+        WiredTigerLocalContext& local_ctx = GetDBLocalContext();
+        WT_CURSOR *cursor = local_ctx.GetKVStore(key.GetNameSpace(), false, true);
+        if (NULL == cursor)
+        {
+            iter->MarkValid(false);
+            return iter;
+        }
+        iter->SetCursor(cursor);
+        if (key.GetType() > 0)
+        {
+            if (!ctx.flags.iterate_multi_keys)
+            {
+                if (!ctx.flags.iterate_no_upperbound)
+                {
+                    KeyObject& upperbound_key = iter->IterateUpperBoundKey();
+                    upperbound_key.SetNameSpace(key.GetNameSpace());
+                    if (key.GetType() == KEY_META)
+                    {
+                        upperbound_key.SetType(KEY_END);
+                    }
+                    else
+                    {
+                        upperbound_key.SetType(key.GetType() + 1);
+                    }
+                    upperbound_key.SetKey(key.GetKey());
+                    upperbound_key.CloneStringPart();
+                }
+            }
+            iter->Jump(key);
+        }
+        else
+        {
+            iter->JumpToFirst();
+        }
+        return iter;
     }
 
     static int print_cursor(WT_CURSOR *cursor, std::string& str)
@@ -619,44 +588,191 @@ namespace ardb
         return (ret == WT_NOTFOUND ? 0 : ret);
     }
 
-    const std::string WiredTigerEngine::Stats()
+    void WiredTigerEngine::Stats(Context& ctx, std::string& str)
     {
-        std::string info;
         int major_v, minor_v, patch;
         (void) wiredtiger_version(&major_v, &minor_v, &patch);
-        info.append("WiredTiger version:").append(stringfromll(major_v)).append(".").append(stringfromll(minor_v)).append(".").append(stringfromll(patch)).append(
-                "\r\n");
-        info.append("WiredTiger Init Options:").append(m_cfg.init_options).append("\r\n");
-        info.append("WiredTiger Table Init Options:").append(m_cfg.init_table_options).append("\r\n");
-
-        ContextHolder& holder = m_context.GetValue();
-        WT_SESSION* session = holder.session;
-        if (NULL == session)
-        {
-            return info;
-        }
-        WT_CURSOR *cursor;
-        int ret;
-
-        /*! [statistics database function] */
-        if ((ret = session->open_cursor(session, "statistics:", NULL, NULL, &cursor)) == 0)
-        {
-            print_cursor(cursor, info);
-            cursor->close(cursor);
-        }
-        if ((ret = session->open_cursor(session, "statistics:table:ardb", NULL, NULL, &cursor)) == 0)
-        {
-            print_cursor(cursor, info);
-            cursor->close(cursor);
-        }
-        return info;
-
+        str.append("wiredtiger_version:").append(stringfromll(major_v)).append(".").append(stringfromll(minor_v)).append(".").append(stringfromll(patch)).append("\r\n");
     }
 
-    int WiredTigerEngine::MaxOpenFiles()
+    bool WiredTigerIterator::Valid()
     {
-        //return m_options.max_open_files;
-        return 100;
+        return m_valid && NULL != m_cursor;
+    }
+    void WiredTigerIterator::Next()
+    {
+        int ret = ret = m_cursor->next(m_cursor);
+        if (ret != 0)
+        {
+            m_valid = false;
+            return;
+        }
+        CheckBound();
+    }
+    void WiredTigerIterator::Prev()
+    {
+        int ret = ret = m_cursor->prev(m_cursor);
+        if (ret != 0)
+        {
+            m_valid = false;
+            return;
+        }
+    }
+    void WiredTigerIterator::DoJump(const KeyObject& next)
+    {
+        ClearState();
+        if (NULL == m_cursor)
+        {
+            return;
+        }
+        WiredTigerLocalContext& local_ctx = GetDBLocalContext();
+        Slice key_slice = next.Encode(local_ctx.GetEncodeBuferCache());
+        WT_ITEM item;
+        item.data = (const void*) key_slice.data();
+        item.size = key_slice.size();
+        m_cursor->set_key(m_cursor, &item);
+        int cmp;
+        int ret = m_cursor->search_near(m_cursor, &cmp);
+        if (ret == 0 && cmp < 0)
+        {
+            ret = m_cursor->next(m_cursor);
+        }
+        if (ret != 0)
+        {
+            m_valid = false;
+            return;
+        }
+    }
+    void WiredTigerIterator::Jump(const KeyObject& next)
+    {
+        DoJump(next);
+        if (Valid())
+        {
+            CheckBound();
+        }
+    }
+    void WiredTigerIterator::JumpToFirst()
+    {
+        ClearState();
+        if (NULL == m_cursor)
+        {
+            return;
+        }
+        int ret;
+        if ((ret = m_cursor->reset(m_cursor)) != 0)
+        {
+            m_valid = false;
+            return;
+        }
+        ret = m_cursor->next(m_cursor);
+        if (ret == WT_NOTFOUND)
+        {
+            m_valid = false;
+            return;
+        }
+        else if (ret != 0)
+        {
+            m_valid = false;
+            return;
+        }
+    }
+    void WiredTigerIterator::JumpToLast()
+    {
+        ClearState();
+        if (NULL == m_cursor)
+        {
+            return;
+        }
+        if (m_iterate_upper_bound_key.GetType() > 0)
+        {
+            DoJump(m_iterate_upper_bound_key);
+            if (Valid())
+            {
+                Prev();
+                return;
+            }
+        }
+        int ret;
+        if ((ret = m_cursor->reset(m_cursor)) != 0)
+        {
+            m_valid = false;
+            return;
+        }
+        ret = m_cursor->prev(m_cursor);
+        if (ret == WT_NOTFOUND)
+        {
+            m_valid = false;
+            return;
+        }
+        else if (ret != 0)
+        {
+            m_valid = false;
+            return;
+        }
+    }
+    KeyObject& WiredTigerIterator::Key(bool clone_str)
+    {
+        if (m_key.GetType() > 0)
+        {
+            if (clone_str && m_key.GetKey().IsCStr())
+            {
+                m_key.CloneStringPart();
+            }
+            return m_key;
+        }
+        rocksdb::Slice key = RawKey();
+        Buffer kbuf(const_cast<char*>(key.data()), 0, key.size());
+        m_key.Decode(kbuf, clone_str);
+        m_key.SetNameSpace(m_ns);
+        return m_key;
+    }
+    ValueObject& WiredTigerIterator::Value(bool clone_str)
+    {
+        if (m_value.GetType() > 0)
+        {
+            return m_value;
+        }
+        rocksdb::Slice key = RawValue();
+        Buffer kbuf(const_cast<char*>(key.data()), 0, key.size());
+        m_value.Decode(kbuf, clone_str);
+        return m_value;
+    }
+    Slice WiredTigerIterator::RawKey()
+    {
+        WT_ITEM item;
+        m_cursor->get_key(m_cursor, &item);
+        return Slice((const char*) item.data, item.size);
+    }
+    Slice WiredTigerIterator::RawValue()
+    {
+        WT_ITEM item;
+        m_cursor->get_value(m_cursor, &item);
+        return Slice((const char*) item.data, item.size);
+    }
+    void WiredTigerIterator::ClearState()
+    {
+        m_key.Clear();
+        m_value.Clear();
+        m_valid = true;
+    }
+    void WiredTigerIterator::CheckBound()
+    {
+        if (NULL != m_cursor && m_iterate_upper_bound_key.GetType() > 0)
+        {
+            if (m_valid)
+            {
+                if (Key(false).Compare(m_iterate_upper_bound_key) >= 0)
+                {
+                    m_valid = false;
+                }
+            }
+        }
+    }
+
+    WiredTigerIterator::~WiredTigerIterator()
+    {
+        WiredTigerLocalContext& local_ctx = GetDBLocalContext();
+        local_ctx.RecycleCursor(m_ns, m_cursor);
     }
 
 }

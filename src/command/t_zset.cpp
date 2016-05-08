@@ -190,6 +190,7 @@ OP_NAMESPACE_BEGIN
             meta.SetObjectLen(meta.GetObjectLen() + added);
             SetKeyValue(ctx, key, meta);
         }
+
         if (ctx.transc_err != 0)
         {
             reply.SetErrCode(ctx.transc_err);

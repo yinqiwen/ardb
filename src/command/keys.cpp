@@ -120,7 +120,7 @@ OP_NAMESPACE_BEGIN
                 WARN_LOG("Invalid iterator to fetch max element");
                 return -1;
             }
-            KeyObject& iter_key = iter->Key();
+            KeyObject& iter_key = iter->Key(true);
             if (iter_key.GetType() != ele_type || iter_key.GetKey() != key.GetKey() || iter_key.GetNameSpace() != key.GetNameSpace())
             {
                 DELETE(iter);
@@ -550,7 +550,10 @@ OP_NAMESPACE_BEGIN
              * if the storage engine underly do NOT support custom compact filter,
              * another k/v should stored for the later expire work.
              */
-            //
+            if(!m_engine->GetFeatureSet().support_compactilter)
+            {
+
+            }
         }
         if (old_ttl == ttl)
         {
@@ -728,7 +731,6 @@ OP_NAMESPACE_BEGIN
             iter->Jump(meta_key);
         }
         int removed = 0;
-
         while (NULL != iter && iter->Valid())
         {
             KeyObject& k = iter->Key();

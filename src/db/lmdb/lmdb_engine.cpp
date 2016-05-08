@@ -60,6 +60,8 @@
 #define LMDB_ERR(err)  (MDB_NOTFOUND == err ? ERR_ENTRY_NOT_EXIST:err)
 #define LMDB_NERR(err)  (MDB_NOTFOUND == err ? 0:err)
 
+#define LMDB_META_NAMESPACE "__LMDB_META__"
+
 namespace ardb
 {
     static int LMDBCompareFunc(const MDB_val *a, const MDB_val *b)
@@ -318,6 +320,10 @@ namespace ardb
             dbi = found->second;
             return true;
         }
+        if (!create_if_noexist)
+        {
+            return false;
+        }
         LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
         bool recreate_local_txn = false;
         MDB_txn *txn = local_ctx.txn;
@@ -331,11 +337,26 @@ namespace ardb
         }
         CHECK_RET(mdb_open(txn, ns.AsString().c_str(), create_if_noexist?MDB_CREATE:0, &dbi), false);
         mdb_set_compare(txn, dbi, LMDBCompareFunc);
+
+        std::string ns_key = "ns:" + ns.AsString();
+        std::string ns_val = ns.AsString();
+        MDB_val ns_key_val, ns_val_val;
+        ns_key_val.mv_data = (void *) ns_key.data();
+        ns_key_val.mv_size = ns_key.size();
+        ns_val_val.mv_data =  (void *)ns_val.data();
+        ns_val_val.mv_size = ns_val.size();
+        mdb_put(txn, m_meta_dbi, &ns_key_val, &ns_val_val, 0);
         bool success = true;
         if (0 != mdb_txn_commit(txn))
         {
             success = false;
         }
+
+        if (success)
+        {
+            m_dbis[ns] = dbi;
+        }
+
         if (recreate_local_txn)
         {
             local_ctx.txn = NULL;
@@ -345,43 +366,8 @@ namespace ardb
                 FATAL_LOG("Can NOT create transaction for reason:(%d)%s", err, mdb_strerror(err));
             }
         }
-        if (success)
-        {
-            m_dbis[ns] = dbi;
-        }
         return success;
     }
-
-//    void LMDBEngine::LoadNamespacesFromFile(DataArray& nss)
-//    {
-//        const char* path = NULL;
-//        mdb_env_get_path(m_env, &path);
-//        if (NULL == path)
-//        {
-//            return;
-//        }
-//        std::string content;
-//        file_read_full(path, content);
-//        std::vector<std::string> ss = split_string(content, "\n");
-//        for (size_t i = 0; i < ss.size(); i++)
-//        {
-//            ss[i] = trim_string(ss[i], "\r\n ");
-//            Data ns;
-//            ns.SetString(ss[i], false);
-//            nss.push_back(ns);
-//        }
-//
-//    }
-//    void LMDBEngine::AppendNamespaceToFile(const Data& ns)
-//    {
-//        const char* path = NULL;
-//        mdb_env_get_path(m_env, &path);
-//        if (NULL == path)
-//        {
-//            return;
-//        }
-//        file_append_content(path, ns.AsString() + "\n");
-//    }
 
     int LMDBEngine::Init(const std::string& dir, const Properties& props)
     {
@@ -411,7 +397,41 @@ namespace ardb
             ERROR_LOG("Failed to open mdb:%s", mdb_strerror(rc));
             return -1;
         }
-
+        LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
+        CHECK_RET(mdb_txn_begin(m_env, NULL, 0, &local_ctx.txn), false);
+        rc = mdb_open(local_ctx.txn, LMDB_META_NAMESPACE, MDB_CREATE, &m_meta_dbi);
+        if (0 != rc)
+        {
+            ERROR_LOG("Ailed to open meta error:%s", mdb_strerror(rc));
+            return -1;
+        }
+        Context init_ctx;
+        MDB_cursor* cursor;
+        rc = mdb_cursor_open(local_ctx.txn, m_meta_dbi, &cursor);
+        if (0 != rc)
+        {
+            ERROR_LOG("Failed to create meta cursor for reason:%s", mdb_strerror(rc));
+            return -1;
+        }
+        do
+        {
+            MDB_val key, val;
+            rc = mdb_cursor_get(cursor, &key, &val, MDB_NEXT);
+            if (0 == rc)
+            {
+                std::string ns_key((const char*) key.mv_data, key.mv_size);
+                if (has_prefix(ns_key, "ns:"))
+                {
+                    Data ns;
+                    ns.SetString((const char*) val.mv_data, val.mv_size, true);
+                    MDB_dbi tmp;
+                    GetDBI(init_ctx, ns, false, tmp);
+                    INFO_LOG("Open db:%s success.", ns.AsString().c_str());
+                }
+            }
+        } while (rc == 0);
+        mdb_txn_commit(local_ctx.txn);
+        local_ctx.txn = NULL;
         INFO_LOG("Success to open lmdb at %s", dir.c_str());
         return 0;
     }

@@ -31,8 +31,29 @@
 #define DB_UTILS_HPP_
 
 #include "common/common.hpp"
-#include "types.hpp"
+#include "codec.hpp"
 OP_NAMESPACE_BEGIN
+
+    struct DBLocalContext
+    {
+            Buffer encode_buffer_cache;
+            std::string string_cache;
+            Buffer& GetEncodeBuferCache()
+            {
+                encode_buffer_cache.Clear();
+                return encode_buffer_cache;
+            }
+            Slice GetSlice(const KeyObject& key);
+            void GetSlices(const KeyObject& key, const ValueObject& val, Slice ss[2]);
+            std::string& GetStringCache()
+            {
+                string_cache.clear();
+                return string_cache;
+            }
+            virtual ~DBLocalContext()
+            {
+            }
+    };
     class DBHelper
     {
         public:

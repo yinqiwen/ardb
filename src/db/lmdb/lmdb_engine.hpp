@@ -118,8 +118,6 @@ namespace ardb
             SpinRWLock m_lock;
             friend class LMDBIterator;
             bool GetDBI(Context& ctx, const Data& name, bool create_if_noexist, MDB_dbi& dbi);
-//            void LoadNamespacesFromFile(DataArray& nss);
-//            void AppendNamespaceToFile(const Data& ns);
         public:
             LMDBEngine();
             ~LMDBEngine();
@@ -140,6 +138,13 @@ namespace ardb
             void Stats(Context& ctx, std::string& str);
             int64_t EstimateKeysNum(Context& ctx, const Data& ns);
             Iterator* Find(Context& ctx, const KeyObject& key);
+            const FeatureSet GetFeatureSet()
+            {
+                FeatureSet features;
+                features.support_compactilter = 0;
+                features.support_namespace = 1;
+                return features;
+            }
 
     };
 }

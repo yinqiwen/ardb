@@ -90,5 +90,21 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
+    Slice DBLocalContext::GetSlice(const KeyObject& key)
+    {
+        Buffer& key_encode_buffer = GetEncodeBuferCache();
+        return key.Encode(key_encode_buffer, false, g_engine->GetFeatureSet().support_namespace?false:true);
+    }
+    void DBLocalContext::GetSlices(const KeyObject& key, const ValueObject& val, Slice ss[2])
+    {
+        Buffer& encode_buffer = GetEncodeBuferCache();
+        key.Encode(encode_buffer, false, g_engine->GetFeatureSet().support_namespace?false:true);
+        size_t key_len = encode_buffer.ReadableBytes();
+        val.Encode(encode_buffer);
+        size_t value_len = encode_buffer.ReadableBytes() - key_len;
+        ss[0] = Slice(encode_buffer.GetRawBuffer(), key_len);
+        ss[1] = Slice(encode_buffer.GetRawBuffer() + key_len, value_len);
+    }
+
 OP_NAMESPACE_END
 

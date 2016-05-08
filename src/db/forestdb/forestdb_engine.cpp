@@ -106,17 +106,29 @@ namespace ardb
                     return true;
                 }
                 fdb_config config = fdb_get_default_config();
+                std::string dbfile = g_db->GetConf().data_base_path + "/ardb.fdb";
+//                config.flags = FDB_OPEN_FLAG_RDONLY;
+                config.multi_kv_instances = true;
+                fdb_status fs;
+//                fs = fdb_open(&fdb, dbfile.c_str(), &config);
+//                if(0 == fs)
+//                {
+//                    fdb_kvs_name_list names;
+//                    fs = fdb_get_kvs_name_list(fdb, &names);
+//                    printf("#### %d %d\n", fs, names.num_kvs_names);
+//
+//                }else
+//                {
+//                    printf("###error:%d %p\n", fs,fdb);
+//                }
                 config = fdb_get_default_config();
                 config.multi_kv_instances = true;
-//                config.cleanup_cache_onclose = true;
-//                config.auto_commit = true;
+                config.cleanup_cache_onclose = true;
+                config.auto_commit = true;
                 config.compaction_cb = ardb_fdb_compaction_callback;
-                //config.compaction_mode = FDB_COMPACTION_AUTO;
-
-                std::string dbfile = g_db->GetConf().data_base_path + "/ardb.fdb";
+                config.compaction_mode = FDB_COMPACTION_AUTO;
                 DataArray nss;
                 DBHelper::ListNameSpaces(nss);
-                fdb_status fs;
                 if (nss.empty())
                 {
                     fs = fdb_open(&fdb, dbfile.c_str(), &config);
@@ -595,7 +607,10 @@ namespace ardb
     void ForestDBIterator::Jump(const KeyObject& next)
     {
         DoJump(next);
-        CheckBound();
+        if(Valid())
+        {
+            CheckBound();
+        }
     }
     void ForestDBIterator::JumpToFirst()
     {

@@ -55,6 +55,11 @@ ROCKSDB_PATH=${LIB_PATH}/${ROCKSDB_VER}
 ROCKSDB_FILE=${ROCKSDB_PATH}.tar.gz
 ROCKSDB_LIBA=${ROCKSDB_PATH}/librocksdb.a
 
+LEVELDB_VER=leveldb-1.18
+LEVELDB_PATH=${LIB_PATH}/${LEVELDB_VER}
+LEVELDB_FILE=${LEVELDB_PATH}.tar.gz
+LEVELDB_LIBA=${LEVELDB_PATH}/libleveldb.a
+
 LMDB_VER=LMDB_0.9.18
 LMDB_PATH=${LIB_PATH}/lmdb-${LMDB_VER}/libraries/liblmdb
 LMDB_FILE=${LIB_PATH}/lmdb-${LMDB_VER}.tar.gz
@@ -153,21 +158,31 @@ CORE_OBJECTS :=  config.o cron.o logger.o network.o types.o statistics.o\
 TESTOBJ := ../test/test_main.o
 SERVEROBJ := main.o  
 ROCKSDB_ENGINE :=  db/rocksdb/rocksdb_engine.o 
+LEVELDB_ENGINE :=  db/leveldb/leveldb_engine.o 
 LMDB_ENGINE :=  db/lmdb/lmdb_engine.o   
 FORESTDB_ENGINE :=  db/forestdb/forestdb_engine.o  
+WIREDTIGER_ENGINE :=  db/wiredtiger/wiredtiger_engine.o  
 
 #DIST_LIB = libardb.so
 DIST_LIBA = libardb.a
 
 storage_engine?=rocksdb
 
+ifeq ($(storage_engine), leveldb)
+  STORAGE_ENGINE_OBJ=${LEVELDB_ENGINE}
+  STORAGE_ENGINE=$(LEVELDB_LIBA)
+  STORAGE_ENGINE_PATH=$(LEVELDB_PATH)
+  INCS+=-I${LEVELDB_PATH}/include
+  LIBS:=${LEVELDB_LIBA} ${SNAPPY_LIBA} ${LIBS}
+  CXXFLAGS+=-D__USE_LEVELDB__
+else
 ifeq ($(storage_engine), forestdb)
   STORAGE_ENGINE_OBJ=${FORESTDB_ENGINE}
   STORAGE_ENGINE=$(FORESTDB_LIBA)
   STORAGE_ENGINE_PATH=$(FORESTDB_PATH)
   INCS+=-I${FORESTDB_PATH}/include
   LIBS:=${FORESTDB_LIBA} ${SNAPPY_LIBA} ${LIBS}
-    CXXFLAGS+=-D__USE_FORESTDB__
+  CXXFLAGS+=-D__USE_FORESTDB__
 else
 ifeq ($(storage_engine), lmdb)
   STORAGE_ENGINE_OBJ=${LMDB_ENGINE}
@@ -193,12 +208,12 @@ ifeq ($(storage_engine), wiredtiger)
   LIBS:= ${WIREDTIGER_LIBA} ${SNAPPY_LIBA} ${LIBS} -lrt -ldl
   CXXFLAGS+=-D__USE_WIREDTIGER__
 else
-  $(error Only leveldb/lmdb/rocksdb supported as env storage_engine value)
+  $(error Only leveldb/lmdb/rocksdb/forestdb/wiredtiger supported as env storage_engine value)
 endif
 endif 
 endif
 endif
-
+endif
 
 LAST_ENGINE := $(shell sh -c 'cat .kv_engine 2>&1')
 ifeq ($(storage_engine), $(LAST_ENGINE))
@@ -291,17 +306,18 @@ $(ROCKSDB_LIBA): $(SNAPPY_LIBA) $(ROCKSDB_PATH)
 	CXXFLAGS="-I${SNAPPY_PATH}" CFLAGS="-I${SNAPPY_PATH}" LDFLAGS="${SNAPPY_PATH}/.libs" $(MAKE) static_lib && \
 	echo "<<<<< Done building ROCKSDB"
 
-.PHONY: forestdb
-forestdb: $(FORESTDB_LIBA)
-$(FORESTDB_LIBA): $(SNAPPY_LIBA) $(FORESTDB_PATH)
-	echo ">>>>> Building forestdb" && \
-	echo "<<<<< Done building forestdb"
 
 $(ROCKSDB_PATH):
 	echo ">>>>> Unpacking ROCKSDB" && \
 	cd ${LIB_PATH} && \
 	tar zxf ${ROCKSDB_FILE} && \
 	echo "<<<<< Done unpacking LEVELDB"
+
+.PHONY: forestdb
+forestdb: $(FORESTDB_LIBA)
+$(FORESTDB_LIBA): $(SNAPPY_LIBA) $(FORESTDB_PATH)
+	echo ">>>>> Building forestdb" && \
+	echo "<<<<< Done building forestdb"
 
 .PHONY: lua
 lua: $(LUA_LIBA)

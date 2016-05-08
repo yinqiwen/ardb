@@ -50,8 +50,18 @@ OP_NAMESPACE_BEGIN
             virtual KeyObject& Key(bool clone_str = false) = 0;
             virtual Slice RawKey() = 0;
             virtual Slice RawValue() = 0;
-            virtual ValueObject& Value(bool clone_str= false) = 0;
+            virtual ValueObject& Value(bool clone_str = false) = 0;
             virtual ~Iterator()
+            {
+            }
+    };
+
+    struct FeatureSet
+    {
+            unsigned support_namespace :1;
+            unsigned support_compactilter :1;
+            FeatureSet() :
+                    support_namespace(0), support_compactilter(0)
             {
             }
     };
@@ -59,7 +69,7 @@ OP_NAMESPACE_BEGIN
     class Engine
     {
         public:
-            virtual int PutRaw(Context& ctx, const Data& ns , const Slice& key, const Slice& value) = 0;
+            virtual int PutRaw(Context& ctx, const Data& ns, const Slice& key, const Slice& value) = 0;
             virtual int Put(Context& ctx, const KeyObject& key, const ValueObject& value) = 0;
             virtual int Get(Context& ctx, const KeyObject& key, ValueObject& value) = 0;
             virtual int Del(Context& ctx, const KeyObject& key) = 0;
@@ -83,7 +93,9 @@ OP_NAMESPACE_BEGIN
             virtual int DropNameSpace(Context& ctx, const Data& ns) = 0;
 
             virtual int64_t EstimateKeysNum(Context& ctx, const Data& ns) = 0;
-            virtual void Stats(Context& ctx,std::string& str) = 0;
+            virtual void Stats(Context& ctx, std::string& str) = 0;
+
+            virtual const FeatureSet GetFeatureSet() = 0;
 
             virtual ~Engine()
             {
@@ -128,6 +140,7 @@ OP_NAMESPACE_BEGIN
     int compare_keys(const char* k1, size_t k1_len, const char* k2, size_t k2_len, bool has_ns);
     int compare_keyslices(const Slice& k1, const Slice& k2, bool has_ns);
 
+    extern Engine* g_engine;
 OP_NAMESPACE_END
 
 #endif /* SRC_DB_ENGINE_HPP_ */

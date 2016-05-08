@@ -117,6 +117,13 @@ namespace ardb
             void Stats(Context& ctx, std::string& str);
             int64_t EstimateKeysNum(Context& ctx, const Data& ns);
             Iterator* Find(Context& ctx, const KeyObject& key);
+            const FeatureSet GetFeatureSet()
+            {
+                FeatureSet features;
+                features.support_compactilter = 1;
+                features.support_namespace = 1;
+                return features;
+            }
 
     };
 }
