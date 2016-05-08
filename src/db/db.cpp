@@ -486,50 +486,28 @@ OP_NAMESPACE_BEGIN
 
         std::string dbdir = GetConf().data_base_path + "/" + __ENGINE_NAME__;
         make_dir(dbdir);
+        int err = 0;
 #if defined __USE_LMDB__
         NEW(m_engine, LMDBEngine);
-        if (0 != ((LMDBEngine*) m_engine)->Init(dbdir, GetConf().conf_props))
-        {
-            ERROR_LOG("Failed to init lmdb.");
-            DELETE(m_engine);
-            return -1;
-        }
 #elif defined __USE_ROCKSDB__
         NEW(m_engine, RocksDBEngine);
-        if (0 != ((RocksDBEngine*) m_engine)->Init(dbdir, GetConf().rocksdb_options))
-        {
-            ERROR_LOG("Failed to init rocksdb.");
-            DELETE(m_engine);
-            return -1;
-        }
 #elif defined __USE_LEVELDB__
         NEW(m_engine, LevelDBEngine);
-        if (0 != ((LevelDBEngine*) m_engine)->Init(dbdir, GetConf().conf_props))
-        {
-            ERROR_LOG("Failed to init leveldb.");
-            DELETE(m_engine);
-            return -1;
-        }
 #elif defined __USE_FORESTDB__
         NEW(m_engine, ForestDBEngine);
-        if (0 != ((ForestDBEngine*) m_engine)->Init(dbdir, GetConf().conf_props))
-        {
-            ERROR_LOG("Failed to init forestdb.");
-            DELETE(m_engine);
-            return -1;
-        }
 #elif defined D__USE_WIREDTIGER__
         NEW(m_engine, WiredTigerEngine);
-        if (0 != ((WiredTigerEngine*) m_engine)->Init(dbdir, GetConf().conf_props))
-        {
-            ERROR_LOG("Failed to init wiredtiger.");
-            DELETE(m_engine);
-            return -1;
-        }
 #else
         ERROR_LOG("Unsupported storage engine specified at compile time.");
         return -1;
 #endif
+        err =  m_engine->Init(dbdir, GetConf().conf_props);
+        if(0 != err)
+        {
+            DELETE(m_engine);
+            ERROR_LOG("Failed to init database engine:%s.", __ENGINE_NAME__);
+            return -1;
+        }
         m_starttime = time(NULL);
         g_engine = m_engine;
         return 0;

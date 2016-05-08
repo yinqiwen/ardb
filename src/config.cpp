@@ -277,7 +277,7 @@ OP_NAMESPACE_BEGIN
             }
         }
 
-        conf_get_string(props, "rocksdb.options", rocksdb_options);
+
 
         if (!verify_config(*this))
         {

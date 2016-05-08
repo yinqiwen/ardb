@@ -400,7 +400,7 @@ OP_NAMESPACE_BEGIN
             }
             std::unique_ptr<rocksdb::CompactionFilter> CreateCompactionFilter(const rocksdb::CompactionFilter::Context& context)
             {
-                return std::unique_ptr < rocksdb::CompactionFilter > (new RocksDBCompactionFilter(engine, context));
+                return std::unique_ptr<rocksdb::CompactionFilter>(new RocksDBCompactionFilter(engine, context));
             }
 
             const char* Name() const
@@ -436,8 +436,7 @@ OP_NAMESPACE_BEGIN
             // internal corruption. This will be treated as an error by the library.
             //
             // Also make use of the *logger for error messages.
-            bool FullMerge(const rocksdb::Slice& key, const rocksdb::Slice* existing_value, const std::deque<std::string>& operand_list, std::string* new_value,
-                    rocksdb::Logger* logger) const
+            bool FullMerge(const rocksdb::Slice& key, const rocksdb::Slice* existing_value, const std::deque<std::string>& operand_list, std::string* new_value, rocksdb::Logger* logger) const
             {
 
                 KeyObject key_obj;
@@ -521,8 +520,7 @@ OP_NAMESPACE_BEGIN
             // If there is corruption in the data, handle it in the FullMerge() function,
             // and return false there.  The default implementation of PartialMerge will
             // always return false.
-            bool PartialMergeMulti(const rocksdb::Slice& key, const std::deque<rocksdb::Slice>& operand_list, std::string* new_value,
-                    rocksdb::Logger* logger) const
+            bool PartialMergeMulti(const rocksdb::Slice& key, const std::deque<rocksdb::Slice>& operand_list, std::string* new_value, rocksdb::Logger* logger) const
             {
                 if (operand_list.size() < 2)
                 {
@@ -544,9 +542,7 @@ OP_NAMESPACE_BEGIN
                         WARN_LOG("Invalid merge op at:%u", i);
                         return false;
                     }
-                    if (0
-                            != g_db->MergeOperands(ops[left_pos].GetMergeOp(), ops[left_pos].GetMergeArgs(), ops[1 - left_pos].GetMergeOp(),
-                                    ops[1 - left_pos].GetMergeArgs()))
+                    if (0 != g_db->MergeOperands(ops[left_pos].GetMergeOp(), ops[left_pos].GetMergeArgs(), ops[1 - left_pos].GetMergeOp(), ops[1 - left_pos].GetMergeArgs()))
                     {
                         return false;
                     }
@@ -580,8 +576,7 @@ OP_NAMESPACE_BEGIN
             // multiple times, where each time it only merges two operands.  Developers
             // should either implement PartialMergeMulti, or implement PartialMerge which
             // is served as the helper function of the default PartialMergeMulti.
-            bool PartialMerge(const rocksdb::Slice& key, const rocksdb::Slice& left_operand, const rocksdb::Slice& right_operand, std::string* new_value,
-                    rocksdb::Logger* logger) const
+            bool PartialMerge(const rocksdb::Slice& key, const rocksdb::Slice& left_operand, const rocksdb::Slice& right_operand, std::string* new_value, rocksdb::Logger* logger) const
             {
                 ValueObject left_op, right_op;
                 Buffer left_mergeBuffer(const_cast<char*>(left_operand.data()), 0, left_operand.size());
@@ -652,7 +647,7 @@ OP_NAMESPACE_BEGIN
         return NULL;
     }
 
-    int RocksDBEngine::Init(const std::string& dir, const std::string& conf)
+    int RocksDBEngine::Init(const std::string& dir, const Properties& props)
     {
         static RocksDBComparator comparator;
         m_options.comparator = &comparator;
@@ -660,7 +655,9 @@ OP_NAMESPACE_BEGIN
         m_options.prefix_extractor.reset(new RocksDBPrefixExtractor);
         m_options.compaction_filter_factory.reset(new RocksDBCompactionFilterFactory(this));
         m_options.info_log.reset(new RocksDBLogger);
-        //m_options.statistics
+
+        std::string conf;
+        conf_get_string(props, "rocksdb.options", conf);
         if (DEBUG_ENABLED())
         {
             m_options.info_log_level = rocksdb::DEBUG_LEVEL;
@@ -678,7 +675,7 @@ OP_NAMESPACE_BEGIN
         }
         m_options.OptimizeLevelStyleCompaction();
         m_options.IncreaseParallelism();
-        m_options.stats_dump_period_sec = (unsigned int)g_db->GetConf().statistics_log_period;
+        m_options.stats_dump_period_sec = (unsigned int) g_db->GetConf().statistics_log_period;
         //m_options.statistics = rocksdb::CreateDBStatistics();
         std::vector<std::string> column_families;
         s = rocksdb::DB::ListColumnFamilies(m_options, dir, &column_families);
@@ -1006,7 +1003,7 @@ OP_NAMESPACE_BEGIN
                 //opt.total_order_seek = true;
             }
         }
-        if(ctx.flags.iterate_total_order)
+        if (ctx.flags.iterate_total_order)
         {
             opt.total_order_seek = true;
         }
@@ -1112,8 +1109,7 @@ OP_NAMESPACE_BEGIN
     void RocksDBEngine::Stats(Context& ctx, std::string& all)
     {
         std::string str, version_info;
-        version_info.append("rocksdb_version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(stringfromll(rocksdb::kMinorVersion)).append(
-                ".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
+        version_info.append("rocksdb_version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(stringfromll(rocksdb::kMinorVersion)).append(".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
         all.append(version_info);
         std::map<rocksdb::MemoryUtil::UsageType, uint64_t> usage_by_type;
         std::unordered_set<const rocksdb::Cache*> cache_set;

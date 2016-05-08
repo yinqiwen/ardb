@@ -136,7 +136,6 @@ OP_NAMESPACE_BEGIN
 
             std::string masterauth;
 
-            std::string rocksdb_options;
             std::string redis_compatible_version;
 
             int64 statistics_log_period;

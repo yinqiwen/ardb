@@ -112,7 +112,7 @@ OP_NAMESPACE_BEGIN
         public:
             RocksDBEngine();
             ~RocksDBEngine();
-            int Init(const std::string& dir, const std::string& conf);
+            int Init(const std::string& dir, const Properties& props);
             int Put(Context& ctx, const KeyObject& key, const ValueObject& value);
             int PutRaw(Context& ctx, const Data& ns, const Slice& key, const Slice& value);
             int Get(Context& ctx, const KeyObject& key, ValueObject& value);

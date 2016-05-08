@@ -33,7 +33,6 @@
 #include "lmdb.h"
 #include "db/engine.hpp"
 #include "channel/all_includes.hpp"
-#include "util/config_helper.hpp"
 #include "thread/thread_local.hpp"
 #include "thread/thread_mutex_lock.hpp"
 #include "thread/spin_rwlock.hpp"

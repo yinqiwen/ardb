@@ -32,6 +32,7 @@
 #include "common/common.hpp"
 #include "codec.hpp"
 #include "context.hpp"
+#include "util/config_helper.hpp"
 
 OP_NAMESPACE_BEGIN
 
@@ -69,6 +70,8 @@ OP_NAMESPACE_BEGIN
     class Engine
     {
         public:
+            virtual int Init(const std::string& dir, const Properties& props) = 0;
+
             virtual int PutRaw(Context& ctx, const Data& ns, const Slice& key, const Slice& value) = 0;
             virtual int Put(Context& ctx, const KeyObject& key, const ValueObject& value) = 0;
             virtual int Get(Context& ctx, const KeyObject& key, ValueObject& value) = 0;
