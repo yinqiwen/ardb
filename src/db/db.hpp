@@ -455,6 +455,7 @@ OP_NAMESPACE_BEGIN
             ~Ardb();
     };
     extern Ardb* g_db;
+    extern const char* g_engine_name;
 OP_NAMESPACE_END
 
 #endif /* DB_HPP_ */

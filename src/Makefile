@@ -157,11 +157,13 @@ CORE_OBJECTS :=  config.o cron.o logger.o network.o types.o statistics.o\
         
 TESTOBJ := ../test/test_main.o
 SERVEROBJ := main.o  
+STORAGE_ENGINE_ALL_OBJ := db/*/*.o  
 ROCKSDB_ENGINE :=  db/rocksdb/rocksdb_engine.o 
 LEVELDB_ENGINE :=  db/leveldb/leveldb_engine.o 
 LMDB_ENGINE :=  db/lmdb/lmdb_engine.o   
 FORESTDB_ENGINE :=  db/forestdb/forestdb_engine.o  
 WIREDTIGER_ENGINE :=  db/wiredtiger/wiredtiger_engine.o  
+
 
 #DIST_LIB = libardb.so
 DIST_LIBA = libardb.a
@@ -388,7 +390,7 @@ dist:clean all
 	tar czvf ardb-bin-${ARDB_VERSION}.tar.gz ardb-${ARDB_VERSION}; rm -rf ardb-${ARDB_VERSION};
 
 clean:
-	rm -f  ${CORE_OBJECTS} $(STORAGE_ENGINE_OBJ) $(SERVEROBJ) ${TESTOBJ}\
+	rm -f  ${CORE_OBJECTS} $(SERVEROBJ) ${STORAGE_ENGINE_ALL_OBJ} ${TESTOBJ}\
 	       ardb-test  ardb-server
 
 clobber: clean_deps clean

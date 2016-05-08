@@ -38,21 +38,21 @@
 #include "statistics.hpp"
 #if defined __USE_LMDB__
 #include "lmdb/lmdb_engine.hpp"
-#define __ENGINE_NAME__ "lmdb"
+const char* ardb::g_engine_name = "lmdb";
 #elif defined __USE_ROCKSDB__
 #include "rocksdb/rocksdb_engine.hpp"
-#define __ENGINE_NAME__ "rocksdb"
+const char* ardb::g_engine_name ="rocksdb";
 #elif defined __USE_FORESTDB__
 #include "forestdb/forestdb_engine.hpp"
-#define __ENGINE_NAME__ "forestdb"
+const char* ardb::g_engine_name ="forestdb";
 #elif defined __USE_LEVELDB__
 #include "leveldb/leveldb_engine.hpp"
-#define __ENGINE_NAME__ "leveldb"
+const char* ardb::g_engine_name = "leveldb";
 #elif defined D__USE_WIREDTIGER__
 #include "wiredtiger/wiredtiger_engine.hpp"
-#define __ENGINE_NAME__ "wiredtiger"
+const char* ardb::g_engine_name ="wiredtiger"
 #else
-#define __ENGINE_NAME__ "unknown"
+const char* ardb::g_engine_name = "unknown";
 #endif
 
 /* Command flags. Please check the command table defined in the redis.c file
@@ -484,7 +484,7 @@ OP_NAMESPACE_BEGIN
         }
         ArdbLogger::InitDefaultLogger(m_conf.loglevel, m_conf.logfile);
 
-        std::string dbdir = GetConf().data_base_path + "/" + __ENGINE_NAME__;
+        std::string dbdir = GetConf().data_base_path + "/" + g_engine_name;
         make_dir(dbdir);
         int err = 0;
 #if defined __USE_LMDB__
@@ -501,11 +501,11 @@ OP_NAMESPACE_BEGIN
         ERROR_LOG("Unsupported storage engine specified at compile time.");
         return -1;
 #endif
-        err =  m_engine->Init(dbdir, GetConf().conf_props);
-        if(0 != err)
+        err = m_engine->Init(dbdir, GetConf().conf_props);
+        if (0 != err)
         {
             DELETE(m_engine);
-            ERROR_LOG("Failed to init database engine:%s.", __ENGINE_NAME__);
+            ERROR_LOG("Failed to init database engine:%s.", g_engine_name);
             return -1;
         }
         m_starttime = time(NULL);

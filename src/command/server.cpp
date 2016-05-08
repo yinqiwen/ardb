@@ -172,6 +172,7 @@ namespace ardb
             info.append("# Server\r\n");
             info.append("ardb_version:").append(ARDB_VERSION).append("\r\n");
             info.append("redis_version:").append(GetConf().redis_compatible_version).append("\r\n");
+            info.append("engine:").append(g_engine_name).append("\r\n");
             info.append("ardb_home:").append(GetConf().home).append("\r\n");
             info.append("os:").append(name.sysname).append(" ").append(name.release).append(" ").append(name.machine).append("\r\n");
             char tmp[256];
