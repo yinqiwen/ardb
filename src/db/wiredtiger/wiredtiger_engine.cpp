@@ -33,7 +33,6 @@
 #include "db/db.hpp"
 #include <string.h>
 #include <stdlib.h>
-#include "wiredtiger_extension.cpp"
 
 #define CHECK_WT_RETURN(ret)         do{\
                                        int rc = (ret);\

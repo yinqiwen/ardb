@@ -118,7 +118,7 @@ namespace ardb
             const FeatureSet GetFeatureSet()
             {
                 FeatureSet features;
-                features.support_compactilter = 1;
+                features.support_compactfilter = 1;
                 features.support_namespace = 1;
                 return features;
             }

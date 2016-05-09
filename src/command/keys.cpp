@@ -550,7 +550,7 @@ OP_NAMESPACE_BEGIN
              * if the storage engine underly do NOT support custom compact filter,
              * another k/v should stored for the later expire work.
              */
-            if(!m_engine->GetFeatureSet().support_compactilter)
+            if(!m_engine->GetFeatureSet().support_compactfilter)
             {
 
             }

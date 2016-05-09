@@ -60,9 +60,9 @@ OP_NAMESPACE_BEGIN
     struct FeatureSet
     {
             unsigned support_namespace :1;
-            unsigned support_compactilter :1;
+            unsigned support_compactfilter :1;
             FeatureSet() :
-                    support_namespace(0), support_compactilter(0)
+                    support_namespace(0), support_compactfilter(0)
             {
             }
     };
