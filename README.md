@@ -1,10 +1,18 @@
 # Ardb: A High Performance Persistent NoSql, Full Redis-Protocol Compatibility
 [![Build Status](https://travis-ci.org/yinqiwen/ardb.svg?branch=rocksdb-only)](https://travis-ci.org/yinqiwen/ardb)  
-Ardb is a BSD licensed, redis-protocol compatible persistent nosql, it use [Facebook's RocksDB](https://github.com/facebook/rocksdb) as the backend.
+Ardb is a BSD licensed, redis-protocol compatible persistent nosql, it support multiple storage engines as backend like [Google's LevelDB](https://github.com/google/leveldb), [Facebook's RocksDB](https://github.com/facebook/rocksdb), [OpenLDAP's LMDB](http://symas.com/mdb/), [WiredTiger](http://www.wiredtiger.com/), [Couchbase's ForestDB](https://github.com/couchbase/forestdb), the default backend is [Facebook's RocksDB](https://github.com/facebook/rocksdb).
 
 
 ## Compile
-Just type `make` to compile server & lib & tests.
+Rocksdb is the default storage engine, to compile with rocksdb, just type `make` to compile server & lib & tests.
+
+To use LMDB or LevelDB or WiredTiger as storage engine, you should set env `storage_engine` first.
+	
+	storage_engine=lmdb make
+	storage_engine=leveldb make
+    storage_engine=wiredtiger make
+    storage_engine=forestdb make
+
 
 It should compile to several executables in `src` directory, such as ardb-server, ardb-test etc.
 	
@@ -73,34 +81,8 @@ RocksDB Options:
 
 
 * Note: 
-  - **Ardb uses 1 threads in this benchmark test, since redis is single threaded application. But ardb is actually a multithreaded applcation, you can start the server with more threads by setting 'thread-pool-size' to 2 or higher to increase the performance.**
+  - **Ardb uses 1 threads in this benchmark test, since redis is single threaded application. But ardb is actually a multithreaded applcation, you can start the server with more threads by setting 'thread-pool-size' to 2 or higher to increase the read/write performance.**
          
-
-## Ardb vs Redis(2.8.9) 
- * Unsupported Redis Commands:
-  - DUMP 
-  - MIGRATE
-  - OBJECT
-  - RESTORE
-  - CONFIG RESETSTAT
-  - DEBUG
-  - MONITOR
-  - BITPOS
-  - PUBSUB
- * New Ardb Commands:
-  - CompactDB/CompactAll
-  - BitOPCount
-  - Import
-
-## Misc
-###Memory Usage
-In basho's fork of leveldb [project](https://github.com/basho/leveldb), they give a way to estimate memory usage of a database.
-
-      write_buffer_size*2    
-     + max_open_files*4194304    
-     + (size in NewLRUCache initialization)  
- 
-If you want to limit the total memory usage, you should tweak configuration options whoose names start with `leveldb.` in ardb.conf.
 
 ## Community
 
