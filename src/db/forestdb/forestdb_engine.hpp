@@ -90,18 +90,16 @@ namespace ardb
     class ForestDBEngine: public Engine
     {
         private:
-//            fdb_file_handle* m_meta_db;
-//            fdb_kvs_handle* m_meta_kv;
-//            DataSet m_nss;
-//            SpinRWLock m_lock;
+            DataSet m_nss;
+            SpinRWLock m_lock;
             fdb_kvs_handle* GetKVStore(Context& ctx, const Data& name, bool create_if_noexist);
-//            void AddNamespace(const Data& ns);
-//            int ListNameSpaces(DataArray& nss);
+            void AddNamespace(const Data& ns);
+            bool HaveNamespace(const Data& ns);
             friend class ForestDBLocalContext;
         public:
             ForestDBEngine();
             ~ForestDBEngine();
-            int Init(const std::string& dir, const Properties& props);
+            int Init(const std::string& dir, const std::string& options);
             int Put(Context& ctx, const KeyObject& key, const ValueObject& value);
             int PutRaw(Context& ctx, const Data& ns, const Slice& key, const Slice& value);
             int Get(Context& ctx, const KeyObject& key, ValueObject& value);

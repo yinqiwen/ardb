@@ -28,9 +28,12 @@
  */
 
 #include "wiredtiger_engine.hpp"
+#include "thread/lock_guard.hpp"
 #include "util/file_helper.hpp"
+#include "db/db.hpp"
 #include <string.h>
 #include <stdlib.h>
+#include "wiredtiger_extension.cpp"
 
 #define CHECK_WT_RETURN(ret)         do{\
                                        int rc = (ret);\
@@ -48,40 +51,28 @@
                                          }\
                                        }while(0)
 
-#define ARDB_TABLE "table:ardb"
-#define WT_URI          "table:ardb"
-#define WT_TABLE_CONFIG "type=lsm,split_pct=100,leaf_item_max=1KB," \
-    "lsm=(chunk_size=100MB,bloom_config=(leaf_page_max=8MB)),"
-#define WT_CONN_CONFIG                                                  \
-        "log=(enabled),checkpoint=(wait=180),checkpoint_sync=false,"    \
-        "session_max=8192,mmap=false,"                                  \
-        "transaction_sync=(enabled=true,method=none),create,"
 #define WT_ERR(err)  (WT_NOTFOUND == err ? ERR_ENTRY_NOT_EXIST:err)
 #define WT_NERR(err)  (WT_NOTFOUND == err ? 0:err)
+
 
 namespace ardb
 {
     static WiredTigerEngine* g_wdb = NULL;
-    static WT_CURSOR* create_wiredtiger_cursor(WT_SESSION* session)
-    {
-        WT_CURSOR* cursor = NULL;
-        int ret = session->open_cursor(session,
-        ARDB_TABLE, NULL, "raw", &cursor);
-        if (0 != ret)
-        {
-            ERROR_LOG("Error create cursor for reason: %s", wiredtiger_strerror(ret));
-            return NULL;
-        }
-        return cursor;
-    }
 
     struct WTConfig
     {
-            size_t block_size;
-            size_t chunk_size;
-            size_t bloom_bits;
-            size_t session_max;
+            int64 block_size;
+            int64 chunk_size;
+            int64 cache_size;
+            int64 bloom_bits;
+            int64 session_max;
             bool mmap;
+            std::string compressor;
+            WTConfig() :
+                    block_size(4096), chunk_size(128 * 1024 * 1024), cache_size(512 * 1024 * 1024), bloom_bits(10), session_max(8192), mmap(false), compressor(
+                            "snappy")
+            {
+            }
     };
 
     static WTConfig g_wt_conig;
@@ -107,14 +98,19 @@ namespace ardb
             void RecycleCursor(const Data& ns, WT_CURSOR* cursor)
             {
                 KVTable::iterator found = kv_stores.find(ns);
-                if (found != kv_stores.end() && NULL == found->second)
+                if(found != kv_stores.end())
                 {
-                    found->second = cursor;
+                    if(NULL == found->second)
+                    {
+                        found->second = cursor;
+                        return;
+                    }
+                    if(found->second == cursor)
+                    {
+                        return;
+                    }
                 }
-                else
-                {
-                    cursor->close(cursor);
-                }
+                cursor->close(cursor);
             }
             WT_CURSOR* GetKVStore(const Data& ns, bool create_if_missing, bool acquire = false)
             {
@@ -150,7 +146,7 @@ namespace ardb
                 {
                     kv_stores[ns] = NULL;
                 }
-                return true;
+                return c;
             }
             bool Init()
             {
@@ -247,17 +243,21 @@ namespace ardb
             return false;
         }
         std::stringstream s_table;
-        s_table << WT_TABLE_CONFIG;
+        s_table << "collator=ardb_comparator,";
+        s_table << "type=lsm,split_pct=100,leaf_item_max=1KB,";
+        s_table << "lsm=(chunk_size=100MB,bloom_config=(leaf_page_max=8MB)),";
         s_table << "internal_page_max=" << g_wt_conig.block_size << ",";
         s_table << "leaf_page_max=" << g_wt_conig.block_size << ",";
         s_table << "leaf_item_max=" << g_wt_conig.block_size / 4 << ",";
-        s_table << "block_compressor=snappy,";
+        if(g_wt_conig.compressor != "none")
+        {
+            s_table << "block_compressor=" << g_wt_conig.compressor << ",";
+        }
         s_table << "lsm=(";
         s_table << "chunk_size=" << g_wt_conig.chunk_size << ",";
-        int bits = g_wt_conig.bloom_bits;
-        s_table << "bloom_bit_count=" << bits << ",";
+        s_table << "bloom_bit_count=" << g_wt_conig.bloom_bits << ",";
         // Approximate the optimal number of hashes
-        s_table << "bloom_hash_count=" << (int) (0.6 * bits) << ",";
+        s_table << "bloom_hash_count=" << (int) (0.6 * g_wt_conig.bloom_bits) << ",";
         s_table << "),";
         int ret;
         std: string table_name = table_url(ns);
@@ -284,39 +284,38 @@ namespace ardb
         return true;
     }
 
-    static int __ardb_compare_keys(WT_COLLATOR *collator, WT_SESSION *session, const WT_ITEM *v1, const WT_ITEM *v2, int *cmp)
+    int WiredTigerEngine::Init(const std::string& dir, const std::string& options)
     {
-        const char *s1 = (const char *) v1->data;
-        const char *s2 = (const char *) v2->data;
+        Properties props;
+        parse_conf_content(options, props);
+        conf_get_int64(props, "block_size", g_wt_conig.block_size);
+        conf_get_int64(props, "chunk_size", g_wt_conig.chunk_size);
+        conf_get_int64(props, "cache_size", g_wt_conig.cache_size);
+        conf_get_int64(props, "bloom_bits", g_wt_conig.bloom_bits);
+        conf_get_int64(props, "session_max", g_wt_conig.session_max);
+        conf_get_bool(props, "mmap", g_wt_conig.mmap);
+        conf_get_string(props, "compressor", g_wt_conig.compressor);
 
-        (void) session; /* unused */
-        (void) collator; /* unused */
-
-        *cmp = compare_keys(s1, v1->size, s2, v2->size, false);
-        return (0);
-    }
-    static WT_COLLATOR ardb_comparator =
-    { __ardb_compare_keys, NULL, NULL };
-
-    int WiredTigerEngine::Init(const std::string& dir, const Properties& props)
-    {
         std::stringstream s_conn;
-        s_conn << WT_CONN_CONFIG;
+        s_conn << "log=(enabled),checkpoint=(wait=180),checkpoint_sync=false,";
+        s_conn << "session_max=" << g_wt_conig.session_max << ",";
+        s_conn << "mmap=" << (g_wt_conig.mmap ? "true" : "false") << ",";
+        s_conn << "transaction_sync=(enabled=true,method=none),";
         //if (options.error_if_exists)
-        s_conn << "exclusive,";
-        size_t cache_size = 512 * 1024 * 1024;
-        s_conn << "cache_size=" << cache_size << ",";
+        s_conn << "create,";
+        s_conn << "cache_size=" << g_wt_conig.cache_size;
+        s_conn << ",extensions=[local=(entry=ardb_extension_init)]";
         std::string conn_config = s_conn.str();
 
-        WT_CONNECTION *conn;
-        INFO_LOG("Open: home %s config %s", dir.c_str(), conn_config.c_str());
+        //,extensions=[local=(entry=my_extension_init)]
+        //WT_CONNECTION *conn;
+
         int ret = 0;
-        CHECK_WT_RETURN(ret = ::wiredtiger_open(dir.c_str(), NULL, conn_config.c_str(), &conn));
-        CHECK_WT_RETURN(ret = m_db->add_collator(m_db, "ardb_comparator", &ardb_comparator, NULL));
+        CHECK_WT_RETURN(ret = ::wiredtiger_open(dir.c_str(), NULL, conn_config.c_str(), &m_db));
 
         WT_SESSION* session = NULL;
         WT_CURSOR *cursor = NULL;
-        CHECK_WT_RETURN(ret = conn->open_session(conn, NULL, "isolation=snapshot", &session));
+        CHECK_WT_RETURN(ret = m_db->open_session(m_db, NULL, "isolation=snapshot", &session));
         WT_CURSOR *c;
         CHECK_WT_RETURN(ret = session->open_cursor(session, "metadata:", NULL, NULL, &c));
         c->set_key(c, "table:");
@@ -348,6 +347,8 @@ namespace ardb
         }
         c->close(c);
         session->close(session, NULL);
+        g_wdb = this;
+        INFO_LOG("Open: home %s config %s", dir.c_str(), conn_config.c_str());
         return 0;
     }
 
@@ -368,9 +369,11 @@ namespace ardb
         key_item.data = (const void *) encode_buffer.GetRawReadBuffer();
         key_item.size = key_len;
         value_item.data = (const void *) (encode_buffer.GetRawReadBuffer() + key_len);
+        value_item.size = value_len;
         cursor->set_key(cursor, &key_item);
         cursor->set_value(cursor, &value_item);
         int ret = cursor->insert(cursor);
+        local_ctx.RecycleCursor(key.GetNameSpace(), cursor);
         return ret;
     }
 
@@ -391,6 +394,7 @@ namespace ardb
         cursor->set_key(cursor, &key_item);
         cursor->set_value(cursor, &value_item);
         int ret = cursor->insert(cursor);
+        local_ctx.RecycleCursor(ns, cursor);
         return ret;
     }
 
@@ -415,6 +419,7 @@ namespace ardb
             value.Decode(valBuffer, true);
             ret = cursor->reset(cursor);
         }
+        local_ctx.RecycleCursor(key.GetNameSpace(), cursor);
         return WT_ERR(ret);
     }
 
@@ -449,6 +454,7 @@ namespace ardb
         // Track failures in debug builds since we don't expect failure, but
         // don't pass failures on - it's not necessary for correct operation.
         cursor->reset(cursor);
+        local_ctx.RecycleCursor(key.GetNameSpace(), cursor);
         return WT_NERR(ret);
     }
     int WiredTigerEngine::Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args)
@@ -519,7 +525,7 @@ namespace ardb
             return ERR_ENTRY_NOT_EXIST;
         }
         WT_SESSION *session = local_ctx.wsession;
-        int ret = session->drop(session, table_url(ns), NULL);
+        int ret = session->drop(session, table_url(ns).c_str(), NULL);
         if (0 == ret)
         {
             RWLockGuard<SpinRWLock> guard(m_lock, false);
@@ -592,7 +598,8 @@ namespace ardb
     {
         int major_v, minor_v, patch;
         (void) wiredtiger_version(&major_v, &minor_v, &patch);
-        str.append("wiredtiger_version:").append(stringfromll(major_v)).append(".").append(stringfromll(minor_v)).append(".").append(stringfromll(patch)).append("\r\n");
+        str.append("wiredtiger_version:").append(stringfromll(major_v)).append(".").append(stringfromll(minor_v)).append(".").append(stringfromll(patch)).append(
+                "\r\n");
     }
 
     bool WiredTigerIterator::Valid()
@@ -601,7 +608,8 @@ namespace ardb
     }
     void WiredTigerIterator::Next()
     {
-        int ret = ret = m_cursor->next(m_cursor);
+        ClearState();
+        int ret = m_cursor->next(m_cursor);
         if (ret != 0)
         {
             m_valid = false;
@@ -611,7 +619,8 @@ namespace ardb
     }
     void WiredTigerIterator::Prev()
     {
-        int ret = ret = m_cursor->prev(m_cursor);
+        ClearState();
+        int ret = m_cursor->prev(m_cursor);
         if (ret != 0)
         {
             m_valid = false;
@@ -720,7 +729,7 @@ namespace ardb
             }
             return m_key;
         }
-        rocksdb::Slice key = RawKey();
+        Slice key = RawKey();
         Buffer kbuf(const_cast<char*>(key.data()), 0, key.size());
         m_key.Decode(kbuf, clone_str);
         m_key.SetNameSpace(m_ns);
@@ -732,7 +741,7 @@ namespace ardb
         {
             return m_value;
         }
-        rocksdb::Slice key = RawValue();
+        Slice key = RawValue();
         Buffer kbuf(const_cast<char*>(key.data()), 0, key.size());
         m_value.Decode(kbuf, clone_str);
         return m_value;
@@ -771,8 +780,11 @@ namespace ardb
 
     WiredTigerIterator::~WiredTigerIterator()
     {
-        WiredTigerLocalContext& local_ctx = GetDBLocalContext();
-        local_ctx.RecycleCursor(m_ns, m_cursor);
+        if (NULL != m_cursor)
+        {
+            WiredTigerLocalContext& local_ctx = GetDBLocalContext();
+            local_ctx.RecycleCursor(m_ns, m_cursor);
+        }
     }
 
 }

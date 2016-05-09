@@ -1,5 +1,5 @@
 /*
- *Copyright (c) 2013-2014, yinqiwen <yinqiwen@gmail.com>
+ *Copyright (c) 2013-2016, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
  *Redistribution and use in source and binary forms, with or without
@@ -29,12 +29,12 @@
 #ifndef WIREDTIGER_ENGINE_HPP_
 #define WIREDTIGER_ENGINE_HPP_
 
-#include "engine.hpp"
+#include "db/engine.hpp"
 #include "util/config_helper.hpp"
 #include "thread/thread.hpp"
 #include "thread/thread_local.hpp"
 #include "thread/thread_mutex_lock.hpp"
-#include "util/concurrent_queue.hpp"
+#include "thread/spin_rwlock.hpp"
 #include <stack>
 #include <wiredtiger.h>
 
@@ -107,7 +107,7 @@ namespace ardb
         public:
             WiredTigerEngine();
             ~WiredTigerEngine();
-            int Init(const std::string& dir, const Properties& props);
+            int Init(const std::string& dir, const std::string& options);
             int Put(Context& ctx, const KeyObject& key, const ValueObject& value);
             int PutRaw(Context& ctx, const Data& ns, const Slice& key, const Slice& value);
             int Get(Context& ctx, const KeyObject& key, ValueObject& value);

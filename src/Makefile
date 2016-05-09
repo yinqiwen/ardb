@@ -70,6 +70,11 @@ FORESTDB_PATH=${LIB_PATH}/${FORESTDB_VER}
 FORESTDB_FILE=${LIB_PATH}/${FORESTDB_VER}.tar.gz
 FORESTDB_LIBA=${FORESTDB_PATH}/build/libforestdb.a
 
+WIREDTIGER_VER=wiredtiger-2.8.0
+WIREDTIGER_PATH=${LIB_PATH}/${WIREDTIGER_VER}
+WIREDTIGER_FILE=${LIB_PATH}/${WIREDTIGER_VER}.tar.bz2
+WIREDTIGER_LIBA=${WIREDTIGER_PATH}/.libs/libwiredtiger.a
+
 ZOOKEEPER_VER=zookeeper-3.4.5
 ZOOKEEPER_PATH=${LIB_PATH}/${ZOOKEEPER_VER}
 ZOOKEEPER_FILE=${ZOOKEEPER_PATH}.tar.gz
@@ -128,6 +133,8 @@ MALLOC_LIBA=${JEMALLOC_LIBA}
 DEP_LIBS+=jemalloc
 endif
 
+storage_engine?=rocksdb
+
 LIBS= ${LUA_LIBA} ${MALLOC_LIBA} ${SNAPPY_LIBA} -lpthread
 
 %.o : %.cpp
@@ -156,22 +163,19 @@ CORE_OBJECTS :=  config.o cron.o logger.o network.o types.o statistics.o\
                 $(COMMON_OBJECTS)  $(COMMAND_OBJECTS) $(DB_OBJECTS) 
         
 TESTOBJ := ../test/test_main.o
-SERVEROBJ := main.o  
-STORAGE_ENGINE_ALL_OBJ := db/*/*.o  
-ROCKSDB_ENGINE :=  db/rocksdb/rocksdb_engine.o 
-LEVELDB_ENGINE :=  db/leveldb/leveldb_engine.o 
-LMDB_ENGINE :=  db/lmdb/lmdb_engine.o   
-FORESTDB_ENGINE :=  db/forestdb/forestdb_engine.o  
-WIREDTIGER_ENGINE :=  db/wiredtiger/wiredtiger_engine.o  
+SERVEROBJ := main.o
+
+STORAGE_ENGINE_VPATH=db/${storage_engine}
+STORAGE_ENGINE_CPPFILES := $(foreach dir, $(STORAGE_ENGINE_VPATH), $(wildcard $(dir)/*.cpp))
+STORAGE_ENGINE_CFILES := $(foreach dir, $(STORAGE_ENGINE_VPATH), $(wildcard $(dir)/*.c))
+STORAGE_ENGINE_OBJ := $(patsubst %.cpp, %.o, $(STORAGE_ENGINE_CPPFILES)) $(patsubst %.c, %.o, $(STORAGE_ENGINE_CFILES))
+STORAGE_ENGINE_ALL_OBJ := db/*/*.o   
 
 
 #DIST_LIB = libardb.so
 DIST_LIBA = libardb.a
 
-storage_engine?=rocksdb
-
 ifeq ($(storage_engine), leveldb)
-  STORAGE_ENGINE_OBJ=${LEVELDB_ENGINE}
   STORAGE_ENGINE=$(LEVELDB_LIBA)
   STORAGE_ENGINE_PATH=$(LEVELDB_PATH)
   INCS+=-I${LEVELDB_PATH}/include
@@ -179,7 +183,6 @@ ifeq ($(storage_engine), leveldb)
   CXXFLAGS+=-D__USE_LEVELDB__
 else
 ifeq ($(storage_engine), forestdb)
-  STORAGE_ENGINE_OBJ=${FORESTDB_ENGINE}
   STORAGE_ENGINE=$(FORESTDB_LIBA)
   STORAGE_ENGINE_PATH=$(FORESTDB_PATH)
   INCS+=-I${FORESTDB_PATH}/include
@@ -187,7 +190,6 @@ ifeq ($(storage_engine), forestdb)
   CXXFLAGS+=-D__USE_FORESTDB__
 else
 ifeq ($(storage_engine), lmdb)
-  STORAGE_ENGINE_OBJ=${LMDB_ENGINE}
   STORAGE_ENGINE=$(LMDB_LIBA)
   STORAGE_ENGINE_PATH=$(LMDB_PATH)
   INCS+=-I${LMDB_PATH}
@@ -195,7 +197,6 @@ ifeq ($(storage_engine), lmdb)
   CXXFLAGS+=-D__USE_LMDB__
 else
 ifeq ($(storage_engine), rocksdb)
-  STORAGE_ENGINE_OBJ=${ROCKSDB_ENGINE}
   STORAGE_ENGINE=$(ROCKSDB_LIBA)
   STORAGE_ENGINE_PATH=$(ROCKSDB_PATH)
   INCS+=-I${ROCKSDB_PATH}/include
@@ -203,11 +204,11 @@ ifeq ($(storage_engine), rocksdb)
   CXXFLAGS+=-D__USE_ROCKSDB__ -std=c++11
 else
 ifeq ($(storage_engine), wiredtiger)
-  STORAGE_ENGINE_OBJ=${WIREDTIGER_ENGINE}
   STORAGE_ENGINE=$(WIREDTIGER_LIBA)
   STORAGE_ENGINE_PATH=$(WIREDTIGER_PATH)
   INCS+=-I${WIREDTIGER_PATH}
-  LIBS:= ${WIREDTIGER_LIBA} ${SNAPPY_LIBA} ${LIBS} -lrt -ldl
+  #wiredtiger use dlsym to load extension, must use -rdynamic to export symbol
+  LIBS:= ${WIREDTIGER_LIBA} ${SNAPPY_LIBA} ${LIBS} -rdynamic -lrt -ldl
   CXXFLAGS+=-D__USE_WIREDTIGER__
 else
   $(error Only leveldb/lmdb/rocksdb/forestdb/wiredtiger supported as env storage_engine value)
@@ -313,7 +314,17 @@ $(ROCKSDB_PATH):
 	echo ">>>>> Unpacking ROCKSDB" && \
 	cd ${LIB_PATH} && \
 	tar zxf ${ROCKSDB_FILE} && \
-	echo "<<<<< Done unpacking LEVELDB"
+	echo "<<<<< Done unpacking ROCKSDB"
+	
+.PHONY: wiredtiger
+wiredtiger: $(WIREDTIGER_LIBA)
+$(WIREDTIGER_LIBA): $(SNAPPY_LIBA) 
+	echo ">>>>> Building WiredTiger" && \
+	cd ${LIB_PATH} && \
+	tar zxf ${WIREDTIGER_FILE} && \
+	cd ${WIREDTIGER_PATH} && \
+	./configure && $(MAKE) && \
+	echo "<<<<< Done building WiredTiger"
 
 .PHONY: forestdb
 forestdb: $(FORESTDB_LIBA)
@@ -366,6 +377,7 @@ $(SPARSEHASH_CONFIG):
 	cd ${SPARSEHASH_PATH}; ./configure; \
 	${MAKE} src/sparsehash/internal/sparseconfig.h && \
 	echo ">>>>> Done building sparsehash"
+
 
 clean_db_obj:
 	rm -f db/db.o

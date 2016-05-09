@@ -43,6 +43,11 @@ namespace ardb
 	bool parse_conf_file(const std::string& path, Properties& result,
 			const char* sep = "=");
 	bool conf_get_int64(const Properties& conf, const std::string& name, int64& value, bool ignore_nonexist = false);
+	bool conf_get_size(const Properties& conf, const std::string& name, size_t& value, bool ignore_nonexist = false);
+	bool conf_get_uint64(const Properties& conf, const std::string& name, uint64& value, bool ignore_nonexist = false);
+	bool conf_get_uint16(const Properties& conf, const std::string& name, uint16& value, bool ignore_nonexist = false);
+	bool conf_get_uint32(const Properties& conf, const std::string& name, uint32& value, bool ignore_nonexist = false);
+	bool conf_get_uint8(const Properties& conf, const std::string& name, uint8& value, bool ignore_nonexist = false);
 	bool conf_get_string(const Properties& conf, const std::string& name, std::string& value, bool ignore_nonexist = false);
 	bool conf_get_bool(const Properties& conf, const std::string& name, bool& value, bool ignore_nonexist = false);
 	bool conf_get_double(const Properties& conf, const std::string& name, double& value, bool ignore_nonexist = false);
@@ -57,6 +62,9 @@ namespace ardb
 			const char* sep = "=");
 
 	bool rewrite_conf_file(const std::string& file, const Properties& conf, const char* sep);
+
+	bool parse_conf_content(const std::string& content, Properties& result,
+	            const char* item_sep = ",", const char* key_value_seq = "=");
 }
 
 #endif /* CONFIG_HELPER_HPP_ */

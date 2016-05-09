@@ -647,7 +647,7 @@ OP_NAMESPACE_BEGIN
         return NULL;
     }
 
-    int RocksDBEngine::Init(const std::string& dir, const Properties& props)
+    int RocksDBEngine::Init(const std::string& dir, const std::string& conf)
     {
         static RocksDBComparator comparator;
         m_options.comparator = &comparator;
@@ -655,9 +655,7 @@ OP_NAMESPACE_BEGIN
         m_options.prefix_extractor.reset(new RocksDBPrefixExtractor);
         m_options.compaction_filter_factory.reset(new RocksDBCompactionFilterFactory(this));
         m_options.info_log.reset(new RocksDBLogger);
-
-        std::string conf;
-        conf_get_string(props, "rocksdb.options", conf);
+        m_options.create_if_missing = true;
         if (DEBUG_ENABLED())
         {
             m_options.info_log_level = rocksdb::DEBUG_LEVEL;

@@ -70,7 +70,7 @@ OP_NAMESPACE_BEGIN
     class Engine
     {
         public:
-            virtual int Init(const std::string& dir, const Properties& props) = 0;
+            virtual int Init(const std::string& dir, const std::string& options) = 0;
 
             virtual int PutRaw(Context& ctx, const Data& ns, const Slice& key, const Slice& value) = 0;
             virtual int Put(Context& ctx, const KeyObject& key, const ValueObject& value) = 0;

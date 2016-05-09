@@ -48,9 +48,9 @@ const char* ardb::g_engine_name ="forestdb";
 #elif defined __USE_LEVELDB__
 #include "leveldb/leveldb_engine.hpp"
 const char* ardb::g_engine_name = "leveldb";
-#elif defined D__USE_WIREDTIGER__
+#elif defined __USE_WIREDTIGER__
 #include "wiredtiger/wiredtiger_engine.hpp"
-const char* ardb::g_engine_name ="wiredtiger"
+const char* ardb::g_engine_name ="wiredtiger";
 #else
 const char* ardb::g_engine_name = "unknown";
 #endif
@@ -495,13 +495,17 @@ OP_NAMESPACE_BEGIN
         NEW(m_engine, LevelDBEngine);
 #elif defined __USE_FORESTDB__
         NEW(m_engine, ForestDBEngine);
-#elif defined D__USE_WIREDTIGER__
+#elif defined __USE_WIREDTIGER__
         NEW(m_engine, WiredTigerEngine);
 #else
         ERROR_LOG("Unsupported storage engine specified at compile time.");
         return -1;
 #endif
-        err = m_engine->Init(dbdir, GetConf().conf_props);
+        std::string options_key = g_engine_name ;
+        options_key.append(".options");
+        std::string options_value;
+        conf_get_string(props, options_key, options_value);
+        err = m_engine->Init(dbdir, options_value);
         if (0 != err)
         {
             DELETE(m_engine);
@@ -510,6 +514,7 @@ OP_NAMESPACE_BEGIN
         }
         m_starttime = time(NULL);
         g_engine = m_engine;
+        INFO_LOG("Ardb init engine:%s success.", g_engine_name);
         return 0;
     }
 

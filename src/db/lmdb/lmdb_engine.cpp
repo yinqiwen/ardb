@@ -369,12 +369,14 @@ namespace ardb
         return success;
     }
 
-    int LMDBEngine::Init(const std::string& dir, const Properties& props)
+    int LMDBEngine::Init(const std::string& dir, const std::string& options)
     {
-        conf_get_int64(props, "lmdb.database_maxsize", m_cfg.max_dbsize);
-        conf_get_int64(props, "lmdb.database_maxdbs", m_cfg.max_dbs);
-        conf_get_int64(props, "lmdb.batch_commit_watermark", m_cfg.batch_commit_watermark);
-        conf_get_bool(props, "lmdb.readahead", m_cfg.readahead);
+        Properties props;
+        parse_conf_content(options, props);
+        conf_get_int64(props, "database_maxsize", m_cfg.max_dbsize);
+        conf_get_int64(props, "database_maxdbs", m_cfg.max_dbs);
+        conf_get_int64(props, "batch_commit_watermark", m_cfg.batch_commit_watermark);
+        conf_get_bool(props, "readahead", m_cfg.readahead);
 
         mdb_env_create(&m_env);
         mdb_env_set_maxdbs(m_env, m_cfg.max_dbs);

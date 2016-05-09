@@ -55,22 +55,70 @@ namespace ardb
         return compare_keys((const char*) a, len_a, (const char*) b, len_b, false);
     }
 
-    static fdb_compact_decision ardb_fdb_compaction_callback(fdb_file_handle *fhandle, fdb_compaction_status status, const char *kv_store_name, fdb_doc *doc, uint64_t last_oldfile_offset, uint64_t last_newfile_offset, void *ctx)
+    static fdb_compact_decision ardb_fdb_compaction_callback(fdb_file_handle *fhandle, fdb_compaction_status status, const char *kv_store_name, fdb_doc *doc,
+            uint64_t last_oldfile_offset, uint64_t last_newfile_offset, void *ctx)
     {
+        if (doc->bodylen == 0)
+        {
+            return FDB_CS_DROP_DOC;
+        }
+        Buffer buffer(const_cast<char*>(doc->key), 0, doc->keylen);
+        KeyObject k;
+        if (!k.DecodePrefix(buffer, false))
+        {
+            abort();
+        }
+        if (k.GetType() == KEY_META)
+        {
+            ValueObject meta;
+            Buffer val_buffer(const_cast<char*>(doc->body), 0, doc->bodylen);
+            if (!meta.DecodeMeta(val_buffer))
+            {
+                ERROR_LOG("Failed to decode value of key:%s with type:%u", k.GetKey().AsString().c_str(), meta.GetType());
+                return FDB_CS_KEEP_DOC;
+            }
+            if (meta.GetType() == 0)
+            {
+                ERROR_LOG("Invalid value for key:%s with type:%u", k.GetKey().AsString().c_str(), k.GetType());
+                return FDB_CS_KEEP_DOC;
+            }
+            if (meta.GetMergeOp() != 0)
+            {
+                return FDB_CS_KEEP_DOC;
+            }
+            if (meta.GetTTL() > 0 && meta.GetTTL() <= get_current_epoch_millis())
+            {
+                if (meta.GetType() != KEY_STRING)
+                {
+                    Data ns;
+                    ns.SetString(kv_store_name, false);
+                    g_db->AddExpiredKey(ns, k.GetKey());
+                    return FDB_CS_KEEP_DOC;
+                }
+                else
+                {
+                    return FDB_CS_DROP_DOC;
+                }
+            }
+        }
         return FDB_CS_KEEP_DOC;
     }
 
     static ForestDBEngine* g_fdb_engine = NULL;
+    static std::string g_fdb_dir;
+    static fdb_config g_fdb_config;
 
     struct ForestDBLocalContext
     {
             fdb_file_handle* fdb;
+            fdb_file_handle* metadb;
+            fdb_kvs_handle* metakv;
             typedef TreeMap<Data, fdb_kvs_handle*>::Type KVStoreTable;
             KVStoreTable kv_stores;
             uint32 txn_ref;bool txn_abort;
             Buffer encode_buffer_cache;bool inited;
             ForestDBLocalContext() :
-                    fdb(NULL), txn_ref(0), txn_abort(false), inited(false)
+                    fdb(NULL), metadb(NULL), metakv(NULL), txn_ref(0), txn_abort(false), inited(false)
             {
             }
             fdb_kvs_handle* GetKVStore(const Data& ns, bool create_if_missing)
@@ -80,10 +128,10 @@ namespace ardb
                 {
                     return found->second;
                 }
-//                if (!create_if_missing)
-//                {
-//                    return NULL;
-//                }
+                if (!create_if_missing && !g_fdb_engine->HaveNamespace(ns))
+                {
+                    return NULL;
+                }
                 fdb_kvs_config config = fdb_get_default_kvs_config();
                 config.create_if_missing = create_if_missing;
                 config.custom_cmp = fdb_cmp_callback;
@@ -96,8 +144,27 @@ namespace ardb
                 }
                 INFO_LOG("Success to open db:%s", ns.AsString().c_str());
                 kv_stores[ns] = kvs;
-                DBHelper::AddNameSpace(ns);
+                g_fdb_engine->AddNamespace(ns);
+                std::string ns_key = "ns:" + ns.AsString();
+                std::string ns_val = ns.AsString();
+                fdb_set_kv(metakv, (const void*) ns_key.data(), ns_key.size(), (const void*) (ns_val.data()), ns_val.size());
                 return kvs;
+            }
+            int RemoveKVStore(const Data& ns)
+            {
+                KVStoreTable::iterator found = kv_stores.find(ns);
+                if (found != kv_stores.end())
+                {
+                    fdb_kvs_close(found->second);
+                    kv_stores.erase(found);
+                }
+                int rc = fdb_kvs_remove(fdb, ns.AsString().c_str());
+                if (0 == rc)
+                {
+                    std::string ns_key = "ns:" + ns.AsString();
+                    rc = fdb_del_kv(metakv, (const void*) ns_key.data(), ns_key.size());
+                }
+                return rc;
             }
             bool Init()
             {
@@ -106,32 +173,56 @@ namespace ardb
                     return true;
                 }
                 fdb_config config = fdb_get_default_config();
-                std::string dbfile = g_db->GetConf().data_base_path + "/ardb.fdb";
-//                config.flags = FDB_OPEN_FLAG_RDONLY;
-                config.multi_kv_instances = true;
+                fdb_kvs_config kv_config = fdb_get_default_kvs_config();
+                std::string meta_file = g_fdb_dir + "/ardb.meta";
                 fdb_status fs;
-//                fs = fdb_open(&fdb, dbfile.c_str(), &config);
-//                if(0 == fs)
-//                {
-//                    fdb_kvs_name_list names;
-//                    fs = fdb_get_kvs_name_list(fdb, &names);
-//                    printf("#### %d %d\n", fs, names.num_kvs_names);
-//
-//                }else
-//                {
-//                    printf("###error:%d %p\n", fs,fdb);
-//                }
-                config = fdb_get_default_config();
-                config.multi_kv_instances = true;
-                config.cleanup_cache_onclose = true;
-                config.auto_commit = true;
-                config.compaction_cb = ardb_fdb_compaction_callback;
-                config.compaction_mode = FDB_COMPACTION_AUTO;
+                fs = fdb_open(&metadb, meta_file.c_str(), &config);
                 DataArray nss;
-                DBHelper::ListNameSpaces(nss);
+                if (0 == fs)
+                {
+                    CHECK_EXPR(fs = fdb_kvs_open_default(metadb, &metakv, &kv_config));
+                    if (0 != fs)
+                    {
+                        return false;
+                    }
+                    fdb_iterator* iter = NULL;
+                    fdb_iterator_opt_t opt = FDB_ITR_NO_DELETES;
+                    CHECK_EXPR(fs = fdb_iterator_init(metakv, &iter, NULL, 0, NULL, 0, opt));
+                    if (0 != fs)
+                    {
+                        return false;
+                    }
+                    do
+                    {
+                        fdb_doc tmp;
+                        fdb_doc* doc = &tmp;
+                        CHECK_EXPR(fs = fdb_iterator_get(iter, &doc));
+                        if (fs != FDB_RESULT_SUCCESS)
+                        {
+                            break;
+                        }
+                        std::string key((const char*) doc->key, doc->keylen);
+                        if (has_prefix(key, "ns:"))
+                        {
+                            Data ns;
+                            ns.SetString((const char*) doc->body, doc->bodylen, false);
+                            g_fdb_engine->AddNamespace(ns);
+                            nss.push_back(ns);
+                        }
+                        fdb_doc_free(doc);
+                    } while (fdb_iterator_next(iter) != FDB_RESULT_ITERATOR_FAIL);
+                    fdb_iterator_close(iter);
+                }
+                else
+                {
+                    ERROR_LOG("Failed to open meta db for reason:%s", fdb_error_msg(fs));
+                    return false;
+                }
+                std::string data_file = g_fdb_dir + "/ardb.data";
+                config = g_fdb_config;
                 if (nss.empty())
                 {
-                    fs = fdb_open(&fdb, dbfile.c_str(), &config);
+                    fs = fdb_open(&fdb, data_file.c_str(), &config);
                 }
                 else
                 {
@@ -142,7 +233,7 @@ namespace ardb
                         names[i] = nss[i].CStr();
                         cmps[i] = fdb_cmp_callback;
                     }
-                    fs = fdb_open_custom_cmp(&fdb, dbfile.c_str(), &config, nss.size(), (char **) names, cmps);
+                    fs = fdb_open_custom_cmp(&fdb, data_file.c_str(), &config, nss.size(), (char **) names, cmps);
                     if (0 == fs)
                     {
                         for (size_t i = 0; i < nss.size(); i++)
@@ -157,7 +248,7 @@ namespace ardb
                     return false;
                 }
                 inited = true;
-                INFO_LOG("Success to open forestdb at %s in thread:%d", dbfile.c_str(), pthread_self());
+                INFO_LOG("Success to open forestdb at %s.", data_file.c_str());
                 return true;
             }
 
@@ -214,7 +305,9 @@ namespace ardb
                     fdb_kvs_close(it->second);
                     it++;
                 }
+                fdb_kvs_close(metakv);
                 fdb_close(fdb);
+                fdb_close(metadb);
             }
     };
     static ThreadLocal<ForestDBLocalContext> g_ctx_local;
@@ -236,27 +329,18 @@ namespace ardb
         //Close();
     }
 
-//    void ForestDBEngine::AddNamespace(const Data& ns)
-//    {
-//        RWLockGuard<SpinRWLock> guard(m_lock, false);
-//        fdb_status fs;
-//        std::string key = "ns:" + ns.AsString();
-//        std::string val = ns.AsString();
-//        CHECK_EXPR(fs = fdb_set_kv(m_meta_kv, (const void* ) key.data(), key.size(), (const void* ) val.data(), val.size()));
-//        CHECK_EXPR(fs = fdb_commit(m_meta_db, FDB_COMMIT_NORMAL));
-//        m_nss.insert(ns);
-//    }
-//    int ForestDBEngine::ListNameSpaces(DataArray& nss)
-//    {
-//        DataSet::iterator it = m_nss.begin();
-//        while (it != m_nss.end())
-//        {
-//            Data ns = *it;
-//            nss.push_back(ns);
-//            it++;
-//        }
-//        return 0;
-//    }
+    void ForestDBEngine::AddNamespace(const Data& ns)
+    {
+        RWLockGuard<SpinRWLock> guard(m_lock, false);
+        m_nss.insert(ns);
+    }
+
+    bool ForestDBEngine::HaveNamespace(const Data& ns)
+    {
+        RWLockGuard<SpinRWLock> guard(m_lock, false);
+        return m_nss.count(ns) > 0;
+    }
+
     fdb_kvs_handle* ForestDBEngine::GetKVStore(Context& ctx, const Data& ns, bool create_if_noexist)
     {
         fdb_kvs_handle* kv = NULL;
@@ -265,50 +349,37 @@ namespace ardb
         return kv;
     }
 
-    int ForestDBEngine::Init(const std::string& dir, const Properties& props)
+    int ForestDBEngine::Init(const std::string& dir, const std::string& options)
     {
-//        std::string dbfile = g_db->GetConf().data_base_path + "/ardb.meta.fdb.";
-//        fdb_config config = fdb_get_default_config();
-//        fdb_status fs;
-//        CHECK_EXPR(fs = fdb_open(&m_meta_db, dbfile.c_str(), &config));
-//        if (0 != fs)
-//        {
-//            return fs;
-//        }
-//        fdb_kvs_config kv_conig = fdb_get_default_kvs_config();
-//        CHECK_EXPR(fs = fdb_kvs_open_default(m_meta_db, &m_meta_kv, &kv_conig));
-//        if (0 != fs)
-//        {
-//            return fs;
-//        }
-//        fdb_iterator* iter = NULL;
-//        fdb_iterator_opt_t opt = 0;
-//        CHECK_EXPR(fs = fdb_iterator_init(m_meta_kv, &iter, NULL, 0, NULL, 0, 0x0));
-//        if (0 != fs)
-//        {
-//            return fs;
-//        }
-//        do
-//        {
-//
-//            fdb_doc tmp;
-//            fdb_doc* doc = &tmp;
-//            CHECK_EXPR(fs = fdb_iterator_get(iter, &doc));
-//            if (fs != FDB_RESULT_SUCCESS)
-//            {
-//                break;
-//            }
-//            std::string key((const char*) doc->key, doc->keylen);
-//            if (has_prefix(key, "ns:"))
-//            {
-//                Data ns;
-//                ns.SetString((const char*) doc->body, doc->bodylen, false);
-//                m_nss.insert(ns);
-//            }
-//            fdb_doc_free(doc);
-//        } while (fdb_iterator_next(iter) != FDB_RESULT_ITERATOR_FAIL);
-//        fdb_iterator_close(iter);
-        return 0;
+        g_fdb_dir = dir;
+        g_fdb_config = fdb_get_default_config();
+        g_fdb_config.multi_kv_instances = true;
+        g_fdb_config.compaction_cb = ardb_fdb_compaction_callback;
+        g_fdb_config.compaction_mode = FDB_COMPACTION_AUTO;
+        Properties props;
+        parse_conf_content(options, props);
+        conf_get_uint16(props, "chunksize", g_fdb_config.chunksize);
+        conf_get_uint32(props, "blocksize", g_fdb_config.blocksize);
+        conf_get_uint64(props, "buffercache_size", g_fdb_config.buffercache_size);
+        conf_get_uint64(props, "wal_threshold", g_fdb_config.wal_threshold);
+        conf_get_bool(props, "wal_flush_before_commit", g_fdb_config.wal_flush_before_commit);
+        conf_get_bool(props, "auto_commit", g_fdb_config.auto_commit);
+        conf_get_uint32(props, "purging_interval", g_fdb_config.purging_interval);
+        conf_get_uint32(props, "compaction_buf_maxsize", g_fdb_config.compaction_buf_maxsize);
+        conf_get_bool(props, "cleanup_cache_onclose", g_fdb_config.cleanup_cache_onclose);
+        conf_get_bool(props, "compress_document_body", g_fdb_config.compress_document_body);
+        conf_get_uint64(props, "compaction_minimum_filesize", g_fdb_config.compaction_minimum_filesize);
+        conf_get_uint64(props, "compactor_sleep_duration", g_fdb_config.compactor_sleep_duration);
+        conf_get_uint64(props, "prefetch_duration", g_fdb_config.prefetch_duration);
+        conf_get_uint16(props, "num_wal_partitions", g_fdb_config.num_wal_partitions);
+        conf_get_uint16(props, "num_bcache_partitions", g_fdb_config.num_bcache_partitions);
+        conf_get_uint32(props, "compaction_cb_mask", g_fdb_config.compaction_cb_mask);
+        conf_get_size(props, "max_writer_lock_prob", g_fdb_config.max_writer_lock_prob);
+        conf_get_size(props, "num_compactor_threads",  g_fdb_config.num_compactor_threads);
+        conf_get_size(props, "num_bgflusher_threads",  g_fdb_config.num_bgflusher_threads);
+        conf_get_uint8(props, "compaction_threshold",  g_fdb_config.compaction_threshold);
+        ForestDBLocalContext& local_ctx = GetDBLocalContext();
+        return local_ctx.Init() ? 0 : -1;
     }
 
     int ForestDBEngine::Put(Context& ctx, const KeyObject& key, const ValueObject& value)
@@ -440,22 +511,30 @@ namespace ardb
     }
     int ForestDBEngine::ListNameSpaces(Context& ctx, DataArray& nss)
     {
+        RWLockGuard<SpinRWLock> guard(m_lock, false);
+        DataSet::iterator it = m_nss.begin();
+        while (it != m_nss.end())
+        {
+            nss.push_back(*it);
+            it++;
+        }
         return 0;
     }
     int ForestDBEngine::DropNameSpace(Context& ctx, const Data& ns)
     {
         int rc = 0;
+        RWLockGuard<SpinRWLock> guard(m_lock, true);
         ForestDBLocalContext& local_ctx = GetDBLocalContext();
         CHECK_EXPR(rc = fdb_kvs_remove(local_ctx.fdb, ns.AsString().c_str()));
-        if(0 == rc)
+        if (0 == rc)
         {
-            DBHelper::DelNamespace(ns);
+            m_nss.erase(ns);
         }
         return rc;
     }
     int64_t ForestDBEngine::EstimateKeysNum(Context& ctx, const Data& ns)
     {
-        return 0;
+        return -1;
     }
 
     Iterator* ForestDBEngine::Find(Context& ctx, const KeyObject& key)
@@ -526,28 +605,6 @@ namespace ardb
         {
             stat_info.append("forestdb_file_version:").append(fdb_get_file_version(local_ctx.fdb)).append("\r\n");
         }
-
-//        DataArray nss;
-//        ListNameSpaces(ctx, nss);
-//        for (size_t i = 0; i < nss.size(); i++)
-//        {
-//            MDB_dbi dbi;
-//            if (GetDBI(ctx, nss[i], false, dbi))
-//            {
-//                stat_info.append("\r\nDB[").append(nss[i].AsString()).append("] Stats:\r\n");
-//                MDB_stat stat;
-//                ForestDBLocalContext& local_ctx = g_ctx_local.GetValue();
-//                local_ctx.AcquireTransanction();
-//                mdb_stat(local_ctx.txn, dbi, &stat);
-//                local_ctx.TryReleaseTransanction(true, false);
-//                stat_info.append("ms_psize:").append(stringfromll(stat.ms_psize)).append("\r\n");
-//                stat_info.append("ms_depth:").append(stringfromll(stat.ms_depth)).append("\r\n");
-//                stat_info.append("ms_branch_pages:").append(stringfromll(stat.ms_branch_pages)).append("\r\n");
-//                stat_info.append("ms_leaf_pages:").append(stringfromll(stat.ms_leaf_pages)).append("\r\n");
-//                stat_info.append("ms_overflow_pages:").append(stringfromll(stat.ms_overflow_pages)).append("\r\n");
-//                stat_info.append("ms_entries:").append(stringfromll(stat.ms_entries)).append("\r\n");
-//            }
-//        }
     }
 
     void ForestDBIterator::ClearState()
@@ -607,7 +664,7 @@ namespace ardb
     void ForestDBIterator::Jump(const KeyObject& next)
     {
         DoJump(next);
-        if(Valid())
+        if (Valid())
         {
             CheckBound();
         }

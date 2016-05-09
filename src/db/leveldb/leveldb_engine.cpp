@@ -213,17 +213,19 @@ namespace ardb
         DELETE(m_options.filter_policy);
     }
 
-    int LevelDBEngine::Init(const std::string& dir, const Properties& props)
+    int LevelDBEngine::Init(const std::string& dir, const std::string& options)
     {
-        conf_get_int64(props, "leveldb.block_cache_size", m_cfg.block_cache_size);
-        conf_get_int64(props, "leveldb.write_buffer_size", m_cfg.write_buffer_size);
-        conf_get_int64(props, "leveldb.max_open_files", m_cfg.max_open_files);
-        conf_get_int64(props, "leveldb.block_size", m_cfg.block_size);
-        conf_get_int64(props, "leveldb.block_restart_interval", m_cfg.block_restart_interval);
-        conf_get_int64(props, "leveldb.bloom_bits", m_cfg.bloom_bits);
-        conf_get_int64(props, "leveldb.batch_commit_watermark", m_cfg.batch_commit_watermark);
-        conf_get_string(props, "leveldb.compression", m_cfg.compression);
-        conf_get_bool(props, "leveldb.logenable", m_cfg.logenable);
+        Properties props;
+        parse_conf_content(options, props);
+        conf_get_int64(props, "block_cache_size", m_cfg.block_cache_size);
+        conf_get_int64(props, "write_buffer_size", m_cfg.write_buffer_size);
+        conf_get_int64(props, "max_open_files", m_cfg.max_open_files);
+        conf_get_int64(props, "block_size", m_cfg.block_size);
+        conf_get_int64(props, "block_restart_interval", m_cfg.block_restart_interval);
+        conf_get_int64(props, "bloom_bits", m_cfg.bloom_bits);
+        conf_get_int64(props, "batch_commit_watermark", m_cfg.batch_commit_watermark);
+        conf_get_string(props, "compression", m_cfg.compression);
+        conf_get_bool(props, "logenable", m_cfg.logenable);
 
         static LevelDBComparator comparator;
         m_options.create_if_missing = true;

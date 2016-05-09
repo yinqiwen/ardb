@@ -59,7 +59,7 @@ OP_NAMESPACE_BEGIN
         /*
          * Reserver 20 types
          */
-//        KEY_TTL_SORT = 29,
+        KEY_TTL_SORT = 29,
         KEY_MERGE = 30,
         KEY_END = 31, /* max value for 1byte */
     };

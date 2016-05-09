@@ -128,6 +128,61 @@ namespace ardb
         return true;
     }
 
+    bool conf_get_uint16(const Properties& conf, const std::string& name, uint16& value, bool ignore_nonexist)
+    {
+        int64 v;
+        if (!conf_get_int64(conf, name, v, ignore_nonexist) || v < 0 || v >= UINT16_MAX)
+        {
+            return false;
+        }
+        value = (uint16) v;
+        return true;
+    }
+
+    bool conf_get_uint32(const Properties& conf, const std::string& name, uint32& value, bool ignore_nonexist)
+    {
+        int64 v;
+        if (!conf_get_int64(conf, name, v, ignore_nonexist) || v < 0 || v >= UINT32_MAX)
+        {
+            return false;
+        }
+        value = (uint32) v;
+        return true;
+    }
+
+    bool conf_get_uint8(const Properties& conf, const std::string& name, uint8& value, bool ignore_nonexist)
+    {
+        int64 v;
+        if (!conf_get_int64(conf, name, v, ignore_nonexist) || v < 0 || v >= UINT8_MAX)
+        {
+            return false;
+        }
+        value = (uint8) v;
+        return true;
+    }
+
+    bool conf_get_size(const Properties& conf, const std::string& name, size_t& value, bool ignore_nonexist)
+    {
+        int64 v;
+        if (!conf_get_int64(conf, name, v, ignore_nonexist) || v < 0)
+        {
+            return false;
+        }
+        value = (size_t) v;
+        return true;
+    }
+
+    bool conf_get_uint64(const Properties& conf, const std::string& name, uint64& value, bool ignore_nonexist)
+    {
+        int64 v;
+        if (!conf_get_int64(conf, name, v, ignore_nonexist) || v < 0)
+        {
+            return false;
+        }
+        value = (uint64) v;
+        return true;
+    }
+
     bool conf_get_int64(const Properties& conf, const std::string& name, int64& value, bool ignore_nonexist)
     {
         Properties::const_iterator found = conf.find(name);
@@ -352,7 +407,7 @@ namespace ardb
                 for (size_t i = 0; i < conf_items.size(); i++)
                 {
                     fprintf(rewrite_fp, "%s%s", key, sep);
-                    for(size_t j = 0; j < conf_items[i].size(); j++)
+                    for (size_t j = 0; j < conf_items[i].size(); j++)
                     {
                         fprintf(rewrite_fp, "%s%s", conf_items[i][j].c_str(), sep);
                     }
@@ -374,7 +429,7 @@ namespace ardb
             for (size_t i = 0; i < conf_items.size(); i++)
             {
                 fprintf(rewrite_fp, "%s%s", key.c_str(), sep);
-                for(size_t j = 0; j < conf_items[i].size(); j++)
+                for (size_t j = 0; j < conf_items[i].size(); j++)
                 {
                     fprintf(rewrite_fp, "%s%s", conf_items[i][j].c_str(), sep);
                 }
@@ -384,6 +439,21 @@ namespace ardb
         }
         fclose(rewrite_fp);
         rename(tmp_file.c_str(), file.c_str());
+        return true;
+    }
+
+    bool parse_conf_content(const std::string& content, Properties& result, const char* item_sep, const char* key_value_seq)
+    {
+        std::vector<std::string> ss = split_string(content, item_sep);
+        for (size_t i = 0; i < ss.size(); i++)
+        {
+            std::vector<std::string> kv = split_string(ss[i], key_value_seq);
+            if (kv.size() != 2)
+            {
+                return false;
+            }
+            conf_set(result, trim_string(kv[0], "\t\r\n "), trim_string(kv[1], "\t\r\n "));
+        }
         return true;
     }
 }
