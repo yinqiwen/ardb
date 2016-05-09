@@ -238,14 +238,17 @@ OP_NAMESPACE_BEGIN
     int Ardb::HIterate(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
+
         reply.ReserveMember(0);
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_META, keystr);
         Iterator* iter = m_engine->Find(ctx, key);
+
         bool checked_meta = false;
         while (NULL != iter && iter->Valid())
         {
             KeyObject& field = iter->Key();
+
             if (!checked_meta)
             {
                 if (field.GetType() == KEY_META && field.GetKey() == key.GetKey())
@@ -269,6 +272,7 @@ OP_NAMESPACE_BEGIN
             {
                 break;
             }
+
             if (cmd.GetType() == REDIS_CMD_HKEYS || cmd.GetType() == REDIS_CMD_HGETALL)
             {
                 RedisReply& r = reply.AddMember();
@@ -550,6 +554,7 @@ OP_NAMESPACE_BEGIN
             SetKeyValue(ctx, keys[1], vals[1]);
         }
         err = ctx.transc_err;
+
         if (0 != err)
         {
             reply.SetErrCode(err);

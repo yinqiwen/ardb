@@ -115,6 +115,7 @@ OP_NAMESPACE_BEGIN
         {
             return 0;
         }
+
         if (meta.GetType() == 0)
         {
             if (xx)

@@ -40,7 +40,7 @@
     int __rc__ = expr; \
     if (FDB_RESULT_SUCCESS != __rc__)\
     {           \
-       ERROR_LOG("forestdb operation:%s error:%s at line:%u", #expr,  fdb_error_msg((fdb_status)__rc__), __LINE__); \
+       ERROR_LOG("forestdb operation:%s error:(%d)%s at line:%u", #expr, __rc__, fdb_error_msg((fdb_status)__rc__), __LINE__); \
     }\
 }while(0)
 #define DEFAULT_LMDB_LOCAL_MULTI_CACHE_SIZE 10
@@ -55,14 +55,13 @@ namespace ardb
         return compare_keys((const char*) a, len_a, (const char*) b, len_b, false);
     }
 
-    static fdb_compact_decision ardb_fdb_compaction_callback(fdb_file_handle *fhandle, fdb_compaction_status status, const char *kv_store_name, fdb_doc *doc,
-            uint64_t last_oldfile_offset, uint64_t last_newfile_offset, void *ctx)
+    static fdb_compact_decision ardb_fdb_compaction_callback(fdb_file_handle *fhandle, fdb_compaction_status status, const char *kv_store_name, fdb_doc *doc, uint64_t last_oldfile_offset, uint64_t last_newfile_offset, void *ctx)
     {
         if (doc->bodylen == 0)
         {
             return FDB_CS_DROP_DOC;
         }
-        Buffer buffer(const_cast<char*>(doc->key), 0, doc->keylen);
+        Buffer buffer((char*) (doc->key), 0, doc->keylen);
         KeyObject k;
         if (!k.DecodePrefix(buffer, false))
         {
@@ -71,7 +70,7 @@ namespace ardb
         if (k.GetType() == KEY_META)
         {
             ValueObject meta;
-            Buffer val_buffer(const_cast<char*>(doc->body), 0, doc->bodylen);
+            Buffer val_buffer((char*) (doc->body), 0, doc->bodylen);
             if (!meta.DecodeMeta(val_buffer))
             {
                 ERROR_LOG("Failed to decode value of key:%s with type:%u", k.GetKey().AsString().c_str(), meta.GetType());
@@ -108,6 +107,44 @@ namespace ardb
     static std::string g_fdb_dir;
     static fdb_config g_fdb_config;
 
+    struct LocalSnapshot
+    {
+            fdb_kvs_handle* snapshot;
+            uint32_t ref;
+            LocalSnapshot() :
+                    snapshot(NULL), ref(0)
+            {
+            }
+            fdb_kvs_handle* Get(fdb_kvs_handle* kv)
+            {
+                ref++;
+                if (snapshot == NULL)
+                {
+                    fdb_status fs;
+                    CHECK_EXPR(fs = fdb_snapshot_open(kv, &snapshot, FDB_SNAPSHOT_INMEM));
+                }
+                return snapshot;
+            }
+            fdb_kvs_handle* Peek()
+            {
+                return snapshot;
+            }
+            void Release()
+            {
+                if (snapshot == NULL)
+                {
+                    return;
+                }
+                ref--;
+                if (ref <= 0)
+                {
+                    fdb_kvs_close(snapshot);
+                    snapshot = NULL;
+                    ref = 0;
+                }
+            }
+    };
+
     struct ForestDBLocalContext
     {
             fdb_file_handle* fdb;
@@ -116,7 +153,9 @@ namespace ardb
             typedef TreeMap<Data, fdb_kvs_handle*>::Type KVStoreTable;
             KVStoreTable kv_stores;
             uint32 txn_ref;bool txn_abort;
-            Buffer encode_buffer_cache;bool inited;
+            Buffer encode_buffer_cache;
+            LocalSnapshot snapshot;
+            bool inited;
             ForestDBLocalContext() :
                     fdb(NULL), metadb(NULL), metakv(NULL), txn_ref(0), txn_abort(false), inited(false)
             {
@@ -147,7 +186,8 @@ namespace ardb
                 g_fdb_engine->AddNamespace(ns);
                 std::string ns_key = "ns:" + ns.AsString();
                 std::string ns_val = ns.AsString();
-                fdb_set_kv(metakv, (const void*) ns_key.data(), ns_key.size(), (const void*) (ns_val.data()), ns_val.size());
+                CHECK_EXPR(fs = fdb_set_kv(metakv, (const void* ) ns_key.data(), ns_key.size(), (const void* ) (ns_val.data()), ns_val.size()));
+                CHECK_EXPR(fs = fdb_commit(metadb, FDB_COMMIT_NORMAL));
                 return kvs;
             }
             int RemoveKVStore(const Data& ns)
@@ -162,7 +202,8 @@ namespace ardb
                 if (0 == rc)
                 {
                     std::string ns_key = "ns:" + ns.AsString();
-                    rc = fdb_del_kv(metakv, (const void*) ns_key.data(), ns_key.size());
+                    CHECK_EXPR(rc = fdb_del_kv(metakv, (const void* ) ns_key.data(), ns_key.size()));
+                    CHECK_EXPR(rc = fdb_commit(metadb, FDB_COMMIT_NORMAL));
                 }
                 return rc;
             }
@@ -186,7 +227,7 @@ namespace ardb
                         return false;
                     }
                     fdb_iterator* iter = NULL;
-                    fdb_iterator_opt_t opt = FDB_ITR_NO_DELETES;
+                    fdb_iterator_opt_t opt = FDB_ITR_NONE;
                     CHECK_EXPR(fs = fdb_iterator_init(metakv, &iter, NULL, 0, NULL, 0, opt));
                     if (0 != fs)
                     {
@@ -194,8 +235,7 @@ namespace ardb
                     }
                     do
                     {
-                        fdb_doc tmp;
-                        fdb_doc* doc = &tmp;
+                        fdb_doc* doc = NULL;
                         CHECK_EXPR(fs = fdb_iterator_get(iter, &doc));
                         if (fs != FDB_RESULT_SUCCESS)
                         {
@@ -205,7 +245,7 @@ namespace ardb
                         if (has_prefix(key, "ns:"))
                         {
                             Data ns;
-                            ns.SetString((const char*) doc->body, doc->bodylen, false);
+                            ns.SetString((const char*) doc->body, doc->bodylen, true);
                             g_fdb_engine->AddNamespace(ns);
                             nss.push_back(ns);
                         }
@@ -226,6 +266,7 @@ namespace ardb
                 }
                 else
                 {
+
                     const char* names[nss.size()];
                     fdb_custom_cmp_variable cmps[nss.size()];
                     for (size_t i = 0; i < nss.size(); i++)
@@ -257,7 +298,7 @@ namespace ardb
                 int rc = 0;
                 if (0 == txn_ref)
                 {
-                    rc = fdb_begin_transaction(fdb, FDB_ISOLATION_READ_COMMITTED);
+                    CHECK_EXPR(rc = fdb_begin_transaction(fdb, FDB_ISOLATION_READ_COMMITTED));
                     txn_abort = false;
                     txn_ref = 0;
                 }
@@ -273,7 +314,6 @@ namespace ardb
                 if (txn_ref > 0)
                 {
                     txn_ref--;
-                    //printf("#### %d %d %d \n", txn_ref, txn_abort, write_dispatched);
                     if (!txn_abort)
                     {
                         txn_abort = !success;
@@ -375,10 +415,10 @@ namespace ardb
         conf_get_uint16(props, "num_bcache_partitions", g_fdb_config.num_bcache_partitions);
         conf_get_uint32(props, "compaction_cb_mask", g_fdb_config.compaction_cb_mask);
         conf_get_size(props, "max_writer_lock_prob", g_fdb_config.max_writer_lock_prob);
-        conf_get_size(props, "num_compactor_threads",  g_fdb_config.num_compactor_threads);
-        conf_get_size(props, "num_bgflusher_threads",  g_fdb_config.num_bgflusher_threads);
-        conf_get_uint8(props, "compaction_threshold",  g_fdb_config.compaction_threshold);
-        ForestDBLocalContext& local_ctx = GetDBLocalContext();
+        conf_get_size(props, "num_compactor_threads", g_fdb_config.num_compactor_threads);
+        conf_get_size(props, "num_bgflusher_threads", g_fdb_config.num_bgflusher_threads);
+        conf_get_uint8(props, "compaction_threshold", g_fdb_config.compaction_threshold);
+        ForestDBLocalContext& local_ctx = g_ctx_local.GetValue();
         return local_ctx.Init() ? 0 : -1;
     }
 
@@ -433,6 +473,11 @@ namespace ardb
             value.Decode(valBuffer, true);
             free(val);
         }
+        if(key.GetType() == 11)
+        {
+            printf("####%p\n", kv);
+            printf("###Get %s:%s %d %s %d %d\n", key.GetNameSpace().AsString().c_str(),key.GetKey().AsString().c_str(), key.GetType(), key.GetElement(0).AsString().c_str(), fs, key_len);
+        }
         return FORESTDB_ERR(fs);
     }
 
@@ -458,8 +503,16 @@ namespace ardb
         Buffer& encode_buffer = local_ctx.GetEncodeBuferCache();
         key.Encode(encode_buffer);
         size_t key_len = encode_buffer.ReadableBytes();
-        fdb_status fs = fdb_del_kv(kv, (const void*) encode_buffer.GetRawBuffer(), key_len);
-        fdb_commit(local_ctx.fdb, FDB_COMMIT_NORMAL);
+        fdb_status fs;
+        CHECK_EXPR(fs = fdb_del_kv(kv, (const void* ) encode_buffer.GetRawBuffer(), key_len));
+        CHECK_EXPR(fs = fdb_commit(local_ctx.fdb, FDB_COMMIT_NORMAL));
+        if(key.GetType() == KEY_ZSET_SCORE)
+        {
+            printf("###Del %s:%s %d %s %d\n",key.GetNameSpace().AsString().c_str(), key.GetKey().AsString().c_str(), key.GetType(), key.GetElement(0).AsString().c_str(), key_len);
+            ValueObject vv;
+            Get(ctx, key, vv);
+        }
+
         return FORESTDB_NERR(fs);
     }
 
@@ -528,6 +581,7 @@ namespace ardb
         CHECK_EXPR(rc = fdb_kvs_remove(local_ctx.fdb, ns.AsString().c_str()));
         if (0 == rc)
         {
+            fdb_commit(local_ctx.fdb, FDB_COMMIT_NORMAL);
             m_nss.erase(ns);
         }
         return rc;
@@ -586,7 +640,8 @@ namespace ardb
         {
             //do nothing
         }
-        fdb_status rc = fdb_iterator_init(kv, &fdb_iter, start_key, start_keylen, end_key, end_keylen, opt);
+        fdb_kvs_handle* snapshot = local_ctx.snapshot.Get(kv);
+        fdb_status rc = fdb_iterator_init(snapshot, &fdb_iter, start_key, start_keylen, end_key, end_keylen, opt);
         if (0 != rc)
         {
             ERROR_LOG("Failed to create cursor for reason:(%d)%s", rc, fdb_error_msg(rc));
@@ -634,9 +689,10 @@ namespace ardb
             return;
         }
         int rc;
-        rc = fdb_iterator_next(m_iter);
-        m_valid = rc == 0;
+        CHECK_EXPR(rc = fdb_iterator_next(m_iter));
+        m_valid = (rc == 0);
         CheckBound();
+
     }
     void ForestDBIterator::Prev()
     {
@@ -647,7 +703,7 @@ namespace ardb
         }
         int rc;
         rc = fdb_iterator_prev(m_iter);
-        m_valid = rc == 0;
+        m_valid = (rc == 0);
     }
     void ForestDBIterator::DoJump(const KeyObject& next)
     {
@@ -701,12 +757,14 @@ namespace ardb
         }
         if (NULL == m_raw)
         {
-            fdb_iterator_get(m_iter, &m_raw);
+            CHECK_EXPR(fdb_iterator_get(m_iter, &m_raw));
+
         }
         if (NULL != m_raw)
         {
             Buffer kbuf((char*) (m_raw->key), 0, m_raw->keylen);
             m_key.Decode(kbuf, clone_str);
+            m_key.SetNameSpace(m_ns);
         }
         return m_key;
     }
@@ -718,11 +776,12 @@ namespace ardb
         }
         if (NULL == m_raw)
         {
-            fdb_iterator_get(m_iter, &m_raw);
+            CHECK_EXPR(fdb_iterator_get(m_iter, &m_raw));
         }
         if (NULL != m_raw)
         {
-            Buffer kbuf((char*) (m_raw->key), 0, m_raw->keylen);
+            printf("#####v %d\n", m_raw->deleted);
+            Buffer kbuf((char*) (m_raw->body), 0, m_raw->bodylen);
             m_value.Decode(kbuf, clone_str);
         }
         return m_value;
@@ -757,6 +816,8 @@ namespace ardb
         if (NULL != m_iter)
         {
             fdb_iterator_close(m_iter);
+            ForestDBLocalContext& local_ctx = GetDBLocalContext();
+            local_ctx.snapshot.Release();
         }
         if (NULL != m_raw)
         {

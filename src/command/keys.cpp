@@ -735,12 +735,13 @@ OP_NAMESPACE_BEGIN
         {
             KeyObject& k = iter->Key();
             const Data& kdata = k.GetKey();
-
+            //printf("###del iter:%d %d %s\n",k.GetNameSpace().Compare(meta_key.GetNameSpace()), k.GetType(), k.GetKey().AsString().c_str());
             if (k.GetNameSpace().Compare(meta_key.GetNameSpace()) != 0 || kdata.StringLength() != meta_key.GetKey().StringLength()
                     || strncmp(meta_key.GetKey().CStr(), kdata.CStr(), kdata.StringLength()) != 0)
             {
                 break;
             }
+
             removed = 1;
             RemoveKey(ctx, k);
             iter->Next();
