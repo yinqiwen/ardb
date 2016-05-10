@@ -744,6 +744,7 @@ OP_NAMESPACE_BEGIN
 
             removed = 1;
             RemoveKey(ctx, k);
+            iter->RemoveCurrent();
             iter->Next();
         }
         return removed;

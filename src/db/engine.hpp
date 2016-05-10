@@ -52,6 +52,10 @@ OP_NAMESPACE_BEGIN
             virtual Slice RawKey() = 0;
             virtual Slice RawValue() = 0;
             virtual ValueObject& Value(bool clone_str = false) = 0;
+
+            virtual void RemoveCurrent()
+            {
+            }
             virtual ~Iterator()
             {
             }

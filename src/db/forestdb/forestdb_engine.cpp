@@ -120,8 +120,6 @@ namespace ardb
                 ref++;
                 if (snapshot == NULL)
                 {
-                    fdb_status fs;
-                    CHECK_EXPR(fs = fdb_snapshot_open(kv, &snapshot, FDB_SNAPSHOT_INMEM));
                 }
                 return snapshot;
             }
@@ -505,7 +503,7 @@ namespace ardb
         size_t key_len = encode_buffer.ReadableBytes();
         fdb_status fs;
         CHECK_EXPR(fs = fdb_del_kv(kv, (const void* ) encode_buffer.GetRawBuffer(), key_len));
-        CHECK_EXPR(fs = fdb_commit(local_ctx.fdb, FDB_COMMIT_NORMAL));
+        CHECK_EXPR(fs = fdb_commit(local_ctx.fdb, FDB_COMMIT_MANUAL_WAL_FLUSH));
         if(key.GetType() == KEY_ZSET_SCORE)
         {
             printf("###Del %s:%s %d %s %d\n",key.GetNameSpace().AsString().c_str(), key.GetKey().AsString().c_str(), key.GetType(), key.GetElement(0).AsString().c_str(), key_len);
@@ -594,8 +592,8 @@ namespace ardb
     Iterator* ForestDBEngine::Find(Context& ctx, const KeyObject& key)
     {
         ForestDBIterator* iter = NULL;
-        NEW(iter, ForestDBIterator(this,key.GetNameSpace()));
         fdb_kvs_handle* kv = GetKVStore(ctx, key.GetNameSpace(), false);
+        NEW(iter, ForestDBIterator(kv,key.GetNameSpace()));
         if (NULL == kv)
         {
             iter->MarkValid(false);
@@ -640,8 +638,8 @@ namespace ardb
         {
             //do nothing
         }
-        fdb_kvs_handle* snapshot = local_ctx.snapshot.Get(kv);
-        fdb_status rc = fdb_iterator_init(snapshot, &fdb_iter, start_key, start_keylen, end_key, end_keylen, opt);
+        //fdb_kvs_handle* snapshot = local_ctx.snapshot.Get(kv);
+        fdb_status rc = fdb_iterator_init(kv, &fdb_iter, start_key, start_keylen, end_key, end_keylen, opt);
         if (0 != rc)
         {
             ERROR_LOG("Failed to create cursor for reason:(%d)%s", rc, fdb_error_msg(rc));
@@ -810,19 +808,33 @@ namespace ardb
         }
         return Slice();
     }
+    void ForestDBIterator::RemoveCurrent()
+    {
+
+        if (NULL == m_raw)
+        {
+            fdb_iterator_get(m_iter, &m_raw);
+        }
+        if(NULL != m_raw)
+        {
+            fdb_del(m_kv, m_raw);
+            ForestDBLocalContext& local_ctx = GetDBLocalContext();
+            fdb_commit(local_ctx.fdb, FDB_COMMIT_MANUAL_WAL_FLUSH);
+        }
+        //status = fdb_del(m_iter->handle, &m_raw);
+    }
 
     ForestDBIterator::~ForestDBIterator()
     {
-        if (NULL != m_iter)
-        {
-            fdb_iterator_close(m_iter);
-            ForestDBLocalContext& local_ctx = GetDBLocalContext();
-            local_ctx.snapshot.Release();
-        }
         if (NULL != m_raw)
         {
             fdb_doc_free(m_raw);
         }
+        if (NULL != m_iter)
+        {
+            fdb_iterator_close(m_iter);
+        }
+
     }
 }
 

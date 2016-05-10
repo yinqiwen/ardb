@@ -47,7 +47,7 @@ namespace ardb
     class ForestDBIterator: public Iterator
     {
         private:
-            ForestDBEngine *m_engine;
+            fdb_kvs_handle *m_kv;
             fdb_iterator* m_iter;
             fdb_doc* m_raw;
             Data m_ns;
@@ -67,6 +67,7 @@ namespace ardb
             ValueObject& Value(bool clone_str);
             Slice RawKey();
             Slice RawValue();
+            void RemoveCurrent();
 
             void SetIterator(fdb_iterator *cursor)
             {
@@ -76,8 +77,8 @@ namespace ardb
             void CheckBound();
             friend class ForestDBEngine;
         public:
-            ForestDBIterator(ForestDBEngine * e, const Data& ns) :
-                    m_engine(e), m_iter(NULL), m_raw(NULL), m_ns(ns), m_valid(true)
+            ForestDBIterator(fdb_kvs_handle* kv, const Data& ns) :
+                    m_kv(kv), m_iter(NULL), m_raw(NULL), m_ns(ns), m_valid(true)
             {
             }
             void MarkValid(bool valid)
