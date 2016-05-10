@@ -614,7 +614,13 @@ namespace ardb
 
     bool LevelDBIterator::Valid()
     {
-        return m_valid && NULL != m_iter && m_iter->Valid();
+        if( m_valid && NULL != m_iter && m_iter->Valid())
+        {
+            Data ns;
+            GetRawKey(ns);
+            return ns == m_ns;
+        }
+        return false;
     }
     void LevelDBIterator::ClearState()
     {
@@ -729,16 +735,20 @@ namespace ardb
         m_value.Decode(kbuf, clone_str);
         return m_value;
     }
-    Slice LevelDBIterator::RawKey()
+    Slice LevelDBIterator::GetRawKey(Data& ns)
     {
         leveldb::Slice s = m_iter->key();
         /*
          * trim namespace header
          */
         Buffer buf((char*) s.data(), 0, s.size());
-        Data ns;
         ns.Decode(buf, false);
         return Slice(buf.GetRawReadBuffer(), buf.ReadableBytes());
+    }
+    Slice LevelDBIterator::RawKey()
+    {
+        Data ns;
+        return GetRawKey(ns);
     }
     Slice LevelDBIterator::RawValue()
     {
@@ -747,7 +757,7 @@ namespace ardb
 
     void LevelDBIterator::Del()
     {
-        if(NULL != m_engine && NULL != m_iter)
+        if (NULL != m_engine && NULL != m_iter)
         {
             leveldb::WriteOptions opt;
             m_engine->m_db->Delete(opt, m_iter->key());

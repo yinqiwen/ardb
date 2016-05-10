@@ -56,6 +56,14 @@ OP_NAMESPACE_BEGIN
                 elements.resize(2);
                 break;
             }
+            case KEY_TTL_SORT:
+            {
+                /*
+                 * 0: ttl 1:namespace 2:ttl key
+                 */
+                elements.resize(3);
+                break;
+            }
             default:
             {
                 break;

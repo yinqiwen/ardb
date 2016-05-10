@@ -433,6 +433,7 @@ OP_NAMESPACE_BEGIN
         {
             dstkey = srckey;
             dstdb.SetString(cmd.GetArguments()[1], true);
+            ctx.flags.create_if_notexist = 1;
         }
         bool nx = cmd.GetType() == REDIS_CMD_RENAMENX || cmd.GetType() == REDIS_CMD_MOVE;
         KeyObject src(srcdb, KEY_META, srckey);
@@ -457,8 +458,11 @@ OP_NAMESPACE_BEGIN
                 break;
             }
             k.SetNameSpace(dstdb);
+            k.SetKey(dstkey);
             SetKeyValue(ctx, k, iter->Value());
+            iter->Del();
             iter->Next();
+            moved++;
         }
         DELETE(iter);
         reply.SetInteger(moved > 0 ? 1 : 0);

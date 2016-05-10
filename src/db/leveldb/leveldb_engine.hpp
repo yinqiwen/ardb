@@ -55,6 +55,7 @@ namespace ardb
             bool m_valid;
             void ClearState();
             void CheckBound();
+            Slice GetRawKey(Data& ns);
             friend class LevelDBEngine;
         public:
             LevelDBIterator(LevelDBEngine* engine, const Data& ns) :

@@ -154,6 +154,8 @@ OP_NAMESPACE_BEGIN
             bool MarkRestoring(Context& ctx, bool enable);
             bool IsRestoring(Context& ctx, const Data& ns);
 
+            void OverwriteTTL(Context& ctx, const Data& ns, const std::string& key, int64 old_ttl, int64_t new_ttl);
+
             int WriteReply(Context& ctx, RedisReply* r, bool async);
 
             void LockKey(KeyObject& key);
