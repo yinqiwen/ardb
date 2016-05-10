@@ -234,7 +234,6 @@ namespace ardb
                 }
                 else
                 {
-
                     const char* names[nss.size()];
                     fdb_custom_cmp_variable cmps[nss.size()];
                     for (size_t i = 0; i < nss.size(); i++)
@@ -652,6 +651,7 @@ namespace ardb
     }
     void ForestDBIterator::CheckBound()
     {
+
         //do nothing
     }
     bool ForestDBIterator::Valid()
@@ -700,6 +700,19 @@ namespace ardb
         if (Valid())
         {
             CheckBound();
+            if(m_valid && !max_key.empty())
+            {
+                Slice raw = RawKey();
+                if(compare_keys(raw.data(), raw.size(), max_key.data(), max_key.size(), false) > 0)
+                {
+                    m_valid = (0 == fdb_iterator_prev(m_iter));
+                    if (NULL != m_raw)
+                    {
+                        fdb_doc_free(m_raw);
+                        m_raw = NULL;
+                    }
+                }
+            }
         }
     }
     void ForestDBIterator::JumpToFirst()

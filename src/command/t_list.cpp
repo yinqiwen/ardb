@@ -569,6 +569,10 @@ OP_NAMESPACE_BEGIN
             while (iter != NULL && iter->Valid())
             {
                 KeyObject& field = iter->Key();
+                if(count < 0)
+                {
+                    printf("#####%d %s\n", field.GetType(),field.GetKey().AsString().c_str());
+                }
                 if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != ele_key.GetNameSpace() || field.GetKey() != ele_key.GetKey())
                 {
                     break;

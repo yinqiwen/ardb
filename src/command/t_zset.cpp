@@ -816,8 +816,7 @@ OP_NAMESPACE_BEGIN
                         KeyObject sort_key(ctx.ns, KEY_ZSET_SORT, key.GetKey());
                         sort_key.SetZSetMember(field.GetZSetMember());
                         sort_key.SetZSetScore(iter->Value().GetZSetScore());
-                        //RemoveKey(ctx, field);
-                        RemoveKey(ctx, sort_key);
+                        //RemoveKey(ctx, sort_key);
                         iter->Del();
                         removed++;
                     }
