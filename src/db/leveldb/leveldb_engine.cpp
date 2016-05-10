@@ -514,13 +514,13 @@ namespace ardb
         return iter;
     }
 
-    int LevelDBEngine::BeginTransaction()
+    int LevelDBEngine::BeginWriteBatch()
     {
         LevelDBLocalContext& rocks_ctx = g_local_ctx.GetValue();
         rocks_ctx.batch.AddRef();
         return 0;
     }
-    int LevelDBEngine::CommitTransaction()
+    int LevelDBEngine::CommitWriteBatch()
     {
         LevelDBLocalContext& rocks_ctx = g_local_ctx.GetValue();
         if (rocks_ctx.batch.ReleaseRef(false) == 0)
@@ -531,7 +531,7 @@ namespace ardb
         }
         return 0;
     }
-    int LevelDBEngine::DiscardTransaction()
+    int LevelDBEngine::DiscardWriteBatch()
     {
         LevelDBLocalContext& rocks_ctx = g_local_ctx.GetValue();
         if (rocks_ctx.batch.ReleaseRef(true) == 0)
@@ -743,6 +743,15 @@ namespace ardb
     Slice LevelDBIterator::RawValue()
     {
         return to_ardb_slice(m_iter->value());
+    }
+
+    void LevelDBIterator::Del()
+    {
+        if(NULL != m_engine && NULL != m_iter)
+        {
+            leveldb::WriteOptions opt;
+            m_engine->m_db->Delete(opt, m_iter->key());
+        }
     }
 
     LevelDBIterator::~LevelDBIterator()

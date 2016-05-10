@@ -133,6 +133,7 @@ namespace ardb
                                 CHECK_EXPR(mdb_txn_commit(txn));
                                 txn = NULL;
                                 event_cond.Notify();
+                                DELETE(op);
                                 break;
                             }
                             default:
@@ -652,17 +653,17 @@ namespace ardb
         return Get(ctx, key, val) == 0;
     }
 
-    int LMDBEngine::BeginTransaction()
+    int LMDBEngine::BeginWriteBatch()
     {
         LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
         return local_ctx.AcquireTransanction(false);
     }
-    int LMDBEngine::CommitTransaction()
+    int LMDBEngine::CommitWriteBatch()
     {
         LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
         return local_ctx.TryReleaseTransanction(true, false);
     }
-    int LMDBEngine::DiscardTransaction()
+    int LMDBEngine::DiscardWriteBatch()
     {
         LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
         return local_ctx.TryReleaseTransanction(false, false);
@@ -945,6 +946,14 @@ namespace ardb
     Slice LMDBIterator::RawValue()
     {
         return Slice((const char*) m_raw_val.mv_data, m_raw_val.mv_size);
+    }
+
+    void LMDBIterator::Del()
+    {
+        if(NULL != mdb_cursor_get)
+        {
+            mdb_cursor_del(m_cursor, 0);
+        }
     }
 
     LMDBIterator::~LMDBIterator()

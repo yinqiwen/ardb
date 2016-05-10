@@ -567,6 +567,17 @@ OP_NAMESPACE_BEGIN
         return ret;
     }
 
+    int Ardb::IteratorDel(Context& ctx, const KeyObject& key, Iterator* iter)
+    {
+        if(NULL != iter)
+        {
+            iter->Del();
+            TouchWatchKey(ctx, key);
+            ctx.dirty++;
+        }
+        return 0;
+    }
+
     int Ardb::FlushDB(Context& ctx, const Data& ns)
     {
         m_engine->DropNameSpace(ctx, ns);
@@ -787,7 +798,8 @@ OP_NAMESPACE_BEGIN
                     }
                     total_expired_keys++;
                 }
-                RemoveKey(scan_ctx, iter_key);
+                iter->Del();
+                //RemoveKey(scan_ctx, iter_key);
                 iter->Next();
             }
             scan_key.Clear();

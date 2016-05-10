@@ -130,7 +130,7 @@ OP_NAMESPACE_BEGIN
         }
         double score = 0;
         {
-            TransactionGuard batch(ctx, m_engine);
+            WriteBatchGuard batch(ctx, m_engine);
             for (size_t i = 0; i < elements; i++)
             {
                 KeyObject ele(ctx.ns, KEY_ZSET_SCORE, cmd.GetArguments()[0]);
@@ -326,8 +326,9 @@ OP_NAMESPACE_BEGIN
                 {
                     KeyObject score_key(ctx.ns, KEY_ZSET_SCORE, key.GetKey());
                     score_key.SetZSetMember(field.GetZSetMember());
-                    RemoveKey(ctx, field);
+                    //RemoveKey(ctx, field);
                     RemoveKey(ctx, score_key);
+                    iter->Del();
                     removed++;
                 }
                 else
@@ -490,8 +491,9 @@ OP_NAMESPACE_BEGIN
                     {
                         KeyObject score_key(ctx.ns, KEY_ZSET_SCORE, key.GetKey());
                         score_key.SetZSetMember(field.GetZSetMember());
-                        RemoveKey(ctx, field);
+                        //RemoveKey(ctx, field);
                         RemoveKey(ctx, score_key);
+                        iter->Del();
                         removed++;
                     }
                     else if (!countrange)
@@ -653,7 +655,7 @@ OP_NAMESPACE_BEGIN
         }
         int64_t removed = 0;
         {
-            TransactionGuard batch(ctx, m_engine);
+            WriteBatchGuard batch(ctx, m_engine);
             for (size_t i = 1; i < vs.size(); i++)
             {
                 if (vs[i].GetType() == KEY_ZSET_SCORE)
@@ -814,8 +816,9 @@ OP_NAMESPACE_BEGIN
                         KeyObject sort_key(ctx.ns, KEY_ZSET_SORT, key.GetKey());
                         sort_key.SetZSetMember(field.GetZSetMember());
                         sort_key.SetZSetScore(iter->Value().GetZSetScore());
-                        RemoveKey(ctx, field);
+                        //RemoveKey(ctx, field);
                         RemoveKey(ctx, sort_key);
+                        iter->Del();
                         removed++;
                     }
                     else if (!countrange)

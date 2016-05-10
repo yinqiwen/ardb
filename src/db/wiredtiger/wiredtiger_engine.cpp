@@ -53,7 +53,6 @@
 #define WT_ERR(err)  (WT_NOTFOUND == err ? ERR_ENTRY_NOT_EXIST:err)
 #define WT_NERR(err)  (WT_NOTFOUND == err ? 0:err)
 
-
 namespace ardb
 {
     static WiredTigerEngine* g_wdb = NULL;
@@ -80,31 +79,43 @@ namespace ardb
     {
         return "table:" + ns.AsString();
     }
+    struct WriteOperation
+    {
+            WT_CURSOR* cursor;
+            std::string key;
+            std::string val;
+            uint8 op;
+            WriteOperation() :
+                    cursor(NULL), op(0)
+            {
+            }
+    };
 
     struct WiredTigerLocalContext
     {
             WT_SESSION* wsession;
             typedef TreeMap<Data, WT_CURSOR*>::Type KVTable;
             KVTable kv_stores;
-            uint32 txn_ref;
-            bool txn_abort;
+            uint32 batch_ref;
+            bool batch_abort;
             Buffer encode_buffer_cache;
+            std::deque<WriteOperation> batch;
             bool inited;
             WiredTigerLocalContext() :
-                    wsession(NULL), txn_ref(0), txn_abort(false), inited(false)
+                    wsession(NULL), batch_ref(0), batch_abort(false), inited(false)
             {
             }
             void RecycleCursor(const Data& ns, WT_CURSOR* cursor)
             {
                 KVTable::iterator found = kv_stores.find(ns);
-                if(found != kv_stores.end())
+                if (found != kv_stores.end())
                 {
-                    if(NULL == found->second)
+                    if (NULL == found->second)
                     {
                         found->second = cursor;
                         return;
                     }
-                    if(found->second == cursor)
+                    if (found->second == cursor)
                     {
                         return;
                     }
@@ -167,32 +178,32 @@ namespace ardb
             int AcquireTransanction()
             {
                 int rc = 0;
-                if (0 == txn_ref)
+                if (0 == batch_ref)
                 {
                     //rc = fdb_begin_transaction(fdb, FDB_ISOLATION_READ_COMMITTED);
-                    txn_abort = false;
-                    txn_ref = 0;
+                    batch_abort = false;
+                    batch_ref = 0;
                 }
                 if (0 == rc)
                 {
-                    txn_ref++;
+                    batch_ref++;
                 }
                 return rc;
             }
             int TryReleaseTransanction(bool success)
             {
                 int rc = 0;
-                if (txn_ref > 0)
+                if (batch_ref > 0)
                 {
-                    txn_ref--;
+                    batch_ref--;
                     //printf("#### %d %d %d \n", txn_ref, txn_abort, write_dispatched);
-                    if (!txn_abort)
+                    if (!batch_abort)
                     {
-                        txn_abort = !success;
+                        batch_abort = !success;
                     }
-                    if (txn_ref == 0)
+                    if (batch_ref == 0)
                     {
-                        if (txn_abort)
+                        if (batch_abort)
                         {
                             //fdb_abort_transaction (fdb);
                         }
@@ -248,7 +259,7 @@ namespace ardb
         s_table << "internal_page_max=" << g_wt_conig.block_size << ",";
         s_table << "leaf_page_max=" << g_wt_conig.block_size << ",";
         s_table << "leaf_item_max=" << g_wt_conig.block_size / 4 << ",";
-        if(g_wt_conig.compressor != "none")
+        if (g_wt_conig.compressor != "none")
         {
             s_table << "block_compressor=" << g_wt_conig.compressor << ",";
         }
@@ -479,21 +490,21 @@ namespace ardb
         ValueObject val;
         return Get(ctx, key, val) == 0;
     }
-    int WiredTigerEngine::BeginTransaction()
+    int WiredTigerEngine::BeginWriteBatch()
     {
         /*
          * do nothing now
          */
         return 0;
     }
-    int WiredTigerEngine::CommitTransaction()
+    int WiredTigerEngine::CommitWriteBatch()
     {
         /*
          * do nothing now
          */
         return 0;
     }
-    int WiredTigerEngine::DiscardTransaction()
+    int WiredTigerEngine::DiscardWriteBatch()
     {
         /*
          * do nothing now
@@ -756,6 +767,11 @@ namespace ardb
         WT_ITEM item;
         m_cursor->get_value(m_cursor, &item);
         return Slice((const char*) item.data, item.size);
+    }
+    void WiredTigerIterator::Del()
+    {
+        RawKey();
+        m_cursor->remove(m_cursor);
     }
     void WiredTigerIterator::ClearState()
     {

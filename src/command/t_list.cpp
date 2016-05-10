@@ -134,8 +134,7 @@ OP_NAMESPACE_BEGIN
         }
         int err = 0;
         {
-
-            TransactionGuard batch(ctx, m_engine);
+            WriteBatchGuard batch(ctx, m_engine);
             if (meta.GetMetaObject().list_sequential)
             {
                 KeyObject ele_key(ctx.ns, KEY_LIST_ELEMENT, keystr);
@@ -180,7 +179,8 @@ OP_NAMESPACE_BEGIN
                     if (field.GetType() == KEY_LIST_ELEMENT && field.GetNameSpace() == ele_key.GetNameSpace() && field.GetKey() == ele_key.GetKey())
                     {
                         reply.SetString(iter->Value().GetListElement());
-                        RemoveKey(ctx, field);
+                        //RemoveKey(ctx, field);
+                        IteratorDel(ctx, key, iter);
                         if (meta.GetObjectLen() > 1)
                         {
                             if (is_lpop)
@@ -322,13 +322,13 @@ OP_NAMESPACE_BEGIN
                     insert_ele_idx += 1;
                 }
             }
-            TransactionGuard batch(ctx, m_engine);
+            WriteBatchGuard batch(ctx, m_engine);
             ValueObject insert_val;
             insert_val.SetType(KEY_LIST_ELEMENT);
             insert_val.SetListElement(cmd.GetArguments()[3]);
             insert.SetListIndex(insert_ele_idx);
             {
-                TransactionGuard batch(ctx, m_engine);
+                WriteBatchGuard batch(ctx, m_engine);
                 SetKeyValue(ctx, insert, insert_val);
                 meta.SetObjectLen(meta.GetObjectLen() + 1);
                 meta.GetMetaObject().list_sequential = false;
@@ -376,7 +376,7 @@ OP_NAMESPACE_BEGIN
                 meta.GetMetaObject().list_sequential = true;
             }
             {
-                TransactionGuard batch(ctx, m_engine);
+                WriteBatchGuard batch(ctx, m_engine);
                 for (size_t i = 1; i < cmd.GetArguments().size(); i++)
                 {
                     KeyObject ele(ctx.ns, KEY_LIST_ELEMENT, keystr);
@@ -565,7 +565,7 @@ OP_NAMESPACE_BEGIN
         Data rem_data;
         rem_data.SetString(cmd.GetArguments()[2], true);
         {
-            TransactionGuard batch(ctx, m_engine);
+            WriteBatchGuard batch(ctx, m_engine);
             while (iter != NULL && iter->Valid())
             {
                 KeyObject& field = iter->Key();
@@ -576,7 +576,8 @@ OP_NAMESPACE_BEGIN
 
                 if (iter->Value().GetListElement() == rem_data)
                 {
-                    RemoveKey(ctx, field);
+                    //RemoveKey(ctx, field);
+                    IteratorDel(ctx, key, iter);
                     removed++;
                 }
                 if (removed == std::abs(count))
@@ -798,7 +799,8 @@ OP_NAMESPACE_BEGIN
                         break;
                     }
 
-                    RemoveKey(ctx, field);
+                    //RemoveKey(ctx, field);
+                    IteratorDel(ctx, key, iter);
                     trimed_count++;
                     ltrim--;
                     iter->Next();

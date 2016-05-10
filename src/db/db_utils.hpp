@@ -32,6 +32,11 @@
 
 #include "common/common.hpp"
 #include "codec.hpp"
+#include "thread/thread_local.hpp"
+#include "thread/thread_mutex_lock.hpp"
+#include "thread/spin_rwlock.hpp"
+#include "thread/event_condition.hpp"
+#include "util/concurrent_queue.hpp"
 OP_NAMESPACE_BEGIN
 
     struct DBLocalContext
@@ -54,6 +59,7 @@ OP_NAMESPACE_BEGIN
             {
             }
     };
+
     class DBHelper
     {
         public:

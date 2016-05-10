@@ -654,7 +654,7 @@ namespace ardb
             DelKey(ctx, dstkey);
             if (points.size() > 0)
             {
-                TransactionGuard batch(ctx, m_engine);
+                WriteBatchGuard batch(ctx, m_engine);
                 ValueObject dstmeta;
                 dstmeta.SetType(KEY_ZSET);
                 dstmeta.SetObjectLen(points.size());

@@ -317,7 +317,7 @@ namespace ardb
 
         if (options.store_dst != NULL)
         {
-            TransactionGuard batch(ctx, m_engine);
+            WriteBatchGuard batch(ctx, m_engine);
             DelKey(ctx, options.store_dst);
             KeyObject store_key(ctx.ns, KEY_META, options.store_dst);
             ValueObject store_meta;

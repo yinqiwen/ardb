@@ -64,6 +64,7 @@ namespace ardb
             ValueObject& Value(bool clone_str);
             Slice RawKey();
             Slice RawValue();
+            void Del();
 
             void ClearState();
             void CheckBound();
@@ -115,9 +116,9 @@ namespace ardb
             int Del(Context& ctx, const KeyObject& key);
             int Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args);
             bool Exists(Context& ctx, const KeyObject& key);
-            int BeginTransaction();
-            int CommitTransaction();
-            int DiscardTransaction();
+            int BeginWriteBatch();
+            int CommitWriteBatch();
+            int DiscardWriteBatch();
             int Compact(Context& ctx, const KeyObject& start, const KeyObject& end);
             int ListNameSpaces(Context& ctx, DataArray& nss);
             int DropNameSpace(Context& ctx, const Data& ns);

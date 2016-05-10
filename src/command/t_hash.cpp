@@ -98,7 +98,7 @@ OP_NAMESPACE_BEGIN
         KeyLockGuard guard(ctx,key);
         ValueObject meta;
         {
-            TransactionGuard batch(ctx, m_engine);
+            WriteBatchGuard batch(ctx, m_engine);
             if (ctx.flags.redis_compatible)
             {
                 if (!CheckMeta(ctx, key, KEY_HASH, meta))
@@ -146,7 +146,7 @@ OP_NAMESPACE_BEGIN
         if (!ctx.flags.redis_compatible)
         {
             {
-                TransactionGuard batch(ctx, m_engine);
+                WriteBatchGuard batch(ctx, m_engine);
                 KeyObject field(ctx.ns, KEY_HASH_FIELD, keystr);
                 field.SetHashField(cmd.GetArguments()[1]);
                 ValueObject field_value;
@@ -207,7 +207,7 @@ OP_NAMESPACE_BEGIN
         {
             vals[0].SetTTL(0);
             {
-                TransactionGuard batch(ctx, m_engine);
+                WriteBatchGuard batch(ctx, m_engine);
                 SetKeyValue(ctx, keys[0], vals[0]);
                 SetKeyValue(ctx, keys[1], vals[1]);
             }
@@ -451,7 +451,7 @@ OP_NAMESPACE_BEGIN
                 arg.SetInt64(increment_integer);
             }
             {
-                TransactionGuard batch(ctx, m_engine);
+                WriteBatchGuard batch(ctx, m_engine);
                 ValueObject meta;
                 meta.SetType(KEY_HASH);
                 meta.SetObjectLen(-1);
@@ -546,7 +546,7 @@ OP_NAMESPACE_BEGIN
         }
         if (0 == err)
         {
-            TransactionGuard batch(ctx, m_engine);
+            WriteBatchGuard batch(ctx, m_engine);
             if (meta_change)
             {
                 SetKeyValue(ctx, keys[0], vals[0]);
@@ -635,7 +635,7 @@ OP_NAMESPACE_BEGIN
         if (!ctx.flags.redis_compatible)
         {
             {
-                TransactionGuard batch(ctx, m_engine);
+                WriteBatchGuard batch(ctx, m_engine);
                 meta.SetType(KEY_HASH);
                 meta.SetObjectLen(-1);
                 SetKeyValue(ctx, key, meta);
@@ -669,7 +669,7 @@ OP_NAMESPACE_BEGIN
         }
         int64_t del_num = 0;
         {
-            TransactionGuard batch(ctx, m_engine);
+            WriteBatchGuard batch(ctx, m_engine);
             for (size_t i = 1; i < cmd.GetArguments().size(); i++)
             {
                 KeyObject field(ctx.ns, KEY_HASH_FIELD, keystr);

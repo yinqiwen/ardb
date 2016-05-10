@@ -53,6 +53,8 @@ namespace ardb
             Data m_ns;
             KeyObject m_key;
             ValueObject m_value;
+            std::string min_key;
+            std::string max_key;
             bool m_valid;
 
             void DoJump(const KeyObject& next);
@@ -67,8 +69,23 @@ namespace ardb
             ValueObject& Value(bool clone_str);
             Slice RawKey();
             Slice RawValue();
-            void RemoveCurrent();
+            void Del();
 
+
+            void SetMin(const void* data, size_t len)
+            {
+                if(NULL != data)
+                {
+                    min_key.assign((const char*)data, len);
+                }
+            }
+            void SetMax(const void* data, size_t len)
+            {
+                if(NULL != data)
+                {
+                    max_key.assign((const char*)data, len);
+                }
+            }
             void SetIterator(fdb_iterator *cursor)
             {
                 m_iter = cursor;
@@ -85,6 +102,7 @@ namespace ardb
             {
                 m_valid = valid;
             }
+//            void DelKey(const KeyObject& key);
             ~ForestDBIterator();
     };
     class ForestDBLocalContext;
@@ -107,9 +125,9 @@ namespace ardb
             int MultiGet(Context& ctx, const KeyObjectArray& keys, ValueObjectArray& values, ErrCodeArray& errs);
             int Del(Context& ctx, const KeyObject& key);
             int Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args);bool Exists(Context& ctx, const KeyObject& key);
-            int BeginTransaction();
-            int CommitTransaction();
-            int DiscardTransaction();
+            int BeginWriteBatch();
+            int CommitWriteBatch();
+            int DiscardWriteBatch();
             int Compact(Context& ctx, const KeyObject& start, const KeyObject& end);
             int ListNameSpaces(Context& ctx, DataArray& nss);
             int DropNameSpace(Context& ctx, const Data& ns);

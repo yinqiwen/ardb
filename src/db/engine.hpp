@@ -53,9 +53,11 @@ OP_NAMESPACE_BEGIN
             virtual Slice RawValue() = 0;
             virtual ValueObject& Value(bool clone_str = false) = 0;
 
-            virtual void RemoveCurrent()
-            {
-            }
+            /*
+             * Delete key/value pair at current iterator position.
+             * It's more efficient, and the only right way to delete data in iterator for some engine(forestdb).
+             */
+            virtual void Del()  = 0;
             virtual ~Iterator()
             {
             }
@@ -92,9 +94,9 @@ OP_NAMESPACE_BEGIN
 
             virtual int Compact(Context& ctx, const KeyObject& start, const KeyObject& end) = 0;
 
-            virtual int BeginTransaction() = 0;
-            virtual int CommitTransaction() = 0;
-            virtual int DiscardTransaction() = 0;
+            virtual int BeginWriteBatch() = 0;
+            virtual int CommitWriteBatch() = 0;
+            virtual int DiscardWriteBatch() = 0;
 
             virtual int ListNameSpaces(Context& ctx, DataArray& nss) = 0;
             virtual int DropNameSpace(Context& ctx, const Data& ns) = 0;
@@ -109,15 +111,15 @@ OP_NAMESPACE_BEGIN
             }
     };
 
-    struct TransactionGuard
+    struct WriteBatchGuard
     {
             Context& ctx;
             Engine* engine;
             int err;
-            TransactionGuard(Context& c, Engine* e) :
+            WriteBatchGuard(Context& c, Engine* e) :
                     ctx(c), engine(NULL), err(0)
             {
-                int err = e->BeginTransaction();
+                int err = e->BeginWriteBatch();
                 if (0 == err)
                 {
                     engine = e;
@@ -127,17 +129,17 @@ OP_NAMESPACE_BEGIN
             {
                 err = errcode;
             }
-            ~TransactionGuard()
+            ~WriteBatchGuard()
             {
                 if (NULL != engine)
                 {
                     if (0 == err)
                     {
-                        err = engine->CommitTransaction();
+                        err = engine->CommitWriteBatch();
                     }
                     else
                     {
-                        engine->DiscardTransaction();
+                        engine->DiscardWriteBatch();
                     }
                     ctx.transc_err = err;
                 }

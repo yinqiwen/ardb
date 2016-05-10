@@ -52,13 +52,13 @@ OP_NAMESPACE_BEGIN
         return Slice(slice.data(), slice.size());
     }
 
-    class RocksTransaction
+    class RocksWriteBatch
     {
         private:
             rocksdb::WriteBatch batch;
             uint32_t ref;
         public:
-            RocksTransaction() :
+            RocksWriteBatch() :
                     ref(0)
             {
             }
@@ -108,7 +108,7 @@ OP_NAMESPACE_BEGIN
 #define DEFAULT_ROCKS_LOCAL_MULTI_CACHE_SIZE 10
     struct RocksDBLocalContext
     {
-            RocksTransaction transc;
+            RocksWriteBatch transc;
             RocksSnapshot snapshot;
             Buffer encode_buffer_cache;
             std::string string_cache;
@@ -400,7 +400,7 @@ OP_NAMESPACE_BEGIN
             }
             std::unique_ptr<rocksdb::CompactionFilter> CreateCompactionFilter(const rocksdb::CompactionFilter::Context& context)
             {
-                return std::unique_ptr<rocksdb::CompactionFilter>(new RocksDBCompactionFilter(engine, context));
+                return std::unique_ptr < rocksdb::CompactionFilter > (new RocksDBCompactionFilter(engine, context));
             }
 
             const char* Name() const
@@ -436,7 +436,8 @@ OP_NAMESPACE_BEGIN
             // internal corruption. This will be treated as an error by the library.
             //
             // Also make use of the *logger for error messages.
-            bool FullMerge(const rocksdb::Slice& key, const rocksdb::Slice* existing_value, const std::deque<std::string>& operand_list, std::string* new_value, rocksdb::Logger* logger) const
+            bool FullMerge(const rocksdb::Slice& key, const rocksdb::Slice* existing_value, const std::deque<std::string>& operand_list, std::string* new_value,
+                    rocksdb::Logger* logger) const
             {
 
                 KeyObject key_obj;
@@ -520,7 +521,8 @@ OP_NAMESPACE_BEGIN
             // If there is corruption in the data, handle it in the FullMerge() function,
             // and return false there.  The default implementation of PartialMerge will
             // always return false.
-            bool PartialMergeMulti(const rocksdb::Slice& key, const std::deque<rocksdb::Slice>& operand_list, std::string* new_value, rocksdb::Logger* logger) const
+            bool PartialMergeMulti(const rocksdb::Slice& key, const std::deque<rocksdb::Slice>& operand_list, std::string* new_value,
+                    rocksdb::Logger* logger) const
             {
                 if (operand_list.size() < 2)
                 {
@@ -542,7 +544,9 @@ OP_NAMESPACE_BEGIN
                         WARN_LOG("Invalid merge op at:%u", i);
                         return false;
                     }
-                    if (0 != g_db->MergeOperands(ops[left_pos].GetMergeOp(), ops[left_pos].GetMergeArgs(), ops[1 - left_pos].GetMergeOp(), ops[1 - left_pos].GetMergeArgs()))
+                    if (0
+                            != g_db->MergeOperands(ops[left_pos].GetMergeOp(), ops[left_pos].GetMergeArgs(), ops[1 - left_pos].GetMergeOp(),
+                                    ops[1 - left_pos].GetMergeArgs()))
                     {
                         return false;
                     }
@@ -576,7 +580,8 @@ OP_NAMESPACE_BEGIN
             // multiple times, where each time it only merges two operands.  Developers
             // should either implement PartialMergeMulti, or implement PartialMerge which
             // is served as the helper function of the default PartialMergeMulti.
-            bool PartialMerge(const rocksdb::Slice& key, const rocksdb::Slice& left_operand, const rocksdb::Slice& right_operand, std::string* new_value, rocksdb::Logger* logger) const
+            bool PartialMerge(const rocksdb::Slice& key, const rocksdb::Slice& left_operand, const rocksdb::Slice& right_operand, std::string* new_value,
+                    rocksdb::Logger* logger) const
             {
                 ValueObject left_op, right_op;
                 Buffer left_mergeBuffer(const_cast<char*>(left_operand.data()), 0, left_operand.size());
@@ -964,9 +969,9 @@ OP_NAMESPACE_BEGIN
     Iterator* RocksDBEngine::Find(Context& ctx, const KeyObject& key)
     {
         RocksDBIterator* iter = NULL;
-        NEW(iter, RocksDBIterator(this,key.GetNameSpace()));
         ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, key.GetNameSpace(), false);
         rocksdb::ColumnFamilyHandle* cf = cfp.get();
+        NEW(iter, RocksDBIterator(this,cf, key.GetNameSpace()));
         if (NULL == cf)
         {
             iter->MarkValid(false);
@@ -1019,13 +1024,13 @@ OP_NAMESPACE_BEGIN
         return iter;
     }
 
-    int RocksDBEngine::BeginTransaction()
+    int RocksDBEngine::BeginWriteBatch()
     {
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         rocks_ctx.transc.AddRef();
         return 0;
     }
-    int RocksDBEngine::CommitTransaction()
+    int RocksDBEngine::CommitWriteBatch()
     {
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         if (rocks_ctx.transc.ReleaseRef(false) == 0)
@@ -1036,7 +1041,7 @@ OP_NAMESPACE_BEGIN
         }
         return 0;
     }
-    int RocksDBEngine::DiscardTransaction()
+    int RocksDBEngine::DiscardWriteBatch()
     {
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         if (rocks_ctx.transc.ReleaseRef(true) == 0)
@@ -1107,7 +1112,8 @@ OP_NAMESPACE_BEGIN
     void RocksDBEngine::Stats(Context& ctx, std::string& all)
     {
         std::string str, version_info;
-        version_info.append("rocksdb_version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(stringfromll(rocksdb::kMinorVersion)).append(".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
+        version_info.append("rocksdb_version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(stringfromll(rocksdb::kMinorVersion)).append(
+                ".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
         all.append(version_info);
         std::map<rocksdb::MemoryUtil::UsageType, uint64_t> usage_by_type;
         std::unordered_set<const rocksdb::Cache*> cache_set;
@@ -1287,6 +1293,15 @@ OP_NAMESPACE_BEGIN
     Slice RocksDBIterator::RawValue()
     {
         return to_ardb_slice(m_iter->value());
+    }
+    void RocksDBIterator::Del()
+    {
+        if (NULL != m_iter)
+        {
+            rocksdb::WriteOptions opt;
+            m_engine->m_db->Delete(opt, m_cf, m_iter->key());
+        }
+
     }
     RocksDBIterator::~RocksDBIterator()
     {

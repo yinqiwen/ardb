@@ -168,6 +168,7 @@ OP_NAMESPACE_BEGIN
             int SetKeyValue(Context& ctx, const KeyObject& key, const ValueObject& val);
             int MergeKeyValue(Context& ctx, const KeyObject& key, uint16 op, const DataArray& args);
             int RemoveKey(Context& ctx, const KeyObject& key);
+            int IteratorDel(Context& ctx, const KeyObject& key, Iterator* iter);
             int FlushDB(Context& ctx, const Data& ns);
             int FlushAll(Context& ctx);
 

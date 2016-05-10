@@ -178,7 +178,7 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         {
-            TransactionGuard guard(ctx, m_engine);
+            WriteBatchGuard guard(ctx, m_engine);
             for (uint32 i = 0; i < cmd.GetArguments().size(); i += 2)
             {
                 KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[i]);

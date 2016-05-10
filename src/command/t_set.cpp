@@ -55,7 +55,7 @@ OP_NAMESPACE_BEGIN
         }
         {
             bool meta_changed = false;
-            TransactionGuard batch(ctx, m_engine);
+            WriteBatchGuard batch(ctx, m_engine);
             ValueObject empty;
             empty.SetType(KEY_SET_MEMBER);
             for (size_t i = 1; i < cmd.GetArguments().size(); i++)
@@ -225,7 +225,7 @@ OP_NAMESPACE_BEGIN
         }
         if (vs[2].GetType() == KEY_SET_MEMBER)
         {
-            TransactionGuard batch(ctx, m_engine);
+            WriteBatchGuard batch(ctx, m_engine);
             RemoveKey(ctx, ks[3]);
             if (vs[0].GetObjectLen() > 0)
             {
@@ -309,7 +309,8 @@ OP_NAMESPACE_BEGIN
                     break;
                 }
                 reply.SetString(field.GetSetMember());
-                RemoveKey(ctx, field);
+                //RemoveKey(ctx, field);
+                IteratorDel(ctx, meta_key, iter);
                 ele_removed = true;
                 if (meta.GetObjectLen() > 0)
                 {
@@ -403,7 +404,7 @@ OP_NAMESPACE_BEGIN
         if (!ctx.flags.redis_compatible)
         {
             {
-                TransactionGuard batch(ctx, m_engine);
+                WriteBatchGuard batch(ctx, m_engine);
                 for (size_t i = 1; i < cmd.GetArguments().size(); i++)
                 {
                     KeyObject field(ctx.ns, KEY_SET_MEMBER, cmd.GetArguments()[0]);
@@ -436,7 +437,7 @@ OP_NAMESPACE_BEGIN
         }
         int64_t remove_count = 0;
         {
-            TransactionGuard batch(ctx, m_engine);
+            WriteBatchGuard batch(ctx, m_engine);
             bool meta_changed = false;
             for (size_t i = 1; i < cmd.GetArguments().size(); i++)
             {

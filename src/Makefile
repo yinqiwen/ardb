@@ -68,6 +68,7 @@ LMDB_LIBA=${LMDB_PATH}/liblmdb.a
 FORESTDB_VER=forestdb-1.1
 FORESTDB_PATH=${LIB_PATH}/${FORESTDB_VER}
 FORESTDB_FILE=${LIB_PATH}/${FORESTDB_VER}.tar.gz
+FORESTDB_SO=${FORESTDB_PATH}/build/libforestdb.so
 FORESTDB_LIBA=${FORESTDB_PATH}/build/libforestdb.a
 
 WIREDTIGER_VER=wiredtiger-2.8.0
@@ -328,8 +329,13 @@ $(WIREDTIGER_LIBA): $(SNAPPY_LIBA)
 
 .PHONY: forestdb
 forestdb: $(FORESTDB_LIBA)
-$(FORESTDB_LIBA): $(SNAPPY_LIBA) $(FORESTDB_PATH)
+$(FORESTDB_LIBA): $(SNAPPY_LIBA)
 	echo ">>>>> Building forestdb" && \
+    cd ${LIB_PATH} && \
+	tar zxf ${FORESTDB_FILE} && \
+	cd ${FORESTDB_PATH} && sed -i '/add_library(forestdb SHARED/c\add_library(forestdb STATIC' CMakeLists.txt &&\
+	mkdir -p build && cd build &&\
+	SNAPPY_DIR=${SNAPPY_PATH}:${SNAPPY_PATH}/.libs cmake ../ && $(MAKE) && \
 	echo "<<<<< Done building forestdb"
 
 .PHONY: lua

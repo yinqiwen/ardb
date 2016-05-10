@@ -55,14 +55,15 @@ OP_NAMESPACE_BEGIN
             KeyObject m_key;
             ValueObject m_value;
             RocksDBEngine* m_engine;
+            rocksdb::ColumnFamilyHandle* m_cf;
             rocksdb::Iterator* m_iter;
             KeyObject m_iterate_upper_bound_key;
             bool m_valid;
             void ClearState();
             void CheckBound();
         public:
-            RocksDBIterator(RocksDBEngine* engine, const Data& ns) :
-                    m_ns(ns), m_engine(engine), m_iter(NULL), m_valid(true)
+            RocksDBIterator(RocksDBEngine* engine, rocksdb::ColumnFamilyHandle* cf, const Data& ns) :
+                    m_ns(ns), m_engine(engine),m_cf(cf), m_iter(NULL), m_valid(true)
             {
             }
             void MarkValid(bool valid)
@@ -87,6 +88,7 @@ OP_NAMESPACE_BEGIN
             ValueObject& Value(bool clone_str);
             Slice RawKey();
             Slice RawValue();
+            void Del();
             ~RocksDBIterator();
     };
 
@@ -119,9 +121,9 @@ OP_NAMESPACE_BEGIN
             int MultiGet(Context& ctx, const KeyObjectArray& keys, ValueObjectArray& values, ErrCodeArray& errs);
             int Del(Context& ctx, const KeyObject& key);
             int Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args);bool Exists(Context& ctx, const KeyObject& key);
-            int BeginTransaction();
-            int CommitTransaction();
-            int DiscardTransaction();
+            int BeginWriteBatch();
+            int CommitWriteBatch();
+            int DiscardWriteBatch();
             int Compact(Context& ctx, const KeyObject& start, const KeyObject& end);
             int ListNameSpaces(Context& ctx, DataArray& nss);
             int DropNameSpace(Context& ctx, const Data& ns);
