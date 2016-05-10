@@ -439,7 +439,7 @@ OP_NAMESPACE_BEGIN
         KeyObject field_key(ctx.ns, KEY_HASH_FIELD, keystr);
         field_key.SetHashField(cmd.GetArguments()[1]);
         int err = 0;
-        if (!ctx.flags.redis_compatible)
+        if (!ctx.flags.redis_compatible && m_engine->GetFeatureSet().support_merge)
         {
             Data arg;
             if (inc_float)

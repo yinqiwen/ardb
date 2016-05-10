@@ -620,7 +620,7 @@ OP_NAMESPACE_BEGIN
             }
         }
         KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
-        if (!ctx.flags.redis_compatible)
+        if (!ctx.flags.redis_compatible && m_engine->GetFeatureSet().support_merge)
         {
             reply.SetStatusCode(STATUS_OK);
             Data merge_data;

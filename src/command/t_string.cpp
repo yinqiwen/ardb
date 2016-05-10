@@ -108,7 +108,7 @@ OP_NAMESPACE_BEGIN
         /*
          * merge append
          */
-        if (!ctx.flags.redis_compatible)
+        if (!ctx.flags.redis_compatible && m_engine->GetFeatureSet().support_merge)
         {
             Data merge_data;
             merge_data.SetString(append, false);
@@ -270,7 +270,7 @@ OP_NAMESPACE_BEGIN
         /*
          * merge incr
          */
-        if (!ctx.flags.redis_compatible)
+        if (!ctx.flags.redis_compatible && m_engine->GetFeatureSet().support_merge)
         {
             Data merge_data;
             merge_data.SetFloat64(increment);
@@ -338,7 +338,7 @@ OP_NAMESPACE_BEGIN
         /*
          * merge incr
          */
-        if (!ctx.flags.redis_compatible)
+        if (!ctx.flags.redis_compatible && m_engine->GetFeatureSet().support_merge)
         {
             Data merge_data;
             merge_data.SetInt64(incr);
