@@ -280,6 +280,19 @@ OP_NAMESPACE_BEGIN
     int Ardb::SPop(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
+        bool with_count = cmd.GetArguments().size() > 1;
+        int64 count = 1;
+        int64 removed = 0;
+        if (with_count)
+        {
+            if (!string_toint64(cmd.GetArguments()[1], count))
+            {
+                reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
+                return 0;
+            }
+            count = std::abs(count);
+            reply.ReserveMember(0);
+        }
         ValueObject meta;
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject meta_key(ctx.ns, KEY_META, keystr);
@@ -296,22 +309,30 @@ OP_NAMESPACE_BEGIN
         KeyObject key(ctx.ns, KEY_SET_MEMBER, keystr);
         key.SetSetMember(meta.GetMin());
         Iterator* iter = m_engine->Find(ctx, key);
-        bool ele_removed = false;
+        //bool ele_removed = false;
         while (NULL != iter && iter->Valid())
         {
             KeyObject& field = iter->Key();
             if (field.GetType() == KEY_SET_MEMBER && field.GetNameSpace() == key.GetNameSpace() && field.GetKey() == key.GetKey())
             {
-                if (ele_removed)
+                if (removed >= count)
                 {
                     //set min data
                     meta.SetMinData(field.GetSetMember());
                     break;
                 }
-                reply.SetString(field.GetSetMember());
+                if(with_count)
+                {
+                    RedisReply& rr = reply.AddMember();
+                    rr.SetString(field.GetSetMember());
+                }
+                else
+                {
+                    reply.SetString(field.GetSetMember());
+                }
                 //RemoveKey(ctx, field);
                 IteratorDel(ctx, meta_key, iter);
-                ele_removed = true;
+                removed++;
                 if (meta.GetObjectLen() > 0)
                 {
                     meta.SetObjectLen(meta.GetObjectLen() - 1);
@@ -331,11 +352,11 @@ OP_NAMESPACE_BEGIN
         DELETE(iter);
         if (remove_key)
         {
-            RemoveKey(ctx, key);
+            RemoveKey(ctx, meta_key);
         }
         else
         {
-            SetKeyValue(ctx, key, meta);
+            SetKeyValue(ctx, meta_key, meta);
         }
         return 0;
     }

@@ -262,7 +262,7 @@ OP_NAMESPACE_BEGIN
         { "sismember", REDIS_CMD_SISMEMBER, &Ardb::SIsMember, 2, 2, "r", 0, 0, 0 },
         { "smembers", REDIS_CMD_SMEMBERS, &Ardb::SMembers, 1, 1, "r", 0, 0, 0 },
         { "smove", REDIS_CMD_SMOVE, &Ardb::SMove, 3, 3, "w", 0, 0, 0 },
-        { "spop", REDIS_CMD_SPOP, &Ardb::SPop, 1, 1, "wR", 0, 0, 0 },
+        { "spop", REDIS_CMD_SPOP, &Ardb::SPop, 1, 2, "wR", 0, 0, 0 },
         { "srandmember", REDIS_CMD_SRANMEMEBER, &Ardb::SRandMember, 1, 2, "rR", 0, 0, 0 },
         { "srem", REDIS_CMD_SREM, &Ardb::SRem, 2, -1, "w", 1, 0, 0 },
         { "srem2", REDIS_CMD_SREM2, &Ardb::SRem, 2, -1, "w", 1, 0, 0 },
