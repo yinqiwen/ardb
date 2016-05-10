@@ -67,8 +67,9 @@ OP_NAMESPACE_BEGIN
     {
             unsigned support_namespace :1;
             unsigned support_compactfilter :1;
+            unsigned support_merge :1;
             FeatureSet() :
-                    support_namespace(0), support_compactfilter(0)
+                    support_namespace(0), support_compactfilter(0),support_merge(0)
             {
             }
     };

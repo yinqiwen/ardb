@@ -743,7 +743,7 @@ OP_NAMESPACE_BEGIN
         /*
          * merge setrange
          */
-        if (!ctx.flags.redis_compatible)
+        if (!ctx.flags.redis_compatible && m_engine->GetFeatureSet().support_merge)
         {
             DataArray args(2);
             args[0].SetInt64(offset);
@@ -762,12 +762,12 @@ OP_NAMESPACE_BEGIN
         {
             ValueObject valueobj;
             err = m_engine->Get(ctx, keyobj, valueobj);
-            if (err == ERR_ENTRY_NOT_EXIST)
-            {
-                reply.SetInteger(0);
-                return 0;
-            }
-            if (0 != err)
+//            if (err == ERR_ENTRY_NOT_EXIST)
+//            {
+//                reply.SetInteger(0);
+//                return 0;
+//            }
+            if (0 != err && err != ERR_ENTRY_NOT_EXIST)
             {
                 reply.SetErrCode(err);
                 return 0;

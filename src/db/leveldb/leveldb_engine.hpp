@@ -140,6 +140,7 @@ namespace ardb
                 FeatureSet features;
                 features.support_compactfilter = 0;
                 features.support_namespace = 0;
+                features.support_merge = 0;
                 return features;
             }
     };
