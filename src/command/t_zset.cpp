@@ -28,7 +28,7 @@
  */
 #include "db/db.hpp"
 #include <float.h>
-#include <math.h>
+#include <cmath>
 
 /* This generic command implements both ZADD and ZINCRBY. */
 #define ZADD_NONE 0
@@ -148,7 +148,7 @@ OP_NAMESPACE_BEGIN
                     if (incr)
                     {
                         score += current_score;
-                        if (isnan(score))
+                        if (std::isnan(score))
                         {
                             batch.MarkFailed(ERR_SCORE_NAN);
                             break;
@@ -889,7 +889,7 @@ OP_NAMESPACE_BEGIN
             /* The result of adding two doubles is NaN when one variable
              * is +inf and the other is -inf. When these numbers are added,
              * we maintain the convention of the result being 0.0. */
-            if (isnan(*target))
+            if (std::isnan(*target))
                 *target = 0.0;
         }
         else if (aggregate == REDIS_AGGR_MIN)

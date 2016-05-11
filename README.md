@@ -1,6 +1,6 @@
 # Ardb: A High Performance Persistent NoSql, Full Redis-Protocol Compatibility
 [![Build Status](https://travis-ci.org/yinqiwen/ardb.svg?branch=rocksdb-only)](https://travis-ci.org/yinqiwen/ardb)  
-Ardb is a BSD licensed, redis-protocol compatible persistent nosql, it support multiple storage engines as backend like [Google's LevelDB](https://github.com/google/leveldb), [Facebook's RocksDB](https://github.com/facebook/rocksdb), [OpenLDAP's LMDB](http://symas.com/mdb/), [WiredTiger](http://www.wiredtiger.com/), [Couchbase's ForestDB](https://github.com/couchbase/forestdb), the default backend is [Facebook's RocksDB](https://github.com/facebook/rocksdb).
+Ardb is a BSD licensed, redis-protocol compatible persistent nosql, it support multiple storage engines as backend like [Google's LevelDB](https://github.com/google/leveldb), [Facebook's RocksDB](https://github.com/facebook/rocksdb), [OpenLDAP's LMDB](http://symas.com/mdb/), [WiredTiger](http://www.wiredtiger.com/), the default backend is [Facebook's RocksDB](https://github.com/facebook/rocksdb).
 
 
 ## Compile
@@ -58,7 +58,7 @@ RocksDB Options:
      block_based_table_factory={block_cache=512M;block_size=4;filter_policy=bloomfilter:1024:true};
      create_if_missing=true;max_open_files=10000;rate_limiter_bytes_per_sec=50M   
 
-![Benchmark Img](https://raw.githubusercontent.com/yinqiwen/ardb/rocksdb-only/doc/benchmark.png)
+![Benchmark Img](https://raw.githubusercontent.com/yinqiwen/ardb/0.9/doc/benchmark.png)
 
 	Becnhmark data(./redis-benchmark -r 10000000 -n 10000000):
 	                        RocksDB	    Redis

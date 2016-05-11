@@ -151,7 +151,7 @@ OP_NAMESPACE_BEGIN
             uint64_t QPS()
             {
                 uint64_t sum = 0;
-                for (int i = 0; i < arraysize(qpsSamples); i++)
+                for (size_t i = 0; i < arraysize(qpsSamples); i++)
                 {
                     sum += qpsSamples[i];
                 }

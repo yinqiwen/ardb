@@ -12,3 +12,4 @@ jemalloc-*/
 leveldb-*/
 /Debug
 testdb/
+~*
