@@ -182,7 +182,7 @@ OP_NAMESPACE_BEGIN
         startkey.SetNameSpace(ctx.ns);
         uint32 cursor_pos = 0;
         std::string cursor_element;
-        if (cmd.GetType() == REDIS_CMD_HSCAN || cmd.GetType() == REDIS_CMD_HSCAN2)
+        if (cmd.GetType() == REDIS_CMD_HSCAN)
         {
             cursor_pos = 1;
             FindElementByRedisCursor(cmd.GetArguments()[cursor_pos], cursor_element);
@@ -191,7 +191,7 @@ OP_NAMESPACE_BEGIN
             startkey.SetHashField(cursor_element);
 
         }
-        else if (cmd.GetType() == REDIS_CMD_SSCAN || cmd.GetType() == REDIS_CMD_SSCAN2)
+        else if (cmd.GetType() == REDIS_CMD_SSCAN)
         {
             cursor_pos = 1;
             FindElementByRedisCursor(cmd.GetArguments()[cursor_pos], cursor_element);
@@ -199,7 +199,7 @@ OP_NAMESPACE_BEGIN
             startkey.SetKey(cmd.GetArguments()[0]);
             startkey.SetSetMember(cursor_element);
         }
-        else if (cmd.GetType() == REDIS_CMD_ZSCAN || cmd.GetType() == REDIS_CMD_ZSCAN2)
+        else if (cmd.GetType() == REDIS_CMD_ZSCAN)
         {
             cursor_pos = 1;
             FindElementByRedisCursor(cmd.GetArguments()[cursor_pos], cursor_element);
@@ -265,7 +265,7 @@ OP_NAMESPACE_BEGIN
         while (iter->Valid())
         {
             KeyObject& k = iter->Key();
-            if (cmd.GetType() == REDIS_CMD_SCAN || cmd.GetType() == REDIS_CMD_SCAN2)
+            if (cmd.GetType() == REDIS_CMD_SCAN )
             {
                 if (k.GetType() != KEY_META)
                 {

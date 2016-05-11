@@ -366,6 +366,7 @@ OP_NAMESPACE_BEGIN
         RedisReply& reply = ctx.GetReply();
         bool with_count = cmd.GetArguments().size() > 1;
         int64 count = 1;
+        int64 fetched = 0;
         if (with_count)
         {
             if (!string_toint64(cmd.GetArguments()[1], count))
@@ -373,8 +374,11 @@ OP_NAMESPACE_BEGIN
                 reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
                 return 0;
             }
-            count = std::abs(count);
             reply.ReserveMember(0);
+            if(count == 0)
+            {
+                return 0;
+            }
         }
         ValueObject meta;
         if (!CheckMeta(ctx, cmd.GetArguments()[0], KEY_SET, meta))
@@ -389,7 +393,7 @@ OP_NAMESPACE_BEGIN
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_SET_MEMBER, keystr);
         Iterator* iter = m_engine->Find(ctx, key);
-        while (NULL != iter && iter->Valid() && count > 0)
+        while (NULL != iter && iter->Valid() && fetched < std::abs(count))
         {
             KeyObject& field = iter->Key();
             if (field.GetType() == KEY_SET_MEMBER && field.GetNameSpace() == key.GetNameSpace() && key.GetKey() == field.GetKey())
@@ -398,7 +402,7 @@ OP_NAMESPACE_BEGIN
                 {
                     RedisReply& r = reply.AddMember();
                     r.SetString(field.GetSetMember());
-                    count--;
+                    fetched++;
                     iter->Next();
                 }
                 else
@@ -413,6 +417,16 @@ OP_NAMESPACE_BEGIN
             }
         }
         DELETE(iter);
+        if(count < 0 && fetched < std::abs(count) && fetched > 0)
+        {
+            while(fetched < std::abs(count))
+            {
+                RedisReply& r = reply.MemberAt(random_between_int32(0, reply.MemberSize() -1));
+                RedisReply& rr = reply.AddMember();
+                rr.SetString(r.GetString());
+                fetched++;
+            }
+        }
         return 0;
     }
 
