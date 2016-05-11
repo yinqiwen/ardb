@@ -136,7 +136,7 @@ endif
 
 storage_engine?=rocksdb
 
-LIBS= ${LUA_LIBA} ${MALLOC_LIBA} ${SNAPPY_LIBA} -lpthread
+LIBS= ${LUA_LIBA} ${MALLOC_LIBA} ${SNAPPY_LIBA} -lpthread -lrt
 
 %.o : %.cpp
 	${CXX} -c ${CXXFLAGS} ${INCS} $< -o $@
@@ -209,7 +209,7 @@ ifeq ($(storage_engine), wiredtiger)
   STORAGE_ENGINE_PATH=$(WIREDTIGER_PATH)
   INCS+=-I${WIREDTIGER_PATH}
   #wiredtiger use dlsym to load extension, must use -rdynamic to export symbol
-  LIBS:= ${WIREDTIGER_LIBA} ${SNAPPY_LIBA} ${LIBS} -rdynamic -lrt -ldl
+  LIBS:= ${WIREDTIGER_LIBA} ${SNAPPY_LIBA} ${LIBS} -rdynamic -ldl
   CXXFLAGS+=-D__USE_WIREDTIGER__
 else
   $(error Only leveldb/lmdb/rocksdb/forestdb/wiredtiger supported as env storage_engine value)
