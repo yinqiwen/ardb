@@ -1015,7 +1015,6 @@ OP_NAMESPACE_BEGIN
         if (key.GetType() > 0)
         {
             iter->Jump(key);
-            //printf("###jump valid:%d\n", rocksiter->Valid());
         }
         else
         {

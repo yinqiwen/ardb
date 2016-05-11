@@ -154,6 +154,21 @@ OP_NAMESPACE_BEGIN
     }
     int Ardb::Randomkey(Context& ctx, RedisCommandFrame& cmd)
     {
+        RedisReply& reply = ctx.GetReply();
+        KeyObject startkey(ctx.ns, KEY_META, "");
+        ctx.flags.iterate_multi_keys = 1;
+        ctx.flags.iterate_no_upperbound = 1;
+        /*
+         * for rocksdb, this flag must be set for right behavior
+         */
+        ctx.flags.iterate_total_order = 1;
+        Iterator* iter = m_engine->Find(ctx, startkey);
+        if (iter->Valid())
+        {
+            KeyObject& k = iter->Key();
+            reply.SetString(k.GetKey());
+        }
+        DELETE(iter);
         return 0;
     }
 
@@ -199,6 +214,10 @@ OP_NAMESPACE_BEGIN
             startkey.SetType(KEY_META);
             startkey.SetKey(cursor_element);
             ctx.flags.iterate_multi_keys = 1;
+            /*
+             * for rocksdb, this flag must be set for right behavior
+             */
+            ctx.flags.iterate_total_order = 1;
         }
 
         if (cmd.GetArguments().size() > cursor_pos + 1)
@@ -330,15 +349,10 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-            if (ctx.flags.redis_compatible)
-            {
-                uint64 newcursor = GetNewRedisCursor(match_element);
-                r1.SetString(stringfromll(newcursor));
-            }
-            else
-            {
-                r1.SetString(match_element);
-            }
+            std::string next = match_element;
+            next.append(1, 0);
+            uint64 newcursor = GetNewRedisCursor(next);
+            r1.SetString(stringfromll(newcursor));
         }
         DELETE(iter);
         return 0;
@@ -347,7 +361,6 @@ OP_NAMESPACE_BEGIN
     int Ardb::Keys(Context& ctx, RedisCommandFrame& cmd)
     {
         const std::string& pattern = cmd.GetArguments()[0];
-
         std::string start;
         for (size_t i = 0; i < pattern.size(); i++)
         {
@@ -375,8 +388,11 @@ OP_NAMESPACE_BEGIN
         KeyObject startkey(ctx.ns, KEY_META, start);
         ctx.flags.iterate_multi_keys = 1;
         ctx.flags.iterate_no_upperbound = 1;
+        /*
+         * for rocksdb, this flag must be set for right behavior
+         */
+        ctx.flags.iterate_total_order = 1;
         Iterator* iter = m_engine->Find(ctx, startkey);
-        //printf("#### %d %s\n", iter->Valid(), start.c_str());
         while (iter->Valid())
         {
             KeyObject& k = iter->Key();

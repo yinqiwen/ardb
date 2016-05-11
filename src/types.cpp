@@ -321,7 +321,7 @@ OP_NAMESPACE_BEGIN
             other_raw_data = data_buf;
         }
         size_t min_len = left_len < right_len ? left_len : right_len;
-        if(min_len == 0)
+        if(0 == min_len)
         {
             return left_len - right_len;
         }

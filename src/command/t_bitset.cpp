@@ -255,7 +255,7 @@ OP_NAMESPACE_BEGIN
         /*
          * merge setbit
          */
-        if (!ctx.flags.redis_compatible)
+        if (!ctx.flags.redis_compatible && m_engine->GetFeatureSet().support_merge)
         {
             DataArray args(2);
             args[0].SetInt64(offset);

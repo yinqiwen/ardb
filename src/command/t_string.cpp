@@ -669,7 +669,7 @@ OP_NAMESPACE_BEGIN
     {
         RedisReply& reply = ctx.GetReply();
         const std::string& key = cmd.GetArguments()[0];
-        bool redis_compatible = ctx.flags.redis_compatible;
+        bool redis_compatible = ctx.flags.redis_compatible && m_engine->GetFeatureSet().support_merge;
         int err = SetString(ctx, cmd.GetArguments()[0], cmd.GetArguments()[1], redis_compatible, -1, 0);
         if (0 != err)
         {
