@@ -115,17 +115,6 @@ LUA_LDFLAGS+= $(LDFLAGS)
 
 INCS=-I./ -I./common -I${LIB_PATH}/cpp-btree -I${LUA_PATH}/src -I${SNAPPY_PATH} -I${SPARSEHASH_PATH}/src
 
-# Default allocator
-ifeq ($(uname_S),Linux)
-	MALLOC=jemalloc
-	CXXFLAGS+=-DCORO_ASM
-	CCFLAGS+=-DCORO_ASM
-else
-	MALLOC=libc
-	CXXFLAGS+=-DCORO_UCONTEXT -D_XOPEN_SOURCE
-	CCFLAGS+=-DCORO_UCONTEXT -D_XOPEN_SOURCE
-endif
-
 
 ifeq ($(MALLOC),libc)
 #do nothing
@@ -136,7 +125,19 @@ endif
 
 storage_engine?=rocksdb
 
-LIBS= ${LUA_LIBA} ${MALLOC_LIBA} ${SNAPPY_LIBA} -lpthread -lrt
+LIBS= ${LUA_LIBA} ${MALLOC_LIBA} ${SNAPPY_LIBA} -lpthread 
+
+# Default allocator
+ifeq ($(uname_S),Linux)
+	MALLOC=jemalloc
+	CXXFLAGS+=-DCORO_ASM
+	CCFLAGS+=-DCORO_ASM
+	LIBS+=-lrt
+else
+	MALLOC=libc
+	CXXFLAGS+=-DCORO_UCONTEXT -D_XOPEN_SOURCE
+	CCFLAGS+=-DCORO_UCONTEXT -D_XOPEN_SOURCE
+endif
 
 %.o : %.cpp
 	${CXX} -c ${CXXFLAGS} ${INCS} $< -o $@

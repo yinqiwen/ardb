@@ -533,7 +533,6 @@ namespace ardb
             }
         }
 
-
         Context& lua_ctx = ctx->exec;
         RedisReply& reply = lua_ctx.GetReply();
         reply.Clear();
@@ -607,6 +606,21 @@ namespace ardb
         lua_pop(L, 1);
         // Stack is now the same as it was on entry to this function
         str.append("}");
+    }
+
+    int LUAInterpreter::IsMergeSupported(lua_State *lua)
+    {
+        int argc = lua_gettop(lua);
+        size_t len;
+        char *s;
+
+        if (argc != 0)
+        {
+            luaPushError(lua, "wrong number of arguments");
+            return 1;
+        }
+        lua_pushboolean(lua, g_engine->GetFeatureSet().support_merge);
+        return 1;
     }
 
     int LUAInterpreter::Assert2(lua_State *lua)
@@ -842,6 +856,11 @@ namespace ardb
         /* redis.assert2 */
         lua_pushstring(m_lua, "assert2");
         lua_pushcfunction(m_lua, LUAInterpreter::Assert2);
+        lua_settable(m_lua, -3);
+
+        /* redis.is_merge_supported */
+        lua_pushstring(m_lua, "is_merge_supported");
+        lua_pushcfunction(m_lua, LUAInterpreter::IsMergeSupported);
         lua_settable(m_lua, -3);
 
         /* redis.log and log levels. */

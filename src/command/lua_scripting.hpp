@@ -53,6 +53,7 @@ namespace ardb
             static int Call(lua_State *lua);
             static int Log(lua_State *lua);
             static int Assert2(lua_State *lua);
+            static int IsMergeSupported(lua_State *lua);
             static int SHA1Hex(lua_State *lua);
             static int ReturnSingleFieldTable(lua_State *lua, const std::string& field);
             static int ErrorReplyCommand(lua_State *lua);
