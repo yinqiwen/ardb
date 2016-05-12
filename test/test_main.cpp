@@ -18,7 +18,7 @@ using namespace ardb;
 int main()
 {
     Ardb db;
-    if (db.Init("../test/ardb.conf") != 0)
+    if (db.Init("../test/ardb-test.conf") != 0)
     {
         printf("Failed to init db.\n");
         return -1;
