@@ -45,7 +45,7 @@ int main()
             printf("=======================%s Test End(%llums)============================\n\n", fs[i].c_str(), (end - start));
             if(r.IsErr())
             {
-                break;
+                return -1;
             }
         }
     }
