@@ -19,10 +19,10 @@ It should compile to several executables in `src` directory, such as ardb-server
 
 ## Features
 - Full redis-protocol compatibility
-- 2d spatial index supported. [Spatial Index](https://github.com/yinqiwen/ardb/blob/master/doc/spatial-index.md)
+- 2d spatial index supported. [Spatial Index](https://github.com/yinqiwen/ardb/wiki/Spatial-Index)
 	- Redis 3.2 geo commands support
 - Most redis commands supported, and a few new commands.
-  * [Ardb commands VS Redis Commands](https://raw.githubusercontent.com/yinqiwen/ardb/0.9/doc/commands.md)
+  * [Ardb commands VS Redis Commands](https://github.com/yinqiwen/ardb/wiki/ARDB-Commands)
 - Replication compatible with Redis 2.6/2.8
   * Ardb instance work as slave of Redis 2.6/2.8+ instance
   * Ardb instance work as master of Redis 2.6/2.8+ instance
@@ -86,9 +86,9 @@ RocksDB Options:
          
 
 ## Misc
-- [Ardb commands VS Redis Commands](https://raw.githubusercontent.com/yinqiwen/ardb/0.9/doc/commands.md)
-- [Ardb design draft](https://raw.githubusercontent.com/yinqiwen/ardb/0.9/doc/design-draft.md)
-- [Spatial Index](https://github.com/yinqiwen/ardb/blob/master/doc/spatial-index.md)
+- [Ardb commands VS Redis Commands](https://github.com/yinqiwen/ardb/wiki/ARDB-Commands)
+- [Ardb design draft]https://github.com/yinqiwen/ardb/wiki/Design-Draft)
+- [Spatial Index](https://github.com/yinqiwen/ardb/wiki/Spatial-Index)
 
 ## Community
 
