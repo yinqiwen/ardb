@@ -220,7 +220,7 @@ OP_NAMESPACE_BEGIN
     }
 
     Server::Server() :
-            m_service(NULL), m_cron_thread(NULL)
+            m_service(NULL)
     {
 
     }

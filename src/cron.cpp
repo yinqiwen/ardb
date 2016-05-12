@@ -65,42 +65,77 @@ OP_NAMESPACE_BEGIN
         }
     }
 
-    struct ServerCronTask: public Runnable
+    struct FastCronTask: public Runnable
     {
-
             void Run()
             {
                 Statistics::GetSingleton().TrackQPSPerSecond();
                 period_dump_statistics();
+            }
+    };
+
+    struct CronThread: public Thread
+    {
+            ChannelService serv;
+            virtual ~CronThread()
+            {
+            }
+    };
+
+    struct FastCronThread: public CronThread
+    {
+            void Run()
+            {
+                serv.GetTimer().ScheduleHeapTask(new FastCronTask, 1, 1, SECONDS);
+                serv.Start();
+            }
+    };
+
+    struct SlowCronTask: public Runnable
+    {
+            void Run()
+            {
                 g_db->ScanExpiredKeys();
             }
     };
-    struct ServerCronThread: public Thread
+
+    /*
+     * slow cron task which would do DB operations block current thread
+     */
+    struct SlowCronThread: public CronThread
     {
-            ChannelService serv;
             void Run()
             {
-                serv.GetTimer().ScheduleHeapTask(new ServerCronTask, 1, 1, SECONDS);
+                serv.GetTimer().ScheduleHeapTask(new SlowCronTask, 1, 1, SECONDS);
                 serv.Start();
             }
     };
 
     void Server::StartCrons()
     {
-        if (NULL == m_cron_thread)
+        if (m_cron_threads.empty())
         {
-            NEW(m_cron_thread, ServerCronThread);
-            m_cron_thread->Start();
+            Thread* cron = NULL;
+            NEW(cron, FastCronThread);
+            cron->Start();
+            m_cron_threads.push_back(cron);
+            NEW(cron, SlowCronThread);
+            cron->Start();
+            m_cron_threads.push_back(cron);
         }
     }
 
     void Server::StopCrons()
     {
-        if(NULL != m_cron_thread)
+        if (!m_cron_threads.empty())
         {
-            ((ServerCronThread*)m_cron_thread)->serv.Stop();
-            m_cron_thread->Join();
-            DELETE(m_cron_thread);
+            for(size_t i = 0; i < m_cron_threads.size(); i++)
+            {
+                ((CronThread*) m_cron_threads[i])->serv.Stop();
+                m_cron_threads[i]->Join();
+                DELETE(m_cron_threads[i]);
+            }
+            m_cron_threads.clear();
         }
     }
 OP_NAMESPACE_END

@@ -612,7 +612,9 @@ namespace ardb
         //fdb_kvs_handle* snapshot = local_ctx.snapshot.Get(kv);
         end_key = NULL;
         end_keylen = 0;
+
         fdb_status rc = fdb_iterator_init(kv, &fdb_iter, NULL, 0, NULL, 0, opt);
+        //fdb_status rc = fdb_iterator_sequence_init(kv, &fdb_iter, 0, 0, opt);
         if (0 != rc)
         {
             ERROR_LOG("Failed to create cursor for reason:(%d)%s", rc, fdb_error_msg(rc));

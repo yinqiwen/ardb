@@ -41,7 +41,7 @@ OP_NAMESPACE_BEGIN
     {
         private:
             ChannelService* m_service;
-            Thread* m_cron_thread;
+            std::vector<Thread*> m_cron_threads;
             void StartCrons();
             void StopCrons();
         public:
