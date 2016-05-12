@@ -323,7 +323,7 @@ wiredtiger: $(WIREDTIGER_LIBA)
 $(WIREDTIGER_LIBA): $(SNAPPY_LIBA) 
 	echo ">>>>> Building WiredTiger" && \
 	cd ${LIB_PATH} && \
-	tar zxf ${WIREDTIGER_FILE} && \
+	tar jxf ${WIREDTIGER_FILE} && \
 	cd ${WIREDTIGER_PATH} && \
 	./configure && $(MAKE) && \
 	echo "<<<<< Done building WiredTiger"
