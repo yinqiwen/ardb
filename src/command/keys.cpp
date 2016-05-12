@@ -265,7 +265,7 @@ OP_NAMESPACE_BEGIN
         while (iter->Valid())
         {
             KeyObject& k = iter->Key();
-            if (cmd.GetType() == REDIS_CMD_SCAN )
+            if (cmd.GetType() == REDIS_CMD_SCAN)
             {
                 if (k.GetType() != KEY_META)
                 {
@@ -564,17 +564,6 @@ OP_NAMESPACE_BEGIN
         }
         int64 ttl = ms;
         int64 old_ttl = meta.GetTTL();
-        if (old_ttl > 0)
-        {
-            /*
-             * if the storage engine underly do NOT support custom compact filter,
-             * another k/v should stored for the later expire work.
-             */
-            if (!m_engine->GetFeatureSet().support_compactfilter)
-            {
-
-            }
-        }
         if (old_ttl == ttl)
         {
             return ERR_NOTPERFORMED;
@@ -658,9 +647,18 @@ OP_NAMESPACE_BEGIN
             else
             {
                 reply.SetInteger(1);
+                int64 old_ttl = meta_value.GetTTL();
                 if (0 == MergeExpire(ctx, key, meta_value, mills))
                 {
                     SetKeyValue(ctx, key, meta_value);
+                    /*
+                     * if the storage engine underly do NOT support custom compact filter,
+                     * another k/v should stored for the later expire work.
+                     */
+                    if (!m_engine->GetFeatureSet().support_compactfilter)
+                    {
+                        SaveTTL(ctx, ctx.ns, cmd.GetArguments()[0], old_ttl, mills);
+                    }
                 }
             }
         }
@@ -761,7 +759,25 @@ OP_NAMESPACE_BEGIN
             {
                 break;
             }
-
+            if (k.GetType() == KEY_META)
+            {
+                /*
+                 * need delete ttl sort key with ttl value
+                 */
+                if (m_engine->GetFeatureSet().support_compactfilter)
+                {
+                    int64 ttl = iter->Value().GetTTL();
+                    if (ttl > 0)
+                    {
+                        Data tll_ns(TTL_DB_NSMAESPACE, false);
+                        KeyObject new_ttl_key(tll_ns, KEY_TTL_SORT, "");
+                        new_ttl_key.SetTTL(ttl);
+                        new_ttl_key.SetTTLKeyNamespace(k.GetNameSpace());
+                        new_ttl_key.SetTTLKey(k.GetKey().AsString());
+                        m_engine->Del(ctx, new_ttl_key);
+                    }
+                }
+            }
             removed = 1;
             iter->Del();
             //RemoveKey(ctx, k);

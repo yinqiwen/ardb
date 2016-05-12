@@ -380,6 +380,10 @@ namespace ardb
                 info.append("# Keyspace\r\n");
                 for (size_t i = 0; i < nss.size(); i++)
                 {
+                    if(nss[i].AsString() == TTL_DB_NSMAESPACE)
+                    {
+                        continue;
+                    }
                     info.append("db").append(nss[i].AsString()).append(":").append("keys=").append(stringfromll(m_engine->EstimateKeysNum(ctx, nss[i]))).append(
                             "\r\n");
                 }

@@ -141,7 +141,8 @@ OP_NAMESPACE_BEGIN
     static CostTrack g_cmd_cost_tracks[REDIS_CMD_MAX];
 
     Ardb::Ardb() :
-            m_engine(NULL), m_starttime(0), m_loading_data(false), m_redis_cursor_seed(0), m_watched_ctxs(NULL), m_ready_keys(NULL), m_restoring_nss(NULL)
+            m_engine(NULL), m_starttime(0), m_loading_data(false), m_redis_cursor_seed(0), m_watched_ctxs(NULL), m_ready_keys(NULL), m_restoring_nss(NULL), m_min_ttl(
+                    -1)
     {
         g_db = this;
         m_settings.set_empty_key("");
@@ -498,7 +499,7 @@ OP_NAMESPACE_BEGIN
         ERROR_LOG("Unsupported storage engine specified at compile time.");
         return -1;
 #endif
-        std::string options_key = g_engine_name ;
+        std::string options_key = g_engine_name;
         options_key.append(".options");
         std::string options_value;
         conf_get_string(props, options_key, options_value);
@@ -566,7 +567,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::IteratorDel(Context& ctx, const KeyObject& key, Iterator* iter)
     {
-        if(NULL != iter)
+        if (NULL != iter)
         {
             iter->Del();
             TouchWatchKey(ctx, key);
@@ -741,8 +742,148 @@ OP_NAMESPACE_BEGIN
         }
     }
 
+    void Ardb::FeedReplicationDelOperation(const Data& ns, const std::string& key)
+    {
+        if (!g_repl->IsInited())
+        {
+            return;
+        }
+        /*
+         * generate 'del' command for master instance
+         */
+        RedisCommandFrame del("del");
+        del.AddArg(key);
+        FeedReplicationBacklog(ns, del);
+    }
+
+    void Ardb::FeedReplicationBacklog(const Data& ns, RedisCommandFrame& cmd)
+    {
+        if (!g_repl->IsInited())
+        {
+            return;
+        }
+        g_repl->GetReplLog().WriteWAL(ns, cmd);
+    }
+
+    void Ardb::SaveTTL(Context& ctx, const Data& ns, const std::string& key, int64 old_ttl, int64_t new_ttl)
+    {
+        /*
+         * only works with engine that has no compactfilter support
+         */
+        if (m_engine->GetFeatureSet().support_compactfilter)
+        {
+            return;
+        }
+        if (new_ttl > 0)
+        {
+            if (m_min_ttl <= 0 || m_min_ttl > new_ttl)
+            {
+                m_min_ttl = new_ttl;
+            }
+            Data tll_ns(TTL_DB_NSMAESPACE, false);
+            KeyObject new_ttl_key(tll_ns, KEY_TTL_SORT, "");
+            new_ttl_key.SetTTL(new_ttl);
+            new_ttl_key.SetTTLKeyNamespace(ns);
+            new_ttl_key.SetTTLKey(key);
+            ValueObject v;
+            v.SetType(KEY_TTL_SORT);
+            ctx.flags.create_if_notexist = 1;
+            m_engine->Put(ctx, new_ttl_key, v);
+        }
+        if (old_ttl > 0)
+        {
+            Data tll_ns(TTL_DB_NSMAESPACE, false);
+            KeyObject old_ttl_key(tll_ns, KEY_TTL_SORT, "");
+            old_ttl_key.SetTTL(old_ttl);
+            old_ttl_key.SetTTLKeyNamespace(ns);
+            old_ttl_key.SetTTLKey(key);
+            m_engine->Del(ctx, old_ttl_key);
+        }
+    }
+
+    void Ardb::ScanTTLDB()
+    {
+        /*
+         * only works with engine that has no compactfilter support
+         */
+        if (m_engine->GetFeatureSet().support_compactfilter || !GetConf().master_host.empty())
+        {
+            return;
+        }
+        if(0 == m_min_ttl)
+        {
+            return;
+        }
+        uint32 max_scan_keys_one_iter = 1000;
+        uint32 scaned_keys = 0;
+        uint32 total_expired_keys = 0;
+        Context scan_ctx;
+        Data tll_ns(TTL_DB_NSMAESPACE, false);
+        KeyObject scan_key(tll_ns, KEY_TTL_SORT, "");
+        scan_key.SetTTL(m_min_ttl);
+        Iterator* iter = m_engine->Find(scan_ctx, scan_key);
+        if(!iter->Valid())
+        {
+            m_min_ttl = 0; //no expire key
+        }
+        uint64 start_time = get_current_epoch_millis();
+        while (iter->Valid() && scaned_keys < max_scan_keys_one_iter)
+        {
+            KeyObject& k = iter->Key(false);
+            m_min_ttl = k.GetTTL();
+            if (k.GetTTL() > get_current_epoch_millis())
+            {
+                break;
+            }
+            scaned_keys++;
+            ValueObject meta;
+            KeyObject meta_key(k.GetElement(1), KEY_META, k.GetElement(2));
+            KeyLockGuard guard(scan_ctx, meta_key);
+            if (0 == m_engine->Get(scan_ctx, meta_key, meta))
+            {
+                if (meta.GetTTL() == k.GetTTL())
+                {
+                    //delete whole key
+                    if (meta.GetType() == KEY_STRING)
+                    {
+                        m_engine->Del(scan_ctx, meta_key);
+                    }
+                    else
+                    {
+                        DelKey(scan_ctx, meta_key);
+                    }
+                    total_expired_keys++;
+                    FeedReplicationDelOperation(meta_key.GetNameSpace(), meta_key.GetKey().AsString());
+                }
+            }else
+            {
+
+            }
+            iter->Del();
+            iter->Next();
+        }
+        DELETE(iter);
+        uint64 end_time = get_current_epoch_millis();
+        if(total_expired_keys > 0)
+        {
+            INFO_LOG("Cost %llums to delete %u keys.", (end_time - start_time), total_expired_keys);
+        }
+    }
+
     int64 Ardb::ScanExpiredKeys()
     {
+        /*
+         * do not do scan expire on slaves
+         */
+        if (!GetConf().master_host.empty())
+        {
+            return 0;
+        }
+        if (!m_engine->GetFeatureSet().support_compactfilter)
+        {
+            ScanTTLDB();
+            return 0;
+        }
         Data current_scan_ns;
         KeyPrefix scan_key;
         Iterator* iter = NULL;
@@ -751,6 +892,7 @@ OP_NAMESPACE_BEGIN
         uint32 max_scan_keys_one_iter = 100;
         uint32 iter_scaned_keys_num = 0;
         int64 total_expired_keys = 0;
+        uint64 start_time = get_current_epoch_millis();
         while (true)
         {
             {
@@ -794,6 +936,10 @@ OP_NAMESPACE_BEGIN
                         break;
                     }
                     total_expired_keys++;
+                    /*
+                     * generate 'del' command for master instance
+                     */
+                    FeedReplicationDelOperation(iter_key.GetNameSpace(), iter_key.GetKey().AsString());
                 }
                 iter->Del();
                 //RemoveKey(scan_ctx, iter_key);
@@ -801,13 +947,22 @@ OP_NAMESPACE_BEGIN
             }
             scan_key.Clear();
         }
+        DELETE(iter);
+        uint64 end_time = get_current_epoch_millis();
+        if(total_expired_keys > 0)
+        {
+            INFO_LOG("Cost %llums to delete %lld keys.", (end_time - start_time), total_expired_keys);
+        }
         return 0;
     }
     void Ardb::AddExpiredKey(const Data& ns, const Data& key)
     {
+        //printf("###Add %s:%s\n", ns.AsString().c_str(), key.AsString().c_str());
         KeyPrefix k;
         k.key = key;
-        k.ns.SetString(key.CStr(), key.StringLength(), true);
+        k.ns = ns;
+        k.key.ToMutableStr();
+        k.ns.ToMutableStr();
         LockGuard<SpinMutexLock> guard(m_expires_lock);
         m_expires.insert(k);
     }
@@ -1164,7 +1319,8 @@ OP_NAMESPACE_BEGIN
 
         /* Don't accept write commands if there are not enough good slaves and
          * user configured the min-slaves-to-write option. */
-        if (GetConf().master_host.empty() && GetConf().repl_min_slaves_to_write > 0 && GetConf().repl_min_slaves_max_lag > 0 && (setting.flags & ARDB_CMD_WRITE) > 0 && g_repl->GetMaster().GoodSlavesCount() < GetConf().repl_min_slaves_to_write)
+        if (GetConf().master_host.empty() && GetConf().repl_min_slaves_to_write > 0 && GetConf().repl_min_slaves_max_lag > 0
+                && (setting.flags & ARDB_CMD_WRITE) > 0 && g_repl->GetMaster().GoodSlavesCount() < GetConf().repl_min_slaves_to_write)
         {
             ctx.AbortTransaction();
             reply.SetErrCode(ERR_NOREPLICAS);
@@ -1221,7 +1377,8 @@ OP_NAMESPACE_BEGIN
         }
         else if (ctx.IsSubscribed())
         {
-            if (setting.type != REDIS_CMD_SUBSCRIBE && setting.type != REDIS_CMD_PSUBSCRIBE && setting.type != REDIS_CMD_PUNSUBSCRIBE && setting.type != REDIS_CMD_UNSUBSCRIBE && setting.type != REDIS_CMD_QUIT)
+            if (setting.type != REDIS_CMD_SUBSCRIBE && setting.type != REDIS_CMD_PSUBSCRIBE && setting.type != REDIS_CMD_PUNSUBSCRIBE
+                    && setting.type != REDIS_CMD_UNSUBSCRIBE && setting.type != REDIS_CMD_QUIT)
             {
                 reply.SetErrorReason("only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context");
                 return 0;

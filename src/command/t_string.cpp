@@ -547,7 +547,13 @@ OP_NAMESPACE_BEGIN
             op = nx_xx == 0 ? REDIS_CMD_SETNX : REDIS_CMD_SETXX;
         }
         ValueObject valueobj;
-
+        /*
+         * setex should work on compatible mode if storage engine do not support merge
+         */
+        if (!m_engine->GetFeatureSet().support_merge && ttl > 0)
+        {
+            redis_compatible = true;
+        }
         if (redis_compatible)
         {
             if (!CheckMeta(ctx, key, KEY_STRING, valueobj))
@@ -556,10 +562,15 @@ OP_NAMESPACE_BEGIN
             }
             Data merge;
             merge.SetString(value, true);
+            int64 oldttl = valueobj.GetTTL();
             err = MergeSet(ctx, keyobj, valueobj, op, merge, ttl);
             if (0 == err)
             {
                 err = SetKeyValue(ctx, keyobj, valueobj);
+                if (0 == err)
+                {
+                    SaveTTL(ctx, keyobj.GetNameSpace(), key, oldttl, ttl);
+                }
             }
         }
         else
@@ -670,7 +681,7 @@ OP_NAMESPACE_BEGIN
         RedisReply& reply = ctx.GetReply();
         const std::string& key = cmd.GetArguments()[0];
         bool redis_compatible = ctx.flags.redis_compatible || !m_engine->GetFeatureSet().support_merge;
-        int err = SetString(ctx, cmd.GetArguments()[0], cmd.GetArguments()[1], redis_compatible, -1, 0);
+        int err = SetString(ctx, key, cmd.GetArguments()[1], redis_compatible, -1, 0);
         if (0 != err)
         {
             if (err == ERR_NOTPERFORMED)

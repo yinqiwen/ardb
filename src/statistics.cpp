@@ -93,7 +93,6 @@ OP_NAMESPACE_BEGIN
         {
             return;
         }
-        uint64 allCount = 0;
         for (size_t i = 0; i < recs.size(); i++)
         {
             if (0 == recs[i].count)

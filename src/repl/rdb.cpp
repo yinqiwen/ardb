@@ -115,6 +115,7 @@ extern "C"
 #define ARDB_RDB_TYPE_CHUNK 1
 #define ARDB_RDB_TYPE_SNAPPY_CHUNK 2
 #define ARDB_RDB_OPCODE_SELECTDB   3
+#define ARDB_OPCODE_AUX        250
 #define ARDB_RDB_TYPE_EOF 255
 
 namespace ardb
@@ -412,6 +413,10 @@ namespace ardb
         }
     }
 
+    int ObjectIO::WriteRawString(const std::string& str)
+    {
+        return WriteRawString(str.data(), str.size());
+    }
     /* Save a string objet as [len][data] on disk. If the object is a string
      * representation of an integer value we try to save it in a special form */
     int ObjectIO::WriteRawString(const char *s, size_t len)
@@ -631,7 +636,7 @@ namespace ardb
             }
             else
 #endif
-            snprintf((char*) buf + 1, sizeof(buf) - 1, "%.17g", val);
+                snprintf((char*) buf + 1, sizeof(buf) - 1, "%.17g", val);
             buf[0] = strlen((char*) buf + 1);
             len = buf[0] + 1;
         }
@@ -1115,6 +1120,10 @@ namespace ardb
         if (expiretime > 0)
         {
             meta_value.SetTTL(expiretime);
+            if (!g_db->GetEngine()->GetFeatureSet().support_compactfilter)
+            {
+                g_db->SaveTTL(ctx, meta_key.GetNameSpace(), meta_key.GetKey().AsString(), 0, expiretime);
+            }
         }
         g_db->SetKeyValue(ctx, meta_key, meta_value);
         return true;
@@ -1131,16 +1140,42 @@ namespace ardb
     {
         while (buffer.Readable())
         {
+            int64 ttl = 0;
+            if (!BufferHelper::ReadVarInt64(buffer, ttl))
+            {
+                ERROR_LOG("Failed to read ttl in kv pair.");
+                return -1;
+            }
             Slice key, value;
-            RETURN_NEGATIVE_EXPR(BufferHelper::ReadVarSlice(buffer, key));
-            RETURN_NEGATIVE_EXPR(BufferHelper::ReadVarSlice(buffer, value));
+            if (!BufferHelper::ReadVarSlice(buffer, key))
+            {
+                ERROR_LOG("Failed to read key in kv pair.");
+                return -1;
+            }
+            if (!BufferHelper::ReadVarSlice(buffer, value))
+            {
+                ERROR_LOG("Failed to read value in kv pair.");
+                return -1;
+            }
             g_db->GetEngine()->PutRaw(ctx, ctx.ns, key, value);
+            if (ttl > 0 && !g_db->GetEngine()->GetFeatureSet().support_compactfilter)
+            {
+                Buffer keybuf((char*) key.data(), 0, key.size());
+                KeyObject kk;
+                if (!kk.Decode(keybuf, false, false))
+                {
+                    ERROR_LOG("Failed to decode key object.");
+                    return -1;
+                }
+                g_db->SaveTTL(ctx, ctx.ns, kk.GetKey().AsString(), 0, ttl);
+            }
         }
         return 0;
     }
 
-    int ObjectIO::ArdbSaveRawKeyValue(const Slice& key, const Slice& value, Buffer& buffer)
+    int ObjectIO::ArdbSaveRawKeyValue(const Slice& key, const Slice& value, Buffer& buffer, int64 ttl)
     {
+        BufferHelper::WriteVarInt64(buffer, ttl);
         BufferHelper::WriteVarSlice(buffer, key);
         BufferHelper::WriteVarSlice(buffer, value);
         return 0;
@@ -1185,6 +1220,7 @@ namespace ardb
                 return -1;
             }
             RETURN_NEGATIVE_EXPR(ArdbLoadBuffer(ctx, buffer));
+            return 0;
         }
         else if (type == ARDB_RDB_TYPE_SNAPPY_CHUNK)
         {
@@ -1194,6 +1230,7 @@ namespace ardb
             NEW(newbuf, char[compressedlen]);
             if (!Read(newbuf, compressedlen, true))
             {
+                ERROR_LOG("Failed to read compressed chunk.");
                 DELETE_A(newbuf);
                 return -1;
             }
@@ -1201,12 +1238,14 @@ namespace ardb
             origin.reserve(rawlen);
             if (!snappy::Uncompress(newbuf, compressedlen, &origin))
             {
+                ERROR_LOG("Failed to decompress snappy chunk.");
                 DELETE_A(newbuf);
                 return -1;
             }
             DELETE_A(newbuf);
             Buffer readbuf(const_cast<char*>(origin.data()), 0, origin.size());
             RETURN_NEGATIVE_EXPR(ArdbLoadBuffer(ctx, readbuf));
+            return 0;
         }
         return -1;
     }
@@ -1963,6 +2002,13 @@ namespace ardb
         g_db->GetEngine()->ListNameSpaces(dumpctx, nss);
         for (size_t i = 0; i < nss.size(); i++)
         {
+            /*
+             * do not iterate ttl db
+             */
+            if (nss[i].AsString() == TTL_DB_NSMAESPACE)
+            {
+                continue;
+            }
             dumpctx.ns = nss[i];
             DUMP_CHECK_WRITE(WriteType(REDIS_RDB_OPCODE_SELECTDB));
             int64 dbid = 0;
@@ -2140,15 +2186,38 @@ namespace ardb
         g_db->GetEngine()->ListNameSpaces(dumpctx, nss);
         for (size_t i = 0; i < nss.size(); i++)
         {
+            /*
+             * do not iterate ttl db
+             */
+            if (nss[i].AsString() == TTL_DB_NSMAESPACE)
+            {
+                continue;
+            }
             dumpctx.ns = nss[i];
             RETURN_NEGATIVE_EXPR(WriteType(ARDB_RDB_OPCODE_SELECTDB));
             RETURN_NEGATIVE_EXPR(WriteStringObject(nss[i]));
+
+            /*
+             * aux header
+             */
+            RETURN_NEGATIVE_EXPR(WriteType(ARDB_OPCODE_AUX));
+            RETURN_NEGATIVE_EXPR(WriteRawString("ardb_version"));
+            RETURN_NEGATIVE_EXPR(WriteRawString(ARDB_VERSION));
+            RETURN_NEGATIVE_EXPR(WriteType(ARDB_OPCODE_AUX));
+            RETURN_NEGATIVE_EXPR(WriteRawString("engine"));
+            RETURN_NEGATIVE_EXPR(WriteRawString(g_engine_name));
+
             KeyObject empty;
             empty.SetNameSpace(nss[i]);
             Iterator* iter = g_db->GetEngine()->Find(dumpctx, empty);
             while (iter->Valid())
             {
-                int ret = ArdbSaveRawKeyValue(iter->RawKey(), iter->RawValue(), m_write_buffer);
+                int64 ttl = 0;
+                if (iter->Key().GetType() == KEY_META)
+                {
+                    ttl = iter->Value().GetTTL();
+                }
+                int ret = ArdbSaveRawKeyValue(iter->RawKey(), iter->RawValue(), m_write_buffer, ttl);
                 if (0 != ret)
                 {
                     DELETE(iter);
@@ -2206,6 +2275,7 @@ namespace ardb
             if (type == ARDB_RDB_TYPE_EOF)
                 break;
 
+            /* Handle SELECT DB opcode as a special case */
             if (type == ARDB_RDB_OPCODE_SELECTDB)
             {
                 std::string ns;
@@ -2216,11 +2286,21 @@ namespace ardb
                 }
                 loadctx.ns.SetString(ns, false);
             }
-            /* Handle SELECT DB opcode as a special case */
+            else if (type == ARDB_OPCODE_AUX)
+            {
+                std::string aux_key, aux_val;
+                if (!ReadString(aux_key) || !ReadString(aux_val))
+                {
+                    ERROR_LOG("Failed to read selected namespace.");
+                    goto eoferr;
+                }
+                INFO_LOG("Snapshot aux info: %s=%s", aux_key.c_str(), aux_val.c_str());
+            }
             else if (type == ARDB_RDB_TYPE_CHUNK || type == ARDB_RDB_TYPE_SNAPPY_CHUNK)
             {
                 if (0 != ArdbLoadChunk(loadctx, type))
                 {
+                    ERROR_LOG("Failed to load chunk type:%d.", type);
                     goto eoferr;
                 }
             }

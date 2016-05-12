@@ -312,7 +312,7 @@ OP_NAMESPACE_BEGIN
         //bool ele_removed = false;
         while (NULL != iter && iter->Valid())
         {
-            KeyObject& field = iter->Key();
+            KeyObject& field = iter->Key(true);
             if (field.GetType() == KEY_SET_MEMBER && field.GetNameSpace() == key.GetNameSpace() && field.GetKey() == key.GetKey())
             {
                 if (removed >= count)

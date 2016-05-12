@@ -339,6 +339,13 @@ OP_NAMESPACE_BEGIN
             }
             bool Filter(int level, const rocksdb::Slice& key, const rocksdb::Slice& existing_value, std::string* new_value, bool* value_changed) const
             {
+                /*
+                 * do not do filter for slave
+                 */
+                if(!g_db->GetConf().master_host.empty())
+                {
+                   return false;
+                }
                 if (existing_value.size() == 0)
                 {
                     return true;
@@ -380,6 +387,7 @@ OP_NAMESPACE_BEGIN
                         }
                         else
                         {
+                            g_db->FeedReplicationDelOperation(ns, k.GetKey().AsString());
                             return true;
                         }
                     }

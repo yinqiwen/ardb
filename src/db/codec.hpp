@@ -218,9 +218,13 @@ OP_NAMESPACE_BEGIN
             {
                 return getElement(0).GetFloat64();
             }
-            void SetTTLKey(const Data& key)
+            void SetTTLKeyNamespace(const Data& ns)
             {
-                setElement(key, 1);
+                setElement(ns, 1);
+            }
+            void SetTTLKey(const std::string& key)
+            {
+                getElement(2).SetString(key, false);
             }
             const Data& GetTTLKey() const
             {

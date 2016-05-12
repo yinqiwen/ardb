@@ -63,6 +63,7 @@ namespace ardb
             int WriteMillisecondTime(uint64 ts);
             int WriteDouble(double v);
             int WriteLongLongAsStringObject(long long value);
+            int WriteRawString(const std::string& str);
             int WriteRawString(const char *s, size_t len);
             int WriteLzfStringObject(const char *s, size_t len);
             int WriteTime(time_t t);
@@ -88,7 +89,7 @@ namespace ardb
             int ArdbLoadChunk(Context& ctx, int type);
             int ArdbLoadBuffer(Context& ctx, Buffer& buffer);
         public:
-            int ArdbSaveRawKeyValue(const Slice& key, const Slice& value, Buffer& buffer);
+            int ArdbSaveRawKeyValue(const Slice& key, const Slice& value, Buffer& buffer, int64 ttl);
             int ArdbFlushWriteBuffer(Buffer& buffer);
             virtual ~ObjectIO()
             {

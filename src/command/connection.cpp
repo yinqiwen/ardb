@@ -52,6 +52,11 @@ OP_NAMESPACE_BEGIN
             ctx.GetReply().SetErrorReason("too large namespace string length.");
             return 0;
         }
+        if(!strcmp(TTL_DB_NSMAESPACE, cmd.GetArguments()[0].c_str()))
+        {
+            ctx.GetReply().SetErrorReason("Can NOT select TTL DB.");
+            return 0;
+        }
         ctx.ns.SetString(cmd.GetArguments()[0], false);
         ctx.GetReply().SetStatusCode(STATUS_OK);
         return 0;

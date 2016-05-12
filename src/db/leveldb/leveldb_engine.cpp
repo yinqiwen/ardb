@@ -599,9 +599,7 @@ namespace ardb
         {
             return 0;
         }
-        uint64 value = 0;
-//        m_db->GetIntProperty("leveldb.estimate-num-keys", &value);
-        return (int64) value;
+        return -1;
     }
 
     void LevelDBEngine::Stats(Context& ctx, std::string& str)

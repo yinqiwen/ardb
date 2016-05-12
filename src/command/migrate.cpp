@@ -201,7 +201,12 @@ OP_NAMESPACE_BEGIN
         while (iter->Valid())
         {
             KeyObject& k = iter->Key();
-            obuffer.ArdbSaveRawKeyValue(iter->RawKey(), iter->RawValue(), buffer);
+            int64 ttl = 0;
+            if (iter->Key().GetType() == KEY_META)
+            {
+                ttl = iter->Value().GetTTL();
+            }
+            obuffer.ArdbSaveRawKeyValue(iter->RawKey(), iter->RawValue(), buffer, ttl);
             if (buffer.ReadableBytes() >= 512 * 1024)
             {
                 obuffer.ArdbFlushWriteBuffer(buffer);

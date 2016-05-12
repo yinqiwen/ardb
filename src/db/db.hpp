@@ -45,6 +45,8 @@
 #include <stack>
 #include <sparsehash/dense_hash_map>
 
+#define TTL_DB_NSMAESPACE "__TTL_DB__"
+
 using namespace ardb::codec;
 
 OP_NAMESPACE_BEGIN
@@ -83,8 +85,8 @@ OP_NAMESPACE_BEGIN
             struct KeyLockGuard
             {
                     Context& ctx;
-                    bool lock;
                     KeyObject& k;
+                    bool lock;
 
                     KeyLockGuard(Context& cctx, KeyObject& key, bool _lock = true);
                     ~KeyLockGuard();
@@ -146,6 +148,8 @@ OP_NAMESPACE_BEGIN
             SpinMutexLock m_restoring_lock;
             DataSet* m_restoring_nss;
 
+            int64_t m_min_ttl;
+
             static void MigrateCoroTask(void* data);
             static void MigrateDBCoroTask(void* data);
 
@@ -154,7 +158,9 @@ OP_NAMESPACE_BEGIN
             bool MarkRestoring(Context& ctx, bool enable);
             bool IsRestoring(Context& ctx, const Data& ns);
 
-            void OverwriteTTL(Context& ctx, const Data& ns, const std::string& key, int64 old_ttl, int64_t new_ttl);
+            void SaveTTL(Context& ctx, const Data& ns, const std::string& key, int64 old_ttl, int64_t new_ttl);
+            void ScanTTLDB();
+            void FeedReplicationBacklog(const Data& ns, RedisCommandFrame& cmd);
 
             int WriteReply(Context& ctx, RedisReply* r, bool async);
 
@@ -442,6 +448,7 @@ OP_NAMESPACE_BEGIN
             int MergeOperation(const KeyObject& key, ValueObject& val, uint16_t op, DataArray& args);
             int MergeOperands(uint16_t left, const DataArray& left_args, uint16_t& right, DataArray& right_args);
             void AddExpiredKey(const Data& ns, const Data& key);
+            void FeedReplicationDelOperation(const Data& ns, const std::string& key);
             int TouchWatchKey(Context& ctx, const KeyObject& key);
             void FreeClient(Context& ctx);
             void AddClient(Context& ctx);
