@@ -141,6 +141,10 @@ namespace ardb
                                 break;
                             }
                         }
+                        if(NULL == txn)
+                        {
+                            break;
+                        }
                     }
 
                     if (count == 0)

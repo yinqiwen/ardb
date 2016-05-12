@@ -2377,7 +2377,7 @@ namespace ardb
         Snapshot* snapshot = NULL;
         NEW(snapshot, Snapshot);
         char path[1024];
-        snprintf(path, sizeof(path) - 1, "%s/dump-snapshot.%u", g_db->GetConf().backup_dir.c_str(), now);
+        snprintf(path, sizeof(path) - 1, "%s/%s-snapshot.%u", g_db->GetConf().backup_dir.c_str(), type == REDIS_DUMP ? "redis" : "ardb", now);
         if (bgsave)
         {
             if (0 == snapshot->BGSave(type, path, cb, data))
