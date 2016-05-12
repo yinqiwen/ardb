@@ -19,6 +19,8 @@ script:
     - ./ardb-test
     - storage_engine=lmdb make
     - ./ardb-test
+    - storage_engine=wiredtiger make
+    - ./ardb-test
     - popd
 
 os:
