@@ -1,5 +1,5 @@
 # Ardb: A High Performance Persistent NoSql, Full Redis-Protocol Compatibility
-[![Build Status](https://travis-ci.org/yinqiwen/ardb.svg?branch=rocksdb-only)](https://travis-ci.org/yinqiwen/ardb)  
+[![Build Status](https://travis-ci.org/yinqiwen/ardb.svg?branch=0.9)](https://travis-ci.org/yinqiwen/ardb)  
 Ardb is a BSD licensed, redis-protocol compatible persistent nosql, it support multiple storage engines as backend like [Google's LevelDB](https://github.com/google/leveldb), [Facebook's RocksDB](https://github.com/facebook/rocksdb), [OpenLDAP's LMDB](http://symas.com/mdb/), [WiredTiger](http://www.wiredtiger.com/), the default backend is [Facebook's RocksDB](https://github.com/facebook/rocksdb).
 
 
@@ -21,8 +21,8 @@ It should compile to several executables in `src` directory, such as ardb-server
 - Full redis-protocol compatibility
 - 2d spatial index supported. [Spatial Index](https://github.com/yinqiwen/ardb/blob/master/doc/spatial-index.md)
 	- Redis 3.2 geo commands support
-- Most redis commands supported, and a few new commands
-  * [Ardb commands VS Redis Commands](https://github.com/yinqiwen/ardb/wiki/ARDB-Commands)
+- Most redis commands supported, and a few new commands.
+  * [Ardb commands VS Redis Commands](https://raw.githubusercontent.com/yinqiwen/ardb/0.9/doc/commands.md)
 - Replication compatible with Redis 2.6/2.8
   * Ardb instance work as slave of Redis 2.6/2.8+ instance
   * Ardb instance work as master of Redis 2.6/2.8+ instance
@@ -32,6 +32,7 @@ It should compile to several executables in `src` directory, such as ardb-server
 - Backup data online
   * Use 'save/bgsave' to backup data
   * Use 'import' to import backup data
+
 
 ## Clients
 Since ardb is a full redis-protocol compatible server, you can use most existed redis client to connect it without any problem. Here lists all redis clients. <http://www.redis.io/clients>  
@@ -83,6 +84,11 @@ RocksDB Options:
 * Note: 
   - **Ardb uses 1 threads in this benchmark test, since redis is single threaded application. But ardb is actually a multithreaded applcation, you can start the server with more threads by setting 'thread-pool-size' to 2 or higher to increase the read/write performance.**
          
+
+## Misc
+- [Ardb commands VS Redis Commands](https://raw.githubusercontent.com/yinqiwen/ardb/0.9/doc/commands.md)
+- [Ardb design draft](https://raw.githubusercontent.com/yinqiwen/ardb/0.9/doc/design-draft.md)
+- [Spatial Index](https://github.com/yinqiwen/ardb/blob/master/doc/spatial-index.md)
 
 ## Community
 
