@@ -247,7 +247,7 @@ OP_NAMESPACE_BEGIN
             {
                 if (cit->size() != 2)
                 {
-                    ERROR_LOG("Invalid 'rename-command' config.");
+                    ERROR_LOG("Invalid 'rename-command' config with %u args.", cit->size());
                 }
                 else
                 {

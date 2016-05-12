@@ -409,7 +409,6 @@ OP_NAMESPACE_BEGIN
             }
             m_settings[settingTable[i].name] = settingTable[i];
         }
-        RenameCommand();
     }
 
     Ardb::~Ardb()
@@ -470,6 +469,9 @@ OP_NAMESPACE_BEGIN
             daemonize();
         }
         signal_setting();
+
+        RenameCommand();
+
         /*
          * save pid into file
          */
