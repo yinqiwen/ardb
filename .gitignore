@@ -13,3 +13,4 @@ leveldb-*/
 /Debug
 testdb/
 ~*
+.kv_engine

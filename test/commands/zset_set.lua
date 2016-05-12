@@ -139,3 +139,11 @@ ardb.assert2(vs[3] == "two", vs)
 ardb.assert2(vs[4] == "6", vs)
 ardb.assert2(vs[5] == "three", vs)
 ardb.assert2(vs[6] == "9", vs)
+
+--[[  issue #168 --]]
+ardb.call("del", "myzset")
+ardb.call("zadd", "myzset","11","user4","11","user6","15","user3","30","user1","30","user2","122","user5")
+s = ardb.call("zrevrank", "myzset", "user6") 
+ardb.assert2(s==4, s)
+s = ardb.call("zrevrank", "myzset", "user4") 
+ardb.assert2(s==5, s)
