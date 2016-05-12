@@ -87,7 +87,7 @@ RocksDB Options:
 
 ## Misc
 - [Ardb commands VS Redis Commands](https://github.com/yinqiwen/ardb/wiki/ARDB-Commands)
-- [Ardb design draft]https://github.com/yinqiwen/ardb/wiki/Design-Draft)
+- [Ardb design draft](https://github.com/yinqiwen/ardb/wiki/Design-Draft)
 - [Spatial Index](https://github.com/yinqiwen/ardb/wiki/Spatial-Index)
 
 ## Community
