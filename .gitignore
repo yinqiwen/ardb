@@ -11,3 +11,4 @@ gperftools-*/
 jemalloc-*/
 leveldb-*/
 /Debug
+.kv_engine
