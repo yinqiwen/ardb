@@ -1,29 +1,21 @@
-sudo: false
 language: cpp
+
 compiler:
   - gcc
   - clang
-install:
-- if [ "$CXX" = "g++" ]; then export CXX="g++-4.8" CC="gcc-4.8"; fi
-addons:
-  apt:
-    sources:
-    - ubuntu-toolchain-r-test
-    packages:
-    - gcc-4.8
-    - g++-4.8
-    - clang
 
-script: make && ./src/ardb-test && storage_engine=leveldb make && ./src/ardb-test && storage_engine=lmdb make && ./src/ardb-test && storage_engine=wiredtiger make && ./src/ardb-test
-branches:
-  only:
-    - master
-notifications:
-  recipients:
-    - yinqiwen@gmail.com
-  email:
-    on_success: change
-    on_failure: always
+sudo: required
+dist: trusty
+
+addons:
+    packages:
+        - libbz2-dev
+
+script:
+    - pushd src
+    - make
+    - ./ardb-test
+    - popd
+
 os:
   - linux
-  - osx

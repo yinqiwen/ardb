@@ -267,19 +267,17 @@ OP_NAMESPACE_BEGIN
         if (fit != props.end())
         {
             rename_commands.clear();
-            StringSet newcmdset;
             const ConfItemsArray& cs = fit->second;
             ConfItemsArray::const_iterator cit = cs.begin();
             while (cit != cs.end())
             {
-                if (cit->size() != 2 || newcmdset.count(cit->at(1)) > 0)
+                if (cit->size() != 2)
                 {
                     ERROR_LOG("Invalid 'rename-command' config.");
                 }
                 else
                 {
                     rename_commands[cit->at(0)] = cit->at(1);
-                    newcmdset.insert(cit->at(1));
                 }
                 cit++;
             }
