@@ -369,11 +369,6 @@ $(ZOOKEEPER_PATH):
 	echo ">>>>> Unpacking ZOOKEEPER" && \
 	cd ${LIB_PATH} && \
 	tar zxf ${ZOOKEEPER_FILE} && \
-	cd ${ZOOKEEPER_PATH}/src && \
-	patch < ../patch/zookeeper.mt_adaptor.patch && \
-	cd ${ZOOKEEPER_PATH} && \
-	patch < ../patch/zookeeper.configure.ac.patch && \
-	autoconf configure.ac > configure 2> autoconf.out && \
 	echo "<<<<<< Done unpacking ZOOKEEPER"
 
 .PHONY: sparsehash

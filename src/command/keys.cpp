@@ -705,6 +705,21 @@ OP_NAMESPACE_BEGIN
                 ttl = ttl / 1000 - time(NULL);
 
             }
+            if (ttl < 0)
+            {
+//                if (GetConf().master_host.empty() || !GetConf().slave_readonly)
+//                {
+//                    if (val.GetType() == KEY_STRING)
+//                    {
+//                        RemoveKey(ctx, key);
+//                    }
+//                    else
+//                    {
+//                        DelKey(ctx, key);
+//                    }
+//                }
+//                ttl = 0;
+            }
         }
         reply.SetInteger(ttl);
         return 0;
@@ -732,6 +747,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::DelKey(Context& ctx, const KeyObject& meta_key)
     {
+
         Iterator* iter = NULL;
         int ret = DelKey(ctx, meta_key, iter);
         DELETE(iter);
@@ -740,6 +756,32 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::DelKey(Context& ctx, const KeyObject& meta_key, Iterator*& iter)
     {
+        ValueObject meta_obj;
+        if (0 == m_engine->Get(ctx, meta_key, meta_obj))
+        {
+            /*
+             * need delete ttl sort key with ttl value
+             */
+            if (m_engine->GetFeatureSet().support_compactfilter)
+            {
+                int64 ttl = meta_obj.GetTTL();
+                if (ttl > 0)
+                {
+                    Data tll_ns(TTL_DB_NSMAESPACE, false);
+                    KeyObject new_ttl_key(tll_ns, KEY_TTL_SORT, "");
+                    new_ttl_key.SetTTL(ttl);
+                    new_ttl_key.SetTTLKeyNamespace(meta_key.GetNameSpace());
+                    new_ttl_key.SetTTLKey(meta_key.GetKey().AsString());
+                    m_engine->Del(ctx, new_ttl_key);
+                }
+            }
+            if (meta_obj.GetType() == KEY_STRING)
+            {
+                int err = RemoveKey(ctx, meta_key);
+                return err == 0 ? 1 : 0;
+            }
+        }
+
         if (NULL == iter)
         {
             iter = m_engine->Find(ctx, meta_key);
@@ -753,30 +795,9 @@ OP_NAMESPACE_BEGIN
         {
             KeyObject& k = iter->Key();
             const Data& kdata = k.GetKey();
-            //printf("###del iter:%d %d %s\n",k.GetNameSpace().Compare(meta_key.GetNameSpace()), k.GetType(), k.GetKey().AsString().c_str());
-            if (k.GetNameSpace().Compare(meta_key.GetNameSpace()) != 0 || kdata.StringLength() != meta_key.GetKey().StringLength()
-                    || strncmp(meta_key.GetKey().CStr(), kdata.CStr(), kdata.StringLength()) != 0)
+            if (k.GetNameSpace().Compare(meta_key.GetNameSpace()) != 0 || kdata.StringLength() != meta_key.GetKey().StringLength() || strncmp(meta_key.GetKey().CStr(), kdata.CStr(), kdata.StringLength()) != 0)
             {
                 break;
-            }
-            if (k.GetType() == KEY_META)
-            {
-                /*
-                 * need delete ttl sort key with ttl value
-                 */
-                if (m_engine->GetFeatureSet().support_compactfilter)
-                {
-                    int64 ttl = iter->Value().GetTTL();
-                    if (ttl > 0)
-                    {
-                        Data tll_ns(TTL_DB_NSMAESPACE, false);
-                        KeyObject new_ttl_key(tll_ns, KEY_TTL_SORT, "");
-                        new_ttl_key.SetTTL(ttl);
-                        new_ttl_key.SetTTLKeyNamespace(k.GetNameSpace());
-                        new_ttl_key.SetTTLKey(k.GetKey().AsString());
-                        m_engine->Del(ctx, new_ttl_key);
-                    }
-                }
             }
             removed = 1;
             iter->Del();
