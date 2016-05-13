@@ -568,9 +568,10 @@ namespace ardb
 
     int LevelDBEngine::DropNameSpace(Context& ctx, const Data& ns)
     {
-        if (!GetNamespace(ns, ctx.flags.create_if_notexist))
+        RWLockGuard<SpinRWLock> guard(m_lock, false);
+        if (m_nss.count(ns) == 0)
         {
-            return ERR_ENTRY_NOT_EXIST;
+            return 0;
         }
         KeyObject start(ns, KEY_META, "");
         ctx.flags.iterate_multi_keys = 1;
@@ -590,6 +591,7 @@ namespace ardb
             iter->Next();
         }
         DELETE(iter);
+        m_nss.erase(ns);
         return 0;
     }
 
@@ -612,7 +614,7 @@ namespace ardb
 
     bool LevelDBIterator::Valid()
     {
-        if( m_valid && NULL != m_iter && m_iter->Valid())
+        if (m_valid && NULL != m_iter && m_iter->Valid())
         {
             Data ns;
             GetRawKey(ns);
