@@ -38,11 +38,17 @@ OP_NAMESPACE_BEGIN
 
     int compare_keys(const char* k1, size_t k1_len, const char* k2, size_t k2_len, bool has_ns)
     {
+        int ret = (NULL != k2) - (NULL != k1);
+        if(0 != ret)
+        {
+            return ret;
+        }
+
         Buffer kbuf1(const_cast<char*>(k1), 0, k1_len);
         Buffer kbuf2(const_cast<char*>(k2), 0, k2_len);
 
         KeyObject key1, key2;
-        int ret = 0;
+
         if (has_ns)
         {
             /*
@@ -62,6 +68,8 @@ OP_NAMESPACE_BEGIN
                 return ret;
             }
         }
+
+
 
         /*
          * 2. decode  prefix

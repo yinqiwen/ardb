@@ -76,6 +76,12 @@ WIREDTIGER_PATH=${LIB_PATH}/${WIREDTIGER_VER}
 WIREDTIGER_FILE=${LIB_PATH}/${WIREDTIGER_VER}.tar.bz2
 WIREDTIGER_LIBA=${WIREDTIGER_PATH}/.libs/libwiredtiger.a
 
+TOKUFT_VER=PerconaFT-master
+TOKUFT_PATH=${LIB_PATH}/${TOKUFT_VER}
+TOKUFT_FILE=${LIB_PATH}/${TOKUFT_VER}.zip
+TOKUFT_LIBA=${TOKUFT_PATH}/prefix/lib/libtokufractaltree_static.a
+TOKUFT_LIBA2=${TOKUFT_PATH}/prefix/lib/libtokuportability_static.a
+
 ZOOKEEPER_VER=zookeeper-3.4.5
 ZOOKEEPER_PATH=${LIB_PATH}/${ZOOKEEPER_VER}
 ZOOKEEPER_FILE=${ZOOKEEPER_PATH}.tar.gz
@@ -213,7 +219,15 @@ ifeq ($(storage_engine), wiredtiger)
   LIBS:= ${WIREDTIGER_LIBA} ${SNAPPY_LIBA} ${LIBS} -rdynamic -ldl
   CXXFLAGS+=-D__USE_WIREDTIGER__
 else
+ifeq ($(storage_engine), tokuft)
+  STORAGE_ENGINE=$(TOKUFT_LIBA)
+  STORAGE_ENGINE_PATH=$(TOKUFT_PATH)
+  INCS+=-I${TOKUFT_PATH}/prefix/include
+  LIBS:= ${TOKUFT_LIBA} ${TOKUFT_LIBA2} ${SNAPPY_LIBA} ${LIBS} -lz -ldl
+  CXXFLAGS+=-D__USE_TOKUFT__
+else
   $(error Only leveldb/lmdb/rocksdb/forestdb/wiredtiger supported as env storage_engine value)
+endif
 endif
 endif 
 endif
@@ -338,6 +352,16 @@ $(FORESTDB_LIBA): $(SNAPPY_LIBA)
 	mkdir -p build && cd build &&\
 	SNAPPY_DIR=${SNAPPY_PATH}:${SNAPPY_PATH}/.libs cmake ../ && $(MAKE) && \
 	echo "<<<<< Done building forestdb"
+
+.PHONY: tokuft
+tokuft: $(TOKUFT_LIBA)
+$(TOKUFT_LIBA): $(SNAPPY_LIBA) 
+	echo ">>>>> Building TokuFT" && \
+	cd ${LIB_PATH} && \
+	unzip ${TOKUFT_FILE} && \
+	cd ${TOKUFT_PATH} && \
+	./configure && $(MAKE) && \
+	echo "<<<<< Done building TokuFT"
 
 .PHONY: lua
 lua: $(LUA_LIBA)

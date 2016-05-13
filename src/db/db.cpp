@@ -51,6 +51,9 @@ const char* ardb::g_engine_name = "leveldb";
 #elif defined __USE_WIREDTIGER__
 #include "wiredtiger/wiredtiger_engine.hpp"
 const char* ardb::g_engine_name ="wiredtiger";
+#elif defined __USE_TOKUFT__
+#include "tokuft/tokuft_engine.hpp"
+const char* ardb::g_engine_name ="tokuft";
 #else
 const char* ardb::g_engine_name = "unknown";
 #endif
@@ -497,6 +500,8 @@ OP_NAMESPACE_BEGIN
         NEW(m_engine, ForestDBEngine);
 #elif defined __USE_WIREDTIGER__
         NEW(m_engine, WiredTigerEngine);
+#elif defined __USE_TOKUFT__
+        NEW(m_engine, PerconaFTEngine);
 #else
         ERROR_LOG("Unsupported storage engine specified at compile time.");
         return -1;
