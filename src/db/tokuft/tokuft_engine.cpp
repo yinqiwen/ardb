@@ -1,5 +1,5 @@
 /*
- *Copyright (c) 2013-2014, yinqiwen <yinqiwen@gmail.com>
+ *Copyright (c) 2016-2016, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  * 
  *Redistribution and use in source and binary forms, with or without
@@ -38,7 +38,7 @@
 
 #define CHECK_EXPR(expr)  do{\
     int __rc__ = expr; \
-    if (0 != __rc__)\
+    if (0 != __rc__ && DB_NOTFOUND != __rc__)\
     {           \
        ERROR_LOG("TokuFT operation:%s error:%s at line:%u", #expr,  db_strerror(__rc__), __LINE__); \
     }\
@@ -46,13 +46,73 @@
 
 namespace ardb
 {
+    static int nil_callback(DBT const*, DBT const*, void*)
+    {
+        //printf("####nil callback\n");
+        return 0;
+    }
     static int ardb_perconaft_compare(DB* db, const DBT* a, const DBT* b)
     {
         return compare_keys((const char*) a->data, a->size, (const char*) b->data, b->size, false);
     }
+    static DB_ENV* g_toku_env = NULL;
+
+    struct LocalTransc
+    {
+            DB_TXN* txn;
+            uint32 ref;bool txn_abort;
+            LocalTransc() :
+                    txn(NULL), ref(0), txn_abort(false)
+            {
+            }
+            DB_TXN* Get()
+            {
+                if (NULL == txn)
+                {
+                    CHECK_EXPR(g_toku_env->txn_begin(g_toku_env, NULL, &txn, 0));
+                    ref = 0;
+                    txn_abort = false;
+                }
+                if (NULL != txn)
+                {
+                    ref++;
+                }
+                return txn;
+            }
+            DB_TXN* Peek()
+            {
+                return txn;
+            }
+            void Release(bool success)
+            {
+                if (NULL == txn)
+                {
+                    return;
+                }
+                ref--;
+                if (!txn_abort)
+                {
+                    txn_abort = !success;
+                }
+                if (0 == ref)
+                {
+                    if (txn_abort)
+                    {
+                        txn->abort(txn);
+                    }
+                    else
+                    {
+                        txn->commit(txn, 0);
+                    }
+                    txn_abort = false;
+                    txn = NULL;
+                }
+            }
+    };
 
     struct PerconaFTLocalContext: public DBLocalContext
     {
+            LocalTransc transc;
 //            LoacalWriteBatch batch;
 //            LocalSnapshot snapshot;
     };
@@ -76,6 +136,9 @@ namespace ardb
 
     int PerconaFTEngine::Init(const std::string& dir, const std::string& options)
     {
+        Properties props;
+        parse_conf_content(options, props);
+
         uint32 env_open_flags = DB_CREATE | DB_PRIVATE | DB_THREAD | DB_INIT_MPOOL | DB_INIT_TXN | DB_INIT_LOCK | DB_INIT_LOG | DB_RECOVER;
         int env_open_mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
         db_env_create(&m_env, 0);
@@ -83,6 +146,50 @@ namespace ardb
         m_env->set_errcall(m_env, _err_callback);
         int r = m_env->open(m_env, dir.c_str(), env_open_flags, env_open_mode);
         CHECK_EXPR(r);
+        DataArray nss;
+        if (0 == r)
+        {
+            g_toku_env = m_env;
+            DB* db = m_env->get_db_for_directory(m_env);
+            if (NULL != db)
+            {
+                PerconaFTLocalContext& local_ctx = g_local_ctx.GetValue();
+                DB_TXN* txn = local_ctx.transc.Get();
+                DBC *c = NULL;
+                CHECK_EXPR(r = db->cursor(db, txn, &c, 0));
+                if (0 == r)
+                {
+                    r = c->c_getf_first(c, 0, nil_callback, NULL);
+                }
+                while (0 == r)
+                {
+                    DBT raw_key;
+                    DBT raw_val;
+                    memset(&raw_key, 0, sizeof(raw_key));
+                    memset(&raw_val, 0, sizeof(raw_key));
+                    if (0 == c->c_get(c, &raw_key, &raw_val, DB_CURRENT))
+                    {
+                        //std::string ns_str
+                        Data ns;
+                        ns.SetString((const char*) raw_key.data, false);
+                        INFO_LOG("TokuFT directory db %s:%s", (const char*) raw_key.data, (const char*) raw_val.data);
+                        nss.push_back(ns);
+                    }
+                    r = c->c_getf_next(c, 0, nil_callback, NULL);
+                }
+                if (NULL != c)
+                {
+                    c->c_close(c);
+                }
+                local_ctx.transc.Release(true);
+                r = 0;
+            }
+        }
+        for(size_t i = 0; i < nss.size(); i++)
+        {
+            Context tmp;
+            GetFTDB(tmp, nss[i], true);
+        }
         return r;
     }
 
@@ -105,7 +212,7 @@ namespace ardb
         {
             DB_TXN* txn = NULL;
             CHECK_EXPR(m_env->txn_begin(m_env, NULL, &txn, 0));
-            uint32 open_flags = DB_CREATE| DB_THREAD;
+            uint32 open_flags = DB_CREATE | DB_THREAD;
             int open_mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
             CHECK_EXPR(r = db->open(db, txn, ns.AsString().c_str(), NULL, DB_BTREE, open_flags, open_mode));
             txn->commit(txn, 0);
@@ -146,11 +253,12 @@ namespace ardb
         local_ctx.GetSlices(key, value, ss);
         DBT key_slice = to_dbt(ss[0]);
         DBT value_slice = to_dbt(ss[1]);
-        DB_TXN* txn;
+        DB_TXN* txn = local_ctx.transc.Get();
         int r = 0;
-        CHECK_EXPR(r = m_env->txn_begin(m_env, NULL, &txn, 0));
+        //CHECK_EXPR(r = m_env->txn_begin(m_env, NULL, &txn, 0));
         CHECK_EXPR(r = db->put(db, txn, &key_slice, &value_slice, 0));
-        txn->commit(txn, 0);
+        local_ctx.transc.Release(true);
+        //txn->commit(txn, 0);
         return r;
     }
 
@@ -161,13 +269,15 @@ namespace ardb
         {
             return ERR_ENTRY_NOT_EXIST;
         }
+        PerconaFTLocalContext& local_ctx = g_local_ctx.GetValue();
         DBT key_slice = to_dbt(key);
         DBT value_slice = to_dbt(value);
-        DB_TXN* txn;
+        DB_TXN* txn = local_ctx.transc.Get();
         int r = 0;
-        CHECK_EXPR(r = m_env->txn_begin(m_env, NULL, &txn, 0));
+        //CHECK_EXPR(r = m_env->txn_begin(m_env, NULL, &txn, 0));
         CHECK_EXPR(r = db->put(db, txn, &key_slice, &value_slice, 0));
-        txn->commit(txn, 0);
+        // txn->commit(txn, 0);
+        local_ctx.transc.Release(true);
         return r;
     }
 
@@ -192,19 +302,19 @@ namespace ardb
         PerconaFTLocalContext& local_ctx = g_local_ctx.GetValue();
         Slice ks = local_ctx.GetSlice(key);
         DBT key_slice = to_dbt(ks);
-        DB_TXN* txn = NULL;
+        DB_TXN* txn = local_ctx.transc.Peek();
         int r = 0;
         DBT val_slice;
         memset(&val_slice, 0, sizeof(DBT));
         val_slice.flags = DB_DBT_MALLOC;
         //CHECK_EXPR(r = m_env->txn_begin(m_env, NULL, &txn, 0));
-        CHECK_EXPR(r = db->get(db, NULL, &key_slice, &val_slice, 0));
+        CHECK_EXPR(r = db->get(db, txn, &key_slice, &val_slice, 0));
         if (0 == r)
         {
             Buffer valBuffer((char*) (val_slice.data), 0, val_slice.size);
             value.Decode(valBuffer, true);
         }
-        if(r == -30994)
+        if (r == -30994)
         {
             abort();
         }
@@ -221,11 +331,11 @@ namespace ardb
         PerconaFTLocalContext& local_ctx = g_local_ctx.GetValue();
         Slice ks = local_ctx.GetSlice(key);
         DBT key_slice = to_dbt(ks);
-        DB_TXN* txn;
+        DB_TXN* txn = local_ctx.transc.Get();
         int r = 0;
-        CHECK_EXPR(r = m_env->txn_begin(m_env, NULL, &txn, 0));
+        //CHECK_EXPR(r = m_env->txn_begin(m_env, NULL, &txn, 0));
         CHECK_EXPR(r = db->del(db, txn, &key_slice, 0));
-        txn->commit(txn, 0);
+        local_ctx.transc.Release(true);
         return r;
     }
 
@@ -308,12 +418,6 @@ namespace ardb
         str.append(stats);
     }
 
-    static int nil_callback(DBT const*, DBT const*, void*)
-    {
-        //printf("####nil callback\n");
-        return 0;
-    }
-
     Iterator* PerconaFTEngine::Find(Context& ctx, const KeyObject& key)
     {
         PerconaFTIterator* iter = NULL;
@@ -324,32 +428,27 @@ namespace ardb
             iter->MarkValid(false);
             return iter;
         }
-        DB_TXN* txn;
+        PerconaFTLocalContext& local_ctx = g_local_ctx.GetValue();
+        DB_TXN* txn = local_ctx.transc.Get();
         int r = 0;
         DBC *c;
-        CHECK_EXPR(r = m_env->txn_begin(m_env, NULL, &txn, 0));
+//        CHECK_EXPR(r = m_env->txn_begin(m_env, NULL, &txn, 0));
+
         CHECK_EXPR(r = db->cursor(db, txn, &c, 0));
         if (0 != r)
         {
-            txn->abort(txn);
+            local_ctx.transc.Release(false);
             iter->MarkValid(false);
             return iter;
         }
-
+        iter->SetCursor(db, txn, c);
         if (key.GetType() > 0)
         {
-            PerconaFTLocalContext& local_ctx = g_local_ctx.GetValue();
-            Buffer& encode_buffer = local_ctx.GetEncodeBuferCache();
-            key.Encode(encode_buffer);
-            DBT start_key, end_key;
-            memset(&start_key, 0, sizeof(DBT));
-            memset(&end_key, 0, sizeof(DBT));
-            start_key.size = encode_buffer.ReadableBytes();
             if (!ctx.flags.iterate_multi_keys)
             {
                 if (!ctx.flags.iterate_no_upperbound)
                 {
-                    KeyObject upperbound_key;
+                    KeyObject& upperbound_key = iter->IterateUpperBoundKey();
                     upperbound_key.SetNameSpace(key.GetNameSpace());
                     if (key.GetType() == KEY_META)
                     {
@@ -360,28 +459,15 @@ namespace ardb
                         upperbound_key.SetType(key.GetType() + 1);
                     }
                     upperbound_key.SetKey(key.GetKey());
-                    upperbound_key.Encode(encode_buffer, false);
-                    end_key.size = encode_buffer.ReadableBytes() - start_key.size;
-                    end_key.data = (void *) (encode_buffer.GetRawBuffer() + start_key.size);
+                    upperbound_key.CloneStringPart();
                 }
             }
-            start_key.data = (void *) encode_buffer.GetRawBuffer();
-            //DB_PRELOCKED | DB_PRELOCKED_WRITE
-            CHECK_EXPR((r = c->c_set_bounds(c, &start_key, &end_key, true, TOKUDB_OUT_OF_RANGE)));
-            CHECK_EXPR((r = c->c_getf_set_range(c, DB_SET_RANGE, &start_key, nil_callback, NULL)));
-        }
-        else
-        //if (0 == r)
-        {
-            CHECK_EXPR((r = c->c_getf_first(c, 0, nil_callback, NULL)));
-        }
-        if (0 != r)
-        {
-            iter->MarkValid(false);
+            iter->Jump(key);
+
         }
         else
         {
-            iter->SetCursor(db, txn, c);
+            iter->JumpToFirst();
         }
         return iter;
     }
@@ -448,8 +534,8 @@ namespace ardb
         if (ret != 0)
         {
             m_valid = false;
-            return;
         }
+
     }
     void PerconaFTIterator::JumpToLast()
     {
@@ -458,13 +544,29 @@ namespace ardb
         {
             return;
         }
-        int ret;
-        CHECK_EXPR((ret = m_cursor->c_getf_last(m_cursor, 0, nil_callback, NULL)));
-        if (ret != 0)
+        int ret = 0;
+        if (m_iterate_upper_bound_key.GetType() > 0)
         {
-            m_valid = false;
-            return;
+            DoJump(m_iterate_upper_bound_key);
+            if (!m_valid)
+            {
+                CHECK_EXPR((ret = m_cursor->c_getf_last(m_cursor, 0, nil_callback, NULL)));
+            }
+            if (0 == ret)
+            {
+                Prev();
+            }
         }
+        else
+        {
+            CHECK_EXPR((ret = m_cursor->c_getf_last(m_cursor, 0, nil_callback, NULL)));
+            if (ret != 0)
+            {
+                m_valid = false;
+                return;
+            }
+        }
+
     }
     KeyObject& PerconaFTIterator::Key(bool clone_str)
     {
@@ -499,7 +601,7 @@ namespace ardb
         {
             CHECK_EXPR(m_cursor->c_get(m_cursor, &m_raw_key, &m_raw_val, DB_CURRENT));
         }
-        printf("#####%p %d %d\n", m_raw_key.data, m_raw_key.size, m_raw_key.ulen);
+        //printf("#####%p %d %d\n", m_raw_key.data, m_raw_key.size, m_raw_key.ulen);
         return Slice((const char*) m_raw_key.data, m_raw_key.size);
     }
     Slice PerconaFTIterator::RawValue()
@@ -527,16 +629,16 @@ namespace ardb
     }
     void PerconaFTIterator::CheckBound()
     {
-//        if (NULL != m_cursor && m_iterate_upper_bound_key.GetType() > 0)
-//        {
-//            if (m_valid)
-//            {
-//                if (Key(false).Compare(m_iterate_upper_bound_key) >= 0)
-//                {
-//                    m_valid = false;
-//                }
-//            }
-//        }
+        if (NULL != m_cursor && m_iterate_upper_bound_key.GetType() > 0)
+        {
+            if (m_valid)
+            {
+                if (Key(false).Compare(m_iterate_upper_bound_key) >= 0)
+                {
+                    m_valid = false;
+                }
+            }
+        }
     }
 
     PerconaFTIterator::~PerconaFTIterator()
@@ -544,7 +646,9 @@ namespace ardb
         if (NULL != m_cursor)
         {
             CHECK_EXPR(m_cursor->c_close(m_cursor));
-            CHECK_EXPR(m_txn->commit(m_txn, 0));
+            PerconaFTLocalContext& local_ctx = g_local_ctx.GetValue();
+            local_ctx.transc.Release(true);
+            //CHECK_EXPR(m_txn->commit(m_txn, 0));
         }
     }
 }

@@ -226,7 +226,7 @@ ifeq ($(storage_engine), tokuft)
   LIBS:= ${TOKUFT_LIBA} ${TOKUFT_LIBA2} ${SNAPPY_LIBA} ${LIBS} -lz -ldl
   CXXFLAGS+=-D__USE_TOKUFT__
 else
-  $(error Only leveldb/lmdb/rocksdb/forestdb/wiredtiger supported as env storage_engine value)
+  $(error Only leveldb/lmdb/rocksdb/tokuft/wiredtiger/forestdb supported as env storage_engine value)
 endif
 endif
 endif 
@@ -358,9 +358,10 @@ tokuft: $(TOKUFT_LIBA)
 $(TOKUFT_LIBA): $(SNAPPY_LIBA) 
 	echo ">>>>> Building TokuFT" && \
 	cd ${LIB_PATH} && \
-	unzip ${TOKUFT_FILE} && \
-	cd ${TOKUFT_PATH} && \
-	./configure && $(MAKE) && \
+	unzip -o ${TOKUFT_FILE} && \
+	cd ${TOKUFT_PATH} && rm -rf build &&\
+	mkdir -p build && cd build &&\
+	cmake -D CMAKE_BUILD_TYPE=Debug -D BUILD_TESTING=OFF -D USE_VALGRIND=OFF -D CMAKE_INSTALL_PREFIX=../prefix/ ../ && $(MAKE) && $(MAKE) install &&\
 	echo "<<<<< Done building TokuFT"
 
 .PHONY: lua

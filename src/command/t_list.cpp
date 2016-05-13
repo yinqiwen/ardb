@@ -560,6 +560,7 @@ OP_NAMESPACE_BEGIN
             {
                 iter->JumpToLast();
             }
+
         }
         int64 removed = 0;
         Data rem_data;

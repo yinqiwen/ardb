@@ -1,6 +1,6 @@
 # Ardb: A High Performance Persistent NoSql, Full Redis-Protocol Compatibility
 [![Build Status](https://travis-ci.org/yinqiwen/ardb.svg?branch=0.9)](https://travis-ci.org/yinqiwen/ardb)  
-Ardb is a BSD licensed, redis-protocol compatible persistent nosql, it support multiple storage engines as backend like [Google's LevelDB](https://github.com/google/leveldb), [Facebook's RocksDB](https://github.com/facebook/rocksdb), [OpenLDAP's LMDB](http://symas.com/mdb/), [WiredTiger](http://www.wiredtiger.com/), the default backend is [Facebook's RocksDB](https://github.com/facebook/rocksdb).
+Ardb is a BSD licensed, redis-protocol compatible persistent nosql, it support multiple storage engines as backend like [Google's LevelDB](https://github.com/google/leveldb), [Facebook's RocksDB](https://github.com/facebook/rocksdb), [OpenLDAP's LMDB](http://symas.com/mdb/), [WiredTiger](http://www.wiredtiger.com/), [Percona's TokuFT](https://github.com/percona/PerconaFT), the default backend is [Facebook's RocksDB](https://github.com/facebook/rocksdb).
 
 
 ## Compile
@@ -10,8 +10,9 @@ To use LMDB or LevelDB or WiredTiger as storage engine, you should set env `stor
 	
 	storage_engine=lmdb make
 	storage_engine=leveldb make
-    storage_engine=wiredtiger make
-    storage_engine=forestdb make
+        storage_engine=wiredtiger make
+        storage_engine=tokuft make
+        storage_engine=forestdb make
 
 
 It should compile to several executables in `src` directory, such as ardb-server, ardb-test etc.
