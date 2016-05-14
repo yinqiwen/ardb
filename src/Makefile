@@ -76,11 +76,12 @@ WIREDTIGER_PATH=${LIB_PATH}/${WIREDTIGER_VER}
 WIREDTIGER_FILE=${LIB_PATH}/${WIREDTIGER_VER}.tar.bz2
 WIREDTIGER_LIBA=${WIREDTIGER_PATH}/.libs/libwiredtiger.a
 
-TOKUFT_VER=PerconaFT-master
-TOKUFT_PATH=${LIB_PATH}/${TOKUFT_VER}
-TOKUFT_FILE=${LIB_PATH}/${TOKUFT_VER}.zip
-TOKUFT_LIBA=${TOKUFT_PATH}/prefix/lib/libtokufractaltree_static.a
-TOKUFT_LIBA2=${TOKUFT_PATH}/prefix/lib/libtokuportability_static.a
+PERCONAFT_VER=PerconaFT-master
+PERCONAFT_PATH=${LIB_PATH}/${PERCONAFT_VER}
+PERCONAFT_FILE=${LIB_PATH}/${PERCONAFT_VER}.zip
+PERCONAFT_REMOTE_FILE=https://github.com/percona/PerconaFT/archive/master.zip
+PERCONAFT_LIBA=${PERCONAFT_PATH}/prefix/lib/libtokufractaltree_static.a
+PERCONAFT_LIBA2=${PERCONAFT_PATH}/prefix/lib/libtokuportability_static.a
 
 ZOOKEEPER_VER=zookeeper-3.4.5
 ZOOKEEPER_PATH=${LIB_PATH}/${ZOOKEEPER_VER}
@@ -219,14 +220,14 @@ ifeq ($(storage_engine), wiredtiger)
   LIBS:= ${WIREDTIGER_LIBA} ${SNAPPY_LIBA} ${LIBS} -rdynamic -ldl
   CXXFLAGS+=-D__USE_WIREDTIGER__
 else
-ifeq ($(storage_engine), tokuft)
-  STORAGE_ENGINE=$(TOKUFT_LIBA)
-  STORAGE_ENGINE_PATH=$(TOKUFT_PATH)
-  INCS+=-I${TOKUFT_PATH}/prefix/include
-  LIBS:= ${TOKUFT_LIBA} ${TOKUFT_LIBA2} ${SNAPPY_LIBA} ${LIBS} -lz -ldl
-  CXXFLAGS+=-D__USE_TOKUFT__
+ifeq ($(storage_engine), perconaft)
+  STORAGE_ENGINE=$(PERCONAFT_LIBA)
+  STORAGE_ENGINE_PATH=$(PERCONAFT_PATH)
+  INCS+=-I${PERCONAFT_PATH}/prefix/include
+  LIBS:= ${PERCONAFT_LIBA} ${PERCONAFT_LIBA2} ${SNAPPY_LIBA} ${LIBS} -lz -ldl
+  CXXFLAGS+=-D__USE_PERCONAFT__
 else
-  $(error Only leveldb/lmdb/rocksdb/tokuft/wiredtiger/forestdb supported as env storage_engine value)
+  $(error Only leveldb/lmdb/rocksdb/perconaft/wiredtiger/forestdb supported as env storage_engine value)
 endif
 endif
 endif 
@@ -353,16 +354,27 @@ $(FORESTDB_LIBA): $(SNAPPY_LIBA)
 	SNAPPY_DIR=${SNAPPY_PATH}:${SNAPPY_PATH}/.libs cmake ../ && $(MAKE) && \
 	echo "<<<<< Done building forestdb"
 
-.PHONY: tokuft
-tokuft: $(TOKUFT_LIBA)
-$(TOKUFT_LIBA): $(SNAPPY_LIBA) 
-	echo ">>>>> Building TokuFT" && \
+.PHONY: perconaft
+perconaft: $(PERCONAFT_LIBA)
+$(PERCONAFT_LIBA): ${PERCONAFT_PATH} $(SNAPPY_LIBA) 
+	echo ">>>>> Building PerconaFT" && \
 	cd ${LIB_PATH} && \
-	unzip -o ${TOKUFT_FILE} && \
-	cd ${TOKUFT_PATH} && rm -rf build &&\
+	cd ${PERCONAFT_PATH} && rm -rf build &&\
 	mkdir -p build && cd build &&\
 	cmake -D CMAKE_BUILD_TYPE=Debug -D BUILD_TESTING=OFF -D USE_VALGRIND=OFF -D CMAKE_INSTALL_PREFIX=../prefix/ ../ && $(MAKE) && $(MAKE) install &&\
-	echo "<<<<< Done building TokuFT"
+	echo "<<<<< Done building PerconaFT"
+
+${PERCONAFT_PATH}: ${PERCONAFT_FILE}
+	echo ">>>>> Unpacking PerconaFT" && \
+	cd ${LIB_PATH} && \
+	unzip -o ${PERCONAFT_FILE} && \
+	echo "<<<<< Done unpacking PerconaFT"
+
+${PERCONAFT_FILE}:
+	echo ">>>>> Dowloading PerconaFT" && \
+	cd ${LIB_PATH} && \
+	wget -O ${PERCONAFT_FILE} ${PERCONAFT_REMOTE_FILE} && \
+	echo "<<<<< Done dowloading PerconaFT"
 
 .PHONY: lua
 lua: $(LUA_LIBA)

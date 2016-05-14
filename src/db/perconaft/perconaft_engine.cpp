@@ -34,7 +34,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include "db/db_utils.hpp"
-#include "tokuft_engine.hpp"
+#include "perconaft_engine.hpp"
 
 #define CHECK_EXPR(expr)  do{\
     int __rc__ = expr; \
@@ -110,6 +110,23 @@ namespace ardb
             }
     };
 
+    struct PerconaFTConig
+    {
+
+            int64 cache_size;
+            uint32 checkpoint_pool_threads;
+            uint32 checkpoint_period;
+            uint32 cleaner_period;
+            uint32 cleaner_iterations;bool evictor_enable_partial_eviction;
+            TOKU_COMPRESSION_METHOD compression;
+            PerconaFTConig() :
+                    cache_size(128 * 1024 * 1024), checkpoint_pool_threads(2), checkpoint_period(3600 * 4), cleaner_period(3600), cleaner_iterations(10000), evictor_enable_partial_eviction(true), compression(TOKU_SNAPPY_METHOD)
+            {
+            }
+    };
+
+    static PerconaFTConig g_perconaft_config;
+
     struct PerconaFTLocalContext: public DBLocalContext
     {
             LocalTransc transc;
@@ -138,12 +155,50 @@ namespace ardb
     {
         Properties props;
         parse_conf_content(options, props);
+        //parse config
+        conf_get_int64(props, "cache_size", g_perconaft_config.cache_size);
+        conf_get_uint32(props, "checkpoint_pool_threads", g_perconaft_config.checkpoint_pool_threads);
+        conf_get_uint32(props, "checkpoint_period", g_perconaft_config.checkpoint_period);
+        conf_get_uint32(props, "cleaner_period", g_perconaft_config.cleaner_period);
+        conf_get_uint32(props, "cleaner_iterations", g_perconaft_config.cleaner_iterations);
+        conf_get_bool(props, "evictor_enable_partial_eviction", g_perconaft_config.evictor_enable_partial_eviction);
+        std::string compression;
+        conf_get_string(props, "compression", compression);
+        if (compression == "none")
+        {
+            g_perconaft_config.compression = TOKU_NO_COMPRESSION;
+        }
+        else if (compression == "snappy" || compression.empty())
+        {
+            g_perconaft_config.compression = TOKU_SNAPPY_METHOD;
+        }
+        else if (compression == "zlib")
+        {
+            g_perconaft_config.compression = TOKU_ZLIB_METHOD;
+        }else
+        {
+            ERROR_LOG("Invalid compression config:%s for PercanoFT.",compression.c_str());
+            return -1;
+        }
 
         uint32 env_open_flags = DB_CREATE | DB_PRIVATE | DB_THREAD | DB_INIT_MPOOL | DB_INIT_TXN | DB_INIT_LOCK | DB_INIT_LOG | DB_RECOVER;
         int env_open_mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
         db_env_create(&m_env, 0);
         m_env->set_default_bt_compare(m_env, ardb_perconaft_compare);
         m_env->set_errcall(m_env, _err_callback);
+
+        /*
+         * set env config
+         */
+        uint32 cache_gsize = g_perconaft_config.cache_size >> 30;
+        uint32 cache_bytes = g_perconaft_config.cache_size % (1024*1024*1024);
+        m_env->set_cachesize(m_env, cache_gsize, cache_bytes, 1);
+        m_env->set_cachetable_pool_threads(m_env, g_perconaft_config.checkpoint_pool_threads);
+        m_env->checkpointing_set_period(m_env, g_perconaft_config.checkpoint_period);
+        m_env->cleaner_set_period(m_env, g_perconaft_config.cleaner_period);
+        m_env->cleaner_set_iterations(m_env, g_perconaft_config.cleaner_iterations);
+        m_env->evictor_set_enable_partial_eviction(m_env, g_perconaft_config.evictor_enable_partial_eviction);
+
         int r = m_env->open(m_env, dir.c_str(), env_open_flags, env_open_mode);
         CHECK_EXPR(r);
         DataArray nss;
@@ -172,7 +227,7 @@ namespace ardb
                         //std::string ns_str
                         Data ns;
                         ns.SetString((const char*) raw_key.data, false);
-                        INFO_LOG("TokuFT directory db %s:%s", (const char*) raw_key.data, (const char*) raw_val.data);
+                        INFO_LOG("TokuFT directory db %s:%s", (const char* ) raw_key.data, (const char* ) raw_val.data);
                         nss.push_back(ns);
                     }
                     r = c->c_getf_next(c, 0, nil_callback, NULL);
@@ -185,7 +240,7 @@ namespace ardb
                 r = 0;
             }
         }
-        for(size_t i = 0; i < nss.size(); i++)
+        for (size_t i = 0; i < nss.size(); i++)
         {
             Context tmp;
             GetFTDB(tmp, nss[i], true);
@@ -219,6 +274,7 @@ namespace ardb
         }
         if (0 == r)
         {
+            db->set_compression_method(db, g_perconaft_config.compression);
             m_dbs[ns] = db;
             INFO_LOG("Success to open db:%s", ns.AsString().c_str());
         }
@@ -314,10 +370,6 @@ namespace ardb
             Buffer valBuffer((char*) (val_slice.data), 0, val_slice.size);
             value.Decode(valBuffer, true);
         }
-        if (r == -30994)
-        {
-            abort();
-        }
         //txn->commit(txn, 0);
         return r == DB_NOTFOUND ? ERR_ENTRY_NOT_EXIST : r;
     }
@@ -366,20 +418,31 @@ namespace ardb
 
     int PerconaFTEngine::BeginWriteBatch()
     {
+        PerconaFTLocalContext& local_ctx = g_local_ctx.GetValue();
+        local_ctx.transc.Get();
         return 0;
     }
     int PerconaFTEngine::CommitWriteBatch()
     {
+        PerconaFTLocalContext& local_ctx = g_local_ctx.GetValue();
+        local_ctx.transc.Release(true);
         return 0;
     }
     int PerconaFTEngine::DiscardWriteBatch()
     {
-
+        PerconaFTLocalContext& local_ctx = g_local_ctx.GetValue();
+        local_ctx.transc.Release(false);
         return 0;
     }
 
     int PerconaFTEngine::Compact(Context& ctx, const KeyObject& start, const KeyObject& end)
     {
+        DB* db = GetFTDB(ctx, start.GetNameSpace(), false);
+        if (NULL == db)
+        {
+            return ERR_ENTRY_NOT_EXIST;
+        }
+        db->optimize(db);
         return 0;
     }
 
@@ -397,25 +460,57 @@ namespace ardb
 
     int PerconaFTEngine::DropNameSpace(Context& ctx, const Data& ns)
     {
-        DB* db = GetFTDB(ctx, ns, false);
-        if (NULL == db)
+        RWLockGuard<SpinRWLock> guard(m_lock, false);
+        FTDBTable::iterator found = m_dbs.find(ns);
+        if (found == m_dbs.end())
         {
-            return ERR_ENTRY_NOT_EXIST;
+            return 0;
         }
-        //m_env->dbremove();
+        DB* db = found->second;
+        db->close(db, 0);
+        PerconaFTLocalContext& local_ctx = g_local_ctx.GetValue();
+        DB_TXN* txn = local_ctx.transc.Get();
+        CHECK_EXPR(m_env->dbremove(m_env, txn, ns.AsString().c_str(), NULL, 0));
+        local_ctx.transc.Release(true);
+        m_dbs.erase(ns);
         return 0;
     }
 
     int64_t PerconaFTEngine::EstimateKeysNum(Context& ctx, const Data& ns)
     {
-        return -1;
+        DB* db = GetFTDB(ctx, ns, false);
+        if (NULL == db)
+            return 0;
+        PerconaFTLocalContext& local_ctx = g_local_ctx.GetValue();
+        DB_BTREE_STAT64 st;
+        memset(&st, 0, sizeof(st));
+        db->stat64(db, local_ctx.transc.Peek(), &st);
+        return st.bt_ndata;
     }
 
     void PerconaFTEngine::Stats(Context& ctx, std::string& str)
     {
-        std::string stats;
-        str.append("tokuft_version:").append(db_version(NULL, NULL, NULL)).append("\r\n");
-        str.append(stats);
+        str.append("perconaft_version:").append(stringfromll(DB_VERSION_MAJOR)).append(".").append(stringfromll(DB_VERSION_MINOR)).append(".").append(stringfromll(DB_VERSION_PATCH)).append("\r\n");
+        DataArray nss;
+        ListNameSpaces(ctx, nss);
+        PerconaFTLocalContext& local_ctx = g_local_ctx.GetValue();
+        for (size_t i = 0; i < nss.size(); i++)
+        {
+            DB* db = GetFTDB(ctx, nss[i], false);
+            if (NULL == db)
+                continue;
+            str.append("\r\nDB[").append(nss[i].AsString()).append("] Stats:\r\n");
+            DB_BTREE_STAT64 st;
+            memset(&st, 0, sizeof(st));
+            db->stat64(db, local_ctx.transc.Peek(), &st);
+            str.append("bt_nkeys:").append(stringfromll(st.bt_nkeys)).append("\r\n");
+            str.append("bt_ndata:").append(stringfromll(st.bt_ndata)).append("\r\n");
+            str.append("bt_fsize:").append(stringfromll(st.bt_fsize)).append("\r\n");
+            str.append("bt_dsize:").append(stringfromll(st.bt_dsize)).append("\r\n");
+            str.append("bt_create_time_sec:").append(stringfromll(st.bt_create_time_sec)).append("\r\n");
+            str.append("bt_modify_time_sec:").append(stringfromll(st.bt_modify_time_sec)).append("\r\n");
+            str.append("bt_verify_time_sec:").append(stringfromll(st.bt_verify_time_sec)).append("\r\n");
+        }
     }
 
     Iterator* PerconaFTEngine::Find(Context& ctx, const KeyObject& key)
@@ -431,9 +526,7 @@ namespace ardb
         PerconaFTLocalContext& local_ctx = g_local_ctx.GetValue();
         DB_TXN* txn = local_ctx.transc.Get();
         int r = 0;
-        DBC *c;
-//        CHECK_EXPR(r = m_env->txn_begin(m_env, NULL, &txn, 0));
-
+        DBC* c = NULL;
         CHECK_EXPR(r = db->cursor(db, txn, &c, 0));
         if (0 != r)
         {

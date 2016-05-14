@@ -1,6 +1,6 @@
 # Ardb: A High Performance Persistent NoSql, Full Redis-Protocol Compatibility
 [![Build Status](https://travis-ci.org/yinqiwen/ardb.svg?branch=0.9)](https://travis-ci.org/yinqiwen/ardb)  
-Ardb is a BSD licensed, redis-protocol compatible persistent nosql, it support multiple storage engines as backend like [Google's LevelDB](https://github.com/google/leveldb), [Facebook's RocksDB](https://github.com/facebook/rocksdb), [OpenLDAP's LMDB](http://symas.com/mdb/), [WiredTiger](http://www.wiredtiger.com/), [Percona's TokuFT](https://github.com/percona/PerconaFT), the default backend is [Facebook's RocksDB](https://github.com/facebook/rocksdb).
+Ardb is a BSD licensed, redis-protocol compatible persistent nosql, it support multiple storage engines as backend like [Google's LevelDB](https://github.com/google/leveldb), [Facebook's RocksDB](https://github.com/facebook/rocksdb), [OpenLDAP's LMDB](http://symas.com/mdb/), [WiredTiger](http://www.wiredtiger.com/), [PerconaFT](https://github.com/percona/PerconaFT), the default backend is [Facebook's RocksDB](https://github.com/facebook/rocksdb).
 
 
 ## Compile
@@ -10,12 +10,13 @@ To use LMDB or LevelDB or WiredTiger as storage engine, you should set env `stor
 	
 	storage_engine=lmdb make
 	storage_engine=leveldb make
-        storage_engine=wiredtiger make
-        storage_engine=tokuft make
-        storage_engine=forestdb make
+	storage_engine=wiredtiger make
+	storage_engine=perconaft make
+	storage_engine=forestdb make
 
 
 It should compile to several executables in `src` directory, such as ardb-server, ardb-test etc.
+
 	
 
 ## Features
@@ -57,8 +58,8 @@ Ardb Version: 0.9.0(RocksDB4.3.1), 1 thread(thread-pool-size configured 1)
 RocksDB Options: 
 
      write_buffer_size=128M;max_write_buffer_number=16;compression=kSnappyCompression;
-     block_based_table_factory={block_cache=512M;block_size=4;filter_policy=bloomfilter:1024:true};
-     create_if_missing=true;max_open_files=10000;rate_limiter_bytes_per_sec=50M   
+     block_based_table_factory={block_cache=512M;block_size=4;filter_policy=bloomfilter:10:true};
+     create_if_missing=true;max_open_files=-1;rate_limiter_bytes_per_sec=50M   
 
 ![Benchmark Img](https://raw.githubusercontent.com/yinqiwen/ardb/0.9/doc/benchmark.png)
 
@@ -82,7 +83,7 @@ RocksDB Options:
 
 
 
-* Note: 
+Note: 
   - **Ardb uses 1 threads in this benchmark test, since redis is single threaded application. But ardb is actually a multithreaded applcation, you can start the server with more threads by setting 'thread-pool-size' to 2 or higher to increase the read/write performance.**
          
 
