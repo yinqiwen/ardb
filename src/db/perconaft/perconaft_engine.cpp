@@ -197,6 +197,7 @@ namespace ardb
         m_env->checkpointing_set_period(m_env, g_perconaft_config.checkpoint_period);
         m_env->cleaner_set_period(m_env, g_perconaft_config.cleaner_period);
         m_env->cleaner_set_iterations(m_env, g_perconaft_config.cleaner_iterations);
+
         m_env->evictor_set_enable_partial_eviction(m_env, g_perconaft_config.evictor_enable_partial_eviction);
 
         int r = m_env->open(m_env, dir.c_str(), env_open_flags, env_open_mode);

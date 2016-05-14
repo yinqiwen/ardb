@@ -351,7 +351,7 @@ void ChannelService::Start()
 
 void ChannelService::Continue()
 {
-    aeProcessEvents(m_eventLoop, AE_FILE_EVENTS | AE_DONT_WAIT);
+    aeProcessEvents(m_eventLoop, AE_FILE_EVENTS | AE_DONT_WAIT | AE_TIME_EVENTS);
 }
 
 void ChannelService::OnStopCB(Channel*, void* data)

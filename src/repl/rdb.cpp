@@ -1636,10 +1636,19 @@ namespace ardb
 
     int Snapshot::Write(const void* buf, size_t buflen)
     {
+
+        if(NULL == m_write_fp)
+        {
+            /*
+             * maybe closed while writing
+             */
+            ERROR_LOG("Snapshot file is closed while writing.");
+            return false;
+        }
         /*
          * routine callback every 100ms
          */
-        if (NULL != m_routine_cb && get_current_epoch_millis() - m_routinetime >= 100)
+        if (NULL != m_routine_cb && get_current_epoch_millis() - m_routinetime >= 2)
         {
             int cbret = m_routine_cb(DUMPING, this, m_routine_cbdata);
             if (0 != cbret)
@@ -1678,15 +1687,24 @@ namespace ardb
 
     bool Snapshot::Read(void* buf, size_t buflen, bool cksm)
     {
+        if(NULL == m_read_fp)
+        {
+            /*
+             * maybe closed while reading
+             */
+            ERROR_LOG("Snapshot file is closed while reading.");
+            return false;
+        }
         if ((m_processed_bytes + buflen) / kloading_process_events_interval_bytes > m_processed_bytes / kloading_process_events_interval_bytes)
         {
             INFO_LOG("%llu bytes loaded from dump file.", m_processed_bytes);
         }
         m_processed_bytes += buflen;
         /*
-         * routine callback every 100ms
+         * routine callback every 2ms(dirty ix), this should be a config,  if it's too long while slave is loading data,
+         * the server may close connection.
          */
-        if (NULL != m_routine_cb && get_current_epoch_millis() - m_routinetime >= 100)
+        if (NULL != m_routine_cb && get_current_epoch_millis() - m_routinetime >= 2)
         {
             int cbret = m_routine_cb(LODING, this, m_routine_cbdata);
             if (0 != cbret)

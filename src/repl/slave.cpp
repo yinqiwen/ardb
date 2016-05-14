@@ -104,7 +104,7 @@ OP_NAMESPACE_BEGIN
         if (m_ctx.state != SLAVE_STATE_REPLAYING_WAL)
         {
             //can not replay wal in non synced state
-            if (m_ctx.state != SLAVE_STATE_SYNCED)
+            if (m_ctx.state != SLAVE_STATE_SYNCED && m_ctx.state != SLAVE_STATE_LOADING_SNAPSHOT)
             {
                 WARN_LOG("Try to replay wal at state:%u", m_ctx.state);
             }
@@ -198,8 +198,7 @@ OP_NAMESPACE_BEGIN
         }
         m_ctx.cmd_recved_time = time(NULL);
         int len = g_repl->GetReplLog().WriteWAL(cmd.GetRawProtocolData());
-        DEBUG_LOG("Recv master inline:%d cmd %s with len:%d at %lld %lld at state:%d", cmd.IsInLine(), cmd.ToString().c_str(), len, m_ctx.sync_repl_offset,
-                g_repl->GetReplLog().WALEndOffset(), m_ctx.state);
+        DEBUG_LOG("Recv master inline:%d cmd %s with len:%d at %lld %lld at state:%d", cmd.IsInLine(), cmd.ToString().c_str(), len, m_ctx.sync_repl_offset, g_repl->GetReplLog().WALEndOffset(), m_ctx.state);
         if (!write_wal_only)
         {
             m_ctx.ctx.flags.no_wal = 1;
@@ -247,9 +246,17 @@ OP_NAMESPACE_BEGIN
         {
             if (m_ctx.server_support_psync && NULL != m_client)
             {
-                Buffer ack;
-                ack.Printf("REPLCONF ACK %llu\r\n", m_ctx.sync_repl_offset);
-                m_client->Write(ack);
+                Buffer buffer;
+                RedisCommandFrame ack("REPLCONF");
+                ack.AddArg("ACK");
+                ack.AddArg(stringfromll(m_ctx.sync_repl_offset));
+                RedisCommandEncoder::Encode(buffer, ack);
+                m_client->Write(buffer);
+                m_client->Flush();
+            }
+            else
+            {
+
             }
         }
     }
@@ -330,13 +337,11 @@ OP_NAMESPACE_BEGIN
                     Buffer sync;
                     if (!m_ctx.server_is_redis)
                     {
-                        sync.Printf("psync %s %lld cksm %llu\r\n", g_repl->GetReplLog().IsReplKeySelfGen() ? "?" : g_repl->GetReplLog().GetReplKey().c_str(),
-                                g_repl->GetReplLog().WALEndOffset(), g_repl->GetReplLog().WALCksm());
+                        sync.Printf("psync %s %lld cksm %llu\r\n", g_repl->GetReplLog().IsReplKeySelfGen() ? "?" : g_repl->GetReplLog().GetReplKey().c_str(), g_repl->GetReplLog().WALEndOffset(), g_repl->GetReplLog().WALCksm());
                     }
                     else
                     {
-                        sync.Printf("psync %s %lld\r\n", g_repl->GetReplLog().IsReplKeySelfGen() ? "?" : g_repl->GetReplLog().GetReplKey().c_str(),
-                                g_repl->GetReplLog().WALEndOffset());
+                        sync.Printf("psync %s %lld\r\n", g_repl->GetReplLog().IsReplKeySelfGen() ? "?" : g_repl->GetReplLog().GetReplKey().c_str(), g_repl->GetReplLog().WALEndOffset());
                     }
                     INFO_LOG("Send %s", trim_string(sync.AsString()).c_str());
                     ch->Write(sync);
@@ -504,7 +509,11 @@ OP_NAMESPACE_BEGIN
 
     void Slave::ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e)
     {
-        INFO_LOG("[Slave]Replication connection closed.");
+        INFO_LOG("[Slave]Replication connection closed at state:%d", m_ctx.state);
+        if (m_ctx.state == SLAVE_STATE_LOADING_SNAPSHOT)
+        {
+            WARN_LOG("Maybe remote master is too busy to accept too many write commands while slave is loading synced snapshot file.");
+        }
         m_ctx.master_last_interaction_time = m_ctx.master_link_down_time = time(NULL);
         m_client = NULL;
         m_clientid = 0;
