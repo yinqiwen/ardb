@@ -42,13 +42,14 @@ namespace ardb
         class RedisCommandDecoder: public StackFrameDecoder<RedisCommandFrame>
         {
             protected:
+                bool m_ignore_empty;
                 static int ProcessInlineBuffer(Buffer& buffer, RedisCommandFrame& frame);
                 static int ProcessMultibulkBuffer(Channel* ch, Buffer& buffer, RedisCommandFrame& frame);
                 bool Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, RedisCommandFrame& msg);
                 friend class RedisMessageDecoder;
                 friend class FastRedisCommandDecoder;
             public:
-                RedisCommandDecoder()
+                RedisCommandDecoder(bool ignore_empty = true):m_ignore_empty(ignore_empty)
                 {
                 }
                 static bool Decode(Channel* ch, Buffer& buffer, RedisCommandFrame& msg);
@@ -57,6 +58,7 @@ namespace ardb
         class FastRedisCommandDecoder: public ChannelUpstreamHandler<Buffer>
         {
             protected:
+                bool m_ignore_empty;
                 int m_reqtype;
                 int m_multibulklen; /* number of multi bulk arguments left to read */
                 long m_bulklen; /* length of bulk argument in multi bulk request */
@@ -73,8 +75,8 @@ namespace ardb
                 }
                 int ProcessMultibulkBuffer(Buffer& buffer, std::string& err);
             public:
-                FastRedisCommandDecoder() :
-                        m_reqtype(0), m_multibulklen(0), m_bulklen(-1), m_argc(0)
+                FastRedisCommandDecoder(bool ignore_empty = true) :
+                    m_ignore_empty(ignore_empty), m_reqtype(0), m_multibulklen(0), m_bulklen(-1), m_argc(0)
                 {
                 }
         };

@@ -69,7 +69,7 @@ OP_NAMESPACE_BEGIN
 
     static void slave_pipeline_init(ChannelPipeline* pipeline, void* data)
     {
-        pipeline->AddLast("decoder", new RedisCommandDecoder);
+        pipeline->AddLast("decoder", new RedisCommandDecoder(false));
         pipeline->AddLast("encoder", new RedisCommandEncoder);
         pipeline->AddLast("handler", &(g_repl->GetMaster()));
     }
@@ -124,6 +124,7 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         m_repl_noslaves_since = 0;
+        std::vector<SlaveSyncContext*> to_close;
         SlaveSyncContextSet::iterator fit = m_slaves.begin();
         bool wal_ping_saved = false;
         time_t now = time(NULL);
@@ -156,8 +157,18 @@ OP_NAMESPACE_BEGIN
                 {
                     m_repl_good_slaves_count++;
                 }
+                if(lag > g_db->GetConf().repl_timeout)
+                {
+                    WARN_LOG("Disconnecting timedout slave:%s", slave->GetAddress().c_str());
+                    to_close.push_back(slave);
+                }
             }
             fit++;
+        }
+
+        for (size_t i = 0; i < to_close.size(); i++)
+        {
+            CloseSlave(to_close[i]);
         }
         return 0;
     }
@@ -440,8 +451,19 @@ OP_NAMESPACE_BEGIN
     void Master::MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e)
     {
         RedisCommandFrame* cmd = e.GetMessage();
-        DEBUG_LOG("Master recv cmd from slave:%s", cmd->ToString().c_str());
         SlaveSyncContext* slave = (SlaveSyncContext*) (ctx.GetChannel()->Attachment());
+        if(cmd->IsEmpty())
+        {
+            if(NULL != slave)
+            {
+                /*
+                 * redis slave would send '\n' as empty command to keep connection alive
+                 */
+                slave->acktime = time(NULL);
+            }
+            return;
+        }
+        DEBUG_LOG("Master recv cmd from slave:%s", cmd->ToString().c_str());
         if (!strcasecmp(cmd->GetCommand().c_str(), "replconf"))
         {
             if (cmd->GetArguments().size() == 2 && !strcasecmp(cmd->GetArguments()[0].c_str(), "ack"))

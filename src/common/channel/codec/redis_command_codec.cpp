@@ -167,9 +167,16 @@ int FastRedisCommandDecoder::ProcessMultibulkBuffer(Buffer& buffer, std::string&
 void FastRedisCommandDecoder::MessageReceived(ChannelHandlerContext& ctx, MessageEvent<Buffer>& e)
 {
     Buffer& buffer = *(e.GetMessage());
+    bool have_empty = false;
     while (buffer.GetRawReadBuffer()[0] == '\r' || buffer.GetRawReadBuffer()[0] == '\n')
     {
         buffer.AdvanceReadIndex(1);
+        have_empty = true;
+    }
+    if(!m_ignore_empty && have_empty)
+    {
+        m_cmd.Clear();
+        fire_message_received<RedisCommandFrame>(ctx, &m_cmd, NULL);
     }
     Channel* ch = ctx.GetChannel();
     std::string err;
@@ -413,6 +420,17 @@ bool RedisCommandDecoder::Decode(Channel* channel, Buffer& buffer, RedisCommandF
 
 bool RedisCommandDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, RedisCommandFrame& msg)
 {
+    bool have_empty = false;
+    while (buffer.GetRawReadBuffer()[0] == '\r' || buffer.GetRawReadBuffer()[0] == '\n')
+    {
+        buffer.AdvanceReadIndex(1);
+        have_empty = true;
+    }
+    if(!m_ignore_empty && have_empty)
+    {
+        msg.Clear();
+        return true;
+    }
     return Decode(channel, buffer, msg);
 }
 

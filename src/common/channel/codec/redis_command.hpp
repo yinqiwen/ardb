@@ -293,6 +293,10 @@ namespace ardb
                         type(REDIS_CMD_INVALID), m_is_inline(false), m_cmd_seted(false), m_cmd(cmd)
                 {
                 }
+                bool IsEmpty() const
+                {
+                    return m_cmd.empty();
+                }
                 RedisCommandFrame(ArgumentArray& cmd) :
                         type(REDIS_CMD_INVALID), m_is_inline(false), m_cmd_seted(false)
                 {
