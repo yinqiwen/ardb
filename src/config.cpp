@@ -222,6 +222,8 @@ OP_NAMESPACE_BEGIN
                 WARN_LOG("Invalid 'slaveof' config.");
             }
         }
+        
+        conf_get_string(props, "masterauth", masterauth);
 
         if (data_base_path.empty())
         {
