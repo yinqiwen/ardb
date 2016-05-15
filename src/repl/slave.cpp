@@ -203,7 +203,7 @@ OP_NAMESPACE_BEGIN
             //m_ctx.ctx.ns.SetString(cmd.GetArguments()[0], false);
             g_repl->GetReplLog().SetCurrentNamespace(cmd.GetArguments()[0]);
         }
-        INFO_LOG("Recv master inline:%d cmd %s with type:%d at %lld %lld at state:%d", cmd.IsInLine(), cmd.ToString().c_str(), len, m_ctx.sync_repl_offset, g_repl->GetReplLog().WALEndOffset(), m_ctx.state);
+        DEBUG_LOG("Recv master inline:%d cmd %s with type:%d at %lld %lld at state:%d", cmd.IsInLine(), cmd.ToString().c_str(), len, m_ctx.sync_repl_offset, g_repl->GetReplLog().WALEndOffset(), m_ctx.state);
         if (!write_wal_only)
         {
             m_ctx.ctx.flags.no_wal = 1;

@@ -927,7 +927,7 @@ OP_NAMESPACE_BEGIN
         }
         int aggregate = REDIS_AGGR_SUM;
         std::vector<double> weights;
-        weights.resize(setnum);
+        weights.assign(setnum, 1.0);
         size_t arg_cursor = setnum + 2;
         if (cmd.GetArguments().size() > arg_cursor)
         {
@@ -987,7 +987,6 @@ OP_NAMESPACE_BEGIN
         {
             KeyObject zkey(ctx.ns, KEY_META, cmd.GetArguments()[i + 2]);
             keys.push_back(zkey);
-            weights.push_back(1.0);
         }
         keys.push_back(destkey);
         KeysLockGuard guard(ctx, keys);
@@ -1100,6 +1099,7 @@ OP_NAMESPACE_BEGIN
                     {
                         score = iter->Value().GetZSetScore();
                     }
+                    //printf("###%f  %f\n", weights[i], score);
                     score = weights[i] * score;
                     DataScoreMap& result_map = inter_union_result[result_cursor];
                     std::pair<DataScoreMap::iterator, bool> ret = result_map.insert(DataScoreMap::value_type(k.GetElement(0), score));
