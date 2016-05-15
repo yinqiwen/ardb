@@ -198,7 +198,12 @@ OP_NAMESPACE_BEGIN
         }
         m_ctx.cmd_recved_time = time(NULL);
         int len = g_repl->GetReplLog().WriteWAL(cmd.GetRawProtocolData());
-        DEBUG_LOG("Recv master inline:%d cmd %s with len:%d at %lld %lld at state:%d", cmd.IsInLine(), cmd.ToString().c_str(), len, m_ctx.sync_repl_offset, g_repl->GetReplLog().WALEndOffset(), m_ctx.state);
+        if(!strncasecmp(cmd.GetCommand().c_str(), "select", 6))
+        {
+            //m_ctx.ctx.ns.SetString(cmd.GetArguments()[0], false);
+            g_repl->GetReplLog().SetCurrentNamespace(cmd.GetArguments()[0]);
+        }
+        INFO_LOG("Recv master inline:%d cmd %s with type:%d at %lld %lld at state:%d", cmd.IsInLine(), cmd.ToString().c_str(), len, m_ctx.sync_repl_offset, g_repl->GetReplLog().WALEndOffset(), m_ctx.state);
         if (!write_wal_only)
         {
             m_ctx.ctx.flags.no_wal = 1;
@@ -402,6 +407,7 @@ OP_NAMESPACE_BEGIN
                     m_decoder.SwitchToCommandDecoder();
                     m_ctx.ctx.ns.SetString(g_repl->GetReplLog().CurrentNamespace(), false);
                     m_ctx.state = SLAVE_STATE_SYNCED;
+                    INFO_LOG("Slave recv continue rom master with current namsepace:%s", m_ctx.ctx.ns.AsString().c_str());
                     break;
                 }
                 else

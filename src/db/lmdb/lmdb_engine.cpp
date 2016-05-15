@@ -548,8 +548,10 @@ namespace ardb
     int LMDBEngine::MultiGet(Context& ctx, const KeyObjectArray& keys, ValueObjectArray& values, ErrCodeArray& errs)
     {
         MDB_dbi dbi;
+        values.resize(keys.size());
         if (!GetDBI(ctx, ctx.ns, false, dbi))
         {
+            errs.assign(keys.size(), ERR_ENTRY_NOT_EXIST);
             return ERR_ENTRY_NOT_EXIST;
         }
         LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
@@ -557,7 +559,6 @@ namespace ardb
         std::vector<size_t> positions;
         std::vector<MDB_val> ks;
         ks.resize(keys.size());
-        values.resize(keys.size());
         errs.resize(keys.size());
         for (size_t i = 0; i < keys.size(); i++)
         {

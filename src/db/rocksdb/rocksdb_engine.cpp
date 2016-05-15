@@ -797,12 +797,15 @@ OP_NAMESPACE_BEGIN
     }
     int RocksDBEngine::MultiGet(Context& ctx, const KeyObjectArray& keys, ValueObjectArray& values, ErrCodeArray& errs)
     {
+        values.resize(keys.size());
         ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, ctx.ns, false);
         rocksdb::ColumnFamilyHandle* cf = cfp.get();
         if (NULL == cf)
         {
+            errs.assign(keys.size(), ERR_ENTRY_NOT_EXIST);
             return ERR_ENTRY_NOT_EXIST;
         }
+        errs.resize(keys.size());
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         std::vector<rocksdb::ColumnFamilyHandle*> cfs;
         std::vector<rocksdb::Slice> ks;
@@ -827,8 +830,7 @@ OP_NAMESPACE_BEGIN
         rocksdb::ReadOptions opt;
         opt.snapshot = rocks_ctx.PeekSnapshot();
         std::vector<rocksdb::Status> ss = m_db->MultiGet(opt, cfs, ks, &vs);
-        errs.resize(ss.size());
-        values.resize(ss.size());
+
         for (size_t i = 0; i < ss.size(); i++)
         {
             if (ss[i].ok())

@@ -215,6 +215,12 @@ OP_NAMESPACE_BEGIN
         swal_replay(m_wal, offset, end_offset - offset, cksm_callback, &cksm);
         return cksm == dest_cksm;
     }
+    void ReplicationBacklog::SetCurrentNamespace(const std::string& ns)
+    {
+        ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
+        meta->select_ns_size = ns.size();
+        memcpy(meta->select_ns, ns.data(), ns.size());
+    }
     std::string ReplicationBacklog::CurrentNamespace()
     {
         ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);

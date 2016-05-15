@@ -49,6 +49,7 @@ OP_NAMESPACE_BEGIN
             uint64_t WALCksm();
             std::string CurrentNamespace();
             void ClearCurrentNamespace();
+            void SetCurrentNamespace(const std::string& ns);
             void ResetWALOffsetCksm(uint64_t offset, uint64_t cksm);
             ~ReplicationBacklog();
     };
