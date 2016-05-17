@@ -358,7 +358,7 @@ OP_NAMESPACE_BEGIN
                 KeyObject k;
                 if (!k.DecodePrefix(buffer, false))
                 {
-                    abort();
+                    FATAL_LOG("Failed to decode prefix in compact filter.");
                 }
                 if (k.GetType() == KEY_META)
                 {
@@ -387,6 +387,9 @@ OP_NAMESPACE_BEGIN
                         }
                         else
                         {
+                            /*
+                             * Generate 'del' command for replication
+                             */
                             g_db->FeedReplicationDelOperation(ns, k.GetKey().AsString());
                             return true;
                         }

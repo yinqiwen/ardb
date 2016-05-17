@@ -76,9 +76,9 @@ OP_NAMESPACE_BEGIN
     }
     std::string ReplicationBacklog::GetReplKey()
     {
-        if(NULL == m_wal)
+        if (NULL == m_wal)
         {
-            static std::string tmpid =  random_hex_string(SERVER_KEY_SIZE);
+            static std::string tmpid = random_hex_string(SERVER_KEY_SIZE);
             return tmpid;
         }
         ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
@@ -96,6 +96,16 @@ OP_NAMESPACE_BEGIN
         ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
         memcpy(meta->replkey, str.data(), str.size() < SERVER_KEY_SIZE ? str.size() : SERVER_KEY_SIZE);
         meta->replkey_self_gen = false;
+    }
+    int ReplicationBacklog::DirectWriteWAL(RedisCommandFrame& cmd)
+    {
+        const Buffer& raw = cmd.GetRawProtocolData();
+        swal_append(m_wal, raw.GetRawReadBuffer(), raw.ReadableBytes());
+        if(!strncasecmp(cmd.GetCommand().c_str(), "select", 6))
+        {
+            SetCurrentNamespace(cmd.GetArguments()[0]);
+        }
+        return raw.ReadableBytes();
     }
     int ReplicationBacklog::WriteWAL(const Buffer& cmd)
     {
@@ -200,7 +210,7 @@ OP_NAMESPACE_BEGIN
     }
     bool ReplicationBacklog::IsValidOffsetCksm(int64_t offset, uint64_t cksm)
     {
-        bool valid_offset = offset > 0 && offset <= (swal_end_offset(m_wal)) && offset >= swal_start_offset(m_wal);
+        bool valid_offset = offset > 0 && offset <= (swal_end_offset(m_wal)) &&offset >= swal_start_offset(m_wal);
         if (!valid_offset)
         {
             return false;
@@ -330,7 +340,7 @@ OP_NAMESPACE_BEGIN
 
     void ReplicationService::StopService()
     {
-        if(!IsInited())
+        if (!IsInited())
         {
             return;
         }

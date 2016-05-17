@@ -31,6 +31,7 @@ OP_NAMESPACE_BEGIN
             static void WriteWALCallback(Channel*, void* data);
             int WriteWAL(const Data& ns, const Buffer& cmd);
             int WriteWAL(const Buffer& cmd);
+            int DirectWriteWAL(RedisCommandFrame& cmd);
             void FlushSyncWAL();
             friend class Master;
             friend class Slave;

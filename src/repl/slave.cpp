@@ -191,20 +191,13 @@ OP_NAMESPACE_BEGIN
 
     void Slave::HandleRedisCommand(Channel* ch, RedisCommandFrame& cmd)
     {
-        bool write_wal_only = false;
-        if (m_ctx.state != SLAVE_STATE_SYNCED)
-        {
-            write_wal_only = true;
-        }
         m_ctx.cmd_recved_time = time(NULL);
-        int len = g_repl->GetReplLog().WriteWAL(cmd.GetRawProtocolData());
-        if(!strncasecmp(cmd.GetCommand().c_str(), "select", 6))
-        {
-            //m_ctx.ctx.ns.SetString(cmd.GetArguments()[0], false);
-            g_repl->GetReplLog().SetCurrentNamespace(cmd.GetArguments()[0]);
-        }
+        int len = g_repl->GetReplLog().DirectWriteWAL(cmd);
         DEBUG_LOG("Recv master inline:%d cmd %s with type:%d at %lld %lld at state:%d", cmd.IsInLine(), cmd.ToString().c_str(), len, m_ctx.sync_repl_offset, g_repl->GetReplLog().WALEndOffset(), m_ctx.state);
-        if (!write_wal_only)
+        /*
+         * Only execute command after slave fully synced from master
+         */
+        if (SLAVE_STATE_SYNCED == m_ctx.state)
         {
             m_ctx.ctx.flags.no_wal = 1;
             g_db->Call(m_ctx.ctx, cmd);

@@ -505,7 +505,7 @@ OP_NAMESPACE_BEGIN
 
     void Master::AddSlave(SlaveSyncContext* slave)
     {
-        DEBUG_LOG("Add slave %s", slave->GetAddress().c_str());
+        INFO_LOG("Accept slave %s", slave->GetAddress().c_str());
         g_repl->GetIOService().AttachChannel(slave->conn, true);
         slave->state = SYNC_STATE_START;
         slave->conn->ClearPipeline();

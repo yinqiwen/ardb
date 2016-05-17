@@ -144,8 +144,7 @@ OP_NAMESPACE_BEGIN
     static CostTrack g_cmd_cost_tracks[REDIS_CMD_MAX];
 
     Ardb::Ardb() :
-            m_engine(NULL), m_starttime(0), m_loading_data(false), m_redis_cursor_seed(0), m_watched_ctxs(NULL), m_ready_keys(NULL), m_restoring_nss(NULL), m_min_ttl(
-                    -1)
+            m_engine(NULL), m_starttime(0), m_loading_data(false), m_redis_cursor_seed(0), m_watched_ctxs(NULL), m_ready_keys(NULL), m_restoring_nss(NULL), m_min_ttl(-1)
     {
         g_db = this;
         m_settings.set_empty_key("");
@@ -817,7 +816,7 @@ OP_NAMESPACE_BEGIN
         {
             return;
         }
-        if(0 == m_min_ttl)
+        if (0 == m_min_ttl)
         {
             return;
         }
@@ -829,7 +828,7 @@ OP_NAMESPACE_BEGIN
         KeyObject scan_key(tll_ns, KEY_TTL_SORT, "");
         scan_key.SetTTL(m_min_ttl);
         Iterator* iter = m_engine->Find(scan_ctx, scan_key);
-        if(!iter->Valid())
+        if (!iter->Valid())
         {
             m_min_ttl = 0; //no expire key
         }
@@ -862,7 +861,8 @@ OP_NAMESPACE_BEGIN
                     total_expired_keys++;
                     FeedReplicationDelOperation(meta_key.GetNameSpace(), meta_key.GetKey().AsString());
                 }
-            }else
+            }
+            else
             {
 
             }
@@ -871,7 +871,7 @@ OP_NAMESPACE_BEGIN
         }
         DELETE(iter);
         uint64 end_time = get_current_epoch_millis();
-        if(total_expired_keys > 0)
+        if (total_expired_keys > 0)
         {
             INFO_LOG("Cost %llums to delete %u keys.", (end_time - start_time), total_expired_keys);
         }
@@ -956,7 +956,7 @@ OP_NAMESPACE_BEGIN
         }
         DELETE(iter);
         uint64 end_time = get_current_epoch_millis();
-        if(total_expired_keys > 0)
+        if (total_expired_keys > 0)
         {
             INFO_LOG("Cost %llums to delete %lld keys.", (end_time - start_time), total_expired_keys);
         }
@@ -1050,6 +1050,7 @@ OP_NAMESPACE_BEGIN
             {
                 if (GetConf().master_host.empty() || !GetConf().slave_readonly)
                 {
+                    int old_dirty = ctx.dirty;
                     if (meta.GetType() == KEY_STRING)
                     {
                         RemoveKey(ctx, key);
@@ -1057,6 +1058,14 @@ OP_NAMESPACE_BEGIN
                     else
                     {
                         DelKey(ctx, key);
+                    }
+                    if(GetConf().master_host.empty())
+                    {
+                        /*
+                         * master generate 'del' command for replication & resume dirty after delete kvs
+                         */
+                        ctx.dirty = old_dirty;
+                        FeedReplicationDelOperation(key.GetNameSpace(), key.GetKey().AsString());
                     }
                 }
                 meta.Clear();
@@ -1205,7 +1214,12 @@ OP_NAMESPACE_BEGIN
     int Ardb::DoCall(Context& ctx, RedisCommandHandlerSetting& setting, RedisCommandFrame& args)
     {
         uint64 start_time = get_current_epoch_micros();
-        if (args.GetType() < REDIS_CMD_EXTEND_BEGIN && GetConf().redis_compatible)
+        /*
+         * 1. commands recv from slave replication connection always in incompatible mode
+         * 2. command type > REDIS_CMD_EXTEND_BEGIN
+         * 3. configuration 'redis_compatible = no'
+         */
+        if ((args.GetType() < REDIS_CMD_EXTEND_BEGIN && GetConf().redis_compatible) || ctx.flags.slave)
         {
             ctx.flags.redis_compatible = 1;
         }
@@ -1229,7 +1243,10 @@ OP_NAMESPACE_BEGIN
             DEBUG_LOG("Process recved cmd cost %lluus", stop_time - start_time);
         }
 
-        if (!ctx.flags.no_wal && ctx.dirty > 0)
+        /*
+         * Sometimes read only command may modify the key/value pair, do NOT propagate it to replication log
+         */
+        if (!ctx.flags.no_wal && ctx.dirty > 0 && setting.IsWriteCommand())
         {
             g_repl->GetReplLog().WriteWAL(ctx.ns, args);
         }
@@ -1326,8 +1343,7 @@ OP_NAMESPACE_BEGIN
 
         /* Don't accept write commands if there are not enough good slaves and
          * user configured the min-slaves-to-write option. */
-        if (GetConf().master_host.empty() && GetConf().repl_min_slaves_to_write > 0 && GetConf().repl_min_slaves_max_lag > 0
-                && (setting.flags & ARDB_CMD_WRITE) > 0 && g_repl->GetMaster().GoodSlavesCount() < GetConf().repl_min_slaves_to_write)
+        if (GetConf().master_host.empty() && GetConf().repl_min_slaves_to_write > 0 && GetConf().repl_min_slaves_max_lag > 0 && (setting.flags & ARDB_CMD_WRITE) > 0 && g_repl->GetMaster().GoodSlavesCount() < GetConf().repl_min_slaves_to_write)
         {
             ctx.AbortTransaction();
             reply.SetErrCode(ERR_NOREPLICAS);
@@ -1384,8 +1400,7 @@ OP_NAMESPACE_BEGIN
         }
         else if (ctx.IsSubscribed())
         {
-            if (setting.type != REDIS_CMD_SUBSCRIBE && setting.type != REDIS_CMD_PSUBSCRIBE && setting.type != REDIS_CMD_PUNSUBSCRIBE
-                    && setting.type != REDIS_CMD_UNSUBSCRIBE && setting.type != REDIS_CMD_QUIT)
+            if (setting.type != REDIS_CMD_SUBSCRIBE && setting.type != REDIS_CMD_PSUBSCRIBE && setting.type != REDIS_CMD_PUNSUBSCRIBE && setting.type != REDIS_CMD_UNSUBSCRIBE && setting.type != REDIS_CMD_QUIT)
             {
                 reply.SetErrorReason("only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context");
                 return 0;

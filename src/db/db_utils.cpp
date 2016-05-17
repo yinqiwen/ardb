@@ -31,79 +31,31 @@
 #include "db_utils.hpp"
 #include "util/file_helper.hpp"
 #include "db.hpp"
-OP_NAMESPACE_BEGIN
-    static DataSet g_nss;
-    static SpinMutexLock g_nss_lock;
-    static bool g_nss_loaded = false;
-    int DBHelper::ListNameSpaces(DataArray& nss)
-    {
-        LockGuard<SpinMutexLock> guard(g_nss_lock);
-        std::string dbs_file = g_db->GetConf().data_base_path + "/.dbs";
-        if (!g_nss_loaded)
-        {
-            std::string content;
-            file_read_full(dbs_file, content);
-            std::vector<std::string> ss = split_string(content, "\n");
-            for (size_t i = 0; i < ss.size(); i++)
-            {
-                Data ns;
-                ns.SetString(trim_string(ss[i], "\r\n\t "), false);
 
-                g_nss.insert(ns);
-            }
-            g_nss_loaded = true;
-        }
-        DataSet::iterator it = g_nss.begin();
-        while (it != g_nss.end())
-        {
-            nss.push_back(*it);
-            it++;
-        }
-        return 0;
-    }
-    int DBHelper::AddNameSpace(const Data& ns)
-    {
-        LockGuard<SpinMutexLock> guard(g_nss_lock);
-        if (g_nss.insert(ns).second)
-        {
-            std::string dbs_file = g_db->GetConf().data_base_path + "/.dbs";
-            std::string content = ns.AsString() + "\r\n";
-            file_append_content(dbs_file, content);
-        }
-        return 0;
-    }
-    int DBHelper::DelNamespace(const Data& ns)
-    {
-        LockGuard<SpinMutexLock> guard(g_nss_lock);
-        if (g_nss.erase(ns) > 0)
-        {
-            std::string dbs_file = g_db->GetConf().data_base_path + "/.dbs";
-            std::string content;
-            DataSet::iterator it = g_nss.begin();
-            while (it != g_nss.end())
-            {
-                content.append(it->AsString()).append("\r\n");
-                it++;
-            }
-            file_write_content(dbs_file, content);
-        }
-        return 0;
-    }
+#define DEFAULT_LOCAL_ENCODE_BUFFER_SIZE 8192
+OP_NAMESPACE_BEGIN
 
     Slice DBLocalContext::GetSlice(const KeyObject& key)
     {
-        Buffer& key_encode_buffer = GetEncodeBuferCache();
+        Buffer& key_encode_buffer = GetEncodeBufferCache();
         return key.Encode(key_encode_buffer, false, g_engine->GetFeatureSet().support_namespace?false:true);
     }
     void DBLocalContext::GetSlices(const KeyObject& key, const ValueObject& val, Slice ss[2])
     {
-        Buffer& encode_buffer = GetEncodeBuferCache();
+        Buffer& encode_buffer = GetEncodeBufferCache();
         key.Encode(encode_buffer, false, g_engine->GetFeatureSet().support_namespace?false:true);
         size_t key_len = encode_buffer.ReadableBytes();
         val.Encode(encode_buffer);
         size_t value_len = encode_buffer.ReadableBytes() - key_len;
         ss[0] = Slice(encode_buffer.GetRawBuffer(), key_len);
         ss[1] = Slice(encode_buffer.GetRawBuffer() + key_len, value_len);
+    }
+
+    Buffer& DBLocalContext::GetEncodeBufferCache()
+    {
+        encode_buffer_cache.Clear();
+        encode_buffer_cache.Compact(DEFAULT_LOCAL_ENCODE_BUFFER_SIZE);
+        return encode_buffer_cache;
     }
 
 OP_NAMESPACE_END

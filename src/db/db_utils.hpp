@@ -37,17 +37,14 @@
 #include "thread/spin_rwlock.hpp"
 #include "thread/event_condition.hpp"
 #include "util/concurrent_queue.hpp"
+
 OP_NAMESPACE_BEGIN
 
     struct DBLocalContext
     {
             Buffer encode_buffer_cache;
             std::string string_cache;
-            Buffer& GetEncodeBuferCache()
-            {
-                encode_buffer_cache.Clear();
-                return encode_buffer_cache;
-            }
+            Buffer& GetEncodeBufferCache();
             Slice GetSlice(const KeyObject& key);
             void GetSlices(const KeyObject& key, const ValueObject& val, Slice ss[2]);
             std::string& GetStringCache()
@@ -60,17 +57,6 @@ OP_NAMESPACE_BEGIN
             }
     };
 
-    class DBHelper
-    {
-        public:
-            /*
-             * Some engine need all names before open,
-             * we need to persist the names
-             */
-            static int ListNameSpaces(DataArray& nss);
-            static int AddNameSpace(const Data& ns);
-            static int DelNamespace(const Data& ns);
-    };
 OP_NAMESPACE_END
 
 #endif /* SRC_DB_DB_UTILS_HPP_ */

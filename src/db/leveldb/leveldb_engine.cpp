@@ -344,7 +344,7 @@ namespace ardb
     {
         LevelDBLocalContext& local_ctx = g_local_ctx.GetValue();
         leveldb::WriteOptions opt;
-        Buffer& encode_buffer = local_ctx.GetEncodeBuferCache();
+        Buffer& encode_buffer = local_ctx.GetEncodeBufferCache();
         ns.Encode(encode_buffer);
         encode_buffer.Write(key.data(), key.size());
         leveldb::Slice key_slice(encode_buffer.GetRawReadBuffer(), encode_buffer.ReadableBytes());
@@ -668,7 +668,7 @@ namespace ardb
             return;
         }
         LevelDBLocalContext& rocks_ctx = g_local_ctx.GetValue();
-        Slice key_slice = next.Encode(rocks_ctx.GetEncodeBuferCache(), false, true);
+        Slice key_slice = next.Encode(rocks_ctx.GetEncodeBufferCache(), false, true);
         m_iter->Seek(to_leveldb_slice(key_slice));
         CheckBound();
     }
