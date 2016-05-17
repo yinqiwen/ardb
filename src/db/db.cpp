@@ -219,7 +219,7 @@ OP_NAMESPACE_BEGIN
         { "incrby2", REDIS_CMD_INCRBY2, &Ardb::Incrby, 2, 2, "w", 1, 0, 0 },
         { "incrbyfloat", REDIS_CMD_INCRBYFLOAT, &Ardb::IncrbyFloat, 2, 2, "w", 0, 0, 0 },
         { "incrbyfloat2", REDIS_CMD_INCRBYFLOAT2, &Ardb::IncrbyFloat, 2, 2, "w", 0, 0, 0 },
-        { "mget", REDIS_CMD_MGET, &Ardb::MGet, 1, -1, "w", 0, 0, 0 },
+        { "mget", REDIS_CMD_MGET, &Ardb::MGet, 1, -1, "r", 0, 0, 0 },
         { "mset", REDIS_CMD_MSET, &Ardb::MSet, 2, -1, "w", 0, 0, 0 },
         { "mset2", REDIS_CMD_MSET2, &Ardb::MSet, 2, -1, "w", 0, 0, 0 },
         { "msetnx", REDIS_CMD_MSETNX, &Ardb::MSetNX, 2, -1, "w", 0, 0, 0 },
