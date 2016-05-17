@@ -54,12 +54,27 @@ OP_NAMESPACE_BEGIN
             {
             }
     };
+
+    struct Slot
+    {
+            uint32 id;
+            uint8 state;
+            Slot() :
+                    id(0), state(0)
+            {
+            }
+    };
+
     struct Partition
     {
             uint32 id;
-            std::vector<uint32> slots;
+            std::vector<Slot> slots;
             uint32 master;
             std::vector<uint32> slaves;
+
+            /*
+             * Used to cache object
+             */
             Node* _master_node;
             std::vector<Node*> _slave_nodes;
             Partition() :

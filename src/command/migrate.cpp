@@ -250,7 +250,7 @@ OP_NAMESPACE_BEGIN
     }
 
     /*
-     * this command only works with ardb instances.
+     * this command only works with ardb instances, used by cluster manager
      */
     int Ardb::MigrateDB(Context& ctx, RedisCommandFrame& cmd)
     {

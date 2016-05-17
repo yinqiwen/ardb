@@ -37,6 +37,13 @@ OP_NAMESPACE_BEGIN
         ZK_STATE_DISCONNECT = 0, ZK_STATE_CONNECTING, ZK_STATE_CONNECTED, ZK_STATE_CREATE_PATH, ZK_STATE_FETCH_TOPO, ZK_STATE_READY,
     };
 
+    enum SlotState
+    {
+        SLOT_READY = 0,
+        SLOT_MIGRATING = 1,
+        SLOT_RESTORNG = 2
+    };
+
     static const char* state2String(int state)
     {
         if (state == 0)
