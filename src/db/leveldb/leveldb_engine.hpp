@@ -119,6 +119,7 @@ namespace ardb
             LevelDBEngine();
             ~LevelDBEngine();
             int Init(const std::string& dir, const std::string& options);
+            int Repair(const std::string& dir);
             int Put(Context& ctx, const KeyObject& key, const ValueObject& value);
             int PutRaw(Context& ctx, const Data& ns, const Slice& key, const Slice& value);
             int Get(Context& ctx, const KeyObject& key, ValueObject& value);

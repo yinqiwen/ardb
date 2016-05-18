@@ -2200,6 +2200,25 @@ namespace ardb
 
         Context dumpctx;
         dumpctx.flags.iterate_multi_keys = 1;
+
+        /*
+         * aux header
+         */
+        RETURN_NEGATIVE_EXPR(WriteType(ARDB_OPCODE_AUX));
+        RETURN_NEGATIVE_EXPR(WriteRawString("ardb_version"));
+        RETURN_NEGATIVE_EXPR(WriteRawString(ARDB_VERSION));
+        RETURN_NEGATIVE_EXPR(WriteType(ARDB_OPCODE_AUX));
+        RETURN_NEGATIVE_EXPR(WriteRawString("engine"));
+        RETURN_NEGATIVE_EXPR(WriteRawString(g_engine_name));
+        RETURN_NEGATIVE_EXPR(WriteType(ARDB_OPCODE_AUX));
+        RETURN_NEGATIVE_EXPR(WriteRawString("host"));
+        char hostname[1024];
+        gethostname(hostname, sizeof(hostname));
+        RETURN_NEGATIVE_EXPR(WriteRawString(hostname));
+        RETURN_NEGATIVE_EXPR(WriteType(ARDB_OPCODE_AUX));
+        RETURN_NEGATIVE_EXPR(WriteRawString("create_time"));
+        RETURN_NEGATIVE_EXPR(WriteRawString(stringfromll(time(NULL))));
+
         DataArray nss;
         g_db->GetEngine()->ListNameSpaces(dumpctx, nss);
         for (size_t i = 0; i < nss.size(); i++)
@@ -2214,16 +2233,6 @@ namespace ardb
             dumpctx.ns = nss[i];
             RETURN_NEGATIVE_EXPR(WriteType(ARDB_RDB_OPCODE_SELECTDB));
             RETURN_NEGATIVE_EXPR(WriteStringObject(nss[i]));
-
-            /*
-             * aux header
-             */
-            RETURN_NEGATIVE_EXPR(WriteType(ARDB_OPCODE_AUX));
-            RETURN_NEGATIVE_EXPR(WriteRawString("ardb_version"));
-            RETURN_NEGATIVE_EXPR(WriteRawString(ARDB_VERSION));
-            RETURN_NEGATIVE_EXPR(WriteType(ARDB_OPCODE_AUX));
-            RETURN_NEGATIVE_EXPR(WriteRawString("engine"));
-            RETURN_NEGATIVE_EXPR(WriteRawString(g_engine_name));
 
             KeyObject empty;
             empty.SetNameSpace(nss[i]);

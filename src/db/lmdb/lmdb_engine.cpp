@@ -141,7 +141,7 @@ namespace ardb
                                 break;
                             }
                         }
-                        if(NULL == txn)
+                        if (NULL == txn)
                         {
                             break;
                         }
@@ -348,7 +348,7 @@ namespace ardb
         MDB_val ns_key_val, ns_val_val;
         ns_key_val.mv_data = (void *) ns_key.data();
         ns_key_val.mv_size = ns_key.size();
-        ns_val_val.mv_data =  (void *)ns_val.data();
+        ns_val_val.mv_data = (void *) ns_val.data();
         ns_val_val.mv_size = ns_val.size();
         mdb_put(txn, m_meta_dbi, &ns_key_val, &ns_val_val, 0);
         bool success = true;
@@ -441,6 +441,12 @@ namespace ardb
         local_ctx.txn = NULL;
         INFO_LOG("Success to open lmdb at %s", dir.c_str());
         return 0;
+    }
+
+    int LMDBEngine::Repair(const std::string& dir)
+    {
+        ERROR_LOG("Repair not supported in lmdb");
+        return ERR_NOTSUPPORTED;
     }
 
     int LMDBEngine::Put(Context& ctx, const KeyObject& key, const ValueObject& value)
@@ -955,7 +961,7 @@ namespace ardb
 
     void LMDBIterator::Del()
     {
-        if(NULL != mdb_cursor_get)
+        if (NULL != m_cursor)
         {
             mdb_cursor_del(m_cursor, 0);
         }

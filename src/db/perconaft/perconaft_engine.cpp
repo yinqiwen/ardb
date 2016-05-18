@@ -120,7 +120,8 @@ namespace ardb
             uint32 cleaner_iterations;bool evictor_enable_partial_eviction;
             TOKU_COMPRESSION_METHOD compression;
             PerconaFTConig() :
-                    cache_size(128 * 1024 * 1024), checkpoint_pool_threads(2), checkpoint_period(3600 * 4), cleaner_period(3600), cleaner_iterations(10000), evictor_enable_partial_eviction(true), compression(TOKU_SNAPPY_METHOD)
+                    cache_size(128 * 1024 * 1024), checkpoint_pool_threads(2), checkpoint_period(3600 * 4), cleaner_period(3600), cleaner_iterations(10000), evictor_enable_partial_eviction(
+                            true), compression(TOKU_SNAPPY_METHOD)
             {
             }
     };
@@ -175,9 +176,10 @@ namespace ardb
         else if (compression == "zlib")
         {
             g_perconaft_config.compression = TOKU_ZLIB_METHOD;
-        }else
+        }
+        else
         {
-            ERROR_LOG("Invalid compression config:%s for PercanoFT.",compression.c_str());
+            ERROR_LOG("Invalid compression config:%s for PercanoFT.", compression.c_str());
             return -1;
         }
 
@@ -191,7 +193,7 @@ namespace ardb
          * set env config
          */
         uint32 cache_gsize = g_perconaft_config.cache_size >> 30;
-        uint32 cache_bytes = g_perconaft_config.cache_size % (1024*1024*1024);
+        uint32 cache_bytes = g_perconaft_config.cache_size % (1024 * 1024 * 1024);
         m_env->set_cachesize(m_env, cache_gsize, cache_bytes, 1);
         m_env->set_cachetable_pool_threads(m_env, g_perconaft_config.checkpoint_pool_threads);
         m_env->checkpointing_set_period(m_env, g_perconaft_config.checkpoint_period);
@@ -247,6 +249,12 @@ namespace ardb
             GetFTDB(tmp, nss[i], true);
         }
         return r;
+    }
+
+    int PerconaFTEngine::Repair(const std::string& dir)
+    {
+        ERROR_LOG("Repair not supported in PerconaFT");
+        return ERR_NOTSUPPORTED;
     }
 
     DB* PerconaFTEngine::GetFTDB(Context& ctx, const Data& ns, bool create_if_missing)
@@ -491,7 +499,8 @@ namespace ardb
 
     void PerconaFTEngine::Stats(Context& ctx, std::string& str)
     {
-        str.append("perconaft_version:").append(stringfromll(DB_VERSION_MAJOR)).append(".").append(stringfromll(DB_VERSION_MINOR)).append(".").append(stringfromll(DB_VERSION_PATCH)).append("\r\n");
+        str.append("perconaft_version:").append(stringfromll(DB_VERSION_MAJOR)).append(".").append(stringfromll(DB_VERSION_MINOR)).append(".").append(
+                stringfromll(DB_VERSION_PATCH)).append("\r\n");
         DataArray nss;
         ListNameSpaces(ctx, nss);
         PerconaFTLocalContext& local_ctx = g_local_ctx.GetValue();

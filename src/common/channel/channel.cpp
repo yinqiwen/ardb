@@ -98,8 +98,7 @@ bool Channel::BlockRead()
 {
     if (GetReadFD() > 0 && !m_block_read)
     {
-        aeDeleteFileEvent(GetService().GetRawEventLoop(), GetReadFD(),
-        AE_READABLE);
+        aeDeleteFileEvent(GetService().GetRawEventLoop(), GetReadFD(), AE_READABLE);
         m_block_read = true;
     }
     return true;

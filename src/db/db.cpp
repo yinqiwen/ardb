@@ -185,7 +185,7 @@ OP_NAMESPACE_BEGIN
         { "slaveof", REDIS_CMD_SLAVEOF, &Ardb::Slaveof, 2, -1, "ast", 0, 0, 0 },
         { "replconf", REDIS_CMD_REPLCONF, &Ardb::ReplConf, 0, -1, "arslt", 0, 0, 0 },
         { "sync", REDIS_CMD_SYNC, &Ardb::Sync, 0, 2, "ars", 0, 0, 0 },
-        { "psync", REDIS_CMD_PSYNC, &Ardb::PSync, 2, 2, "ars", 0, 0, 0 },
+        { "psync", REDIS_CMD_PSYNC, &Ardb::PSync, 2, 4, "ars", 0, 0, 0 },
         { "select", REDIS_CMD_SELECT, &Ardb::Select, 1, 1, "r", 0, 0, 0 },
         { "append", REDIS_CMD_APPEND, &Ardb::Append, 2, 2, "w", 0, 0, 0 },
         { "append2", REDIS_CMD_APPEND2, &Ardb::Append, 2, 2, "w", 0, 0, 0 },
@@ -204,7 +204,7 @@ OP_NAMESPACE_BEGIN
         { "type", REDIS_CMD_TYPE, &Ardb::Type, 1, 1, "r", 0, 0, 0 },
         { "bitcount", REDIS_CMD_BITCOUNT, &Ardb::Bitcount, 1, 3, "r", 0, 0, 0 },
         { "bitop", REDIS_CMD_BITOP, &Ardb::Bitop, 3, -1, "w", 1, 0, 0 },
-        { "bitopcount", REDIS_CMD_BITOPCUNT, &Ardb::BitopCount, 2, -1, "w", 0, 0, 0 },
+        { "bitopcount", REDIS_CMD_BITOPCUNT, &Ardb::BitopCount, 2, -1, "r", 0, 0, 0 },
         { "decr", REDIS_CMD_DECR, &Ardb::Decr, 1, 1, "w", 1, 0, 0 },
         { "decr2", REDIS_CMD_DECR2, &Ardb::Decr, 1, 1, "w", 1, 0, 0 },
         { "decrby", REDIS_CMD_DECRBY, &Ardb::Decrby, 2, 2, "w", 1, 0, 0 },
@@ -260,7 +260,7 @@ OP_NAMESPACE_BEGIN
         { "sdiffstore", REDIS_CMD_SDIFFSTORE, &Ardb::SDiffStore, 3, -1, "w", 0, 0, 0 },
         { "sinter", REDIS_CMD_SINTER, &Ardb::SInter, 2, -1, "r", 0, 0, 0 },
         { "sintercount", REDIS_CMD_SINTERCOUNT, &Ardb::SInterCount, 2, -1, "r", 0, 0, 0 },
-        { "sinterstore", REDIS_CMD_SINTERSTORE, &Ardb::SInterStore, 3, -1, "r", 0, 0, 0 },
+        { "sinterstore", REDIS_CMD_SINTERSTORE, &Ardb::SInterStore, 3, -1, "w", 0, 0, 0 },
         { "sismember", REDIS_CMD_SISMEMBER, &Ardb::SIsMember, 2, 2, "r", 0, 0, 0 },
         { "smembers", REDIS_CMD_SMEMBERS, &Ardb::SMembers, 1, 1, "r", 0, 0, 0 },
         { "smove", REDIS_CMD_SMOVE, &Ardb::SMove, 3, 3, "w", 0, 0, 0 },
@@ -269,7 +269,7 @@ OP_NAMESPACE_BEGIN
         { "srem", REDIS_CMD_SREM, &Ardb::SRem, 2, -1, "w", 1, 0, 0 },
         { "srem2", REDIS_CMD_SREM2, &Ardb::SRem, 2, -1, "w", 1, 0, 0 },
         { "sunion", REDIS_CMD_SUNION, &Ardb::SUnion, 2, -1, "r", 0, 0, 0 },
-        { "sunionstore", REDIS_CMD_SUNIONSTORE, &Ardb::SUnionStore, 3, -1, "r", 0, 0, 0 },
+        { "sunionstore", REDIS_CMD_SUNIONSTORE, &Ardb::SUnionStore, 3, -1, "w", 0, 0, 0 },
         { "sunioncount", REDIS_CMD_SUNIONCOUNT, &Ardb::SUnionCount, 2, -1, "r", 0, 0, 0 },
         { "sscan", REDIS_CMD_SSCAN, &Ardb::SScan, 2, 6, "r", 0, 0, 0 },
         { "zadd", REDIS_CMD_ZADD, &Ardb::ZAdd, 3, -1, "w", 0, 0, 0 },
@@ -332,13 +332,14 @@ OP_NAMESPACE_BEGIN
         { "auth", REDIS_CMD_AUTH, &Ardb::Auth, 1, 1, "rsltF", 0, 0, 0 },
         { "pfadd", REDIS_CMD_PFADD, &Ardb::PFAdd, 2, -1, "w", 0, 0, 0 },
         { "pfadd2", REDIS_CMD_PFADD2, &Ardb::PFAdd, 2, -1, "w", 0, 0, 0 },
-        { "pfcount", REDIS_CMD_PFCOUNT, &Ardb::PFCount, 1, -1, "w", 0, 0, 0 },
+        { "pfcount", REDIS_CMD_PFCOUNT, &Ardb::PFCount, 1, -1, "r", 0, 0, 0 },
         { "pfmerge", REDIS_CMD_PFMERGE, &Ardb::PFMerge, 2, -1, "w", 0, 0, 0 },
         { "dump", REDIS_CMD_DUMP, &Ardb::Dump, 1, 1, "r", 0, 0, 0 },
         { "restore", REDIS_CMD_RESTORE, &Ardb::Restore, 3, 4, "w", 0, 0, 0 },
         { "migrate", REDIS_CMD_MIGRATE, &Ardb::Migrate, 5, -1, "w", 0, 0, 0 },
-        { "restorechunk", REDIS_CMD_RESTORECHUNK, &Ardb::RestoreChunk, 1, 1, "w", 0, 0, 0 },
-        { "restoredb", REDIS_CMD_RESTOREDB, &Ardb::RestoreDB, 1, 1, "w", 0, 0, 0 }, };
+        { "migratedb", REDIS_CMD_MIGRATEDB, &Ardb::MigrateDB, 3, 4, "w", 0, 0, 0 },
+        { "restorechunk", REDIS_CMD_RESTORECHUNK, &Ardb::RestoreChunk, 1, 1, "wl", 0, 0, 0 },
+        { "restoredb", REDIS_CMD_RESTOREDB, &Ardb::RestoreDB, 1, 1, "wl", 0, 0, 0 }, };
 
         CostRanges cmdstat_ranges;
         cmdstat_ranges.push_back(CostRange(0, 1000));
@@ -449,6 +450,28 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
+    static Engine* create_engine()
+    {
+        Engine* engine = NULL;
+#if defined __USE_LMDB__
+        NEW(engine, LMDBEngine);
+#elif defined __USE_ROCKSDB__
+        NEW(engine, RocksDBEngine);
+#elif defined __USE_LEVELDB__
+        NEW(engine, LevelDBEngine);
+#elif defined __USE_FORESTDB__
+        NEW(engine, ForestDBEngine);
+#elif defined __USE_WIREDTIGER__
+        NEW(engine, WiredTigerEngine);
+#elif defined __USE_PERCONAFT__
+        NEW(engine, PerconaFTEngine);
+#else
+        ERROR_LOG("Unsupported storage engine specified at compile time.");
+        return NULL;
+#endif
+        return engine;
+    }
+
     int Ardb::Init(const std::string& conf_file)
     {
         Properties props;
@@ -489,22 +512,11 @@ OP_NAMESPACE_BEGIN
         std::string dbdir = GetConf().data_base_path + "/" + g_engine_name;
         make_dir(dbdir);
         int err = 0;
-#if defined __USE_LMDB__
-        NEW(m_engine, LMDBEngine);
-#elif defined __USE_ROCKSDB__
-        NEW(m_engine, RocksDBEngine);
-#elif defined __USE_LEVELDB__
-        NEW(m_engine, LevelDBEngine);
-#elif defined __USE_FORESTDB__
-        NEW(m_engine, ForestDBEngine);
-#elif defined __USE_WIREDTIGER__
-        NEW(m_engine, WiredTigerEngine);
-#elif defined __USE_PERCONAFT__
-        NEW(m_engine, PerconaFTEngine);
-#else
-        ERROR_LOG("Unsupported storage engine specified at compile time.");
-        return -1;
-#endif
+        m_engine = create_engine();
+        if(NULL == m_engine)
+        {
+            return -1;
+        }
         std::string options_key = g_engine_name;
         options_key.append(".options");
         std::string options_value;
@@ -520,6 +532,16 @@ OP_NAMESPACE_BEGIN
         g_engine = m_engine;
         INFO_LOG("Ardb init engine:%s success.", g_engine_name);
         return 0;
+    }
+
+    int Ardb::Repair(const std::string& dir)
+    {
+        m_engine = create_engine();
+        if(NULL == m_engine)
+        {
+            return -1;
+        }
+        return m_engine->Repair(dir);
     }
 
     void Ardb::RenameCommand()
@@ -1043,7 +1065,7 @@ OP_NAMESPACE_BEGIN
         {
             if (expected > 0 && meta.GetType() != expected)
             {
-                reply.SetErrCode(ERR_INVALID_TYPE);
+                reply.SetErrCode(ERR_WRONG_TYPE);
                 return false;
             }
             if (meta.GetTTL() > 0 && meta.GetTTL() < get_current_epoch_millis())

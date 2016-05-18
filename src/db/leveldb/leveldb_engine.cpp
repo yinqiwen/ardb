@@ -324,6 +324,16 @@ namespace ardb
         return status.ok() ? 0 : -1;
     }
 
+    int LevelDBEngine::Repair(const std::string& dir)
+    {
+        static LevelDBComparator comparator;
+        static LevelDBLogger logger;
+        m_options.comparator = &comparator;
+        m_options.info_log = &logger;
+        leveldb::Status status = leveldb::RepairDB(dir, m_options);
+        return status.ok() ? 0 : -1;
+    }
+
     bool LevelDBEngine::GetNamespace(const Data& ns, bool create_if_missing)
     {
         RWLockGuard<SpinRWLock> guard(m_lock, !create_if_missing);

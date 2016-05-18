@@ -1,8 +1,30 @@
 /*
- * master.cpp
+ *Copyright (c) 2013-2016, yinqiwen <yinqiwen@gmail.com>
+ *All rights reserved.
  *
- *  Created on: 2013-08-22
- *      Author: yinqiwen
+ *Redistribution and use in source and binary forms, with or without
+ *modification, are permitted provided that the following conditions are met:
+ *
+ *  * Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ *  * Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *  * Neither the name of Redis nor the names of its contributors may be used
+ *    to endorse or promote products derived from this software without
+ *    specific prior written permission.
+ *
+ *THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ *AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ *IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ *ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+ *BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ *CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ *SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ *INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ *CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+ *THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include "repl.hpp"
 #include <fcntl.h>
@@ -157,7 +179,7 @@ OP_NAMESPACE_BEGIN
                 {
                     m_repl_good_slaves_count++;
                 }
-                if(lag > g_db->GetConf().repl_timeout)
+                if (lag > g_db->GetConf().repl_timeout)
                 {
                     WARN_LOG("Disconnecting timedout slave:%s", slave->GetAddress().c_str());
                     to_close.push_back(slave);
@@ -311,27 +333,25 @@ OP_NAMESPACE_BEGIN
 
     void Master::SyncWAL()
     {
+        std::vector<SlaveSyncContext*> sync_slaves;
         SlaveSyncContextSet::iterator it = m_slaves.begin();
-        //bool no_lag_slave = true;
         while (it != m_slaves.end())
         {
             SlaveSyncContext* slave = *it;
             if (slave != NULL)
             {
-                if (slave->state == SYNC_STATE_SYNCED)
-                {
-                    if (slave->sync_offset != g_repl->GetReplLog().WALStartOffset())
-                    {
-                        SyncWAL(slave);
-                        //no_lag_slave = false;
-                    }
-                }
-                else
-                {
-                    //no_lag_slave = false;
-                }
+                sync_slaves.push_back(slave);
             }
             it++;
+        }
+
+        /*
+         * 'm_slaves' may be modified in iterator syncing, use local vector to store the slaves
+         */
+        for (size_t i = 0; i < sync_slaves.size(); i++)
+        {
+            SlaveSyncContext* slave = sync_slaves[i];
+            SyncWAL(slave);
         }
     }
 
@@ -346,7 +366,10 @@ OP_NAMESPACE_BEGIN
                 return;
             }
         }
-
+        /*
+         * init acktime  as current time for slave
+         */
+        slave->acktime = time(NULL);
         if (slave->repl_key.empty())
         {
             //redis 2.6/2.4
@@ -377,7 +400,7 @@ OP_NAMESPACE_BEGIN
             }
             else
             {
-                if(slave->repl_key != "?")
+                if (slave->repl_key != "?")
                 {
                     m_sync_partial_err_count++;
                 }
@@ -452,9 +475,9 @@ OP_NAMESPACE_BEGIN
     {
         RedisCommandFrame* cmd = e.GetMessage();
         SlaveSyncContext* slave = (SlaveSyncContext*) (ctx.GetChannel()->Attachment());
-        if(cmd->IsEmpty())
+        if (cmd->IsEmpty())
         {
-            if(NULL != slave)
+            if (NULL != slave)
             {
                 /*
                  * redis slave would send '\n' as empty command to keep connection alive

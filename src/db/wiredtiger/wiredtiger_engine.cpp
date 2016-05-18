@@ -362,6 +362,12 @@ namespace ardb
         return 0;
     }
 
+    int WiredTigerEngine::Repair(const std::string& dir)
+    {
+        ERROR_LOG("Repair not supported in WiredTiger");
+        return ERR_NOTSUPPORTED;
+    }
+
     int WiredTigerEngine::Put(Context& ctx, const KeyObject& key, const ValueObject& value)
     {
         WiredTigerLocalContext& local_ctx = GetDBLocalContext();

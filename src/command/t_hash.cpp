@@ -94,7 +94,6 @@ OP_NAMESPACE_BEGIN
         ctx.flags.create_if_notexist = 1;
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_META, keystr);
-        int err = 0;
         KeyLockGuard guard(ctx,key);
         ValueObject meta;
         {
@@ -256,7 +255,7 @@ OP_NAMESPACE_BEGIN
                     ValueObject& meta = iter->Value();
                     if (meta.GetType() != KEY_HASH)
                     {
-                        reply.SetErrCode(ERR_INVALID_TYPE);
+                        reply.SetErrCode(ERR_WRONG_TYPE);
                         break;
                     }
                     checked_meta = true;
@@ -335,7 +334,7 @@ OP_NAMESPACE_BEGIN
         {
             if (vals[0].GetType() != KEY_HASH)
             {
-                reply.SetErrCode(ERR_INVALID_TYPE);
+                reply.SetErrCode(ERR_WRONG_TYPE);
                 return 0;
             }
         }
@@ -484,7 +483,7 @@ OP_NAMESPACE_BEGIN
         }
         if (vals[0].GetType() > 0 && vals[0].GetType() != KEY_HASH)
         {
-            reply.SetErrCode(ERR_INVALID_TYPE);
+            reply.SetErrCode(ERR_WRONG_TYPE);
             return 0;
         }
 
@@ -519,7 +518,7 @@ OP_NAMESPACE_BEGIN
             {
                 if (!vals[1].GetHashValue().IsNumber())
                 {
-                    err = ERR_INVALID_TYPE;
+                    err = ERR_WRONG_TYPE;
                 }
                 else
                 {
@@ -534,7 +533,7 @@ OP_NAMESPACE_BEGIN
                 if (!vals[1].GetHashValue().IsInteger())
                 {
 
-                    err = ERR_INVALID_TYPE;
+                    err = ERR_WRONG_TYPE;
                 }
                 else
                 {
@@ -601,7 +600,7 @@ OP_NAMESPACE_BEGIN
         }
         if (vals[0].GetType() > 0 && vals[0].GetType() != KEY_HASH)
         {
-            reply.SetErrCode(ERR_INVALID_TYPE);
+            reply.SetErrCode(ERR_WRONG_TYPE);
         }
         else
         {
@@ -664,7 +663,7 @@ OP_NAMESPACE_BEGIN
         }
         if (meta.GetType() != KEY_HASH)
         {
-            reply.SetErrCode(ERR_INVALID_TYPE);
+            reply.SetErrCode(ERR_WRONG_TYPE);
             return 0;
         }
         int64_t del_num = 0;

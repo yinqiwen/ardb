@@ -87,7 +87,7 @@ OP_NAMESPACE_BEGIN
     {
         if (val.GetType() != 0 && val.GetType() != KEY_STRING)
         {
-            return ERR_INVALID_TYPE;
+            return ERR_WRONG_TYPE;
         }
         std::string str;
         val.GetStringValue().ToString(str);
@@ -246,7 +246,7 @@ OP_NAMESPACE_BEGIN
         {
             if (val.GetType() != KEY_STRING || !val.GetStringValue().IsInteger())
             {
-                return ERR_INVALID_TYPE;
+                return ERR_WRONG_TYPE;
             }
         }
         val.SetType(KEY_STRING);
@@ -312,7 +312,7 @@ OP_NAMESPACE_BEGIN
         {
             if (val.GetType() != KEY_STRING || !val.GetStringValue().IsInteger())
             {
-                return ERR_INVALID_TYPE;
+                return ERR_WRONG_TYPE;
             }
         }
         val.SetType(KEY_STRING);
@@ -426,7 +426,7 @@ OP_NAMESPACE_BEGIN
         {
             if (value.GetType() != KEY_STRING)
             {
-                reply.SetErrCode(ERR_INVALID_TYPE);
+                reply.SetErrCode(ERR_WRONG_TYPE);
                 return 0;
             }
             reply.SetString(value.GetStringValue());
@@ -466,7 +466,7 @@ OP_NAMESPACE_BEGIN
         {
             if (value.GetType() != KEY_STRING)
             {
-                reply.SetErrCode(ERR_INVALID_TYPE);
+                reply.SetErrCode(ERR_WRONG_TYPE);
                 return 0;
             }
             std::string str;
@@ -504,7 +504,7 @@ OP_NAMESPACE_BEGIN
         uint8 val_type = val.GetType();
         if (val_type > 0 && val_type != KEY_STRING)
         {
-            return ERR_INVALID_TYPE;
+            return ERR_WRONG_TYPE;
         }
 
         if (op == REDIS_CMD_SETNX || op == REDIS_CMD_SETNX2)
@@ -714,7 +714,7 @@ OP_NAMESPACE_BEGIN
         {
             if (val_type != KEY_STRING)
             {
-                return ERR_INVALID_TYPE;
+                return ERR_WRONG_TYPE;
             }
         }
         val.SetType(KEY_STRING);

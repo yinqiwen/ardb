@@ -38,13 +38,13 @@
 
 void version()
 {
-    printf("Ardb server v=%s bits=%d \n", ARDB_VERSION, sizeof(long) == 4 ? 32 : 64);
+    printf("Ardb server v=%s bits=%d engine=%s\n", ARDB_VERSION, sizeof(long) == 4 ? 32 : 64, g_engine_name);
     exit(0);
 }
 
 void usage()
 {
-    fprintf(stderr, "Usage: ./ardb-server [/path/to/ardb.conf] [options]\n");
+    fprintf(stderr, "Usage: ./ardb-server [/path/to/ardb.conf]\n");
     fprintf(stderr, "       ./ardb-server -v or --version\n");
     fprintf(stderr, "       ./ardb-server -h or --help\n");
     fprintf(stderr, "Examples:\n");

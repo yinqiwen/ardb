@@ -265,6 +265,7 @@ OP_NAMESPACE_BEGIN
         {
             reply.ReserveMember(0); //default response
         }
+
         if (!CheckMeta(ctx, key, KEY_ZSET, meta) || meta.GetType() == 0)
         {
             return 0;
@@ -299,6 +300,7 @@ OP_NAMESPACE_BEGIN
         {
             rank = meta.GetObjectLen() - 1 - rank;
         }
+
         while (iter->Valid())
         {
             KeyObject& field = iter->Key();
