@@ -179,7 +179,7 @@ OP_NAMESPACE_BEGIN
                 {
                     m_repl_good_slaves_count++;
                 }
-                if(lag > g_db->GetConf().repl_timeout)
+                if (lag > g_db->GetConf().repl_timeout)
                 {
                     WARN_LOG("Disconnecting timedout slave:%s", slave->GetAddress().c_str());
                     to_close.push_back(slave);
@@ -333,27 +333,25 @@ OP_NAMESPACE_BEGIN
 
     void Master::SyncWAL()
     {
+        std::vector<SlaveSyncContext*> sync_slaves;
         SlaveSyncContextSet::iterator it = m_slaves.begin();
-        //bool no_lag_slave = true;
         while (it != m_slaves.end())
         {
             SlaveSyncContext* slave = *it;
             if (slave != NULL)
             {
-                if (slave->state == SYNC_STATE_SYNCED)
-                {
-                    if (slave->sync_offset != g_repl->GetReplLog().WALStartOffset())
-                    {
-                        SyncWAL(slave);
-                        //no_lag_slave = false;
-                    }
-                }
-                else
-                {
-                    //no_lag_slave = false;
-                }
+                sync_slaves.push_back(slave);
             }
             it++;
+        }
+
+        /*
+         * 'm_slaves' may be modified in iterator syncing, use local vector to store the slaves
+         */
+        for (size_t i = 0; i < sync_slaves.size(); i++)
+        {
+            SlaveSyncContext* slave = sync_slaves[i];
+            SyncWAL(slave);
         }
     }
 
@@ -368,7 +366,10 @@ OP_NAMESPACE_BEGIN
                 return;
             }
         }
-
+        /*
+         * init acktime  as current time for slave
+         */
+        slave->acktime = time(NULL);
         if (slave->repl_key.empty())
         {
             //redis 2.6/2.4
@@ -399,7 +400,7 @@ OP_NAMESPACE_BEGIN
             }
             else
             {
-                if(slave->repl_key != "?")
+                if (slave->repl_key != "?")
                 {
                     m_sync_partial_err_count++;
                 }
@@ -474,9 +475,9 @@ OP_NAMESPACE_BEGIN
     {
         RedisCommandFrame* cmd = e.GetMessage();
         SlaveSyncContext* slave = (SlaveSyncContext*) (ctx.GetChannel()->Attachment());
-        if(cmd->IsEmpty())
+        if (cmd->IsEmpty())
         {
-            if(NULL != slave)
+            if (NULL != slave)
             {
                 /*
                  * redis slave would send '\n' as empty command to keep connection alive

@@ -81,6 +81,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::RestoreChunk(Context& ctx, RedisCommandFrame& cmd)
     {
+        ctx.flags.create_if_notexist = 1;
         ObjectBuffer obuffer(cmd.GetArguments()[0]);
         if (obuffer.ArdbLoad(ctx))
         {
@@ -165,6 +166,7 @@ OP_NAMESPACE_BEGIN
         Iterator* iter = NULL;
         CoroRedisClient redis_client(ctx->io_serv->NewClientSocketChannel());
         redis_client.Init();
+        commands.resize(2);
         SocketHostAddress remote_address(ctx->host, ctx->port);
         if (!redis_client.SyncConnect(&remote_address, ctx->timeout))
         {
@@ -172,7 +174,6 @@ OP_NAMESPACE_BEGIN
         }
 
         //1. select & restordb & flushdb first
-        commands.resize(2);
         commands[0].SetFullCommand("select %s", ctx->src_db.AsString().c_str());
         commands[1].SetFullCommand("restoredb start");
         migrate_reply = redis_client.SyncMultiCall(commands, ctx->timeout);
@@ -186,6 +187,7 @@ OP_NAMESPACE_BEGIN
             {
                 if (NULL != migrate_reply->at(i))
                 {
+                    WARN_LOG("Migrate chunk failed with reason:%s", restore_reply->Error().c_str());
                     r.SetErrorReason(migrate_reply->at(i)->Error());
                 }
                 goto _coro_exit;
@@ -195,6 +197,7 @@ OP_NAMESPACE_BEGIN
         //2. iterate all kv and send them to remote
         migtare_dbctx.flags.iterate_multi_keys = 1;
         migtare_dbctx.flags.iterate_no_upperbound = 1;
+        migtare_dbctx.flags.iterate_total_order = 1;
         iter = g_db->GetEngine()->Find(migtare_dbctx, startkey);
 
         migrate_success = true;
@@ -207,7 +210,11 @@ OP_NAMESPACE_BEGIN
                 ttl = iter->Value().GetTTL();
             }
             obuffer.ArdbSaveRawKeyValue(iter->RawKey(), iter->RawValue(), buffer, ttl);
-            if (buffer.ReadableBytes() >= 512 * 1024)
+            iter->Next();
+            /*
+             * if uncompressed chunk size greater than 512KB or last uncompressed chunk, generate 'RestoreChunk <chunk>' to target host
+             */
+            if (buffer.ReadableBytes() >= 512 * 1024 || !iter->Valid())
             {
                 obuffer.ArdbFlushWriteBuffer(buffer);
                 rawset.Clear();
@@ -226,7 +233,6 @@ OP_NAMESPACE_BEGIN
                     break;
                 }
             }
-            iter->Next();
         }
         DELETE(iter);
         _coro_exit: commands[1].SetFullCommand("restoredb %s", migrate_success ? "end" : "abort");
@@ -243,8 +249,8 @@ OP_NAMESPACE_BEGIN
         src_client = ctx->io_serv->GetChannel(ctx->clientid);
         if (NULL != src_client)
         {
-            src_client->Write(r);
             src_client->UnblockRead();
+            src_client->Write(r);
         }
         DELETE(ctx);
     }
@@ -276,8 +282,10 @@ OP_NAMESPACE_BEGIN
         migrate_ctx->port = port;
         migrate_ctx->copy = copy;
         migrate_ctx->src_db = ctx.ns;
+        migrate_ctx->timeout = timeout;
         ctx.client->client->BlockRead(); //do not read any data from client until the migrate task finish
         Scheduler::CurrentScheduler().StartCoro(0, MigrateDBCoroTask, migrate_ctx);
+        reply.type = 0; //let coroutine task to reply client
         return 0;
     }
 
@@ -431,7 +439,7 @@ OP_NAMESPACE_BEGIN
         uint32 port;
         int copy = 0, replace = 0;
         int64 timeout;
-        if (!string_toint64(cmd.GetArguments()[2], timeout) || !string_touint32(cmd.GetArguments()[1], port))
+        if (!string_toint64(cmd.GetArguments()[4], timeout) || !string_touint32(cmd.GetArguments()[1], port))
         {
             reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
             return 0;

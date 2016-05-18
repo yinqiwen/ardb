@@ -252,6 +252,11 @@ namespace ardb
         {
             switch (code)
             {
+                case ERR_INVALID_INTEGER_ARGS:
+                {
+                    str.assign("value is not an integer or out of range");
+                    break;
+                }
                 case ERR_LOADING:
                 {
                     str.assign("-LOADING Ardb is loading the snapshot file.");
