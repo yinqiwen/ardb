@@ -172,6 +172,7 @@ CORE_OBJECTS :=  config.o cron.o logger.o network.o types.o statistics.o\
                 $(COMMON_OBJECTS)  $(COMMAND_OBJECTS) $(DB_OBJECTS) 
         
 TESTOBJ := ../test/test_main.o
+REPAIR_TOOL_OBJ := tools/repair.o
 SERVEROBJ := main.o
 
 STORAGE_ENGINE_VPATH=db/${storage_engine}
@@ -246,7 +247,7 @@ endif
 
 #$(CORE_OBJECTS) $(SERVEROBJ) $(TESTOBJ): | $(ZOOKEEPER_PATH) $(STORAGE_ENGINE_PATH)
 
-all: ${PREBUILD}  test server 
+all: ${PREBUILD}  test server tools
 
 $(STORAGE_ENGINE_OBJ): $(STORAGE_ENGINE)
 
@@ -263,7 +264,12 @@ server: lib $(CORE_OBJECTS) ${SERVEROBJ}
 
 test: lib ${TESTOBJ} $(CORE_OBJECTS)
 	${CXX} -o ardb-test ${STORAGE_ENGINE_OBJ} ${TESTOBJ} $(CORE_OBJECTS) $(LIBS) 
+	
+tools: repair
 
+repair: lib ${REPAIR_TOOL_OBJ}
+	${CXX} -o ardb-repair ${REPAIR_TOOL_OBJ} $(DIST_LIBA) $(LIBS) 
+	
 .PHONY: jemalloc
 jemalloc: $(JEMALLOC_LIBA)
 $(JEMALLOC_LIBA):
@@ -441,7 +447,7 @@ dist:clean all
 	tar czvf ardb-bin-${ARDB_VERSION}.tar.gz ardb-${ARDB_VERSION}; rm -rf ardb-${ARDB_VERSION};
 
 clean:
-	rm -f  ${CORE_OBJECTS} $(SERVEROBJ) ${STORAGE_ENGINE_ALL_OBJ} ${TESTOBJ}\
-	       ardb-test  ardb-server
+	rm -f  ${CORE_OBJECTS} $(SERVEROBJ) ${STORAGE_ENGINE_ALL_OBJ} ${TESTOBJ} ${REPAIR_TOOL_OBJ} \
+	       ardb-test  ardb-server ardb-repair
 
 clobber: clean_deps clean

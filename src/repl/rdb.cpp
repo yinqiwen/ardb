@@ -2224,6 +2224,12 @@ namespace ardb
             RETURN_NEGATIVE_EXPR(WriteType(ARDB_OPCODE_AUX));
             RETURN_NEGATIVE_EXPR(WriteRawString("engine"));
             RETURN_NEGATIVE_EXPR(WriteRawString(g_engine_name));
+            RETURN_NEGATIVE_EXPR(WriteRawString("host"));
+            char hostname[1024];
+            gethostname(hostname, sizeof(hostname));
+            RETURN_NEGATIVE_EXPR(WriteRawString(hostname));
+            RETURN_NEGATIVE_EXPR(WriteRawString("create_time"));
+            RETURN_NEGATIVE_EXPR(WriteRawString(stringfromll(time(NULL))));
 
             KeyObject empty;
             empty.SetNameSpace(nss[i]);

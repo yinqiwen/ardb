@@ -449,6 +449,28 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
+    static Engine* create_engine()
+    {
+        Engine* engine = NULL;
+#if defined __USE_LMDB__
+        NEW(engine, LMDBEngine);
+#elif defined __USE_ROCKSDB__
+        NEW(engine, RocksDBEngine);
+#elif defined __USE_LEVELDB__
+        NEW(engine, LevelDBEngine);
+#elif defined __USE_FORESTDB__
+        NEW(engine, ForestDBEngine);
+#elif defined __USE_WIREDTIGER__
+        NEW(engine, WiredTigerEngine);
+#elif defined __USE_PERCONAFT__
+        NEW(engine, PerconaFTEngine);
+#else
+        ERROR_LOG("Unsupported storage engine specified at compile time.");
+        return NULL;
+#endif
+        return engine;
+    }
+
     int Ardb::Init(const std::string& conf_file)
     {
         Properties props;
@@ -489,22 +511,11 @@ OP_NAMESPACE_BEGIN
         std::string dbdir = GetConf().data_base_path + "/" + g_engine_name;
         make_dir(dbdir);
         int err = 0;
-#if defined __USE_LMDB__
-        NEW(m_engine, LMDBEngine);
-#elif defined __USE_ROCKSDB__
-        NEW(m_engine, RocksDBEngine);
-#elif defined __USE_LEVELDB__
-        NEW(m_engine, LevelDBEngine);
-#elif defined __USE_FORESTDB__
-        NEW(m_engine, ForestDBEngine);
-#elif defined __USE_WIREDTIGER__
-        NEW(m_engine, WiredTigerEngine);
-#elif defined __USE_PERCONAFT__
-        NEW(m_engine, PerconaFTEngine);
-#else
-        ERROR_LOG("Unsupported storage engine specified at compile time.");
-        return -1;
-#endif
+        m_engine = create_engine();
+        if(NULL == m_engine)
+        {
+            return -1;
+        }
         std::string options_key = g_engine_name;
         options_key.append(".options");
         std::string options_value;
@@ -520,6 +531,16 @@ OP_NAMESPACE_BEGIN
         g_engine = m_engine;
         INFO_LOG("Ardb init engine:%s success.", g_engine_name);
         return 0;
+    }
+
+    int Ardb::Repair(const std::string& dir)
+    {
+        m_engine = create_engine();
+        if(NULL == m_engine)
+        {
+            return -1;
+        }
+        return m_engine->Repair(dir);
     }
 
     void Ardb::RenameCommand()

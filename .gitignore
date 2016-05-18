@@ -5,6 +5,7 @@
 /.libs
 ardb-test*
 ardb-server*
+ardb-repair*
 *.bak
 snappy-*/
 gperftools-*/

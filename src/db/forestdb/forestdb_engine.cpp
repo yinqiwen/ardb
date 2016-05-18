@@ -401,6 +401,12 @@ namespace ardb
         return local_ctx.Init() ? 0 : -1;
     }
 
+    int ForestDBEngine::Repair(const std::string& dir)
+    {
+        ERROR_LOG("Not supported in forstdb");
+        return ERR_NOTSUPPORTED;
+    }
+
     int ForestDBEngine::Put(Context& ctx, const KeyObject& key, const ValueObject& value)
     {
         fdb_kvs_handle* kv = GetKVStore(ctx, key.GetNameSpace(), ctx.flags.create_if_notexist);
@@ -477,6 +483,15 @@ namespace ardb
         Buffer& encode_buffer = local_ctx.GetEncodeBuferCache();
         key.Encode(encode_buffer);
         size_t key_len = encode_buffer.ReadableBytes();
+        if(!local_ctx.iters.empty())
+        {
+            ForestDBIterator* iter = *(local_ctx.iters.begin());
+            KeyObject mark = iter->Key(true);
+            iter->Jump(key);
+            iter->Del();
+            iter->Jump(mark);
+            return 0;
+        }
         fdb_status fs = FDB_RESULT_SUCCESS;
         CHECK_EXPR(fs = fdb_del_kv(kv, (const void* ) encode_buffer.GetRawBuffer(), key_len));
         CHECK_EXPR(fs = fdb_commit(local_ctx.fdb, FDB_COMMIT_NORMAL));

@@ -56,11 +56,11 @@ OP_NAMESPACE_BEGIN
              */
             if (!key1.DecodeNS(kbuf1, false))
             {
-                abort();
+                FATAL_LOG("Decode first key namespace failed in comparator.");
             }
             if (!key2.DecodeNS(kbuf2, false))
             {
-                abort();
+                FATAL_LOG("Decode second key namespace failed in comparator.");
             }
             ret = key1.GetNameSpace().Compare(key2.GetNameSpace(), false);
             if (ret != 0)
@@ -76,11 +76,11 @@ OP_NAMESPACE_BEGIN
          */
         if (!key1.DecodeKey(kbuf1, false))
         {
-            abort();
+            FATAL_LOG("Decode first key prefix failed in comparator. ");
         }
         if (!key2.DecodeKey(kbuf2, false))
         {
-            abort();
+            FATAL_LOG("Decode second key prefix failed in comparator. ");
         }
 
         /*
@@ -126,11 +126,11 @@ OP_NAMESPACE_BEGIN
             {
                 if (!key1.DecodeElement(kbuf1, false, i))
                 {
-                    abort();
+                    FATAL_LOG("Decode first key element:%u failed.", i);
                 }
                 if (!key2.DecodeElement(kbuf2, false, i))
                 {
-                    abort();
+                    FATAL_LOG("Decode second key element:%u failed.", i);
                 }
                 ret = key1.GetElement(i).Compare(key2.GetElement(i), false);
                 if (ret != 0)

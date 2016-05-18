@@ -444,6 +444,7 @@ OP_NAMESPACE_BEGIN
         public:
             Ardb();
             int Init(const std::string& conf_file);
+            int Repair(const std::string& dir);
             int Call(Context& ctx, RedisCommandFrame& cmd);
             int MergeOperation(const KeyObject& key, ValueObject& val, uint16_t op, DataArray& args);
             int MergeOperands(uint16_t left, const DataArray& left_args, uint16_t& right, DataArray& right_args);

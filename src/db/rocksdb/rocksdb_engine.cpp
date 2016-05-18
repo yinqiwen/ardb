@@ -690,7 +690,6 @@ OP_NAMESPACE_BEGIN
         m_options.OptimizeLevelStyleCompaction();
         m_options.IncreaseParallelism();
         m_options.stats_dump_period_sec = (unsigned int) g_db->GetConf().statistics_log_period;
-        //m_options.statistics = rocksdb::CreateDBStatistics();
         std::vector<std::string> column_families;
         s = rocksdb::DB::ListColumnFamilies(m_options, dir, &column_families);
         if (column_families.empty())
@@ -725,6 +724,18 @@ OP_NAMESPACE_BEGIN
             return -1;
         }
         return 0;
+    }
+
+    int RocksDBEngine::Repair(const std::string& dir)
+    {
+        static RocksDBComparator comparator;
+        m_options.comparator = &comparator;
+        m_options.merge_operator.reset(new MergeOperator(this));
+        m_options.prefix_extractor.reset(new RocksDBPrefixExtractor);
+        m_options.compaction_filter_factory.reset(new RocksDBCompactionFilterFactory(this));
+        m_options.info_log.reset(new RocksDBLogger);
+        m_options.info_log_level = rocksdb::INFO_LEVEL;
+        return ROCKSDB_ERR(rocksdb::RepairDB(dir, m_options));
     }
 
     Data RocksDBEngine::GetNamespaceByColumnFamilyId(uint32 id)
