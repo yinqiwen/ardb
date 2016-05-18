@@ -1593,7 +1593,7 @@ namespace ardb
             }
             if (vals[i].GetType() != 0 && vals[i].GetType() != KEY_STRING)
             {
-                reply.SetErrCode(ERR_INVALID_TYPE);
+                reply.SetErrCode(ERR_WRONG_TYPE);
                 return 0;
             }
             std::string hllvalue;

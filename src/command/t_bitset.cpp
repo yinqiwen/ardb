@@ -211,7 +211,7 @@ OP_NAMESPACE_BEGIN
     {
         if (meta.GetType() > 0 && meta.GetType() != KEY_STRING)
         {
-            return ERR_INVALID_TYPE;
+            return ERR_WRONG_TYPE;
         }
         meta.SetType(KEY_STRING);
         int byte = offset >> 3;
@@ -583,7 +583,7 @@ OP_NAMESPACE_BEGIN
         {
             if (vals[0].GetType() != 0 && vals[0].GetType() != KEY_STRING)
             {
-                reply.SetErrCode(ERR_INVALID_TYPE);
+                reply.SetErrCode(ERR_WRONG_TYPE);
                 return 0;
             }
         }
@@ -601,7 +601,7 @@ OP_NAMESPACE_BEGIN
             /* Return an error if one of the keys is not a string. */
             if (vals[j].GetType() != KEY_STRING)
             {
-                reply.SetErrCode(ERR_INVALID_TYPE);
+                reply.SetErrCode(ERR_WRONG_TYPE);
                 return 0;
             }
             vals[j].GetStringValue().ToMutableStr();

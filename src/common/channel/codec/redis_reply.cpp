@@ -237,6 +237,11 @@ namespace ardb
                     str.assign("QUEUED", 5);
                     break;
                 }
+                case STATUS_NOKEY:
+                {
+                    str.assign("NOKEY", 5);
+                    break;
+                }
                 default:
                 {
                     abort();
@@ -260,6 +265,11 @@ namespace ardb
                 case ERR_READONLY_SLAVE:
                 {
                     str.assign("-READONLY You can't write against a read only slave.");
+                    break;
+                }
+                case ERR_WRONG_TYPE:
+                {
+                    str.assign("-WRONGTYPE Operation against a key holding the wrong kind of value.");
                     break;
                 }
                 case ERR_NOREPLICAS:
@@ -305,21 +315,6 @@ namespace ardb
                 case ERR_INVALID_HLL_STRING:
                 {
                     str.assign("WRONGTYPE Key is not a valid HyperLogLog string value.");
-                    break;
-                }
-                case STATUS_PONG:
-                {
-                    str.assign("PONG", 4);
-                    break;
-                }
-                case STATUS_QUEUED:
-                {
-                    str.assign("QUEUED", 5);
-                    break;
-                }
-                case STATUS_NOKEY:
-                {
-                    str.assign("NOKEY", 5);
                     break;
                 }
                 default:

@@ -767,6 +767,12 @@ namespace ardb
             reply.SetErrorReason("value is not an integer or out of range");
             return 0;
         }
+        if(!g_repl->IsInited())
+        {
+            WARN_LOG("Replication service is NOT intied to serve as master.");
+            ctx.GetReply().SetErrorReason("server is singleton instance.");
+            return -1;
+        }
         if (GetConf().master_host != host || GetConf().master_port != port)
         {
             g_repl->GetSlave().Stop();
@@ -822,7 +828,7 @@ namespace ardb
         if(!g_repl->IsInited())
         {
             WARN_LOG("Replication service is NOT intied to serve as master.");
-            ctx.GetReply().SetErrorReason("server is singleton only.");
+            ctx.GetReply().SetErrorReason("server is singleton instance.");
             return -1;
         }
         FreeClient(ctx);
@@ -836,7 +842,7 @@ namespace ardb
         if(!g_repl->IsInited())
         {
             WARN_LOG("Replication service is NOT intied to serve as master.");
-            ctx.GetReply().SetErrorReason("server is singleton only.");
+            ctx.GetReply().SetErrorReason("server is singleton instance.");
             return -1;
         }
         FreeClient(ctx);

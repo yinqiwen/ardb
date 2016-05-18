@@ -1064,7 +1064,7 @@ OP_NAMESPACE_BEGIN
         {
             if (expected > 0 && meta.GetType() != expected)
             {
-                reply.SetErrCode(ERR_INVALID_TYPE);
+                reply.SetErrCode(ERR_WRONG_TYPE);
                 return false;
             }
             if (meta.GetTTL() > 0 && meta.GetTTL() < get_current_epoch_millis())

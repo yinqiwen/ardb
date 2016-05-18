@@ -75,12 +75,10 @@ namespace ardb
             ERR_MASTER_DOWN = -1016,
             ERR_LOADING = -1017,
             ERR_NOTSUPPORTED = -1018,
-            ERR_INVALID_ARGS = -3,
-            ERR_INVALID_OPERATION = -4,
-
-            ERR_KEY_EXIST = -7,
-            ERR_INVALID_TYPE = -8,
-            ERR_OUTOFRANGE = -9,
+            ERR_INVALID_ARGS = -1019,
+            ERR_KEY_EXIST = -1020,
+            ERR_WRONG_TYPE = -1021,
+            ERR_OUTOFRANGE = -1022,
 
             //ERR_ROCKS_kNotFound = -2001,
             ERR_ROCKS_kCorruption = -2002,

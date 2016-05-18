@@ -447,7 +447,7 @@ dist:clean all
 	tar czvf ardb-bin-${ARDB_VERSION}.tar.gz ardb-${ARDB_VERSION}; rm -rf ardb-${ARDB_VERSION};
 
 clean:
-	rm -f  ${CORE_OBJECTS} $(SERVEROBJ) ${STORAGE_ENGINE_ALL_OBJ} ${TESTOBJ} ${REPAIR_TOOL_OBJ} \
+	rm -f  ${CORE_OBJECTS} $(SERVEROBJ) ${STORAGE_ENGINE_ALL_OBJ} ${TESTOBJ} ${REPAIR_TOOL_OBJ} ${DIST_LIBA} ${DIST_LIB} \
 	       ardb-test  ardb-server ardb-repair
 
 clobber: clean_deps clean

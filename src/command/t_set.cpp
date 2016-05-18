@@ -154,7 +154,7 @@ OP_NAMESPACE_BEGIN
                     ValueObject& meta = iter->Value();
                     if (meta.GetType() != KEY_SET)
                     {
-                        reply.SetErrCode(ERR_INVALID_TYPE);
+                        reply.SetErrCode(ERR_WRONG_TYPE);
                         break;
                     }
                     checked_meta = true;
@@ -539,7 +539,7 @@ OP_NAMESPACE_BEGIN
         {
             if (0 != GetMinMax(ctx, keys[i], KEY_SET, metas[i], iters[i]))
             {
-                reply.SetErrCode(ERR_INVALID_TYPE);
+                reply.SetErrCode(ERR_WRONG_TYPE);
                 return 0;
             }
         }
@@ -686,7 +686,7 @@ OP_NAMESPACE_BEGIN
         {
             if (0 != GetMinMax(ctx, keys[i], KEY_SET, metas[i], iters[i]))
             {
-                reply.SetErrCode(ERR_INVALID_TYPE);
+                reply.SetErrCode(ERR_WRONG_TYPE);
                 return 0;
             }
             if (metas[i].GetType() == 0)
