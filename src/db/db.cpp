@@ -513,7 +513,7 @@ OP_NAMESPACE_BEGIN
         make_dir(dbdir);
         int err = 0;
         m_engine = create_engine();
-        if(NULL == m_engine)
+        if (NULL == m_engine)
         {
             return -1;
         }
@@ -537,7 +537,7 @@ OP_NAMESPACE_BEGIN
     int Ardb::Repair(const std::string& dir)
     {
         m_engine = create_engine();
-        if(NULL == m_engine)
+        if (NULL == m_engine)
         {
             return -1;
         }
@@ -1081,7 +1081,7 @@ OP_NAMESPACE_BEGIN
                     {
                         DelKey(ctx, key);
                     }
-                    if(GetConf().master_host.empty())
+                    if (GetConf().master_host.empty())
                     {
                         /*
                          * master generate 'del' command for replication & resume dirty after delete kvs
@@ -1143,6 +1143,7 @@ OP_NAMESPACE_BEGIN
             LockGuard<SpinMutexLock> guard(m_clients_lock);
             m_all_clients.erase(&ctx);
         }
+        UnblockKeys(ctx, true);
         MarkRestoring(ctx, false);
     }
 

@@ -126,7 +126,6 @@ OP_NAMESPACE_BEGIN
         {
             return 0;
         }
-
         if (meta.GetType() == 0 || meta.GetObjectLen() == 0)
         {
             reply.Clear();
@@ -135,6 +134,7 @@ OP_NAMESPACE_BEGIN
         int err = 0;
         {
             WriteBatchGuard batch(ctx, m_engine);
+
             if (meta.GetMetaObject().list_sequential)
             {
                 KeyObject ele_key(ctx.ns, KEY_LIST_ELEMENT, keystr);
@@ -349,6 +349,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::ListPush(Context& ctx, RedisCommandFrame& cmd, bool lock_key)
     {
+        ctx.flags.create_if_notexist = 1;
         RedisReply& reply = ctx.GetReply();
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_META, keystr);
@@ -929,6 +930,7 @@ OP_NAMESPACE_BEGIN
             }
             list_keys.push_back(cmd.GetArguments()[i]);
         }
+        reply.type = 0; //wait
         BlockForKeys(ctx, list_keys, "", timeout);
         return 0;
     }
@@ -993,7 +995,7 @@ OP_NAMESPACE_BEGIN
         }
         if (timeout > 0)
         {
-            ctx.GetBPop().timeout = timeout * 1000 * 1000 + get_current_epoch_micros();
+            ctx.GetBPop().timeout = (uint64)timeout * 1000 * 1000 + get_current_epoch_micros();
         }
         ctx.client->client->BlockRead();
         LockGuard<SpinMutexLock> guard(m_block_keys_lock);
@@ -1087,6 +1089,7 @@ OP_NAMESPACE_BEGIN
             ready_keys = *m_ready_keys;
             DELETE(m_ready_keys);
         }
+
         while (!ready_keys.empty())
         {
             ReadyKeySet::iterator head = ready_keys.begin();
