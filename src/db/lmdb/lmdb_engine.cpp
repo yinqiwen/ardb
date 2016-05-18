@@ -445,7 +445,7 @@ namespace ardb
 
     int LMDBEngine::Repair(const std::string& dir)
     {
-        ERROR_LOG("Not supported in lmdb");
+        ERROR_LOG("Repair not supported in lmdb");
         return ERR_NOTSUPPORTED;
     }
 
@@ -961,7 +961,7 @@ namespace ardb
 
     void LMDBIterator::Del()
     {
-        if (NULL != mdb_cursor_get)
+        if (NULL != m_cursor)
         {
             mdb_cursor_del(m_cursor, 0);
         }

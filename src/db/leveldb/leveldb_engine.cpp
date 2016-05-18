@@ -330,7 +330,8 @@ namespace ardb
         static LevelDBLogger logger;
         m_options.comparator = &comparator;
         m_options.info_log = &logger;
-        return leveldb::RepairDB(dir, m_options);
+        leveldb::Status status = leveldb::RepairDB(dir, m_options);
+        return status.ok() ? 0 : -1;
     }
 
     bool LevelDBEngine::GetNamespace(const Data& ns, bool create_if_missing)

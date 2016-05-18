@@ -38,13 +38,13 @@
 
 void version()
 {
-    printf("Ardb server v=%s bits=%d \n", ARDB_VERSION, sizeof(long) == 4 ? 32 : 64);
+    printf("Ardb repair v=%s bits=%d engine=%s \n", ARDB_VERSION, sizeof(long) == 4 ? 32 : 64, g_engine_name);
     exit(0);
 }
 
 void usage()
 {
-    fprintf(stderr, "Usage: ./ardb-repair [db_dir] [options]\n");
+    fprintf(stderr, "Usage: ./ardb-repair [db_dir]\n");
     fprintf(stderr, "       ./ardb-repair -v or --version\n");
     fprintf(stderr, "       ./ardb-repair -h or --help\n");
     fprintf(stderr, "Examples:\n");
@@ -75,7 +75,7 @@ int main(int argc, char** argv)
     }
     else
     {
-        printf("Warning: no database dir specified.\n", argv[0]);
+        printf("Warning: no database dir specified to repair.\n");
         return -1;
     }
 

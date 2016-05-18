@@ -253,7 +253,7 @@ namespace ardb
 
     int PerconaFTEngine::Repair(const std::string& dir)
     {
-        ERROR_LOG("Not supported in PerconaFT");
+        ERROR_LOG("Repair not supported in PerconaFT");
         return ERR_NOTSUPPORTED;
     }
 

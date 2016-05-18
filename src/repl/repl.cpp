@@ -47,6 +47,7 @@ OP_NAMESPACE_BEGIN
                     select_ns_size(0), replkey_self_gen(true)
             {
             }
+
     };
 
     ReplicationBacklog::ReplicationBacklog() :

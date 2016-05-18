@@ -94,7 +94,6 @@ OP_NAMESPACE_BEGIN
         ctx.flags.create_if_notexist = 1;
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_META, keystr);
-        int err = 0;
         KeyLockGuard guard(ctx,key);
         ValueObject meta;
         {

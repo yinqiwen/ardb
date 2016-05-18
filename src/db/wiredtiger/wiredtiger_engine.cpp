@@ -364,7 +364,7 @@ namespace ardb
 
     int WiredTigerEngine::Repair(const std::string& dir)
     {
-        ERROR_LOG("Not supported in WiredTiger");
+        ERROR_LOG("Repair not supported in WiredTiger");
         return ERR_NOTSUPPORTED;
     }
 

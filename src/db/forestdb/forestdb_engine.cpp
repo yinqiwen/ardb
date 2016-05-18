@@ -403,7 +403,7 @@ namespace ardb
 
     int ForestDBEngine::Repair(const std::string& dir)
     {
-        ERROR_LOG("Not supported in forstdb");
+        ERROR_LOG("Repair not supported in forstdb");
         return ERR_NOTSUPPORTED;
     }
 

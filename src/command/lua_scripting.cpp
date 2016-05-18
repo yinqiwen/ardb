@@ -611,9 +611,6 @@ namespace ardb
     int LUAInterpreter::IsMergeSupported(lua_State *lua)
     {
         int argc = lua_gettop(lua);
-        size_t len;
-        char *s;
-
         if (argc != 0)
         {
             luaPushError(lua, "wrong number of arguments");

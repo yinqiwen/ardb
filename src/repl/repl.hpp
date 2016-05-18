@@ -111,7 +111,7 @@ OP_NAMESPACE_BEGIN
             }
             SlaveContext() :
                     server_is_redis(false), server_support_psync(false), state(0), cached_master_repl_offset(0), cached_master_repl_cksm(0), sync_repl_offset(
-                            0), sync_repl_cksm(0), cmd_recved_time(0), master_last_interaction_time(0), master_link_down_time(0)
+                            0), sync_repl_cksm(0), cmd_recved_time(0), master_link_down_time(0), master_last_interaction_time(0)
             {
             }
     };
