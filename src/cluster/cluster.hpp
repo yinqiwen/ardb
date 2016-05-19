@@ -36,7 +36,6 @@
 #include "thread/thread_mutex.hpp"
 #include "thread/lock_guard.hpp"
 #include "context.hpp"
-#include "rdb.hpp"
 #include "zookeeper.h"
 #include <map>
 #include <vector>
@@ -57,10 +56,15 @@ OP_NAMESPACE_BEGIN
 
     struct Slot
     {
+            uint32 partitionId;
+            /*
+             * If slot is migrating data, 'migratingPartitionId' indicate that the source partition which migrating data from
+             */
+            uint32 migratingPartitionId;
             uint32 id;
             uint8 state;
             Slot() :
-                    id(0), state(0)
+                    partitionId(0), migratingPartitionId(0), id(0), state(0)
             {
             }
     };
@@ -83,6 +87,13 @@ OP_NAMESPACE_BEGIN
             }
     };
 
+    struct ClusterConfig
+    {
+            ClusterConfig()
+            {
+            }
+    };
+
     class Cluster
     {
         private:
@@ -92,10 +103,12 @@ OP_NAMESPACE_BEGIN
             struct ACL_vector m_zk_acl;
             typedef std::vector<Partition> PartitionArray;
             typedef std::vector<Node> NodeArray;
+            typedef std::vector<Slot> SlotArray;
             typedef TreeMap<uint32, Node>::Type NodeTable;
             typedef TreeMap<uint32, Partition*>::Type PartitionTable;
             NodeTable m_all_nodes;
             PartitionTable m_slot2partitions;
+            ClusterConfig m_cluster_cfg;
             void Routine();
             void BuildNodeTopoFromZk(const PartitionArray& partitions, const NodeArray& nodes);
             int FetchClusterTopo();

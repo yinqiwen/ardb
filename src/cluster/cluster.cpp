@@ -28,20 +28,34 @@
  */
 #include "cluster.hpp"
 #include "cJSON.h"
+#include "db/db.hpp"
 #include <unistd.h>
 
 OP_NAMESPACE_BEGIN
 
     enum AgentState
     {
-        ZK_STATE_DISCONNECT = 0, ZK_STATE_CONNECTING, ZK_STATE_CONNECTED, ZK_STATE_CREATE_PATH, ZK_STATE_FETCH_TOPO, ZK_STATE_READY,
+        ZK_STATE_DISCONNECT = 0,
+        ZK_STATE_CONNECTING,
+        ZK_STATE_CONNECTED,
+        ZK_STATE_CREATE_PATH,
+        ZK_STATE_FETCH_CONFIG,
+        ZK_STATE_FETCH_TOPO,
+        ZK_STATE_READY,
     };
 
     enum SlotState
     {
+        SLOT_FAULT = -1,
         SLOT_READY = 0,
         SLOT_MIGRATING = 1,
         SLOT_RESTORNG = 2
+    };
+
+    enum NodeState
+    {
+        NODE_FAULT = -1,
+        NODE_READY = 0,
     };
 
     static const char* state2String(int state)
@@ -148,7 +162,8 @@ OP_NAMESPACE_BEGIN
     {
         std::string partitions_path = "/" + g_db->GetConf().cluster_name + "/partitions";
         std::string nodes_path = "/" + g_db->GetConf().cluster_name + "/nodes";
-        char bufer[2028];
+        std::string slots_path = "/" + g_db->GetConf().cluster_name + "slots";
+        char bufer[2048];
         int err = zoo_wget(m_zk, nodes_path.c_str(), ZKGetWatchCallback, this, bufer, 0, NULL);
         err = zoo_get(m_zk, partitions_path.c_str(), 0, bufer, 0, NULL);
         return -1;
@@ -161,7 +176,8 @@ OP_NAMESPACE_BEGIN
         std::string host_name(hostname, hostname_len);
         cJSON* content = cJSON_CreateObject();
         cJSON_AddItemToObject(content, "uptime", cJSON_CreateNumber(time(NULL)));
-        cJSON_AddItemToObject(content, "addr", cJSON_CreateString(host_name.c_str()));
+        cJSON_AddItemToObject(content, "host", cJSON_CreateString(host_name.c_str()));
+        cJSON_AddItemToObject(content, "port", cJSON_CreateNumber(g_db->GetConf().PrimaryPort()));
         char* jsonstr = cJSON_Print(content);
         cJSON_Delete(content);
         std::string zk_path = "/" + g_db->GetConf().cluster_name + "/servers/" + host_name + ":" + stringfromll(g_db->GetConf().PrimaryPort());

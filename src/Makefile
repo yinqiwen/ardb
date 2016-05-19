@@ -83,11 +83,11 @@ PERCONAFT_REMOTE_FILE=https://github.com/percona/PerconaFT/archive/master.zip
 PERCONAFT_LIBA=${PERCONAFT_PATH}/prefix/lib/libtokufractaltree_static.a
 PERCONAFT_LIBA2=${PERCONAFT_PATH}/prefix/lib/libtokuportability_static.a
 
-ZOOKEEPER_VER=zookeeper-3.4.5
+ZOOKEEPER_VER=zookeeper-3.4.8
 ZOOKEEPER_PATH=${LIB_PATH}/${ZOOKEEPER_VER}
 ZOOKEEPER_FILE=${ZOOKEEPER_PATH}.tar.gz
-ZOOKEEPER_LIBA=${ZOOKEEPER_PATH}/.libs/libzkst.a
-ZOOKEEPER_LIBHTA=${ZOOKEEPER_PATH}/.libs/libhashtable.a
+ZOOKEEPER_LIBA=${ZOOKEEPER_PATH}/src/c/.libs/libzkst.a
+ZOOKEEPER_LIBHTA=${ZOOKEEPER_PATH}/src/c/.libs/libhashtable.a
 
 SPARSEHASH_VER=sparsehash-sparsehash-2.0.3
 SPARSEHASH_PATH=${LIB_PATH}/${SPARSEHASH_VER}
@@ -120,7 +120,7 @@ LEVELDB_OPT=-g $(OPT)
 LUA_CFLAGS+= $(OPT) -Wall -DLUA_ANSI $(CCFLAGS)
 LUA_LDFLAGS+= $(LDFLAGS)
 
-INCS=-I./ -I./common -I${LIB_PATH}/cpp-btree -I${LUA_PATH}/src -I${SNAPPY_PATH} -I${SPARSEHASH_PATH}/src
+INCS=-I./ -I./common -I${LIB_PATH}/cpp-btree -I${CJSON_PATH} -I${LUA_PATH}/src -I${SNAPPY_PATH} -I${SPARSEHASH_PATH}/src -I${ZOOKEEPER_PATH}/src/c/include -I${ZOOKEEPER_PATH}/src/c/generated
 
 
 ifeq ($(MALLOC),libc)
@@ -132,7 +132,7 @@ endif
 
 storage_engine?=rocksdb
 
-LIBS= ${LUA_LIBA} ${MALLOC_LIBA} ${SNAPPY_LIBA} -lpthread 
+LIBS= ${LUA_LIBA} ${MALLOC_LIBA} ${SNAPPY_LIBA} ${CJSON_LIBA} ${ZOOKEEPER_LIBA} ${ZOOKEEPER_LIBHTA} -lpthread 
 
 # Default allocator
 ifeq ($(uname_S),Linux)
@@ -163,7 +163,7 @@ COMMAND_VPATH=command
 COMMAND_CPPFILES := $(foreach dir, $(COMMAND_VPATH), $(wildcard $(dir)/*.cpp))
 COMMAND_OBJECTS := $(patsubst %.cpp, %.o, $(COMMAND_CPPFILES))
 
-DB_VPATH=db repl
+DB_VPATH=db repl cluster
 DB_CPPFILES := $(foreach dir, $(DB_VPATH), $(wildcard $(dir)/*.cpp))
 DB_CFILES := $(foreach dir, $(DB_VPATH), $(wildcard $(dir)/*.c))
 DB_OBJECTS := $(patsubst %.cpp, %.o, $(DB_CPPFILES)) $(patsubst %.c, %.o, $(DB_CFILES))
