@@ -80,8 +80,8 @@ namespace ardb
             REDIS_CMD_EVALSHA = 36,
             REDIS_CMD_SCRIPT = 37,
             REDIS_CMD_RAWSET = 38,
-            REDIS_CMD_RAWDEL = 39,
-            REDIS_CMD_RAWMERGE = 40,
+            REDIS_CMD_PUBSUB = 39,
+            REDIS_CMD_MONITOR = 40,
 
             //'keys' commands
             REDIS_CMD_DEL = 50,

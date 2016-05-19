@@ -1,5 +1,18 @@
 # Changelog
 
+## Ardb 0.9.0
+### Features
+- Redesign whole project. It's not compatible with previous version.
+- More redis commands supported. (restore/migrate/dump...)
+- More storage engine supported. (rocksdb/leveldb/lmdb/wiredtiger/perconaft).
+- Use more rocksdb's own features or better perormance, like preix seek/compact filter/merge operations.
+- Better ttl expire mechanism support.
+- Lua unit test cases.
+
+### Improve
+- NA
+
+
 ## Ardb 0.8.0
 ### Features
 - High level cache supported for string/list/set/zset/hash.

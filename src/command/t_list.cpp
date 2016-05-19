@@ -126,7 +126,6 @@ OP_NAMESPACE_BEGIN
         {
             return 0;
         }
-
         if (meta.GetType() == 0 || meta.GetObjectLen() == 0)
         {
             reply.Clear();
@@ -135,6 +134,7 @@ OP_NAMESPACE_BEGIN
         int err = 0;
         {
             WriteBatchGuard batch(ctx, m_engine);
+
             if (meta.GetMetaObject().list_sequential)
             {
                 KeyObject ele_key(ctx.ns, KEY_LIST_ELEMENT, keystr);
@@ -194,8 +194,7 @@ OP_NAMESPACE_BEGIN
                             if (iter->Valid())
                             {
                                 KeyObject& minmax = iter->Key();
-                                if (minmax.GetType() == KEY_LIST_ELEMENT && minmax.GetNameSpace() == ele_key.GetNameSpace()
-                                        && minmax.GetKey() == ele_key.GetKey())
+                                if (minmax.GetType() == KEY_LIST_ELEMENT && minmax.GetNameSpace() == ele_key.GetNameSpace() && minmax.GetKey() == ele_key.GetKey())
                                 {
                                     if (is_lpop)
                                     {
@@ -349,6 +348,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::ListPush(Context& ctx, RedisCommandFrame& cmd, bool lock_key)
     {
+        ctx.flags.create_if_notexist = 1;
         RedisReply& reply = ctx.GetReply();
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_META, keystr);
@@ -929,6 +929,7 @@ OP_NAMESPACE_BEGIN
             }
             list_keys.push_back(cmd.GetArguments()[i]);
         }
+        reply.type = 0; //wait
         BlockForKeys(ctx, list_keys, "", timeout);
         return 0;
     }
@@ -954,13 +955,28 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::UnblockKeys(Context& ctx, bool use_lock)
+    void Ardb::AsyncUnblockKeysCallback(Channel* ch, void * data)
+    {
+        if(NULL == ch || ch->IsClosed())
+        {
+            return;
+        }
+        Context* ctx = (Context*)data;
+        g_db->UnblockKeys(*ctx, true);
+    }
+
+    int Ardb::UnblockKeys(Context& ctx, bool sync)
     {
         if (ctx.keyslocked)
         {
             FATAL_LOG("Can not modify block dataset when key locked.");
         }
-        LockGuard<SpinMutexLock> guard(m_block_keys_lock, use_lock);
+        if(!sync)
+        {
+            ctx.client->client->GetService().AsyncIO(ctx.client->client->GetID(), AsyncUnblockKeysCallback, &ctx);
+            return 0;
+        }
+        LockGuard<SpinMutexLock> guard(m_block_keys_lock, true);
         if (ctx.bpop != NULL && !m_blocked_ctxs.empty())
         {
             BlockingState::BlockKeySet::iterator it = ctx.GetBPop().keys.begin();
@@ -993,7 +1009,7 @@ OP_NAMESPACE_BEGIN
         }
         if (timeout > 0)
         {
-            ctx.GetBPop().timeout = timeout * 1000 * 1000 + get_current_epoch_micros();
+            ctx.GetBPop().timeout = (uint64) timeout * 1000 * 1000 + get_current_epoch_micros();
         }
         ctx.client->client->BlockRead();
         LockGuard<SpinMutexLock> guard(m_block_keys_lock);
@@ -1022,7 +1038,7 @@ OP_NAMESPACE_BEGIN
         {
             return -1;
         }
-        if(NULL == m_ready_keys)
+        if (NULL == m_ready_keys)
         {
             NEW(m_ready_keys, ReadyKeySet);
         }
@@ -1069,14 +1085,14 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::WakeClientsBlockingOnList(Context& ctx)
     {
-        if(NULL == m_ready_keys)
+        if (NULL == m_ready_keys)
         {
             return 0;
         }
         ReadyKeySet ready_keys;
         {
             LockGuard<SpinMutexLock> guard(m_block_keys_lock);
-            if(NULL == m_ready_keys)
+            if (NULL == m_ready_keys)
             {
                 return 0;
             }
@@ -1087,6 +1103,7 @@ OP_NAMESPACE_BEGIN
             ready_keys = *m_ready_keys;
             DELETE(m_ready_keys);
         }
+
         while (!ready_keys.empty())
         {
             ReadyKeySet::iterator head = ready_keys.begin();
@@ -1139,6 +1156,16 @@ OP_NAMESPACE_BEGIN
                             list_push.AddArg(key.key.AsString());
                             list_push.AddArg(repush);
                             ListPush(tmpctx, list_push, true);
+                        }
+                        else
+                        {
+                            /*
+                             * generate 'lpop/rpop' for replication in master
+                             */
+                            if (GetConf().master_host.empty())
+                            {
+                                FeedReplicationBacklog(key.ns, list_pop);
+                            }
                         }
                     }
                     UnblockKeys(*unblock_client, false);
