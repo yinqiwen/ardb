@@ -60,6 +60,12 @@ namespace ardb
             {
                 return m_path;
             }
+            const std::string& ToString(std::string& str) const
+            {
+                str.append(m_path);
+                return str;
+            }
+
     };
 }
 

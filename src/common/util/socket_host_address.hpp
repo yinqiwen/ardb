@@ -84,6 +84,13 @@ namespace ardb
                 }
                 return m_host < other.m_host;
             }
+            const std::string& ToString(std::string& str) const
+            {
+                char tmp[100];
+                snprintf(tmp, sizeof(tmp), "%u", m_port);
+                str.append(m_host).append(":").append(tmp);
+                return str;
+            }
             virtual ~SocketHostAddress()
             {
             }

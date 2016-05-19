@@ -112,6 +112,11 @@ namespace ardb
                 }
                 return AF_INET;
             }
+            const std::string& ToString(std::string& str) const
+            {
+                str.assign("raw_inet_addr");
+                return str;
+            }
     };
 }
 

@@ -371,6 +371,7 @@ namespace ardb
 			int IndexOf(const void* data, size_t len);
 			int Printf(const char *fmt, ...);
 			int VPrintf(const char *fmt, va_list ap);
+			int PrintString(const std::string& str);
 			int ReadFD(int fd, int& err);
 			int WriteFD(int fd, int& err);
 

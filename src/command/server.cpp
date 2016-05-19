@@ -380,7 +380,7 @@ namespace ardb
                 info.append("# Keyspace\r\n");
                 for (size_t i = 0; i < nss.size(); i++)
                 {
-                    if(nss[i].AsString() == TTL_DB_NSMAESPACE)
+                    if (nss[i].AsString() == TTL_DB_NSMAESPACE)
                     {
                         continue;
                     }
@@ -767,7 +767,7 @@ namespace ardb
             reply.SetErrorReason("value is not an integer or out of range");
             return 0;
         }
-        if(!g_repl->IsInited())
+        if (!g_repl->IsInited())
         {
             WARN_LOG("Replication service is NOT intied to serve as master.");
             ctx.GetReply().SetErrorReason("server is singleton instance.");
@@ -825,7 +825,7 @@ namespace ardb
 
     int Ardb::Sync(Context& ctx, RedisCommandFrame& cmd)
     {
-        if(!g_repl->IsInited())
+        if (!g_repl->IsInited())
         {
             WARN_LOG("Replication service is NOT intied to serve as master.");
             ctx.GetReply().SetErrorReason("server is singleton instance.");
@@ -839,7 +839,7 @@ namespace ardb
 
     int Ardb::PSync(Context& ctx, RedisCommandFrame& cmd)
     {
-        if(!g_repl->IsInited())
+        if (!g_repl->IsInited())
         {
             WARN_LOG("Replication service is NOT intied to serve as master.");
             ctx.GetReply().SetErrorReason("server is singleton instance.");
@@ -848,6 +848,85 @@ namespace ardb
         FreeClient(ctx);
         g_repl->GetMaster().AddSlave(ctx.client->client, cmd);
         ctx.GetReply().SetEmpty();
+        return 0;
+    }
+
+    static void monitor_write_callback(Channel* ch, void* data)
+    {
+        Buffer* buffer = (Buffer*)data;
+        if(NULL != ch && !ch->IsClosed())
+        {
+            ch->GetOutputBuffer().Write(buffer, buffer->ReadableBytes());
+            ch->EnableWriting();
+        }
+        DELETE(buffer);
+    }
+
+    void Ardb::FeedMonitors(Context& ctx, const Data& ns, RedisCommandFrame& cmd)
+    {
+        ReadLockGuard<SpinRWLock> guard(m_monitors_lock);
+        if (NULL == m_monitors)
+        {
+            return;
+        }
+        Buffer buffer;
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        buffer.Write("+", 1);
+        buffer.Printf("%ld.%06ld ", (long) tv.tv_sec, (long) tv.tv_usec);
+        if (ctx.flags.lua)
+        {
+            buffer.Printf("[%s lua] ", ns.AsString().c_str());
+        }
+        else
+        {
+            std::string addr;
+            ctx.client->client->GetRemoteAddress()->ToString(addr);
+            buffer.Printf("[%s %s] ", ns.AsString().c_str(), addr.c_str());
+        }
+        buffer.PrintString(cmd.GetCommand());
+        buffer.Write(" ", 1);
+        for (size_t j = 0; j < cmd.GetArguments().size(); j++)
+        {
+            buffer.PrintString(cmd.GetArguments()[j]);
+            if (j != cmd.GetArguments().size() - 1)
+            {
+                buffer.Write(" ", 1);
+            }
+        }
+        buffer.Write("\r\n", 2);
+        ContextSet::iterator it = m_monitors->begin();
+        while(it != m_monitors->end())
+        {
+            Channel* client = (*it)->client->client;
+            if(NULL != client)
+            {
+                Buffer* send_buffer = NULL;
+                NEW(send_buffer, Buffer);
+                send_buffer->Write(buffer.GetRawReadBuffer(), buffer.ReadableBytes());
+                client->GetService().AsyncIO(client->GetID(),monitor_write_callback, send_buffer);
+                //WriteReply()
+            }
+            it++;
+        }
+    }
+
+    int Ardb::Monitor(Context& ctx, RedisCommandFrame& cmd)
+    {
+        RedisReply& reply = ctx.GetReply();
+        WriteLockGuard<SpinRWLock> guard(m_monitors_lock);
+        if (NULL == m_monitors)
+        {
+            NEW(m_monitors, ContextSet);
+        }
+        if(!m_monitors->insert(&ctx).second)
+        {
+            reply.type = 0;
+        }
+        else
+        {
+            reply.SetStatusCode(STATUS_OK);
+        }
         return 0;
     }
 }

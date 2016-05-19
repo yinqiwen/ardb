@@ -144,7 +144,8 @@ OP_NAMESPACE_BEGIN
     static CostTrack g_cmd_cost_tracks[REDIS_CMD_MAX];
 
     Ardb::Ardb() :
-            m_engine(NULL), m_starttime(0), m_loading_data(false), m_redis_cursor_seed(0), m_watched_ctxs(NULL), m_ready_keys(NULL), m_restoring_nss(NULL), m_min_ttl(-1)
+            m_engine(NULL), m_starttime(0), m_loading_data(false), m_redis_cursor_seed(0), m_watched_ctxs(NULL), m_ready_keys(NULL), m_monitors(NULL), m_restoring_nss(
+                    NULL), m_min_ttl(-1)
     {
         g_db = this;
         m_settings.set_empty_key("");
@@ -155,7 +156,7 @@ OP_NAMESPACE_BEGIN
         { "ping", REDIS_CMD_PING, &Ardb::Ping, 0, 0, "rtF", 0, 0, 0 },
         { "multi", REDIS_CMD_MULTI, &Ardb::Multi, 0, 0, "rsF", 0, 0, 0 },
         { "discard", REDIS_CMD_DISCARD, &Ardb::Discard, 0, 0, "rsF", 0, 0, 0 },
-        { "exec", REDIS_CMD_EXEC, &Ardb::Exec, 0, 0, "s", 0, 0, 0 },
+        { "exec", REDIS_CMD_EXEC, &Ardb::Exec, 0, 0, "sM", 0, 0, 0 },
         { "watch", REDIS_CMD_WATCH, &Ardb::Watch, 0, -1, "rsF", 0, 0, 0 },
         { "unwatch", REDIS_CMD_UNWATCH, &Ardb::UnWatch, 0, 0, "rsF", 0, 0, 0 },
         { "subscribe", REDIS_CMD_SUBSCRIBE, &Ardb::Subscribe, 1, -1, "rpslt", 0, 0, 0 },
@@ -340,7 +341,8 @@ OP_NAMESPACE_BEGIN
         { "migrate", REDIS_CMD_MIGRATE, &Ardb::Migrate, 5, -1, "w", 0, 0, 0 },
         { "migratedb", REDIS_CMD_MIGRATEDB, &Ardb::MigrateDB, 4, 4, "w", 0, 0, 0 },
         { "restorechunk", REDIS_CMD_RESTORECHUNK, &Ardb::RestoreChunk, 1, 1, "wl", 0, 0, 0 },
-        { "restoredb", REDIS_CMD_RESTOREDB, &Ardb::RestoreDB, 1, 1, "wl", 0, 0, 0 }, };
+        { "restoredb", REDIS_CMD_RESTOREDB, &Ardb::RestoreDB, 1, 1, "wl", 0, 0, 0 },
+        { "monitor", REDIS_CMD_MONITOR, &Ardb::Monitor, 0, 0, "ars", 0, 0, 0 },};
 
         CostRanges cmdstat_ranges;
         cmdstat_ranges.push_back(CostRange(0, 1000));
@@ -1146,6 +1148,18 @@ OP_NAMESPACE_BEGIN
         }
         UnblockKeys(ctx, true);
         MarkRestoring(ctx, false);
+        {
+            WriteLockGuard<SpinRWLock> guard(m_monitors_lock);
+            if(NULL != m_monitors)
+            {
+                m_monitors->erase(&ctx);
+                if(m_monitors->empty())
+                {
+                    DELETE(m_monitors);
+                }
+            }
+
+        }
     }
 
 #define CLIENTS_CRON_MIN_ITERATIONS 5
@@ -1256,6 +1270,15 @@ OP_NAMESPACE_BEGIN
             ctx.client->last_interaction_ustime = start_time;
         }
         ctx.last_cmdtype = setting.type;
+
+        if(NULL != m_monitors && !IsLoadingData() && !(setting.flags & (ARDB_CMD_SKIP_MONITOR|ARDB_CMD_ADMIN)))
+        {
+            /*
+             * feed monitors
+             */
+            FeedMonitors(ctx, ctx.ns, args);
+        }
+
         int ret = (this->*(setting.handler))(ctx, args);
         if (!ctx.flags.lua)
         {
@@ -1274,6 +1297,8 @@ OP_NAMESPACE_BEGIN
         {
             g_repl->GetReplLog().WriteWAL(ctx.ns, args);
         }
+
+
         return ret;
     }
 
@@ -1367,7 +1392,8 @@ OP_NAMESPACE_BEGIN
 
         /* Don't accept write commands if there are not enough good slaves and
          * user configured the min-slaves-to-write option. */
-        if (GetConf().master_host.empty() && GetConf().repl_min_slaves_to_write > 0 && GetConf().repl_min_slaves_max_lag > 0 && (setting.flags & ARDB_CMD_WRITE) > 0 && g_repl->GetMaster().GoodSlavesCount() < GetConf().repl_min_slaves_to_write)
+        if (GetConf().master_host.empty() && GetConf().repl_min_slaves_to_write > 0 && GetConf().repl_min_slaves_max_lag > 0
+                && (setting.flags & ARDB_CMD_WRITE) > 0 && g_repl->GetMaster().GoodSlavesCount() < GetConf().repl_min_slaves_to_write)
         {
             ctx.AbortTransaction();
             reply.SetErrCode(ERR_NOREPLICAS);
@@ -1424,7 +1450,8 @@ OP_NAMESPACE_BEGIN
         }
         else if (ctx.IsSubscribed())
         {
-            if (setting.type != REDIS_CMD_SUBSCRIBE && setting.type != REDIS_CMD_PSUBSCRIBE && setting.type != REDIS_CMD_PUNSUBSCRIBE && setting.type != REDIS_CMD_UNSUBSCRIBE && setting.type != REDIS_CMD_QUIT)
+            if (setting.type != REDIS_CMD_SUBSCRIBE && setting.type != REDIS_CMD_PSUBSCRIBE && setting.type != REDIS_CMD_PUNSUBSCRIBE
+                    && setting.type != REDIS_CMD_UNSUBSCRIBE && setting.type != REDIS_CMD_QUIT)
             {
                 reply.SetErrorReason("only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context");
                 return 0;

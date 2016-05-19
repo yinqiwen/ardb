@@ -140,6 +140,9 @@ OP_NAMESPACE_BEGIN
             BlockedContextTable m_blocked_ctxs;
             ReadyKeySet* m_ready_keys;
 
+            SpinRWLock m_monitors_lock;
+            ContextSet* m_monitors;
+
             ThreadLocal<ClientIdSet> m_clients;
             ThreadLocal<ClientId> m_last_scan_clientid;
             SpinMutexLock m_clients_lock;
@@ -161,6 +164,7 @@ OP_NAMESPACE_BEGIN
             void SaveTTL(Context& ctx, const Data& ns, const std::string& key, int64 old_ttl, int64_t new_ttl);
             void ScanTTLDB();
             void FeedReplicationBacklog(const Data& ns, RedisCommandFrame& cmd);
+            void FeedMonitors(Context& ctx,const Data& ns, RedisCommandFrame& cmd);
 
             int WriteReply(Context& ctx, RedisReply* r, bool async);
 
@@ -426,6 +430,7 @@ OP_NAMESPACE_BEGIN
             int PFCount(Context& ctx, RedisCommandFrame& cmd);
             int PFMerge(Context& ctx, RedisCommandFrame& cmd);
 
+            int Monitor(Context& ctx, RedisCommandFrame& cmd);
             int Dump(Context& ctx, RedisCommandFrame& cmd);
             int Restore(Context& ctx, RedisCommandFrame& cmd);
             int Migrate(Context& ctx, RedisCommandFrame& cmd);

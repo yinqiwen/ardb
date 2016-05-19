@@ -64,9 +64,8 @@ namespace ardb
         if (!ctx.InTransaction())
         {
             reply.SetErrorReason("EXEC without MULTI");
-            return 0;
         }
-        if (ctx.GetTransaction().abort || ctx.GetTransaction().cas)
+        else if (ctx.GetTransaction().abort || ctx.GetTransaction().cas)
         {
             if (ctx.GetTransaction().abort)
             {
@@ -77,30 +76,41 @@ namespace ardb
                 reply.ReserveMember(-1);
             }
             DiscardTransaction(ctx);
-            return 0;
         }
-        UnwatchKeys(ctx);
-        RedisCommandFrameArray::iterator it = ctx.GetTransaction().cached_cmds.begin();
-        Context transc_ctx;
-        transc_ctx.ns = ctx.ns;
-        while (it != ctx.GetTransaction().cached_cmds.end())
+        else
         {
-            RedisReply& r = reply.AddMember();
-            RedisCommandHandlerSetting* setting = FindRedisCommandHandlerSetting(*it);
-            if (NULL != setting)
+            UnwatchKeys(ctx);
+            RedisCommandFrameArray::iterator it = ctx.GetTransaction().cached_cmds.begin();
+            Context transc_ctx;
+            transc_ctx.ns = ctx.ns;
+            while (it != ctx.GetTransaction().cached_cmds.end())
             {
-                transc_ctx.GetReply().Clear();
-                DoCall(transc_ctx, *setting, *it);
-                r.Clone(transc_ctx.GetReply());
+                RedisReply& r = reply.AddMember();
+                RedisCommandHandlerSetting* setting = FindRedisCommandHandlerSetting(*it);
+                if (NULL != setting)
+                {
+                    transc_ctx.GetReply().Clear();
+                    DoCall(transc_ctx, *setting, *it);
+                    r.Clone(transc_ctx.GetReply());
+                }
+                else
+                {
+                    r.SetErrorReason("unknown command");
+                }
+                it++;
             }
-            else
-            {
-                r.SetErrorReason("unknown command");
-            }
-            it++;
+            ctx.ns = transc_ctx.ns;
+            DiscardTransaction(ctx);
         }
-        ctx.ns = transc_ctx.ns;
-        DiscardTransaction(ctx);
+        /* Send EXEC to clients waiting data from MONITOR. We do it here
+         * since the natural order of commands execution is actually:
+         * MUTLI, EXEC, ... commands inside transaction ...
+         * Instead EXEC is flagged as CMD_SKIP_MONITOR in the command
+         * table, and we do it here with correct ordering. */
+        if (NULL != m_monitors && !IsLoadingData())
+        {
+            FeedMonitors(ctx, ctx.ns, cmd);
+        }
         return 0;
     }
 

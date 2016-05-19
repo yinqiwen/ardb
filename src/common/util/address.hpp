@@ -35,6 +35,7 @@ namespace ardb
     class Address
     {
         public:
+            virtual const std::string& ToString(std::string& str) const = 0 ;
             virtual ~Address()
             {
             }
