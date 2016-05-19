@@ -140,6 +140,7 @@ OP_NAMESPACE_BEGIN
             uint16 port;
             uint32 timeout;
             Data src_db;
+            Data dst_db;
             bool copy;
 
             MigrateDBContext() :
@@ -174,7 +175,7 @@ OP_NAMESPACE_BEGIN
         }
 
         //1. select & restordb & flushdb first
-        commands[0].SetFullCommand("select %s", ctx->src_db.AsString().c_str());
+        commands[0].SetFullCommand("select %s", ctx->dst_db.AsString().c_str());
         commands[1].SetFullCommand("restoredb start");
         migrate_reply = redis_client.SyncMultiCall(commands, ctx->timeout);
         if (NULL == migrate_reply || migrate_reply->size() != commands.size())
@@ -256,7 +257,9 @@ OP_NAMESPACE_BEGIN
     }
 
     /*
-     * this command only works with ardb instances.
+     * this command only works with ardb instances. it would copy current db's data and send to remote instance.
+     * syntax:  MigrateDB host port destination-db timeout
+     *
      */
     int Ardb::MigrateDB(Context& ctx, RedisCommandFrame& cmd)
     {
@@ -266,7 +269,7 @@ OP_NAMESPACE_BEGIN
         uint32 port;
         int copy = 0, replace = 0;
         int64 timeout;
-        if (!string_toint64(cmd.GetArguments()[2], timeout) || !string_touint32(cmd.GetArguments()[1], port))
+        if (!string_toint64(cmd.GetArguments()[3], timeout) || !string_touint32(cmd.GetArguments()[1], port))
         {
             reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
             return 0;
@@ -282,6 +285,7 @@ OP_NAMESPACE_BEGIN
         migrate_ctx->port = port;
         migrate_ctx->copy = copy;
         migrate_ctx->src_db = ctx.ns;
+        migrate_ctx->dst_db.SetString(cmd.GetArguments()[2], false);
         migrate_ctx->timeout = timeout;
         ctx.client->client->BlockRead(); //do not read any data from client until the migrate task finish
         Scheduler::CurrentScheduler().StartCoro(0, MigrateDBCoroTask, migrate_ctx);

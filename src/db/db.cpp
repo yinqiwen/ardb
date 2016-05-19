@@ -338,7 +338,7 @@ OP_NAMESPACE_BEGIN
         { "dump", REDIS_CMD_DUMP, &Ardb::Dump, 1, 1, "r", 0, 0, 0 },
         { "restore", REDIS_CMD_RESTORE, &Ardb::Restore, 3, 4, "w", 0, 0, 0 },
         { "migrate", REDIS_CMD_MIGRATE, &Ardb::Migrate, 5, -1, "w", 0, 0, 0 },
-        { "migratedb", REDIS_CMD_MIGRATEDB, &Ardb::MigrateDB, 3, 4, "w", 0, 0, 0 },
+        { "migratedb", REDIS_CMD_MIGRATEDB, &Ardb::MigrateDB, 4, 4, "w", 0, 0, 0 },
         { "restorechunk", REDIS_CMD_RESTORECHUNK, &Ardb::RestoreChunk, 1, 1, "wl", 0, 0, 0 },
         { "restoredb", REDIS_CMD_RESTOREDB, &Ardb::RestoreDB, 1, 1, "wl", 0, 0, 0 }, };
 
