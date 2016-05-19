@@ -58,24 +58,25 @@ namespace ardb
         RedisReply& r1 = r.AddMember();
         RedisReply& r2 = r.AddMember();
         RedisReply& r3 = r.AddMember();
-        r1.SetString(is_pattern?"psubscribe":"subscribe");
+        r1.SetString(is_pattern ? "psubscribe" : "subscribe");
         r2.SetString(channel);
-        r3.SetInteger((int64)(ctx.GetPubsub().pubsub_channels.size() + ctx.GetPubsub().pubsub_patterns.size()));
+        r3.SetInteger((int64) (ctx.GetPubsub().pubsub_channels.size() + ctx.GetPubsub().pubsub_patterns.size()));
         WriteReply(ctx, &r, false);
         return 0;
     }
     int Ardb::UnsubscribeChannel(Context& ctx, const std::string& channel, bool is_pattern, bool notify)
     {
-        if(NULL == ctx.pubsub)
+        if (NULL == ctx.pubsub)
         {
             return 0;
         }
         PubSubChannelTable* tables = NULL;
-        if(is_pattern)
+        if (is_pattern)
         {
             ctx.GetPubsub().pubsub_patterns.erase(channel);
             tables = &m_pubsub_patterns;
-        }else
+        }
+        else
         {
             ctx.GetPubsub().pubsub_channels.erase(channel);
             tables = &m_pubsub_channels;
@@ -98,9 +99,9 @@ namespace ardb
             RedisReply& r1 = r.AddMember();
             RedisReply& r2 = r.AddMember();
             RedisReply& r3 = r.AddMember();
-            r1.SetString(is_pattern?"punsubscribe" : "unsubscribe");
+            r1.SetString(is_pattern ? "punsubscribe" : "unsubscribe");
             r2.SetString(channel);
-            r3.SetInteger((int64)(ctx.GetPubsub().pubsub_channels.size() + ctx.GetPubsub().pubsub_patterns.size()));
+            r3.SetInteger((int64) (ctx.GetPubsub().pubsub_channels.size() + ctx.GetPubsub().pubsub_patterns.size()));
             WriteReply(ctx, &r, false);
         }
         return ret;
@@ -108,22 +109,24 @@ namespace ardb
 
     int Ardb::UnsubscribeAll(Context& ctx, bool is_pattern, bool notify)
     {
-        if(NULL == ctx.pubsub)
+        if (NULL == ctx.pubsub)
         {
             return 0;
         }
         int count = 0;
-        StringTreeSet* channels = NULL;
-        if(is_pattern)
+        StringTreeSet channels;
+        if (is_pattern)
         {
-            channels = &(ctx.GetPubsub().pubsub_patterns);
-        }else
-        {
-            channels = &(ctx.GetPubsub().pubsub_channels);
+            channels = (ctx.GetPubsub().pubsub_patterns);
         }
-        StringTreeSet::iterator it = channels->begin();
-        while (it != channels->end())
+        else
         {
+            channels = (ctx.GetPubsub().pubsub_channels);
+        }
+        StringTreeSet::iterator it = channels.begin();
+        while (it != channels.end())
+        {
+            //printf("@@@%s\n", it->c_str());
             count += UnsubscribeChannel(ctx, *it, is_pattern, notify);
             it++;
         }
@@ -133,9 +136,9 @@ namespace ardb
             RedisReply& r1 = r.AddMember();
             RedisReply& r2 = r.AddMember();
             RedisReply& r3 = r.AddMember();
-            r1.SetString(is_pattern?"punsubscribe":"unsubscribe");
+            r1.SetString(is_pattern ? "punsubscribe" : "unsubscribe");
             r2.Clear();
-            r3.SetInteger((int64)(ctx.GetPubsub().pubsub_channels.size() + ctx.GetPubsub().pubsub_patterns.size()));
+            r3.SetInteger((int64) (ctx.GetPubsub().pubsub_channels.size() + ctx.GetPubsub().pubsub_patterns.size()));
             WriteReply(ctx, &r, false);
         }
         return 0;
@@ -155,6 +158,7 @@ namespace ardb
 
     int Ardb::UnSubscribe(Context& ctx, RedisCommandFrame& cmd)
     {
+        ctx.GetReply().type = 0;
         if (cmd.GetArguments().size() == 0)
         {
             UnsubscribeAll(ctx, false, true);
@@ -166,7 +170,7 @@ namespace ardb
                 UnsubscribeChannel(ctx, cmd.GetArguments()[i], false, true);
             }
         }
-        if(ctx.SubscriptionsCount() == 0)
+        if (ctx.SubscriptionsCount() == 0)
         {
             ctx.ClearPubsub();
         }
@@ -185,6 +189,7 @@ namespace ardb
     }
     int Ardb::PUnSubscribe(Context& ctx, RedisCommandFrame& cmd)
     {
+        ctx.GetReply().type = 0;
         if (cmd.GetArguments().size() == 0)
         {
             UnsubscribeAll(ctx, true, true);
@@ -196,7 +201,7 @@ namespace ardb
                 UnsubscribeChannel(ctx, cmd.GetArguments()[i], true, true);
             }
         }
-        if(ctx.SubscriptionsCount() == 0)
+        if (ctx.SubscriptionsCount() == 0)
         {
             ctx.ClearPubsub();
         }
@@ -271,6 +276,57 @@ namespace ardb
         int count = 0;
         count += PublishMessage(ctx, channel, message);
         ctx.GetReply().SetInteger(count);
+        return 0;
+    }
+
+    int Ardb::Pubsub(Context& ctx, RedisCommandFrame& cmd)
+    {
+        RedisReply& reply = ctx.GetReply();
+        const std::string& subcommand = cmd.GetArguments()[0];
+        if (!strcasecmp(subcommand.c_str(), "channels") && (cmd.GetArguments().size() == 1 || cmd.GetArguments().size() == 2))
+        {
+            ReadLockGuard<SpinRWLock> guard(m_pubsub_lock);
+            reply.ReserveMember(0);
+            PubSubChannelTable::iterator fit = m_pubsub_channels.begin();
+            while (fit != m_pubsub_channels.end())
+            {
+                const std::string& channel = fit->first;
+                if (cmd.GetArguments().size() == 2)
+                {
+                    const std::string& pattern = cmd.GetArguments()[1];
+                    if (stringmatchlen(pattern.c_str(), pattern.size(), channel.c_str(), channel.size(), 0) != 1)
+                    {
+                        fit++;
+                        continue;
+                    }
+                }
+                RedisReply& rr = reply.AddMember();
+                rr.SetString(channel);
+                fit++;
+            }
+        }
+        else if (!strcasecmp(subcommand.c_str(), "numsub") && (cmd.GetArguments().size() >= 1))
+        {
+            ReadLockGuard<SpinRWLock> guard(m_pubsub_lock);
+            reply.ReserveMember(0);
+            for(size_t i = 1; i < cmd.GetArguments().size(); i++)
+            {
+                RedisReply& r1 = reply.AddMember();
+                RedisReply& r2 = reply.AddMember();
+                r1.SetString(cmd.GetArguments()[i]);
+                PubSubChannelTable::iterator found = m_pubsub_channels.find(cmd.GetArguments()[i]);
+                r2.SetInteger(found == m_pubsub_channels.end()? 0 : found->second.size());
+            }
+        }
+        else if (!strcasecmp(subcommand.c_str(), "numpat") && (cmd.GetArguments().size() == 1))
+        {
+            ReadLockGuard<SpinRWLock> guard(m_pubsub_lock);
+            reply.SetInteger(m_pubsub_patterns.size());
+        }
+        else
+        {
+            reply.SetErrorReason("Unknown PUBSUB subcommand or wrong number of arguments for " + cmd.GetArguments()[0]);
+        }
         return 0;
     }
 }

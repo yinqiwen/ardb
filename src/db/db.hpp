@@ -276,6 +276,7 @@ OP_NAMESPACE_BEGIN
             int PSubscribe(Context& ctx, RedisCommandFrame& cmd);
             int PUnSubscribe(Context& ctx, RedisCommandFrame& cmd);
             int Publish(Context& ctx, RedisCommandFrame& cmd);
+            int Pubsub(Context& ctx, RedisCommandFrame& cmd);
 
             int Slaveof(Context& ctx, RedisCommandFrame& cmd);
             int Sync(Context& ctx, RedisCommandFrame& cmd);

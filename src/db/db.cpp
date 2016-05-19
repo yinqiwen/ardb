@@ -163,6 +163,7 @@ OP_NAMESPACE_BEGIN
         { "unsubscribe", REDIS_CMD_UNSUBSCRIBE, &Ardb::UnSubscribe, 0, -1, "rpslt", 0, 0, 0 },
         { "punsubscribe", REDIS_CMD_PUNSUBSCRIBE, &Ardb::PUnSubscribe, 0, -1, "rpslt", 0, 0, 0 },
         { "publish", REDIS_CMD_PUBLISH, &Ardb::Publish, 2, 2, "pltrF", 0, 0, 0 },
+        { "pubsub", REDIS_CMD_PUBSUB, &Ardb::Pubsub, 1, -1, "pltrF", 0, 0, 0 },
         { "info", REDIS_CMD_INFO, &Ardb::Info, 0, 1, "rlt", 0, 0, 0 },
         { "save", REDIS_CMD_SAVE, &Ardb::Save, 0, 0, "ars", 0, 0, 0 },
         { "save2", REDIS_CMD_SAVE2, &Ardb::Save, 0, 0, "ars", 0, 0, 0 },
