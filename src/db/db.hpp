@@ -238,6 +238,7 @@ OP_NAMESPACE_BEGIN
             int DiscardTransaction(Context& ctx);
 
             int BlockForKeys(Context& ctx, const StringArray& keys, const std::string& target, uint32 timeout);
+            static void AsyncUnblockKeysCallback(Channel* ch, void * data);
             int UnblockKeys(Context& ctx, bool use_lock = true);
             int WakeClientsBlockingOnList(Context& ctx);
             int SignalListAsReady(Context& ctx, const std::string& key);
