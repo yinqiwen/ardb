@@ -118,19 +118,6 @@ OP_NAMESPACE_BEGIN
 
     int Slave::Init()
     {
-//        struct RoutineTask: public Runnable
-//        {
-//                Slave* c;
-//                RoutineTask(Slave* cc) :
-//                        c(cc)
-//                {
-//                }
-//                void Run()
-//                {
-//                    c->Routine();
-//                }
-//        };
-//        g_repl->GetTimer().ScheduleHeapTask(new RoutineTask(this), 1, 1, SECONDS);
         g_slave_sync_qps.name = "slave_sync_total_commands_processed";
         g_slave_sync_qps.qpsName = "slave_sync_instantaneous_ops_per_sec";
         Statistics::GetSingleton().AddTrack(&g_slave_sync_qps);
@@ -459,8 +446,9 @@ OP_NAMESPACE_BEGIN
                 {
                     m_decoder.SwitchToCommandDecoder();
                     m_ctx.ctx.ns.SetString(g_repl->GetReplLog().CurrentNamespace(), false);
+                    m_ctx.sync_repl_offset = g_repl->GetReplLog().WALEndOffset();
                     m_ctx.state = SLAVE_STATE_SYNCED;
-                    INFO_LOG("Slave recv continue rom master with current namsepace:%s", m_ctx.ctx.ns.AsString().c_str());
+                    INFO_LOG("Slave recv continue from master with current namespace:%s", m_ctx.ctx.ns.AsString().c_str());
                     break;
                 }
                 else

@@ -286,8 +286,6 @@ OP_NAMESPACE_BEGIN
             int Sync(Context& ctx, RedisCommandFrame& cmd);
             int PSync(Context& ctx, RedisCommandFrame& cmd);
             int ReplConf(Context& ctx, RedisCommandFrame& cmd);
-            int RawSet(Context& ctx, RedisCommandFrame& cmd);
-            int RawDel(Context& ctx, RedisCommandFrame& cmd);
 
             int Ping(Context& ctx, RedisCommandFrame& cmd);
             int Echo(Context& ctx, RedisCommandFrame& cmd);

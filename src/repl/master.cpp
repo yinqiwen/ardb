@@ -181,7 +181,7 @@ OP_NAMESPACE_BEGIN
                 }
                 if (lag > g_db->GetConf().repl_timeout)
                 {
-                    WARN_LOG("Disconnecting timedout slave:%s", slave->GetAddress().c_str());
+                    WARN_LOG("Disconnecting timeout slave:%s", slave->GetAddress().c_str());
                     to_close.push_back(slave);
                 }
             }
@@ -301,8 +301,7 @@ OP_NAMESPACE_BEGIN
     static int send_wal_toslave(const void* log, size_t loglen, void* data)
     {
         SlaveSyncContext* slave = (SlaveSyncContext*) data;
-        Buffer msg((char*) log, 0, loglen);
-        slave->conn->Write(msg);
+        slave->conn->GetOutputBuffer().Write(log, loglen);
         slave->sync_offset += loglen;
         if (slave->sync_offset == g_repl->GetReplLog().WALEndOffset())
         {
@@ -320,9 +319,16 @@ OP_NAMESPACE_BEGIN
     {
         if (slave->sync_offset < g_repl->GetReplLog().WALStartOffset() || slave->sync_offset > g_repl->GetReplLog().WALEndOffset())
         {
-            slave->conn->Close();
-            ERROR_LOG("Slave synced offset:%llu is invalid in offset range[%llu-%llu] for wal.", slave->sync_offset, g_repl->GetReplLog().WALStartOffset(),
+            WARN_LOG("Slave synced offset:%llu is invalid in offset range[%llu-%llu] for wal.", slave->sync_offset, g_repl->GetReplLog().WALStartOffset(),
                     g_repl->GetReplLog().WALEndOffset());
+            slave->conn->Close();
+            return;
+        }
+        /*
+         * It's too busy to replay wal log if more than 10MB data in slave output buffer
+         */
+        if (slave->conn->WritableBytes() >= g_db->GetConf().slave_client_output_buffer_limit)
+        {
             return;
         }
         if (slave->sync_offset < g_repl->GetReplLog().WALEndOffset())
@@ -338,7 +344,7 @@ OP_NAMESPACE_BEGIN
         while (it != m_slaves.end())
         {
             SlaveSyncContext* slave = *it;
-            if (slave != NULL)
+            if (slave != NULL && SYNC_STATE_SYNCED == slave->state)
             {
                 sync_slaves.push_back(slave);
             }
@@ -362,6 +368,7 @@ OP_NAMESPACE_BEGIN
             if (!g_repl->GetSlave().IsSynced())
             {
                 //just close slave connection if current instance not synced with remote master
+                WARN_LOG("Close connected slaves which is not synced.");
                 slave->conn->Close();
                 return;
             }
@@ -611,6 +618,10 @@ OP_NAMESPACE_BEGIN
             }
             it++;
         }
+        if (!to_close.empty())
+        {
+            WARN_LOG("Disconnect all slaves.");
+        }
         for (size_t i = 0; i < to_close.size(); i++)
         {
             CloseSlave(to_close[i]);
@@ -662,8 +673,8 @@ OP_NAMESPACE_BEGIN
 
             uint32 lag = time(NULL) - slave->acktime;
             sprintf(buffer, "slave%u:%s,state=%s,"
-                    "offset=%" PRId64",lag=%u, o_buffer_size:%u, o_buffer_capacity:%u\r\n", i, slave->GetAddress().c_str(), state, slave->sync_offset, lag,
-                    slave->conn->WritableBytes(), slave->conn->GetOutputBuffer().Capacity());
+                    "offset=%" PRId64 ",ack_offset=%"PRId64",lag=%u,o_buffer_size:%u,o_buffer_capacity:%u\r\n", i, slave->GetAddress().c_str(), state,
+                    slave->sync_offset, slave->ack_offset, lag, slave->conn->WritableBytes(), slave->conn->GetOutputBuffer().Capacity());
             it++;
             i++;
             str.append(buffer);

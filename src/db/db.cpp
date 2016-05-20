@@ -319,7 +319,6 @@ OP_NAMESPACE_BEGIN
         { "sort", REDIS_CMD_SORT, &Ardb::Sort, 1, -1, "w", 0, 0, 0 },
         { "keys", REDIS_CMD_KEYS, &Ardb::Keys, 1, 6, "r", 0, 0, 0 },
         { "keyscount", REDIS_CMD_KEYSCOUNT, &Ardb::KeysCount, 1, 6, "r", 0, 0, 0 },
-        { "__set__", REDIS_CMD_RAWSET, &Ardb::RawSet, 1, 1, "w", 0, 0, 0 },
         { "eval", REDIS_CMD_EVAL, &Ardb::Eval, 2, -1, "s", 0, 0, 0 },
         { "evalsha", REDIS_CMD_EVALSHA, &Ardb::EvalSHA, 2, -1, "s", 0, 0, 0 },
         { "script", REDIS_CMD_SCRIPT, &Ardb::Script, 1, -1, "rs", 0, 0, 0 },

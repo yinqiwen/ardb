@@ -905,19 +905,5 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    int Ardb::RawSet(Context& ctx, RedisCommandFrame& cmd)
-    {
-        ObjectBuffer buffer;
-
-        Slice key(cmd.GetArguments()[1]);
-        Slice value(cmd.GetArguments()[1]);
-        m_engine->PutRaw(ctx, ctx.ns, key, value);
-        return 0;
-    }
-    int Ardb::RawDel(Context& ctx, RedisCommandFrame& cmd)
-    {
-        return 0;
-    }
-
 OP_NAMESPACE_END
 
