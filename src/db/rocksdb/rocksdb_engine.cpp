@@ -199,7 +199,7 @@ OP_NAMESPACE_BEGIN
                     char buffer[1024];
                     int n = vsnprintf(buffer, sizeof(buffer) - 1, format, ap);
                     buffer[n] = 0;
-                    LOG_WITH_LEVEL(level, "%s", buffer);
+                    LOG_WITH_LEVEL(level, "[RocksDB]%s", buffer);
                 }
             }
     };
@@ -388,9 +388,9 @@ OP_NAMESPACE_BEGIN
                         else
                         {
                             /*
-                             * Generate 'del' command for replication
+                             * todo: Generate 'del' command for replication
                              */
-                            g_db->FeedReplicationDelOperation(ns, k.GetKey().AsString());
+                            //g_db->FeedReplicationDelOperation(ns, k.GetKey().AsString());
                             return true;
                         }
                     }

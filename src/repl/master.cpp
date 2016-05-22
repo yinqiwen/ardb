@@ -55,8 +55,7 @@ OP_NAMESPACE_BEGIN
             bool isRedisSlave;
             uint8 state;
             SlaveSyncContext() :
-                    snapshot(NULL), conn(NULL), sync_offset(0), ack_offset(0), sync_cksm(0), acktime(0), port(0), repldbfd(-1), isRedisSlave(false), state(
-                            SYNC_STATE_INVALID)
+                    snapshot(NULL), conn(NULL), sync_offset(0), ack_offset(0), sync_cksm(0), acktime(0), port(0), repldbfd(-1), isRedisSlave(false), state(SYNC_STATE_INVALID)
             {
             }
             std::string GetAddress()
@@ -79,8 +78,7 @@ OP_NAMESPACE_BEGIN
     };
 
     Master::Master() :
-            m_repl_noslaves_since(0), m_repl_nolag_since(0), m_repl_good_slaves_count(0), m_slaves_count(0), m_sync_full_count(0), m_sync_partial_ok_count(0), m_sync_partial_err_count(
-                    0)
+            m_repl_noslaves_since(0), m_repl_nolag_since(0), m_repl_good_slaves_count(0), m_slaves_count(0), m_sync_full_count(0), m_sync_partial_ok_count(0), m_sync_partial_err_count(0)
     {
     }
 
@@ -208,6 +206,26 @@ OP_NAMESPACE_BEGIN
             it++;
         }
     }
+
+    bool Master::IsAllSlaveSyncingCache()
+    {
+        SlaveSyncContextSet::iterator it = m_slaves.begin();
+        while (it != m_slaves.end())
+        {
+            SlaveSyncContext* slave = *it;
+            if (slave == NULL || slave->state != SYNC_STATE_SYNCED)
+            {
+                return false;
+            }
+            if(slave->sync_offset < g_repl->GetReplLog().WALEndOffset() - g_db->GetConf().repl_backlog_cache_size / 2)
+            {
+                return false;
+            }
+            it++;
+        }
+        return true;
+    }
+
     void Master::CloseSlaveBySnapshot(Snapshot* snapshot)
     {
         std::vector<SlaveSyncContext*> to_close;
@@ -319,8 +337,7 @@ OP_NAMESPACE_BEGIN
     {
         if (slave->sync_offset < g_repl->GetReplLog().WALStartOffset() || slave->sync_offset > g_repl->GetReplLog().WALEndOffset())
         {
-            WARN_LOG("Slave synced offset:%llu is invalid in offset range[%llu-%llu] for wal.", slave->sync_offset, g_repl->GetReplLog().WALStartOffset(),
-                    g_repl->GetReplLog().WALEndOffset());
+            WARN_LOG("Slave synced offset:%llu is invalid in offset range[%llu-%llu] for wal.", slave->sync_offset, g_repl->GetReplLog().WALStartOffset(), g_repl->GetReplLog().WALEndOffset());
             slave->conn->Close();
             return;
         }
@@ -412,9 +429,8 @@ OP_NAMESPACE_BEGIN
                     m_sync_partial_err_count++;
                 }
 
-                WARN_LOG("Create snapshot for full resync for slave replid:%s offset:%llu cksm:%llu, while current WAL runid:%s offset:%llu cksm:%llu",
-                        slave->repl_key.c_str(), slave->sync_offset, slave->sync_cksm, g_repl->GetReplLog().GetReplKey().c_str(),
-                        g_repl->GetReplLog().WALEndOffset(), g_repl->GetReplLog().WALCksm());
+                WARN_LOG("Create snapshot for full resync for slave replid:%s offset:%llu cksm:%llu, while current WAL runid:%s offset:%llu cksm:%llu", slave->repl_key.c_str(), slave->sync_offset, slave->sync_cksm,
+                        g_repl->GetReplLog().GetReplKey().c_str(), g_repl->GetReplLog().WALEndOffset(), g_repl->GetReplLog().WALCksm());
                 slave->state = SYNC_STATE_WAITING_SNAPSHOT;
                 slave->snapshot = g_snapshot_manager->GetSyncSnapshot(slave->isRedisSlave ? REDIS_DUMP : ARDB_DUMP, snapshot_dump_routine, this);
                 if (NULL != slave->snapshot)
@@ -673,8 +689,8 @@ OP_NAMESPACE_BEGIN
 
             uint32 lag = time(NULL) - slave->acktime;
             sprintf(buffer, "slave%u:%s,state=%s,"
-                    "offset=%" PRId64 ",ack_offset=%"PRId64",lag=%u,o_buffer_size:%u,o_buffer_capacity:%u\r\n", i, slave->GetAddress().c_str(), state,
-                    slave->sync_offset, slave->ack_offset, lag, slave->conn->WritableBytes(), slave->conn->GetOutputBuffer().Capacity());
+                    "offset=%" PRId64 ",ack_offset=%" PRId64",lag=%u,o_buffer_size=%u,o_buffer_capacity=%u\r\n", i, slave->GetAddress().c_str(), state, slave->sync_offset, slave->ack_offset, lag, slave->conn->WritableBytes(),
+                    slave->conn->GetOutputBuffer().Capacity());
             it++;
             i++;
             str.append(buffer);

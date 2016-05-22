@@ -347,6 +347,7 @@ int swal_clear_replay_cache(swal_t* wal)
     {
         munmap(wal->mmap_buf, wal->options.max_file_size);
         wal->mmap_buf = NULL;
+        return 1;
     }
     return 0;
 }

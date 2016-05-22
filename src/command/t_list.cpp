@@ -957,11 +957,11 @@ OP_NAMESPACE_BEGIN
 
     void Ardb::AsyncUnblockKeysCallback(Channel* ch, void * data)
     {
-        if(NULL == ch || ch->IsClosed())
+        if (NULL == ch || ch->IsClosed())
         {
             return;
         }
-        Context* ctx = (Context*)data;
+        Context* ctx = (Context*) data;
         g_db->UnblockKeys(*ctx, true);
     }
 
@@ -971,7 +971,7 @@ OP_NAMESPACE_BEGIN
         {
             FATAL_LOG("Can not modify block dataset when key locked.");
         }
-        if(!sync)
+        if (!sync)
         {
             ctx.client->client->GetService().AsyncIO(ctx.client->client->GetID(), AsyncUnblockKeysCallback, &ctx);
             return 0;
@@ -1067,7 +1067,7 @@ OP_NAMESPACE_BEGIN
             lpush.AddArg(value);
             Context tmpctx;
             tmpctx.ns = ctx.GetBPop().target.ns;
-            ListPush(tmpctx, lpush, true);
+            ListPush(tmpctx, lpush, false);
             if (tmpctx.GetReply().IsErr())
             {
                 return -1;
@@ -1133,38 +1133,42 @@ OP_NAMESPACE_BEGIN
                     list_pop.AddArg(key.key.AsString());
                     Context tmpctx;
                     tmpctx.ns = key.ns;
-                    ListPop(tmpctx, list_pop, true);
-                    if (tmpctx.GetReply().IsString())
                     {
-                        if (0 != ServeClientBlockedOnList(*unblock_client, key, tmpctx.GetReply().GetString()))
+                        KeyObject list_key(key.ns, KEY_META, key.key);
+                        KeyLockGuard keylocker(tmpctx, list_key);
+                        ListPop(tmpctx, list_pop, false);
+                        if (tmpctx.GetReply().IsString())
                         {
-                            /*
-                             * repush value into old list
-                             */
-                            std::string repush = tmpctx.GetReply().GetString();
-                            RedisCommandFrame list_push;
-                            if (unblock_client->last_cmdtype == REDIS_CMD_BLPOP)
+                            if (0 != ServeClientBlockedOnList(*unblock_client, key, tmpctx.GetReply().GetString()))
                             {
-                                list_push.SetCommand("lpush");
-                                list_push.SetType(REDIS_CMD_LPUSH);
+                                /*
+                                 * repush value into old list
+                                 */
+                                std::string repush = tmpctx.GetReply().GetString();
+                                RedisCommandFrame list_push;
+                                if (unblock_client->last_cmdtype == REDIS_CMD_BLPOP)
+                                {
+                                    list_push.SetCommand("lpush");
+                                    list_push.SetType(REDIS_CMD_LPUSH);
+                                }
+                                else
+                                {
+                                    list_push.SetCommand("rpush");
+                                    list_push.SetType(REDIS_CMD_RPUSH);
+                                }
+                                list_push.AddArg(key.key.AsString());
+                                list_push.AddArg(repush);
+                                ListPush(tmpctx, list_push, false);
                             }
                             else
                             {
-                                list_push.SetCommand("rpush");
-                                list_push.SetType(REDIS_CMD_RPUSH);
-                            }
-                            list_push.AddArg(key.key.AsString());
-                            list_push.AddArg(repush);
-                            ListPush(tmpctx, list_push, true);
-                        }
-                        else
-                        {
-                            /*
-                             * generate 'lpop/rpop' for replication in master
-                             */
-                            if (GetConf().master_host.empty())
-                            {
-                                FeedReplicationBacklog(key.ns, list_pop);
+                                /*
+                                 * generate 'lpop/rpop' for replication in master
+                                 */
+                                if (GetConf().master_host.empty())
+                                {
+                                    FeedReplicationBacklog(tmpctx, key.ns, list_pop);
+                                }
                             }
                         }
                     }
