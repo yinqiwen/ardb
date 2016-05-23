@@ -646,7 +646,7 @@ namespace ardb
             }
             else
 #endif
-                snprintf((char*) buf + 1, sizeof(buf) - 1, "%.17g", val);
+            snprintf((char*) buf + 1, sizeof(buf) - 1, "%.17g", val);
             buf[0] = strlen((char*) buf + 1);
             len = buf[0] + 1;
         }
@@ -1892,6 +1892,7 @@ namespace ardb
 
     int Snapshot::RedisLoad()
     {
+        DataArray nss;
         char buf[1024];
         int rdbver, type;
         int64 expiretime = -1;
@@ -1960,6 +1961,8 @@ namespace ardb
                     goto eoferr;
                 }
                 loadctx.ns.SetString(stringfromll(dbid), false);
+                nss.push_back(loadctx.ns);
+                g_engine->BeginBulkLoad(loadctx, loadctx.ns);
                 continue;
             }
             else if (type == RDB_OPCODE_RESIZEDB)
@@ -2029,10 +2032,19 @@ namespace ardb
             }
         }
         Close();
+        for (size_t i = 0; i < nss.size(); i++)
+        {
+            g_engine->EndBulkLoad(loadctx, nss[i]);
+        }
         g_engine->FlushAll(loadctx);
+        g_engine->CompactAll(loadctx);
         INFO_LOG("Redis snapshot file load finished.");
         return 0;
         eoferr: Close();
+        for (size_t i = 0; i < nss.size(); i++)
+        {
+            g_engine->EndBulkLoad(loadctx, nss[i]);
+        }
         WARN_LOG("Short read or OOM loading DB. Unrecoverable error, aborting now.");
         return -1;
     }
@@ -2297,6 +2309,7 @@ namespace ardb
 
     int Snapshot::ArdbLoad()
     {
+        DataArray nss;
         char buf[1024];
         int rdbver, type;
         std::string verstr;
@@ -2341,6 +2354,8 @@ namespace ardb
                     goto eoferr;
                 }
                 loadctx.ns.SetString(ns, false);
+                nss.push_back(loadctx.ns);
+                g_engine->BeginBulkLoad(loadctx, loadctx.ns);
             }
             else if (type == ARDB_OPCODE_AUX)
             {
@@ -2387,7 +2402,12 @@ namespace ardb
         }
 
         Close();
+        for (size_t i = 0; i < nss.size(); i++)
+        {
+            g_engine->EndBulkLoad(loadctx, nss[i]);
+        }
         g_engine->FlushAll(loadctx);
+        g_engine->CompactAll(loadctx);
         INFO_LOG("Ardb dump file load finished.");
         return 0;
         eoferr: Close();

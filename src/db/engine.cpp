@@ -39,7 +39,7 @@ OP_NAMESPACE_BEGIN
     int compare_keys(const char* k1, size_t k1_len, const char* k2, size_t k2_len, bool has_ns)
     {
         int ret = (NULL != k2) - (NULL != k1);
-        if(0 != ret)
+        if (0 != ret)
         {
             return ret;
         }
@@ -68,8 +68,6 @@ OP_NAMESPACE_BEGIN
                 return ret;
             }
         }
-
-
 
         /*
          * 2. decode  prefix
@@ -146,9 +144,22 @@ OP_NAMESPACE_BEGIN
     {
         DataArray nss;
         ListNameSpaces(ctx, nss);
-        for(size_t i = 0 ; i < nss.size(); i++)
+        for (size_t i = 0; i < nss.size(); i++)
         {
             Flush(ctx, nss[i]);
+        }
+        return 0;
+    }
+
+    int Engine::CompactAll(Context& ctx)
+    {
+        DataArray nss;
+        ListNameSpaces(ctx, nss);
+        for (size_t i = 0; i < nss.size(); i++)
+        {
+            KeyObject start, end;
+            start.SetNameSpace(nss[i]);
+            Compact(ctx, start, end);
         }
         return 0;
     }

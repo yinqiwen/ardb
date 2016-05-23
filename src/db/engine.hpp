@@ -95,6 +95,7 @@ OP_NAMESPACE_BEGIN
             virtual Iterator* Find(Context& ctx, const KeyObject& key) = 0;
 
             virtual int Compact(Context& ctx, const KeyObject& start, const KeyObject& end) = 0;
+            virtual int CompactAll(Context& ctx);
 
             virtual int BeginWriteBatch(Context& ctx) = 0;
             virtual int CommitWriteBatch(Context& ctx) = 0;
@@ -109,12 +110,12 @@ OP_NAMESPACE_BEGIN
             }
             virtual int FlushAll(Context& ctx);
 
-            virtual int BeginBulkLoad(Context& ctx)
+            virtual int BeginBulkLoad(Context& ctx,const Data& ns)
             {
                 return ERR_NOTSUPPORTED;
             }
 
-            virtual int EndBulkLoad(Context& ctx)
+            virtual int EndBulkLoad(Context& ctx,const Data& ns)
             {
                 return ERR_NOTSUPPORTED;
             }
