@@ -387,13 +387,6 @@ OP_NAMESPACE_BEGIN
                         }
                         else
                         {
-<<<<<<< HEAD
-=======
-                            /*
-                             * todo: Generate 'del' command for replication
-                             */
-                            //g_db->FeedReplicationDelOperation(ns, k.GetKey().AsString());
->>>>>>> 2feae77a188a704360f8efa05ea3d6884530182a
                             return true;
                         }
                     }
@@ -1132,6 +1125,7 @@ OP_NAMESPACE_BEGIN
 
     int RocksDBEngine::BeginBulkLoad(Context& ctx)
     {
+        //m_db->SetOptions()
 //        rocksdb::Options opt = m_options;
 //        opt.PrepareForBulkLoad();
 //        m_options.PrepareForBulkLoad();

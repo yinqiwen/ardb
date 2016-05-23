@@ -936,7 +936,6 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         KeyPrefix scan_key;
-        Iterator* iter = NULL;
         Context scan_ctx;
         int64 total_expired_keys = 0;
         uint64 start_time = get_current_epoch_millis();
@@ -976,15 +975,8 @@ OP_NAMESPACE_BEGIN
                     {
                         continue;
                     }
-<<<<<<< HEAD
                     toremove = true;
-=======
                     total_expired_keys++;
-                    /*
-                     * generate 'del' command for master instance
-                     */
-                    FeedReplicationDelOperation(scan_ctx, iter_key.GetNameSpace(), iter_key.GetKey().AsString());
->>>>>>> 2feae77a188a704360f8efa05ea3d6884530182a
                 }
             }
             else
@@ -997,7 +989,7 @@ OP_NAMESPACE_BEGIN
                 /*
                  * generate 'del' command for master instance
                  */
-                FeedReplicationDelOperation(key.GetNameSpace(), key.GetKey().AsString());
+                FeedReplicationDelOperation(scan_ctx, key.GetNameSpace(), key.GetKey().AsString());
             }
             if (KEY_STRING == meta.GetType())
             {
