@@ -342,9 +342,9 @@ OP_NAMESPACE_BEGIN
                 /*
                  * do not do filter for slave
                  */
-                if(!g_db->GetConf().master_host.empty())
+                if (!g_db->GetConf().master_host.empty())
                 {
-                   return false;
+                    return false;
                 }
                 if (existing_value.size() == 0)
                 {
@@ -758,6 +758,10 @@ OP_NAMESPACE_BEGIN
         }
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         rocksdb::WriteOptions opt;
+        if (ctx.flags.bulk_loading)
+        {
+            opt.disableWAL = true;
+        }
         rocksdb::Slice key_slice = to_rocksdb_slice(key);
         rocksdb::Slice value_slice = to_rocksdb_slice(value);
         rocksdb::Status s;
@@ -784,6 +788,10 @@ OP_NAMESPACE_BEGIN
         }
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         rocksdb::WriteOptions opt;
+        if (ctx.flags.bulk_loading)
+        {
+            opt.disableWAL = true;
+        }
         Buffer& encode_buffer = rocks_ctx.GetEncodeBuferCache();
         key.Encode(encode_buffer);
         size_t key_len = encode_buffer.ReadableBytes();
@@ -1040,24 +1048,28 @@ OP_NAMESPACE_BEGIN
         return iter;
     }
 
-    int RocksDBEngine::BeginWriteBatch()
+    int RocksDBEngine::BeginWriteBatch(Context& ctx)
     {
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         rocks_ctx.transc.AddRef();
         return 0;
     }
-    int RocksDBEngine::CommitWriteBatch()
+    int RocksDBEngine::CommitWriteBatch(Context& ctx)
     {
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         if (rocks_ctx.transc.ReleaseRef(false) == 0)
         {
             rocksdb::WriteOptions opt;
+            if (ctx.flags.bulk_loading)
+            {
+                opt.disableWAL = true;
+            }
             m_db->Write(opt, &rocks_ctx.transc.GetBatch());
             rocks_ctx.transc.Clear();
         }
         return 0;
     }
-    int RocksDBEngine::DiscardWriteBatch()
+    int RocksDBEngine::DiscardWriteBatch(Context& ctx)
     {
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         if (rocks_ctx.transc.ReleaseRef(true) == 0)
@@ -1096,6 +1108,31 @@ OP_NAMESPACE_BEGIN
             it++;
         }
         return 0;
+    }
+
+    int RocksDBEngine::Flush(Context& ctx, const Data& ns)
+    {
+        ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, ns, false);
+        rocksdb::ColumnFamilyHandle* cf = cfp.get();
+        if (NULL == cf)
+        {
+            return ERR_ENTRY_NOT_EXIST;
+        }
+        rocksdb::FlushOptions opt;
+        rocksdb::Status s = m_db->Flush(opt, cf);
+        return ROCKSDB_ERR(s);
+    }
+
+    int RocksDBEngine::BeginBulkLoad(Context& ctx)
+    {
+//        rocksdb::Options opt = m_options;
+//        opt.PrepareForBulkLoad();
+//        m_options.PrepareForBulkLoad();
+        return 0;
+    }
+    int RocksDBEngine::EndBulkLoad(Context& ctx)
+    {
+        return -1;
     }
 
     int RocksDBEngine::DropNameSpace(Context& ctx, const Data& ns)

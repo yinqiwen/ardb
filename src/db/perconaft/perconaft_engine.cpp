@@ -425,19 +425,19 @@ namespace ardb
         return Get(ctx, key, val) == 0;
     }
 
-    int PerconaFTEngine::BeginWriteBatch()
+    int PerconaFTEngine::BeginWriteBatch(Context& ctx)
     {
         PerconaFTLocalContext& local_ctx = g_local_ctx.GetValue();
         local_ctx.transc.Get();
         return 0;
     }
-    int PerconaFTEngine::CommitWriteBatch()
+    int PerconaFTEngine::CommitWriteBatch(Context& ctx)
     {
         PerconaFTLocalContext& local_ctx = g_local_ctx.GetValue();
         local_ctx.transc.Release(true);
         return 0;
     }
-    int PerconaFTEngine::DiscardWriteBatch()
+    int PerconaFTEngine::DiscardWriteBatch(Context& ctx)
     {
         PerconaFTLocalContext& local_ctx = g_local_ctx.GetValue();
         local_ctx.transc.Release(false);

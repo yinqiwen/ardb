@@ -523,17 +523,17 @@ namespace ardb
         return Get(ctx, key, val) == 0;
     }
 
-    int ForestDBEngine::BeginWriteBatch()
+    int ForestDBEngine::BeginWriteBatch(Context& ctx)
     {
         ForestDBLocalContext& local_ctx = GetDBLocalContext();
         return local_ctx.AcquireTransanction();
     }
-    int ForestDBEngine::CommitWriteBatch()
+    int ForestDBEngine::CommitWriteBatch(Context& ctx)
     {
         ForestDBLocalContext& local_ctx = GetDBLocalContext();
         return local_ctx.TryReleaseTransanction(true);
     }
-    int ForestDBEngine::DiscardWriteBatch()
+    int ForestDBEngine::DiscardWriteBatch(Context& ctx)
     {
         ForestDBLocalContext& local_ctx = GetDBLocalContext();
         return local_ctx.TryReleaseTransanction(false);

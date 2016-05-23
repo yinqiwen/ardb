@@ -182,6 +182,16 @@ namespace ardb
         return EncodeInteger(value, enc);
     }
 
+    DBWriter& ObjectIO::GetDBWriter()
+    {
+        static DBWriter defaultWriter(0);
+        if (NULL == m_dbwriter)
+        {
+            return defaultWriter;
+        }
+        return *m_dbwriter;
+    }
+
     int ObjectIO::ReadType()
     {
         unsigned char type;
@@ -689,9 +699,9 @@ namespace ardb
                 ValueObject lv;
                 lv.SetType(KEY_LIST_ELEMENT);
                 lv.SetListElement(value);
-                //g_db->Set
                 idx++;
-                g_db->SetKeyValue(ctx, lk, lv);
+                //g_db->SetKeyValue(ctx, lk, lv);
+                GetDBWriter().Put(lk, lv);
             }
             iter = ziplistNext(data, iter);
         }
@@ -761,8 +771,10 @@ namespace ardb
             ValueObject zscore_value;
             zscore_value.SetType(KEY_ZSET_SCORE);
             zscore_value.SetZSetScore(score);
-            g_db->SetKeyValue(ctx, zsort, zscore_value);
-            g_db->SetKeyValue(ctx, zscore, zscore_value);
+            //g_db->SetKeyValue(ctx, zsort, zscore_value);
+            //g_db->SetKeyValue(ctx, zscore, zscore_value);
+            GetDBWriter().Put(zsort, zscore_value);
+            GetDBWriter().Put(zscore, zscore_value);
             iter = ziplistNext(data, iter);
         }
     }
@@ -814,7 +826,8 @@ namespace ardb
                 ValueObject fvalue;
                 fvalue.SetType(KEY_HASH_FIELD);
                 fvalue.SetHashValue(value);
-                g_db->SetKeyValue(ctx, fkey, fvalue);
+                GetDBWriter().Put(fkey, fvalue);
+                //g_db->SetKeyValue(ctx, fkey, fvalue);
             }
             iter = ziplistNext(data, iter);
         }
@@ -834,7 +847,8 @@ namespace ardb
             member.SetSetMember(stringfromll(llele));
             ValueObject member_value;
             member_value.SetType(KEY_SET_MEMBER);
-            g_db->SetKeyValue(ctx, member, member_value);
+            //g_db->SetKeyValue(ctx, member, member_value);
+            GetDBWriter().Put(member, member_value);
         }
         //        KeyObject skey(ctx.ns, KEY_META, key);
         //        g_db->SetKeyValue(ctx, skey, smeta);
@@ -894,7 +908,8 @@ namespace ardb
                             member.SetSetMember(str);
                             ValueObject member_val;
                             member_val.SetType(KEY_SET_MEMBER);
-                            g_db->SetKeyValue(ctx, member, member_val);
+                            //g_db->SetKeyValue(ctx, member, member_val);
+                            GetDBWriter().Put(member, member_val);
                         }
                         else
                         {
@@ -903,7 +918,8 @@ namespace ardb
                             ValueObject lv;
                             lv.SetType(KEY_LIST_ELEMENT);
                             lv.SetListElement(str);
-                            g_db->SetKeyValue(ctx, lk, lv);
+                            //g_db->SetKeyValue(ctx, lk, lv);
+                            GetDBWriter().Put(lk, lv);
                             idx++;
                         }
                     }
@@ -959,7 +975,8 @@ namespace ardb
                                 lv.SetListElement(value);
                                 //g_db->Set
                                 idx++;
-                                g_db->SetKeyValue(ctx, lk, lv);
+                                //g_db->SetKeyValue(ctx, lk, lv);
+                                GetDBWriter().Put(lk, lv);
                             }
                             iter = ziplistNext(data, iter);
                         }
@@ -1000,8 +1017,10 @@ namespace ardb
                         ValueObject zscore_value;
                         zscore_value.SetType(KEY_ZSET_SCORE);
                         zscore_value.SetZSetScore(score);
-                        g_db->SetKeyValue(ctx, zsort, zscore_value);
-                        g_db->SetKeyValue(ctx, zscore, zscore_value);
+                        //g_db->SetKeyValue(ctx, zsort, zscore_value);
+                        //g_db->SetKeyValue(ctx, zscore, zscore_value);
+                        GetDBWriter().Put(zsort, zscore_value);
+                        GetDBWriter().Put(zscore, zscore_value);
                     }
                     else
                     {
@@ -1029,7 +1048,8 @@ namespace ardb
                         ValueObject fvalue;
                         fvalue.SetType(KEY_HASH_FIELD);
                         fvalue.SetHashValue(str);
-                        g_db->SetKeyValue(ctx, fkey, fvalue);
+                        //g_db->SetKeyValue(ctx, fkey, fvalue);
+                        GetDBWriter().Put(fkey, fvalue);
                     }
                     else
                     {
@@ -1076,7 +1096,8 @@ namespace ardb
                             ValueObject fvalue;
                             fvalue.SetType(KEY_HASH_FIELD);
                             fvalue.SetHashValue(fvstring);
-                            g_db->SetKeyValue(ctx, fkey, fvalue);
+                            //g_db->SetKeyValue(ctx, fkey, fvalue);
+                            GetDBWriter().Put(fkey, fvalue);
                             hlen++;
                         }
                         meta_value.SetObjectLen(hlen);
@@ -1125,7 +1146,8 @@ namespace ardb
                 g_db->SaveTTL(ctx, meta_key.GetNameSpace(), meta_key.GetKey().AsString(), 0, expiretime);
             }
         }
-        g_db->SetKeyValue(ctx, meta_key, meta_value);
+        //g_db->SetKeyValue(ctx, meta_key, meta_value);
+        GetDBWriter().Put(meta_key, meta_value);
         return true;
     }
 
@@ -1157,7 +1179,8 @@ namespace ardb
                 ERROR_LOG("Failed to read value in kv pair.");
                 return -1;
             }
-            g_db->GetEngine()->PutRaw(ctx, ctx.ns, key, value);
+            //g_db->GetEngine()->PutRaw(ctx, ctx.ns, key, value);
+            GetDBWriter().Put(ctx.ns, key, value);
             if (ttl > 0 && !g_db->GetEngine()->GetFeatureSet().support_compactfilter)
             {
                 Buffer keybuf((char*) key.data(), 0, key.size());
@@ -1637,7 +1660,7 @@ namespace ardb
     int Snapshot::Write(const void* buf, size_t buflen)
     {
 
-        if(NULL == m_write_fp)
+        if (NULL == m_write_fp)
         {
             /*
              * maybe closed while writing
@@ -1687,7 +1710,7 @@ namespace ardb
 
     bool Snapshot::Read(void* buf, size_t buflen, bool cksm)
     {
-        if(NULL == m_read_fp)
+        if (NULL == m_read_fp)
         {
             /*
              * maybe closed while reading
@@ -1875,6 +1898,7 @@ namespace ardb
         loadctx.flags.no_fill_reply = 1;
         loadctx.flags.no_wal = 1;
         loadctx.flags.create_if_notexist = 1;
+        loadctx.flags.bulk_loading = 1;
         //BatchWriteGuard guard(tmpctx);
         if (!Read(buf, 9, true))
             goto eoferr;
@@ -2002,6 +2026,7 @@ namespace ardb
             }
         }
         Close();
+        g_engine->FlushAll(loadctx);
         INFO_LOG("Redis snapshot file load finished.");
         return 0;
         eoferr: Close();
@@ -2276,6 +2301,7 @@ namespace ardb
         loadctx.flags.no_fill_reply = 1;
         loadctx.flags.no_wal = 1;
         loadctx.flags.create_if_notexist = 1;
+        loadctx.flags.bulk_loading = 1;
         if (!Read(buf, 8, true))
             goto eoferr;
         buf[9] = '\0';
@@ -2358,6 +2384,7 @@ namespace ardb
         }
 
         Close();
+        g_engine->FlushAll(loadctx);
         INFO_LOG("Ardb dump file load finished.");
         return 0;
         eoferr: Close();

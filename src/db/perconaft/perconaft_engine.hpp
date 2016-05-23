@@ -119,9 +119,9 @@ namespace ardb
             int Del(Context& ctx, const KeyObject& key);
             int Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args);
             bool Exists(Context& ctx, const KeyObject& key);
-            int BeginWriteBatch();
-            int CommitWriteBatch();
-            int DiscardWriteBatch();
+            int BeginWriteBatch(Context& ctx);
+            int CommitWriteBatch(Context& ctx);
+            int DiscardWriteBatch(Context& ctx);
             int Compact(Context& ctx, const KeyObject& start, const KeyObject& end);
             int ListNameSpaces(Context& ctx, DataArray& nss);
             int DropNameSpace(Context& ctx, const Data& ns);

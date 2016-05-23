@@ -422,6 +422,7 @@ OP_NAMESPACE_BEGIN
             Slice Encode(Buffer& buffer) const;
             bool DecodeMeta(Buffer& buffer);
             bool Decode(Buffer& buffer, bool clone_str);
+            void CloneStringPart();
     };
 
     struct ZRangeSpec

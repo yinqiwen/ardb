@@ -123,15 +123,18 @@ OP_NAMESPACE_BEGIN
             int Del(Context& ctx, const KeyObject& key);
             int Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args);
             bool Exists(Context& ctx, const KeyObject& key);
-            int BeginWriteBatch();
-            int CommitWriteBatch();
-            int DiscardWriteBatch();
+            int BeginWriteBatch(Context& ctx);
+            int CommitWriteBatch(Context& ctx);
+            int DiscardWriteBatch(Context& ctx);
             int Compact(Context& ctx, const KeyObject& start, const KeyObject& end);
             int ListNameSpaces(Context& ctx, DataArray& nss);
             int DropNameSpace(Context& ctx, const Data& ns);
             void Stats(Context& ctx, std::string& str);
             int64_t EstimateKeysNum(Context& ctx, const Data& ns);
             Iterator* Find(Context& ctx, const KeyObject& key);
+            int Flush(Context& ctx, const Data& ns);
+            int BeginBulkLoad(Context& ctx);
+            int EndBulkLoad(Context& ctx);
             const FeatureSet GetFeatureSet()
             {
                 FeatureSet features;

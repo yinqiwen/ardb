@@ -664,17 +664,17 @@ namespace ardb
         return Get(ctx, key, val) == 0;
     }
 
-    int LMDBEngine::BeginWriteBatch()
+    int LMDBEngine::BeginWriteBatch(Context& ctx)
     {
         LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
         return local_ctx.AcquireTransanction(false);
     }
-    int LMDBEngine::CommitWriteBatch()
+    int LMDBEngine::CommitWriteBatch(Context& ctx)
     {
         LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
         return local_ctx.TryReleaseTransanction(true, false);
     }
-    int LMDBEngine::DiscardWriteBatch()
+    int LMDBEngine::DiscardWriteBatch(Context& ctx)
     {
         LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
         return local_ctx.TryReleaseTransanction(false, false);

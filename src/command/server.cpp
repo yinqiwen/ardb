@@ -141,7 +141,14 @@ namespace ardb
             ctx.client->client->BlockRead();
         }
         Snapshot snapshot;
+        /*
+         * use 4 threads to write db
+         */
+        DBWriter load_writer(4);
+        snapshot.SetDBWriter(&load_writer);
         int err = snapshot.Load(file, RDBSaveLoadRoutine, io_serv);
+        snapshot.SetDBWriter(NULL);
+        load_writer.Stop();
         if (NULL == io_serv || io_serv->GetChannel(conn_id) != NULL)
         {
             if (err == 0)
@@ -853,8 +860,8 @@ namespace ardb
 
     static void monitor_write_callback(Channel* ch, void* data)
     {
-        Buffer* buffer = (Buffer*)data;
-        if(NULL != ch && !ch->IsClosed())
+        Buffer* buffer = (Buffer*) data;
+        if (NULL != ch && !ch->IsClosed())
         {
             ch->GetOutputBuffer().Write(buffer, buffer->ReadableBytes());
             ch->EnableWriting();
@@ -896,15 +903,15 @@ namespace ardb
         }
         buffer.Write("\r\n", 2);
         ContextSet::iterator it = m_monitors->begin();
-        while(it != m_monitors->end())
+        while (it != m_monitors->end())
         {
             Channel* client = (*it)->client->client;
-            if(NULL != client)
+            if (NULL != client)
             {
                 Buffer* send_buffer = NULL;
                 NEW(send_buffer, Buffer);
                 send_buffer->Write(buffer.GetRawReadBuffer(), buffer.ReadableBytes());
-                client->GetService().AsyncIO(client->GetID(),monitor_write_callback, send_buffer);
+                client->GetService().AsyncIO(client->GetID(), monitor_write_callback, send_buffer);
                 //WriteReply()
             }
             it++;
@@ -919,7 +926,7 @@ namespace ardb
         {
             NEW(m_monitors, ContextSet);
         }
-        if(!m_monitors->insert(&ctx).second)
+        if (!m_monitors->insert(&ctx).second)
         {
             reply.type = 0;
         }

@@ -188,9 +188,9 @@ OP_NAMESPACE_BEGIN
     bool KeyObject::Decode(Buffer& buffer, bool clone_str, bool with_ns)
     {
         Clear();
-        if(with_ns)
+        if (with_ns)
         {
-            if(!ns.Decode(buffer, clone_str))
+            if (!ns.Decode(buffer, clone_str))
             {
                 return false;
             }
@@ -223,14 +223,14 @@ OP_NAMESPACE_BEGIN
         buffer.Write(key.CStr(), key.StringLength());
         buffer.WriteByte((char) type);
     }
-    Slice KeyObject::Encode(Buffer& buffer, bool verify,bool with_ns) const
+    Slice KeyObject::Encode(Buffer& buffer, bool verify, bool with_ns) const
     {
         if (verify && !IsValid())
         {
             return Slice();
         }
         size_t mark = buffer.GetWriteIndex();
-        if(with_ns)
+        if (with_ns)
         {
             ns.Encode(buffer);
         }
@@ -523,7 +523,7 @@ OP_NAMESPACE_BEGIN
             case KEY_ZSET:
             case KEY_HASH:
             {
-                if(!meta.Decode(buffer, type))
+                if (!meta.Decode(buffer, type))
                 {
                     return false;
                 }
@@ -561,6 +561,17 @@ OP_NAMESPACE_BEGIN
             }
         }
         return true;
+    }
+
+    void ValueObject::CloneStringPart()
+    {
+        for (size_t i = 0; i < vals.size(); i++)
+        {
+            if (vals[i].IsString())
+            {
+                vals[i].ToMutableStr();
+            }
+        }
     }
 
     static int parse_score(const std::string& score_str, double& score, bool& contain)

@@ -142,5 +142,16 @@ OP_NAMESPACE_BEGIN
         return ret;
     }
 
+    int Engine::FlushAll(Context& ctx)
+    {
+        DataArray nss;
+        ListNameSpaces(ctx, nss);
+        for(size_t i = 0 ; i < nss.size(); i++)
+        {
+            Flush(ctx, nss[i]);
+        }
+        return 0;
+    }
+
 OP_NAMESPACE_END
 

@@ -516,7 +516,13 @@ OP_NAMESPACE_BEGIN
             }
             INFO_LOG("Start loading snapshot file.");
             m_ctx.cmd_recved_time = time(NULL);
+            /*
+             * use 4 threads to write db
+             */
+            DBWriter load_writer(4);
+            m_ctx.snapshot.SetDBWriter(&load_writer);
             int ret = m_ctx.snapshot.Reload(LoadRDBRoutine, &m_ctx);
+            m_ctx.snapshot.SetDBWriter(NULL);
             if (0 != ret)
             {
                 if (NULL != m_client)
@@ -526,6 +532,7 @@ OP_NAMESPACE_BEGIN
                 WARN_LOG("Failed to load snapshot file.");
                 return;
             }
+            load_writer.Stop();
             g_repl->GetReplLog().SetReplKey(m_ctx.cached_master_runid);
             m_ctx.sync_repl_offset = m_ctx.cached_master_repl_offset;
             m_ctx.sync_repl_cksm = m_ctx.cached_master_repl_cksm;

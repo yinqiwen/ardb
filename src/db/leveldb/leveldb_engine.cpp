@@ -524,13 +524,13 @@ namespace ardb
         return iter;
     }
 
-    int LevelDBEngine::BeginWriteBatch()
+    int LevelDBEngine::BeginWriteBatch(Context& ctx)
     {
         LevelDBLocalContext& rocks_ctx = g_local_ctx.GetValue();
         rocks_ctx.batch.AddRef();
         return 0;
     }
-    int LevelDBEngine::CommitWriteBatch()
+    int LevelDBEngine::CommitWriteBatch(Context& ctx)
     {
         LevelDBLocalContext& rocks_ctx = g_local_ctx.GetValue();
         if (rocks_ctx.batch.ReleaseRef(false) == 0)
@@ -541,7 +541,7 @@ namespace ardb
         }
         return 0;
     }
-    int LevelDBEngine::DiscardWriteBatch()
+    int LevelDBEngine::DiscardWriteBatch(Context& ctx)
     {
         LevelDBLocalContext& rocks_ctx = g_local_ctx.GetValue();
         if (rocks_ctx.batch.ReleaseRef(true) == 0)

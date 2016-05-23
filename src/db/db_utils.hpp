@@ -57,6 +57,26 @@ OP_NAMESPACE_BEGIN
             }
     };
 
+    /*
+     *  A multi thread db writer, which could do db write operations by several threads to increase
+     *  write performance.
+     *  It's used in loading snapshot.
+     */
+    class DBWriterWorker;
+    class DBWriter
+    {
+        private:
+            std::vector<DBWriterWorker*> m_workers;
+            uint32 m_cursor;
+            DBWriterWorker* GetWorker();
+        public:
+            DBWriter(int workers = 4);
+            int Put(const Data& ns, const Slice& key, const Slice& value);
+            int Put(const KeyObject& k, const ValueObject& value);
+            void Stop();
+            ~DBWriter();
+    };
+
 OP_NAMESPACE_END
 
 #endif /* SRC_DB_DB_UTILS_HPP_ */

@@ -35,11 +35,11 @@
 #include "buffer/buffer_helper.hpp"
 #include "context.hpp"
 #include "db/codec.hpp"
+#include "db/db_utils.hpp"
 #include "thread/thread_mutex_lock.hpp"
 
 namespace ardb
 {
-
     enum SnapshotType
     {
         REDIS_DUMP = 1, ARDB_DUMP
@@ -55,6 +55,7 @@ namespace ardb
     class ObjectIO
     {
         protected:
+            DBWriter* m_dbwriter;
             virtual bool Read(void* buf, size_t buflen, bool cksm = true) = 0;
             virtual int Write(const void* buf, size_t buflen) = 0;
             int WriteType(uint8 type);
@@ -88,7 +89,17 @@ namespace ardb
             int ArdbWriteMagicHeader();
             int ArdbLoadChunk(Context& ctx, int type);
             int ArdbLoadBuffer(Context& ctx, Buffer& buffer);
+
+            DBWriter& GetDBWriter();
         public:
+            ObjectIO() :
+                    m_dbwriter(NULL)
+            {
+            }
+            void SetDBWriter(DBWriter* writer)
+            {
+                m_dbwriter = writer;
+            }
             int ArdbSaveRawKeyValue(const Slice& key, const Slice& value, Buffer& buffer, int64 ttl);
             int ArdbFlushWriteBuffer(Buffer& buffer);
             virtual ~ObjectIO()
@@ -96,7 +107,7 @@ namespace ardb
             }
     };
 
-    class ObjectBuffer:public ObjectIO
+    class ObjectBuffer: public ObjectIO
     {
         private:
             Buffer m_buffer;
@@ -121,7 +132,7 @@ namespace ardb
 
     };
 
-    class Snapshot:public ObjectIO
+    class Snapshot: public ObjectIO
     {
         protected:
             FILE* m_read_fp;

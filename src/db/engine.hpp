@@ -96,12 +96,28 @@ OP_NAMESPACE_BEGIN
 
             virtual int Compact(Context& ctx, const KeyObject& start, const KeyObject& end) = 0;
 
-            virtual int BeginWriteBatch() = 0;
-            virtual int CommitWriteBatch() = 0;
-            virtual int DiscardWriteBatch() = 0;
+            virtual int BeginWriteBatch(Context& ctx) = 0;
+            virtual int CommitWriteBatch(Context& ctx) = 0;
+            virtual int DiscardWriteBatch(Context& ctx) = 0;
 
             virtual int ListNameSpaces(Context& ctx, DataArray& nss) = 0;
             virtual int DropNameSpace(Context& ctx, const Data& ns) = 0;
+
+            virtual int Flush(Context& ctx, const Data& ns)
+            {
+                return ERR_NOTSUPPORTED;
+            }
+            virtual int FlushAll(Context& ctx);
+
+            virtual int BeginBulkLoad(Context& ctx)
+            {
+                return ERR_NOTSUPPORTED;
+            }
+
+            virtual int EndBulkLoad(Context& ctx)
+            {
+                return ERR_NOTSUPPORTED;
+            }
 
             virtual int64_t EstimateKeysNum(Context& ctx, const Data& ns) = 0;
             virtual void Stats(Context& ctx, std::string& str) = 0;
@@ -121,7 +137,7 @@ OP_NAMESPACE_BEGIN
             WriteBatchGuard(Context& c, Engine* e) :
                     ctx(c), engine(NULL), err(0)
             {
-                int err = e->BeginWriteBatch();
+                int err = e->BeginWriteBatch(ctx);
                 if (0 == err)
                 {
                     engine = e;
@@ -137,11 +153,11 @@ OP_NAMESPACE_BEGIN
                 {
                     if (0 == err)
                     {
-                        err = engine->CommitWriteBatch();
+                        err = engine->CommitWriteBatch(ctx);
                     }
                     else
                     {
-                        engine->DiscardWriteBatch();
+                        engine->DiscardWriteBatch(ctx);
                     }
                     ctx.transc_err = err;
                 }

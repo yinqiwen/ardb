@@ -496,21 +496,21 @@ namespace ardb
         ValueObject val;
         return Get(ctx, key, val) == 0;
     }
-    int WiredTigerEngine::BeginWriteBatch()
+    int WiredTigerEngine::BeginWriteBatch(Context& ctx)
     {
         /*
          * do nothing now
          */
         return 0;
     }
-    int WiredTigerEngine::CommitWriteBatch()
+    int WiredTigerEngine::CommitWriteBatch(Context& ctx)
     {
         /*
          * do nothing now
          */
         return 0;
     }
-    int WiredTigerEngine::DiscardWriteBatch()
+    int WiredTigerEngine::DiscardWriteBatch(Context& ctx)
     {
         /*
          * do nothing now

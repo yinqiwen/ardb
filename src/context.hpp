@@ -51,9 +51,10 @@ OP_NAMESPACE_BEGIN
             unsigned slave :1;
             unsigned lua :1;
             unsigned pubsub :1;
+            unsigned bulk_loading:1;
             CallFlags() :
                     no_wal(0), no_fill_reply(0), create_if_notexist(0), fuzzy_check(0), redis_compatible(0), iterate_multi_keys(0), iterate_no_upperbound(0), iterate_total_order(
-                            0), slave(0), lua(0), pubsub(0)
+                            0), slave(0), lua(0), pubsub(0),bulk_loading(0)
             {
             }
     };
