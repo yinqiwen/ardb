@@ -1012,6 +1012,10 @@ namespace ardb
         guard.ctx.lua_executing_func = funcname.c_str() + 2;
         guard.ctx.lua_kill = false;
         save_exec_ctx(&guard.ctx);
+        /*
+         * only propagate replication log with 'eval' command
+         */
+        ctx.flags.no_wal = 1;
 
 //        LockGuard<ThreadMutex> guard(g_lua_mutex, g_db->GetConfig().lua_exec_atomic); //only one transc allowed exec at the same time in multi threads
         int errid = lua_pcall(m_lua, 0, 1, -2);
@@ -1128,7 +1132,25 @@ namespace ardb
 
     int Ardb::EvalSHA(Context& ctx, RedisCommandFrame& cmd)
     {
-        return Eval(ctx, cmd);
+        int old_dirty = ctx.dirty;
+        int err = Eval(ctx, cmd);
+        if(0 == err)
+        {
+            if(GetConf().master_host.empty() && ctx.dirty != old_dirty)
+            {
+                /*
+                 * rewrite command to 'eval'
+                 */
+                cmd.SetCommand("eval");
+                cmd.SetType(REDIS_CMD_EVAL);
+                std::string* body = get_script_from_cache("f_" + cmd.GetArguments()[0]);
+                if(NULL != body)
+                {
+                    cmd.GetMutableArguments()[0] = *body;
+                }
+            }
+        }
+        return err;
     }
 
     int Ardb::Script(Context& ctx, RedisCommandFrame& cmd)
@@ -1190,7 +1212,6 @@ namespace ardb
             if (cmd.GetArguments().size() != 2)
             {
                 reply.SetErrCode(ERR_INVALID_ARGS);
-                //fill_error_reply(ctx.reply, "wrong number of arguments for SCRIPT LOAD");
             }
             else
             {
@@ -1208,7 +1229,6 @@ namespace ardb
         else
         {
             reply.SetErrCode(ERR_INVALID_SYNTAX);
-            //fill_error_reply(ctx.reply, "Syntax error, try SCRIPT (EXISTS | FLUSH | KILL | LOAD)");
         }
         return 0;
     }

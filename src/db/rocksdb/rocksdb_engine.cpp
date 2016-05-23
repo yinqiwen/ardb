@@ -380,23 +380,16 @@ OP_NAMESPACE_BEGIN
                     }
                     if (meta.GetTTL() > 0 && meta.GetTTL() <= get_current_epoch_millis())
                     {
+                        g_db->AddExpiredKey(ns, k.GetKey());
                         if (meta.GetType() != KEY_STRING)
                         {
-                            g_db->AddExpiredKey(ns, k.GetKey());
                             return false;
                         }
                         else
                         {
-                            /*
-                             * Generate 'del' command for replication
-                             */
-                            g_db->FeedReplicationDelOperation(ns, k.GetKey().AsString());
                             return true;
                         }
                     }
-                }
-                else
-                {
                 }
                 return false;
             }

@@ -145,7 +145,7 @@ OP_NAMESPACE_BEGIN
 
     Ardb::Ardb() :
             m_engine(NULL), m_starttime(0), m_loading_data(false), m_redis_cursor_seed(0), m_watched_ctxs(NULL), m_ready_keys(NULL), m_monitors(NULL), m_restoring_nss(
-                    NULL), m_min_ttl(-1)
+            NULL), m_min_ttl(-1)
     {
         g_db = this;
         m_settings.set_empty_key("");
@@ -341,7 +341,7 @@ OP_NAMESPACE_BEGIN
         { "migratedb", REDIS_CMD_MIGRATEDB, &Ardb::MigrateDB, 4, 4, "w", 0, 0, 0 },
         { "restorechunk", REDIS_CMD_RESTORECHUNK, &Ardb::RestoreChunk, 1, 1, "wl", 0, 0, 0 },
         { "restoredb", REDIS_CMD_RESTOREDB, &Ardb::RestoreDB, 1, 1, "wl", 0, 0, 0 },
-        { "monitor", REDIS_CMD_MONITOR, &Ardb::Monitor, 0, 0, "ars", 0, 0, 0 },};
+        { "monitor", REDIS_CMD_MONITOR, &Ardb::Monitor, 0, 0, "ars", 0, 0, 0 }, };
 
         CostRanges cmdstat_ranges;
         cmdstat_ranges.push_back(CostRange(0, 1000));
@@ -915,13 +915,9 @@ OP_NAMESPACE_BEGIN
             ScanTTLDB();
             return 0;
         }
-        Data current_scan_ns;
         KeyPrefix scan_key;
         Iterator* iter = NULL;
         Context scan_ctx;
-        scan_ctx.flags.iterate_multi_keys = 1;
-        uint32 max_scan_keys_one_iter = 100;
-        uint32 iter_scaned_keys_num = 0;
         int64 total_expired_keys = 0;
         uint64 start_time = get_current_epoch_millis();
         while (true)
@@ -933,6 +929,10 @@ OP_NAMESPACE_BEGIN
                     scan_key = *(m_expires.begin());
                     m_expires.erase(m_expires.begin());
                 }
+                else
+                {
+                    break;
+                }
             }
             if (scan_key.IsNil())
             {
@@ -940,45 +940,46 @@ OP_NAMESPACE_BEGIN
             }
             KeyObject key(scan_key.ns, KEY_META, scan_key.key);
             KeyLockGuard keylocker(scan_ctx, key);
-            if (NULL == iter || current_scan_ns != scan_key.ns || iter_scaned_keys_num >= max_scan_keys_one_iter)
+            ValueObject meta;
+            bool toremove = false;
+            int err = m_engine->Get(scan_ctx, key, meta);
+            if (ERR_ENTRY_NOT_EXIST == err)
             {
-                DELETE(iter);
-                iter = m_engine->Find(scan_ctx, key);
-                current_scan_ns = scan_key.ns;
-                iter_scaned_keys_num = 1;
+                toremove = true;
+            }
+            else if (0 == err)
+            {
+                if (0 == m_engine->Get(scan_ctx, key, meta))
+                {
+                    uint64 ttl = meta.GetTTL();
+                    if (ttl == 0 || ttl > get_current_epoch_millis())
+                    {
+                        continue;
+                    }
+                    toremove = true;
+                }
             }
             else
             {
-                iter->Jump(key);
-                iter_scaned_keys_num++;
+                continue;
             }
-            while (iter->Valid())
+            total_expired_keys++;
+            if (toremove)
             {
-                KeyObject& iter_key = iter->Key();
-                if (iter_key.GetKey() != key.GetKey() || iter_key.GetNameSpace() != key.GetNameSpace())
-                {
-                    break;
-                }
-                if (iter_key.GetType() == KEY_META)
-                {
-                    uint64 ttl = iter->Value().GetTTL();
-                    if (ttl == 0 || ttl > get_current_epoch_millis())
-                    {
-                        break;
-                    }
-                    total_expired_keys++;
-                    /*
-                     * generate 'del' command for master instance
-                     */
-                    FeedReplicationDelOperation(iter_key.GetNameSpace(), iter_key.GetKey().AsString());
-                }
-                iter->Del();
-                //RemoveKey(scan_ctx, iter_key);
-                iter->Next();
+                /*
+                 * generate 'del' command for master instance
+                 */
+                FeedReplicationDelOperation(key.GetNameSpace(), key.GetKey().AsString());
             }
-            scan_key.Clear();
+            if (KEY_STRING == meta.GetType())
+            {
+                RemoveKey(scan_ctx, key);
+            }
+            else if (meta.GetType() > 0)
+            {
+                DelKey(scan_ctx, key);
+            }
         }
-        DELETE(iter);
         uint64 end_time = get_current_epoch_millis();
         if (total_expired_keys > 0)
         {
@@ -988,7 +989,6 @@ OP_NAMESPACE_BEGIN
     }
     void Ardb::AddExpiredKey(const Data& ns, const Data& key)
     {
-        //printf("###Add %s:%s\n", ns.AsString().c_str(), key.AsString().c_str());
         KeyPrefix k;
         k.key = key;
         k.ns = ns;
@@ -1149,15 +1149,14 @@ OP_NAMESPACE_BEGIN
         MarkRestoring(ctx, false);
         {
             WriteLockGuard<SpinRWLock> guard(m_monitors_lock);
-            if(NULL != m_monitors)
+            if (NULL != m_monitors)
             {
                 m_monitors->erase(&ctx);
-                if(m_monitors->empty())
+                if (m_monitors->empty())
                 {
                     DELETE(m_monitors);
                 }
             }
-
         }
     }
 
@@ -1270,7 +1269,7 @@ OP_NAMESPACE_BEGIN
         }
         ctx.last_cmdtype = setting.type;
 
-        if(NULL != m_monitors && !IsLoadingData() && !(setting.flags & (ARDB_CMD_SKIP_MONITOR|ARDB_CMD_ADMIN)))
+        if (NULL != m_monitors && !IsLoadingData() && !(setting.flags & (ARDB_CMD_SKIP_MONITOR | ARDB_CMD_ADMIN)))
         {
             /*
              * feed monitors
@@ -1296,7 +1295,6 @@ OP_NAMESPACE_BEGIN
         {
             g_repl->GetReplLog().WriteWAL(ctx.ns, args);
         }
-
 
         return ret;
     }
