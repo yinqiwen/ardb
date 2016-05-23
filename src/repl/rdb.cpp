@@ -1572,6 +1572,9 @@ namespace ardb
         }
         m_write_buffer.Clear();
         m_write_buffer.Compact(256);
+        m_cksm = 0;
+        m_processed_bytes = 0;
+        m_writed_data_size = 0;
     }
     int Snapshot::OpenWriteFile(const std::string& file)
     {

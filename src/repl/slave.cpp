@@ -37,6 +37,9 @@
 #include "repl.hpp"
 #include "redis/crc64.h"
 #include "db/db.hpp"
+#include "util/concurrent_queue.hpp"
+
+#define MAX_REPLAY_CACHE_SIZE 1024*1024
 
 OP_NAMESPACE_BEGIN
 
@@ -108,6 +111,37 @@ OP_NAMESPACE_BEGIN
         sync_repl_cksm = crc64(sync_repl_offset, (const unsigned char *) (buffer.GetRawReadBuffer()), buffer.ReadableBytes());
     }
 
+//    struct SlaveWorker
+//    {
+//            SPSCQueue<RedisCommandFrame*> write_queue;
+//            Context ctx;
+//            bool running;
+//            SlaveWorker() :
+//                    running(true)
+//            {
+//                ctx.flags.slave = 1;
+//                ctx.flags.no_wal = 1;
+//            }
+//            void Run()
+//            {
+//                while (running)
+//                {
+//                    RedisCommandFrame* cmd = NULL;
+//                    while(write_queue.Pop(cmd))
+//                    {
+//                        g_db->Call(ctx, *cmd);
+//                        DELETE(cmd);
+//                    }
+//                    Thread::Sleep(1, MILLIS);
+//                }
+//            }
+//            void Offer(RedisCommandFrame* cmd)
+//            {
+//                write_queue.Push(cmd);
+//            }
+//
+//    };
+
     Slave::Slave() :
             m_client(NULL), m_clientid(0)
     {
@@ -141,6 +175,14 @@ OP_NAMESPACE_BEGIN
 
     void Slave::ReplayWAL()
     {
+        static bool replaying = false;
+        /*
+         * this method is not reentrant when replaying local wal
+         */
+        if (replaying)
+        {
+            return;
+        }
         if (m_ctx.state != SLAVE_STATE_REPLAYING_WAL)
         {
             //can not replay wal in non synced state
@@ -150,21 +192,32 @@ OP_NAMESPACE_BEGIN
             }
             return;
         }
-        int err = swal_replay(g_repl->GetReplLog().GetWAL(), m_ctx.sync_repl_offset, -1, slave_replay_wal, NULL);
-        if (0 != err)
+        replaying = true;
+        while (true)
         {
-            ERROR_LOG("Failed to replay wal with sync_offset:%lld, wal_start_offset:%llu", m_ctx.sync_repl_offset, g_repl->GetReplLog().WALStartOffset());
-            DoClose();
-            return;
-        }
-        if (m_ctx.sync_repl_offset == g_repl->GetReplLog().WALEndOffset())
-        {
-            m_ctx.state = SLAVE_STATE_SYNCED;
-            if (!g_repl->GetReplLog().CurrentNamespace().empty())
+            if (m_ctx.sync_repl_offset == g_repl->GetReplLog().WALEndOffset())
             {
-                m_ctx.ctx.ns.SetString(g_repl->GetReplLog().CurrentNamespace(), false);
+                m_ctx.state = SLAVE_STATE_SYNCED;
+                if (!g_repl->GetReplLog().CurrentNamespace().empty())
+                {
+                    m_ctx.ctx.ns.SetString(g_repl->GetReplLog().CurrentNamespace(), false);
+                }
+                break;
             }
+            if (m_ctx.sync_repl_offset < g_repl->GetReplLog().WALStartOffset() || m_ctx.sync_repl_offset > g_repl->GetReplLog().WALEndOffset())
+            {
+                ERROR_LOG("Failed to replay wal with sync_offset:%lld, wal_start_offset:%llu, wal_end_offset:%lld", m_ctx.sync_repl_offset, g_repl->GetReplLog().WALStartOffset(), g_repl->GetReplLog().WALEndOffset());
+                DoClose();
+                /*
+                 * Data lost when loading wal while wal, reset wal record, clear replication key
+                 * Next time, when this slave connected master, it would do a full resync from master.
+                 */
+                g_repl->GetReplLog().SetReplKey("?");
+                break;
+            }
+            swal_replay(g_repl->GetReplLog().GetWAL(), m_ctx.sync_repl_offset, MAX_REPLAY_CACHE_SIZE, slave_replay_wal, NULL);
         }
+        replaying = false;
     }
 
     void Slave::ReplayWAL(const void* log, size_t loglen)
@@ -230,8 +283,7 @@ OP_NAMESPACE_BEGIN
     {
         m_ctx.cmd_recved_time = time(NULL);
         int len = g_repl->GetReplLog().DirectWriteWAL(cmd);
-        DEBUG_LOG("Recv master inline:%d cmd %s with type:%d at %lld %lld at state:%s", cmd.IsInLine(), cmd.ToString().c_str(), len, m_ctx.sync_repl_offset,
-                g_repl->GetReplLog().WALEndOffset(), state2String(m_ctx.state));
+        DEBUG_LOG("Recv master inline:%d cmd %s with type:%d at %lld %lld at state:%s", cmd.IsInLine(), cmd.ToString().c_str(), len, m_ctx.sync_repl_offset, g_repl->GetReplLog().WALEndOffset(), state2String(m_ctx.state));
         /*
          * Only execute command after slave fully synced from master
          */
@@ -242,13 +294,13 @@ OP_NAMESPACE_BEGIN
             /*
              * todo:
              * call db may block current sync thread, maybe use more threads to exec command better.
+             * If use more threads to handle sync commands, there are several new problems:
+             * 1. Keep the commands exec order for same key
+             *    eg: lpush list a  & lpush list b must be executed in same thread  to keep exec order
+             * 2. ?
              */
             g_db->Call(m_ctx.ctx, cmd);
             m_ctx.UpdateSyncOffsetCksm(cmd.GetRawProtocolData());
-        }
-        else
-        {
-            ReplayWAL();
         }
     }
     void Slave::Routine()
@@ -257,7 +309,7 @@ OP_NAMESPACE_BEGIN
         {
             return;
         }
-        ReplayWAL();
+        //ReplayWAL();
         uint32 now = time(NULL);
         if (NULL == m_client)
         {
@@ -275,17 +327,20 @@ OP_NAMESPACE_BEGIN
                     return;
                 }
             }
-            ReportACK();
-
         }
+        ReportACK();
         //m_routine_ts = now;
     }
 
     void Slave::ReportACK()
     {
+        if (NULL == m_client)
+        {
+            return;
+        }
         if (m_ctx.state == SLAVE_STATE_SYNCED || m_ctx.state == SLAVE_STATE_LOADING_SNAPSHOT)
         {
-            if (m_ctx.server_support_psync && NULL != m_client)
+            if (m_ctx.server_support_psync)
             {
                 Buffer buffer;
                 RedisCommandFrame ack("REPLCONF");
@@ -294,10 +349,12 @@ OP_NAMESPACE_BEGIN
                 RedisCommandEncoder::Encode(buffer, ack);
                 m_client->Write(buffer);
             }
-            else
-            {
-
-            }
+        }
+        else
+        {
+            Buffer new_line;
+            new_line.Write("\n", 1);
+            m_client->Write(new_line);
         }
     }
 
@@ -318,6 +375,11 @@ OP_NAMESPACE_BEGIN
         SlaveContext* slave = (SlaveContext*) cb;
         if (slave->state != SLAVE_STATE_LOADING_SNAPSHOT)
         {
+            return -1;
+        }
+        if(snapshot->CachedReplOffset() < g_repl->GetReplLog().WALStartOffset())
+        {
+            ERROR_LOG("Slave is too slow to load snapshot, while the wal log is full fill from loading snapshot.");
             return -1;
         }
         return 0;
@@ -380,13 +442,11 @@ OP_NAMESPACE_BEGIN
                     Buffer sync;
                     if (!m_ctx.server_is_redis)
                     {
-                        sync.Printf("psync %s %lld cksm %llu\r\n", g_repl->GetReplLog().IsReplKeySelfGen() ? "?" : g_repl->GetReplLog().GetReplKey().c_str(),
-                                g_repl->GetReplLog().WALEndOffset(), g_repl->GetReplLog().WALCksm());
+                        sync.Printf("psync %s %lld cksm %llu\r\n", g_repl->GetReplLog().IsReplKeySelfGen() ? "?" : g_repl->GetReplLog().GetReplKey().c_str(), g_repl->GetReplLog().WALEndOffset(), g_repl->GetReplLog().WALCksm());
                     }
                     else
                     {
-                        sync.Printf("psync %s %lld\r\n", g_repl->GetReplLog().IsReplKeySelfGen() ? "?" : g_repl->GetReplLog().GetReplKey().c_str(),
-                                g_repl->GetReplLog().WALEndOffset());
+                        sync.Printf("psync %s %lld\r\n", g_repl->GetReplLog().IsReplKeySelfGen() ? "?" : g_repl->GetReplLog().GetReplKey().c_str(), g_repl->GetReplLog().WALEndOffset());
                     }
                     INFO_LOG("Send %s", trim_string(sync.AsString()).c_str());
                     m_ctx.state = SLAVE_STATE_WAITING_PSYNC_REPLY;

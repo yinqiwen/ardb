@@ -130,7 +130,7 @@ OP_NAMESPACE_BEGIN
     {
         const Buffer& raw = cmd.GetRawProtocolData();
         swal_append(m_wal, raw.GetRawReadBuffer(), raw.ReadableBytes());
-        if(!strncasecmp(cmd.GetCommand().c_str(), "select", 6))
+        if (!strncasecmp(cmd.GetCommand().c_str(), "select", 6))
         {
             SetCurrentNamespace(cmd.GetArguments()[0]);
         }
@@ -239,7 +239,7 @@ OP_NAMESPACE_BEGIN
     }
     bool ReplicationBacklog::IsValidOffsetCksm(int64_t offset, uint64_t cksm)
     {
-        bool valid_offset = offset > 0 && offset <= (swal_end_offset(m_wal)) &&offset >= swal_start_offset(m_wal);
+        bool valid_offset = offset > 0 && offset <= (swal_end_offset(m_wal)) && offset >= swal_start_offset(m_wal);
         if (!valid_offset)
         {
             return false;
@@ -316,12 +316,50 @@ OP_NAMESPACE_BEGIN
     {
         return m_slave;
     }
+    void ReplicationService::Routine()
+    {
+        static time_t last_stable_time = 0;
+        bool clear_swal_replay_cache = true;
+        if (!g_db->GetConf().master_host.empty())
+        {
+            if (!g_repl->GetSlave().IsSynced())
+            {
+                clear_swal_replay_cache = false;
+            }
+        }
+        if (clear_swal_replay_cache)
+        {
+            clear_swal_replay_cache = GetMaster().IsAllSlaveSyncingCache();
+        }
+        if (clear_swal_replay_cache)
+        {
+            time_t now = time(NULL);
+            if (last_stable_time == 0)
+            {
+                last_stable_time = now;
+            }
+            if (now - last_stable_time < 10 * 60)
+            {
+                return;
+            }
+            last_stable_time = now;
+            if (swal_clear_replay_cache(GetReplLog().m_wal))
+            {
+                INFO_LOG("Close wal log mmap cache space since current server is in stable replication state.");
+            }
+        }
+        else
+        {
+            last_stable_time = 0;
+        }
+    }
     void ReplicationService::Run()
     {
         struct RoutineTask: public Runnable
         {
                 void Run()
                 {
+                    g_repl->Routine();
                     g_repl->GetMaster().Routine();
                     g_repl->GetSlave().Routine();
                     g_repl->GetReplLog().Routine();

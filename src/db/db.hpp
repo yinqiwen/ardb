@@ -85,18 +85,18 @@ OP_NAMESPACE_BEGIN
             struct KeyLockGuard
             {
                     Context& ctx;
-                    KeyObject& k;
+                    const KeyObject& k;
                     bool lock;
 
-                    KeyLockGuard(Context& cctx, KeyObject& key, bool _lock = true);
+                    KeyLockGuard(Context& cctx, const KeyObject& key, bool _lock = true);
                     ~KeyLockGuard();
             };
             struct KeysLockGuard
             {
                     Context& ctx;
                     KeyObjectArray ks;
-                    KeysLockGuard(Context& cctx, KeyObjectArray& keys);
-                    KeysLockGuard(Context& cctx, KeyObject& key1, KeyObject& key2);
+                    KeysLockGuard(Context& cctx, const KeyObjectArray& keys);
+                    KeysLockGuard(Context& cctx, const KeyObject& key1, const KeyObject& key2);
                     ~KeysLockGuard();
             };
 
@@ -163,15 +163,15 @@ OP_NAMESPACE_BEGIN
 
             void SaveTTL(Context& ctx, const Data& ns, const std::string& key, int64 old_ttl, int64_t new_ttl);
             void ScanTTLDB();
-            void FeedReplicationBacklog(const Data& ns, RedisCommandFrame& cmd);
+            void FeedReplicationBacklog(Context& ctx,const Data& ns, RedisCommandFrame& cmd);
             void FeedMonitors(Context& ctx,const Data& ns, RedisCommandFrame& cmd);
 
             int WriteReply(Context& ctx, RedisReply* r, bool async);
 
-            void LockKey(KeyObject& key);
-            void UnlockKey(KeyObject& key);
-            void LockKeys(KeyObjectArray& key);
-            void UnlockKeys(KeyObjectArray& key);
+            void LockKey(const KeyObject& key);
+            void UnlockKey(const KeyObject& key);
+            void LockKeys(const KeyObjectArray& key);
+            void UnlockKeys(const KeyObjectArray& key);
 
             Engine* GetEngine()
             {
@@ -454,7 +454,7 @@ OP_NAMESPACE_BEGIN
             int MergeOperation(const KeyObject& key, ValueObject& val, uint16_t op, DataArray& args);
             int MergeOperands(uint16_t left, const DataArray& left_args, uint16_t& right, DataArray& right_args);
             void AddExpiredKey(const Data& ns, const Data& key);
-            void FeedReplicationDelOperation(const Data& ns, const std::string& key);
+            void FeedReplicationDelOperation(Context& ctx,  const Data& ns, const std::string& key);
             int TouchWatchKey(Context& ctx, const KeyObject& key);
             void FreeClient(Context& ctx);
             void AddClient(Context& ctx);

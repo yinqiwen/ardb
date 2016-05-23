@@ -102,7 +102,7 @@ OP_NAMESPACE_BEGIN
         return strcasecmp(s1.c_str(), s2.c_str()) == 0 ? true : false;
     }
 
-    Ardb::KeyLockGuard::KeyLockGuard(Context& cctx, KeyObject& key, bool _lock) :
+    Ardb::KeyLockGuard::KeyLockGuard(Context& cctx, const KeyObject& key, bool _lock) :
             ctx(cctx), k(key), lock(_lock)
     {
         if (lock)
@@ -122,13 +122,13 @@ OP_NAMESPACE_BEGIN
         }
     }
 
-    Ardb::KeysLockGuard::KeysLockGuard(Context& cctx, KeyObjectArray& keys) :
+    Ardb::KeysLockGuard::KeysLockGuard(Context& cctx, const KeyObjectArray& keys) :
             ctx(cctx), ks(keys)
     {
         ctx.keyslocked = true;
         g_db->LockKeys(ks);
     }
-    Ardb::KeysLockGuard::KeysLockGuard(Context& cctx, KeyObject& key1, KeyObject& key2) :
+    Ardb::KeysLockGuard::KeysLockGuard(Context& cctx, const KeyObject& key1, const KeyObject& key2) :
             ctx(cctx)
     {
         ks.push_back(key1);
@@ -627,7 +627,7 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    void Ardb::LockKey(KeyObject& key)
+    void Ardb::LockKey(const KeyObject& key)
     {
         KeyPrefix lk;
         lk.ns = key.GetNameSpace();
@@ -671,7 +671,7 @@ OP_NAMESPACE_BEGIN
             }
         }
     }
-    void Ardb::UnlockKey(KeyObject& key)
+    void Ardb::UnlockKey(const KeyObject& key)
     {
         KeyPrefix lk;
         lk.ns = key.GetNameSpace();
@@ -690,7 +690,7 @@ OP_NAMESPACE_BEGIN
         }
     }
 
-    void Ardb::LockKeys(KeyObjectArray& ks)
+    void Ardb::LockKeys(const KeyObjectArray& ks)
     {
         typedef std::vector<std::pair<LockTable::iterator, bool> > IterRetArray;
         while (true)
@@ -748,7 +748,7 @@ OP_NAMESPACE_BEGIN
             }
         }
     }
-    void Ardb::UnlockKeys(KeyObjectArray& ks)
+    void Ardb::UnlockKeys(const KeyObjectArray& ks)
     {
         LockGuard<SpinMutexLock> guard(m_locking_keys_lock);
         ThreadMutexLock* lock = NULL;
@@ -772,7 +772,7 @@ OP_NAMESPACE_BEGIN
         }
     }
 
-    void Ardb::FeedReplicationDelOperation(const Data& ns, const std::string& key)
+    void Ardb::FeedReplicationDelOperation(Context& ctx, const Data& ns, const std::string& key)
     {
         if (!g_repl->IsInited())
         {
@@ -783,15 +783,35 @@ OP_NAMESPACE_BEGIN
          */
         RedisCommandFrame del("del");
         del.AddArg(key);
-        FeedReplicationBacklog(ns, del);
+        FeedReplicationBacklog(ctx, ns, del);
     }
 
-    void Ardb::FeedReplicationBacklog(const Data& ns, RedisCommandFrame& cmd)
+    void Ardb::FeedReplicationBacklog(Context& ctx, const Data& ns, RedisCommandFrame& cmd)
     {
         if (!g_repl->IsInited())
         {
             return;
         }
+        /*
+         * Since this method may be invoked by multi threads, there is a potential risk that replication commands may have wrong sequence
+         * if one thread do db operation first but feed replication log later.
+         * eg:
+         * Thread A: lpush mylist a (1)  Thread B: lpush mylist b (2)
+         *                   |                        |
+         *                  \|/                      \|/
+         *                     Replication Log Thread
+         *                      lpush mylist b
+         *                      lpush mylist a
+         * This risk only has data inconsistent effect when multi-threads operating on same key at the same time which is also a rare condition.
+         * If multi-threads operating on different keys at the same time,there is no any risk.
+         *
+         *
+         */
+//        if (!ctx.keyslocked)
+//        {
+//            ERROR_LOG("Can NOT feed replication wal log without key locked");
+//            return;
+//        }
         g_repl->GetReplLog().WriteWAL(ns, cmd);
     }
 
@@ -883,7 +903,7 @@ OP_NAMESPACE_BEGIN
                         DelKey(scan_ctx, meta_key);
                     }
                     total_expired_keys++;
-                    FeedReplicationDelOperation(meta_key.GetNameSpace(), meta_key.GetKey().AsString());
+                    FeedReplicationDelOperation(scan_ctx, meta_key.GetNameSpace(), meta_key.GetKey().AsString());
                 }
             }
             else
@@ -956,7 +976,15 @@ OP_NAMESPACE_BEGIN
                     {
                         continue;
                     }
+<<<<<<< HEAD
                     toremove = true;
+=======
+                    total_expired_keys++;
+                    /*
+                     * generate 'del' command for master instance
+                     */
+                    FeedReplicationDelOperation(scan_ctx, iter_key.GetNameSpace(), iter_key.GetKey().AsString());
+>>>>>>> 2feae77a188a704360f8efa05ea3d6884530182a
                 }
             }
             else
@@ -1074,6 +1102,7 @@ OP_NAMESPACE_BEGIN
             {
                 if (GetConf().master_host.empty() || !GetConf().slave_readonly)
                 {
+                    KeyLockGuard keylocker(ctx, key, ctx.keyslocked ? false : true);
                     int old_dirty = ctx.dirty;
                     if (meta.GetType() == KEY_STRING)
                     {
@@ -1089,7 +1118,7 @@ OP_NAMESPACE_BEGIN
                          * master generate 'del' command for replication & resume dirty after delete kvs
                          */
                         ctx.dirty = old_dirty;
-                        FeedReplicationDelOperation(key.GetNameSpace(), key.GetKey().AsString());
+                        FeedReplicationDelOperation(ctx, key.GetNameSpace(), key.GetKey().AsString());
                     }
                 }
                 meta.Clear();
@@ -1293,7 +1322,7 @@ OP_NAMESPACE_BEGIN
          */
         if (!ctx.flags.no_wal && ctx.dirty > 0 && setting.IsWriteCommand())
         {
-            g_repl->GetReplLog().WriteWAL(ctx.ns, args);
+            FeedReplicationBacklog(ctx, ctx.ns, args);
         }
 
         return ret;
@@ -1389,8 +1418,7 @@ OP_NAMESPACE_BEGIN
 
         /* Don't accept write commands if there are not enough good slaves and
          * user configured the min-slaves-to-write option. */
-        if (GetConf().master_host.empty() && GetConf().repl_min_slaves_to_write > 0 && GetConf().repl_min_slaves_max_lag > 0
-                && (setting.flags & ARDB_CMD_WRITE) > 0 && g_repl->GetMaster().GoodSlavesCount() < GetConf().repl_min_slaves_to_write)
+        if (GetConf().master_host.empty() && GetConf().repl_min_slaves_to_write > 0 && GetConf().repl_min_slaves_max_lag > 0 && (setting.flags & ARDB_CMD_WRITE) > 0 && g_repl->GetMaster().GoodSlavesCount() < GetConf().repl_min_slaves_to_write)
         {
             ctx.AbortTransaction();
             reply.SetErrCode(ERR_NOREPLICAS);
@@ -1447,8 +1475,7 @@ OP_NAMESPACE_BEGIN
         }
         else if (ctx.IsSubscribed())
         {
-            if (setting.type != REDIS_CMD_SUBSCRIBE && setting.type != REDIS_CMD_PSUBSCRIBE && setting.type != REDIS_CMD_PUNSUBSCRIBE
-                    && setting.type != REDIS_CMD_UNSUBSCRIBE && setting.type != REDIS_CMD_QUIT)
+            if (setting.type != REDIS_CMD_SUBSCRIBE && setting.type != REDIS_CMD_PSUBSCRIBE && setting.type != REDIS_CMD_PUNSUBSCRIBE && setting.type != REDIS_CMD_UNSUBSCRIBE && setting.type != REDIS_CMD_QUIT)
             {
                 reply.SetErrorReason("only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context");
                 return 0;

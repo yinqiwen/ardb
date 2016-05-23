@@ -46,6 +46,7 @@ using namespace ardb::codec;
 OP_NAMESPACE_BEGIN
     class Master;
     class Slave;
+    class ReplicationService;
     class ReplicationBacklog
     {
         private:
@@ -58,6 +59,7 @@ OP_NAMESPACE_BEGIN
             void FlushSyncWAL();
             friend class Master;
             friend class Slave;
+            friend class ReplicationService;
         public:
             ReplicationBacklog();
             int Init();
@@ -180,6 +182,8 @@ OP_NAMESPACE_BEGIN
 
             void SyncSlave(SlaveSyncContext* slave);
             void SendSnapshotToSlave(SlaveSyncContext* slave);
+            bool IsAllSlaveSyncingCache();
+            friend class ReplicationService;
         public:
             Master();
             int Init();
@@ -224,6 +228,7 @@ OP_NAMESPACE_BEGIN
             ReplicationBacklog m_repl_backlog;
             bool m_inited;
             void Run();
+            void Routine();
         public:
             ReplicationService();
             int Init();
