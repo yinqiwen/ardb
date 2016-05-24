@@ -38,8 +38,6 @@
 #define LEVELDB_SLICE(slice) leveldb::Slice(slice.data(), slice.size())
 #define ARDB_SLICE(slice) Slice(slice.data(), slice.size())
 
-#define LEVEL_ERR(err)  (err.ok()? 0: (err.IsNotFound() ? ERR_ENTRY_NOT_EXIST:(-3000)))
-
 namespace ardb
 {
     static leveldb::DB* g_leveldb = NULL;
@@ -197,9 +195,36 @@ namespace ardb
     {
             LoacalWriteBatch batch;
             LocalSnapshot snapshot;
+            typedef TreeMap<int, leveldb::Status>::Type ErrMap;
+            ErrMap err_map;
     };
 
     static ThreadLocal<LevelDBLocalContext> g_local_ctx;
+
+    static inline int leveldb_err(const leveldb::Status& s)
+    {
+        if (s.ok())
+        {
+            return 0;
+        }
+        if (s.IsNotFound())
+        {
+            return ERR_ENTRY_NOT_EXIST;
+        }
+        LevelDBLocalContext::ErrMap& err_map = g_local_ctx.GetValue().err_map;
+        int err = -1234;
+        if (!err_map.empty())
+        {
+            err = err_map.begin()->first;
+            err--;
+            if(err_map.size() > 10)
+            {
+                err_map.erase(err_map.rbegin()->first);
+            }
+        }
+        err_map[err] = s;
+        return err + STORAGE_ENGINE_ERR_OFFSET;
+    }
 
     LevelDBEngine::LevelDBEngine() :
             m_db(NULL)
@@ -369,7 +394,7 @@ namespace ardb
         {
             s = m_db->Put(opt, key_slice, value_slice);
         }
-        return LEVEL_ERR(s);
+        return leveldb_err(s);
     }
 
     int LevelDBEngine::Put(Context& ctx, const KeyObject& key, const ValueObject& value)
@@ -394,7 +419,7 @@ namespace ardb
         {
             s = m_db->Put(opt, key_slice, value_slice);
         }
-        return LEVEL_ERR(s);
+        return leveldb_err(s);
     }
     int LevelDBEngine::MultiGet(Context& ctx, const KeyObjectArray& keys, ValueObjectArray& values, ErrCodeArray& errs)
     {
@@ -421,7 +446,7 @@ namespace ardb
         Slice ks = local_ctx.GetSlice(key);
         leveldb::Slice key_slice(ks.data(), ks.size());
         s = m_db->Get(opt, key_slice, &valstr);
-        int err = LEVEL_ERR(s);
+        int err = leveldb_err(s);
         if (0 != err)
         {
             return err;
@@ -450,7 +475,7 @@ namespace ardb
         {
             s = m_db->Delete(opt, key_slice);
         }
-        return LEVEL_ERR(s);
+        return leveldb_err(s);
     }
 
     int LevelDBEngine::Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args)
@@ -480,9 +505,13 @@ namespace ardb
 
     const std::string LevelDBEngine::GetErrorReason(int err)
     {
-        leveldb::Status s;
-
-        return s.ToString();
+        err = err - STORAGE_ENGINE_ERR_OFFSET;
+        LevelDBLocalContext::ErrMap& err_map = g_local_ctx.GetValue().err_map;
+        if (err_map.count(err) > 0)
+        {
+            return err_map[err].ToString();
+        }
+        return "";
     }
 
     Iterator* LevelDBEngine::Find(Context& ctx, const KeyObject& key)

@@ -50,8 +50,8 @@
                                          }\
                                        }while(0)
 
-#define WT_ERR(err)  (WT_NOTFOUND == err ? ERR_ENTRY_NOT_EXIST: (err + STORAGE_ENGINE_ERR_OFFSET))
-#define WT_NERR(err)  (WT_NOTFOUND == err ? 0:(err + STORAGE_ENGINE_ERR_OFFSET))
+#define WT_ERR(err)  (WT_NOTFOUND == err ? ERR_ENTRY_NOT_EXIST: (0 == err ? 0 :(err + STORAGE_ENGINE_ERR_OFFSET)))
+#define WT_NERR(err)  (WT_NOTFOUND == err ? 0:(0 == err ? 0 :(err + STORAGE_ENGINE_ERR_OFFSET)))
 
 namespace ardb
 {

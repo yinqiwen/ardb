@@ -30,6 +30,7 @@
 #include "lmdb_engine.hpp"
 #include "db/codec.hpp"
 #include "db/db.hpp"
+#include "db/db_utils.hpp"
 #include "util/helpers.hpp"
 #include "thread/lock_guard.hpp"
 #include <string.h>
@@ -57,13 +58,11 @@
 #define LMDB_DEL_OP 2
 #define LMDB_CKP_OP 3
 
-#define LMDB_ERR(err)  (MDB_NOTFOUND == err ? ERR_ENTRY_NOT_EXIST:(err + STORAGE_ENGINE_ERR_OFFSET))
-#define LMDB_NERR(err)  (MDB_NOTFOUND == err ? 0:(err + STORAGE_ENGINE_ERR_OFFSET))
-
 #define LMDB_META_NAMESPACE "__LMDB_META__"
 
 namespace ardb
 {
+    static int kEngineNotFound = MDB_NOTFOUND;
     static int LMDBCompareFunc(const MDB_val *a, const MDB_val *b)
     {
         return compare_keys((const char*) a->mv_data, a->mv_size, (const char*) b->mv_data, b->mv_size, false);
@@ -484,7 +483,7 @@ namespace ardb
             err = mdb_put(local_ctx.txn, dbi, &k, &v, 0);
             local_ctx.TryReleaseTransanction(err == 0, false);
         }
-        return LMDB_ERR(err);
+        return ENGINE_ERR(err);
     }
     int LMDBEngine::PutRaw(Context& ctx, const Data& ns, const Slice& key, const Slice& value)
     {
@@ -512,7 +511,7 @@ namespace ardb
             err = mdb_put(local_ctx.txn, dbi, &k, &v, 0);
             local_ctx.TryReleaseTransanction(err == 0, false);
         }
-        return LMDB_ERR(err);
+        return ENGINE_ERR(err);
     }
 
     int LMDBEngine::Get(Context& ctx, const KeyObject& key, ValueObject& value)
@@ -548,7 +547,7 @@ namespace ardb
                 mdb_txn_commit(txn);
             }
         }
-        return LMDB_ERR(rc);
+        return ENGINE_ERR(rc);
     }
 
     int LMDBEngine::MultiGet(Context& ctx, const KeyObjectArray& keys, ValueObjectArray& values, ErrCodeArray& errs)
@@ -598,7 +597,7 @@ namespace ardb
                 }
                 else
                 {
-                    errs[i] = LMDB_ERR(rc);
+                    errs[i] = ENGINE_ERR(rc);
                 }
             }
             if (NULL == local_ctx.txn)
@@ -606,7 +605,7 @@ namespace ardb
                 mdb_txn_commit(txn);
             }
         }
-        return LMDB_NERR(rc);
+        return ENGINE_ERR(rc);
     }
     int LMDBEngine::Del(Context& ctx, const KeyObject& key)
     {
@@ -633,10 +632,9 @@ namespace ardb
         if (0 == rc)
         {
             rc = mdb_del(local_ctx.txn, dbi, &k, NULL);
-            rc = LMDB_NERR(rc);
             local_ctx.TryReleaseTransanction(0 == rc, false);
         }
-        return LMDB_NERR(rc);
+        return ENGINE_ERR(rc);
     }
 
     int LMDBEngine::Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args)

@@ -1,10 +1,4 @@
 /*
- * redis_reply.cpp
- *
- *  Created on: 2014��8��19��
- *      Author: wangqiying
- */
-/*
  *Copyright (c) 2013-2014, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  *
@@ -34,6 +28,7 @@
  */
 
 #include "redis_reply.hpp"
+#include "db/engine.hpp"
 
 namespace ardb
 {
@@ -192,7 +187,7 @@ namespace ardb
         {
             dst.integer = src.integer;
             dst.type = src.type;
-            switch(src.type)
+            switch (src.type)
             {
                 case REDIS_REPLY_STATUS:
                 case REDIS_REPLY_STRING:
@@ -203,10 +198,10 @@ namespace ardb
                 }
                 case REDIS_REPLY_ARRAY:
                 {
-                    for(size_t i = 0; i < src.MemberSize(); i++)
+                    for (size_t i = 0; i < src.MemberSize(); i++)
                     {
                         RedisReply& child = src.MemberAt(i);
-                        RedisReply& clone_child =  dst.AddMember();
+                        RedisReply& clone_child = dst.AddMember();
                         clone_redis_reply(child, clone_child);
                     }
                     break;
@@ -252,6 +247,51 @@ namespace ardb
         {
             switch (code)
             {
+                case ERR_ENTRY_NOT_EXIST:
+                {
+                    str.assign("no such key");
+                    break;
+                }
+                case ERR_INVALID_FLOAT_ARGS:
+                {
+                    str.assign("value is not a valid float or out of range");
+                    break;
+                }
+                case ERR_INVALID_SYNTAX:
+                {
+                    str.assign("syntax error");
+                    break;
+                }
+                case ERR_NOTPERFORMED:
+                {
+                    str.assign("not performed");
+                    break;
+                }
+                case ERR_STRING_EXCEED_LIMIT:
+                {
+                    str.assign("string exceeds maximum allowed size (512MB)");
+                    break;
+                }
+                case ERR_NOSCRIPT:
+                {
+                    str.assign("-NOSCRIPT No matching script. Please use EVAL.");
+                    break;
+                }
+                case ERR_NOTSUPPORTED:
+                {
+                    str.assign("not supported");
+                    break;
+                }
+                case ERR_INVALID_ARGS:
+                {
+                    str.assign("wrong number of arguments");
+                    break;
+                }
+                case ERR_KEY_EXIST:
+                {
+                    str.assign("key exist");
+                    break;
+                }
                 case ERR_INVALID_INTEGER_ARGS:
                 {
                     str.assign("value is not an integer or out of range");
@@ -324,9 +364,13 @@ namespace ardb
                 }
                 default:
                 {
-                    char tmp[256];
-                    sprintf(tmp, "##Unknown error code:%d", code);
-                    str = tmp;
+                    str = g_engine->GetErrorReason(code);
+                    if (str.empty())
+                    {
+                        char tmp[256];
+                        sprintf(tmp, "##Unknown error code:%d", code);
+                        str = tmp;
+                    }
                     break;
                 }
             }

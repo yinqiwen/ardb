@@ -44,11 +44,9 @@
     }\
 }while(0)
 
-#define PDB_ERR(err)  (DB_NOTFOUND == err ? ERR_ENTRY_NOT_EXIST:(err + STORAGE_ENGINE_ERR_OFFSET))
-#define PDB_NERR(err)  (DB_NOTFOUND == err ? 0:(err + STORAGE_ENGINE_ERR_OFFSET))
-
 namespace ardb
 {
+    static int kEngineNotFound = DB_NOTFOUND;
     static int nil_callback(DBT const*, DBT const*, void*)
     {
         //printf("####nil callback\n");
@@ -251,7 +249,7 @@ namespace ardb
             Context tmp;
             GetFTDB(tmp, nss[i], true);
         }
-        return PDB_ERR(r);
+        return ENGINE_ERR(r);
     }
 
     int PerconaFTEngine::Repair(const std::string& dir)
@@ -327,7 +325,7 @@ namespace ardb
         CHECK_EXPR(r = db->put(db, txn, &key_slice, &value_slice, 0));
         local_ctx.transc.Release(true);
         //txn->commit(txn, 0);
-        return PDB_ERR(r);
+        return ENGINE_ERR(r);
     }
 
     int PerconaFTEngine::PutRaw(Context& ctx, const Data& ns, const Slice& key, const Slice& value)
@@ -346,7 +344,7 @@ namespace ardb
         CHECK_EXPR(r = db->put(db, txn, &key_slice, &value_slice, 0));
         // txn->commit(txn, 0);
         local_ctx.transc.Release(true);
-        return PDB_ERR(r);
+        return ENGINE_ERR(r);
     }
 
     int PerconaFTEngine::MultiGet(Context& ctx, const KeyObjectArray& keys, ValueObjectArray& values, ErrCodeArray& errs)
@@ -383,7 +381,7 @@ namespace ardb
             value.Decode(valBuffer, true);
         }
         //txn->commit(txn, 0);
-        return PDB_ERR(r);
+        return ENGINE_ERR(r);
     }
     int PerconaFTEngine::Del(Context& ctx, const KeyObject& key)
     {
@@ -400,7 +398,7 @@ namespace ardb
         //CHECK_EXPR(r = m_env->txn_begin(m_env, NULL, &txn, 0));
         CHECK_EXPR(r = db->del(db, txn, &key_slice, 0));
         local_ctx.transc.Release(true);
-        return PDB_ERR(r);
+        return ENGINE_NERR(r);
     }
 
     int PerconaFTEngine::Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args)

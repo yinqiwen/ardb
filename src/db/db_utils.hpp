@@ -39,6 +39,9 @@
 #include "thread/event_condition.hpp"
 #include "util/concurrent_queue.hpp"
 
+#define ENGINE_ERR(err)  (kEngineNotFound == err ? ERR_ENTRY_NOT_EXIST:(0 == err ? 0 :(err + STORAGE_ENGINE_ERR_OFFSET)))
+#define ENGINE_NERR(err)  (kEngineNotFound == err ? 0:(0 == err ? 0 :(err + STORAGE_ENGINE_ERR_OFFSET)))
+
 OP_NAMESPACE_BEGIN
 
     struct DBLocalContext

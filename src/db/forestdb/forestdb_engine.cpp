@@ -45,8 +45,6 @@
 }while(0)
 #define DEFAULT_LMDB_LOCAL_MULTI_CACHE_SIZE 10
 
-#define FORESTDB_ERR(err)  (FDB_RESULT_KEY_NOT_FOUND == err ? ERR_ENTRY_NOT_EXIST:err)
-#define FORESTDB_NERR(err)  (FDB_RESULT_KEY_NOT_FOUND == err ? 0:err)
 
 #define FDB_PUT_OP 1
 #define FDB_DEL_OP 2
@@ -54,6 +52,7 @@
 
 namespace ardb
 {
+    static int kEngineNotFound = FDB_RESULT_KEY_NOT_FOUND;
     static int fdb_cmp_callback(void *a, size_t len_a, void *b, size_t len_b)
     {
         return compare_keys((const char*) a, len_a, (const char*) b, len_b, false);
@@ -423,7 +422,7 @@ namespace ardb
         fdb_status fs = fdb_set_kv(kv, (const void*) encode_buffer.GetRawBuffer(), key_len, (const void*) (encode_buffer.GetRawBuffer() + key_len), value_len);
         CHECK_EXPR(fs);
         fdb_commit(local_ctx.fdb, FDB_COMMIT_NORMAL);
-        return FORESTDB_ERR(fs);
+        return ENGINE_ERR(fs);
     }
     int ForestDBEngine::PutRaw(Context& ctx, const Data& ns, const Slice& key, const Slice& value)
     {
@@ -435,7 +434,7 @@ namespace ardb
         ForestDBLocalContext& local_ctx = GetDBLocalContext();
         fdb_status fs = fdb_set_kv(kv, (const void*) key.data(), key.size(), (const void*) value.data(), value.size());
         fdb_commit(local_ctx.fdb, FDB_COMMIT_NORMAL);
-        return FORESTDB_ERR(fs);
+        return ENGINE_ERR(fs);
     }
 
     int ForestDBEngine::Get(Context& ctx, const KeyObject& key, ValueObject& value)
@@ -458,7 +457,7 @@ namespace ardb
             value.Decode(valBuffer, true);
             free(val);
         }
-        return FORESTDB_ERR(fs);
+        return ENGINE_ERR(fs);
     }
 
     int ForestDBEngine::MultiGet(Context& ctx, const KeyObjectArray& keys, ValueObjectArray& values, ErrCodeArray& errs)
@@ -495,7 +494,7 @@ namespace ardb
         fdb_status fs = FDB_RESULT_SUCCESS;
         CHECK_EXPR(fs = fdb_del_kv(kv, (const void* ) encode_buffer.GetRawBuffer(), key_len));
         CHECK_EXPR(fs = fdb_commit(local_ctx.fdb, FDB_COMMIT_NORMAL));
-        return FORESTDB_NERR(fs);
+        return ENGINE_NERR(fs);
     }
 
     int ForestDBEngine::Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args)
