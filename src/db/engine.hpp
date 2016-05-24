@@ -110,12 +110,12 @@ OP_NAMESPACE_BEGIN
             }
             virtual int FlushAll(Context& ctx);
 
-            virtual int BeginBulkLoad(Context& ctx,const Data& ns)
+            virtual int BeginBulkLoad(Context& ctx)
             {
                 return ERR_NOTSUPPORTED;
             }
 
-            virtual int EndBulkLoad(Context& ctx,const Data& ns)
+            virtual int EndBulkLoad(Context& ctx)
             {
                 return ERR_NOTSUPPORTED;
             }

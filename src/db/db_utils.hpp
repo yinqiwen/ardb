@@ -32,6 +32,7 @@
 
 #include "common/common.hpp"
 #include "codec.hpp"
+#include "context.hpp"
 #include "thread/thread_local.hpp"
 #include "thread/thread_mutex_lock.hpp"
 #include "thread/spin_rwlock.hpp"
@@ -70,9 +71,9 @@ OP_NAMESPACE_BEGIN
             uint32 m_cursor;
             DBWriterWorker* GetWorker();
         public:
-            DBWriter(int workers = 4);
-            int Put(const Data& ns, const Slice& key, const Slice& value);
-            int Put(const KeyObject& k, const ValueObject& value);
+            DBWriter(int workers = 1);
+            int Put(Context& ctx, const Data& ns, const Slice& key, const Slice& value);
+            int Put(Context& ctx, const KeyObject& k, const ValueObject& value);
             void Stop();
             ~DBWriter();
     };

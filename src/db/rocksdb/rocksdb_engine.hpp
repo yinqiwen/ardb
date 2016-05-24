@@ -101,6 +101,7 @@ OP_NAMESPACE_BEGIN
             typedef TreeMap<uint32_t, Data>::Type ColumnFamilyHandleIDTable;
             rocksdb::DB* m_db;
             rocksdb::Options m_options;
+            std::string m_dbdir;
             ColumnFamilyHandleTable m_handlers;
             SpinRWLock m_lock;
 
@@ -109,6 +110,8 @@ OP_NAMESPACE_BEGIN
 
             void ReleaseSnpashot();
             Data GetNamespaceByColumnFamilyId(uint32 id);
+            int ReOpen(rocksdb::Options& options);
+            void Close();
             friend class RocksDBIterator;
             friend class RocksDBCompactionFilter;
         public:
@@ -133,8 +136,8 @@ OP_NAMESPACE_BEGIN
             int64_t EstimateKeysNum(Context& ctx, const Data& ns);
             Iterator* Find(Context& ctx, const KeyObject& key);
             int Flush(Context& ctx, const Data& ns);
-            int BeginBulkLoad(Context& ctx,const Data& ns);
-            int EndBulkLoad(Context& ctx,const Data& ns);
+            int BeginBulkLoad(Context& ctx);
+            int EndBulkLoad(Context& ctx);
             const FeatureSet GetFeatureSet()
             {
                 FeatureSet features;

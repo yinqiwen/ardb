@@ -144,7 +144,7 @@ namespace ardb
         /*
          * use 4 threads to write db
          */
-        DBWriter load_writer(4);
+        DBWriter load_writer;
         snapshot.SetDBWriter(&load_writer);
         int err = snapshot.Load(file, RDBSaveLoadRoutine, io_serv);
         snapshot.SetDBWriter(NULL);

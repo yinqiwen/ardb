@@ -576,10 +576,7 @@ OP_NAMESPACE_BEGIN
             }
             INFO_LOG("Start loading snapshot file.");
             m_ctx.cmd_recved_time = time(NULL);
-            /*
-             * use 4 threads to write db
-             */
-            DBWriter load_writer(4);
+            DBWriter load_writer;
             m_ctx.snapshot.SetDBWriter(&load_writer);
             int ret = m_ctx.snapshot.Reload(LoadRDBRoutine, &m_ctx);
             m_ctx.snapshot.SetDBWriter(NULL);

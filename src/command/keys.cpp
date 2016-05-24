@@ -408,6 +408,14 @@ OP_NAMESPACE_BEGIN
                         RedisReply& r = reply.AddMember();
                         r.SetString(keystr);
                     }
+                    /*
+                     * limit keys output
+                     */
+                    if (match_count >= 10000 && cmd.GetType() == REDIS_CMD_KEYS)
+                    {
+                        reply.SetErrorReason("Too many keys for keys command, use 'scan' instead.");
+                        break;
+                    }
                     if (noregex)
                     {
                         break;
@@ -653,7 +661,7 @@ OP_NAMESPACE_BEGIN
                     SetKeyValue(ctx, key, meta_value);
                     /*
                      * if the storage engine underly do NOT support custom compact filter,
-                     * another k/v should stored for the later expire work.
+                     * ttl key/value pair must be stored for the later expire scan.
                      */
                     if (!m_engine->GetFeatureSet().support_compactfilter)
                     {
@@ -795,7 +803,8 @@ OP_NAMESPACE_BEGIN
         {
             KeyObject& k = iter->Key();
             const Data& kdata = k.GetKey();
-            if (k.GetNameSpace().Compare(meta_key.GetNameSpace()) != 0 || kdata.StringLength() != meta_key.GetKey().StringLength() || strncmp(meta_key.GetKey().CStr(), kdata.CStr(), kdata.StringLength()) != 0)
+            if (k.GetNameSpace().Compare(meta_key.GetNameSpace()) != 0 || kdata.StringLength() != meta_key.GetKey().StringLength()
+                    || strncmp(meta_key.GetKey().CStr(), kdata.CStr(), kdata.StringLength()) != 0)
             {
                 break;
             }

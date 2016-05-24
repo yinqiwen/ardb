@@ -36,11 +36,9 @@
 #define DEFAULT_LOCAL_ENCODE_BUFFER_SIZE 8192
 
 #define ARDB_PUT_OP     1
-#define ARDB_DEL_OP     2
-#define ARDB_PUT_RAW_OP 3
-#define ARDB_DEL_RAW_OP 4
-#define ARDB_BATCH_BEGIN     5
-#define ARDB_BATCH_COMMIT    6
+#define ARDB_PUT_RAW_OP 2
+#define ARDB_CMD_OP     3
+#define ARDB_CKP_OP     4
 
 OP_NAMESPACE_BEGIN
 
@@ -69,11 +67,7 @@ OP_NAMESPACE_BEGIN
 
     struct DBWriteOperation
     {
-            Data ns;
-            std::string raw_key;
-            std::string raw_value;
-            KeyObject key;
-            ValueObject value;
+            RedisCommandFrame cmd;
             uint8 type;
     };
     struct DBWriterWorker: public Thread
@@ -81,10 +75,9 @@ OP_NAMESPACE_BEGIN
             Context worker_ctx;
             SPSCQueue<DBWriteOperation*> write_queue;
             EventCondition event_cond;
-            int write_batch_count;
+            volatile uint32 queue_size;
             bool running;
-            DBWriterWorker() :
-                    write_batch_count(0), running(true)
+            DBWriterWorker() :queue_size(0), running(true)
             {
                 worker_ctx.flags.create_if_notexist = 1;
                 worker_ctx.flags.bulk_loading = 1;
@@ -100,26 +93,14 @@ OP_NAMESPACE_BEGIN
                         count++;
                         switch (op->type)
                         {
-                            case ARDB_PUT_RAW_OP:
+                            case ARDB_CMD_OP:
                             {
-                                Slice kslice(op->raw_key.data(), op->raw_key.size());
-                                Slice vslice(op->raw_value.data(), op->raw_value.size());
-                                g_engine->PutRaw(worker_ctx, op->ns, kslice, vslice);
+                                g_db->Call(worker_ctx, op->cmd);
                                 break;
                             }
-                            case ARDB_PUT_OP:
+                            case ARDB_CKP_OP:
                             {
-                                g_engine->Put(worker_ctx, op->key, op->value);
-                                break;
-                            }
-                            case ARDB_BATCH_BEGIN:
-                            {
-                                g_engine->BeginWriteBatch(worker_ctx);
-                                break;
-                            }
-                            case ARDB_BATCH_COMMIT:
-                            {
-                                g_engine->CommitWriteBatch(worker_ctx);
+                                //g_engine->CommitWriteBatch(worker_ctx);
                                 event_cond.Notify();
                                 break;
                             }
@@ -130,6 +111,7 @@ OP_NAMESPACE_BEGIN
                             }
                         }
                         DELETE(op);
+                        atomic_sub_uint32(&queue_size, 1);
                     }
                     if (count == 0)
                     {
@@ -144,55 +126,31 @@ OP_NAMESPACE_BEGIN
             }
             void WaitBatchWrite()
             {
-                if (write_batch_count > 0)
+                while (queue_size > 0)
                 {
                     DBWriteOperation* end = NULL;
                     NEW(end, DBWriteOperation);
-                    end->type = ARDB_BATCH_COMMIT;
+                    end->type = ARDB_CKP_OP;
+                    atomic_add_uint32(&queue_size, 1);
                     write_queue.Push(end);
                     event_cond.Wait();
-                    write_batch_count = 0;
                 }
             }
             void Offer(DBWriteOperation* op)
             {
-                if (write_batch_count == 0)
-                {
-                    DBWriteOperation* begin = NULL;
-                    NEW(begin, DBWriteOperation);
-                    begin->type = ARDB_BATCH_BEGIN;
-                    write_queue.Push(begin);
-                }
+                atomic_add_uint32(&queue_size, 1);
                 write_queue.Push(op);
-                write_batch_count++;
-                if (write_batch_count >= 4096)
+                if (queue_size >= 10000)
                 {
                     WaitBatchWrite();
                 }
             }
-            void Offer(const KeyObject& k, const ValueObject& value)
+            void Offer(RedisCommandFrame& cmd)
             {
                 DBWriteOperation* op = NULL;
                 NEW(op, DBWriteOperation);
-                op->key = k;
-                op->key.CloneStringPart();
-                op->value = value;
-                op->value.CloneStringPart();
-                op->type = ARDB_PUT_RAW_OP;
-                Offer(op);
-            }
-            void Offer(const Data& ns, const Slice& key, const Slice& value)
-            {
-                DBWriteOperation* op = NULL;
-                NEW(op, DBWriteOperation);
-                op->ns = ns;
-                if (op->ns.IsString())
-                {
-                    op->ns.ToMutableStr();
-                }
-                op->raw_key.assign(key.data(), key.size());
-                op->raw_value.assign(value.data(), value.size());
-                op->type = ARDB_PUT_RAW_OP;
+                op->cmd = cmd;
+                op->type = ARDB_CMD_OP;
                 Offer(op);
             }
     };
@@ -223,35 +181,19 @@ OP_NAMESPACE_BEGIN
         return worker;
     }
 
-    int DBWriter::Put(const Data& ns, const Slice& key, const Slice& value)
+    int DBWriter::Put(Context& ctx, const Data& ns, const Slice& key, const Slice& value)
     {
-        Context worker_ctx;
-        worker_ctx.flags.create_if_notexist = 1;
-        worker_ctx.flags.bulk_loading = 1;
-        if (m_workers.empty())
-        {
-            return g_engine->PutRaw(worker_ctx, ns, key, value);
-        }
-        else
-        {
-            GetWorker()->Offer(ns, key, value);
-            return 0;
-        }
+        /*
+         * multi thread only work faster for commands
+         */
+        return g_engine->PutRaw(ctx, ns, key, value);
     }
-    int DBWriter::Put(const KeyObject& k, const ValueObject& value)
+    int DBWriter::Put(Context& ctx, const KeyObject& k, const ValueObject& value)
     {
-        Context worker_ctx;
-        worker_ctx.flags.create_if_notexist = 1;
-        worker_ctx.flags.bulk_loading = 1;
-        if (m_workers.empty())
-        {
-            return g_engine->Put(worker_ctx, k, value);
-        }
-        else
-        {
-            GetWorker()->Offer(k, value);
-            return 0;
-        }
+        /*
+         * multi thread only work faster for commands
+         */
+        return g_engine->Put(ctx, k, value);
     }
     void DBWriter::Stop()
     {

@@ -701,7 +701,7 @@ namespace ardb
                 lv.SetListElement(value);
                 idx++;
                 //g_db->SetKeyValue(ctx, lk, lv);
-                GetDBWriter().Put(lk, lv);
+                GetDBWriter().Put(ctx, lk, lv);
             }
             iter = ziplistNext(data, iter);
         }
@@ -773,8 +773,8 @@ namespace ardb
             zscore_value.SetZSetScore(score);
             //g_db->SetKeyValue(ctx, zsort, zscore_value);
             //g_db->SetKeyValue(ctx, zscore, zscore_value);
-            GetDBWriter().Put(zsort, zscore_value);
-            GetDBWriter().Put(zscore, zscore_value);
+            GetDBWriter().Put(ctx,zsort, zsort_value);
+            GetDBWriter().Put(ctx,zscore, zscore_value);
             iter = ziplistNext(data, iter);
         }
     }
@@ -826,7 +826,7 @@ namespace ardb
                 ValueObject fvalue;
                 fvalue.SetType(KEY_HASH_FIELD);
                 fvalue.SetHashValue(value);
-                GetDBWriter().Put(fkey, fvalue);
+                GetDBWriter().Put(ctx, fkey, fvalue);
                 //g_db->SetKeyValue(ctx, fkey, fvalue);
             }
             iter = ziplistNext(data, iter);
@@ -848,7 +848,7 @@ namespace ardb
             ValueObject member_value;
             member_value.SetType(KEY_SET_MEMBER);
             //g_db->SetKeyValue(ctx, member, member_value);
-            GetDBWriter().Put(member, member_value);
+            GetDBWriter().Put(ctx,member, member_value);
         }
         //        KeyObject skey(ctx.ns, KEY_META, key);
         //        g_db->SetKeyValue(ctx, skey, smeta);
@@ -909,7 +909,7 @@ namespace ardb
                             ValueObject member_val;
                             member_val.SetType(KEY_SET_MEMBER);
                             //g_db->SetKeyValue(ctx, member, member_val);
-                            GetDBWriter().Put(member, member_val);
+                            GetDBWriter().Put(ctx, member, member_val);
                         }
                         else
                         {
@@ -919,7 +919,7 @@ namespace ardb
                             lv.SetType(KEY_LIST_ELEMENT);
                             lv.SetListElement(str);
                             //g_db->SetKeyValue(ctx, lk, lv);
-                            GetDBWriter().Put(lk, lv);
+                            GetDBWriter().Put(ctx, lk, lv);
                             idx++;
                         }
                     }
@@ -976,7 +976,7 @@ namespace ardb
                                 //g_db->Set
                                 idx++;
                                 //g_db->SetKeyValue(ctx, lk, lv);
-                                GetDBWriter().Put(lk, lv);
+                                GetDBWriter().Put(ctx,lk, lv);
                             }
                             iter = ziplistNext(data, iter);
                         }
@@ -1019,8 +1019,8 @@ namespace ardb
                         zscore_value.SetZSetScore(score);
                         //g_db->SetKeyValue(ctx, zsort, zscore_value);
                         //g_db->SetKeyValue(ctx, zscore, zscore_value);
-                        GetDBWriter().Put(zsort, zscore_value);
-                        GetDBWriter().Put(zscore, zscore_value);
+                        GetDBWriter().Put(ctx,zsort, zsort_value);
+                        GetDBWriter().Put(ctx,zscore, zscore_value);
                     }
                     else
                     {
@@ -1049,7 +1049,7 @@ namespace ardb
                         fvalue.SetType(KEY_HASH_FIELD);
                         fvalue.SetHashValue(str);
                         //g_db->SetKeyValue(ctx, fkey, fvalue);
-                        GetDBWriter().Put(fkey, fvalue);
+                        GetDBWriter().Put(ctx, fkey, fvalue);
                     }
                     else
                     {
@@ -1097,7 +1097,7 @@ namespace ardb
                             fvalue.SetType(KEY_HASH_FIELD);
                             fvalue.SetHashValue(fvstring);
                             //g_db->SetKeyValue(ctx, fkey, fvalue);
-                            GetDBWriter().Put(fkey, fvalue);
+                            GetDBWriter().Put(ctx,fkey, fvalue);
                             hlen++;
                         }
                         meta_value.SetObjectLen(hlen);
@@ -1147,7 +1147,7 @@ namespace ardb
             }
         }
         //g_db->SetKeyValue(ctx, meta_key, meta_value);
-        GetDBWriter().Put(meta_key, meta_value);
+        GetDBWriter().Put(ctx,meta_key, meta_value);
         return true;
     }
 
@@ -1180,7 +1180,7 @@ namespace ardb
                 return -1;
             }
             //g_db->GetEngine()->PutRaw(ctx, ctx.ns, key, value);
-            GetDBWriter().Put(ctx.ns, key, value);
+            GetDBWriter().Put(ctx, ctx.ns, key, value);
             if (ttl > 0 && !g_db->GetEngine()->GetFeatureSet().support_compactfilter)
             {
                 Buffer keybuf((char*) key.data(), 0, key.size());
@@ -1650,7 +1650,7 @@ namespace ardb
         if (ret == 0)
         {
             uint64_t cost = get_current_epoch_millis() - start_time;
-            INFO_LOG("Cost %.2fs to load snapshot file with type:%d.", cost / 1000.0, is_redis_snapshot ? REDIS_DUMP : ARDB_DUMP);
+            INFO_LOG("Cost %.2fs to load snapshot file with type:%s.", cost / 1000.0, is_redis_snapshot?"redis":"ardb");
         }
         m_state = ret == 0 ? LOAD_SUCCESS : LOAD_FAIL;
         if (NULL != m_routine_cb)
@@ -1919,7 +1919,7 @@ namespace ardb
             WARN_LOG("Can't handle RDB format version %d", rdbver);
             return -1;
         }
-
+        g_engine->BeginBulkLoad(loadctx);
         while (true)
         {
             expiretime = 0;
@@ -1962,7 +1962,6 @@ namespace ardb
                 }
                 loadctx.ns.SetString(stringfromll(dbid), false);
                 nss.push_back(loadctx.ns);
-                g_engine->BeginBulkLoad(loadctx, loadctx.ns);
                 continue;
             }
             else if (type == RDB_OPCODE_RESIZEDB)
@@ -2032,19 +2031,13 @@ namespace ardb
             }
         }
         Close();
-        for (size_t i = 0; i < nss.size(); i++)
-        {
-            g_engine->EndBulkLoad(loadctx, nss[i]);
-        }
         g_engine->FlushAll(loadctx);
+        g_engine->EndBulkLoad(loadctx);
         g_engine->CompactAll(loadctx);
         INFO_LOG("Redis snapshot file load finished.");
         return 0;
         eoferr: Close();
-        for (size_t i = 0; i < nss.size(); i++)
-        {
-            g_engine->EndBulkLoad(loadctx, nss[i]);
-        }
+        g_engine->EndBulkLoad(loadctx);
         WARN_LOG("Short read or OOM loading DB. Unrecoverable error, aborting now.");
         return -1;
     }
@@ -2334,7 +2327,7 @@ namespace ardb
             WARN_LOG("Can't handle ARDB format version %d", rdbver);
             return -1;
         }
-
+        g_engine->BeginBulkLoad(loadctx);
         while (true)
         {
             /* Read type. */
@@ -2355,7 +2348,6 @@ namespace ardb
                 }
                 loadctx.ns.SetString(ns, false);
                 nss.push_back(loadctx.ns);
-                g_engine->BeginBulkLoad(loadctx, loadctx.ns);
             }
             else if (type == ARDB_OPCODE_AUX)
             {
@@ -2402,15 +2394,13 @@ namespace ardb
         }
 
         Close();
-        for (size_t i = 0; i < nss.size(); i++)
-        {
-            g_engine->EndBulkLoad(loadctx, nss[i]);
-        }
         g_engine->FlushAll(loadctx);
+        g_engine->EndBulkLoad(loadctx);
         g_engine->CompactAll(loadctx);
         INFO_LOG("Ardb dump file load finished.");
         return 0;
         eoferr: Close();
+        g_engine->EndBulkLoad(loadctx);
         WARN_LOG("Short read or OOM loading DB. Unrecoverable error, aborting now.");
         return -1;
     }

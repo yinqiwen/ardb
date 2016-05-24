@@ -404,7 +404,7 @@ OP_NAMESPACE_BEGIN
             }
             std::unique_ptr<rocksdb::CompactionFilter> CreateCompactionFilter(const rocksdb::CompactionFilter::Context& context)
             {
-                return std::unique_ptr<rocksdb::CompactionFilter>(new RocksDBCompactionFilter(engine, context));
+                return std::unique_ptr < rocksdb::CompactionFilter > (new RocksDBCompactionFilter(engine, context));
             }
 
             const char* Name() const
@@ -440,7 +440,8 @@ OP_NAMESPACE_BEGIN
             // internal corruption. This will be treated as an error by the library.
             //
             // Also make use of the *logger for error messages.
-            bool FullMerge(const rocksdb::Slice& key, const rocksdb::Slice* existing_value, const std::deque<std::string>& operand_list, std::string* new_value, rocksdb::Logger* logger) const
+            bool FullMerge(const rocksdb::Slice& key, const rocksdb::Slice* existing_value, const std::deque<std::string>& operand_list, std::string* new_value,
+                    rocksdb::Logger* logger) const
             {
 
                 KeyObject key_obj;
@@ -524,7 +525,8 @@ OP_NAMESPACE_BEGIN
             // If there is corruption in the data, handle it in the FullMerge() function,
             // and return false there.  The default implementation of PartialMerge will
             // always return false.
-            bool PartialMergeMulti(const rocksdb::Slice& key, const std::deque<rocksdb::Slice>& operand_list, std::string* new_value, rocksdb::Logger* logger) const
+            bool PartialMergeMulti(const rocksdb::Slice& key, const std::deque<rocksdb::Slice>& operand_list, std::string* new_value,
+                    rocksdb::Logger* logger) const
             {
                 if (operand_list.size() < 2)
                 {
@@ -546,7 +548,9 @@ OP_NAMESPACE_BEGIN
                         WARN_LOG("Invalid merge op at:%u", i);
                         return false;
                     }
-                    if (0 != g_db->MergeOperands(ops[left_pos].GetMergeOp(), ops[left_pos].GetMergeArgs(), ops[1 - left_pos].GetMergeOp(), ops[1 - left_pos].GetMergeArgs()))
+                    if (0
+                            != g_db->MergeOperands(ops[left_pos].GetMergeOp(), ops[left_pos].GetMergeArgs(), ops[1 - left_pos].GetMergeOp(),
+                                    ops[1 - left_pos].GetMergeArgs()))
                     {
                         return false;
                     }
@@ -580,7 +584,8 @@ OP_NAMESPACE_BEGIN
             // multiple times, where each time it only merges two operands.  Developers
             // should either implement PartialMergeMulti, or implement PartialMerge which
             // is served as the helper function of the default PartialMergeMulti.
-            bool PartialMerge(const rocksdb::Slice& key, const rocksdb::Slice& left_operand, const rocksdb::Slice& right_operand, std::string* new_value, rocksdb::Logger* logger) const
+            bool PartialMerge(const rocksdb::Slice& key, const rocksdb::Slice& left_operand, const rocksdb::Slice& right_operand, std::string* new_value,
+                    rocksdb::Logger* logger) const
             {
                 ValueObject left_op, right_op;
                 Buffer left_mergeBuffer(const_cast<char*>(left_operand.data()), 0, left_operand.size());
@@ -619,9 +624,7 @@ OP_NAMESPACE_BEGIN
 
     RocksDBEngine::~RocksDBEngine()
     {
-        RWLockGuard<SpinRWLock> guard(m_lock, true);
-        m_handlers.clear(); //handlers MUST be deleted before m_db
-        DELETE(m_db);
+        Close();
     }
 
     RocksDBEngine::ColumnFamilyHandlePtr RocksDBEngine::GetColumnFamilyHandle(Context& ctx, const Data& ns, bool create_if_noexist)
@@ -651,6 +654,53 @@ OP_NAMESPACE_BEGIN
         return NULL;
     }
 
+    void RocksDBEngine::Close()
+    {
+        RWLockGuard<SpinRWLock> guard(m_lock, true);
+        m_handlers.clear(); //handlers MUST be deleted before m_db
+        DELETE(m_db);
+    }
+
+    int RocksDBEngine::ReOpen(rocksdb::Options& options)
+    {
+        Close();
+        RWLockGuard<SpinRWLock> guard(m_lock, true);
+        std::vector<std::string> column_families;
+        rocksdb::Status s = rocksdb::DB::ListColumnFamilies(options, m_dbdir, &column_families);
+        if (column_families.empty())
+        {
+            s = rocksdb::DB::Open(options, m_dbdir, &m_db);
+        }
+        else
+        {
+            std::vector<rocksdb::ColumnFamilyDescriptor> column_families_descs(column_families.size());
+            for (size_t i = 0; i < column_families.size(); i++)
+            {
+                column_families_descs[i] = rocksdb::ColumnFamilyDescriptor(column_families[i], rocksdb::ColumnFamilyOptions(m_options));
+            }
+            std::vector<rocksdb::ColumnFamilyHandle*> handlers;
+            s = rocksdb::DB::Open(options, m_dbdir, column_families_descs, &handlers, &m_db);
+            if (s.ok())
+            {
+                for (size_t i = 0; i < handlers.size(); i++)
+                {
+                    rocksdb::ColumnFamilyHandle* handler = handlers[i];
+                    Data ns;
+                    ns.SetString(column_families_descs[i].name, false);
+                    m_handlers[ns].reset(handler);
+                    INFO_LOG("RocksDB open column family:%s success.", column_families_descs[i].name.c_str());
+                }
+            }
+        }
+
+        if (s != rocksdb::Status::OK())
+        {
+            ERROR_LOG("Failed to open db:%s by reason:%s", m_dbdir.c_str(), s.ToString().c_str());
+            return -1;
+        }
+        return 0;
+    }
+
     int RocksDBEngine::Init(const std::string& dir, const std::string& conf)
     {
         static RocksDBComparator comparator;
@@ -678,40 +728,8 @@ OP_NAMESPACE_BEGIN
         m_options.OptimizeLevelStyleCompaction();
         m_options.IncreaseParallelism();
         m_options.stats_dump_period_sec = (unsigned int) g_db->GetConf().statistics_log_period;
-        std::vector<std::string> column_families;
-        s = rocksdb::DB::ListColumnFamilies(m_options, dir, &column_families);
-        if (column_families.empty())
-        {
-            s = rocksdb::DB::Open(m_options, dir, &m_db);
-        }
-        else
-        {
-            std::vector<rocksdb::ColumnFamilyDescriptor> column_families_descs(column_families.size());
-            for (size_t i = 0; i < column_families.size(); i++)
-            {
-                column_families_descs[i] = rocksdb::ColumnFamilyDescriptor(column_families[i], rocksdb::ColumnFamilyOptions(m_options));
-            }
-            std::vector<rocksdb::ColumnFamilyHandle*> handlers;
-            s = rocksdb::DB::Open(m_options, dir, column_families_descs, &handlers, &m_db);
-            if (s.ok())
-            {
-                for (size_t i = 0; i < handlers.size(); i++)
-                {
-                    rocksdb::ColumnFamilyHandle* handler = handlers[i];
-                    Data ns;
-                    ns.SetString(column_families_descs[i].name, false);
-                    m_handlers[ns].reset(handler);
-                    INFO_LOG("RocksDB open column family:%s success.", column_families_descs[i].name.c_str());
-                }
-            }
-        }
-
-        if (s != rocksdb::Status::OK())
-        {
-            ERROR_LOG("Failed to open db:%s by reason:%s", dir.c_str(), s.ToString().c_str());
-            return -1;
-        }
-        return 0;
+        m_dbdir  = dir;
+        return ReOpen(m_options);
     }
 
     int RocksDBEngine::Repair(const std::string& dir)
@@ -1118,53 +1136,15 @@ OP_NAMESPACE_BEGIN
         return ROCKSDB_ERR(s);
     }
 
-    static void get_options_map(const rocksdb::Options& opt, std::unordered_map<std::string, std::string>& new_options)
+    int RocksDBEngine::BeginBulkLoad(Context& ctx)
     {
-        /*
-         * copy from PrepareForBulkLoad()
-         */
-        new_options["level0_file_num_compaction_trigger"] = stringfromll(opt.level0_file_num_compaction_trigger);
-        new_options["level0_slowdown_writes_trigger"] = stringfromll(opt.level0_slowdown_writes_trigger);
-        new_options["level0_stop_writes_trigger"] = stringfromll(opt.level0_stop_writes_trigger);
-        new_options["disable_auto_compactions"] = opt.disable_auto_compactions ? "true" : "false";
-        //new_options["disableDataSync"] = opt.disableDataSync ? "true" : "false";
-        new_options["source_compaction_factor"] = stringfromll(opt.source_compaction_factor);
-        //new_options["num_levels"] = stringfromll(opt.num_levels);
-        new_options["max_write_buffer_number"] = stringfromll(opt.max_write_buffer_number);
-        //new_options["min_write_buffer_number_to_merge"] = stringfromll(opt.min_write_buffer_number_to_merge);
-        //new_options["max_background_flushes"] = stringfromll(opt.max_background_flushes);
-        //new_options["max_background_compactions"] = stringfromll(opt.max_background_compactions);
-        new_options["target_file_size_base"] = stringfromll(opt.target_file_size_base);
+        rocksdb::Options load_options = m_options;
+        load_options.PrepareForBulkLoad();
+        return ReOpen(load_options);
     }
-
-    int RocksDBEngine::BeginBulkLoad(Context& ctx, const Data& ns)
+    int RocksDBEngine::EndBulkLoad(Context& ctx)
     {
-        ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, ns, true);
-        rocksdb::ColumnFamilyHandle* cf = cfp.get();
-        if (NULL == cf)
-        {
-            return ERR_ENTRY_NOT_EXIST;
-        }
-
-        std::unordered_map<std::string, std::string> new_options;
-        rocksdb::Options opt;
-        opt.PrepareForBulkLoad();
-        get_options_map(opt, new_options);
-        m_db->SetOptions(cf, new_options);
-        return 0;
-    }
-    int RocksDBEngine::EndBulkLoad(Context& ctx, const Data& ns)
-    {
-        ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, ns, false);
-        rocksdb::ColumnFamilyHandle* cf = cfp.get();
-        if (NULL == cf)
-        {
-            return ERR_ENTRY_NOT_EXIST;
-        }
-        std::unordered_map<std::string, std::string> new_options;
-        get_options_map(m_options, new_options);
-        m_db->SetOptions(cf, new_options);
-        return 0;
+        return ReOpen(m_options);
     }
 
     int RocksDBEngine::DropNameSpace(Context& ctx, const Data& ns)
@@ -1197,7 +1177,8 @@ OP_NAMESPACE_BEGIN
     void RocksDBEngine::Stats(Context& ctx, std::string& all)
     {
         std::string str, version_info;
-        version_info.append("rocksdb_version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(stringfromll(rocksdb::kMinorVersion)).append(".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
+        version_info.append("rocksdb_version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(stringfromll(rocksdb::kMinorVersion)).append(
+                ".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
         all.append(version_info);
         std::map<rocksdb::MemoryUtil::UsageType, uint64_t> usage_by_type;
         std::unordered_set<const rocksdb::Cache*> cache_set;
