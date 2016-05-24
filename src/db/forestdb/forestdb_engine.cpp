@@ -573,6 +573,12 @@ namespace ardb
         return -1;
     }
 
+    const std::string ForestDBEngine::GetErrorReason(int err)
+    {
+        err = err - STORAGE_ENGINE_ERR_OFFSET;
+        return fdb_error_msg((fdb_status)err);
+    }
+
     Iterator* ForestDBEngine::Find(Context& ctx, const KeyObject& key)
     {
         ForestDBIterator* iter = NULL;

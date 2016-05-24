@@ -135,6 +135,7 @@ namespace ardb
             int DropNameSpace(Context& ctx, const Data& ns);
             void Stats(Context& ctx, std::string& str);
             int64_t EstimateKeysNum(Context& ctx, const Data& ns);
+            const std::string GetErrorReason(int err);
             Iterator* Find(Context& ctx, const KeyObject& key);
             const FeatureSet GetFeatureSet()
             {

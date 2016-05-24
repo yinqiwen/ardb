@@ -126,6 +126,7 @@ namespace ardb
             void Stats(Context& ctx, std::string& str);
             int64_t EstimateKeysNum(Context& ctx, const Data& ns);
             Iterator* Find(Context& ctx, const KeyObject& key);
+            const std::string GetErrorReason(int err);
             const FeatureSet GetFeatureSet()
             {
                 FeatureSet features;

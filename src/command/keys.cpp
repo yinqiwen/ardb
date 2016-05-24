@@ -661,7 +661,7 @@ OP_NAMESPACE_BEGIN
                     SetKeyValue(ctx, key, meta_value);
                     /*
                      * if the storage engine underly do NOT support custom compact filter,
-                     * ttl key/value pair must be stored for the later expire scan.
+                     * ttl key/value pair must be stored for the later expire scan worker.
                      */
                     if (!m_engine->GetFeatureSet().support_compactfilter)
                     {

@@ -50,8 +50,8 @@
                                          }\
                                        }while(0)
 
-#define WT_ERR(err)  (WT_NOTFOUND == err ? ERR_ENTRY_NOT_EXIST:err)
-#define WT_NERR(err)  (WT_NOTFOUND == err ? 0:err)
+#define WT_ERR(err)  (WT_NOTFOUND == err ? ERR_ENTRY_NOT_EXIST: (err + STORAGE_ENGINE_ERR_OFFSET))
+#define WT_NERR(err)  (WT_NOTFOUND == err ? 0:(err + STORAGE_ENGINE_ERR_OFFSET))
 
 namespace ardb
 {
@@ -552,6 +552,11 @@ namespace ardb
     int64_t WiredTigerEngine::EstimateKeysNum(Context& ctx, const Data& ns)
     {
         return 0;
+    }
+    const std::string WiredTigerEngine::GetErrorReason(int err)
+    {
+        err = err - STORAGE_ENGINE_ERR_OFFSET;
+        return wiredtiger_strerror(err);
     }
     Iterator* WiredTigerEngine::Find(Context& ctx, const KeyObject& key)
     {

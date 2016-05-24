@@ -478,6 +478,13 @@ namespace ardb
         return Get(ctx, key, val) == 0;
     }
 
+    const std::string LevelDBEngine::GetErrorReason(int err)
+    {
+        leveldb::Status s;
+
+        return s.ToString();
+    }
+
     Iterator* LevelDBEngine::Find(Context& ctx, const KeyObject& key)
     {
         LevelDBIterator* iter = NULL;

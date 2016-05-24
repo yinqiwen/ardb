@@ -123,6 +123,8 @@ OP_NAMESPACE_BEGIN
             virtual int64_t EstimateKeysNum(Context& ctx, const Data& ns) = 0;
             virtual void Stats(Context& ctx, std::string& str) = 0;
 
+            virtual const std::string GetErrorReason(int err) = 0;
+
             virtual const FeatureSet GetFeatureSet() = 0;
 
             virtual ~Engine()

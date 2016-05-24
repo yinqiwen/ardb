@@ -47,6 +47,8 @@
 #define FIRST_CHUNK_FLAG  0x01
 #define LAST_CHUNK_FLAG  0x02
 
+#define STORAGE_ENGINE_ERR_OFFSET -100000
+
 namespace ardb
 {
     namespace codec
@@ -79,20 +81,6 @@ namespace ardb
             ERR_KEY_EXIST = -1020,
             ERR_WRONG_TYPE = -1021,
             ERR_OUTOFRANGE = -1022,
-
-            //ERR_ROCKS_kNotFound = -2001,
-            ERR_ROCKS_kCorruption = -2002,
-            ERR_ROCKS_kNotSupported = -2003,
-            ERR_ROCKS_kInvalidArgument = -2004,
-            ERR_ROCKS_kIOError = -2005,
-            ERR_ROCKS_kMergeInProgress = -2006,
-            ERR_ROCKS_kIncomplete = -2007,
-            ERR_ROCKS_kShutdownInProgress = -2008,
-            ERR_ROCKS_kTimedOut = -2009,
-            ERR_ROCKS_kAborted = -2010,
-            ERR_ROCKS_kBusy = -2011,
-            ERR_ROCKS_kExpired = -2012,
-            ERR_ROCKS_kTryAgain = -2013,
         };
 
         enum StatusCode

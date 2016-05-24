@@ -138,6 +138,7 @@ OP_NAMESPACE_BEGIN
             int Flush(Context& ctx, const Data& ns);
             int BeginBulkLoad(Context& ctx);
             int EndBulkLoad(Context& ctx);
+            const std::string GetErrorReason(int err);
             const FeatureSet GetFeatureSet()
             {
                 FeatureSet features;

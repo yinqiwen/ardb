@@ -57,8 +57,8 @@
 #define LMDB_DEL_OP 2
 #define LMDB_CKP_OP 3
 
-#define LMDB_ERR(err)  (MDB_NOTFOUND == err ? ERR_ENTRY_NOT_EXIST:err)
-#define LMDB_NERR(err)  (MDB_NOTFOUND == err ? 0:err)
+#define LMDB_ERR(err)  (MDB_NOTFOUND == err ? ERR_ENTRY_NOT_EXIST:(err + STORAGE_ENGINE_ERR_OFFSET))
+#define LMDB_NERR(err)  (MDB_NOTFOUND == err ? 0:(err + STORAGE_ENGINE_ERR_OFFSET))
 
 #define LMDB_META_NAMESPACE "__LMDB_META__"
 
@@ -656,6 +656,12 @@ namespace ardb
             }
         }
         return err;
+    }
+
+    const std::string LMDBEngine::GetErrorReason(int err)
+    {
+        err = err - STORAGE_ENGINE_ERR_OFFSET;
+        return mdb_strerror(err);
     }
 
     bool LMDBEngine::Exists(Context& ctx, const KeyObject& key)

@@ -37,7 +37,7 @@
 
 //#define to_rocksdb_slice(slice) rocksdb::Slice(slice.data(), slice.size())
 //#define to_ardb_slice(slice) Slice(slice.data(), slice.size())
-#define ROCKSDB_ERR(err)  (0 == err.code()? 0: (rocksdb::Status::kNotFound == err.code() ? ERR_ENTRY_NOT_EXIST:(0 -err.code()-2000)))
+#define ROCKSDB_ERR(err)  (0 == err.code()? 0: (rocksdb::Status::kNotFound == err.code() ? ERR_ENTRY_NOT_EXIST:(err.code() + STORAGE_ENGINE_ERR_OFFSET)))
 
 //
 
@@ -1145,6 +1145,12 @@ OP_NAMESPACE_BEGIN
     int RocksDBEngine::EndBulkLoad(Context& ctx)
     {
         return ReOpen(m_options);
+    }
+
+    const std::string RocksDBEngine::GetErrorReason(int err)
+    {
+        rocksdb::Status s;
+        return s.ToString();
     }
 
     int RocksDBEngine::DropNameSpace(Context& ctx, const Data& ns)
