@@ -211,7 +211,6 @@ OP_NAMESPACE_BEGIN
         int err = m_engine->MultiGet(ctx, ks, vs, errs);
         if (0 != err)
         {
-            printf("####1\n");
             reply.SetErrCode(err);
             return 0;
         }
