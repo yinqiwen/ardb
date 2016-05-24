@@ -557,7 +557,7 @@ namespace ardb
         if (!GetDBI(ctx, ctx.ns, false, dbi))
         {
             errs.assign(keys.size(), ERR_ENTRY_NOT_EXIST);
-            return ERR_ENTRY_NOT_EXIST;
+            return 0;
         }
         LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
         Buffer& key_encode_buffers = local_ctx.GetEncodeBuferCache();
@@ -605,7 +605,7 @@ namespace ardb
                 mdb_txn_commit(txn);
             }
         }
-        return ENGINE_ERR(rc);
+        return ENGINE_NERR(rc);
     }
     int LMDBEngine::Del(Context& ctx, const KeyObject& key)
     {
@@ -632,9 +632,14 @@ namespace ardb
         if (0 == rc)
         {
             rc = mdb_del(local_ctx.txn, dbi, &k, NULL);
+            rc = ENGINE_NERR(rc);
             local_ctx.TryReleaseTransanction(0 == rc, false);
         }
-        return ENGINE_ERR(rc);
+        else
+        {
+            rc = ENGINE_ERR(rc);
+        }
+        return rc;
     }
 
     int LMDBEngine::Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args)
