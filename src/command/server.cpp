@@ -102,15 +102,7 @@ namespace ardb
         {
             type = ARDB_DUMP;
         }
-        char tmp[1024];
-        uint32 now = time(NULL);
-        sprintf(tmp, "%s/save-snapshot.%u", GetConf().backup_dir.c_str(), now);
-        ChannelService* io_serv = NULL;
-        if (NULL != ctx.client && NULL != ctx.client->client)
-        {
-            io_serv = &(ctx.client->client->GetService());
-        }
-        Snapshot* snapshot = g_snapshot_manager->NewSnapshot(type, true, RDBSaveLoadRoutine, io_serv);
+        Snapshot* snapshot = g_snapshot_manager->NewSnapshot(type, true, NULL, NULL);
         if (NULL != snapshot)
         {
             reply.SetStatusCode(STATUS_OK);
