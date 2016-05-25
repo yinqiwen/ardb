@@ -1300,7 +1300,7 @@ OP_NAMESPACE_BEGIN
             return;
         }
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
-        Slice key_slice = next.Encode(rocks_ctx.GetEncodeBuferCache());
+        Slice key_slice = next.Encode(rocks_ctx.GetEncodeBuferCache(), false);
         m_iter->Seek(to_rocksdb_slice(key_slice));
         CheckBound();
     }

@@ -712,7 +712,7 @@ namespace ardb
             return;
         }
         ForestDBLocalContext& local_ctx = GetDBLocalContext();
-        Slice key_slice = next.Encode(local_ctx.GetEncodeBuferCache());
+        Slice key_slice = next.Encode(local_ctx.GetEncodeBuferCache(), false);
         int rc = fdb_iterator_seek(m_iter, (const void *) key_slice.data(), key_slice.size(), FDB_ITR_SEEK_HIGHER);
         m_valid = rc == 0;
     }

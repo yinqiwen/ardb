@@ -877,7 +877,7 @@ namespace ardb
             return;
         }
         LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
-        Slice key_slice = next.Encode(local_ctx.GetEncodeBuferCache());
+        Slice key_slice = next.Encode(local_ctx.GetEncodeBuferCache(), false);
         m_raw_key.mv_data = (void *) key_slice.data();
         m_raw_key.mv_size = key_slice.size();
         int rc = mdb_cursor_get(m_cursor, &m_raw_key, &m_raw_val, MDB_SET_RANGE);
