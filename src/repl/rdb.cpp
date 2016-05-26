@@ -2163,7 +2163,7 @@ namespace ardb
                     {
                         KeyObject next(dumpctx.ns, KEY_END, current_key);
                         iter->Jump(next);
-                        break;
+                        continue;
                     }
                     default:
                     {
