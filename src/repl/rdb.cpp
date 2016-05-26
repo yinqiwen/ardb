@@ -1801,8 +1801,13 @@ namespace ardb
         if (0 == ret)
         {
             g_lastsave = time(NULL);
-            time_t end = time(NULL);
+            time_t end = g_lastsave;
             g_lastsave_cost = end - start;
+            INFO_LOG("Cost %us to save snapshot file with type:%s.", g_lastsave_cost, (m_type == REDIS_DUMP)?"redis":"ardb");
+        }
+        else
+        {
+            WARN_LOG("Failed to save snapshot file with type:%s", (m_type == REDIS_DUMP)?"redis":"ardb");
         }
         g_saver_num--;
         if (g_saver_num < 0)
@@ -1834,6 +1839,7 @@ namespace ardb
         {
             return ret;
         }
+        INFO_LOG("Start to save snapshot file:%s with type:%s.", file.c_str(), (m_type == REDIS_DUMP)?"redis":"ardb");
         return DoSave();
     }
     int Snapshot::BGSave(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data)
@@ -2076,7 +2082,7 @@ namespace ardb
             {
                 KeyObject& k = iter->Key();
                 ValueObject& v = iter->Value();
-                //printf("###%d %s %d \n", k.GetType(), k.GetKey().AsString().c_str(), err);
+                DEBUG_LOG("Save key/value with type:%u & key:%s", k.GetType(), k.GetKey().AsString().c_str());
                 switch (k.GetType())
                 {
                     case KEY_META:
