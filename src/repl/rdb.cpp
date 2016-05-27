@@ -646,7 +646,7 @@ namespace ardb
             }
             else
 #endif
-            snprintf((char*) buf + 1, sizeof(buf) - 1, "%.17g", val);
+                snprintf((char*) buf + 1, sizeof(buf) - 1, "%.17g", val);
             buf[0] = strlen((char*) buf + 1);
             len = buf[0] + 1;
         }
@@ -773,8 +773,8 @@ namespace ardb
             zscore_value.SetZSetScore(score);
             //g_db->SetKeyValue(ctx, zsort, zscore_value);
             //g_db->SetKeyValue(ctx, zscore, zscore_value);
-            GetDBWriter().Put(ctx,zsort, zsort_value);
-            GetDBWriter().Put(ctx,zscore, zscore_value);
+            GetDBWriter().Put(ctx, zsort, zsort_value);
+            GetDBWriter().Put(ctx, zscore, zscore_value);
             iter = ziplistNext(data, iter);
         }
     }
@@ -848,7 +848,7 @@ namespace ardb
             ValueObject member_value;
             member_value.SetType(KEY_SET_MEMBER);
             //g_db->SetKeyValue(ctx, member, member_value);
-            GetDBWriter().Put(ctx,member, member_value);
+            GetDBWriter().Put(ctx, member, member_value);
         }
         //        KeyObject skey(ctx.ns, KEY_META, key);
         //        g_db->SetKeyValue(ctx, skey, smeta);
@@ -976,7 +976,7 @@ namespace ardb
                                 //g_db->Set
                                 idx++;
                                 //g_db->SetKeyValue(ctx, lk, lv);
-                                GetDBWriter().Put(ctx,lk, lv);
+                                GetDBWriter().Put(ctx, lk, lv);
                             }
                             iter = ziplistNext(data, iter);
                         }
@@ -1019,8 +1019,8 @@ namespace ardb
                         zscore_value.SetZSetScore(score);
                         //g_db->SetKeyValue(ctx, zsort, zscore_value);
                         //g_db->SetKeyValue(ctx, zscore, zscore_value);
-                        GetDBWriter().Put(ctx,zsort, zsort_value);
-                        GetDBWriter().Put(ctx,zscore, zscore_value);
+                        GetDBWriter().Put(ctx, zsort, zsort_value);
+                        GetDBWriter().Put(ctx, zscore, zscore_value);
                     }
                     else
                     {
@@ -1097,7 +1097,7 @@ namespace ardb
                             fvalue.SetType(KEY_HASH_FIELD);
                             fvalue.SetHashValue(fvstring);
                             //g_db->SetKeyValue(ctx, fkey, fvalue);
-                            GetDBWriter().Put(ctx,fkey, fvalue);
+                            GetDBWriter().Put(ctx, fkey, fvalue);
                             hlen++;
                         }
                         meta_value.SetObjectLen(hlen);
@@ -1147,7 +1147,7 @@ namespace ardb
             }
         }
         //g_db->SetKeyValue(ctx, meta_key, meta_value);
-        GetDBWriter().Put(ctx,meta_key, meta_value);
+        GetDBWriter().Put(ctx, meta_key, meta_value);
         return true;
     }
 
@@ -1650,7 +1650,7 @@ namespace ardb
         if (ret == 0)
         {
             uint64_t cost = get_current_epoch_millis() - start_time;
-            INFO_LOG("Cost %.2fs to load snapshot file with type:%s.", cost / 1000.0, is_redis_snapshot?"redis":"ardb");
+            INFO_LOG("Cost %.2fs to load snapshot file with type:%s.", cost / 1000.0, is_redis_snapshot ? "redis" : "ardb");
         }
         m_state = ret == 0 ? LOAD_SUCCESS : LOAD_FAIL;
         if (NULL != m_routine_cb)
@@ -1803,11 +1803,11 @@ namespace ardb
             g_lastsave = time(NULL);
             time_t end = g_lastsave;
             g_lastsave_cost = end - start;
-            INFO_LOG("Cost %us to save snapshot file with type:%s.", g_lastsave_cost, (m_type == REDIS_DUMP)?"redis":"ardb");
+            INFO_LOG("Cost %us to save snapshot file with type:%s.", g_lastsave_cost, (m_type == REDIS_DUMP) ? "redis" : "ardb");
         }
         else
         {
-            WARN_LOG("Failed to save snapshot file with type:%s", (m_type == REDIS_DUMP)?"redis":"ardb");
+            WARN_LOG("Failed to save snapshot file with type:%s", (m_type == REDIS_DUMP) ? "redis" : "ardb");
         }
         g_saver_num--;
         if (g_saver_num < 0)
@@ -1839,7 +1839,7 @@ namespace ardb
         {
             return ret;
         }
-        INFO_LOG("Start to save snapshot file:%s with type:%s.", file.c_str(), (m_type == REDIS_DUMP)?"redis":"ardb");
+        INFO_LOG("Start to save snapshot file:%s with type:%s.", file.c_str(), (m_type == REDIS_DUMP) ? "redis" : "ardb");
         return DoSave();
     }
     int Snapshot::BGSave(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data)
@@ -2054,7 +2054,7 @@ namespace ardb
         int err = 0;
 #define DUMP_CHECK_WRITE(x)  if((err = (x)) < 0) break
         Context dumpctx;
-        dumpctx.flags.iterate_multi_keys = 1;
+        //dumpctx.flags.iterate_multi_keys = 1;
         DataArray nss;
         g_db->GetEngine()->ListNameSpaces(dumpctx, nss);
         for (size_t i = 0; i < nss.size(); i++)
@@ -2167,9 +2167,16 @@ namespace ardb
                     }
                     case KEY_ZSET_SCORE:
                     {
-                        KeyObject next(dumpctx.ns, KEY_END, current_key);
-                        iter->Jump(next);
-                        continue;
+                        /*
+                         * we enabled prefix extractor in rocksdb, which make the jump action not work well if the flag
+                         * 'iterate_total_order' not enabled.
+                         * If we set  'iterate_total_order' = 1, then whole iteration would be slower than current impl.
+                         * Now we just ignore KEY_ZSET_SCORE k/v and move iterator to next.
+                         KeyObject next(dumpctx.ns, KEY_END, k.GetKey());
+                         iter->Jump(next);
+                         continue;
+                         */
+                        break;
                     }
                     default:
                     {

@@ -921,5 +921,31 @@ namespace ardb
         }
         return 0;
     }
+
+    int Ardb::Debug(Context& ctx, RedisCommandFrame& cmd)
+    {
+        RedisReply& reply = ctx.GetReply();
+        reply.SetStatusCode(STATUS_OK);
+        KeyObject empty;
+        empty.SetNameSpace(ctx.ns);
+        ctx.flags.iterate_total_order = 1;
+        KeyObject start(ctx.ns, KEY_META, cmd.GetArguments()[0]);
+        Iterator* iter = g_db->GetEngine()->Find(ctx, empty);
+        if(iter->Valid())
+        {
+            iter->Jump(start);
+        }
+        while(iter->Valid())
+        {
+            KeyObject& k = iter->Key();
+            if(k.GetKey() != start.GetKey())
+            {
+                break;
+            }
+            INFO_LOG("Internal key:%s with type:%u", k.GetKey().AsString().c_str(), k.GetType());
+            iter->Next();
+        }
+        DELETE(iter);
+    }
 }
 

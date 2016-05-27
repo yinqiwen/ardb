@@ -341,7 +341,8 @@ OP_NAMESPACE_BEGIN
         { "migratedb", REDIS_CMD_MIGRATEDB, &Ardb::MigrateDB, 4, 4, "w", 0, 0, 0 },
         { "restorechunk", REDIS_CMD_RESTORECHUNK, &Ardb::RestoreChunk, 1, 1, "wl", 0, 0, 0 },
         { "restoredb", REDIS_CMD_RESTOREDB, &Ardb::RestoreDB, 1, 1, "wl", 0, 0, 0 },
-        { "monitor", REDIS_CMD_MONITOR, &Ardb::Monitor, 0, 0, "ars", 0, 0, 0 }, };
+        { "monitor", REDIS_CMD_MONITOR, &Ardb::Monitor, 0, 0, "ars", 0, 0, 0 },
+        { "debug", REDIS_CMD_DEBUG, &Ardb::Debug, 1, 1, "ars", 0, 0, 0 },};
 
         CostRanges cmdstat_ranges;
         cmdstat_ranges.push_back(CostRange(0, 1000));
@@ -1024,6 +1025,7 @@ OP_NAMESPACE_BEGIN
         element.clear();
         if (!string_touint64(cursor, cursor_int))
         {
+            element = cursor;
             return -1;
         }
         if (0 == cursor_int)
