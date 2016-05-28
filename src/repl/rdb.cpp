@@ -2077,6 +2077,7 @@ namespace ardb
             Data current_key;
             KeyType current_keytype;
             int64 objectlen = 0;
+            int64 object_totallen = 0;
 
             while (iter->Valid())
             {
@@ -2087,6 +2088,12 @@ namespace ardb
                 {
                     case KEY_META:
                     {
+                        if(objectlen != 0)
+                        {
+                            ERROR_LOG("Previous key:%s with type:%u is not complete dump, %lld missing in %lld elements", current_key.AsString().c_str(),current_keytype, objectlen, object_totallen);
+                            err = -2;
+                            break;
+                        }
                         int64 ttl = v.GetTTL();
                         if (ttl > 0)
                         {
@@ -2116,6 +2123,7 @@ namespace ardb
                             {
                                 g_db->ObjectLen(dumpctx, current_keytype, kstr);
                                 objectlen = dumpctx.GetReply().GetInteger();
+                                object_totallen = objectlen;
                                 DUMP_CHECK_WRITE(WriteLen(objectlen));
                                 //DUMP_CHECK_WRITE(WriteStringObject(v.GetStringValue()));
                                 break;
@@ -2182,6 +2190,10 @@ namespace ardb
                     {
                         break;
                     }
+                }
+                if(err < 0)
+                {
+                    break;
                 }
                 iter->Next();
             }
