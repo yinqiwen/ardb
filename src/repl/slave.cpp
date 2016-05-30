@@ -198,15 +198,6 @@ OP_NAMESPACE_BEGIN
         const int64_t replay_process_events_interval_bytes = 10 * 1024 * 1024;
         while (true)
         {
-            if (m_ctx.sync_repl_offset == g_repl->GetReplLog().WALEndOffset())
-            {
-                m_ctx.state = SLAVE_STATE_SYNCED;
-                if (!g_repl->GetReplLog().CurrentNamespace().empty())
-                {
-                    m_ctx.ctx.ns.SetString(g_repl->GetReplLog().CurrentNamespace(), false);
-                }
-                break;
-            }
             if (m_ctx.sync_repl_offset < g_repl->GetReplLog().WALStartOffset() || m_ctx.sync_repl_offset > g_repl->GetReplLog().WALEndOffset())
             {
                 ERROR_LOG("Failed to replay wal with sync_offset:%lld, wal_start_offset:%llu, wal_end_offset:%lld", m_ctx.sync_repl_offset,
@@ -219,12 +210,24 @@ OP_NAMESPACE_BEGIN
                 g_repl->GetReplLog().SetReplKey("?");
                 break;
             }
-            int64_t replayed_bytes = m_ctx.sync_repl_offset - replay_init_offset;
-            if ((replayed_bytes + MAX_REPLAY_CACHE_SIZE) / replay_process_events_interval_bytes > replayed_bytes / replay_process_events_interval_bytes)
+
+            int64_t before_replayed_bytes = m_ctx.sync_repl_offset - replay_init_offset;
+            g_repl->GetReplLog().Replay(m_ctx.sync_repl_offset, MAX_REPLAY_CACHE_SIZE, slave_replay_wal, NULL);
+            int64_t after_replayed_bytes = m_ctx.sync_repl_offset - replay_init_offset;
+            if (after_replayed_bytes / replay_process_events_interval_bytes > before_replayed_bytes / replay_process_events_interval_bytes)
             {
-                INFO_LOG("%lld bytes replayed from wal log, %llu bytes left.", replayed_bytes, g_repl->GetReplLog().WALEndOffset() - m_ctx.sync_repl_offset);
+                INFO_LOG("%lld bytes replayed from wal log, %llu bytes left.", after_replayed_bytes, g_repl->GetReplLog().WALEndOffset() - m_ctx.sync_repl_offset);
             }
-            swal_replay(g_repl->GetReplLog().GetWAL(), m_ctx.sync_repl_offset, MAX_REPLAY_CACHE_SIZE, slave_replay_wal, NULL);
+            if (m_ctx.sync_repl_offset == g_repl->GetReplLog().WALEndOffset())
+            {
+                m_ctx.state = SLAVE_STATE_SYNCED;
+                if (!g_repl->GetReplLog().CurrentNamespace().empty())
+                {
+                    m_ctx.ctx.ns.SetString(g_repl->GetReplLog().CurrentNamespace(), false);
+                }
+                break;
+            }
+            g_repl->GetIOService().Continue();
         }
         replaying = false;
         INFO_LOG("Complete replay wal with sync offset:%lld & wal end offset:%llu", m_ctx.sync_repl_offset, g_repl->GetReplLog().WALEndOffset());
@@ -232,41 +235,18 @@ OP_NAMESPACE_BEGIN
 
     void Slave::ReplayWAL(const void* log, size_t loglen)
     {
-        Buffer* replay_buffer = NULL;
         Buffer logbuf((char*) log, 0, loglen);
-        if (m_ctx.replay_cumulate_buffer.Readable())
-        {
-            m_ctx.replay_cumulate_buffer.Write(log, loglen);
-            replay_buffer = &m_ctx.replay_cumulate_buffer;
-        }
-        else
-        {
-            replay_buffer = &logbuf;
-        }
-
-        while (replay_buffer->Readable() && m_ctx.state == SLAVE_STATE_REPLAYING_WAL)
+        while (logbuf.Readable() && m_ctx.state == SLAVE_STATE_REPLAYING_WAL)
         {
             RedisCommandFrame msg;
-            size_t rest = replay_buffer->ReadableBytes();
-            if (!RedisCommandDecoder::Decode(NULL, *replay_buffer, msg))
+            size_t rest = logbuf.ReadableBytes();
+            if (!RedisCommandDecoder::Decode(NULL, logbuf, msg))
             {
                 break;
             }
+            m_ctx.ctx.flags.no_wal = 1;
             g_db->Call(m_ctx.ctx, msg);
             m_ctx.UpdateSyncOffsetCksm(msg.GetRawProtocolData());
-            g_repl->GetIOService().Continue();
-        }
-        if (replay_buffer->Readable())
-        {
-            if (replay_buffer == &logbuf)
-            {
-                m_ctx.replay_cumulate_buffer.Clear();
-                m_ctx.replay_cumulate_buffer.Write(replay_buffer, replay_buffer->ReadableBytes());
-            }
-            else
-            {
-                m_ctx.replay_cumulate_buffer.DiscardReadedBytes();
-            }
         }
     }
 

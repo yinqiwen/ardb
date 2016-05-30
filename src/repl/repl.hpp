@@ -36,6 +36,7 @@
 #include "thread/thread_mutex.hpp"
 #include "thread/lock_guard.hpp"
 #include "util/concurrent_queue.hpp"
+#include "thread/spin_rwlock.hpp"
 #include "swal.h"
 #include "context.hpp"
 #include "rdb.hpp"
@@ -51,10 +52,11 @@ OP_NAMESPACE_BEGIN
     {
         private:
             swal_t* m_wal;
+            SpinRWLock m_repl_lock;
             void ReCreateWAL();
             static void WriteWALCallback(Channel*, void* data);
             int WriteWAL(const Data& ns, const Buffer& cmd);
-            int WriteWAL(const Buffer& cmd);
+            int WriteWAL(const Buffer& cmd, bool lock);
             int DirectWriteWAL(RedisCommandFrame& cmd);
             void FlushSyncWAL();
             friend class Master;
@@ -64,15 +66,15 @@ OP_NAMESPACE_BEGIN
             ReplicationBacklog();
             int Init();
             void Routine();
-            swal_t* GetWAL();
             std::string GetReplKey();
             bool IsReplKeySelfGen();
             void SetReplKey(const std::string& str);
             int WriteWAL(const Data& ns, RedisCommandFrame& cmd);
+            void Replay(size_t offset, int64_t limit_len, swal_replay_logfunc func, void* data);
             bool IsValidOffsetCksm(int64_t offset, uint64_t cksm);
-            uint64_t WALStartOffset();
-            uint64_t WALEndOffset();
-            uint64_t WALCksm();
+            uint64_t WALStartOffset(bool lock = true);
+            uint64_t WALEndOffset(bool lock = true);
+            uint64_t WALCksm(bool lock = true);
             std::string CurrentNamespace();
             void ClearCurrentNamespace();
             void SetCurrentNamespace(const std::string& ns);

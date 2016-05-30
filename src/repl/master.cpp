@@ -165,7 +165,7 @@ OP_NAMESPACE_BEGIN
                     wal_ping_saved = true;
                     Buffer ping;
                     ping.Printf("*1\r\n$4\r\nping\r\n");
-                    g_repl->GetReplLog().WriteWAL(ping);
+                    g_repl->GetReplLog().WriteWAL(ping, true);
                 }
                 if (slave->sync_offset < g_repl->GetReplLog().WALEndOffset())
                 {
@@ -321,7 +321,7 @@ OP_NAMESPACE_BEGIN
         SlaveSyncContext* slave = (SlaveSyncContext*) data;
         slave->conn->GetOutputBuffer().Write(log, loglen);
         slave->sync_offset += loglen;
-        if (slave->sync_offset == g_repl->GetReplLog().WALEndOffset())
+        if (slave->sync_offset == g_repl->GetReplLog().WALEndOffset(false))
         {
             slave->conn->GetWritableOptions().auto_disable_writing = true;
         }
@@ -350,7 +350,7 @@ OP_NAMESPACE_BEGIN
         }
         if (slave->sync_offset < g_repl->GetReplLog().WALEndOffset())
         {
-            swal_replay(g_repl->GetReplLog().GetWAL(), slave->sync_offset, MAX_SEND_CACHE_SIZE, send_wal_toslave, slave);
+            g_repl->GetReplLog().Replay(slave->sync_offset, MAX_SEND_CACHE_SIZE, send_wal_toslave, slave);
         }
     }
 
