@@ -307,7 +307,7 @@ namespace ardb
                     {
                         info.append("slave_loading_left_bytes:").append(stringfromll(g_repl->GetSlave().LoadLeftBytes())).append("\r\n");
                     }
-                    info.append("slave_repl_offset:").append(stringfromll(g_repl->GetReplLog().WALEndOffset())).append("\r\n");
+                    info.append("slave_repl_offset:").append(stringfromll(g_repl->GetSlave().SyncOffset())).append("\r\n");
                     if (!g_repl->GetSlave().IsConnected())
                     {
                         info.append("master_link_down_since_seconds:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLinkDownTime())).append(

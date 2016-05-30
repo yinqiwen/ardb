@@ -193,6 +193,9 @@ OP_NAMESPACE_BEGIN
             return;
         }
         replaying = true;
+        INFO_LOG("Start to replay wal from sync offset:%lld & wal end offset:%llu", m_ctx.sync_repl_offset, g_repl->GetReplLog().WALEndOffset());
+        int64_t replay_init_offset = m_ctx.sync_repl_offset;
+        const int64_t replay_process_events_interval_bytes = 10 * 1024 * 1024;
         while (true)
         {
             if (m_ctx.sync_repl_offset == g_repl->GetReplLog().WALEndOffset())
@@ -206,7 +209,8 @@ OP_NAMESPACE_BEGIN
             }
             if (m_ctx.sync_repl_offset < g_repl->GetReplLog().WALStartOffset() || m_ctx.sync_repl_offset > g_repl->GetReplLog().WALEndOffset())
             {
-                ERROR_LOG("Failed to replay wal with sync_offset:%lld, wal_start_offset:%llu, wal_end_offset:%lld", m_ctx.sync_repl_offset, g_repl->GetReplLog().WALStartOffset(), g_repl->GetReplLog().WALEndOffset());
+                ERROR_LOG("Failed to replay wal with sync_offset:%lld, wal_start_offset:%llu, wal_end_offset:%lld", m_ctx.sync_repl_offset,
+                        g_repl->GetReplLog().WALStartOffset(), g_repl->GetReplLog().WALEndOffset());
                 DoClose();
                 /*
                  * Data lost when loading wal while wal, reset wal record, clear replication key
@@ -215,9 +219,15 @@ OP_NAMESPACE_BEGIN
                 g_repl->GetReplLog().SetReplKey("?");
                 break;
             }
+            int64_t replayed_bytes = m_ctx.sync_repl_offset - replay_init_offset;
+            if ((replayed_bytes + MAX_REPLAY_CACHE_SIZE) / replay_process_events_interval_bytes > replayed_bytes / replay_process_events_interval_bytes)
+            {
+                INFO_LOG("%lld bytes replayed from wal log, %llu bytes left.", replayed_bytes, g_repl->GetReplLog().WALEndOffset() - m_ctx.sync_repl_offset);
+            }
             swal_replay(g_repl->GetReplLog().GetWAL(), m_ctx.sync_repl_offset, MAX_REPLAY_CACHE_SIZE, slave_replay_wal, NULL);
         }
         replaying = false;
+        INFO_LOG("Complete replay wal with sync offset:%lld & wal end offset:%llu", m_ctx.sync_repl_offset, g_repl->GetReplLog().WALEndOffset());
     }
 
     void Slave::ReplayWAL(const void* log, size_t loglen)
@@ -283,7 +293,8 @@ OP_NAMESPACE_BEGIN
     {
         m_ctx.cmd_recved_time = time(NULL);
         int len = g_repl->GetReplLog().DirectWriteWAL(cmd);
-        DEBUG_LOG("Recv master inline:%d cmd %s with type:%d at %lld %lld at state:%s", cmd.IsInLine(), cmd.ToString().c_str(), len, m_ctx.sync_repl_offset, g_repl->GetReplLog().WALEndOffset(), state2String(m_ctx.state));
+        DEBUG_LOG("Recv master inline:%d cmd %s with type:%d at %lld %lld at state:%s", cmd.IsInLine(), cmd.ToString().c_str(), len, m_ctx.sync_repl_offset,
+                g_repl->GetReplLog().WALEndOffset(), state2String(m_ctx.state));
         /*
          * Only execute command after slave fully synced from master
          */
@@ -377,11 +388,12 @@ OP_NAMESPACE_BEGIN
         {
             return -1;
         }
-        if(DUMPING == state)
+        if (DUMPING == state)
         {
-            if(snapshot->CachedReplOffset() < g_repl->GetReplLog().WALStartOffset())
+            if (snapshot->CachedReplOffset() < g_repl->GetReplLog().WALStartOffset())
             {
-                ERROR_LOG("Slave is too slow to load snapshot, while the wal log is full fill from loading snapshot[%llu, %llu].",snapshot->CachedReplOffset(),g_repl->GetReplLog().WALStartOffset());
+                ERROR_LOG("Slave is too slow to load snapshot, while the wal log is full fill from loading snapshot[%llu, %llu].", snapshot->CachedReplOffset(),
+                        g_repl->GetReplLog().WALStartOffset());
                 return -1;
             }
         }
@@ -445,11 +457,13 @@ OP_NAMESPACE_BEGIN
                     Buffer sync;
                     if (!m_ctx.server_is_redis)
                     {
-                        sync.Printf("psync %s %lld cksm %llu\r\n", g_repl->GetReplLog().IsReplKeySelfGen() ? "?" : g_repl->GetReplLog().GetReplKey().c_str(), g_repl->GetReplLog().WALEndOffset(), g_repl->GetReplLog().WALCksm());
+                        sync.Printf("psync %s %lld cksm %llu\r\n", g_repl->GetReplLog().IsReplKeySelfGen() ? "?" : g_repl->GetReplLog().GetReplKey().c_str(),
+                                g_repl->GetReplLog().WALEndOffset(), g_repl->GetReplLog().WALCksm());
                     }
                     else
                     {
-                        sync.Printf("psync %s %lld\r\n", g_repl->GetReplLog().IsReplKeySelfGen() ? "?" : g_repl->GetReplLog().GetReplKey().c_str(), g_repl->GetReplLog().WALEndOffset());
+                        sync.Printf("psync %s %lld\r\n", g_repl->GetReplLog().IsReplKeySelfGen() ? "?" : g_repl->GetReplLog().GetReplKey().c_str(),
+                                g_repl->GetReplLog().WALEndOffset());
                     }
                     INFO_LOG("Send %s", trim_string(sync.AsString()).c_str());
                     m_ctx.state = SLAVE_STATE_WAITING_PSYNC_REPLY;
@@ -671,12 +685,20 @@ OP_NAMESPACE_BEGIN
         INFO_LOG("[Slave]Connecting master %s:%u", g_db->GetConf().master_host.c_str(), g_db->GetConf().master_port);
         return 0;
     }
+    int64 Slave::SyncOffset()
+    {
+        return m_ctx.sync_repl_offset;
+    }
     int64 Slave::SyncLeftBytes()
     {
         return m_ctx.snapshot.DumpLeftDataSize();
     }
     int64 Slave::LoadLeftBytes()
     {
+        if(m_ctx.state == SLAVE_STATE_REPLAYING_WAL)
+        {
+            return g_repl->GetReplLog().WALEndOffset() - m_ctx.sync_repl_offset;
+        }
         return m_ctx.snapshot.ProcessLeftDataSize();
     }
 
@@ -687,7 +709,12 @@ OP_NAMESPACE_BEGIN
 
     bool Slave::IsLoading()
     {
-        return NULL != m_client && (SLAVE_STATE_LOADING_SNAPSHOT == m_ctx.state || SLAVE_STATE_REPLAYING_WAL == m_ctx.state);
+        /*
+         * if slave can serve stale data, 'SLAVE_STATE_REPLAYING_WAL' would not considered as 'loading' state.
+         */
+        return NULL != m_client
+                && (SLAVE_STATE_LOADING_SNAPSHOT == m_ctx.state ||
+                        (!g_db->GetConf().slave_serve_stale_data && SLAVE_STATE_REPLAYING_WAL == m_ctx.state));
     }
 
     bool Slave::IsConnected()

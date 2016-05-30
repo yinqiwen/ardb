@@ -156,6 +156,7 @@ OP_NAMESPACE_BEGIN
             bool IsSyncing();
             int64 SyncLeftBytes();
             int64 LoadLeftBytes();
+            int64 SyncOffset();
             void SendACK();
 
     };
