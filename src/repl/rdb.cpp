@@ -736,7 +736,7 @@ namespace ardb
     void ObjectIO::RedisLoadZSetZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value)
     {
         meta_value.SetType(KEY_ZSET);
-        meta_value.SetObjectLen(ziplistLen(data));
+        meta_value.SetObjectLen(ziplistLen(data) / 2);
         unsigned char* iter = ziplistIndex(data, 0);
         while (iter != NULL)
         {
@@ -782,7 +782,7 @@ namespace ardb
     void ObjectIO::RedisLoadHashZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value)
     {
         meta_value.SetType(KEY_HASH);
-        meta_value.SetObjectLen(ziplistLen(data));
+        meta_value.SetObjectLen(ziplistLen(data)/2);
         //BatchWriteGuard guard(g_db->GetKeyValueEngine());
         unsigned char* iter = ziplistIndex(data, 0);
         while (iter != NULL)

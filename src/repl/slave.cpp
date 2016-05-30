@@ -377,10 +377,13 @@ OP_NAMESPACE_BEGIN
         {
             return -1;
         }
-        if(snapshot->CachedReplOffset() < g_repl->GetReplLog().WALStartOffset())
+        if(DUMPING == state)
         {
-            ERROR_LOG("Slave is too slow to load snapshot, while the wal log is full fill from loading snapshot.");
-            return -1;
+            if(snapshot->CachedReplOffset() < g_repl->GetReplLog().WALStartOffset())
+            {
+                ERROR_LOG("Slave is too slow to load snapshot, while the wal log is full fill from loading snapshot[%llu, %llu].",snapshot->CachedReplOffset(),g_repl->GetReplLog().WALStartOffset());
+                return -1;
+            }
         }
         return 0;
     }
