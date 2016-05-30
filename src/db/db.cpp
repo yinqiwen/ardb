@@ -144,7 +144,7 @@ OP_NAMESPACE_BEGIN
     static CostTrack g_cmd_cost_tracks[REDIS_CMD_MAX];
 
     Ardb::Ardb() :
-            m_engine(NULL), m_starttime(0), m_loading_data(false), m_redis_cursor_seed(0), m_watched_ctxs(NULL), m_ready_keys(NULL), m_monitors(NULL), m_restoring_nss(
+            m_engine(NULL), m_starttime(0), m_loading_data(false), m_compacting_data(false),m_redis_cursor_seed(0), m_watched_ctxs(NULL), m_ready_keys(NULL), m_monitors(NULL), m_restoring_nss(
             NULL), m_min_ttl(-1)
     {
         g_db = this;
@@ -604,6 +604,33 @@ OP_NAMESPACE_BEGIN
             TouchWatchKey(ctx, key);
             ctx.dirty++;
         }
+        return 0;
+    }
+
+    int Ardb::CompactDB(Context& ctx, const Data& ns)
+    {
+        if(m_compacting_data)
+        {
+            WARN_LOG("Can NOT launch compact task since server is compacting db.");
+            return -1;
+        }
+        KeyObject start, end;
+        start.SetNameSpace(ctx.ns);
+        m_compacting_data = true;
+        m_engine->Compact(ctx, start, end);
+        m_compacting_data = false;
+        return 0;
+    }
+    int Ardb::CompactAll(Context& ctx)
+    {
+        if(m_compacting_data)
+        {
+            WARN_LOG("Can NOT launch compact task since server is compacting db.");
+            return -1;
+        }
+        m_compacting_data = true;
+        m_engine->CompactAll(ctx);
+        m_compacting_data = false;
         return 0;
     }
 

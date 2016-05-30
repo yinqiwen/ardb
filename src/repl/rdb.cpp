@@ -2039,7 +2039,11 @@ namespace ardb
         Close();
         g_engine->FlushAll(loadctx);
         g_engine->EndBulkLoad(loadctx);
-        g_engine->CompactAll(loadctx);
+        INFO_LOG("All data load successfully from redis snapshot file.");
+        if(g_db->GetConf().compact_after_snapshot_load)
+        {
+            g_db->CompactAll(loadctx);
+        }
         INFO_LOG("Redis snapshot file load finished.");
         return 0;
         eoferr: Close();
@@ -2421,7 +2425,11 @@ namespace ardb
         Close();
         g_engine->FlushAll(loadctx);
         g_engine->EndBulkLoad(loadctx);
-        g_engine->CompactAll(loadctx);
+        INFO_LOG("All data load successfully from ardb snapshot file.");
+        if(g_db->GetConf().compact_after_snapshot_load)
+        {
+            g_db->CompactAll(loadctx);
+        }
         INFO_LOG("Ardb dump file load finished.");
         return 0;
         eoferr: Close();

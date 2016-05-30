@@ -105,6 +105,7 @@ OP_NAMESPACE_BEGIN
             Engine* m_engine;
             time_t m_starttime;
             bool m_loading_data;
+            bool m_compacting_data;
             ArdbConfig m_conf;
             ThreadLocal<LUAInterpreter> m_lua;
 
@@ -183,6 +184,8 @@ OP_NAMESPACE_BEGIN
             int IteratorDel(Context& ctx, const KeyObject& key, Iterator* iter);
             int FlushDB(Context& ctx, const Data& ns);
             int FlushAll(Context& ctx);
+            int CompactDB(Context& ctx, const Data& ns);
+            int CompactAll(Context& ctx);
 
             bool GetLongFromProtocol(Context& ctx, const std::string& str, int64_t& v);
 

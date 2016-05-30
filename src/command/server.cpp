@@ -719,9 +719,7 @@ namespace ardb
     {
         RedisReply& reply = ctx.GetReply();
         reply.SetStatusCode(STATUS_OK);
-        KeyObject start, end;
-        start.SetNameSpace(ctx.ns);
-        m_engine->Compact(ctx, start, end);
+        CompactDB(ctx, ctx.ns);
         return 0;
     }
 
@@ -729,7 +727,7 @@ namespace ardb
     {
         RedisReply& reply = ctx.GetReply();
         reply.SetStatusCode(STATUS_OK);
-        m_engine->CompactAll(ctx);
+        CompactAll(ctx);
         return 0;
     }
     /*
