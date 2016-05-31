@@ -33,6 +33,7 @@
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
+#include <stddef.h>
 #include "swal.h"
 
 #define SWAL_META_SIZE 1024
@@ -309,8 +310,21 @@ int swal_replay(swal_t* wal, size_t offset, int64_t limit_len, swal_replay_logfu
                 }
                 else
                 {
-                    func(wal->ring_cache + start_pos, wal->options.ring_cache_size - start_pos, data);
-                    func(wal->ring_cache, start_pos + total - wal->options.ring_cache_size, data);
+                    size_t tlen = wal->options.ring_cache_size - start_pos;
+                    size_t hlen = start_pos + total - wal->options.ring_cache_size;
+                    size_t consumed = func(wal->ring_cache + start_pos, tlen, data);
+                    if(tlen == consumed)
+                    {
+                        func(wal->ring_cache, hlen, data);
+                    }
+                    else
+                    {
+                        char* tmp = (char*)malloc(tlen - consumed + hlen);
+                        memcpy(tmp, wal->ring_cache + start_pos + consumed, tlen - consumed);
+                        memcpy(tmp + tlen - consumed, wal->ring_cache, hlen);
+                        func(tmp, tlen - consumed + hlen, data);
+                        free(tmp);
+                    }
                 }
             }
             return 0;
@@ -335,8 +349,21 @@ int swal_replay(swal_t* wal, size_t offset, int64_t limit_len, swal_replay_logfu
     }
     else
     {
-        func(wal->mmap_buf + start_pos, wal->options.max_file_size - start_pos, data);
-        func(wal->mmap_buf, total + start_pos - wal->options.max_file_size, data);
+        size_t tlen = wal->options.max_file_size - start_pos;
+        size_t consumed = func(wal->mmap_buf + start_pos, tlen, data);
+        size_t hlen = total + start_pos - wal->options.max_file_size;
+        if(consumed == tlen)
+        {
+            func(wal->mmap_buf, hlen, data);
+        }
+        else
+        {
+            char* tmp = (char*)malloc(tlen - consumed + hlen);
+            memcpy(tmp, wal->mmap_buf + start_pos + consumed, tlen - consumed);
+            memcpy(tmp + tlen - consumed, wal->mmap_buf, hlen);
+            func(tmp, tlen - consumed + hlen, data);
+            free(tmp);
+        }
     }
     return 0;
 }
@@ -402,6 +429,23 @@ int swal_close(swal_t* wal)
     swal_clear_replay_cache(wal);
     free(wal->dir);
     free(wal);
+    return 0;
+}
+
+int swal_dump_ring_cache(swal_t* wal, const char* file)
+{
+    if(NULL == wal->ring_cache)
+    {
+        return -1;
+    }
+    int mode = O_CREAT | O_RDWR, permission = S_IRUSR | S_IWUSR;
+    int fd = open(file, mode, permission);
+    if(-1 == fd)
+    {
+        return -1;
+    }
+    write(fd, wal->ring_cache, wal->options.ring_cache_size);
+    close(fd);
     return 0;
 }
 

@@ -176,10 +176,9 @@ OP_NAMESPACE_BEGIN
         return m_ctx.master_link_down_time;
     }
 
-    static int slave_replay_wal(const void* log, size_t loglen, void* data)
+    static size_t slave_replay_wal(const void* log, size_t loglen, void* data)
     {
-        g_repl->GetSlave().ReplayWAL(log, loglen);
-        return 0;
+        return  g_repl->GetSlave().ReplayWAL(log, loglen);
     }
 
     void Slave::ReplayWAL()
@@ -245,7 +244,7 @@ OP_NAMESPACE_BEGIN
         INFO_LOG("Complete replay wal with sync offset:%lld & wal end offset:%llu", m_ctx.sync_repl_offset, g_repl->GetReplLog().WALEndOffset());
     }
 
-    void Slave::ReplayWAL(const void* log, size_t loglen)
+    size_t Slave::ReplayWAL(const void* log, size_t loglen)
     {
         Buffer logbuf((char*) log, 0, loglen);
         while (logbuf.Readable() && m_ctx.state == SLAVE_STATE_REPLAYING_WAL)
@@ -267,6 +266,7 @@ OP_NAMESPACE_BEGIN
                 break;
             }
         }
+        return loglen - logbuf.ReadableBytes();
     }
 
     void Slave::ChannelConnected(ChannelHandlerContext& ctx, ChannelStateEvent& e)

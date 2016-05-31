@@ -39,6 +39,7 @@
 #define SWAL_ERR_MISMATCH_LOG_SIZE  -103
 #define SWAL_ERR_INVALID_OFFSET  -104
 
+
 #if defined(__cplusplus)
 extern "C"
 {
@@ -63,7 +64,7 @@ extern "C"
     int swal_sync(swal_t* wal);
     int swal_sync_meta(swal_t* wal);
 
-    typedef int swal_replay_logfunc(const void* log, size_t loglen, void* data);
+    typedef size_t swal_replay_logfunc(const void* log, size_t loglen, void* data);
     int swal_replay(swal_t* wal, size_t offset, int64_t limit_len, swal_replay_logfunc func, void* data);
     int swal_clear_replay_cache(swal_t* wal);
     int swal_reset(swal_t* wal, size_t offset, uint64_t cksm);
@@ -71,6 +72,8 @@ extern "C"
     size_t swal_start_offset(swal_t* wal);
     size_t swal_end_offset(swal_t* wal);
     int swal_close(swal_t* wal);
+
+    int swal_dump_ring_cache(swal_t* wal, const char* file);
 
 #if defined(__cplusplus)
 }

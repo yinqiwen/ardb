@@ -316,7 +316,7 @@ OP_NAMESPACE_BEGIN
         slave->conn->SendFile(setting);
     }
 
-    static int send_wal_toslave(const void* log, size_t loglen, void* data)
+    static size_t send_wal_toslave(const void* log, size_t loglen, void* data)
     {
         SlaveSyncContext* slave = (SlaveSyncContext*) data;
         slave->conn->GetOutputBuffer().Write(log, loglen);
@@ -330,7 +330,7 @@ OP_NAMESPACE_BEGIN
             slave->conn->GetWritableOptions().auto_disable_writing = false;
         }
         slave->conn->EnableWriting();
-        return 0;
+        return loglen;
     }
 
     void Master::SyncWAL(SlaveSyncContext* slave)

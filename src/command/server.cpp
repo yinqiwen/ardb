@@ -930,7 +930,7 @@ namespace ardb
             }
     };
 
-    static int debug_replay_wal(const void* log, size_t loglen, void* data)
+    static size_t debug_replay_wal(const void* log, size_t loglen, void* data)
     {
         DebugReplayContext* ctx = (DebugReplayContext*)data;
         Buffer logbuf((char*) log, 0, loglen);
@@ -962,7 +962,7 @@ namespace ardb
                 break;
             }
         }
-        return 0;
+        return loglen- logbuf.ReadableBytes();
     }
 
     int Ardb::Debug(Context& ctx, RedisCommandFrame& cmd)
@@ -1023,7 +1023,15 @@ namespace ardb
                     break;
                 }
             }
+        }else if (!strcasecmp(cmd.GetArguments()[0].c_str(), "dwc"))
+        {
+            /*
+             * dump wal cache
+             */
+            g_repl->GetReplLog().DebugDumpCache(g_db->GetConf().home + "/dwc.txt");
         }
+        return 0;
     }
+
 }
 

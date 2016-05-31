@@ -80,6 +80,7 @@ OP_NAMESPACE_BEGIN
             void ClearCurrentNamespace();
             void SetCurrentNamespace(const std::string& ns);
             void ResetWALOffsetCksm(uint64_t offset, uint64_t cksm);
+            void DebugDumpCache(const std::string& file);
             ~ReplicationBacklog();
     };
 
@@ -97,7 +98,6 @@ OP_NAMESPACE_BEGIN
             uint32 cmd_recved_time;
             uint32 master_link_down_time;
             time_t master_last_interaction_time;
-            Buffer replay_cumulate_buffer;
             Snapshot snapshot;
             void UpdateSyncOffsetCksm(const Buffer& buffer);
             void Clear()
@@ -112,7 +112,6 @@ OP_NAMESPACE_BEGIN
                 sync_repl_cksm = 0;
                 snapshot.Close();
                 snapshot.SetRoutineCallback(NULL, NULL);
-                replay_cumulate_buffer.Clear();
             }
             void ResetCallFlags();
             SlaveContext() :
@@ -151,7 +150,7 @@ OP_NAMESPACE_BEGIN
             void Routine();
             void Close();
             void Stop();
-            void ReplayWAL(const void* log, size_t loglen);
+            size_t ReplayWAL(const void* log, size_t loglen);
             time_t GetMasterLastinteractionTime();
             time_t GetMasterLinkDownTime();
             bool IsSynced();

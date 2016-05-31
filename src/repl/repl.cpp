@@ -252,11 +252,11 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    static int cksm_callback(const void* log, size_t loglen, void* data)
+    static size_t cksm_callback(const void* log, size_t loglen, void* data)
     {
         uint64_t* cksm = (uint64_t*) data;
         *cksm = crc64(*cksm, (const unsigned char *) log, loglen);
-        return 0;
+        return loglen;
     }
     bool ReplicationBacklog::IsValidOffsetCksm(int64_t offset, uint64_t cksm)
     {
@@ -319,6 +319,19 @@ OP_NAMESPACE_BEGIN
         //ReadLockGuard<SpinRWLock> guard(m_repl_lock,lock);
         return swal_end_offset(m_wal);
     }
+
+    void ReplicationBacklog::DebugDumpCache(const std::string& file)
+    {
+        int err = swal_dump_ring_cache(m_wal, file.c_str());
+        if(0 != err)
+        {
+            ERROR_LOG("Failed to dump wal ring cache to %s\n", file.c_str());
+        }else
+        {
+            INFO_LOG("Success to dump wal ring cache to %s\n", file.c_str());
+        }
+    }
+
     ReplicationBacklog::~ReplicationBacklog()
     {
     }
