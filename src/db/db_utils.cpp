@@ -65,120 +65,65 @@ OP_NAMESPACE_BEGIN
         return encode_buffer_cache;
     }
 
-    struct DBWriteOperation
-    {
-            RedisCommandFrame cmd;
-            uint8 type;
-    };
     struct DBWriterWorker: public Thread
     {
             Context worker_ctx;
-            SPSCQueue<DBWriteOperation*> write_queue;
-            EventCondition event_cond;
-            volatile uint32 queue_size;
+            CallFlags flags;
+            DBWriter* writer;
             bool running;
-            DBWriterWorker() :queue_size(0), running(true)
+            volatile bool writing;
+            DBWriterWorker(DBWriter* w) :
+                    writer(w), running(true),writing(false)
             {
-                worker_ctx.flags.create_if_notexist = 1;
-                worker_ctx.flags.bulk_loading = 1;
+            }
+            void Call(RedisCommandFrame& cmd)
+            {
+                writing = true;
+                worker_ctx.ClearFlags();
+                worker_ctx.flags = flags;
+                g_db->Call(worker_ctx, cmd);
+                RedisReply& r = worker_ctx.GetReply();
+                if(r.IsErr())
+                {
+                    WARN_LOG("Slave sync error:%s", r.Error().c_str());
+                }
+                r.Clear();
+                writing = false;
             }
             void Run()
             {
                 while (running)
                 {
-                    DBWriteOperation* op = NULL;
-                    int count = 0;
-                    while (write_queue.Pop(op))
+                    RedisCommandFrame* cmd = writer->Dequeue(1);
+                    if(NULL != cmd)
                     {
-                        count++;
-                        switch (op->type)
-                        {
-                            case ARDB_CMD_OP:
-                            {
-                                g_db->Call(worker_ctx, op->cmd);
-                                break;
-                            }
-                            case ARDB_CKP_OP:
-                            {
-                                //g_engine->CommitWriteBatch(worker_ctx);
-                                event_cond.Notify();
-                                break;
-                            }
-                            default:
-                            {
-                                ERROR_LOG("Invalid operation:%d", op->type);
-                                break;
-                            }
-                        }
-                        DELETE(op);
-                        atomic_sub_uint32(&queue_size, 1);
-                    }
-                    if (count == 0)
-                    {
-                        Thread::Sleep(1, MILLIS);
+                        Call(*cmd);
+                        DELETE(cmd);
                     }
                 }
             }
             void AdviceStop()
             {
-                WaitBatchWrite();
                 running = false;
-            }
-            void WaitBatchWrite()
-            {
-                while (queue_size > 0)
-                {
-                    DBWriteOperation* end = NULL;
-                    NEW(end, DBWriteOperation);
-                    end->type = ARDB_CKP_OP;
-                    atomic_add_uint32(&queue_size, 1);
-                    write_queue.Push(end);
-                    event_cond.Wait();
-                }
-            }
-            void Offer(DBWriteOperation* op)
-            {
-                atomic_add_uint32(&queue_size, 1);
-                write_queue.Push(op);
-                if (queue_size >= 10000)
-                {
-                    WaitBatchWrite();
-                }
-            }
-            void Offer(RedisCommandFrame& cmd)
-            {
-                DBWriteOperation* op = NULL;
-                NEW(op, DBWriteOperation);
-                op->cmd = cmd;
-                op->type = ARDB_CMD_OP;
-                Offer(op);
             }
     };
 
-    DBWriter::DBWriter(int workers) :
-            m_cursor(0)
+    DBWriter::DBWriter()
+    {
+
+    }
+    void DBWriter::Init(int workers)
     {
         if (workers > 1)
         {
             for (size_t i = 0; i < workers; i++)
             {
                 DBWriterWorker* worker = NULL;
-                NEW(worker, DBWriterWorker);
+                NEW(worker, DBWriterWorker(this));
                 worker->Start();
                 m_workers.push_back(worker);
             }
         }
-    }
-
-    DBWriterWorker* DBWriter::GetWorker()
-    {
-        if (m_cursor >= m_workers.size())
-        {
-            m_cursor = 0;
-        }
-        DBWriterWorker* worker = m_workers[m_cursor];
-        m_cursor++;
-        return worker;
     }
 
     int DBWriter::Put(Context& ctx, const Data& ns, const Slice& key, const Slice& value)
@@ -195,6 +140,87 @@ OP_NAMESPACE_BEGIN
          */
         return g_engine->Put(ctx, k, value);
     }
+
+    void DBWriter::Enqueue(RedisCommandFrame& cmd)
+    {
+
+        if (!strncasecmp(cmd.GetCommand().c_str(), "select", 6))
+        {
+            /*
+             * wait all commands in queue executed, because 'select' affect all commands later
+             */
+            LockGuard<ThreadMutexLock> guard(m_queue_lock);
+            while(!m_queue.empty())
+            {
+                m_queue_lock.Wait(1);
+            }
+            for(size_t i = 0 ; i < m_workers.size(); i++)
+            {
+                while(m_workers[i]->writing)
+                {
+                    m_queue_lock.Wait(1);
+                }
+                m_workers[i]->Call(cmd);
+            }
+            return;
+        }
+        LockGuard<ThreadMutexLock> guard(m_queue_lock);
+        while(m_queue.size() >= g_db->GetConf().max_slave_worker_queue)
+        {
+            m_queue_lock.Wait(1);
+        }
+        RedisCommandFrame* new_cmd;
+        NEW(new_cmd, RedisCommandFrame);
+        *new_cmd = cmd;
+        m_queue.push_back(new_cmd);
+        m_queue_lock.Notify();
+    }
+    RedisCommandFrame* DBWriter::Dequeue(int timeout)
+    {
+        LockGuard<ThreadMutexLock> guard(m_queue_lock);
+        if(m_queue.empty())
+        {
+            m_queue_lock.Wait(timeout);
+        }
+        RedisCommandFrame* cmd = NULL;
+        if(!m_queue.empty())
+        {
+            cmd =  m_queue.front();
+            m_queue.pop_front();
+        }
+        return cmd;
+    }
+    int64 DBWriter::QueueSize()
+    {
+        LockGuard<ThreadMutexLock> guard(m_queue_lock);
+        return m_queue.size();
+    }
+    void DBWriter::SetNamespace(Context& ctx, const std::string& ns)
+    {
+        ctx.ns.SetString(ns, false);
+        for (size_t i = 0; i < m_workers.size(); i++)
+        {
+            m_workers[i]->worker_ctx.ns.SetString(ns, false);
+        }
+    }
+    void DBWriter::SetDefaulFlags(CallFlags flags)
+    {
+        for (size_t i = 0; i < m_workers.size(); i++)
+        {
+            m_workers[i]->flags = flags;
+        }
+    }
+    int DBWriter::Put(Context& ctx,RedisCommandFrame& cmd)
+    {
+        if(m_workers.empty())
+        {
+            g_db->Call(ctx, cmd);
+            return 0;
+        }
+        Enqueue(cmd);
+        return 0;
+    }
+
     void DBWriter::Stop()
     {
         for (size_t i = 0; i < m_workers.size(); i++)

@@ -178,6 +178,11 @@ OP_NAMESPACE_BEGIN
         conf_get_int64(props, "min-slaves-to-write", repl_min_slaves_to_write);
         conf_get_int64(props, "min-slaves-max-lag", repl_min_slaves_max_lag);
         conf_get_bool(props, "slave-serve-stale-data", repl_serve_stale_data);
+        conf_get_int64(props, "max-slave-worker-queue", max_slave_worker_queue);
+        if(max_slave_worker_queue <= 0)
+        {
+            max_slave_worker_queue = 1024;
+        }
 
         conf_get_bool(props, "repl-disable-tcp-nodelay", repl_disable_tcp_nodelay);
         conf_get_int64(props, "lua-time-limit", lua_time_limit);
@@ -279,8 +284,6 @@ OP_NAMESPACE_BEGIN
                 //trusted_ip.insert(cs[i][0]);
             }
         }
-
-
 
         if (!verify_config(*this))
         {

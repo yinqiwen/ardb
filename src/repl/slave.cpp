@@ -105,10 +105,18 @@ OP_NAMESPACE_BEGIN
         }
     }
 
+    void SlaveContext::ResetCallFlags()
+    {
+        ctx.ClearFlags();
+        ctx.flags.no_wal = 1;
+        ctx.flags.no_fill_reply = 1;
+        ctx.flags.slave = 1;
+    }
+
     void SlaveContext::UpdateSyncOffsetCksm(const Buffer& buffer)
     {
         sync_repl_offset += buffer.ReadableBytes();
-        sync_repl_cksm = crc64(sync_repl_offset, (const unsigned char *) (buffer.GetRawReadBuffer()), buffer.ReadableBytes());
+        sync_repl_cksm = crc64(sync_repl_cksm, (const unsigned char *) (buffer.GetRawReadBuffer()), buffer.ReadableBytes());
     }
 
 //    struct SlaveWorker
@@ -145,9 +153,6 @@ OP_NAMESPACE_BEGIN
     Slave::Slave() :
             m_client(NULL), m_clientid(0)
     {
-        //m_slave_ctx.server_address = MASTER_SERVER_ADDRESS_NAME;
-        m_ctx.ctx.flags.no_fill_reply = 1;
-        m_ctx.ctx.flags.slave = 1;
     }
 
     int Slave::Init()
@@ -155,6 +160,10 @@ OP_NAMESPACE_BEGIN
         g_slave_sync_qps.name = "slave_sync_total_commands_processed";
         g_slave_sync_qps.qpsName = "slave_sync_instantaneous_ops_per_sec";
         Statistics::GetSingleton().AddTrack(&g_slave_sync_qps);
+        /*
+         * use same thread pool size with network server
+         */
+        m_db_writer.Init(g_db->GetConf().thread_pool_size);
         return 0;
     }
 
@@ -193,6 +202,8 @@ OP_NAMESPACE_BEGIN
             return;
         }
         replaying = true;
+        m_ctx.ResetCallFlags();
+        m_db_writer.SetDefaulFlags(m_ctx.ctx.flags);
         INFO_LOG("Start to replay wal from sync offset:%lld & wal end offset:%llu", m_ctx.sync_repl_offset, g_repl->GetReplLog().WALEndOffset());
         int64_t replay_init_offset = m_ctx.sync_repl_offset;
         const int64_t replay_process_events_interval_bytes = 10 * 1024 * 1024;
@@ -223,7 +234,8 @@ OP_NAMESPACE_BEGIN
                 m_ctx.state = SLAVE_STATE_SYNCED;
                 if (!g_repl->GetReplLog().CurrentNamespace().empty())
                 {
-                    m_ctx.ctx.ns.SetString(g_repl->GetReplLog().CurrentNamespace(), false);
+                    m_db_writer.SetNamespace(m_ctx.ctx, g_repl->GetReplLog().CurrentNamespace());
+                    //m_ctx.ctx.ns.SetString(g_repl->GetReplLog().CurrentNamespace(), false);
                 }
                 break;
             }
@@ -244,9 +256,16 @@ OP_NAMESPACE_BEGIN
             {
                 break;
             }
-            m_ctx.ctx.flags.no_wal = 1;
-            g_db->Call(m_ctx.ctx, msg);
-            m_ctx.UpdateSyncOffsetCksm(msg.GetRawProtocolData());
+            if(msg.GetRawProtocolData().Readable())
+            {
+                m_ctx.UpdateSyncOffsetCksm(msg.GetRawProtocolData());
+                m_db_writer.Put(m_ctx.ctx, msg);
+            }
+            else
+            {
+                ERROR_LOG("Invalid msg with empty protocol data:%s", msg.GetCommand().c_str());
+                break;
+            }
         }
     }
 
@@ -281,7 +300,7 @@ OP_NAMESPACE_BEGIN
         g_slave_sync_qps.IncMsgCount(1);
         if (SLAVE_STATE_SYNCED == m_ctx.state)
         {
-            m_ctx.ctx.flags.no_wal = 1;
+            m_ctx.ResetCallFlags();
             /*
              * todo:
              * call db may block current sync thread, maybe use more threads to exec command better.
@@ -290,7 +309,8 @@ OP_NAMESPACE_BEGIN
              *    eg: lpush list a  & lpush list b must be executed in same thread  to keep exec order
              * 2. ?
              */
-            g_db->Call(m_ctx.ctx, cmd);
+            //g_db->Call(m_ctx.ctx, cmd);
+            m_db_writer.Put(m_ctx.ctx, cmd);
             m_ctx.UpdateSyncOffsetCksm(cmd.GetRawProtocolData());
         }
     }
@@ -502,7 +522,10 @@ OP_NAMESPACE_BEGIN
                 else if (!strcasecmp(ss[0].c_str(), "CONTINUE"))
                 {
                     m_decoder.SwitchToCommandDecoder();
-                    m_ctx.ctx.ns.SetString(g_repl->GetReplLog().CurrentNamespace(), false);
+                    m_ctx.ResetCallFlags();
+                    m_db_writer.SetDefaulFlags(m_ctx.ctx.flags);
+                    m_db_writer.SetNamespace(m_ctx.ctx, g_repl->GetReplLog().CurrentNamespace());
+                    //m_ctx.ctx.ns.SetString(g_repl->GetReplLog().CurrentNamespace(), false);
                     m_ctx.sync_repl_offset = g_repl->GetReplLog().WALEndOffset();
                     m_ctx.state = SLAVE_STATE_SYNCED;
                     INFO_LOG("Slave recv continue from master with current namespace:%s", m_ctx.ctx.ns.AsString().c_str());
@@ -669,6 +692,10 @@ OP_NAMESPACE_BEGIN
     {
         return m_ctx.sync_repl_offset;
     }
+    int64 Slave::SyncQueueSize()
+    {
+        return m_db_writer.QueueSize();
+    }
     int64 Slave::SyncLeftBytes()
     {
         return m_ctx.snapshot.DumpLeftDataSize();
@@ -709,6 +736,7 @@ OP_NAMESPACE_BEGIN
     void Slave::Stop()
     {
         m_ctx.state = SLAVE_STATE_INVALID;
+        m_db_writer.Stop();
         Close();
     }
     void Slave::DoClose()

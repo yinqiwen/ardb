@@ -36,6 +36,7 @@
 #include "thread/thread_local.hpp"
 #include "thread/thread_mutex_lock.hpp"
 #include "thread/spin_rwlock.hpp"
+#include "thread/thread_mutex_lock.hpp"
 #include "thread/event_condition.hpp"
 #include "util/concurrent_queue.hpp"
 
@@ -71,12 +72,20 @@ OP_NAMESPACE_BEGIN
     {
         private:
             std::vector<DBWriterWorker*> m_workers;
-            uint32 m_cursor;
-            DBWriterWorker* GetWorker();
+            ThreadMutexLock m_queue_lock;
+            std::deque<RedisCommandFrame*> m_queue;
+            void Enqueue(RedisCommandFrame& cmd);
+            RedisCommandFrame* Dequeue(int timeout);
+            friend class DBWriterWorker;
         public:
-            DBWriter(int workers = 1);
+            DBWriter();
+            void Init(int workers);
             int Put(Context& ctx, const Data& ns, const Slice& key, const Slice& value);
             int Put(Context& ctx, const KeyObject& k, const ValueObject& value);
+            int Put(Context& ctx,RedisCommandFrame& cmd);
+            void SetNamespace(Context& ctx, const std::string& ns);
+            void SetDefaulFlags(CallFlags flags);
+            int64 QueueSize();
             void Stop();
             ~DBWriter();
     };

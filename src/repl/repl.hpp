@@ -40,6 +40,7 @@
 #include "swal.h"
 #include "context.hpp"
 #include "rdb.hpp"
+#include "db/db_utils.hpp"
 #include <map>
 
 using namespace ardb::codec;
@@ -52,7 +53,7 @@ OP_NAMESPACE_BEGIN
     {
         private:
             swal_t* m_wal;
-            SpinRWLock m_repl_lock;
+            //SpinRWLock m_repl_lock;
             void ReCreateWAL();
             static void WriteWALCallback(Channel*, void* data);
             int WriteWAL(const Data& ns, const Buffer& cmd);
@@ -113,6 +114,7 @@ OP_NAMESPACE_BEGIN
                 snapshot.SetRoutineCallback(NULL, NULL);
                 replay_cumulate_buffer.Clear();
             }
+            void ResetCallFlags();
             SlaveContext() :
                     server_is_redis(false), server_support_psync(false), state(0), cached_master_repl_offset(0), cached_master_repl_cksm(0), sync_repl_offset(
                             0), sync_repl_cksm(0), cmd_recved_time(0), master_link_down_time(0), master_last_interaction_time(0)
@@ -128,7 +130,7 @@ OP_NAMESPACE_BEGIN
             RedisMessageDecoder m_decoder;
             NullRedisReplyEncoder m_encoder;
             SlaveContext m_ctx;
-
+            DBWriter m_db_writer;
             void HandleRedisCommand(Channel* ch, RedisCommandFrame& cmd);
             void HandleRedisReply(Channel* ch, RedisReply& reply);
             void HandleRedisDumpChunk(Channel* ch, RedisDumpFileChunk& chunk);
@@ -159,6 +161,7 @@ OP_NAMESPACE_BEGIN
             int64 SyncLeftBytes();
             int64 LoadLeftBytes();
             int64 SyncOffset();
+            int64 SyncQueueSize();
             void SendACK();
 
     };

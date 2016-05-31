@@ -184,7 +184,7 @@ namespace ardb
 
     DBWriter& ObjectIO::GetDBWriter()
     {
-        static DBWriter defaultWriter(0);
+        static DBWriter defaultWriter;
         if (NULL == m_dbwriter)
         {
             return defaultWriter;

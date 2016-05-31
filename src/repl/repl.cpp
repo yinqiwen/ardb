@@ -96,7 +96,7 @@ OP_NAMESPACE_BEGIN
     }
     void ReplicationBacklog::FlushSyncWAL()
     {
-        WriteLockGuard<SpinRWLock> guard(m_repl_lock);
+        //WriteLockGuard<SpinRWLock> guard(m_repl_lock);
         swal_sync(m_wal);
         swal_sync_meta(m_wal);
     }
@@ -107,7 +107,7 @@ OP_NAMESPACE_BEGIN
             static std::string tmpid = random_hex_string(SERVER_KEY_SIZE);
             return tmpid;
         }
-        ReadLockGuard<SpinRWLock> guard(m_repl_lock);
+        //ReadLockGuard<SpinRWLock> guard(m_repl_lock);
         ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
         std::string str;
         str.assign(meta->replkey, SERVER_KEY_SIZE);
@@ -115,20 +115,20 @@ OP_NAMESPACE_BEGIN
     }
     bool ReplicationBacklog::IsReplKeySelfGen()
     {
-        ReadLockGuard<SpinRWLock> guard(m_repl_lock);
+        //ReadLockGuard<SpinRWLock> guard(m_repl_lock);
         ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
         return meta->replkey_self_gen;
     }
     void ReplicationBacklog::SetReplKey(const std::string& str)
     {
-        WriteLockGuard<SpinRWLock> guard(m_repl_lock);
+        //WriteLockGuard<SpinRWLock> guard(m_repl_lock);
         ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
         memcpy(meta->replkey, str.data(), str.size() < SERVER_KEY_SIZE ? str.size() : SERVER_KEY_SIZE);
         meta->replkey_self_gen = false;
     }
     int ReplicationBacklog::DirectWriteWAL(RedisCommandFrame& cmd)
     {
-        WriteLockGuard<SpinRWLock> guard(m_repl_lock);
+        //WriteLockGuard<SpinRWLock> guard(m_repl_lock);
         const Buffer& raw = cmd.GetRawProtocolData();
         swal_append(m_wal, raw.GetRawReadBuffer(), raw.ReadableBytes());
         if (!strncasecmp(cmd.GetCommand().c_str(), "select", 6))
@@ -139,13 +139,13 @@ OP_NAMESPACE_BEGIN
     }
     int ReplicationBacklog::WriteWAL(const Buffer& cmd, bool lock)
     {
-        WriteLockGuard<SpinRWLock> guard(m_repl_lock, lock);
+        //WriteLockGuard<SpinRWLock> guard(m_repl_lock, lock);
         swal_append(m_wal, cmd.GetRawReadBuffer(), cmd.ReadableBytes());
         return cmd.ReadableBytes();
     }
     int ReplicationBacklog::WriteWAL(const Data& ns, const Buffer& cmd)
     {
-        WriteLockGuard<SpinRWLock> guard(m_repl_lock, true);
+        //WriteLockGuard<SpinRWLock> guard(m_repl_lock, true);
         ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
         int len = 0;
         if (meta->select_ns_size != ns.StringLength() || strncmp(ns.CStr(), meta->select_ns, ns.StringLength()))
@@ -170,9 +170,45 @@ OP_NAMESPACE_BEGIN
         return len;
     }
 
+    struct ReplCommand
+    {
+            Data ns;
+            Buffer cmdbuf;
+    };
+
+    static std::deque<ReplCommand*> g_repl_cmd_buffer;
+    static SpinMutexLock g_repl_cmd_buffer_lock;
+
+    static inline ReplCommand* get_repl_cmd()
+    {
+        LockGuard<SpinMutexLock> guard(g_repl_cmd_buffer_lock);
+        if (!g_repl_cmd_buffer.empty())
+        {
+            ReplCommand* repl_cmd = g_repl_cmd_buffer.front();
+            g_repl_cmd_buffer.pop_front();
+            repl_cmd->cmdbuf.Clear();
+            return repl_cmd;
+        }
+        ReplCommand* repl_cmd = new ReplCommand;
+        return repl_cmd;
+    }
+    static inline void recycle_repl_cmd(ReplCommand* cmd)
+    {
+        LockGuard<SpinMutexLock> guard(g_repl_cmd_buffer_lock);
+        if (g_repl_cmd_buffer.size() >= 10)
+        {
+            DELETE(cmd);
+            return;
+        }
+        g_repl_cmd_buffer.push_back(cmd);
+    }
 
     void ReplicationBacklog::WriteWALCallback(Channel*, void* data)
     {
+        ReplCommand* cmd = (ReplCommand*) data;
+        g_repl->GetReplLog().WriteWAL(cmd->ns, cmd->cmdbuf);
+        //DELETE(cmd);
+        recycle_repl_cmd(cmd);
         g_repl->GetMaster().SyncWAL();
     }
 
@@ -182,7 +218,7 @@ OP_NAMESPACE_BEGIN
         {
             return;
         }
-        ReadLockGuard<SpinRWLock> guard(m_repl_lock);
+        //ReadLockGuard<SpinRWLock> guard(m_repl_lock);
         swal_replay(m_wal, offset, limit_len, func, data);
     }
 
@@ -192,18 +228,27 @@ OP_NAMESPACE_BEGIN
         {
             return -1;
         }
+        ReplCommand* repl_cmd = get_repl_cmd();
+        repl_cmd->ns = ns;
         const Buffer& raw_protocol = cmd.GetRawProtocolData();
         if (raw_protocol.Readable() && !cmd.IsInLine())
         {
-            WriteWAL(ns, raw_protocol);
+            /*
+             * make sure the raw protocol part is OK
+             */
+            if(raw_protocol.GetRawReadBuffer()[0] == '*')
+            {
+                repl_cmd->cmdbuf.Write(raw_protocol.GetRawReadBuffer(), raw_protocol.ReadableBytes());
+            }else
+            {
+                WARN_LOG("Invalid raw protocol part:%s", raw_protocol.AsString().c_str());
+            }
         }
-        else
+        if(!repl_cmd->cmdbuf.Readable())
         {
-            Buffer cmdbuf;
-            RedisCommandEncoder::Encode(cmdbuf, cmd);
-            WriteWAL(ns, cmdbuf);
+            RedisCommandEncoder::Encode(repl_cmd->cmdbuf, cmd);
         }
-        g_repl->GetIOService().AsyncIO(0, WriteWALCallback, NULL);
+        g_repl->GetIOService().AsyncIO(0, WriteWALCallback, repl_cmd);
         return 0;
     }
 
@@ -215,7 +260,7 @@ OP_NAMESPACE_BEGIN
     }
     bool ReplicationBacklog::IsValidOffsetCksm(int64_t offset, uint64_t cksm)
     {
-        ReadLockGuard<SpinRWLock> guard(m_repl_lock);
+        //ReadLockGuard<SpinRWLock> guard(m_repl_lock);
         bool valid_offset = offset > 0 && offset <= (swal_end_offset(m_wal)) && offset >= swal_start_offset(m_wal);
         if (!valid_offset)
         {
@@ -239,7 +284,7 @@ OP_NAMESPACE_BEGIN
     }
     std::string ReplicationBacklog::CurrentNamespace()
     {
-        ReadLockGuard<SpinRWLock> guard(m_repl_lock);
+        //ReadLockGuard<SpinRWLock> guard(m_repl_lock);
         ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
         std::string str;
         if (meta->select_ns_size > 0)
@@ -250,28 +295,28 @@ OP_NAMESPACE_BEGIN
     }
     void ReplicationBacklog::ClearCurrentNamespace()
     {
-        WriteLockGuard<SpinRWLock> guard(m_repl_lock);
+        //WriteLockGuard<SpinRWLock> guard(m_repl_lock);
         ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
         meta->select_ns_size = 0;
     }
     uint64_t ReplicationBacklog::WALCksm(bool lock)
     {
-        ReadLockGuard<SpinRWLock> guard(m_repl_lock,lock);
+        //ReadLockGuard<SpinRWLock> guard(m_repl_lock,lock);
         return swal_cksm(m_wal);
     }
     void ReplicationBacklog::ResetWALOffsetCksm(uint64_t offset, uint64_t cksm)
     {
-        WriteLockGuard<SpinRWLock> guard(m_repl_lock);
+        //WriteLockGuard<SpinRWLock> guard(m_repl_lock);
         swal_reset(m_wal, offset, cksm);
     }
     uint64_t ReplicationBacklog::WALStartOffset(bool lock)
     {
-        ReadLockGuard<SpinRWLock> guard(m_repl_lock,lock);
+        //ReadLockGuard<SpinRWLock> guard(m_repl_lock,lock);
         return swal_start_offset(m_wal);
     }
     uint64_t ReplicationBacklog::WALEndOffset(bool lock)
     {
-        ReadLockGuard<SpinRWLock> guard(m_repl_lock,lock);
+        //ReadLockGuard<SpinRWLock> guard(m_repl_lock,lock);
         return swal_end_offset(m_wal);
     }
     ReplicationBacklog::~ReplicationBacklog()

@@ -308,6 +308,7 @@ namespace ardb
                         info.append("slave_loading_left_bytes:").append(stringfromll(g_repl->GetSlave().LoadLeftBytes())).append("\r\n");
                     }
                     info.append("slave_repl_offset:").append(stringfromll(g_repl->GetSlave().SyncOffset())).append("\r\n");
+                    info.append("slave_sync_queue_size:").append(stringfromll(g_repl->GetSlave().SyncQueueSize())).append("\r\n");
                     if (!g_repl->GetSlave().IsConnected())
                     {
                         info.append("master_link_down_since_seconds:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLinkDownTime())).append(
@@ -920,30 +921,109 @@ namespace ardb
         return 0;
     }
 
+    struct DebugReplayContext
+    {
+            int64_t offset;
+            DebugReplayContext() :
+                    offset(0)
+            {
+            }
+    };
+
+    static int debug_replay_wal(const void* log, size_t loglen, void* data)
+    {
+        DebugReplayContext* ctx = (DebugReplayContext*)data;
+        Buffer logbuf((char*) log, 0, loglen);
+        Context debug_ctx;
+        debug_ctx.flags.no_wal = 1;
+        debug_ctx.flags.slave = 1;
+        while (logbuf.Readable())
+        {
+            RedisCommandFrame msg;
+            size_t rest = logbuf.ReadableBytes();
+            if (!RedisCommandDecoder::Decode(NULL, logbuf, msg))
+            {
+                break;
+            }
+            if (msg.GetRawProtocolData().Readable())
+            {
+                ctx->offset += msg.GetRawProtocolData().ReadableBytes();
+                g_db->Call(debug_ctx, msg);
+                RedisReply& r = debug_ctx.GetReply();
+                if(r.IsErr())
+                {
+                    WARN_LOG("Debug replay error:%s", r.Error().c_str());
+                }
+                r.Clear();
+            }
+            else
+            {
+                ERROR_LOG("Invalid msg with empty protocol data:%s", msg.GetCommand().c_str());
+                break;
+            }
+        }
+        return 0;
+    }
+
     int Ardb::Debug(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
         reply.SetStatusCode(STATUS_OK);
-        KeyObject empty;
-        empty.SetNameSpace(ctx.ns);
-        ctx.flags.iterate_total_order = 1;
-        KeyObject start(ctx.ns, KEY_META, cmd.GetArguments()[0]);
-        Iterator* iter = g_db->GetEngine()->Find(ctx, empty);
-        if(iter->Valid())
+        if (!strcasecmp(cmd.GetArguments()[0].c_str(), "iterator"))
         {
-            iter->Jump(start);
-        }
-        while(iter->Valid())
-        {
-            KeyObject& k = iter->Key();
-            if(k.GetKey() != start.GetKey())
+            KeyObject empty;
+            empty.SetNameSpace(ctx.ns);
+            ctx.flags.iterate_total_order = 1;
+            KeyObject start(ctx.ns, KEY_META, cmd.GetArguments()[1]);
+            Iterator* iter = g_db->GetEngine()->Find(ctx, empty);
+            if (iter->Valid())
             {
-                break;
+                iter->Jump(start);
             }
-            INFO_LOG("Internal key:%s with type:%u", k.GetKey().AsString().c_str(), k.GetType());
-            iter->Next();
+            while (iter->Valid())
+            {
+                KeyObject& k = iter->Key();
+                if (k.GetKey() != start.GetKey())
+                {
+                    break;
+                }
+                INFO_LOG("Internal key:%s with type:%u", k.GetKey().AsString().c_str(), k.GetType());
+                iter->Next();
+            }
+            DELETE(iter);
         }
-        DELETE(iter);
+        else if (!strcasecmp(cmd.GetArguments()[0].c_str(), "replay"))
+        {
+            DebugReplayContext replay_ctx;
+            string_toint64(cmd.GetArguments()[1], replay_ctx.offset);
+            INFO_LOG("Start to replay wal from sync offset:%lld & wal end offset:%llu", replay_ctx.offset, g_repl->GetReplLog().WALEndOffset());
+
+            int64_t replay_init_offset = replay_ctx.offset;
+            const int64_t replay_process_events_interval_bytes = 10 * 1024 * 1024;
+            const int64_t max_replay_bytes = 1024 * 1024;
+            while (true)
+            {
+                if (replay_ctx.offset < g_repl->GetReplLog().WALStartOffset() || replay_ctx.offset > g_repl->GetReplLog().WALEndOffset())
+                {
+                    ERROR_LOG("Failed to replay wal with sync_offset:%lld, wal_start_offset:%llu, wal_end_offset:%lld", replay_ctx.offset,
+                            g_repl->GetReplLog().WALStartOffset(), g_repl->GetReplLog().WALEndOffset());
+                    break;
+                }
+
+                int64_t before_replayed_bytes = replay_ctx.offset - replay_init_offset;
+                g_repl->GetReplLog().Replay(replay_ctx.offset, max_replay_bytes, debug_replay_wal, &replay_ctx);
+                int64_t after_replayed_bytes = replay_ctx.offset - replay_init_offset;
+                if (after_replayed_bytes / replay_process_events_interval_bytes > before_replayed_bytes / replay_process_events_interval_bytes)
+                {
+                    INFO_LOG("%lld bytes replayed from wal log, %llu bytes left.", after_replayed_bytes,
+                            g_repl->GetReplLog().WALEndOffset() - replay_ctx.offset);
+                }
+                if (replay_ctx.offset == g_repl->GetReplLog().WALEndOffset())
+                {
+                    break;
+                }
+            }
+        }
     }
 }
 

@@ -158,6 +158,7 @@ int FastRedisCommandDecoder::ProcessMultibulkBuffer(Buffer& buffer, std::string&
     {
         m_cmd.Adapt();
         m_argc = 0;
+
         return 1;
     }
     return 0;
@@ -180,6 +181,7 @@ void FastRedisCommandDecoder::MessageReceived(ChannelHandlerContext& ctx, Messag
     }
     Channel* ch = ctx.GetChannel();
     std::string err;
+    size_t mark_read_index = buffer.GetReadIndex();
     while (buffer.Readable() && !ch->IsReadBlocked())
     {
         /* Determine request type when unknown. */
@@ -211,6 +213,8 @@ void FastRedisCommandDecoder::MessageReceived(ChannelHandlerContext& ctx, Messag
         {
             if (ProcessMultibulkBuffer(buffer, err) == 1)
             {
+                size_t raw_data_size = buffer.GetReadIndex() - mark_read_index;
+                m_cmd.m_raw_msg.WrapReadableContent(buffer.GetRawReadBuffer() - raw_data_size, raw_data_size);
                 fire_message_received<RedisCommandFrame>(ctx, &m_cmd, NULL);
             }
             else

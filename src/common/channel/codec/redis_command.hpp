@@ -261,6 +261,7 @@ namespace ardb
         };
 
         class RedisCommandDecoder;
+        class FastRedisCommandDecoder;
         typedef std::deque<std::string> ArgumentArray;
         class RedisCommandFrame
         {
@@ -289,6 +290,7 @@ namespace ardb
                     }
                 }
                 friend class RedisCommandDecoder;
+                friend class FastRedisCommandDecoder;
             public:
                 RedisCommandFrame(const std::string& cmd = "") :
                         type(REDIS_CMD_INVALID), m_is_inline(false), m_cmd_seted(false), m_cmd(cmd)
@@ -434,6 +436,7 @@ namespace ardb
                     m_cmd_seted = false;
                     m_cmd.clear();
                     m_args.clear();
+                    m_raw_msg.Clear();
                 }
                 ~RedisCommandFrame()
                 {
