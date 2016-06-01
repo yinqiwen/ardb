@@ -2645,7 +2645,14 @@ namespace ardb
         Snapshot* snapshot = NULL;
         NEW(snapshot, Snapshot);
         char path[1024];
-        snprintf(path, sizeof(path) - 1, "%s/master-snapshot.%u", g_db->GetConf().backup_dir.c_str(), now);
+        if(type == BACKUP_DUMP)
+        {
+            snprintf(path, sizeof(path) - 1, "%s/master-%s-%s-%u", g_db->GetConf().backup_dir.c_str(), g_engine_name,type2str(type), now);
+        }
+        else
+        {
+            snprintf(path, sizeof(path) - 1, "%s/master-%s-snapshot.%u", g_db->GetConf().backup_dir.c_str(), type2str(type), now);
+        }
         if (0 == snapshot->BGSave(type, path, cb, data))
         {
             m_snapshots.push_back(snapshot);

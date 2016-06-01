@@ -30,6 +30,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include "db/db.hpp"
+#include "util/file_helper.hpp"
 
 #define MAX_SEND_CACHE_SIZE 8192
 
@@ -275,13 +276,20 @@ OP_NAMESPACE_BEGIN
         slave->repldbfd = -1;
         slave->snapshot = NULL;
         WARN_LOG("Send snapshot to slave:%s failed.", slave->GetAddress().c_str());
-        //g_repl->GetMaster().CloseSlave(slave);
     }
 
     void Master::SendSnapshotToSlave(SlaveSyncContext* slave)
     {
         slave->state = SYNC_STATE_SYNCING_SNAPSHOT;
         std::string dump_file_path = slave->snapshot->GetPath();
+        if(slave->snapshot->GetType() == BACKUP_DUMP)
+        {
+            //send dir
+            std::deque<std::string> fs;
+            list_allfiles(dump_file_path, fs);
+
+        }
+
         SendFileSetting setting;
         setting.fd = open(dump_file_path.c_str(), O_RDONLY);
         if (-1 == setting.fd)

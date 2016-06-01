@@ -457,8 +457,8 @@ OP_NAMESPACE_BEGIN
                     Buffer sync;
                     if (!m_ctx.server_is_redis)
                     {
-                        sync.Printf("psync %s %lld cksm %llu\r\n", g_repl->GetReplLog().IsReplKeySelfGen() ? "?" : g_repl->GetReplLog().GetReplKey().c_str(),
-                                g_repl->GetReplLog().WALEndOffset(), g_repl->GetReplLog().WALCksm());
+                        sync.Printf("psync %s %lld cksm %llu engine %s\r\n", g_repl->GetReplLog().IsReplKeySelfGen() ? "?" : g_repl->GetReplLog().GetReplKey().c_str(),
+                                g_repl->GetReplLog().WALEndOffset(), g_repl->GetReplLog().WALCksm(), g_engine_name);
                     }
                     else
                     {
@@ -502,7 +502,7 @@ OP_NAMESPACE_BEGIN
                     m_ctx.cached_master_runid = ss[1];
                     m_ctx.cached_master_repl_offset = offset;
                     /*
-                     * if remote master is comms, there would be a cksm part
+                     * if remote master is ardb, there would be a cksm part
                      */
                     if (ss.size() > 3)
                     {
@@ -580,8 +580,6 @@ OP_NAMESPACE_BEGIN
                 DoClose();
                 return;
             }
-//            SnapshotType snapshot_type = Snapshot::IsRedisSnapshot(m_ctx.snapshot.GetPath()) ? REDIS_SNAPSHOT : MMKV_SNAPSHOT;
-//            m_ctx.snapshot.RenameDefault();
             m_decoder.SwitchToCommandDecoder();
             m_ctx.state = SLAVE_STATE_LOADING_SNAPSHOT;
             /*

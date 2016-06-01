@@ -151,6 +151,7 @@ OP_NAMESPACE_BEGIN
                 features.support_compactfilter = 1;
                 features.support_namespace = 1;
                 features.support_merge = 1;
+                features.support_backup = 1;
                 return features;
             }
     };

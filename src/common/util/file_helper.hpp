@@ -51,6 +51,7 @@ namespace ardb
 
     int list_subdirs(const std::string& path, std::deque<std::string>& dirs);
     int list_subfiles(const std::string& path, std::deque<std::string>& fs);
+    int list_allfiles(const std::string& path, std::deque<std::string>& fs);
 
     int64 file_size(const std::string& path);
 
