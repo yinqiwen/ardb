@@ -42,7 +42,7 @@ namespace ardb
 {
     enum SnapshotType
     {
-        REDIS_DUMP = 1, ARDB_DUMP
+        REDIS_DUMP = 1, ARDB_DUMP, BACKUP_DUMP
     };
 
     enum SnapshotState
@@ -157,42 +157,14 @@ namespace ardb
             SnapshotType m_type;
             bool Read(void* buf, size_t buflen, bool cksm);
 
-//            int WriteType(uint8 type);
-//            int WriteKeyType(KeyType type);
-//            int WriteLen(uint32 len);
-//            int WriteMillisecondTime(uint64 ts);
-//            int WriteDouble(double v);
-//            int WriteLongLongAsStringObject(long long value);
-//            int WriteRawString(const char *s, size_t len);
-//            int WriteLzfStringObject(const char *s, size_t len);
-//            int WriteTime(time_t t);
-//            int WriteStringObject(const Data& o);
-//
-//            int ReadType();
-//            time_t ReadTime();
-//            int64 ReadMillisecondTime();
-//            uint32_t ReadLen(int *isencoded);
-//            bool ReadInteger(int enctype, int64& v);
-//            bool ReadLzfStringObject(std::string& str);
-//            bool ReadString(std::string& str);
-//            int ReadDoubleValue(double&val);
-
-//            bool RedisLoadObject(Context& ctx, int type, const std::string& key, int64 expiretime);
-//            void RedisLoadListZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
-//            void RedisLoadHashZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
-//            void RedisLoadZSetZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
-//            void RedisLoadSetIntSet(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
-//            void RedisWriteMagicHeader();
-
             int RedisLoad();
             int RedisSave();
 
-//            int ArdbWriteMagicHeader();
-//            int ArdbSaveRawKeyValue(const Slice& key, const Slice& value);
-//            int ArdbFlushWriteBuffer();
-//            int ArdbLoadBuffer(Context& ctx, Buffer& buffer);
             int ArdbSave();
             int ArdbLoad();
+
+            int BackupSave();
+            int BackupLoad();
 
             int DoSave();
             int PrepareSave(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data);
@@ -238,7 +210,7 @@ namespace ardb
             void SetRoutineCallback(SnapshotRoutine* cb, void *data);
             ~Snapshot();
 
-            static int IsRedisDumpFile(const std::string& file);
+            static SnapshotType GetSnapshotType(const std::string& file);
     };
 
     class SnapshotManager

@@ -37,7 +37,6 @@
 
 OP_NAMESPACE_BEGIN
 
-
     static inline rocksdb::Slice to_rocksdb_slice(const Slice& slice)
     {
         return rocksdb::Slice(slice.data(), slice.size());
@@ -142,15 +141,15 @@ OP_NAMESPACE_BEGIN
 
     static inline int rocksdb_err(const rocksdb::Status& s)
     {
-        if(s.code() == 0)
+        if (s.code() == 0)
         {
             return 0;
         }
-        if(rocksdb::Status::kNotFound == s.code())
+        if (rocksdb::Status::kNotFound == s.code())
         {
             return ERR_ENTRY_NOT_EXIST;
         }
-        int err = (int)(s.code()) << 8 + s.subcode();
+        int err = (int) (s.code()) << 8 + s.subcode();
         g_rocks_context.GetValue().err_map[err] = s;
         return err + STORAGE_ENGINE_ERR_OFFSET;
     }
@@ -416,7 +415,7 @@ OP_NAMESPACE_BEGIN
             }
             std::unique_ptr<rocksdb::CompactionFilter> CreateCompactionFilter(const rocksdb::CompactionFilter::Context& context)
             {
-                return std::unique_ptr<rocksdb::CompactionFilter>(new RocksDBCompactionFilter(engine, context));
+                return std::unique_ptr < rocksdb::CompactionFilter > (new RocksDBCompactionFilter(engine, context));
             }
 
             const char* Name() const
@@ -452,7 +451,8 @@ OP_NAMESPACE_BEGIN
             // internal corruption. This will be treated as an error by the library.
             //
             // Also make use of the *logger for error messages.
-            bool FullMerge(const rocksdb::Slice& key, const rocksdb::Slice* existing_value, const std::deque<std::string>& operand_list, std::string* new_value, rocksdb::Logger* logger) const
+            bool FullMerge(const rocksdb::Slice& key, const rocksdb::Slice* existing_value, const std::deque<std::string>& operand_list, std::string* new_value,
+                    rocksdb::Logger* logger) const
             {
 
                 KeyObject key_obj;
@@ -536,7 +536,8 @@ OP_NAMESPACE_BEGIN
             // If there is corruption in the data, handle it in the FullMerge() function,
             // and return false there.  The default implementation of PartialMerge will
             // always return false.
-            bool PartialMergeMulti(const rocksdb::Slice& key, const std::deque<rocksdb::Slice>& operand_list, std::string* new_value, rocksdb::Logger* logger) const
+            bool PartialMergeMulti(const rocksdb::Slice& key, const std::deque<rocksdb::Slice>& operand_list, std::string* new_value,
+                    rocksdb::Logger* logger) const
             {
                 if (operand_list.size() < 2)
                 {
@@ -558,7 +559,9 @@ OP_NAMESPACE_BEGIN
                         WARN_LOG("Invalid merge op at:%u", i);
                         return false;
                     }
-                    if (0 != g_db->MergeOperands(ops[left_pos].GetMergeOp(), ops[left_pos].GetMergeArgs(), ops[1 - left_pos].GetMergeOp(), ops[1 - left_pos].GetMergeArgs()))
+                    if (0
+                            != g_db->MergeOperands(ops[left_pos].GetMergeOp(), ops[left_pos].GetMergeArgs(), ops[1 - left_pos].GetMergeOp(),
+                                    ops[1 - left_pos].GetMergeArgs()))
                     {
                         return false;
                     }
@@ -592,7 +595,8 @@ OP_NAMESPACE_BEGIN
             // multiple times, where each time it only merges two operands.  Developers
             // should either implement PartialMergeMulti, or implement PartialMerge which
             // is served as the helper function of the default PartialMergeMulti.
-            bool PartialMerge(const rocksdb::Slice& key, const rocksdb::Slice& left_operand, const rocksdb::Slice& right_operand, std::string* new_value, rocksdb::Logger* logger) const
+            bool PartialMerge(const rocksdb::Slice& key, const rocksdb::Slice& left_operand, const rocksdb::Slice& right_operand, std::string* new_value,
+                    rocksdb::Logger* logger) const
             {
                 ValueObject left_op, right_op;
                 Buffer left_mergeBuffer(const_cast<char*>(left_operand.data()), 0, left_operand.size());
@@ -666,6 +670,50 @@ OP_NAMESPACE_BEGIN
         RWLockGuard<SpinRWLock> guard(m_lock, true);
         m_handlers.clear(); //handlers MUST be deleted before m_db
         DELETE(m_db);
+    }
+
+    int RocksDBEngine::Backup(Context& ctx, const std::string& dir)
+    {
+        LockGuard<ThreadMutex> guard(m_backup_lock);
+        rocksdb::BackupableDBOptions opt(dir);
+        rocksdb::BackupEngine* backup_engine = NULL;
+        rocksdb::Status s = rocksdb::BackupEngine::Open(rocksdb::Env::Default(), opt, &backup_engine);
+        if (s.ok())
+        {
+            s = backup_engine->CreateNewBackup(m_db);
+            if(s.ok())
+            {
+                backup_engine->PurgeOldBackups(1);
+            }
+        }
+        if (!s.ok())
+        {
+            ERROR_LOG("Failed to backup rocksdb for reason:%s", s.ToString().c_str());
+        }
+        DELETE(backup_engine);
+        return rocksdb_err(s);
+    }
+
+    int RocksDBEngine::Restore(Context& ctx, const std::string& dir)
+    {
+        LockGuard<ThreadMutex> guard(m_backup_lock);
+        Close();
+        rocksdb::BackupEngineReadOnly* backup_engine = NULL;
+        rocksdb::BackupableDBOptions opt(dir);
+        rocksdb::Status s = rocksdb::BackupEngineReadOnly::Open(rocksdb::Env::Default(), opt, &backup_engine);
+        if (s.ok())
+        {
+            std::vector<rocksdb::BackupInfo> backup_info;
+            backup_engine->GetBackupInfo(&backup_info);
+            s = backup_engine->RestoreDBFromBackup(backup_info[0].backup_id, m_dbdir, m_dbdir);
+        }
+        if (!s.ok())
+        {
+            ERROR_LOG("Failed to backup rocksdb for reason:%s", s.ToString().c_str());
+        }
+        DELETE(backup_engine);
+        ReOpen(m_options);
+        return 0;
     }
 
     int RocksDBEngine::ReOpen(rocksdb::Options& options)
@@ -1158,7 +1206,7 @@ OP_NAMESPACE_BEGIN
     {
         err = err - STORAGE_ENGINE_ERR_OFFSET;
         RocksDBLocalContext::ErrMap& err_map = g_rocks_context.GetValue().err_map;
-        if(err_map.count(err) > 0)
+        if (err_map.count(err) > 0)
         {
             return err_map[err].ToString();
         }
@@ -1195,7 +1243,8 @@ OP_NAMESPACE_BEGIN
     void RocksDBEngine::Stats(Context& ctx, std::string& all)
     {
         std::string str, version_info;
-        version_info.append("rocksdb_version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(stringfromll(rocksdb::kMinorVersion)).append(".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
+        version_info.append("rocksdb_version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(stringfromll(rocksdb::kMinorVersion)).append(
+                ".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
         all.append(version_info);
         std::map<rocksdb::MemoryUtil::UsageType, uint64_t> usage_by_type;
         std::unordered_set<const rocksdb::Cache*> cache_set;

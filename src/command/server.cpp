@@ -1033,5 +1033,26 @@ namespace ardb
         return 0;
     }
 
+    int Ardb::Backup(Context& ctx, RedisCommandFrame& cmd)
+    {
+        RedisReply& reply = ctx.GetReply();
+        std::string dir = g_db->GetConf().backup_dir + "/" + g_engine_name + "_";
+        std::string postfix = "default";
+        if(cmd.GetArguments().size() > 0)
+        {
+            postfix = cmd.GetArguments()[0];
+        }
+        dir.append(postfix);
+        int err = m_engine->Backup(ctx, dir);
+        if(err != 0)
+        {
+            reply.SetErrCode(err);
+        }
+        else
+        {
+            reply.SetStatusCode(STATUS_OK);
+        }
+        return 0;
+    }
 }
 

@@ -44,6 +44,7 @@
 #define REDIS_COMMAND_DECODER_TYPE 1
 #define REDIS_REPLY_DECODER_TYPE 2
 #define REDIS_DUMP_DECODER_TYPE 3
+#define ARDB_DIR_SYNC_DECODER_TYPE 4
 
 namespace ardb
 {
@@ -70,6 +71,10 @@ namespace ardb
                 bool IsDumpFile()
                 {
                     return type == REDIS_DUMP_DECODER_TYPE;
+                }
+                bool IsDirSync()
+                {
+                    return type == ARDB_DIR_SYNC_DECODER_TYPE;
                 }
         };
 

@@ -129,6 +129,21 @@ namespace ardb
     static const uint32 kloading_process_events_interval_bytes = 10 * 1024 * 1024;
     static const uint32 kmax_read_buffer_size = 10 * 1024 * 1024;
 
+    static const char* type2str(int type)
+    {
+        switch (type)
+        {
+            case ARDB_DUMP:
+                return "ardb";
+            case REDIS_DUMP:
+                return "redis";
+            case BACKUP_DUMP:
+                return "backup";
+            default:
+                return "unknown";
+        }
+    }
+
     static int EncodeInteger(long long value, unsigned char *enc)
     {
         /* Finally check if it fits in our ranges */
@@ -782,7 +797,7 @@ namespace ardb
     void ObjectIO::RedisLoadHashZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value)
     {
         meta_value.SetType(KEY_HASH);
-        meta_value.SetObjectLen(ziplistLen(data)/2);
+        meta_value.SetObjectLen(ziplistLen(data) / 2);
         //BatchWriteGuard guard(g_db->GetKeyValueEngine());
         unsigned char* iter = ziplistIndex(data, 0);
         while (iter != NULL)
@@ -1631,26 +1646,45 @@ namespace ardb
             m_routine_cb(LOAD_START, this, m_routine_cbdata);
         }
         uint64_t start_time = get_current_epoch_millis();
-        bool is_redis_snapshot = IsRedisDumpFile(file);
-        ret = OpenReadFile(file);
-        if (0 != ret)
+        m_type = GetSnapshotType(file);
+        if (m_type == -1)
         {
-            return ret;
+            ERROR_LOG("Invalid snapshot file:%s", file.c_str());
+            return -1;
         }
-        if (is_redis_snapshot)
+        if (m_type != BACKUP_DUMP)
         {
-            m_type = REDIS_DUMP;
-            ret = RedisLoad();
+            ret = OpenReadFile(file);
+            if (0 != ret)
+            {
+                return ret;
+            }
         }
         else
         {
-            m_type = ARDB_DUMP;
+            m_file_path = file;
+        }
+
+        if (m_type == REDIS_DUMP)
+        {
+            ret = RedisLoad();
+        }
+        else if (m_type == ARDB_DUMP)
+        {
             ret = ArdbLoad();
+        }
+        else if (m_type == BACKUP_DUMP)
+        {
+            ret = BackupLoad();
+        }
+        else
+        {
+            ret = -1;
         }
         if (ret == 0)
         {
             uint64_t cost = get_current_epoch_millis() - start_time;
-            INFO_LOG("Cost %.2fs to load snapshot file with type:%s.", cost / 1000.0, is_redis_snapshot ? "redis" : "ardb");
+            INFO_LOG("Cost %.2fs to load snapshot file with type:%s.", cost / 1000.0, type2str(m_type));
         }
         m_state = ret == 0 ? LOAD_SUCCESS : LOAD_FAIL;
         if (NULL != m_routine_cb)
@@ -1758,11 +1792,23 @@ namespace ardb
 
     int Snapshot::PrepareSave(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data)
     {
-        int ret = OpenWriteFile(file);
-        if (0 != ret)
+        int err = 0;
+        if (type != BACKUP_DUMP)
         {
-            return ret;
+            err = OpenWriteFile(file);
         }
+        else
+        {
+            if (!make_dir(file))
+            {
+                return -1;
+            }
+        }
+        if (0 != err)
+        {
+            return err;
+        }
+
         m_save_time = time(NULL);
         m_state = DUMPING;
         this->m_routine_cb = cb;
@@ -1787,9 +1833,17 @@ namespace ardb
         {
             ret = RedisSave();
         }
-        else
+        else if (m_type == ARDB_DUMP)
         {
             ret = ArdbSave();
+        }
+        else if (m_type == BACKUP_DUMP)
+        {
+            ret = BackupSave();
+        }
+        else
+        {
+            return ERR_NOTSUPPORTED;
         }
         Close();
         m_state = ret == 0 ? DUMP_SUCCESS : DUMP_FAIL;
@@ -1803,11 +1857,11 @@ namespace ardb
             g_lastsave = time(NULL);
             time_t end = g_lastsave;
             g_lastsave_cost = end - start;
-            INFO_LOG("Cost %us to save snapshot file with type:%s.", g_lastsave_cost, (m_type == REDIS_DUMP) ? "redis" : "ardb");
+            INFO_LOG("Cost %us to save snapshot file with type:%s.", g_lastsave_cost, type2str(m_type));
         }
         else
         {
-            WARN_LOG("Failed to save snapshot file with type:%s", (m_type == REDIS_DUMP) ? "redis" : "ardb");
+            WARN_LOG("Failed to save snapshot file with type:%s", type2str(m_type));
         }
         g_saver_num--;
         if (g_saver_num < 0)
@@ -1872,28 +1926,36 @@ namespace ardb
         return 0;
     }
 
-    int Snapshot::IsRedisDumpFile(const std::string& file)
+    SnapshotType Snapshot::GetSnapshotType(const std::string& file)
     {
+        SnapshotType invalid = (SnapshotType) -1;
+        if (is_dir_exist(file))
+        {
+            return BACKUP_DUMP;
+        }
         FILE* fp = NULL;
         if ((fp = fopen(file.c_str(), "r")) == NULL)
         {
             ERROR_LOG("Failed to load redis dump file:%s", file.c_str());
-            return -1;
+            return invalid;
         }
         char buf[10];
         if (fread(buf, 10, 1, fp) != 1)
         {
             fclose(fp);
-            return -1;
+            return invalid;
         }
         buf[9] = '\0';
         fclose(fp);
         if (memcmp(buf, "REDIS", 5) != 0)
         {
-            //WARN_LOG("Wrong signature trying to load DB from file:%s", file.c_str());
-            return 0;
+            return REDIS_DUMP;
         }
-        return 1;
+        else if (memcmp(buf, "ARDB", 4) != 0)
+        {
+            return ARDB_DUMP;
+        }
+        return invalid;
     }
 
     int Snapshot::RedisLoad()
@@ -2040,7 +2102,7 @@ namespace ardb
         g_engine->FlushAll(loadctx);
         g_engine->EndBulkLoad(loadctx);
         INFO_LOG("All data load successfully from redis snapshot file.");
-        if(g_db->GetConf().compact_after_snapshot_load)
+        if (g_db->GetConf().compact_after_snapshot_load)
         {
             g_db->CompactAll(loadctx);
         }
@@ -2092,9 +2154,10 @@ namespace ardb
                 {
                     case KEY_META:
                     {
-                        if(objectlen != 0)
+                        if (objectlen != 0)
                         {
-                            ERROR_LOG("Previous key:%s with type:%u is not complete dump, %lld missing in %lld elements", current_key.AsString().c_str(),current_keytype, objectlen, object_totallen);
+                            ERROR_LOG("Previous key:%s with type:%u is not complete dump, %lld missing in %lld elements", current_key.AsString().c_str(),
+                                    current_keytype, objectlen, object_totallen);
                             err = -2;
                             break;
                         }
@@ -2195,7 +2258,7 @@ namespace ardb
                         break;
                     }
                 }
-                if(err < 0)
+                if (err < 0)
                 {
                     break;
                 }
@@ -2217,44 +2280,6 @@ namespace ardb
         Close();
         return 0;
     }
-
-//    int Snapshot::ArdbSaveRawKeyValue(const Slice& key, const Slice& value)
-//    {
-//        BufferHelper::WriteVarSlice(m_write_buffer, key);
-//        BufferHelper::WriteVarSlice(m_write_buffer, value);
-//        if (m_write_buffer.ReadableBytes() >= 1024 * 1024)
-//        {
-//            return ArdbFlushWriteBuffer();
-//        }
-//        return 0;
-//    }
-//
-//    int Snapshot::ArdbFlushWriteBuffer()
-//    {
-//        if (m_write_buffer.Readable())
-//        {
-//            std::string compressed;
-//            snappy::Compress(m_write_buffer.GetRawReadBuffer(), m_write_buffer.ReadableBytes(), &compressed);
-//            if (compressed.size() > (m_write_buffer.ReadableBytes() + 4))
-//            {
-//                RETURN_NEGATIVE_EXPR(WriteType(ARDB_RDB_TYPE_CHUNK));
-//                uint32 len = m_write_buffer.ReadableBytes();
-//                RETURN_NEGATIVE_EXPR(WriteLen(len));
-//                RETURN_NEGATIVE_EXPR(Write(m_write_buffer.GetRawReadBuffer(), m_write_buffer.ReadableBytes()));
-//            }
-//            else
-//            {
-//                RETURN_NEGATIVE_EXPR(WriteType(ARDB_RDB_TYPE_SNAPPY_CHUNK));
-//                uint32 rawlen = m_write_buffer.ReadableBytes();
-//                RETURN_NEGATIVE_EXPR(WriteLen(rawlen));
-//                RETURN_NEGATIVE_EXPR(WriteLen(compressed.size()));
-//                RETURN_NEGATIVE_EXPR(Write(compressed.data(), compressed.size()));
-//            }
-//            m_write_buffer.Clear();
-//        }
-//        Flush();
-//        return 0;
-//    }
 
     int Snapshot::ArdbSave()
     {
@@ -2426,7 +2451,7 @@ namespace ardb
         g_engine->FlushAll(loadctx);
         g_engine->EndBulkLoad(loadctx);
         INFO_LOG("All data load successfully from ardb snapshot file.");
-        if(g_db->GetConf().compact_after_snapshot_load)
+        if (g_db->GetConf().compact_after_snapshot_load)
         {
             g_db->CompactAll(loadctx);
         }
@@ -2436,6 +2461,105 @@ namespace ardb
         g_engine->EndBulkLoad(loadctx);
         WARN_LOG("Short read or OOM loading DB. Unrecoverable error, aborting now.");
         return -1;
+    }
+
+    int Snapshot::BackupSave()
+    {
+        struct BGTask: public Thread
+        {
+                std::string path;
+                int err;
+                bool complete;
+
+                BGTask(const std::string& f) :
+                        path(f), err(0), complete(false)
+                {
+                }
+                void Run()
+                {
+                    Context dumpctx;
+                    err = g_engine->Backup(dumpctx, path);
+                    complete = true;
+                }
+        };
+        BGTask task(m_file_path);
+        task.Start();
+        while (!task.complete)
+        {
+            Thread::Sleep(100);
+            /*
+             * routine callback every 100ms
+             */
+            if (NULL != m_routine_cb)
+            {
+                int cbret = m_routine_cb(DUMPING, this, m_routine_cbdata);
+                if (0 != cbret)
+                {
+                    ERROR_LOG("Routine return error:%d or snapshot file:%s", cbret, m_file_path.c_str());
+                    break;
+                }
+                m_routinetime = get_current_epoch_millis();
+            }
+        }
+        task.Join();
+        if (0 == task.err)
+        {
+            INFO_LOG("Backup dump finished.");
+        }
+        else
+        {
+            WARN_LOG("Backup dump failed with err:%d", task.err);
+        }
+        return task.err;
+    }
+    int Snapshot::BackupLoad()
+    {
+        struct BGTask: public Thread
+        {
+                std::string path;
+                int err;
+                bool complete;
+                BGTask(const std::string& f) :
+                        path(f), err(0), complete(false)
+                {
+                }
+                void Run()
+                {
+                    Context loadctx;
+                    printf("####restore %s\n", path.c_str());
+                    err = g_engine->Restore(loadctx, path);
+                    complete = true;
+                }
+        };
+        BGTask task(m_file_path);
+        task.Start();
+        while (!task.complete)
+        {
+            Thread::Sleep(100);
+            /*
+             * routine callback every 100ms
+             */
+            if (NULL != m_routine_cb)
+            {
+                int cbret = m_routine_cb(LODING, this, m_routine_cbdata);
+                if (0 != cbret)
+                {
+                    ERROR_LOG("Routine return error:%d or snapshot file:%s", cbret, m_file_path.c_str());
+                    break;
+                }
+                m_routinetime = get_current_epoch_millis();
+            }
+        }
+        task.Join();
+        if (0 == task.err)
+        {
+            INFO_LOG("Backup restore finished.");
+        }
+        else
+        {
+            WARN_LOG("Backup restore failed with err:%d", task.err);
+        }
+        return task.err;
     }
 
     static SnapshotManager g_snapshot_manager_instance;
