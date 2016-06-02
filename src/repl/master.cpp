@@ -301,7 +301,7 @@ OP_NAMESPACE_BEGIN
             fstat(setting.fd, &st);
             Buffer header;
             BufferHelper::WriteVarString(header, fs);
-            BufferHelper::WriteFixInt64(header, (int64_t) st.st_size);
+            BufferHelper::WriteFixInt64(header, (int64_t) (st.st_size));
             slave->conn->Write(header);
 
             setting.file_rest_len = st.st_size;
@@ -344,7 +344,9 @@ OP_NAMESPACE_BEGIN
             slave->sync_backup_fs.clear();
             list_allfiles(dump_file_path, slave->sync_backup_fs);
             Buffer header;
-            BufferHelper::WriteFixInt64(header, (int64_t) slave->sync_backup_fs.size());
+            int64_t filenum = slave->sync_backup_fs.size();
+            header.Printf("#");  //start char
+            BufferHelper::WriteFixInt64(header, filenum);
             slave->conn->Write(header);
             return SendBackupToSlave(slave);
         }

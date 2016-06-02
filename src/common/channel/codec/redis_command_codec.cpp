@@ -380,7 +380,7 @@ int RedisCommandDecoder::ProcessMultibulkBuffer(Channel* channel, Buffer& buffer
 
 bool RedisCommandDecoder::Decode(Channel* channel, Buffer& buffer, RedisCommandFrame& msg)
 {
-    while (buffer.GetRawReadBuffer()[0] == '\r' || buffer.GetRawReadBuffer()[0] == '\n')
+    while (buffer.Readable() && (buffer.GetRawReadBuffer()[0] == '\r' || buffer.GetRawReadBuffer()[0] == '\n'))
     {
         buffer.AdvanceReadIndex(1);
     }
@@ -425,7 +425,7 @@ bool RedisCommandDecoder::Decode(Channel* channel, Buffer& buffer, RedisCommandF
 bool RedisCommandDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, RedisCommandFrame& msg)
 {
     bool have_empty = false;
-    while (buffer.GetRawReadBuffer()[0] == '\r' || buffer.GetRawReadBuffer()[0] == '\n')
+    while (buffer.Readable() && (buffer.GetRawReadBuffer()[0] == '\r' || buffer.GetRawReadBuffer()[0] == '\n'))
     {
         buffer.AdvanceReadIndex(1);
         have_empty = true;

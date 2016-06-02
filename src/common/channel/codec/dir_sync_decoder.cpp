@@ -69,12 +69,34 @@ namespace ardb
             s.path = _current_fname;
             while (buffer.Readable())
             {
+                size_t mark = buffer.GetReadIndex();
                 switch (_state)
                 {
                     case STATE_DIR_SYNC_WAITING_DIR_HEADER:
                     {
+                        while (buffer.Readable() && (buffer.GetRawReadBuffer()[0] == '\r' || buffer.GetRawReadBuffer()[0] == '\n'))
+                        {
+                            buffer.AdvanceReadIndex(1);
+                        }
+                        if (buffer.Readable())
+                        {
+                            if(buffer.GetRawReadBuffer()[0] != '#')
+                            {
+                                s.err = -1;
+                                s.reason = "invalid start char, should be '#' started";
+                                s.status = STATE_DIR_SYNC_FAILED;
+                                ERROR_LOG("Failed to start sync backup:%s", s.reason.c_str());
+                                return true;
+                            }
+                            buffer.AdvanceReadIndex(1);
+                        }
+                        else
+                        {
+                            return false;
+                        }
                         if (!BufferHelper::ReadFixInt64(buffer, _rest_file_num))
                         {
+                            buffer.SetReadIndex(mark);
                             return false;
                         }
                         if (_rest_file_num <= 0)
@@ -92,22 +114,30 @@ namespace ardb
                     case STATE_DIR_SYNC_WAITING_FILE_HEADER:
                     {
                         std::string file;
+                        if (buffer.ReadableBytes() < 12)
+                        {
+                            return false;
+                        }
                         if (!BufferHelper::ReadVarString(buffer, file) || !BufferHelper::ReadFixInt64(buffer, _current_file_rest_bytes))
                         {
+                            buffer.SetReadIndex(mark);
                             return false;
                         }
                         CloseCurrentFile();
                         _current_fname = file;
                         std::string path = _dir + "/" + file;
                         make_file(path);
-                        _current_file = fopen(path.c_str(), "w");
-                        if (_current_file == NULL)
+                        if (_current_file_rest_bytes > 0)
                         {
-                            s.err = errno;
-                            s.reason = strerror(s.err);
-                            s.status = STATE_DIR_SYNC_FAILED;
-                            ERROR_LOG("Failed to open sync backup file:%s to write", path.c_str());
-                            return true;
+                            _current_file = fopen(path.c_str(), "w");
+                            if (_current_file == NULL)
+                            {
+                                s.err = errno;
+                                s.reason = strerror(s.err);
+                                s.status = STATE_DIR_SYNC_FAILED;
+                                ERROR_LOG("Failed to open sync backup file:%s to write", path.c_str());
+                                return true;
+                            }
                         }
                         _state = STATE_DIR_SYNC_WAITING_FILE_CONTENT;
                         s.status = _state;
@@ -115,28 +145,30 @@ namespace ardb
                     }
                     case STATE_DIR_SYNC_WAITING_FILE_CONTENT:
                     {
-                        size_t write_len = _current_file_rest_bytes;
-                        if (buffer.ReadableBytes() < write_len)
+                        if (_current_file_rest_bytes > 0)
                         {
-                            write_len = buffer.ReadableBytes();
-                        }
-                        int n = fwrite((const void*) (buffer.GetRawReadBuffer()), write_len, 1, _current_file);
-                        if (n > 0)
-                        {
-                            _current_file_rest_bytes -= write_len;
-                            buffer.AdvanceReadIndex(write_len);
-                        }
-                        else
-                        {
-                            s.err = errno;
-                            s.reason = strerror(s.err);
-                            s.status = STATE_DIR_SYNC_FAILED;
-                            return true;
+                            size_t write_len = _current_file_rest_bytes;
+                            if (buffer.ReadableBytes() < write_len)
+                            {
+                                write_len = buffer.ReadableBytes();
+                            }
+                            int n = fwrite((const void*) (buffer.GetRawReadBuffer()), write_len, 1, _current_file);
+                            if (n > 0)
+                            {
+                                _current_file_rest_bytes -= write_len;
+                                buffer.AdvanceReadIndex(write_len);
+                            }
+                            else
+                            {
+                                s.err = errno;
+                                s.reason = strerror(s.err);
+                                s.status = STATE_DIR_SYNC_FAILED;
+                                return true;
+                            }
                         }
                         if (0 == _current_file_rest_bytes)
                         {
                             CloseCurrentFile();
-                            _state = STATE_DIR_SYNC_WAITING_FILE_HEADER;
                             _rest_file_num--;
                             if (_rest_file_num == 0)
                             {
