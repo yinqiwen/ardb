@@ -661,7 +661,7 @@ namespace ardb
             }
             else
 #endif
-                snprintf((char*) buf + 1, sizeof(buf) - 1, "%.17g", val);
+            snprintf((char*) buf + 1, sizeof(buf) - 1, "%.17g", val);
             buf[0] = strlen((char*) buf + 1);
             len = buf[0] + 1;
         }
@@ -1800,6 +1800,17 @@ namespace ardb
         return true;
     }
 
+    void Snapshot::VerifyState()
+    {
+        if(m_state != SNAPSHOT_INVALID)
+        {
+            if(!is_file_exist(m_file_path))
+            {
+                m_state = SNAPSHOT_INVALID;
+            }
+        }
+    }
+
     int Snapshot::PrepareSave(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data)
     {
         int err = 0;
@@ -1883,13 +1894,15 @@ namespace ardb
         return ret;
     }
 
-    bool Snapshot::IsSaving() const
+    bool Snapshot::IsSaving()
     {
+        VerifyState();
         return m_state == DUMPING;
     }
 
-    bool Snapshot::IsReady() const
+    bool Snapshot::IsReady()
     {
+        VerifyState();
         return m_state == DUMP_SUCCESS;
     }
 
@@ -1947,13 +1960,13 @@ namespace ardb
     {
         char tmp[g_db->GetConf().backup_dir.size() + 100];
         uint32 now = time(NULL);
-        if(type == BACKUP_DUMP)
+        if (type == BACKUP_DUMP)
         {
-            sprintf(tmp, "%s/%s-sync-backup.%u", g_db->GetConf().backup_dir.c_str(),g_engine, now);
+            sprintf(tmp, "%s/%s-sync-backup.%u", g_db->GetConf().backup_dir.c_str(), g_engine, now);
         }
         else
         {
-            sprintf(tmp, "%s/sync-%s-snapshot.%u", g_db->GetConf().backup_dir.c_str(), type2str(type),  now);
+            sprintf(tmp, "%s/sync-%s-snapshot.%u", g_db->GetConf().backup_dir.c_str(), type2str(type), now);
         }
         return tmp;
     }
@@ -2200,8 +2213,7 @@ namespace ardb
                     {
                         if (objectlen != 0)
                         {
-                            ERROR_LOG("Previous key:%s with type:%u is not complete dump, %lld missing in %lld elements", current_key.AsString().c_str(),
-                                    current_keytype, objectlen, object_totallen);
+                            ERROR_LOG("Previous key:%s with type:%u is not complete dump, %lld missing in %lld elements", current_key.AsString().c_str(), current_keytype, objectlen, object_totallen);
                             err = -2;
                             break;
                         }
@@ -2688,7 +2700,7 @@ namespace ardb
         Snapshot* snapshot = NULL;
         NEW(snapshot, Snapshot);
         char path[1024];
-        if(type == BACKUP_DUMP)
+        if (type == BACKUP_DUMP)
         {
             snprintf(path, sizeof(path) - 1, "%s/master-%s-backup.%u", g_db->GetConf().backup_dir.c_str(), g_engine_name, now);
         }

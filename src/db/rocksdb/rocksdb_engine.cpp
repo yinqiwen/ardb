@@ -680,7 +680,8 @@ OP_NAMESPACE_BEGIN
         rocksdb::Status s = rocksdb::BackupEngine::Open(rocksdb::Env::Default(), opt, &backup_engine);
         if (s.ok())
         {
-            s = backup_engine->CreateNewBackup(m_db);
+
+            s = backup_engine->CreateNewBackup(m_db, true);
             if(s.ok())
             {
                 backup_engine->PurgeOldBackups(1);

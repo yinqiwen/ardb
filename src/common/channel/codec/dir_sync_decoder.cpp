@@ -74,7 +74,7 @@ namespace ardb
                 {
                     case STATE_DIR_SYNC_WAITING_DIR_HEADER:
                     {
-                        while (buffer.Readable() && (buffer.GetRawReadBuffer()[0] == '\r' || buffer.GetRawReadBuffer()[0] == '\n'))
+                        while (buffer.Readable() &&  buffer.GetRawReadBuffer()[0] == '\n')
                         {
                             buffer.AdvanceReadIndex(1);
                         }

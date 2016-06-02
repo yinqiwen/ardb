@@ -168,6 +168,7 @@ namespace ardb
 
             int DoSave();
             int PrepareSave(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data);
+            void VerifyState();
         public:
             Snapshot();
             SnapshotType GetType()
@@ -190,8 +191,8 @@ namespace ardb
             {
                 return m_save_time;
             }
-            bool IsSaving() const;
-            bool IsReady() const;
+            bool IsSaving();
+            bool IsReady();
             void SetExpectedDataSize(int64 size);
             int64 DumpLeftDataSize();
             int64 ProcessLeftDataSize();
