@@ -30,6 +30,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include "db/db.hpp"
+#include "util/file_helper.hpp"
 
 #define MAX_SEND_CACHE_SIZE 8192
 
@@ -45,17 +46,18 @@ OP_NAMESPACE_BEGIN
     {
             Snapshot* snapshot;
             Channel* conn;
+            std::deque<std::string> sync_backup_fs;
             std::string repl_key;
+            std::string engine;
             int64 sync_offset;
             int64 ack_offset;
             uint64 sync_cksm;
             uint32 acktime;
             uint32 port;
-            int repldbfd;
             bool isRedisSlave;
             uint8 state;
             SlaveSyncContext() :
-                    snapshot(NULL), conn(NULL), sync_offset(0), ack_offset(0), sync_cksm(0), acktime(0), port(0), repldbfd(-1), isRedisSlave(false), state(SYNC_STATE_INVALID)
+                    snapshot(NULL), conn(NULL), sync_offset(0), ack_offset(0), sync_cksm(0), acktime(0), port(0), isRedisSlave(false), state(SYNC_STATE_INVALID)
             {
             }
             std::string GetAddress()
@@ -78,7 +80,8 @@ OP_NAMESPACE_BEGIN
     };
 
     Master::Master() :
-            m_repl_noslaves_since(0), m_repl_nolag_since(0), m_repl_good_slaves_count(0), m_slaves_count(0), m_sync_full_count(0), m_sync_partial_ok_count(0), m_sync_partial_err_count(0)
+            m_repl_noslaves_since(0), m_repl_nolag_since(0), m_repl_good_slaves_count(0), m_slaves_count(0), m_sync_full_count(0), m_sync_partial_ok_count(0), m_sync_partial_err_count(
+                    0)
     {
     }
 
@@ -102,13 +105,13 @@ OP_NAMESPACE_BEGIN
         DELETE(handler);
     }
 
-    static void snapshot_dump_success(Channel*, void* data)
+    static void snapshot_dump_success(Channel* ch, void* data)
     {
         Snapshot* snapshot = (Snapshot*) data;
         g_repl->GetMaster().FullResyncSlaves(snapshot);
         INFO_LOG("Snapshot dump success");
     }
-    static void snapshot_dump_fail(Channel*, void* data)
+    static void snapshot_dump_fail(Channel* ch, void* data)
     {
         Snapshot* snapshot = (Snapshot*) data;
         g_repl->GetMaster().CloseSlaveBySnapshot(snapshot);
@@ -195,15 +198,24 @@ OP_NAMESPACE_BEGIN
 
     void Master::FullResyncSlaves(Snapshot* snapshot)
     {
+        std::vector<SlaveSyncContext*> to_close;
         SlaveSyncContextSet::iterator it = m_slaves.begin();
         while (it != m_slaves.end())
         {
             SlaveSyncContext* slave = *it;
             if (slave != NULL && slave->snapshot == snapshot)
             {
-                SendSnapshotToSlave(slave);
+                int err = SendSnapshotToSlave(slave);
+                if (0 != err)
+                {
+                    to_close.push_back(slave);
+                }
             }
             it++;
+        }
+        for (size_t i = 0; i < to_close.size(); i++)
+        {
+            CloseSlave(to_close[i]);
         }
     }
 
@@ -217,7 +229,7 @@ OP_NAMESPACE_BEGIN
             {
                 return false;
             }
-            if(slave->sync_offset < g_repl->GetReplLog().WALEndOffset() - g_db->GetConf().repl_backlog_cache_size / 2)
+            if (slave->sync_offset < g_repl->GetReplLog().WALEndOffset() - g_db->GetConf().repl_backlog_cache_size / 2)
             {
                 return false;
             }
@@ -254,11 +266,61 @@ OP_NAMESPACE_BEGIN
         }
     }
 
+    static void OnSnapshotBackupSendFailure(void* data)
+    {
+        SlaveSyncContext* slave = (SlaveSyncContext*) data;
+        slave->snapshot = NULL;
+        WARN_LOG("Send backup to slave:%s failed.", slave->GetAddress().c_str());
+    }
+
+    void Master::OnSnapshotBackupSendComplete(void* data)
+    {
+        SlaveSyncContext* slave = (SlaveSyncContext*) data;
+        std::string fs = slave->sync_backup_fs.front();
+        slave->sync_backup_fs.pop_front();
+        INFO_LOG("Send backup:%s to slave:%s success.", fs.c_str(), slave->GetAddress().c_str());
+        g_repl->GetMaster().SendBackupToSlave(slave);
+    }
+
+    int Master::SendBackupToSlave(SlaveSyncContext* slave)
+    {
+        if (!slave->sync_backup_fs.empty())
+        {
+            std::string fs =  slave->sync_backup_fs.front();
+            std::string fs_path = slave->snapshot->GetPath() + "/" + fs;
+            SendFileSetting setting;
+            setting.fd = open(fs_path.c_str(), O_RDONLY);
+            if (-1 == setting.fd)
+            {
+                int err = errno;
+                ERROR_LOG("Failed to open file:%s for reason:%s", fs_path.c_str(), strerror(err));
+                return -1;
+            }
+            setting.file_offset = 0;
+            struct stat st;
+            fstat(setting.fd, &st);
+            Buffer header;
+            BufferHelper::WriteVarString(header, fs);
+            BufferHelper::WriteFixInt64(header, (int64_t) (st.st_size));
+            slave->conn->Write(header);
+
+            setting.file_rest_len = st.st_size;
+            setting.on_complete = OnSnapshotBackupSendComplete;
+            setting.on_failure = OnSnapshotBackupSendFailure;
+            setting.data = slave;
+            slave->conn->SendFile(setting);
+        }
+        else
+        {
+            slave->state = SYNC_STATE_SYNCED;
+            SyncWAL(slave);
+        }
+        return 0;
+    }
+
     static void OnSnapshotFileSendComplete(void* data)
     {
         SlaveSyncContext* slave = (SlaveSyncContext*) data;
-        close(slave->repldbfd);
-        slave->repldbfd = -1;
         slave->snapshot = NULL;
         slave->state = SYNC_STATE_SYNCED;
         INFO_LOG("Send snapshot to slave:%s success.", slave->GetAddress().c_str());
@@ -268,38 +330,34 @@ OP_NAMESPACE_BEGIN
     static void OnSnapshotFileSendFailure(void* data)
     {
         SlaveSyncContext* slave = (SlaveSyncContext*) data;
-        close(slave->repldbfd);
-        slave->repldbfd = -1;
         slave->snapshot = NULL;
         WARN_LOG("Send snapshot to slave:%s failed.", slave->GetAddress().c_str());
-        //g_repl->GetMaster().CloseSlave(slave);
     }
 
-    void Master::SendSnapshotToSlave(SlaveSyncContext* slave)
+    int Master::SendSnapshotToSlave(SlaveSyncContext* slave)
     {
         slave->state = SYNC_STATE_SYNCING_SNAPSHOT;
-//        //FULLRESYNC
-//        Buffer msg;
-//        slave->sync_offset = slave->snapshot->CachedReplOffset();
-//        slave->sync_cksm = slave->snapshot->CachedReplCksm();
-//        if (slave->isRedisSlave)
-//        {
-//            msg.Printf("+FULLRESYNC %s %lld\r\n", g_repl->GetReplLog().GetReplKey().c_str(), slave->sync_offset);
-//        }
-//        else
-//        {
-//            msg.Printf("+FULLRESYNC %s %lld %llu\r\n", g_repl->GetReplLog().GetReplKey().c_str(), slave->sync_offset, slave->sync_cksm);
-//        }
-//        slave->conn->Write(msg);
         std::string dump_file_path = slave->snapshot->GetPath();
+        if (slave->snapshot->GetType() == BACKUP_DUMP)
+        {
+            //send dir
+            slave->sync_backup_fs.clear();
+            list_allfiles(dump_file_path, slave->sync_backup_fs);
+            Buffer header;
+            int64_t filenum = slave->sync_backup_fs.size();
+            header.Printf("#");  //start char
+            BufferHelper::WriteFixInt64(header, filenum);
+            slave->conn->Write(header);
+            return SendBackupToSlave(slave);
+        }
+
         SendFileSetting setting;
         setting.fd = open(dump_file_path.c_str(), O_RDONLY);
         if (-1 == setting.fd)
         {
             int err = errno;
             ERROR_LOG("Failed to open file:%s for reason:%s", dump_file_path.c_str(), strerror(err));
-            slave->conn->Close();
-            return;
+            return -1;
         }
         setting.file_offset = 0;
         struct stat st;
@@ -312,8 +370,8 @@ OP_NAMESPACE_BEGIN
         setting.on_complete = OnSnapshotFileSendComplete;
         setting.on_failure = OnSnapshotFileSendFailure;
         setting.data = slave;
-        slave->repldbfd = setting.fd;
         slave->conn->SendFile(setting);
+        return 0;
     }
 
     static size_t send_wal_toslave(const void* log, size_t loglen, void* data)
@@ -337,7 +395,8 @@ OP_NAMESPACE_BEGIN
     {
         if (slave->sync_offset < g_repl->GetReplLog().WALStartOffset() || slave->sync_offset > g_repl->GetReplLog().WALEndOffset())
         {
-            WARN_LOG("Slave synced offset:%llu is invalid in offset range[%llu-%llu] for wal.", slave->sync_offset, g_repl->GetReplLog().WALStartOffset(), g_repl->GetReplLog().WALEndOffset());
+            WARN_LOG("Slave synced offset:%llu is invalid in offset range[%llu-%llu] for wal.", slave->sync_offset, g_repl->GetReplLog().WALStartOffset(),
+                    g_repl->GetReplLog().WALEndOffset());
             slave->conn->Close();
             return;
         }
@@ -429,10 +488,16 @@ OP_NAMESPACE_BEGIN
                     m_sync_partial_err_count++;
                 }
 
-                WARN_LOG("Create snapshot for full resync for slave replid:%s offset:%llu cksm:%llu, while current WAL runid:%s offset:%llu cksm:%llu", slave->repl_key.c_str(), slave->sync_offset, slave->sync_cksm,
-                        g_repl->GetReplLog().GetReplKey().c_str(), g_repl->GetReplLog().WALEndOffset(), g_repl->GetReplLog().WALCksm());
+                WARN_LOG("Create snapshot for full resync for slave replid:%s offset:%llu cksm:%llu, while current WAL runid:%s offset:%llu cksm:%llu",
+                        slave->repl_key.c_str(), slave->sync_offset, slave->sync_cksm, g_repl->GetReplLog().GetReplKey().c_str(),
+                        g_repl->GetReplLog().WALEndOffset(), g_repl->GetReplLog().WALCksm());
                 slave->state = SYNC_STATE_WAITING_SNAPSHOT;
-                slave->snapshot = g_snapshot_manager->GetSyncSnapshot(slave->isRedisSlave ? REDIS_DUMP : ARDB_DUMP, snapshot_dump_routine, this);
+                SnapshotType snapshot_type = slave->isRedisSlave ? REDIS_DUMP : ARDB_DUMP;
+                if (slave->engine == g_engine_name && g_engine->GetFeatureSet().support_backup)
+                {
+                    snapshot_type = BACKUP_DUMP;
+                }
+                slave->snapshot = g_snapshot_manager->GetSyncSnapshot(snapshot_type, snapshot_dump_routine, this);
                 if (NULL != slave->snapshot)
                 {
                     //FULLRESYNC
@@ -449,7 +514,8 @@ OP_NAMESPACE_BEGIN
                     }
                     else
                     {
-                        msg.Printf("+FULLRESYNC %s %lld %llu\r\n", g_repl->GetReplLog().GetReplKey().c_str(), slave->sync_offset, slave->sync_cksm);
+                        msg.Printf("+%s %s %lld %llu\r\n", BACKUP_DUMP == snapshot_type ? "FULLBACKUP" : "FULLRESYNC",
+                                g_repl->GetReplLog().GetReplKey().c_str(), slave->sync_offset, slave->sync_cksm);
                     }
                     slave->conn->Write(msg);
                     m_sync_full_count++;
@@ -604,6 +670,10 @@ OP_NAMESPACE_BEGIN
                         return;
                     }
                 }
+                else if (cmd.GetArguments()[i] == "engine")
+                {
+                    ctx.engine = cmd.GetArguments()[i + 1];
+                }
             }
             if (ctx.isRedisSlave)
             {
@@ -689,8 +759,8 @@ OP_NAMESPACE_BEGIN
 
             uint32 lag = time(NULL) - slave->acktime;
             sprintf(buffer, "slave%u:%s,state=%s,"
-                    "offset=%" PRId64 ",ack_offset=%" PRId64",lag=%u,o_buffer_size=%u,o_buffer_capacity=%u\r\n", i, slave->GetAddress().c_str(), state, slave->sync_offset, slave->ack_offset, lag, slave->conn->WritableBytes(),
-                    slave->conn->GetOutputBuffer().Capacity());
+                    "offset=%" PRId64 ",ack_offset=%" PRId64",lag=%u,o_buffer_size=%u,o_buffer_capacity=%u\r\n", i, slave->GetAddress().c_str(), state,
+                    slave->sync_offset, slave->ack_offset, lag, slave->conn->WritableBytes(), slave->conn->GetOutputBuffer().Capacity());
             it++;
             i++;
             str.append(buffer);

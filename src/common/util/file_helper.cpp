@@ -250,6 +250,53 @@ namespace ardb
         return -1;
     }
 
+    static int recursive_list_allfiles(const std::string& path, const std::string& base, std::deque<std::string>& fs)
+    {
+        struct stat buf;
+        int ret = stat(path.c_str(), &buf);
+        if (0 == ret)
+        {
+            if (S_ISDIR(buf.st_mode))
+            {
+                DIR* dir = opendir(path.c_str());
+                if (NULL != dir)
+                {
+                    struct dirent * ptr;
+                    while ((ptr = readdir(dir)) != NULL)
+                    {
+                        if (!strcmp(ptr->d_name, ".") || !strcmp(ptr->d_name, ".."))
+                        {
+                            continue;
+                        }
+                        std::string file_path = path;
+                        file_path.append("/").append(ptr->d_name);
+                        memset(&buf, 0, sizeof(buf));
+                        ret = stat(file_path.c_str(), &buf);
+                        if (ret == 0)
+                        {
+                            if (S_ISREG(buf.st_mode))
+                            {
+                                fs.push_back(base +  ptr->d_name);
+                            }
+                            else if (S_ISDIR(buf.st_mode))
+                            {
+                                recursive_list_allfiles(file_path, base + ptr->d_name + "/",fs);
+                            }
+                        }
+                    }
+                    closedir(dir);
+                    return 0;
+                }
+            }
+        }
+        return -1;
+    }
+
+    int list_allfiles(const std::string& path, std::deque<std::string>& fs)
+    {
+        return recursive_list_allfiles(path, "", fs);;
+    }
+
     int list_subfiles(const std::string& path, std::deque<std::string>& fs)
     {
         struct stat buf;

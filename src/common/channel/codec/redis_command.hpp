@@ -83,6 +83,7 @@ namespace ardb
             REDIS_CMD_PUBSUB = 39,
             REDIS_CMD_MONITOR = 40,
             REDIS_CMD_DEBUG = 41,
+            REDIS_CMD_BACKUP = 42,
 
             //'keys' commands
             REDIS_CMD_DEL = 50,
@@ -254,8 +255,6 @@ namespace ardb
             REDIS_CMD_PEXPIRE2 = 1027,
             REDIS_CMD_SETBIT2 = 1028,
             REDIS_CMD_PFADD2 = 1029,
-            REDIS_CMD_BGSAVE2 = 1030,
-            REDIS_CMD_SAVE2 = 1031,
 
             REDIS_CMD_MAX = 1100,
         };

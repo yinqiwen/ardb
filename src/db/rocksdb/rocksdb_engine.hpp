@@ -32,6 +32,7 @@
 
 #include "common/common.hpp"
 #include "thread/spin_rwlock.hpp"
+#include "thread/thread_mutex.hpp"
 #include "thread/thread_local.hpp"
 #include "rocksdb/db.h"
 #include "rocksdb/write_batch.h"
@@ -40,6 +41,7 @@
 #include "rocksdb/filter_policy.h"
 #include "rocksdb/statistics.h"
 #include "rocksdb/merge_operator.h"
+#include "rocksdb/utilities/backupable_db.h"
 #include "db/engine.hpp"
 #include <vector>
 #include <sparsehash/dense_hash_map>
@@ -100,10 +102,12 @@ OP_NAMESPACE_BEGIN
             typedef TreeMap<Data, ColumnFamilyHandlePtr>::Type ColumnFamilyHandleTable;
             typedef TreeMap<uint32_t, Data>::Type ColumnFamilyHandleIDTable;
             rocksdb::DB* m_db;
+
             rocksdb::Options m_options;
             std::string m_dbdir;
             ColumnFamilyHandleTable m_handlers;
             SpinRWLock m_lock;
+            ThreadMutex m_backup_lock;
 
             ColumnFamilyHandlePtr GetColumnFamilyHandle(Context& ctx, const Data& name, bool create_if_noexist);
             const rocksdb::Snapshot* GetSnpashot();
@@ -139,12 +143,15 @@ OP_NAMESPACE_BEGIN
             int BeginBulkLoad(Context& ctx);
             int EndBulkLoad(Context& ctx);
             const std::string GetErrorReason(int err);
+            int Backup(Context& ctx, const std::string& dir);
+            int Restore(Context& ctx, const std::string& dir);
             const FeatureSet GetFeatureSet()
             {
                 FeatureSet features;
                 features.support_compactfilter = 1;
                 features.support_namespace = 1;
                 features.support_merge = 1;
+                features.support_backup = 1;
                 return features;
             }
     };

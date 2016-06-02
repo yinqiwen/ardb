@@ -178,7 +178,7 @@ OP_NAMESPACE_BEGIN
 
     static size_t slave_replay_wal(const void* log, size_t loglen, void* data)
     {
-        return  g_repl->GetSlave().ReplayWAL(log, loglen);
+        return g_repl->GetSlave().ReplayWAL(log, loglen);
     }
 
     void Slave::ReplayWAL()
@@ -226,7 +226,8 @@ OP_NAMESPACE_BEGIN
             int64_t after_replayed_bytes = m_ctx.sync_repl_offset - replay_init_offset;
             if (after_replayed_bytes / replay_process_events_interval_bytes > before_replayed_bytes / replay_process_events_interval_bytes)
             {
-                INFO_LOG("%lld bytes replayed from wal log, %llu bytes left.", after_replayed_bytes, g_repl->GetReplLog().WALEndOffset() - m_ctx.sync_repl_offset);
+                INFO_LOG("%lld bytes replayed from wal log, %llu bytes left.", after_replayed_bytes,
+                        g_repl->GetReplLog().WALEndOffset() - m_ctx.sync_repl_offset);
             }
             if (m_ctx.sync_repl_offset == g_repl->GetReplLog().WALEndOffset())
             {
@@ -255,7 +256,7 @@ OP_NAMESPACE_BEGIN
             {
                 break;
             }
-            if(msg.GetRawProtocolData().Readable())
+            if (msg.GetRawProtocolData().Readable())
             {
                 m_ctx.UpdateSyncOffsetCksm(msg.GetRawProtocolData());
                 m_db_writer.Put(m_ctx.ctx, msg);
@@ -457,8 +458,9 @@ OP_NAMESPACE_BEGIN
                     Buffer sync;
                     if (!m_ctx.server_is_redis)
                     {
-                        sync.Printf("psync %s %lld cksm %llu\r\n", g_repl->GetReplLog().IsReplKeySelfGen() ? "?" : g_repl->GetReplLog().GetReplKey().c_str(),
-                                g_repl->GetReplLog().WALEndOffset(), g_repl->GetReplLog().WALCksm());
+                        sync.Printf("psync %s %lld cksm %llu engine %s\r\n",
+                                g_repl->GetReplLog().IsReplKeySelfGen() ? "?" : g_repl->GetReplLog().GetReplKey().c_str(), g_repl->GetReplLog().WALEndOffset(),
+                                g_repl->GetReplLog().WALCksm(), g_engine_name);
                     }
                     else
                     {
@@ -489,7 +491,7 @@ OP_NAMESPACE_BEGIN
                 }
                 INFO_LOG("Recv psync reply:%s", reply.str.c_str());
                 std::vector<std::string> ss = split_string(reply.str, " ");
-                if (!strcasecmp(ss[0].c_str(), "FULLRESYNC"))
+                if (!strcasecmp(ss[0].c_str(), "FULLRESYNC") || !strcasecmp(ss[0].c_str(), "FULLBACKUP"))
                 {
                     int64 offset;
                     if (!string_toint64(ss[2], offset))
@@ -502,7 +504,7 @@ OP_NAMESPACE_BEGIN
                     m_ctx.cached_master_runid = ss[1];
                     m_ctx.cached_master_repl_offset = offset;
                     /*
-                     * if remote master is comms, there would be a cksm part
+                     * if remote master is ardb, there would be a cksm part
                      */
                     if (ss.size() > 3)
                     {
@@ -515,8 +517,18 @@ OP_NAMESPACE_BEGIN
                         }
                         m_ctx.cached_master_repl_cksm = cksm;
                     }
+
                     m_ctx.state = SLAVE_STATE_WAITING_SNAPSHOT;
                     m_decoder.SwitchToDumpFileDecoder();
+                    if (!strcasecmp(ss[0].c_str(), "FULLBACKUP"))
+                    {
+                        m_ctx.snapshot_path = Snapshot::GetSyncSnapshotPath(BACKUP_DUMP);
+                        std::string tmppath = m_ctx.snapshot_path + ".tmp";
+                        make_dir(tmppath);
+                        m_ctx.snapshot.SetFilePath(tmppath);
+                        INFO_LOG("[Slave]Create sync backup path:%s", tmppath.c_str());
+                        m_decoder.SwitchToBackupSyncDecoder(tmppath);
+                    }
                     break;
                 }
                 else if (!strcasecmp(ss[0].c_str(), "CONTINUE"))
@@ -548,6 +560,77 @@ OP_NAMESPACE_BEGIN
         }
     }
 
+    void Slave::LoadSyncedSnapshot()
+    {
+        m_ctx.snapshot.Close();
+        if (0 != m_ctx.snapshot.Rename(m_ctx.snapshot_path))
+        {
+            if (NULL != m_client)
+            {
+                m_client->Close();
+            }
+            return;
+        }
+        m_decoder.SwitchToCommandDecoder();
+        m_ctx.state = SLAVE_STATE_LOADING_SNAPSHOT;
+        /*
+         * set server key to a random string first, if server restart when loading data, it would do a full resync again with another server key.
+         * set wal offset&cksm to make sure that this slave could accept&save synced commands when loading snapshot file.
+         */
+        g_repl->GetReplLog().SetReplKey(random_hex_string(40));
+        g_repl->GetReplLog().ResetWALOffsetCksm(m_ctx.cached_master_repl_offset, m_ctx.cached_master_repl_cksm);
+        if (g_db->GetConf().slave_cleardb_before_fullresync)
+        {
+            g_db->FlushAll(m_ctx.ctx);
+        }
+        INFO_LOG("Start loading snapshot:%s", m_ctx.snapshot.GetPath().c_str());
+        m_ctx.cmd_recved_time = time(NULL);
+        int ret = m_ctx.snapshot.Reload(LoadRDBRoutine, &m_ctx);
+        if (0 != ret)
+        {
+            if (NULL != m_client)
+            {
+                m_client->Close();
+            }
+            WARN_LOG("Failed to load snapshot:%s", m_ctx.snapshot.GetPath().c_str());
+            return;
+        }
+        g_repl->GetReplLog().SetReplKey(m_ctx.cached_master_runid);
+        m_ctx.sync_repl_offset = m_ctx.cached_master_repl_offset;
+        m_ctx.sync_repl_cksm = m_ctx.cached_master_repl_cksm;
+        m_ctx.state = SLAVE_STATE_REPLAYING_WAL;
+        ReplayWAL();
+    }
+
+    void Slave::HandleBackupSync(Channel* ch, DirSyncStatus& status)
+    {
+        if (m_ctx.state != SLAVE_STATE_WAITING_SNAPSHOT)
+        {
+            ERROR_LOG("Invalid state:%s to handler backup sync status.", state2String(m_ctx.state));
+            ch->Close();
+            return;
+        }
+        if (status.IsItemSuccess())
+        {
+            INFO_LOG("Backup file:%s sync success.", status.path.c_str());
+        }
+        if (status.IsComplete())
+        {
+            if (status.IsSuccess())
+            {
+                INFO_LOG("Backup file:%s sync success.", status.path.c_str());
+                INFO_LOG("Backup sync success.");
+                LoadSyncedSnapshot();
+            }
+            else
+            {
+                ERROR_LOG("Failed to sync backup:%s with reason:%s", status.path.c_str(), status.reason.c_str());
+                ch->Close();
+                return;
+            }
+        }
+    }
+
     void Slave::HandleRedisDumpChunk(Channel* ch, RedisDumpFileChunk& chunk)
     {
         if (m_ctx.state != SLAVE_STATE_WAITING_SNAPSHOT)
@@ -559,11 +642,10 @@ OP_NAMESPACE_BEGIN
         if (chunk.IsFirstChunk())
         {
             m_ctx.snapshot.Close();
-            char tmp[g_db->GetConf().backup_dir.size() + 100];
-            uint32 now = time(NULL);
-            sprintf(tmp, "%s/sync-snapshot.%u.%u", g_db->GetConf().backup_dir.c_str(), getpid(), now);
-            m_ctx.snapshot.OpenWriteFile(tmp);
-            INFO_LOG("[Slave]Create dump file:%s, expected size:%lld, master is redis:%d", tmp, chunk.len, m_ctx.server_is_redis);
+            m_ctx.snapshot_path = Snapshot::GetSyncSnapshotPath(m_ctx.server_is_redis ? REDIS_DUMP : ARDB_DUMP);
+            std::string tmppath = m_ctx.snapshot_path + ".tmp";
+            m_ctx.snapshot.OpenWriteFile(tmppath);
+            INFO_LOG("[Slave]Create dump file:%s, expected size:%lld, master is redis:%d", m_ctx.snapshot_path.c_str(), chunk.len, m_ctx.server_is_redis);
             m_ctx.snapshot.SetExpectedDataSize(chunk.len);
         }
         if (!chunk.chunk.empty())
@@ -573,51 +655,7 @@ OP_NAMESPACE_BEGIN
         }
         if (chunk.IsLastChunk())
         {
-            m_ctx.snapshot.Flush();
-            if (m_ctx.snapshot.DumpLeftDataSize() > 0)
-            {
-                ERROR_LOG("Invalid synced snapshot with rest unsynced data %llu bytes", m_ctx.snapshot.DumpLeftDataSize());
-                DoClose();
-                return;
-            }
-//            SnapshotType snapshot_type = Snapshot::IsRedisSnapshot(m_ctx.snapshot.GetPath()) ? REDIS_SNAPSHOT : MMKV_SNAPSHOT;
-//            m_ctx.snapshot.RenameDefault();
-            m_decoder.SwitchToCommandDecoder();
-            m_ctx.state = SLAVE_STATE_LOADING_SNAPSHOT;
-            /*
-             * set server key to a random string first, if server restart when loading data, it would do a full resync again with another server key.
-             * set wal offset&cksm to make sure that this slave could accept&save synced commands when loading snapshot file.
-             */
-            g_repl->GetReplLog().SetReplKey(random_hex_string(40));
-            g_repl->GetReplLog().ResetWALOffsetCksm(m_ctx.cached_master_repl_offset, m_ctx.cached_master_repl_cksm);
-            if (g_db->GetConf().slave_cleardb_before_fullresync)
-            {
-                g_db->FlushAll(m_ctx.ctx);
-            }
-            INFO_LOG("Start loading snapshot file.");
-            m_ctx.cmd_recved_time = time(NULL);
-            DBWriter load_writer;
-            m_ctx.snapshot.SetDBWriter(&load_writer);
-            int ret = m_ctx.snapshot.Reload(LoadRDBRoutine, &m_ctx);
-            m_ctx.snapshot.SetDBWriter(NULL);
-            if (0 != ret)
-            {
-                if (NULL != m_client)
-                {
-                    m_client->Close();
-                }
-                WARN_LOG("Failed to load snapshot file.");
-                return;
-            }
-            load_writer.Stop();
-            g_repl->GetReplLog().SetReplKey(m_ctx.cached_master_runid);
-            m_ctx.sync_repl_offset = m_ctx.cached_master_repl_offset;
-            m_ctx.sync_repl_cksm = m_ctx.cached_master_repl_cksm;
-            m_ctx.state = SLAVE_STATE_REPLAYING_WAL;
-            m_ctx.snapshot.Close();
-            //Disconnect all slaves when all data resynced
-            //g_repl->GetMaster().DisconnectAllSlaves();
-            ReplayWAL();
+            LoadSyncedSnapshot();
         }
     }
 
@@ -631,6 +669,10 @@ OP_NAMESPACE_BEGIN
         else if (e.GetMessage()->IsCommand())
         {
             HandleRedisCommand(ctx.GetChannel(), e.GetMessage()->command);
+        }
+        else if (e.GetMessage()->IsBackupSync())
+        {
+            HandleBackupSync(ctx.GetChannel(), e.GetMessage()->backup);
         }
         else
         {
@@ -702,7 +744,7 @@ OP_NAMESPACE_BEGIN
     }
     int64 Slave::LoadLeftBytes()
     {
-        if(m_ctx.state == SLAVE_STATE_REPLAYING_WAL)
+        if (m_ctx.state == SLAVE_STATE_REPLAYING_WAL)
         {
             return g_repl->GetReplLog().WALEndOffset() - m_ctx.sync_repl_offset;
         }
@@ -720,8 +762,7 @@ OP_NAMESPACE_BEGIN
          * if slave can serve stale data, 'SLAVE_STATE_REPLAYING_WAL' would not considered as 'loading' state.
          */
         return NULL != m_client
-                && (SLAVE_STATE_LOADING_SNAPSHOT == m_ctx.state ||
-                        (!g_db->GetConf().slave_serve_stale_data && SLAVE_STATE_REPLAYING_WAL == m_ctx.state));
+                && (SLAVE_STATE_LOADING_SNAPSHOT == m_ctx.state || (!g_db->GetConf().slave_serve_stale_data && SLAVE_STATE_REPLAYING_WAL == m_ctx.state));
     }
 
     bool Slave::IsConnected()

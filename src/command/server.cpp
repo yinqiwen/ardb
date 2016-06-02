@@ -28,7 +28,6 @@
  */
 
 #include "db/db.hpp"
-#include "repl/rdb.hpp"
 #include "repl/repl.hpp"
 #include "util/socket_address.hpp"
 #include "util/lru.hpp"
@@ -39,6 +38,7 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <unistd.h>
+#include "../repl/snapshot.hpp"
 
 namespace ardb
 {
@@ -56,9 +56,14 @@ namespace ardb
     {
         RedisReply& reply = ctx.GetReply();
         SnapshotType type = REDIS_DUMP;
-        if (cmd.GetType() == REDIS_CMD_SAVE2)
+        if(cmd.GetArguments().size() == 1)
         {
-            type = ARDB_DUMP;
+             type = Snapshot::GetSnapshotTypeByName(cmd.GetArguments()[0]);
+             if(type == -1)
+             {
+                 reply.SetErrCode(ERR_INVALID_ARGS);
+                 return 0;
+             }
         }
         ChannelService* io_serv = NULL;
         uint32 conn_id = 0;
@@ -98,9 +103,14 @@ namespace ardb
     {
         RedisReply& reply = ctx.GetReply();
         SnapshotType type = REDIS_DUMP;
-        if (cmd.GetType() == REDIS_CMD_BGSAVE2)
+        if(cmd.GetArguments().size() == 1)
         {
-            type = ARDB_DUMP;
+             type = Snapshot::GetSnapshotTypeByName(cmd.GetArguments()[0]);
+             if(type == -1)
+             {
+                 reply.SetErrCode(ERR_INVALID_ARGS);
+                 return 0;
+             }
         }
         Snapshot* snapshot = g_snapshot_manager->NewSnapshot(type, true, NULL, NULL);
         if (NULL != snapshot)
@@ -1033,5 +1043,26 @@ namespace ardb
         return 0;
     }
 
+    int Ardb::Backup(Context& ctx, RedisCommandFrame& cmd)
+    {
+        RedisReply& reply = ctx.GetReply();
+        std::string dir = g_db->GetConf().backup_dir + "/" + g_engine_name + "_";
+        std::string postfix = "default";
+        if(cmd.GetArguments().size() > 0)
+        {
+            postfix = cmd.GetArguments()[0];
+        }
+        dir.append(postfix);
+        int err = m_engine->Backup(ctx, dir);
+        if(err != 0)
+        {
+            reply.SetErrCode(err);
+        }
+        else
+        {
+            reply.SetStatusCode(STATUS_OK);
+        }
+        return 0;
+    }
 }
 

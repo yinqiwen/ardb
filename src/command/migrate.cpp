@@ -27,9 +27,9 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "../repl/snapshot.hpp"
 #include "db/db.hpp"
 #include "coro/coro_channel.hpp"
-#include "repl/rdb.hpp"
 
 OP_NAMESPACE_BEGIN
 

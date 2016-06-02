@@ -57,7 +57,7 @@ OP_NAMESPACE_BEGIN
              * Delete key/value pair at current iterator position.
              * It's more efficient, and the only right way to delete data in iterator for some engine(forestdb).
              */
-            virtual void Del()  = 0;
+            virtual void Del() = 0;
             virtual ~Iterator()
             {
             }
@@ -68,8 +68,9 @@ OP_NAMESPACE_BEGIN
             unsigned support_namespace :1;
             unsigned support_compactfilter :1;
             unsigned support_merge :1;
+            unsigned support_backup :1;
             FeatureSet() :
-                    support_namespace(0), support_compactfilter(0),support_merge(0)
+                    support_namespace(0), support_compactfilter(0), support_merge(0),support_backup(0)
             {
             }
     };
@@ -116,6 +117,15 @@ OP_NAMESPACE_BEGIN
             }
 
             virtual int EndBulkLoad(Context& ctx)
+            {
+                return ERR_NOTSUPPORTED;
+            }
+
+            virtual int Backup(Context& ctx, const std::string& dir)
+            {
+                return ERR_NOTSUPPORTED;
+            }
+            virtual int Restore(Context& ctx, const std::string& dir)
             {
                 return ERR_NOTSUPPORTED;
             }

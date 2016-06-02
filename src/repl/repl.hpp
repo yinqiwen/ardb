@@ -39,9 +39,9 @@
 #include "thread/spin_rwlock.hpp"
 #include "swal.h"
 #include "context.hpp"
-#include "rdb.hpp"
 #include "db/db_utils.hpp"
 #include <map>
+#include "snapshot.hpp"
 
 using namespace ardb::codec;
 
@@ -99,6 +99,7 @@ OP_NAMESPACE_BEGIN
             uint32 master_link_down_time;
             time_t master_last_interaction_time;
             Snapshot snapshot;
+            std::string snapshot_path;
             void UpdateSyncOffsetCksm(const Buffer& buffer);
             void Clear()
             {
@@ -110,6 +111,7 @@ OP_NAMESPACE_BEGIN
                 cached_master_repl_cksm = 0;
                 sync_repl_offset = 0;
                 sync_repl_cksm = 0;
+                snapshot_path.clear();
                 snapshot.Close();
                 snapshot.SetRoutineCallback(NULL, NULL);
             }
@@ -133,11 +135,13 @@ OP_NAMESPACE_BEGIN
             void HandleRedisCommand(Channel* ch, RedisCommandFrame& cmd);
             void HandleRedisReply(Channel* ch, RedisReply& reply);
             void HandleRedisDumpChunk(Channel* ch, RedisDumpFileChunk& chunk);
+            void HandleBackupSync(Channel* ch, DirSyncStatus& cmd);
             void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisMessage>& e);
             void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e);
             void ChannelConnected(ChannelHandlerContext& ctx, ChannelStateEvent& e);
             void Timeout();
 
+            void LoadSyncedSnapshot();
             void ReportACK();
             void InfoMaster();
             int ConnectMaster();
@@ -186,8 +190,10 @@ OP_NAMESPACE_BEGIN
             void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e);
 
             void SyncSlave(SlaveSyncContext* slave);
-            void SendSnapshotToSlave(SlaveSyncContext* slave);
+            int SendBackupToSlave(SlaveSyncContext* slave);
+            int SendSnapshotToSlave(SlaveSyncContext* slave);
             bool IsAllSlaveSyncingCache();
+            static void OnSnapshotBackupSendComplete(void* data);
             friend class ReplicationService;
         public:
             Master();

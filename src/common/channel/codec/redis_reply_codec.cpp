@@ -255,9 +255,13 @@ bool RedisDumpFileChunkDecoder::Decode(ChannelHandlerContext& ctx, Channel* chan
 {
     if (m_waiting_chunk_len == 0)
     {
-        while (buffer.GetRawReadBuffer()[0] == '\n')
+        while (buffer.Readable() && buffer.GetRawReadBuffer()[0] == '\n')
         {
             buffer.AdvanceReadIndex(1);
+        }
+        if(!buffer.Readable())
+        {
+            return false;
         }
         int crlf_index = -1;
         crlf_index = buffer.IndexOf(kCRLF, 2);
