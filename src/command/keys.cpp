@@ -26,8 +26,8 @@
  *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
+#include "../repl/snapshot.hpp"
 #include "db/db.hpp"
-#include "repl/rdb.hpp"
 
 OP_NAMESPACE_BEGIN
     int Ardb::ObjectLen(Context& ctx, KeyType type, const std::string& keystr)

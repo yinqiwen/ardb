@@ -607,6 +607,8 @@ void Channel::OnWrite()
 
         if (m_file_sending->file_rest_len == 0)
         {
+            close(m_file_sending->fd);
+            m_file_sending->fd = -1;
             if (NULL != m_file_sending->on_complete)
             {
                 IOCallback* cb = m_file_sending->on_complete;
@@ -702,6 +704,8 @@ bool Channel::DoClose(bool inDestructor)
 
     if (NULL != m_file_sending)
     {
+        close(m_file_sending->fd);
+        m_file_sending->fd = -1;
         if (NULL != m_file_sending->on_failure)
         {
             m_file_sending->on_failure(m_file_sending->data);

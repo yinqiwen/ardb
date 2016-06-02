@@ -38,6 +38,7 @@
 #define REDIS_MESSAGE_DECODER_HPP_
 #include "redis_command_codec.hpp"
 #include "redis_reply_codec.hpp"
+#include "dir_sync_decoder.hpp"
 #include "redis_reply.hpp"
 #include "redis_command.hpp"
 
@@ -55,6 +56,7 @@ namespace ardb
                 RedisReply reply;
                 RedisCommandFrame command;
                 RedisDumpFileChunk chunk;
+                DirSyncStatus backup;
                 uint8 type;
                 RedisMessage() :
                         type(REDIS_COMMAND_DECODER_TYPE)
@@ -72,7 +74,7 @@ namespace ardb
                 {
                     return type == REDIS_DUMP_DECODER_TYPE;
                 }
-                bool IsDirSync()
+                bool IsBackupSync()
                 {
                     return type == ARDB_DIR_SYNC_DECODER_TYPE;
                 }
@@ -85,6 +87,7 @@ namespace ardb
                 RedisCommandDecoder m_cmd_decoder;
                 RedisReplyDecoder m_reply_decoder;
                 RedisDumpFileChunkDecoder m_dump_file_decoder;
+                DirSyncDecoder m_backup_sync_decoder;
                 bool Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, RedisMessage& msg)
                 {
                     msg.type = m_decoder_type;
@@ -95,6 +98,11 @@ namespace ardb
                     else if (msg.IsCommand())
                     {
                         return m_cmd_decoder.Decode(ctx, channel, buffer, msg.command);
+                    }
+                    else if(msg.IsBackupSync())
+                    {
+                        msg.backup.Clear();
+                        return m_backup_sync_decoder.Decode(ctx, channel, buffer, msg.backup);
                     }
                     else
                     {
@@ -118,6 +126,11 @@ namespace ardb
                 void SwitchToDumpFileDecoder()
                 {
                     m_decoder_type = REDIS_DUMP_DECODER_TYPE;
+                }
+                void SwitchToBackupSyncDecoder(const std::string& basedir)
+                {
+                    m_decoder_type = ARDB_DIR_SYNC_DECODER_TYPE;
+                    m_backup_sync_decoder.SetSyncBaseDir(basedir);
                 }
         };
     }

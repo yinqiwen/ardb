@@ -27,8 +27,8 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef RDB_HPP_
-#define RDB_HPP_
+#ifndef SNAPSHOT_HPP_
+#define SNAPSHOT_HPP_
 #include <string>
 #include <deque>
 #include "common.hpp"
@@ -198,6 +198,7 @@ namespace ardb
             int Write(const void* buf, size_t buflen);
             int OpenWriteFile(const std::string& file);
             int OpenReadFile(const std::string& file);
+            int SetFilePath(const std::string& path);
             int Load(const std::string& file, SnapshotRoutine* cb, void *data);
             int Reload(SnapshotRoutine* cb, void *data);
             int Save(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data);
@@ -211,6 +212,8 @@ namespace ardb
             ~Snapshot();
 
             static SnapshotType GetSnapshotType(const std::string& file);
+            static SnapshotType GetSnapshotTypeByName(const std::string& name);
+            static std::string GetSyncSnapshotPath(SnapshotType type);
     };
 
     class SnapshotManager

@@ -27,7 +27,7 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "rdb.hpp"
+#include "snapshot.hpp"
 #include "util/helpers.hpp"
 
 extern "C"
@@ -1552,17 +1552,20 @@ namespace ardb
 
     int Snapshot::Rename(const std::string& default_file)
     {
-        std::string file = g_db->GetConf().repl_data_dir;
-        file.append("/").append(default_file);
-        if (file == GetPath())
+        if (default_file == GetPath())
         {
             return 0;
         }
         Close();
-        int ret = rename(GetPath().c_str(), file.c_str());
+        int ret = rename(GetPath().c_str(), default_file.c_str());
         if (0 == ret)
         {
-            m_file_path = file;
+            m_file_path = default_file;
+        }
+        else
+        {
+            int err = errno;
+            ERROR_LOG("Failed to rename %s to %s for reason:%s", GetPath().c_str(), default_file.c_str(), strerror(err));
         }
         return ret;
     }
@@ -1591,9 +1594,16 @@ namespace ardb
         m_processed_bytes = 0;
         m_writed_data_size = 0;
     }
+
+    int Snapshot::SetFilePath(const std::string& path)
+    {
+        this->m_file_path = path;
+        return 0;
+    }
+
     int Snapshot::OpenWriteFile(const std::string& file)
     {
-        this->m_file_path = file;
+        SetFilePath(file);
         if ((m_write_fp = fopen(m_file_path.c_str(), "w")) == NULL)
         {
             ERROR_LOG("Failed to open ardb dump file:%s to write", m_file_path.c_str());
@@ -1607,7 +1617,7 @@ namespace ardb
     {
         if (m_file_path != file)
         {
-            this->m_file_path = file;
+            SetFilePath(file);
         }
         if ((m_read_fp = fopen(m_file_path.c_str(), "r")) == NULL)
         {
@@ -1803,6 +1813,7 @@ namespace ardb
             {
                 return -1;
             }
+            m_file_path = file;
         }
         if (0 != err)
         {
@@ -1888,13 +1899,19 @@ namespace ardb
         {
             return -1;
         }
-        int ret = PrepareSave(type, file, cb, data);
+        std::string tmpname = file + ".tmp";
+        int ret = PrepareSave(type, tmpname, cb, data);
         if (0 != ret)
         {
             return ret;
         }
         INFO_LOG("Start to save snapshot file:%s with type:%s.", file.c_str(), (m_type == REDIS_DUMP) ? "redis" : "ardb");
-        return DoSave();
+        ret = DoSave();
+        if (0 == ret)
+        {
+            Rename(file);
+        }
+        return ret;
     }
     int Snapshot::BGSave(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data)
     {
@@ -1926,6 +1943,33 @@ namespace ardb
         return 0;
     }
 
+    std::string Snapshot::GetSyncSnapshotPath(SnapshotType type)
+    {
+        char tmp[g_db->GetConf().backup_dir.size() + 100];
+        uint32 now = time(NULL);
+        if(type == BACKUP_DUMP)
+        {
+            sprintf(tmp, "%s/%s-sync-backup.%u", g_db->GetConf().backup_dir.c_str(),g_engine, now);
+        }
+        else
+        {
+            sprintf(tmp, "%s/sync-%s-snapshot.%u", g_db->GetConf().backup_dir.c_str(), type2str(type),  now);
+        }
+        return tmp;
+    }
+
+    SnapshotType Snapshot::GetSnapshotTypeByName(const std::string& name)
+    {
+        for (int i = REDIS_DUMP; i <= BACKUP_DUMP; i++)
+        {
+            if (!strcasecmp(type2str((SnapshotType) i), name.c_str()))
+            {
+                return (SnapshotType) i;
+            }
+        }
+        return (SnapshotType) -1;
+    }
+
     SnapshotType Snapshot::GetSnapshotType(const std::string& file)
     {
         SnapshotType invalid = (SnapshotType) -1;
@@ -1936,7 +1980,7 @@ namespace ardb
         FILE* fp = NULL;
         if ((fp = fopen(file.c_str(), "r")) == NULL)
         {
-            ERROR_LOG("Failed to load redis dump file:%s", file.c_str());
+            ERROR_LOG("Failed to load redis dump file:%s  %s", file.c_str());
             return invalid;
         }
         char buf[10];
@@ -1947,11 +1991,11 @@ namespace ardb
         }
         buf[9] = '\0';
         fclose(fp);
-        if (memcmp(buf, "REDIS", 5) != 0)
+        if (memcmp(buf, "REDIS", 5) == 0)
         {
             return REDIS_DUMP;
         }
-        else if (memcmp(buf, "ARDB", 4) != 0)
+        else if (memcmp(buf, "ARDB", 4) == 0)
         {
             return ARDB_DUMP;
         }
@@ -2526,7 +2570,6 @@ namespace ardb
                 void Run()
                 {
                     Context loadctx;
-                    printf("####restore %s\n", path.c_str());
                     err = g_engine->Restore(loadctx, path);
                     complete = true;
                 }
@@ -2601,7 +2644,7 @@ namespace ardb
         Snapshot* snapshot = NULL;
         NEW(snapshot, Snapshot);
         char path[1024];
-        snprintf(path, sizeof(path) - 1, "%s/%s-snapshot.%u", g_db->GetConf().backup_dir.c_str(), type == REDIS_DUMP ? "redis" : "ardb", now);
+        snprintf(path, sizeof(path) - 1, "%s/%s-%s-snapshot.%u", g_db->GetConf().backup_dir.c_str(), g_engine_name, type2str(type), now);
         if (bgsave)
         {
             if (0 == snapshot->BGSave(type, path, cb, data))
@@ -2647,12 +2690,13 @@ namespace ardb
         char path[1024];
         if(type == BACKUP_DUMP)
         {
-            snprintf(path, sizeof(path) - 1, "%s/master-%s-%s-%u", g_db->GetConf().backup_dir.c_str(), g_engine_name,type2str(type), now);
+            snprintf(path, sizeof(path) - 1, "%s/master-%s-backup.%u", g_db->GetConf().backup_dir.c_str(), g_engine_name, now);
         }
         else
         {
             snprintf(path, sizeof(path) - 1, "%s/master-%s-snapshot.%u", g_db->GetConf().backup_dir.c_str(), type2str(type), now);
         }
+
         if (0 == snapshot->BGSave(type, path, cb, data))
         {
             m_snapshots.push_back(snapshot);

@@ -26,19 +26,47 @@
  *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
+#include "channel/all_includes.hpp"
 #include "dir_sync_decoder.hpp"
 
-
-#define STATE_DIR_SYNC_WAITING_DIR_HEADER 0
-#define STATE_DIR_SYNC_WAITING_FILE_HEADER 1
-#define STATE_DIR_SYNC_WAITING_FILE_CONTENT 2
+#define STATE_DIR_SYNC_WAITING_DIR_HEADER    0
+#define STATE_DIR_SYNC_WAITING_FILE_HEADER   1
+#define STATE_DIR_SYNC_WAITING_FILE_CONTENT  2
+#define STATE_DIR_SYNC_ITEM_SUCCESS          3
+#define STATE_DIR_SYNC_SUCCESS               4
+#define STATE_DIR_SYNC_FAILED                5
 
 namespace ardb
 {
     namespace codec
     {
+        bool DirSyncStatus::IsItemSuccess() const
+        {
+            return status == STATE_DIR_SYNC_ITEM_SUCCESS;
+        }
+        bool DirSyncStatus::IsComplete() const
+        {
+            return IsSuccess() || IsError();
+        }
+        bool DirSyncStatus::IsSuccess() const
+        {
+            return status == STATE_DIR_SYNC_SUCCESS;
+        }
+        bool DirSyncStatus::IsError() const
+        {
+            return status == STATE_DIR_SYNC_FAILED;
+        }
+        void DirSyncDecoder::CloseCurrentFile()
+        {
+            if (NULL != _current_file)
+            {
+                fclose(_current_file);
+                _current_file = NULL;
+            }
+        }
         bool DirSyncDecoder::Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, DirSyncStatus& s)
         {
+            s.path = _current_fname;
             while (buffer.Readable())
             {
                 switch (_state)
@@ -49,9 +77,17 @@ namespace ardb
                         {
                             return false;
                         }
-                        _state = STATE_DIR_SYNC_WAITING_FILE_HEADER;
-                        s.status = _state;
-                        continue;
+                        if (_rest_file_num <= 0)
+                        {
+                            s.status = STATE_DIR_SYNC_SUCCESS;
+                            return true;
+                        }
+                        else
+                        {
+                            _state = STATE_DIR_SYNC_WAITING_FILE_HEADER;
+                            s.status = _state;
+                            continue;
+                        }
                     }
                     case STATE_DIR_SYNC_WAITING_FILE_HEADER:
                     {
@@ -60,12 +96,19 @@ namespace ardb
                         {
                             return false;
                         }
-                        if (-1 != _current_fd)
+                        CloseCurrentFile();
+                        _current_fname = file;
+                        std::string path = _dir + "/" + file;
+                        make_file(path);
+                        _current_file = fopen(path.c_str(), "w");
+                        if (_current_file == NULL)
                         {
-                            close(_current_fd);
-                            _current_fd = -1;
+                            s.err = errno;
+                            s.reason = strerror(s.err);
+                            s.status = STATE_DIR_SYNC_FAILED;
+                            ERROR_LOG("Failed to open sync backup file:%s to write", path.c_str());
+                            return true;
                         }
-
                         _state = STATE_DIR_SYNC_WAITING_FILE_CONTENT;
                         s.status = _state;
                         continue;
@@ -77,33 +120,57 @@ namespace ardb
                         {
                             write_len = buffer.ReadableBytes();
                         }
-                        int n = write(_current_fd, (const void*) (buffer.GetRawReadBuffer()), write_len);
+                        int n = fwrite((const void*) (buffer.GetRawReadBuffer()), write_len, 1, _current_file);
                         if (n > 0)
                         {
-                            _current_file_rest_bytes -= n;
-                            buffer.AdvanceReadIndex(n);
+                            _current_file_rest_bytes -= write_len;
+                            buffer.AdvanceReadIndex(write_len);
                         }
                         else
                         {
-                            return false;
+                            s.err = errno;
+                            s.reason = strerror(s.err);
+                            s.status = STATE_DIR_SYNC_FAILED;
+                            return true;
                         }
                         if (0 == _current_file_rest_bytes)
                         {
-                            close(_current_fd);
-                            _current_fd = -1;
+                            CloseCurrentFile();
                             _state = STATE_DIR_SYNC_WAITING_FILE_HEADER;
                             _rest_file_num--;
+                            if (_rest_file_num == 0)
+                            {
+                                _state = STATE_DIR_SYNC_SUCCESS;
+                                s.status = _state;
+                            }
+                            else
+                            {
+                                _state = STATE_DIR_SYNC_ITEM_SUCCESS;
+                                s.status = _state;
+                            }
+                            return true;
                         }
+                        continue;
+                    }
+                    case STATE_DIR_SYNC_ITEM_SUCCESS:
+                    {
+                        _state = STATE_DIR_SYNC_WAITING_FILE_HEADER;
                         s.status = _state;
                         continue;
                     }
                     default:
                     {
+                        ERROR_LOG("Invalid state:%d", _state);
                         return false;
                     }
                 }
             }
             return true;
+        }
+
+        DirSyncDecoder::~DirSyncDecoder()
+        {
+            CloseCurrentFile();
         }
     }
 }

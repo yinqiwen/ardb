@@ -36,10 +36,10 @@
 #include "thread/thread_mutex.hpp"
 #include "thread/lock_guard.hpp"
 #include "context.hpp"
-#include "rdb.hpp"
 #include "zookeeper.h"
 #include <map>
 #include <vector>
+#include "../repl/snapshot.hpp"
 
 OP_NAMESPACE_BEGIN
 

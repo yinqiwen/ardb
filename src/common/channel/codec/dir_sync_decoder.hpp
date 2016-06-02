@@ -30,9 +30,8 @@
 #ifndef COMMON_CHANNEL_CODEC_DIR_SYNC_DECODER_HPP_
 #define COMMON_CHANNEL_CODEC_DIR_SYNC_DECODER_HPP_
 
-#include "channel/all_includes.hpp"
 #include "channel/codec/stack_frame_decoder.hpp"
-#include "buffer/buffer.hpp"
+#include <stdio.h>
 
 using namespace ardb;
 using ardb::Buffer;
@@ -50,24 +49,48 @@ namespace ardb
                         status(0), err(0)
                 {
                 }
+                void Clear()
+                {
+                    path.clear();
+                    reason.clear();
+                    status = 0;
+                    err = 0;
+                }
+                bool IsComplete() const;
+                bool IsError() const;
+                bool IsSuccess() const;
+                bool IsItemSuccess() const;
         };
         /*
          * A dir sync decoder used to sync dir from remote server
          */
+        class RedisMessageDecoder;
         class DirSyncDecoder: public StackFrameDecoder<DirSyncStatus>
         {
             private:
                 std::string _dir;
-                int _current_fd;
+                std::string _current_fname;
+                FILE* _current_file;
                 int64_t _current_file_rest_bytes;
                 int64_t _rest_file_num;
                 uint8 _state;
                 bool Decode(ChannelHandlerContext& ctx, Channel* channel, Buffer& buffer, DirSyncStatus& msg);
+                void CloseCurrentFile();
+                friend class RedisMessageDecoder;
             public:
-                DirSyncDecoder(const std::string& dir) :
-                        _dir(dir),_current_fd(0),_current_file_rest_bytes(0),_rest_file_num(0), _state(0)
+                DirSyncDecoder(const std::string& dir = "./") :
+                        _dir(dir),_current_file(NULL),_current_file_rest_bytes(0),_rest_file_num(0), _state(0)
                 {
                 }
+                void SetSyncBaseDir(const std::string& dir)
+                {
+                    _current_fname.clear();
+                    _current_file_rest_bytes = 0;
+                    _rest_file_num = 0;
+                    _state = 0;
+                    _dir = dir;
+                }
+                ~DirSyncDecoder();
         };
     }
 }

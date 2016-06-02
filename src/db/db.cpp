@@ -166,10 +166,8 @@ OP_NAMESPACE_BEGIN
         { "publish", REDIS_CMD_PUBLISH, &Ardb::Publish, 2, 2, "pltrF", 0, 0, 0 },
         { "pubsub", REDIS_CMD_PUBSUB, &Ardb::Pubsub, 1, -1, "pltrF", 0, 0, 0 },
         { "info", REDIS_CMD_INFO, &Ardb::Info, 0, 1, "rlt", 0, 0, 0 },
-        { "save", REDIS_CMD_SAVE, &Ardb::Save, 0, 0, "ars", 0, 0, 0 },
-        { "save2", REDIS_CMD_SAVE2, &Ardb::Save, 0, 0, "ars", 0, 0, 0 },
-        { "bgsave", REDIS_CMD_BGSAVE, &Ardb::BGSave, 0, 0, "ar", 0, 0, 0 },
-        { "bgsave2", REDIS_CMD_BGSAVE2, &Ardb::BGSave, 0, 0, "ar", 0, 0, 0 },
+        { "save", REDIS_CMD_SAVE, &Ardb::Save, 0, 1, "ars", 0, 0, 0 },
+        { "bgsave", REDIS_CMD_BGSAVE, &Ardb::BGSave, 0, 1, "ar", 0, 0, 0 },
         { "import", REDIS_CMD_IMPORT, &Ardb::Import, 1, 1, "aws", 0, 0, 0 },
         { "lastsave", REDIS_CMD_LASTSAVE, &Ardb::LastSave, 0, 0, "r", 0, 0, 0 },
         { "slowlog", REDIS_CMD_SLOWLOG, &Ardb::SlowLog, 1, 2, "r", 0, 0, 0 },
@@ -187,7 +185,7 @@ OP_NAMESPACE_BEGIN
         { "slaveof", REDIS_CMD_SLAVEOF, &Ardb::Slaveof, 2, -1, "ast", 0, 0, 0 },
         { "replconf", REDIS_CMD_REPLCONF, &Ardb::ReplConf, 0, -1, "arslt", 0, 0, 0 },
         { "sync", REDIS_CMD_SYNC, &Ardb::Sync, 0, 2, "ars", 0, 0, 0 },
-        { "psync", REDIS_CMD_PSYNC, &Ardb::PSync, 2, 4, "ars", 0, 0, 0 },
+        { "psync", REDIS_CMD_PSYNC, &Ardb::PSync, 2, -1, "ars", 0, 0, 0 },
         { "select", REDIS_CMD_SELECT, &Ardb::Select, 1, 1, "r", 0, 0, 0 },
         { "append", REDIS_CMD_APPEND, &Ardb::Append, 2, 2, "w", 0, 0, 0 },
         { "append2", REDIS_CMD_APPEND2, &Ardb::Append, 2, 2, "w", 0, 0, 0 },
@@ -511,6 +509,7 @@ OP_NAMESPACE_BEGIN
             std::string content = tmp;
             file_write_content(m_conf.pidfile, content);
         }
+        chdir(GetConf().home.c_str());
         ArdbLogger::InitDefaultLogger(m_conf.loglevel, m_conf.logfile);
 
         std::string dbdir = GetConf().data_base_path + "/" + g_engine_name;
