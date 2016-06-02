@@ -287,7 +287,6 @@ OP_NAMESPACE_BEGIN
             //send dir
             std::deque<std::string> fs;
             list_allfiles(dump_file_path, fs);
-
         }
 
         SendFileSetting setting;
