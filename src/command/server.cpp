@@ -38,7 +38,7 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <unistd.h>
-#include "../repl/snapshot.hpp"
+#include "repl/snapshot.hpp"
 
 namespace ardb
 {
@@ -1039,28 +1039,6 @@ namespace ardb
              * dump wal cache
              */
             g_repl->GetReplLog().DebugDumpCache(g_db->GetConf().home + "/dwc.txt");
-        }
-        return 0;
-    }
-
-    int Ardb::Backup(Context& ctx, RedisCommandFrame& cmd)
-    {
-        RedisReply& reply = ctx.GetReply();
-        std::string dir = g_db->GetConf().backup_dir + "/" + g_engine_name + "_";
-        std::string postfix = "default";
-        if(cmd.GetArguments().size() > 0)
-        {
-            postfix = cmd.GetArguments()[0];
-        }
-        dir.append(postfix);
-        int err = m_engine->Backup(ctx, dir);
-        if(err != 0)
-        {
-            reply.SetErrCode(err);
-        }
-        else
-        {
-            reply.SetStatusCode(STATUS_OK);
         }
         return 0;
     }

@@ -447,8 +447,6 @@ OP_NAMESPACE_BEGIN
             int RestoreChunk(Context& ctx, RedisCommandFrame& cmd);
             int Debug(Context& ctx, RedisCommandFrame& cmd);
 
-            int Backup(Context& ctx, RedisCommandFrame& cmd);
-
             int DoCall(Context& ctx, RedisCommandHandlerSetting& setting, RedisCommandFrame& cmd);
             RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(RedisCommandFrame& cmd);
             void RenameCommand();
