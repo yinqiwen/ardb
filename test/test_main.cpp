@@ -47,7 +47,7 @@ int main()
     }
     LUAInterpreter interpreter;
     std::deque<std::string> fs;
-    std::string command_test_path = "../test/commands/";
+    std::string command_test_path = "../commands/";
     list_subfiles(command_test_path, fs);
 
     for (size_t i = 0; i < fs.size(); i++)
