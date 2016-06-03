@@ -532,6 +532,8 @@ namespace ardb
 
     Iterator* PerconaFTEngine::Find(Context& ctx, const KeyObject& key)
     {
+        PerconaFTLocalContext& local_ctx = g_local_ctx.GetValue();
+        DB_TXN* txn = local_ctx.transc.Get();
         PerconaFTIterator* iter = NULL;
         NEW(iter, PerconaFTIterator(this,key.GetNameSpace()));
         DB* db = GetFTDB(ctx, key.GetNameSpace(), false);
@@ -540,8 +542,6 @@ namespace ardb
             iter->MarkValid(false);
             return iter;
         }
-        PerconaFTLocalContext& local_ctx = g_local_ctx.GetValue();
-        DB_TXN* txn = local_ctx.transc.Get();
         int r = 0;
         DBC* c = NULL;
         CHECK_EXPR(r = db->cursor(db, txn, &c, 0));
@@ -756,10 +756,9 @@ namespace ardb
         if (NULL != m_cursor)
         {
             CHECK_EXPR(m_cursor->c_close(m_cursor));
-            PerconaFTLocalContext& local_ctx = g_local_ctx.GetValue();
-            local_ctx.transc.Release(true);
-            //CHECK_EXPR(m_txn->commit(m_txn, 0));
         }
+        PerconaFTLocalContext& local_ctx = g_local_ctx.GetValue();
+        local_ctx.transc.Release(true);
     }
 }
 

@@ -737,6 +737,8 @@ namespace ardb
 
     Iterator* LMDBEngine::Find(Context& ctx, const KeyObject& key)
     {
+        LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
+        int rc = local_ctx.AcquireTransanction(true);
         LMDBIterator* iter = NULL;
         NEW(iter, LMDBIterator(this,key.GetNameSpace()));
         MDB_dbi dbi;
@@ -745,8 +747,6 @@ namespace ardb
             iter->MarkValid(false);
             return iter;
         }
-        LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
-        int rc = local_ctx.AcquireTransanction(true);
         if (0 != rc)
         {
             iter->MarkValid(false);
@@ -981,9 +981,9 @@ namespace ardb
         if (NULL != m_cursor)
         {
             mdb_cursor_close(m_cursor);
-            LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
-            local_ctx.TryReleaseTransanction(true, true);
         }
+        LMDBLocalContext& local_ctx = g_ctx_local.GetValue();
+        local_ctx.TryReleaseTransanction(true, true);
     }
 }
 

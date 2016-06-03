@@ -53,6 +53,7 @@ OP_NAMESPACE_BEGIN
     {
         private:
             swal_t* m_wal;
+            volatile uint32 m_wal_queue_size;
             //SpinRWLock m_repl_lock;
             void ReCreateWAL();
             static void WriteWALCallback(Channel*, void* data);
@@ -81,6 +82,10 @@ OP_NAMESPACE_BEGIN
             void SetCurrentNamespace(const std::string& ns);
             void ResetWALOffsetCksm(uint64_t offset, uint64_t cksm);
             void DebugDumpCache(const std::string& file);
+            uint32 WALQueueSize() const
+            {
+                return m_wal_queue_size;
+            }
             ~ReplicationBacklog();
     };
 

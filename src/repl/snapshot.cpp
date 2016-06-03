@@ -661,7 +661,7 @@ namespace ardb
             }
             else
 #endif
-            snprintf((char*) buf + 1, sizeof(buf) - 1, "%.17g", val);
+                snprintf((char*) buf + 1, sizeof(buf) - 1, "%.17g", val);
             buf[0] = strlen((char*) buf + 1);
             len = buf[0] + 1;
         }
@@ -1517,7 +1517,8 @@ namespace ardb
             m_read_fp(NULL), m_write_fp(NULL), m_cksm(0), m_routine_cb(
             NULL), m_routine_cbdata(
             NULL), m_processed_bytes(0), m_file_size(0), m_state(SNAPSHOT_INVALID), m_routinetime(0), m_read_buf(
-            NULL), m_expected_data_size(0), m_writed_data_size(0), m_cached_repl_offset(0), m_cached_repl_cksm(0), m_save_time(0), m_type((SnapshotType) 0)
+            NULL), m_expected_data_size(0), m_writed_data_size(0), m_cached_repl_offset(0), m_cached_repl_cksm(0), m_save_time(0), m_type((SnapshotType) 0), m_snapshot_iter(
+            NULL)
     {
 
     }
@@ -1593,6 +1594,8 @@ namespace ardb
         m_cksm = 0;
         m_processed_bytes = 0;
         m_writed_data_size = 0;
+        delete ((Iterator*) m_snapshot_iter);
+        m_snapshot_iter = NULL;
     }
 
     int Snapshot::SetFilePath(const std::string& path)
@@ -1802,9 +1805,9 @@ namespace ardb
 
     void Snapshot::VerifyState()
     {
-        if(m_state != SNAPSHOT_INVALID)
+        if (m_state != SNAPSHOT_INVALID)
         {
-            if(!is_file_exist(m_file_path))
+            if (!is_file_exist(m_file_path))
             {
                 m_state = SNAPSHOT_INVALID;
             }
@@ -1836,8 +1839,26 @@ namespace ardb
         this->m_routine_cb = cb;
         this->m_routine_cbdata = data;
         m_type = type;
+        /*
+         * todo:
+         * We need block all write command for a while to makesure the offset/cksm is represent the snapshot creating
+         * 1. block all coming write command
+         * 2. wait all wrte command to complete
+         * 3. wait all wal log appended
+         */
+        g_db->CloseWriteLatchBeforeSnapshotPrepare();
         m_cached_repl_offset = g_repl->GetReplLog().WALEndOffset();
         m_cached_repl_cksm = g_repl->GetReplLog().WALCksm();
+        if (type != BACKUP_DUMP)
+        {
+            /*
+             * Create stable view for later all db iteration, 'm_snapshot_iter' would be close in 'Close' method
+             */
+            Context tmpctx;
+            KeyObject start;
+            m_snapshot_iter = g_engine->Find(tmpctx, start);
+            g_db->OpenWriteLatchAfterSnapshotPrepare();
+        }
         return 0;
     }
 
@@ -2213,7 +2234,8 @@ namespace ardb
                     {
                         if (objectlen != 0)
                         {
-                            ERROR_LOG("Previous key:%s with type:%u is not complete dump, %lld missing in %lld elements", current_key.AsString().c_str(), current_keytype, objectlen, object_totallen);
+                            ERROR_LOG("Previous key:%s with type:%u is not complete dump, %lld missing in %lld elements", current_key.AsString().c_str(),
+                                    current_keytype, objectlen, object_totallen);
                             err = -2;
                             break;
                         }
@@ -2540,9 +2562,15 @@ namespace ardb
         };
         BGTask task(m_file_path);
         task.Start();
+        /*
+         * Wait 1s to make sure the backup operation start,
+         * and after backup started, we can open write latch again
+         */
+        Thread::Sleep(1000);
+        g_db->OpenWriteLatchAfterSnapshotPrepare();
         while (!task.complete)
         {
-            Thread::Sleep(100);
+
             /*
              * routine callback every 100ms
              */
@@ -2556,6 +2584,7 @@ namespace ardb
                 }
                 m_routinetime = get_current_epoch_millis();
             }
+            Thread::Sleep(100);
         }
         task.Join();
         if (0 == task.err)
@@ -2656,7 +2685,15 @@ namespace ardb
         Snapshot* snapshot = NULL;
         NEW(snapshot, Snapshot);
         char path[1024];
-        snprintf(path, sizeof(path) - 1, "%s/%s-%s-snapshot.%u", g_db->GetConf().backup_dir.c_str(), g_engine_name, type2str(type), now);
+        if (type == BACKUP_DUMP)
+        {
+            snprintf(path, sizeof(path) - 1, "%s/save-%s-backup.%u", g_db->GetConf().backup_dir.c_str(), g_engine_name, now);
+        }
+        else
+        {
+            snprintf(path, sizeof(path) - 1, "%s/save-%s-snapshot.%u", g_db->GetConf().backup_dir.c_str(), type2str(type), now);
+        }
+
         if (bgsave)
         {
             if (0 == snapshot->BGSave(type, path, cb, data))

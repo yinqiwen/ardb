@@ -537,7 +537,6 @@ namespace ardb
         RedisReply& reply = lua_ctx.GetReply();
         reply.Clear();
         lua_ctx.ClearFlags();
-        lua_ctx.flags.no_wal = 1;
         lua_ctx.flags.lua = 1;
         g_db->DoCall(lua_ctx, *setting, cmd);
         if (raise_error && reply.type != REDIS_REPLY_ERROR)

@@ -144,7 +144,7 @@ OP_NAMESPACE_BEGIN
     static CostTrack g_cmd_cost_tracks[REDIS_CMD_MAX];
 
     Ardb::Ardb() :
-            m_engine(NULL), m_starttime(0), m_loading_data(false), m_compacting_data(false),m_redis_cursor_seed(0), m_watched_ctxs(NULL), m_ready_keys(NULL), m_monitors(NULL), m_restoring_nss(
+            m_engine(NULL), m_starttime(0), m_loading_data(false), m_compacting_data(false),m_prepare_snapshot_num(0),m_write_caller_num(0),m_redis_cursor_seed(0), m_watched_ctxs(NULL), m_ready_keys(NULL), m_monitors(NULL), m_restoring_nss(
             NULL), m_min_ttl(-1)
     {
         g_db = this;
@@ -562,6 +562,54 @@ OP_NAMESPACE_BEGIN
             }
             it++;
         }
+    }
+
+    void Ardb::OpenWriteLatchByWriteCaller()
+    {
+        LockGuard<ThreadMutexLock> guard(m_write_latch);
+        while(m_prepare_snapshot_num > 0)
+        {
+            m_write_latch.Wait(1);
+        }
+        atomic_add_uint32(&m_write_caller_num, 1);
+    }
+
+    void Ardb::CloseWriteLatchByWriteCaller()
+    {
+        atomic_sub_uint32(&m_write_caller_num, 1);
+    }
+
+    void Ardb::OpenWriteLatchAfterSnapshotPrepare()
+    {
+        LockGuard<ThreadMutexLock> guard(m_write_latch);
+        m_prepare_snapshot_num--;
+        if(m_prepare_snapshot_num == 0)
+        {
+            m_write_latch.NotifyAll();
+        }
+        INFO_LOG("Open write latch for snapshot save preparing complete.");
+    }
+
+    void Ardb::CloseWriteLatchBeforeSnapshotPrepare()
+    {
+        /*
+         * wait until all writing commands complete & wal log appended
+         */
+        LockGuard<ThreadMutexLock> guard(m_write_latch);
+        m_prepare_snapshot_num++;
+        while(m_write_caller_num != 0)
+        {
+            m_write_latch.Wait(1);
+        }
+        while(g_repl->GetReplLog().WALQueueSize() != 0)
+        {
+            m_write_latch.Wait(1);
+            if(g_repl->GetIOService().IsInLoopThread())
+            {
+                g_repl->GetIOService().Continue();
+            }
+        }
+        INFO_LOG("Close write latch for snapshot save preparing start.");
     }
 
     int Ardb::SetKeyValue(Context& ctx, const KeyObject& key, const ValueObject& val)
@@ -1326,7 +1374,10 @@ OP_NAMESPACE_BEGIN
              */
             FeedMonitors(ctx, ctx.ns, args);
         }
-
+        if(setting.IsWriteCommand())
+        {
+            OpenWriteLatchByWriteCaller();
+        }
         int ret = (this->*(setting.handler))(ctx, args);
         if (!ctx.flags.lua)
         {
@@ -1345,7 +1396,10 @@ OP_NAMESPACE_BEGIN
         {
             FeedReplicationBacklog(ctx, ctx.ns, args);
         }
-
+        if(setting.IsWriteCommand())
+        {
+            CloseWriteLatchByWriteCaller();
+        }
         return ret;
     }
 

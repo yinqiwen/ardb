@@ -516,6 +516,9 @@ namespace ardb
 
     Iterator* LevelDBEngine::Find(Context& ctx, const KeyObject& key)
     {
+        LevelDBLocalContext& local_ctx = g_local_ctx.GetValue();
+        leveldb::ReadOptions opt;
+        opt.snapshot = local_ctx.snapshot.Get();
         LevelDBIterator* iter = NULL;
         NEW(iter, LevelDBIterator(this,key.GetNameSpace()));
         if (!GetNamespace(key.GetNameSpace(), false))
@@ -523,9 +526,8 @@ namespace ardb
             iter->MarkValid(false);
             return iter;
         }
-        LevelDBLocalContext& local_ctx = g_local_ctx.GetValue();
-        leveldb::ReadOptions opt;
-        opt.snapshot = local_ctx.snapshot.Get();
+
+
         if (key.GetType() > 0)
         {
             if (!ctx.flags.iterate_multi_keys)

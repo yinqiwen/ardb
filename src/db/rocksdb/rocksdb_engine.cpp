@@ -1062,6 +1062,8 @@ OP_NAMESPACE_BEGIN
 
     Iterator* RocksDBEngine::Find(Context& ctx, const KeyObject& key)
     {
+        rocksdb::ReadOptions opt;
+        opt.snapshot = GetSnpashot();
         RocksDBIterator* iter = NULL;
         ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, key.GetNameSpace(), false);
         rocksdb::ColumnFamilyHandle* cf = cfp.get();
@@ -1072,8 +1074,6 @@ OP_NAMESPACE_BEGIN
             return iter;
         }
 
-        rocksdb::ReadOptions opt;
-        opt.snapshot = GetSnpashot();
         if (key.GetType() > 0)
         {
             if (!ctx.flags.iterate_multi_keys)

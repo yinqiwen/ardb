@@ -101,11 +101,13 @@ OP_NAMESPACE_BEGIN
             };
 
         private:
-
             Engine* m_engine;
             time_t m_starttime;
             bool m_loading_data;
             bool m_compacting_data;
+            uint32 m_prepare_snapshot_num;  /* if the server is prepare saving snapshot, if > 0, the server would block all write command a while  */
+            volatile uint32 m_write_caller_num;
+            ThreadMutexLock m_write_latch;
             ArdbConfig m_conf;
             ThreadLocal<LUAInterpreter> m_lua;
 
@@ -161,6 +163,11 @@ OP_NAMESPACE_BEGIN
 
             bool MarkRestoring(Context& ctx, bool enable);
             bool IsRestoring(Context& ctx, const Data& ns);
+
+            void OpenWriteLatchByWriteCaller();
+            void CloseWriteLatchByWriteCaller();
+            void OpenWriteLatchAfterSnapshotPrepare();
+            void CloseWriteLatchBeforeSnapshotPrepare();
 
             void SaveTTL(Context& ctx, const Data& ns, const std::string& key, int64 old_ttl, int64_t new_ttl);
             void ScanTTLDB();

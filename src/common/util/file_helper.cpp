@@ -49,7 +49,7 @@ namespace ardb
         int ret = stat(path.c_str(), &buf);
         if (0 == ret)
         {
-            return S_ISREG(buf.st_mode);
+            return S_ISREG(buf.st_mode) || S_ISDIR(buf.st_mode);
         }
         return false;
     }

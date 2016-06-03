@@ -51,7 +51,7 @@ OP_NAMESPACE_BEGIN
     };
 
     ReplicationBacklog::ReplicationBacklog() :
-            m_wal(NULL)
+            m_wal(NULL),m_wal_queue_size(0)
     {
     }
     void ReplicationBacklog::Routine()
@@ -209,6 +209,7 @@ OP_NAMESPACE_BEGIN
         g_repl->GetReplLog().WriteWAL(cmd->ns, cmd->cmdbuf);
         //DELETE(cmd);
         recycle_repl_cmd(cmd);
+        atomic_sub_uint32(&(g_repl->GetReplLog().m_wal_queue_size), 1);
         g_repl->GetMaster().SyncWAL();
     }
 
@@ -248,6 +249,7 @@ OP_NAMESPACE_BEGIN
         {
             RedisCommandEncoder::Encode(repl_cmd->cmdbuf, cmd);
         }
+        atomic_add_uint32(&m_wal_queue_size, 1);
         g_repl->GetIOService().AsyncIO(0, WriteWALCallback, repl_cmd);
         return 0;
     }
