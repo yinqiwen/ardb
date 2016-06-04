@@ -56,7 +56,7 @@ GCC Version:4.8.3
 OS Version: Red Hat Enterprise Linux AS release 4 (Nahant Update 3)   
 Kernel Version: 2.6.32_1-10-6-0       
 Redis Version: 2.8.9  
-Ardb Version: 0.9.0(RocksDB4.3.1), 1 thread(thread-pool-size configured 1) 
+Ardb Version: 0.9.1(RocksDB4.3.1), 1 thread(thread-pool-size configured 1) & 16 threads(thread-pool-size configured 16) 
 RocksDB Options: 
 
      write_buffer_size=128M;max_write_buffer_number=16;compression=kSnappyCompression;
@@ -66,27 +66,29 @@ RocksDB Options:
 ![Benchmark Img](https://raw.githubusercontent.com/yinqiwen/ardb/0.9/doc/benchmark.png)
 
 	Becnhmark data(./redis-benchmark -r 10000000 -n 10000000):
-	                        RocksDB	    Redis
-    PING_INLINE	                    66313.01	67294.75
-    PING_BULK	                    66844.91	65703.02
-    SET	                            36238.45	64574.45
-    GET	                            46979.24	65112.64
-    INCR	                        35522.72	65274.15
-    LPUSH	                        24789.29	66093.85
-    LPOP	                        15812.53	65832.78
-    SADD	                        23033.51	65573.77
-    SPOP	                        9701.3	    63291.14
-    LPUSH(for LRANGE)	            27693.16	65487.89
-    LRANGE_100 (first 100 elements)	7857.93	    30797.66
-    LRANGE_300 (first 300 elements)	3176.16	    15710.92
-    LRANGE_500 (first 450 elements)	2156.1	    11504.83
-    LRANGE_600 (first 600 elements)	1647.88	    9094.22
-    MSET (10 keys)	                10217.64	37678.97
+                                    Ardb(1thread)   Ardb(16threads)    Redis
+    PING_INLINE                     66313.01        79394.7            67294.75
+    PING_BULK                       66844.91        79384.61           65703.02
+    SET                             36238.45        67963.41           64574.45
+    GET                             46979.24        74050.48           65112.64
+    INCR                            35522.72        68102.27           65274.15
+    LPUSH                           24789.29        35788.93           66093.85
+    LPOP                            15812.53        15657              65832.78
+    SADD                            13130.08        12998.49           65573.77
+    SPOP                            200             200                63291.14
+    LPUSH(for LRANGE)               27693.16        38611.53           65487.89
+    LRANGE_100 (first 100 elements) 7857.93         33828.36           30797.66
+    LRANGE_300 (first 300 elements) 3176.16         16369.29           15710.92
+    LRANGE_500 (first 450 elements) 2156.1          11706.17           11504.83
+    LRANGE_600 (first 600 elements) 1647.88         9192.53            9094.22
+    MSET (10 keys)                  10217.64        13552.71           37678.97
 
 
 
-Note: 
-  - **Ardb uses 1 threads in this benchmark test, since redis is single threaded application. But ardb is actually a multithreaded applcation, you can start the server with more threads by setting 'thread-pool-size' to 2 or higher to increase the read/write performance.**
+#####Note     
+- Ardb uses 1 thread & 16 threads in this benchmark test, while redis is actually single threaded application. Ardb is a multithreaded applcation, you can start the server with more threads by setting 'thread-pool-size' to 16 or higher to increase the read/write performance.    
+- There is no any performance improve for SADD/LPUSH/LPOP with 16 threads , because in the test SADD/LPUSH/LPOP always operate on same key, while SADD/LPUSH/LPOP would lock the key until write operation done.
+- SPOP have very poor performance in ardb.
          
 
 ## Misc
