@@ -789,6 +789,10 @@ OP_NAMESPACE_BEGIN
                 return err == 0 ? 1 : 0;
             }
         }
+        else
+        {
+            return 0;
+        }
 
         if (NULL == iter)
         {

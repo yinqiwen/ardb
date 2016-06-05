@@ -79,7 +79,6 @@ OP_NAMESPACE_BEGIN
                 {
                     meta_changed = true;
                     SetKeyValue(ctx, field, empty);
-                    added.insert(data);
                 }
             }
             if (redis_compatible)
@@ -310,7 +309,7 @@ OP_NAMESPACE_BEGIN
         key.SetSetMember(meta.GetMin());
         Iterator* iter = m_engine->Find(ctx, key);
         //bool ele_removed = false;
-        while (NULL != iter && iter->Valid())
+        while (iter->Valid())
         {
             KeyObject& field = iter->Key(true);
             if (field.GetType() == KEY_SET_MEMBER && field.GetNameSpace() == key.GetNameSpace() && field.GetKey() == key.GetKey())

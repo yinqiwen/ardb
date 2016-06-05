@@ -1437,8 +1437,8 @@ OP_NAMESPACE_BEGIN
     }
     RocksDBIterator::~RocksDBIterator()
     {
-        m_engine->ReleaseSnpashot();
         DELETE(m_iter);
+        m_engine->ReleaseSnpashot();
     }
 OP_NAMESPACE_END
 
