@@ -160,7 +160,8 @@ OP_NAMESPACE_BEGIN
                 }
                 else
                 {
-                    memcpy(&data, &ss, sizeof(const char*));
+                    data = (int64_t) ss;
+                    //memcpy(&data, &ss, sizeof(const char*));
                     //*(void**) (&data) = ss;
                     encoding = E_CSTR;
                 }
@@ -185,7 +186,8 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-            memcpy(&data, &str, sizeof(const char*));
+            data = (int64_t)str;
+            //memcpy(&data, &str, sizeof(const char*));
             encoding = E_CSTR;
         }
         len = slen;

@@ -65,9 +65,10 @@ LMDB_PATH=${LIB_PATH}/lmdb-${LMDB_VER}/libraries/liblmdb
 LMDB_FILE=${LIB_PATH}/lmdb-${LMDB_VER}.tar.gz
 LMDB_LIBA=${LMDB_PATH}/liblmdb.a
 
-FORESTDB_VER=forestdb-1.1
+FORESTDB_VER=forestdb-1.2
 FORESTDB_PATH=${LIB_PATH}/${FORESTDB_VER}
 FORESTDB_FILE=${LIB_PATH}/${FORESTDB_VER}.tar.gz
+FORESTDB_REMOTE_FILE=https://github.com/couchbase/forestdb/archive/v1.2.tar.gz
 FORESTDB_SO=${FORESTDB_PATH}/build/libforestdb.so
 FORESTDB_LIBA=${FORESTDB_PATH}/build/libforestdb.a
 
@@ -351,7 +352,7 @@ $(WIREDTIGER_LIBA): $(SNAPPY_LIBA)
 
 .PHONY: forestdb
 forestdb: $(FORESTDB_LIBA)
-$(FORESTDB_LIBA): $(SNAPPY_LIBA)
+$(FORESTDB_LIBA): $(FORESTDB_PATH) $(SNAPPY_LIBA)
 	echo ">>>>> Building forestdb" && \
     cd ${LIB_PATH} && \
 	tar zxf ${FORESTDB_FILE} && \
@@ -359,6 +360,18 @@ $(FORESTDB_LIBA): $(SNAPPY_LIBA)
 	mkdir -p build && cd build &&\
 	SNAPPY_DIR=${SNAPPY_PATH}:${SNAPPY_PATH}/.libs cmake ../ && $(MAKE) && \
 	echo "<<<<< Done building forestdb"
+
+${FORESTDB_PATH}: ${FORESTDB_FILE}
+	echo ">>>>> Unpacking forestdb" && \
+	cd ${LIB_PATH} && \
+	tar zxf ${FORESTDB_FILE} && \
+	echo "<<<<< Done unpacking forestdb"
+	
+${FORESTDB_FILE}:
+	echo ">>>>> Dowloading forestdb" && \
+	cd ${LIB_PATH} && \
+	wget -O ${FORESTDB_FILE} ${FORESTDB_REMOTE_FILE} && \
+	echo "<<<<< Done dowloading forestdb"
 
 .PHONY: perconaft
 perconaft: $(PERCONAFT_LIBA)

@@ -49,14 +49,16 @@ namespace ardb
         private:
             fdb_kvs_handle *m_kv;
             fdb_iterator* m_iter;
-            fdb_doc* m_raw;
             Data m_ns;
             KeyObject m_key;
             ValueObject m_value;
+            std::string m_raw_key;
+            std::string m_raw_val;
             std::string min_key;
             std::string max_key;
             bool m_valid;
 
+            void ClearRawDoc();
             void DoJump(const KeyObject& next);
 
             bool Valid();
@@ -67,6 +69,7 @@ namespace ardb
             void JumpToLast();
             KeyObject& Key(bool clone_str);
             ValueObject& Value(bool clone_str);
+            void GetRaw();
             Slice RawKey();
             Slice RawValue();
             void Del();
@@ -95,7 +98,7 @@ namespace ardb
             friend class ForestDBEngine;
         public:
             ForestDBIterator(fdb_kvs_handle* kv, const Data& ns) :
-                    m_kv(kv), m_iter(NULL), m_raw(NULL), m_ns(ns), m_valid(true)
+                    m_kv(kv), m_iter(NULL),  m_ns(ns), m_valid(true)
             {
             }
             void MarkValid(bool valid)

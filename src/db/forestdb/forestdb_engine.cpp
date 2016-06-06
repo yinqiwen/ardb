@@ -45,7 +45,6 @@
 }while(0)
 #define DEFAULT_LMDB_LOCAL_MULTI_CACHE_SIZE 10
 
-
 #define FDB_PUT_OP 1
 #define FDB_DEL_OP 2
 #define FDB_CKP_OP 3
@@ -110,7 +109,6 @@ namespace ardb
     static ForestDBEngine* g_fdb_engine = NULL;
     static std::string g_fdb_dir;
     static fdb_config g_fdb_config;
-
 
     struct ForestDBLocalContext
     {
@@ -482,15 +480,6 @@ namespace ardb
         Buffer& encode_buffer = local_ctx.GetEncodeBuferCache();
         key.Encode(encode_buffer);
         size_t key_len = encode_buffer.ReadableBytes();
-        if(!local_ctx.iters.empty())
-        {
-            ForestDBIterator* iter = *(local_ctx.iters.begin());
-            KeyObject mark = iter->Key(true);
-            iter->Jump(key);
-            iter->Del();
-            iter->Jump(mark);
-            return 0;
-        }
         fdb_status fs = FDB_RESULT_SUCCESS;
         CHECK_EXPR(fs = fdb_del_kv(kv, (const void* ) encode_buffer.GetRawBuffer(), key_len));
         CHECK_EXPR(fs = fdb_commit(local_ctx.fdb, FDB_COMMIT_NORMAL));
@@ -575,7 +564,7 @@ namespace ardb
     const std::string ForestDBEngine::GetErrorReason(int err)
     {
         err = err - STORAGE_ENGINE_ERR_OFFSET;
-        return fdb_error_msg((fdb_status)err);
+        return fdb_error_msg((fdb_status) err);
     }
 
     Iterator* ForestDBEngine::Find(Context& ctx, const KeyObject& key)
@@ -662,18 +651,19 @@ namespace ardb
 
     void ForestDBIterator::ClearState()
     {
+        ClearRawDoc();
         m_key.Clear();
         m_value.Clear();
         m_valid = true;
-        if (NULL != m_raw)
-        {
-            fdb_doc_free(m_raw);
-            m_raw = NULL;
-        }
+    }
+
+    void ForestDBIterator::ClearRawDoc()
+    {
+        m_raw_key.clear();
+        m_raw_val.clear();
     }
     void ForestDBIterator::CheckBound()
     {
-
         //do nothing
     }
     bool ForestDBIterator::Valid()
@@ -722,17 +712,13 @@ namespace ardb
         if (Valid())
         {
             CheckBound();
-            if(m_valid && !max_key.empty())
+            if (m_valid && !max_key.empty())
             {
                 Slice raw = RawKey();
-                if(compare_keys(raw.data(), raw.size(), max_key.data(), max_key.size(), false) > 0)
+                if (compare_keys(raw.data(), raw.size(), max_key.data(), max_key.size(), false) > 0)
                 {
+                    ClearRawDoc();
                     m_valid = (0 == fdb_iterator_prev(m_iter));
-                    if (NULL != m_raw)
-                    {
-                        fdb_doc_free(m_raw);
-                        m_raw = NULL;
-                    }
                 }
             }
         }
@@ -775,6 +761,10 @@ namespace ardb
     }
     KeyObject& ForestDBIterator::Key(bool clone_str)
     {
+        /*
+         * seems 'clone_str' must be true to pass all unit test, need to find out why.
+         */
+        clone_str = true;
         if (m_key.GetType() > 0)
         {
             if (clone_str && m_key.GetKey().IsCStr())
@@ -783,14 +773,13 @@ namespace ardb
             }
             return m_key;
         }
-        if (NULL == m_raw)
+        if (m_raw_key.empty())
         {
-            CHECK_EXPR(fdb_iterator_get(m_iter, &m_raw));
-
+            RawKey();
         }
-        if (NULL != m_raw)
+        if (!m_raw_key.empty())
         {
-            Buffer kbuf((char*) (m_raw->key), 0, m_raw->keylen);
+            Buffer kbuf((char*) (m_raw_key.data()), 0, m_raw_key.size());
             m_key.Decode(kbuf, clone_str);
             m_key.SetNameSpace(m_ns);
         }
@@ -802,105 +791,60 @@ namespace ardb
         {
             return m_value;
         }
-        if (NULL == m_raw)
+        if (m_raw_val.empty())
         {
-            CHECK_EXPR(fdb_iterator_get(m_iter, &m_raw));
+            RawValue();
         }
-        if (NULL != m_raw)
+        if (!m_raw_val.empty())
         {
-            Buffer kbuf((char*) (m_raw->body), 0, m_raw->bodylen);
+            Buffer kbuf((char*) (m_raw_val.data()), 0, m_raw_val.size());
             m_value.Decode(kbuf, clone_str);
         }
         return m_value;
     }
+
+    void ForestDBIterator::GetRaw()
+    {
+        if (m_raw_key.empty() || m_raw_val.empty())
+        {
+            fdb_doc* raw = NULL;
+            CHECK_EXPR(fdb_iterator_get(m_iter, &raw));
+            m_raw_key.assign((const char*) raw->key, raw->keylen);
+            m_raw_val.assign((const char*) raw->body, raw->bodylen);
+            fdb_doc_free(raw);
+        }
+    }
+
     Slice ForestDBIterator::RawKey()
     {
-        if (NULL == m_raw)
-        {
-            fdb_iterator_get(m_iter, &m_raw);
-        }
-        if (NULL != m_raw)
-        {
-            return Slice((const char*) m_raw->key, m_raw->keylen);
-        }
-        return Slice();
+        GetRaw();
+        return Slice(m_raw_key.data(), m_raw_key.size());
     }
     Slice ForestDBIterator::RawValue()
     {
-        if (NULL == m_raw)
-        {
-            fdb_iterator_get(m_iter, &m_raw);
-        }
-        if (NULL != m_raw)
-        {
-            return Slice((const char*) m_raw->body, m_raw->bodylen);
-        }
-        return Slice();
+        GetRaw();
+        return Slice(m_raw_val.data(), m_raw_val.size());
     }
     void ForestDBIterator::Del()
     {
-        if (NULL == m_raw)
+        RawKey();
+        if (!m_raw_key.empty())
         {
-            fdb_iterator_get(m_iter, &m_raw);
+            fdb_status fs = fdb_del_kv(m_kv, m_raw_key.data(), m_raw_key.size());
+            CHECK_EXPR(fs);
+
         }
-        if (NULL != m_raw)
-        {
-            fdb_del(m_kv, m_raw);
-            ForestDBLocalContext& local_ctx = GetDBLocalContext();
-            fdb_commit(local_ctx.fdb, FDB_COMMIT_NORMAL);
-        }
-        //status = fdb_del(m_iter->handle, &m_raw);
     }
-//    void ForestDBIterator::DelKey(const KeyObject& key)
-//    {
-//        if (NULL == m_raw)
-//        {
-//            fdb_iterator_get(m_iter, &m_raw);
-//        }
-//        if (NULL != m_raw)
-//        {
-//            ForestDBLocalContext& local_ctx = GetDBLocalContext();
-//            Slice kslice = key.Encode(local_ctx.GetEncodeBuferCache());
-//            int rc = fdb_iterator_seek(m_iter, (const void *) kslice.data(), kslice.size(), FDB_ITR_SEEK_LOWER);
-//            rc = fdb_iterator_next(m_iter);
-//            if (0 == rc)
-//            {
-//                fdb_doc* doc = NULL;
-//                rc = fdb_iterator_get(m_iter, &doc);
-//                if (0 == rc && NULL != doc && doc->keylen == kslice.size())
-//                {
-//                    int cmp = strncmp(kslice.data(), (const char*)doc->key, kslice.size());
-//
-//                    if (0 == cmp)
-//                    {
-//
-//                        rc = fdb_del(m_kv, doc);
-//
-//                        rc = fdb_commit(local_ctx.fdb, FDB_COMMIT_NORMAL);
-//                        printf("#####del cmp:%d\n", rc);
-//                    }
-//                }
-//                /*
-//                 * seek back
-//                 */
-//                fdb_iterator_seek(m_iter, m_raw->key, m_raw->keylen, 0);
-//            }
-//        }
-//    }
 
     ForestDBIterator::~ForestDBIterator()
     {
-        if (NULL != m_raw)
-        {
-            fdb_doc_free(m_raw);
-        }
         if (NULL != m_iter)
         {
             fdb_iterator_close(m_iter);
-            ForestDBLocalContext& local_ctx = GetDBLocalContext();
-            local_ctx.ReleaseIterRef(this);
         }
-
+        ForestDBLocalContext& local_ctx = GetDBLocalContext();
+        fdb_commit(local_ctx.fdb, FDB_COMMIT_NORMAL);
+        local_ctx.ReleaseIterRef(this);
     }
 }
 
