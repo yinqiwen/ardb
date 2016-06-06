@@ -40,7 +40,7 @@ namespace ardb
             reply.SetErrorReason("MULTI calls can not be nested");
             return 0;
         }
-        ctx.GetTransaction();
+        ctx.GetTransaction().started = true;
         reply.SetStatusCode(STATUS_OK);
         return 0;
     }
@@ -138,7 +138,8 @@ namespace ardb
                     ContextSet::iterator cit = wit->second.begin();
                     while (cit != wit->second.end())
                     {
-                        (*cit)->GetTransaction().cas = true;
+                        Context* watch_ctx = *cit;
+                        watch_ctx->GetTransaction().cas = true;
                         cit++;
                     }
                 }
@@ -155,7 +156,7 @@ namespace ardb
             return 0;
         }
         LockGuard<SpinMutexLock> guard(m_watched_keys_lock);
-        if (!m_watched_ctxs->empty())
+        if (NULL != m_watched_ctxs && !m_watched_ctxs->empty())
         {
             KeyPrefix prefix;
             prefix.ns = key.GetNameSpace();
@@ -166,7 +167,8 @@ namespace ardb
                 ContextSet::iterator cit = found->second.begin();
                 while (cit != found->second.end())
                 {
-                    (*cit)->GetTransaction().cas = true;
+                    Context* watch_ctx = *cit;
+                    watch_ctx->GetTransaction().cas = true;
                     cit++;
                 }
             }
@@ -196,16 +198,25 @@ namespace ardb
             return 0;
         }
         LockGuard<SpinMutexLock> guard(m_watched_keys_lock);
-        if (ctx.transc != NULL && m_watched_ctxs->empty())
+        if (NULL != m_watched_ctxs && ctx.transc != NULL && !m_watched_ctxs->empty())
         {
             TransactionContext::WatchKeySet::iterator it = ctx.GetTransaction().watched_keys.begin();
             while (it != ctx.GetTransaction().watched_keys.end())
             {
                 const KeyPrefix& prefix = *it;
-                (*m_watched_ctxs)[prefix].erase(&ctx);
-                if ((*m_watched_ctxs)[prefix].size() == 0)
+                WatchedContextTable::iterator fit = m_watched_ctxs->find(prefix);
+                if (fit != m_watched_ctxs->end())
                 {
-                    (*m_watched_ctxs).erase(prefix);
+                    ContextSet& cset = fit->second;
+                    cset.erase(&ctx);
+                    if (cset.empty())
+                    {
+                        m_watched_ctxs->erase(fit);
+                    }
+                }
+                else
+                {
+                    WARN_LOG("No found in global watch contexts");
                 }
                 it++;
             }
