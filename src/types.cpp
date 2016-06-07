@@ -83,19 +83,23 @@ OP_NAMESPACE_BEGIN
 
     void Data::Encode(Buffer& buf) const
     {
-        buf.WriteByte((char) encoding);
+
         switch (encoding)
         {
             case E_FLOAT64:
             case E_INT64:
             {
-                //buf.Write(&data, sizeof(data));
+                buf.WriteByte((char) encoding);
                 BufferHelper::WriteVarInt64(buf, data);
                 return;
             }
             case E_CSTR:
             case E_SDS:
             {
+                /*
+                 * all string encode as SDS
+                 */
+                buf.WriteByte((char) E_SDS);
                 BufferHelper::WriteVarUInt32(buf, StringLength());
                 const char* ptr = CStr();
                 buf.Write(ptr, StringLength());
@@ -103,6 +107,7 @@ OP_NAMESPACE_BEGIN
             }
             default:
             {
+                buf.WriteByte((char) encoding);
                 return;
             }
         }

@@ -356,7 +356,7 @@ $(FORESTDB_LIBA): $(FORESTDB_PATH) $(SNAPPY_LIBA)
 	echo ">>>>> Building forestdb" && \
     cd ${LIB_PATH} && \
 	tar zxf ${FORESTDB_FILE} && \
-	cd ${FORESTDB_PATH} && sed -i '/add_library(forestdb SHARED/c\add_library(forestdb STATIC' CMakeLists.txt &&\
+	cd ${FORESTDB_PATH} && sed -i '.bak' 's/SHARED/STATIC/g' CMakeLists.txt &&\
 	mkdir -p build && cd build &&\
 	SNAPPY_DIR=${SNAPPY_PATH}:${SNAPPY_PATH}/.libs cmake ../ && $(MAKE) && \
 	echo "<<<<< Done building forestdb"

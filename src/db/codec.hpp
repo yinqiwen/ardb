@@ -214,9 +214,9 @@ OP_NAMESPACE_BEGIN
             {
                 setElement(score, 0);
             }
-            double GetZSetScore()
+            double GetZSetScore() const
             {
-                return getElement(0).GetFloat64();
+                return GetElement(0).GetFloat64();
             }
             void SetTTLKeyNamespace(const Data& ns)
             {

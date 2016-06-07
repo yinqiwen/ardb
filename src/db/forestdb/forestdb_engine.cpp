@@ -57,8 +57,7 @@ namespace ardb
         return compare_keys((const char*) a, len_a, (const char*) b, len_b, false);
     }
 
-    static fdb_compact_decision ardb_fdb_compaction_callback(fdb_file_handle *fhandle, fdb_compaction_status status, const char *kv_store_name, fdb_doc *doc,
-            uint64_t last_oldfile_offset, uint64_t last_newfile_offset, void *ctx)
+    static fdb_compact_decision ardb_fdb_compaction_callback(fdb_file_handle *fhandle, fdb_compaction_status status, const char *kv_store_name, fdb_doc *doc, uint64_t last_oldfile_offset, uint64_t last_newfile_offset, void *ctx)
     {
         if (doc->bodylen == 0)
         {
@@ -761,10 +760,6 @@ namespace ardb
     }
     KeyObject& ForestDBIterator::Key(bool clone_str)
     {
-        /*
-         * seems 'clone_str' must be true to pass all unit test, need to find out why.
-         */
-        clone_str = true;
         if (m_key.GetType() > 0)
         {
             if (clone_str && m_key.GetKey().IsCStr())
