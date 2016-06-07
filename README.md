@@ -2,7 +2,7 @@
 
 [![Join the chat at https://gitter.im/yinqiwen/ardb](https://badges.gitter.im/yinqiwen/ardb.svg)](https://gitter.im/yinqiwen/ardb?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![Build Status](https://travis-ci.org/yinqiwen/ardb.svg?branch=0.9)](https://travis-ci.org/yinqiwen/ardb)  
-Ardb is a BSD licensed, redis-protocol compatible persistent nosql, it support multiple storage engines as backend like [Google's LevelDB](https://github.com/google/leveldb), [Facebook's RocksDB](https://github.com/facebook/rocksdb), [OpenLDAP's LMDB](http://symas.com/mdb/), [WiredTiger](http://www.wiredtiger.com/), [PerconaFT](https://github.com/percona/PerconaFT), the default backend is [Facebook's RocksDB](https://github.com/facebook/rocksdb).
+Ardb is a BSD licensed, redis-protocol compatible persistent nosql, it support multiple storage engines as backend like [Google's LevelDB](https://github.com/google/leveldb), [Facebook's RocksDB](https://github.com/facebook/rocksdb), [OpenLDAP's LMDB](http://symas.com/mdb/), [WiredTiger](http://www.wiredtiger.com/), [PerconaFT](https://github.com/percona/PerconaFT),[Couchbase's ForestDB](https://github.com/couchbase/forestdb) the default backend is [Facebook's RocksDB](https://github.com/facebook/rocksdb).
 
 
 ## Compile
@@ -10,15 +10,15 @@ Rocksdb is the default storage engine, to compile with rocksdb, just type `make`
 
 To use LMDB or LevelDB or WiredTiger as storage engine, you should set env `storage_engine` first.
 	
-	storage_engine=lmdb make
-	storage_engine=leveldb make
+	storage_engine=rocksdb make
+    storage_engine=leveldb make
+    storage_engine=lmdb make
 	storage_engine=wiredtiger make
 	storage_engine=perconaft make
 	storage_engine=forestdb make
 
 
 It should compile to several executables in `src` directory, such as ardb-server, ardb-test etc.
-
 	
 
 ## Features
@@ -27,6 +27,13 @@ It should compile to several executables in `src` directory, such as ardb-server
 	- Redis 3.2 geo commands support
 - Most redis commands supported, and a few new commands.
   * [Ardb commands VS Redis Commands](https://github.com/yinqiwen/ardb/wiki/ARDB-Commands)
+- Multi storage engines supported
+  * [RocksDB](https://github.com/facebook/rocksdb)
+  * [LevelDB](https://github.com/google/leveldb)
+  * [LMDB](http://symas.com/mdb/)
+  * [WiredTiger](http://www.wiredtiger.com/)
+  * [PerconaFT](https://github.com/percona/PerconaFT)
+  * [ForestDB](https://github.com/couchbase/forestdb)
 - Replication compatible with Redis 2.6/2.8
   * Ardb instance work as slave of Redis 2.6/2.8+ instance
   * Ardb instance work as master of Redis 2.6/2.8+ instance
