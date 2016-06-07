@@ -57,7 +57,8 @@ namespace ardb
         return compare_keys((const char*) a, len_a, (const char*) b, len_b, false);
     }
 
-    static fdb_compact_decision ardb_fdb_compaction_callback(fdb_file_handle *fhandle, fdb_compaction_status status, const char *kv_store_name, fdb_doc *doc, uint64_t last_oldfile_offset, uint64_t last_newfile_offset, void *ctx)
+    static fdb_compact_decision ardb_fdb_compaction_callback(fdb_file_handle *fhandle, fdb_compaction_status status, const char *kv_store_name, fdb_doc *doc,
+            uint64_t last_oldfile_offset, uint64_t last_newfile_offset, void *ctx)
     {
         if (doc->bodylen == 0)
         {
@@ -118,10 +119,10 @@ namespace ardb
             typedef TreeSet<ForestDBIterator*>::Type LocalIteratorSet;
             KVStoreTable kv_stores;
             uint32 txn_ref;
-            LocalIteratorSet iters;bool txn_abort;
-            Buffer encode_buffer_cache;bool inited;
+            uint32 iter_count;
+            Buffer encode_buffer_cache;bool txn_abort;bool inited;
             ForestDBLocalContext() :
-                    fdb(NULL), metadb(NULL), metakv(NULL), txn_ref(0), txn_abort(false), inited(false)
+                    fdb(NULL), metadb(NULL), metakv(NULL), txn_ref(0), iter_count(0), txn_abort(false), inited(false)
             {
             }
             fdb_kvs_handle* GetKVStore(const Data& ns, bool create_if_missing)
@@ -262,11 +263,11 @@ namespace ardb
             }
             void AddIterRef(ForestDBIterator* iter)
             {
-                iters.insert(iter);
+                iter_count++;
             }
             void ReleaseIterRef(ForestDBIterator* iter)
             {
-                iters.erase(iter);
+                iter_count--;
             }
             int AcquireTransanction()
             {
@@ -418,7 +419,10 @@ namespace ardb
         size_t value_len = encode_buffer.ReadableBytes() - key_len;
         fdb_status fs = fdb_set_kv(kv, (const void*) encode_buffer.GetRawBuffer(), key_len, (const void*) (encode_buffer.GetRawBuffer() + key_len), value_len);
         CHECK_EXPR(fs);
-        fdb_commit(local_ctx.fdb, FDB_COMMIT_NORMAL);
+        if (local_ctx.iter_count == 0 && local_ctx.txn_ref == 0)
+        {
+            fdb_commit(local_ctx.fdb, FDB_COMMIT_NORMAL);
+        }
         return ENGINE_ERR(fs);
     }
     int ForestDBEngine::PutRaw(Context& ctx, const Data& ns, const Slice& key, const Slice& value)
@@ -430,7 +434,10 @@ namespace ardb
         }
         ForestDBLocalContext& local_ctx = GetDBLocalContext();
         fdb_status fs = fdb_set_kv(kv, (const void*) key.data(), key.size(), (const void*) value.data(), value.size());
-        fdb_commit(local_ctx.fdb, FDB_COMMIT_NORMAL);
+        if (local_ctx.iter_count == 0 && local_ctx.txn_ref == 0)
+        {
+            fdb_commit(local_ctx.fdb, FDB_COMMIT_NORMAL);
+        }
         return ENGINE_ERR(fs);
     }
 
@@ -481,7 +488,10 @@ namespace ardb
         size_t key_len = encode_buffer.ReadableBytes();
         fdb_status fs = FDB_RESULT_SUCCESS;
         CHECK_EXPR(fs = fdb_del_kv(kv, (const void* ) encode_buffer.GetRawBuffer(), key_len));
-        CHECK_EXPR(fs = fdb_commit(local_ctx.fdb, FDB_COMMIT_NORMAL));
+        if (local_ctx.iter_count == 0 && local_ctx.txn_ref == 0)
+        {
+            CHECK_EXPR(fs = fdb_commit(local_ctx.fdb, FDB_COMMIT_NORMAL));
+        }
         return ENGINE_NERR(fs);
     }
 
@@ -606,7 +616,6 @@ namespace ardb
                     upperbound_key.Encode(encode_buffer, false);
                     end_keylen = encode_buffer.ReadableBytes() - start_keylen;
                     end_key = (const void *) (encode_buffer.GetRawBuffer() + start_keylen);
-//                    opt |= FDB_ITR_SKIP_MAX_KEY;
                 }
             }
             start_key = (const void *) encode_buffer.GetRawBuffer();
@@ -622,7 +631,6 @@ namespace ardb
         end_keylen = 0;
 
         fdb_status rc = fdb_iterator_init(kv, &fdb_iter, NULL, 0, NULL, 0, opt);
-        //fdb_status rc = fdb_iterator_sequence_init(kv, &fdb_iter, 0, 0, opt);
         if (0 != rc)
         {
             ERROR_LOG("Failed to create cursor for reason:(%d)%s", rc, fdb_error_msg(rc));
@@ -658,8 +666,11 @@ namespace ardb
 
     void ForestDBIterator::ClearRawDoc()
     {
-        m_raw_key.clear();
-        m_raw_val.clear();
+        if (NULL != m_raw)
+        {
+            fdb_doc_free(m_raw);
+            m_raw = NULL;
+        }
     }
     void ForestDBIterator::CheckBound()
     {
@@ -677,7 +688,7 @@ namespace ardb
             return;
         }
         int rc;
-        CHECK_EXPR(rc = fdb_iterator_next(m_iter));
+        rc = fdb_iterator_next(m_iter);
         m_valid = (rc == 0);
         CheckBound();
 
@@ -768,13 +779,10 @@ namespace ardb
             }
             return m_key;
         }
-        if (m_raw_key.empty())
+        GetRaw();
+        if (NULL != m_raw)
         {
-            RawKey();
-        }
-        if (!m_raw_key.empty())
-        {
-            Buffer kbuf((char*) (m_raw_key.data()), 0, m_raw_key.size());
+            Buffer kbuf((char*) (m_raw->key), 0, m_raw->keylen);
             m_key.Decode(kbuf, clone_str);
             m_key.SetNameSpace(m_ns);
         }
@@ -786,13 +794,10 @@ namespace ardb
         {
             return m_value;
         }
-        if (m_raw_val.empty())
+        GetRaw();
+        if (NULL != m_raw)
         {
-            RawValue();
-        }
-        if (!m_raw_val.empty())
-        {
-            Buffer kbuf((char*) (m_raw_val.data()), 0, m_raw_val.size());
+            Buffer kbuf((char*) (m_raw->body), 0, m_raw->bodylen);
             m_value.Decode(kbuf, clone_str);
         }
         return m_value;
@@ -800,39 +805,35 @@ namespace ardb
 
     void ForestDBIterator::GetRaw()
     {
-        if (m_raw_key.empty() || m_raw_val.empty())
+        if (NULL == m_raw)
         {
-            fdb_doc* raw = NULL;
-            CHECK_EXPR(fdb_iterator_get(m_iter, &raw));
-            m_raw_key.assign((const char*) raw->key, raw->keylen);
-            m_raw_val.assign((const char*) raw->body, raw->bodylen);
-            fdb_doc_free(raw);
+            CHECK_EXPR(fdb_iterator_get(m_iter, &m_raw));
         }
     }
 
     Slice ForestDBIterator::RawKey()
     {
         GetRaw();
-        return Slice(m_raw_key.data(), m_raw_key.size());
+        return Slice((const char*) m_raw->key, m_raw->keylen);
     }
     Slice ForestDBIterator::RawValue()
     {
         GetRaw();
-        return Slice(m_raw_val.data(), m_raw_val.size());
+        return Slice((const char*) m_raw->body, m_raw->bodylen);
     }
     void ForestDBIterator::Del()
     {
-        RawKey();
-        if (!m_raw_key.empty())
+        GetRaw();
+        if (NULL != m_raw)
         {
-            fdb_status fs = fdb_del_kv(m_kv, m_raw_key.data(), m_raw_key.size());
+            fdb_status fs = fdb_del(m_kv, m_raw);
             CHECK_EXPR(fs);
-
         }
     }
 
     ForestDBIterator::~ForestDBIterator()
     {
+        ClearRawDoc();
         if (NULL != m_iter)
         {
             fdb_iterator_close(m_iter);

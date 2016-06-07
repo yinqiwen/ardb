@@ -34,7 +34,7 @@
 CXX=g++
 CC=gcc
 
-ARDB_VERSION=0.9.1
+ARDB_VERSION=0.9.2
 
 uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 
@@ -199,6 +199,11 @@ ifeq ($(storage_engine), forestdb)
   INCS+=-I${FORESTDB_PATH}/include
   LIBS:=${FORESTDB_LIBA} ${SNAPPY_LIBA} ${LIBS}
   CXXFLAGS+=-D__USE_FORESTDB__
+  ifeq ($(uname_S),Darwin)
+     SEDCMD:=sed -i '.bak' 's/SHARED/STATIC/g' CMakeLists.txt
+  else
+     SEDCMD:=sed -i 's/SHARED/STATIC/g' CMakeLists.txt
+  endif
 else
 ifeq ($(storage_engine), lmdb)
   STORAGE_ENGINE=$(LMDB_LIBA)
@@ -354,9 +359,7 @@ $(WIREDTIGER_LIBA): $(SNAPPY_LIBA)
 forestdb: $(FORESTDB_LIBA)
 $(FORESTDB_LIBA): $(FORESTDB_PATH) $(SNAPPY_LIBA)
 	echo ">>>>> Building forestdb" && \
-    cd ${LIB_PATH} && \
-	tar zxf ${FORESTDB_FILE} && \
-	cd ${FORESTDB_PATH} && sed -i '.bak' 's/SHARED/STATIC/g' CMakeLists.txt &&\
+	cd ${FORESTDB_PATH} && ${SEDCMD} &&\
 	mkdir -p build && cd build &&\
 	SNAPPY_DIR=${SNAPPY_PATH}:${SNAPPY_PATH}/.libs cmake ../ && $(MAKE) && \
 	echo "<<<<< Done building forestdb"
