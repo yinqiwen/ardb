@@ -197,12 +197,15 @@ ifeq ($(storage_engine), forestdb)
   STORAGE_ENGINE=$(FORESTDB_LIBA)
   STORAGE_ENGINE_PATH=$(FORESTDB_PATH)
   INCS+=-I${FORESTDB_PATH}/include
-  LIBS:=${FORESTDB_LIBA} ${SNAPPY_LIBA} ${LIBS}
+  LIBS:=${FORESTDB_LIBA} ${SNAPPY_LIBA} ${LIBS} 
   CXXFLAGS+=-D__USE_FORESTDB__
   ifeq ($(uname_S),Darwin)
      SEDCMD:=sed -i '.bak' 's/SHARED/STATIC/g' CMakeLists.txt
   else
      SEDCMD:=sed -i 's/SHARED/STATIC/g' CMakeLists.txt
+  endif
+  ifneq ("$(wildcard /usr/include/libaio.h)","")
+     LIBS+=-laio
   endif
 else
 ifeq ($(storage_engine), lmdb)
@@ -358,11 +361,15 @@ $(WIREDTIGER_LIBA): $(SNAPPY_LIBA)
 .PHONY: forestdb
 forestdb: $(FORESTDB_LIBA)
 $(FORESTDB_LIBA): $(FORESTDB_PATH) $(SNAPPY_LIBA)
-	echo ">>>>> Building forestdb" && \
-	cd ${FORESTDB_PATH} && ${SEDCMD} &&\
-	mkdir -p build && cd build &&\
-	SNAPPY_DIR=${SNAPPY_PATH}:${SNAPPY_PATH}/.libs cmake ../ && $(MAKE) && \
+	echo ">>>>> Building forestdb" ; \
+	cd ${FORESTDB_PATH} ; ${SEDCMD} ;\
+	mkdir -p build ; cd build ;\
+	SNAPPY_DIR=${SNAPPY_PATH}:${SNAPPY_PATH}/.libs cmake ../ ; \
+	cc=`grep -c libaio ${FORESTDB_PATH}/build/CMakeCache.txt`; \
+	echo ${cc};\
+	$(MAKE) ; \
 	echo "<<<<< Done building forestdb"
+
 
 ${FORESTDB_PATH}: ${FORESTDB_FILE}
 	echo ">>>>> Unpacking forestdb" && \

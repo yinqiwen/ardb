@@ -40,6 +40,10 @@ It should compile to several executables in `src` directory, such as ardb-server
   * Ardb instance work as slave of Ardb instance
 - Auto failover support by redis-sentinel
 - Lua Scripting support 
+- Pub/Sub
+  * All redis pubsub commands supported
+- Transactions
+  * All redis transaction commands supported
 - Backup data online
   * Use 'save/bgsave' to backup data
   * Use 'import' to import backup data
