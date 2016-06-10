@@ -79,15 +79,17 @@ int main(int argc, char** argv)
     {
         printf("Warning: no config file specified, using the default config. In order to specify a config file use %s /path/to/ardb.conf\n", argv[0]);
     }
-
+    std::string real_executable, real_conf_file;
+    real_path(argv[0], real_executable);
+    if(!confpath.empty())
+    {
+        real_path(confpath, real_conf_file);
+    }
     Ardb db;
     if (0 == db.Init(confpath))
     {
-        real_path(argv[0], db.GetMutableConf()._executable);
-        if(!confpath.empty())
-        {
-            real_path(confpath, db.GetMutableConf()._conf_file);
-        }
+        db.GetMutableConf()._executable = real_executable;
+        db.GetMutableConf()._conf_file = real_conf_file;
         Server server;
         server.Start();
     }

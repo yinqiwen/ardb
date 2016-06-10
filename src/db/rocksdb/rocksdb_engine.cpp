@@ -1385,9 +1385,15 @@ OP_NAMESPACE_BEGIN
         }
     }
 
+    void RocksDBIterator::SetIterator(RocksIterData* iter)
+    {
+        m_iter = iter;
+        m_rocks_iter = m_iter->iter;
+    }
+
     bool RocksDBIterator::Valid()
     {
-        return m_valid && NULL != m_iter && m_iter->iter->Valid();
+        return m_valid && NULL != m_rocks_iter && m_rocks_iter->Valid();
     }
     void RocksDBIterator::ClearState()
     {
@@ -1397,9 +1403,9 @@ OP_NAMESPACE_BEGIN
     }
     void RocksDBIterator::CheckBound()
     {
-        if (NULL != m_iter && m_iterate_upper_bound_key.GetType() > 0)
+        if (NULL != m_rocks_iter && m_iterate_upper_bound_key.GetType() > 0)
         {
-            if (m_iter->iter->Valid())
+            if (m_rocks_iter->Valid())
             {
                 if (Key(false).Compare(m_iterate_upper_bound_key) >= 0)
                 {
@@ -1411,58 +1417,58 @@ OP_NAMESPACE_BEGIN
     void RocksDBIterator::Next()
     {
         ClearState();
-        if (NULL == m_iter)
+        if (NULL == m_rocks_iter)
         {
             return;
         }
-        m_iter->iter->Next();
+        m_rocks_iter->Next();
         CheckBound();
     }
     void RocksDBIterator::Prev()
     {
         ClearState();
-        if (NULL == m_iter)
+        if (NULL == m_rocks_iter)
         {
             return;
         }
-        m_iter->iter->Prev();
+        m_rocks_iter->Prev();
     }
     void RocksDBIterator::Jump(const KeyObject& next)
     {
         ClearState();
-        if (NULL == m_iter)
+        if (NULL == m_rocks_iter)
         {
             return;
         }
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         Slice key_slice = next.Encode(rocks_ctx.GetEncodeBuferCache(), false);
-        m_iter->iter->Seek(to_rocksdb_slice(key_slice));
+        m_rocks_iter->Seek(to_rocksdb_slice(key_slice));
         CheckBound();
     }
     void RocksDBIterator::JumpToFirst()
     {
         ClearState();
-        if (NULL == m_iter)
+        if (NULL == m_rocks_iter)
         {
             return;
         }
-        m_iter->iter->SeekToFirst();
+        m_rocks_iter->SeekToFirst();
     }
     void RocksDBIterator::JumpToLast()
     {
         ClearState();
-        if (NULL == m_iter)
+        if (NULL == m_rocks_iter)
         {
             return;
         }
         if (m_iterate_upper_bound_key.GetType() > 0)
         {
             Jump(m_iterate_upper_bound_key);
-            if (!m_iter->iter->Valid())
+            if (!m_rocks_iter->Valid())
             {
-                m_iter->iter->SeekToLast();
+                m_rocks_iter->SeekToLast();
             }
-            if (m_iter->iter->Valid())
+            if (m_rocks_iter->Valid())
             {
                 if (!Valid())
                 {
@@ -1472,7 +1478,7 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-            m_iter->iter->SeekToLast();
+            m_rocks_iter->SeekToLast();
         }
     }
 
@@ -1486,7 +1492,7 @@ OP_NAMESPACE_BEGIN
             }
             return m_key;
         }
-        rocksdb::Slice key = m_iter->iter->key();
+        rocksdb::Slice key = m_rocks_iter->key();
         Buffer kbuf(const_cast<char*>(key.data()), 0, key.size());
         m_key.Decode(kbuf, clone_str);
         m_key.SetNameSpace(m_ns);
@@ -1498,25 +1504,25 @@ OP_NAMESPACE_BEGIN
         {
             return m_value;
         }
-        rocksdb::Slice key = m_iter->iter->value();
+        rocksdb::Slice key = m_rocks_iter->value();
         Buffer kbuf(const_cast<char*>(key.data()), 0, key.size());
         m_value.Decode(kbuf, clone_str);
         return m_value;
     }
     Slice RocksDBIterator::RawKey()
     {
-        return to_ardb_slice(m_iter->iter->key());
+        return to_ardb_slice(m_rocks_iter->key());
     }
     Slice RocksDBIterator::RawValue()
     {
-        return to_ardb_slice(m_iter->iter->value());
+        return to_ardb_slice(m_rocks_iter->value());
     }
     void RocksDBIterator::Del()
     {
         if (NULL != m_iter)
         {
             rocksdb::WriteOptions opt;
-            m_engine->m_db->Delete(opt, m_cf, m_iter->iter->key());
+            m_engine->m_db->Delete(opt, m_cf, m_rocks_iter->key());
         }
 
     }

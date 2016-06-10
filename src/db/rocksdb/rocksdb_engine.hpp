@@ -60,23 +60,21 @@ OP_NAMESPACE_BEGIN
             RocksDBEngine* m_engine;
             rocksdb::ColumnFamilyHandle* m_cf;
             RocksIterData* m_iter;
+            rocksdb::Iterator* m_rocks_iter;
             KeyObject m_iterate_upper_bound_key;
             bool m_valid;
             void ClearState();
             void CheckBound();
         public:
             RocksDBIterator(RocksDBEngine* engine, rocksdb::ColumnFamilyHandle* cf, const Data& ns) :
-                    m_ns(ns), m_engine(engine), m_cf(cf), m_iter(NULL), m_valid(true)
+                    m_ns(ns), m_engine(engine), m_cf(cf), m_iter(NULL), m_rocks_iter(NULL),m_valid(true)
             {
             }
             void MarkValid(bool valid)
             {
                 m_valid = valid;
             }
-            void SetIterator(RocksIterData* iter)
-            {
-                m_iter = iter;
-            }
+            void SetIterator(RocksIterData* iter);
             KeyObject& IterateUpperBoundKey()
             {
                 return m_iterate_upper_bound_key;
