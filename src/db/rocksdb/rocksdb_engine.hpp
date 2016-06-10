@@ -49,6 +49,7 @@
 
 OP_NAMESPACE_BEGIN
 
+    class RocksIterData;
     class RocksDBEngine;
     class RocksDBIterator: public Iterator
     {
@@ -58,21 +59,21 @@ OP_NAMESPACE_BEGIN
             ValueObject m_value;
             RocksDBEngine* m_engine;
             rocksdb::ColumnFamilyHandle* m_cf;
-            rocksdb::Iterator* m_iter;
+            RocksIterData* m_iter;
             KeyObject m_iterate_upper_bound_key;
             bool m_valid;
             void ClearState();
             void CheckBound();
         public:
             RocksDBIterator(RocksDBEngine* engine, rocksdb::ColumnFamilyHandle* cf, const Data& ns) :
-                    m_ns(ns), m_engine(engine),m_cf(cf), m_iter(NULL), m_valid(true)
+                    m_ns(ns), m_engine(engine), m_cf(cf), m_iter(NULL), m_valid(true)
             {
             }
             void MarkValid(bool valid)
             {
                 m_valid = valid;
             }
-            void SetIterator(rocksdb::Iterator* iter)
+            void SetIterator(RocksIterData* iter)
             {
                 m_iter = iter;
             }
@@ -110,9 +111,7 @@ OP_NAMESPACE_BEGIN
             ThreadMutex m_backup_lock;
 
             ColumnFamilyHandlePtr GetColumnFamilyHandle(Context& ctx, const Data& name, bool create_if_noexist);
-            const rocksdb::Snapshot* GetSnpashot();
 
-            void ReleaseSnpashot();
             Data GetNamespaceByColumnFamilyId(uint32 id);
             int ReOpen(rocksdb::Options& options);
             void Close();
@@ -154,6 +153,7 @@ OP_NAMESPACE_BEGIN
                 features.support_backup = 1;
                 return features;
             }
+            int Routine();
     };
 
 OP_NAMESPACE_END

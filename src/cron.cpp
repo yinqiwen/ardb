@@ -71,6 +71,11 @@ OP_NAMESPACE_BEGIN
             {
                 Statistics::GetSingleton().TrackQPSPerSecond();
                 period_dump_statistics();
+
+                /*
+                 * just let storage engine routine every 1s to do sth.
+                 */
+                g_engine->Routine();
             }
     };
 

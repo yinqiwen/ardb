@@ -70,7 +70,7 @@ OP_NAMESPACE_BEGIN
             unsigned support_merge :1;
             unsigned support_backup :1;
             FeatureSet() :
-                    support_namespace(0), support_compactfilter(0), support_merge(0),support_backup(0)
+                    support_namespace(0), support_compactfilter(0), support_merge(0), support_backup(0)
             {
             }
     };
@@ -136,6 +136,11 @@ OP_NAMESPACE_BEGIN
             virtual const std::string GetErrorReason(int err) = 0;
 
             virtual const FeatureSet GetFeatureSet() = 0;
+
+            virtual int Routine()
+            {
+                return ERR_NOTSUPPORTED;
+            }
 
             virtual ~Engine()
             {

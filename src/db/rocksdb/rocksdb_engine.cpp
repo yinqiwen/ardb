@@ -33,6 +33,7 @@
 #include "rocksdb/utilities/memory_util.h"
 #include "rocksdb/table.h"
 #include "thread/lock_guard.hpp"
+#include "thread/spin_mutex_lock.hpp"
 #include "db/db.hpp"
 
 OP_NAMESPACE_BEGIN
@@ -45,6 +46,8 @@ OP_NAMESPACE_BEGIN
     {
         return Slice(slice.data(), slice.size());
     }
+
+    static rocksdb::DB* g_rocksdb = NULL;
 
     class RocksWriteBatch
     {
@@ -89,13 +92,111 @@ OP_NAMESPACE_BEGIN
                 ref = 0;
             }
     };
-    struct RocksSnapshot
+
+    struct RocksIterData
     {
-            const rocksdb::Snapshot* snapshot;
-            uint32_t ref;
-            RocksSnapshot() :
-                    snapshot(NULL), ref(0)
+            Data ns;
+            rocksdb::Iterator* iter;
+            rocksdb::SequenceNumber dbseq;
+            time_t create_time;
+            bool iter_total_order_seek;
+            bool iter_prefix_same_as_start;
+            RocksIterData() :
+                    iter(NULL), dbseq(0), create_time(0), iter_total_order_seek(false), iter_prefix_same_as_start(false)
             {
+            }
+            bool EqaulOptions(const rocksdb::ReadOptions& a)
+            {
+                return a.total_order_seek == iter_total_order_seek && a.prefix_same_as_start == iter_prefix_same_as_start;
+            }
+            ~RocksIterData()
+            {
+                DELETE(iter);
+            }
+    };
+
+    struct RocksIteratorCache
+    {
+            SpinMutexLock cache_lock;
+            typedef std::list<RocksIterData*> CacheList;
+            CacheList cache;
+            size_t cache_size;
+            size_t max_cache_size;
+            RocksIteratorCache() :
+                    cache_size(0), max_cache_size(10)
+            {
+
+            }
+            void Init()
+            {
+                max_cache_size = g_db->GetConf().thread_pool_size + 10;
+            }
+            RocksIterData* Get(const Data& ns, const rocksdb::ReadOptions& options)
+            {
+                LockGuard<SpinMutexLock> guard(cache_lock);
+                CacheList::iterator it = cache.begin();
+                while (it != cache.end())
+                {
+                    RocksIterData* cursor = *it;
+                    if (cursor->dbseq < g_rocksdb->GetLatestSequenceNumber())
+                    {
+                        it = cache.erase(it);
+                        DELETE(cursor);
+                        cache_size--;
+                        continue;
+                    }
+                    if (cursor->ns == ns && cursor->EqaulOptions(options))
+                    {
+                        RocksIterData* iter = cursor;
+                        cache.erase(it);
+                        cache_size--;
+                        return iter;
+                    }
+                    it++;
+                }
+                return NULL;
+            }
+            void Recycle(RocksIterData* it)
+            {
+                if (cache_size >= max_cache_size || it->dbseq < g_rocksdb->GetLatestSequenceNumber())
+                {
+                    DELETE(it);
+                    return;
+                }
+                LockGuard<SpinMutexLock> guard(cache_lock);
+                cache.push_back(it);
+                cache_size++;
+            }
+            void Routine()
+            {
+                time_t now = time(NULL);
+                LockGuard<SpinMutexLock> guard(cache_lock);
+                CacheList::iterator it = cache.begin();
+                while (it != cache.end())
+                {
+                    RocksIterData* cursor = *it;
+                    if (cursor->dbseq < g_rocksdb->GetLatestSequenceNumber() || cursor->create_time < (now - 10))
+                    {
+                        it = cache.erase(it);
+                        DELETE(cursor);
+                        cache_size--;
+                        continue;
+                    }
+                    it++;
+                }
+            }
+            void Clear()
+            {
+                LockGuard<SpinMutexLock> guard(cache_lock);
+                CacheList::iterator it = cache.begin();
+                while (it != cache.end())
+                {
+                    RocksIterData* cursor = *it;
+                    DELETE(cursor);
+                    it++;
+                }
+                cache.clear();
+                cache_size = 0;
             }
     };
 
@@ -103,16 +204,11 @@ OP_NAMESPACE_BEGIN
     struct RocksDBLocalContext
     {
             RocksWriteBatch transc;
-            RocksSnapshot snapshot;
             Buffer encode_buffer_cache;
             std::string string_cache;
             std::vector<std::string> multi_string_cache;
             typedef TreeMap<int, rocksdb::Status>::Type ErrMap;
             ErrMap err_map;
-            const rocksdb::Snapshot* PeekSnapshot() const
-            {
-                return snapshot.snapshot;
-            }
             Buffer& GetEncodeBuferCache()
             {
                 encode_buffer_cache.Clear();
@@ -138,6 +234,7 @@ OP_NAMESPACE_BEGIN
     };
 
     static ThreadLocal<RocksDBLocalContext> g_rocks_context;
+    static RocksIteratorCache g_iter_cache;
 
     static inline int rocksdb_err(const rocksdb::Status& s)
     {
@@ -415,7 +512,7 @@ OP_NAMESPACE_BEGIN
             }
             std::unique_ptr<rocksdb::CompactionFilter> CreateCompactionFilter(const rocksdb::CompactionFilter::Context& context)
             {
-                return std::unique_ptr < rocksdb::CompactionFilter > (new RocksDBCompactionFilter(engine, context));
+                return std::unique_ptr<rocksdb::CompactionFilter>(new RocksDBCompactionFilter(engine, context));
             }
 
             const char* Name() const
@@ -451,8 +548,7 @@ OP_NAMESPACE_BEGIN
             // internal corruption. This will be treated as an error by the library.
             //
             // Also make use of the *logger for error messages.
-            bool FullMerge(const rocksdb::Slice& key, const rocksdb::Slice* existing_value, const std::deque<std::string>& operand_list, std::string* new_value,
-                    rocksdb::Logger* logger) const
+            bool FullMerge(const rocksdb::Slice& key, const rocksdb::Slice* existing_value, const std::deque<std::string>& operand_list, std::string* new_value, rocksdb::Logger* logger) const
             {
 
                 KeyObject key_obj;
@@ -536,8 +632,7 @@ OP_NAMESPACE_BEGIN
             // If there is corruption in the data, handle it in the FullMerge() function,
             // and return false there.  The default implementation of PartialMerge will
             // always return false.
-            bool PartialMergeMulti(const rocksdb::Slice& key, const std::deque<rocksdb::Slice>& operand_list, std::string* new_value,
-                    rocksdb::Logger* logger) const
+            bool PartialMergeMulti(const rocksdb::Slice& key, const std::deque<rocksdb::Slice>& operand_list, std::string* new_value, rocksdb::Logger* logger) const
             {
                 if (operand_list.size() < 2)
                 {
@@ -559,9 +654,7 @@ OP_NAMESPACE_BEGIN
                         WARN_LOG("Invalid merge op at:%u", i);
                         return false;
                     }
-                    if (0
-                            != g_db->MergeOperands(ops[left_pos].GetMergeOp(), ops[left_pos].GetMergeArgs(), ops[1 - left_pos].GetMergeOp(),
-                                    ops[1 - left_pos].GetMergeArgs()))
+                    if (0 != g_db->MergeOperands(ops[left_pos].GetMergeOp(), ops[left_pos].GetMergeArgs(), ops[1 - left_pos].GetMergeOp(), ops[1 - left_pos].GetMergeArgs()))
                     {
                         return false;
                     }
@@ -595,8 +688,7 @@ OP_NAMESPACE_BEGIN
             // multiple times, where each time it only merges two operands.  Developers
             // should either implement PartialMergeMulti, or implement PartialMerge which
             // is served as the helper function of the default PartialMergeMulti.
-            bool PartialMerge(const rocksdb::Slice& key, const rocksdb::Slice& left_operand, const rocksdb::Slice& right_operand, std::string* new_value,
-                    rocksdb::Logger* logger) const
+            bool PartialMerge(const rocksdb::Slice& key, const rocksdb::Slice& left_operand, const rocksdb::Slice& right_operand, std::string* new_value, rocksdb::Logger* logger) const
             {
                 ValueObject left_op, right_op;
                 Buffer left_mergeBuffer(const_cast<char*>(left_operand.data()), 0, left_operand.size());
@@ -667,6 +759,7 @@ OP_NAMESPACE_BEGIN
 
     void RocksDBEngine::Close()
     {
+        g_iter_cache.Clear();
         RWLockGuard<SpinRWLock> guard(m_lock, true);
         m_handlers.clear(); //handlers MUST be deleted before m_db
         DELETE(m_db);
@@ -682,7 +775,7 @@ OP_NAMESPACE_BEGIN
         {
 
             s = backup_engine->CreateNewBackup(m_db, true);
-            if(s.ok())
+            if (s.ok())
             {
                 backup_engine->PurgeOldBackups(1);
             }
@@ -754,11 +847,14 @@ OP_NAMESPACE_BEGIN
             ERROR_LOG("Failed to open db:%s by reason:%s", m_dbdir.c_str(), s.ToString().c_str());
             return -1;
         }
+        g_rocksdb = m_db;
         return 0;
     }
 
     int RocksDBEngine::Init(const std::string& dir, const std::string& conf)
     {
+        g_iter_cache.Init();
+
         static RocksDBComparator comparator;
         m_options.comparator = &comparator;
         m_options.merge_operator.reset(new MergeOperator(this));
@@ -786,6 +882,12 @@ OP_NAMESPACE_BEGIN
         m_options.stats_dump_period_sec = (unsigned int) g_db->GetConf().statistics_log_period;
         m_dbdir = dir;
         return ReOpen(m_options);
+    }
+
+    int RocksDBEngine::Routine()
+    {
+        g_iter_cache.Routine();
+        return 0;
     }
 
     int RocksDBEngine::Repair(const std::string& dir)
@@ -912,7 +1014,7 @@ OP_NAMESPACE_BEGIN
         }
 
         rocksdb::ReadOptions opt;
-        opt.snapshot = rocks_ctx.PeekSnapshot();
+        //opt.snapshot = rocks_ctx.PeekSnapshot();
         std::vector<rocksdb::Status> ss = m_db->MultiGet(opt, cfs, ks, &vs);
 
         for (size_t i = 0; i < ss.size(); i++)
@@ -936,7 +1038,7 @@ OP_NAMESPACE_BEGIN
         }
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         rocksdb::ReadOptions opt;
-        opt.snapshot = rocks_ctx.PeekSnapshot();
+        //opt.snapshot = rocks_ctx.PeekSnapshot();
         std::string& valstr = rocks_ctx.GetStringCache();
         Buffer& key_encode_buffer = rocks_ctx.GetEncodeBuferCache();
         rocksdb::Slice key_slice = to_rocksdb_slice(key.Encode(key_encode_buffer));
@@ -1016,7 +1118,7 @@ OP_NAMESPACE_BEGIN
         }
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         rocksdb::ReadOptions opt;
-        opt.snapshot = rocks_ctx.PeekSnapshot();
+        //opt.snapshot = rocks_ctx.PeekSnapshot();
         Buffer& key_encode_buffer = rocks_ctx.GetEncodeBuferCache();
         std::string& tmp = rocks_ctx.GetStringCache();
         rocksdb::Slice k = to_rocksdb_slice(key.Encode(key_encode_buffer));
@@ -1032,38 +1134,10 @@ OP_NAMESPACE_BEGIN
         return m_db->Get(opt, cf, k, &tmp).ok();
     }
 
-    const rocksdb::Snapshot* RocksDBEngine::GetSnpashot()
-    {
-        RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
-        RocksSnapshot& snapshot = rocks_ctx.snapshot;
-        snapshot.ref++;
-        if (snapshot.snapshot == NULL)
-        {
-            snapshot.snapshot = m_db->GetSnapshot();
-        }
-        return snapshot.snapshot;
-    }
-    void RocksDBEngine::ReleaseSnpashot()
-    {
-        RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
-        RocksSnapshot& snapshot = rocks_ctx.snapshot;
-        if (snapshot.snapshot == NULL)
-        {
-            return;
-        }
-        snapshot.ref--;
-        if (snapshot.ref <= 0)
-        {
-            m_db->ReleaseSnapshot(snapshot.snapshot);
-            snapshot.snapshot = NULL;
-            snapshot.ref = 0;
-        }
-    }
-
     Iterator* RocksDBEngine::Find(Context& ctx, const KeyObject& key)
     {
         rocksdb::ReadOptions opt;
-        opt.snapshot = GetSnpashot();
+        //opt.snapshot = GetSnpashot();
         RocksDBIterator* iter = NULL;
         ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, key.GetNameSpace(), false);
         rocksdb::ColumnFamilyHandle* cf = cfp.get();
@@ -1073,7 +1147,7 @@ OP_NAMESPACE_BEGIN
             iter->MarkValid(false);
             return iter;
         }
-
+        RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         if (key.GetType() > 0)
         {
             if (!ctx.flags.iterate_multi_keys)
@@ -1104,7 +1178,18 @@ OP_NAMESPACE_BEGIN
         {
             opt.total_order_seek = true;
         }
-        rocksdb::Iterator* rocksiter = m_db->NewIterator(opt, cf);
+        RocksIterData* rocksiter = g_iter_cache.Get(key.GetNameSpace(), opt);
+        if (NULL == rocksiter)
+        {
+            NEW(rocksiter, RocksIterData);
+            rocksiter->iter = m_db->NewIterator(opt, cf);
+            rocksiter->dbseq = m_db->GetLatestSequenceNumber();
+            rocksiter->create_time = time(NULL);
+            rocksiter->iter_prefix_same_as_start = opt.prefix_same_as_start;
+            rocksiter->iter_total_order_seek = opt.total_order_seek;
+            rocksiter->ns.Clone(key.GetNameSpace());
+            rocksiter->ns.ToMutableStr();
+        }
         iter->SetIterator(rocksiter);
         if (key.GetType() > 0)
         {
@@ -1112,7 +1197,7 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-            rocksiter->SeekToFirst();
+            iter->JumpToFirst();
         }
         return iter;
     }
@@ -1244,9 +1329,9 @@ OP_NAMESPACE_BEGIN
     void RocksDBEngine::Stats(Context& ctx, std::string& all)
     {
         std::string str, version_info;
-        version_info.append("rocksdb_version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(stringfromll(rocksdb::kMinorVersion)).append(
-                ".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
+        version_info.append("rocksdb_version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(stringfromll(rocksdb::kMinorVersion)).append(".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
         all.append(version_info);
+        all.append("rocksdb_iterator_cache:").append(stringfromll(g_iter_cache.cache_size)).append("\r\n");
         std::map<rocksdb::MemoryUtil::UsageType, uint64_t> usage_by_type;
         std::unordered_set<const rocksdb::Cache*> cache_set;
         std::vector<rocksdb::DB*> dbs(1, m_db);
@@ -1302,7 +1387,7 @@ OP_NAMESPACE_BEGIN
 
     bool RocksDBIterator::Valid()
     {
-        return m_valid && NULL != m_iter && m_iter->Valid();
+        return m_valid && NULL != m_iter && m_iter->iter->Valid();
     }
     void RocksDBIterator::ClearState()
     {
@@ -1314,7 +1399,7 @@ OP_NAMESPACE_BEGIN
     {
         if (NULL != m_iter && m_iterate_upper_bound_key.GetType() > 0)
         {
-            if (m_iter->Valid())
+            if (m_iter->iter->Valid())
             {
                 if (Key(false).Compare(m_iterate_upper_bound_key) >= 0)
                 {
@@ -1330,7 +1415,7 @@ OP_NAMESPACE_BEGIN
         {
             return;
         }
-        m_iter->Next();
+        m_iter->iter->Next();
         CheckBound();
     }
     void RocksDBIterator::Prev()
@@ -1340,7 +1425,7 @@ OP_NAMESPACE_BEGIN
         {
             return;
         }
-        m_iter->Prev();
+        m_iter->iter->Prev();
     }
     void RocksDBIterator::Jump(const KeyObject& next)
     {
@@ -1351,7 +1436,7 @@ OP_NAMESPACE_BEGIN
         }
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         Slice key_slice = next.Encode(rocks_ctx.GetEncodeBuferCache(), false);
-        m_iter->Seek(to_rocksdb_slice(key_slice));
+        m_iter->iter->Seek(to_rocksdb_slice(key_slice));
         CheckBound();
     }
     void RocksDBIterator::JumpToFirst()
@@ -1361,7 +1446,7 @@ OP_NAMESPACE_BEGIN
         {
             return;
         }
-        m_iter->SeekToFirst();
+        m_iter->iter->SeekToFirst();
     }
     void RocksDBIterator::JumpToLast()
     {
@@ -1373,11 +1458,11 @@ OP_NAMESPACE_BEGIN
         if (m_iterate_upper_bound_key.GetType() > 0)
         {
             Jump(m_iterate_upper_bound_key);
-            if (!m_iter->Valid())
+            if (!m_iter->iter->Valid())
             {
-                m_iter->SeekToLast();
+                m_iter->iter->SeekToLast();
             }
-            if (m_iter->Valid())
+            if (m_iter->iter->Valid())
             {
                 if (!Valid())
                 {
@@ -1387,7 +1472,7 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-            m_iter->SeekToLast();
+            m_iter->iter->SeekToLast();
         }
     }
 
@@ -1401,7 +1486,7 @@ OP_NAMESPACE_BEGIN
             }
             return m_key;
         }
-        rocksdb::Slice key = m_iter->key();
+        rocksdb::Slice key = m_iter->iter->key();
         Buffer kbuf(const_cast<char*>(key.data()), 0, key.size());
         m_key.Decode(kbuf, clone_str);
         m_key.SetNameSpace(m_ns);
@@ -1413,32 +1498,31 @@ OP_NAMESPACE_BEGIN
         {
             return m_value;
         }
-        rocksdb::Slice key = m_iter->value();
+        rocksdb::Slice key = m_iter->iter->value();
         Buffer kbuf(const_cast<char*>(key.data()), 0, key.size());
         m_value.Decode(kbuf, clone_str);
         return m_value;
     }
     Slice RocksDBIterator::RawKey()
     {
-        return to_ardb_slice(m_iter->key());
+        return to_ardb_slice(m_iter->iter->key());
     }
     Slice RocksDBIterator::RawValue()
     {
-        return to_ardb_slice(m_iter->value());
+        return to_ardb_slice(m_iter->iter->value());
     }
     void RocksDBIterator::Del()
     {
         if (NULL != m_iter)
         {
             rocksdb::WriteOptions opt;
-            m_engine->m_db->Delete(opt, m_cf, m_iter->key());
+            m_engine->m_db->Delete(opt, m_cf, m_iter->iter->key());
         }
 
     }
     RocksDBIterator::~RocksDBIterator()
     {
-        DELETE(m_iter);
-        m_engine->ReleaseSnpashot();
+        g_iter_cache.Recycle(m_iter);
     }
 OP_NAMESPACE_END
 
