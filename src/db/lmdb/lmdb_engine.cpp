@@ -392,6 +392,7 @@ namespace ardb
                 mdb_close(m_env, it->second);
                 it++;
             }
+            mdb_close(m_env, m_meta_dbi);
             mdb_env_close(m_env);
             m_env = NULL;
         }

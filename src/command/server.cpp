@@ -56,14 +56,14 @@ namespace ardb
     {
         RedisReply& reply = ctx.GetReply();
         SnapshotType type = REDIS_DUMP;
-        if(cmd.GetArguments().size() == 1)
+        if (cmd.GetArguments().size() == 1)
         {
-             type = Snapshot::GetSnapshotTypeByName(cmd.GetArguments()[0]);
-             if(type == -1)
-             {
-                 reply.SetErrCode(ERR_INVALID_ARGS);
-                 return 0;
-             }
+            type = Snapshot::GetSnapshotTypeByName(cmd.GetArguments()[0]);
+            if (type == -1)
+            {
+                reply.SetErrCode(ERR_INVALID_ARGS);
+                return 0;
+            }
         }
         ChannelService* io_serv = NULL;
         uint32 conn_id = 0;
@@ -103,14 +103,14 @@ namespace ardb
     {
         RedisReply& reply = ctx.GetReply();
         SnapshotType type = REDIS_DUMP;
-        if(cmd.GetArguments().size() == 1)
+        if (cmd.GetArguments().size() == 1)
         {
-             type = Snapshot::GetSnapshotTypeByName(cmd.GetArguments()[0]);
-             if(type == -1)
-             {
-                 reply.SetErrCode(ERR_INVALID_ARGS);
-                 return 0;
-             }
+            type = Snapshot::GetSnapshotTypeByName(cmd.GetArguments()[0]);
+            if (type == -1)
+            {
+                reply.SetErrCode(ERR_INVALID_ARGS);
+                return 0;
+            }
         }
         Snapshot* snapshot = g_snapshot_manager->NewSnapshot(type, true, NULL, NULL);
         if (NULL != snapshot)
@@ -145,7 +145,7 @@ namespace ardb
         /*
          * wait until only 'import' be processing
          */
-        while(m_db_caller_num != 1)
+        while (m_db_caller_num != 1)
         {
             usleep(10);
         }
@@ -305,8 +305,7 @@ namespace ardb
                     info.append("master_link_status:").append(g_repl->GetSlave().IsConnected() ? "up" : "down").append("\r\n");
                     if (g_repl->GetSlave().IsConnected())
                     {
-                        info.append("master_last_io_seconds_ago:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLastinteractionTime())).append(
-                                "\r\n");
+                        info.append("master_last_io_seconds_ago:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLastinteractionTime())).append("\r\n");
                     }
                     else
                     {
@@ -317,8 +316,7 @@ namespace ardb
                     if (g_repl->GetSlave().IsSyncing())
                     {
                         info.append("master_sync_left_bytes:").append(stringfromll(g_repl->GetSlave().SyncLeftBytes())).append("\r\n");
-                        info.append("master_sync_last_io_seconds_ago:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLastinteractionTime())).append(
-                                "\r\n");
+                        info.append("master_sync_last_io_seconds_ago:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLastinteractionTime())).append("\r\n");
                     }
                     if (g_repl->GetSlave().IsLoading())
                     {
@@ -328,8 +326,7 @@ namespace ardb
                     info.append("slave_sync_queue_size:").append(stringfromll(g_repl->GetSlave().SyncQueueSize())).append("\r\n");
                     if (!g_repl->GetSlave().IsConnected())
                     {
-                        info.append("master_link_down_since_seconds:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLinkDownTime())).append(
-                                "\r\n");
+                        info.append("master_link_down_since_seconds:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLinkDownTime())).append("\r\n");
                     }
                     info.append("slave_priority:").append(stringfromll(GetConf().slave_priority)).append("\r\n");
                     info.append("slave_read_only:").append(GetConf().slave_readonly ? "1" : "0").append("\r\n");
@@ -348,8 +345,7 @@ namespace ardb
                 info.append("repl_backlog_size: ").append(stringfromll(GetConf().repl_backlog_size)).append("\r\n");
                 info.append("repl_backlog_cache_size: ").append(stringfromll(GetConf().repl_backlog_cache_size)).append("\r\n");
                 info.append("repl_backlog_first_byte_offset: ").append(stringfromll(g_repl->GetReplLog().WALStartOffset())).append("\r\n");
-                info.append("repl_backlog_histlen: ").append(stringfromll(g_repl->GetReplLog().WALEndOffset() - g_repl->GetReplLog().WALStartOffset() + 1)).append(
-                        "\r\n");
+                info.append("repl_backlog_histlen: ").append(stringfromll(g_repl->GetReplLog().WALEndOffset() - g_repl->GetReplLog().WALStartOffset() + 1)).append("\r\n");
                 info.append("repl_backlog_cksm: ").append(base16_stringfromllu(g_repl->GetReplLog().WALCksm())).append("\r\n");
             }
             else
@@ -401,8 +397,7 @@ namespace ardb
                     {
                         continue;
                     }
-                    info.append("db").append(nss[i].AsString()).append(":").append("keys=").append(stringfromll(m_engine->EstimateKeysNum(ctx, nss[i]))).append(
-                            "\r\n");
+                    info.append("db").append(nss[i].AsString()).append(":").append("keys=").append(stringfromll(m_engine->EstimateKeysNum(ctx, nss[i]))).append("\r\n");
                 }
                 info.append("\r\n");
             }
@@ -417,9 +412,8 @@ namespace ardb
                 RedisCommandHandlerSetting& setting = cit->second;
                 if (setting.calls > 0)
                 {
-                    info.append("cmdstat_").append(setting.name).append(":").append("calls=").append(stringfromll(setting.calls)).append(",usec=").append(
-                            stringfromll(setting.microseconds)).append(",usecpercall=").append(stringfromll(setting.microseconds / setting.calls)).append(
-                            "\r\n");
+                    info.append("cmdstat_").append(setting.name).append(":").append("calls=").append(stringfromll(setting.calls)).append(",usec=").append(stringfromll(setting.microseconds)).append(",usecpercall=").append(
+                            stringfromll(setting.microseconds / setting.calls)).append("\r\n");
                 }
 
                 cit++;
@@ -538,10 +532,99 @@ namespace ardb
         }
         else if (subcmd == "kill")
         {
-            if (cmd.GetArguments().size() != 2)
+            if (cmd.GetArguments().size() < 2)
             {
                 reply.SetErrorReason("Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name | PAUSE timeout)");
                 return 0;
+            }
+
+            std::string kill_addr;
+            std::string kill_pattern;
+            bool kill_slaves = false;
+            bool kill_master = false;
+            bool kill_pubsub = false;
+            bool kill_normal = false;
+            bool skipme = true;
+            if (cmd.GetArguments().size() == 2)
+            {
+                kill_addr = cmd.GetArguments()[1];
+            }
+            else
+            {
+                if ((cmd.GetArguments().size() - 1) % 2 != 0)
+                {
+                    reply.SetErrCode(ERR_INVALID_SYNTAX);
+                    return 0;
+                }
+                for (size_t i = 1; i < cmd.GetArguments().size(); i += 2)
+                {
+                    if (!strcasecmp(cmd.GetArguments()[i].c_str(), "addr"))
+                    {
+                        kill_addr = cmd.GetArguments()[i + 1];
+                    }
+                    else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "type"))
+                    {
+                        const std::string& typestr = cmd.GetArguments()[i + 1];
+                        if (!strcasecmp(typestr.c_str(), "slave"))
+                        {
+                            kill_slaves = true;
+                        }
+                        else if (!strcasecmp(typestr.c_str(), "master"))
+                        {
+                            kill_master = true;
+                        }
+                        else if (!strcasecmp(typestr.c_str(), "pubsub"))
+                        {
+                            kill_pubsub = true;
+                        }
+                        else if (!strcasecmp(typestr.c_str(), "normal"))
+                        {
+                            kill_normal = true;
+                        }
+                        else
+                        {
+                            reply.SetErrorReason("Unknown client type '" + typestr + "'");
+                            return 0;
+                        }
+                    }
+                    else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "SKIPME"))
+                    {
+                        if (!strcasecmp(cmd.GetArguments()[i+1].c_str(), "yes"))
+                        {
+                            skipme = true;
+                        }
+                        else if (!strcasecmp(cmd.GetArguments()[i+1].c_str(), "no"))
+                        {
+                            skipme = false;
+                        }
+                        else
+                        {
+                            reply.SetErrCode(ERR_INVALID_SYNTAX);
+                            return 0;
+                        }
+                    }
+                    else
+                    {
+                        reply.SetErrCode(ERR_INVALID_SYNTAX);
+                        return 0;
+                    }
+                }
+            }
+            if(!kill_addr.empty())
+            {
+                if(is_pattern_string(kill_addr))
+                {
+                    kill_pattern = kill_addr;
+                    kill_addr.clear();
+                }
+            }
+            if (kill_slaves)
+            {
+                g_repl->GetMaster().DisconnectAllSlaves();
+            }
+            if (kill_master)
+            {
+                g_repl->GetSlave().Close();
             }
             LockGuard<SpinMutexLock> guard(m_clients_lock);
             ContextSet::iterator it = m_all_clients.begin();
@@ -549,10 +632,44 @@ namespace ardb
             {
                 Context* client = *it;
                 SocketChannel* conn = (SocketChannel*) (client->client->client);
-                if (conn->GetRemoteStringAddress() == cmd.GetArguments()[1])
+                bool to_kill = false;
+
+                if (kill_normal)
                 {
-                    conn->GetService().AsyncIO(conn->GetID(), channel_close_callback, NULL);
-                    break;
+                    to_kill = (!client->flags.lua) && (!client->flags.pubsub);
+                }
+                if (!to_kill && kill_pubsub)
+                {
+                    to_kill = client->flags.pubsub;
+                }
+
+                if (!to_kill)
+                {
+                    std::string conn_addr = conn->GetRemoteStringAddress();
+                    if (conn_addr == kill_addr)
+                    {
+                        to_kill = true;
+                    }else if(!kill_pattern.empty())
+                    {
+                        to_kill = stringmatchlen(kill_pattern.c_str(),kill_pattern.size(), conn_addr.c_str(), conn_addr.size(), 0);
+                    }
+                }
+                if (to_kill)
+                {
+                    /*
+                     * do not kill current connection if 'skipme = true'
+                     */
+                    if (!skipme || (NULL != ctx.client && ctx.client->client != conn))
+                    {
+                        conn->GetService().AsyncIO(conn->GetID(), channel_close_callback, NULL);
+                    }
+                    /*
+                     * only one connection has same address with kill args
+                     */
+                    if(!kill_addr.empty())
+                    {
+                        break;
+                    }
                 }
                 it++;
             }
@@ -927,6 +1044,10 @@ namespace ardb
         {
             NEW(m_monitors, ContextSet);
         }
+        /*
+         * monitor client set as slave
+         */
+        ctx.flags.slave = 1;
         if (!m_monitors->insert(&ctx).second)
         {
             reply.type = 0;
@@ -949,7 +1070,7 @@ namespace ardb
 
     static size_t debug_replay_wal(const void* log, size_t loglen, void* data)
     {
-        DebugReplayContext* ctx = (DebugReplayContext*)data;
+        DebugReplayContext* ctx = (DebugReplayContext*) data;
         Buffer logbuf((char*) log, 0, loglen);
         Context debug_ctx;
         debug_ctx.flags.no_wal = 1;
@@ -967,7 +1088,7 @@ namespace ardb
                 ctx->offset += msg.GetRawProtocolData().ReadableBytes();
                 g_db->Call(debug_ctx, msg);
                 RedisReply& r = debug_ctx.GetReply();
-                if(r.IsErr())
+                if (r.IsErr())
                 {
                     WARN_LOG("Debug replay error:%s", r.Error().c_str());
                 }
@@ -979,7 +1100,7 @@ namespace ardb
                 break;
             }
         }
-        return loglen- logbuf.ReadableBytes();
+        return loglen - logbuf.ReadableBytes();
     }
 
     int Ardb::Debug(Context& ctx, RedisCommandFrame& cmd)
@@ -1022,8 +1143,7 @@ namespace ardb
             {
                 if (replay_ctx.offset < g_repl->GetReplLog().WALStartOffset() || replay_ctx.offset > g_repl->GetReplLog().WALEndOffset())
                 {
-                    ERROR_LOG("Failed to replay wal with sync_offset:%lld, wal_start_offset:%llu, wal_end_offset:%lld", replay_ctx.offset,
-                            g_repl->GetReplLog().WALStartOffset(), g_repl->GetReplLog().WALEndOffset());
+                    ERROR_LOG("Failed to replay wal with sync_offset:%lld, wal_start_offset:%llu, wal_end_offset:%lld", replay_ctx.offset, g_repl->GetReplLog().WALStartOffset(), g_repl->GetReplLog().WALEndOffset());
                     break;
                 }
 
@@ -1032,15 +1152,15 @@ namespace ardb
                 int64_t after_replayed_bytes = replay_ctx.offset - replay_init_offset;
                 if (after_replayed_bytes / replay_process_events_interval_bytes > before_replayed_bytes / replay_process_events_interval_bytes)
                 {
-                    INFO_LOG("%lld bytes replayed from wal log, %llu bytes left.", after_replayed_bytes,
-                            g_repl->GetReplLog().WALEndOffset() - replay_ctx.offset);
+                    INFO_LOG("%lld bytes replayed from wal log, %llu bytes left.", after_replayed_bytes, g_repl->GetReplLog().WALEndOffset() - replay_ctx.offset);
                 }
                 if (replay_ctx.offset == g_repl->GetReplLog().WALEndOffset())
                 {
                     break;
                 }
             }
-        }else if (!strcasecmp(cmd.GetArguments()[0].c_str(), "dwc"))
+        }
+        else if (!strcasecmp(cmd.GetArguments()[0].c_str(), "dwc"))
         {
             /*
              * dump wal cache

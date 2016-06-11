@@ -173,7 +173,7 @@ OP_NAMESPACE_BEGIN
         { "slowlog", REDIS_CMD_SLOWLOG, &Ardb::SlowLog, 1, 2, "r", 0, 0, 0 },
         { "dbsize", REDIS_CMD_DBSIZE, &Ardb::DBSize, 0, 0, "r", 0, 0, 0 },
         { "config", REDIS_CMD_CONFIG, &Ardb::Config, 1, 3, "ar", 0, 0, 0 },
-        { "client", REDIS_CMD_CLIENT, &Ardb::Client, 1, 3, "ar", 0, 0, 0 },
+        { "client", REDIS_CMD_CLIENT, &Ardb::Client, 1, -1, "ar", 0, 0, 0 },
         { "flushdb", REDIS_CMD_FLUSHDB, &Ardb::FlushDB, 0, 0, "w", 0, 0, 0 },
         { "flushall", REDIS_CMD_FLUSHALL, &Ardb::FlushAll, 0, 0, "w", 0, 0, 0 },
         { "compactdb", REDIS_CMD_COMPACTDB, &Ardb::CompactDB, 0, 0, "ar", 0, 0, 0 },

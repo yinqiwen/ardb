@@ -48,6 +48,10 @@ OP_NAMESPACE_BEGIN
             unsigned iterate_multi_keys :1;
             unsigned iterate_no_upperbound :1;
             unsigned iterate_total_order :1;  //if iterator need invoke JumpToLast/Prev later, this flag should be set to 1
+
+            /*
+             * caller type
+             */
             unsigned slave :1;
             unsigned lua :1;
             unsigned pubsub :1;
@@ -206,7 +210,10 @@ OP_NAMESPACE_BEGIN
             }
             void ClearFlags()
             {
-                memset(&flags, 0, sizeof(flags));
+                /*
+                 * The first 8bit are caller flags which need to be clear
+                 */
+                ((char*)(&flags))[0] = 0;
             }
             void ClearState()
             {

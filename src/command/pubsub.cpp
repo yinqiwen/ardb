@@ -53,7 +53,7 @@ namespace ardb
             }
 
         }
-
+        ctx.flags.pubsub = 1;
         RedisReply r;
         RedisReply& r1 = r.AddMember();
         RedisReply& r2 = r.AddMember();
@@ -173,6 +173,7 @@ namespace ardb
         if (ctx.SubscriptionsCount() == 0)
         {
             ctx.ClearPubsub();
+            ctx.flags.pubsub = 0;
         }
         return 0;
     }
@@ -204,6 +205,7 @@ namespace ardb
         if (ctx.SubscriptionsCount() == 0)
         {
             ctx.ClearPubsub();
+            ctx.flags.pubsub = 0;
         }
         return 0;
     }

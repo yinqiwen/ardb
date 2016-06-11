@@ -365,7 +365,7 @@ namespace ardb
     void fast_dtoa(double value, int prec, std::string& result)
     {
         static const double powers_of_10[] =
-            { 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000 };
+        { 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000 };
         /* Hacky test for NaN
          * under -fast-math this won't work, but then you also won't
          * have correct nan values anyways.  The alternative is
@@ -1012,6 +1012,11 @@ namespace ardb
         return 0;
     }
 
+    bool is_pattern_string(const std::string& str)
+    {
+        return str.find('*') != std::string::npos || str.find('?') != std::string::npos || (str.find('[') != std::string::npos && str.find(']') != std::string::npos) || str.find('\\') != std::string::npos;
+    }
+
     int stringmatch(const char *pattern, const char *string, int nocase)
     {
         return stringmatchlen(pattern, strlen(pattern), string, strlen(string), nocase);
@@ -1024,7 +1029,7 @@ namespace ardb
         int64 iv = (int64) d;
         if (d > min && d < max && d == ((double) iv))
         {
-            return snprintf(s, len - 1,"%" PRId64, iv);
+            return snprintf(s, len - 1, "%" PRId64, iv);
         }
         else
         {
