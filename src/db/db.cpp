@@ -144,7 +144,7 @@ OP_NAMESPACE_BEGIN
     static CostTrack g_cmd_cost_tracks[REDIS_CMD_MAX];
 
     Ardb::Ardb() :
-            m_engine(NULL), m_starttime(0), m_loading_data(false), m_compacting_data(false),m_prepare_snapshot_num(0),m_write_caller_num(0),m_redis_cursor_seed(0), m_watched_ctxs(NULL), m_ready_keys(NULL), m_monitors(NULL), m_restoring_nss(
+            m_engine(NULL), m_starttime(0), m_loading_data(false), m_compacting_data(false),m_prepare_snapshot_num(0),m_write_caller_num(0),m_db_caller_num(0),m_redis_cursor_seed(0), m_watched_ctxs(NULL), m_ready_keys(NULL), m_monitors(NULL), m_restoring_nss(
             NULL), m_min_ttl(-1)
     {
         g_db = this;
@@ -1377,7 +1377,9 @@ OP_NAMESPACE_BEGIN
         {
             OpenWriteLatchByWriteCaller();
         }
+        atomic_add_uint32(&m_db_caller_num, 1);
         int ret = (this->*(setting.handler))(ctx, args);
+        atomic_sub_uint32(&m_db_caller_num, 1);
         if (!ctx.flags.lua)
         {
             uint64 stop_time = get_current_epoch_micros();

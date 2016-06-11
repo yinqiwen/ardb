@@ -114,22 +114,27 @@ namespace ardb
         }
         std::string path = para_path;
         size_t found = path.rfind("/");
+        int fd = -1;
         if (found != std::string::npos)
         {
             std::string base_dir = path.substr(0, found);
             if (make_dir(base_dir))
             {
                 //mode is 0755
-                return open(path.c_str(), O_CREAT,
-                S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) == 0;
+                fd = open(path.c_str(), O_CREAT,
+                S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
             }
         }
         else
         {
-            return open(path.c_str(), O_CREAT,
-            S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) == 0;
+            fd = open(path.c_str(), O_CREAT,
+            S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
         }
-        return false;
+        if(fd != -1)
+        {
+            close(fd);
+        }
+        return fd == -1;
     }
 
     int make_fd_blocking(int fd)
@@ -276,11 +281,11 @@ namespace ardb
                         {
                             if (S_ISREG(buf.st_mode))
                             {
-                                fs.push_back(base +  ptr->d_name);
+                                fs.push_back(base + ptr->d_name);
                             }
                             else if (S_ISDIR(buf.st_mode))
                             {
-                                recursive_list_allfiles(file_path, base + ptr->d_name + "/",fs);
+                                recursive_list_allfiles(file_path, base + ptr->d_name + "/", fs);
                             }
                         }
                     }
@@ -422,5 +427,79 @@ namespace ardb
     bool is_valid_fd(int fd)
     {
         return fcntl(fd, F_GETFD) != -1 || errno != EBADF;
+    }
+
+    int file_copy(const std::string& src, const std::string& dst)
+    {
+        int fd_to, fd_from;
+        char buf[4096];
+        ssize_t nread;
+        int saved_errno;
+
+        fd_from = open(src.c_str(), O_RDONLY);
+        if (fd_from < 0)
+            return -1;
+
+        fd_to = open(dst.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0666);
+        if (fd_to < 0)
+            goto out_error;
+
+        while (nread = read(fd_from, buf, sizeof buf), nread > 0)
+        {
+            char *out_ptr = buf;
+            ssize_t nwritten;
+
+            do
+            {
+                nwritten = write(fd_to, out_ptr, nread);
+
+                if (nwritten >= 0)
+                {
+                    nread -= nwritten;
+                    out_ptr += nwritten;
+                }
+                else if (errno != EINTR)
+                {
+                    goto out_error;
+                }
+            } while (nread > 0);
+        }
+
+        if (nread == 0)
+        {
+            if (close(fd_to) < 0)
+            {
+                fd_to = -1;
+                goto out_error;
+            }
+            close(fd_from);
+
+            /* Success! */
+            return 0;
+        }
+
+        out_error: saved_errno = errno;
+
+        close(fd_from);
+        if (fd_to >= 0)
+            close(fd_to);
+
+        errno = saved_errno;
+        return -1;
+    }
+
+    int dir_copy(const std::string& src, const std::string& dst)
+    {
+        std::deque<std::string> fs;
+        list_allfiles(src, fs);
+        for(size_t i = 0; i < fs.size(); i++)
+        {
+            make_file(dst + "/" + fs[i]);
+            if(0 != file_copy(src + "/" + fs[i], dst + "/" + fs[i]))
+            {
+                return -1;
+            }
+        }
+        return 0;
     }
 }

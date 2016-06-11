@@ -60,6 +60,9 @@ namespace ardb
     int real_path(const std::string& path, std::string& real_path);
 
     bool is_valid_fd(int fd);
+
+    int file_copy(const std::string& src, const std::string& dst);
+    int dir_copy(const std::string& src, const std::string& dst);
 }
 
 #endif /* FILEHELPER_HPP_ */

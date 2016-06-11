@@ -68,7 +68,11 @@ namespace ardb
         return compare_keys((const char*) a->mv_data, a->mv_size, (const char*) b->mv_data, b->mv_size, false);
     }
 
+    class BGWriteThread;
     static MDB_env *g_mdb_env = NULL;
+    static bool g_bgwriter_running = true;
+    static ThreadMutex g_bgwriters_mutex;
+    static std::vector<BGWriteThread*> g_bgwriters;
 
     struct WriteOperation
     {
@@ -88,8 +92,12 @@ namespace ardb
             void Run()
             {
                 running = true;
+                g_bgwriters_mutex.Lock();
+                g_bgwriters.push_back(this);
+                g_bgwriters_mutex.Unlock();
+
                 MDB_txn* txn = NULL;
-                while (running)
+                while (g_bgwriter_running)
                 {
                     if (NULL == txn)
                     {
@@ -175,10 +183,6 @@ namespace ardb
             {
                 return running;
             }
-            void AdviceStop()
-            {
-                running = false;
-            }
             void Put(MDB_dbi dbi, MDB_val k, MDB_val v)
             {
                 WriteOperation* op = new WriteOperation;
@@ -214,6 +218,10 @@ namespace ardb
             bool write_dispatched;
             EventCondition cond;
             Buffer encode_buffer_cache;
+            /*
+             * If there is active cursors, al write op must be cached & write latter.
+             */
+            std::vector<WriteOperation*> delayed_write_ops;
             BGWriteThread bgwriter;
             LMDBLocalContext() :
                     txn(NULL), txn_ref(0), iter_ref(0), txn_abort(false), write_dispatched(false)
@@ -299,8 +307,6 @@ namespace ardb
             }
             ~LMDBLocalContext()
             {
-                bgwriter.AdviceStop();
-                bgwriter.Join();
             }
     };
     static ThreadLocal<LMDBLocalContext> g_ctx_local;
@@ -312,7 +318,11 @@ namespace ardb
 
     LMDBEngine::~LMDBEngine()
     {
-        //Close();
+        g_bgwriter_running = false;
+        for (size_t i = 0; i < g_bgwriters.size(); i++)
+        {
+            g_bgwriters[i]->Join();
+        }
     }
 
     bool LMDBEngine::GetDBI(Context& ctx, const Data& ns, bool create_if_noexist, MDB_dbi& dbi)
@@ -372,32 +382,40 @@ namespace ardb
         }
         return success;
     }
-
-    int LMDBEngine::Init(const std::string& dir, const std::string& options)
+    int LMDBEngine::Close()
     {
-        Properties props;
-        parse_conf_content(options, props);
-        conf_get_int64(props, "database_maxsize", m_cfg.max_dbsize);
-        conf_get_int64(props, "database_maxdbs", m_cfg.max_dbs);
-        conf_get_int64(props, "batch_commit_watermark", m_cfg.batch_commit_watermark);
-        conf_get_bool(props, "readahead", m_cfg.readahead);
-
+        if(NULL != m_env)
+        {
+            DBITable::iterator it = m_dbis.begin();
+            while(it != m_dbis.end())
+            {
+                mdb_close(m_env, it->second);
+                it++;
+            }
+            mdb_env_close(m_env);
+            m_env = NULL;
+        }
+        return 0;
+    }
+    int LMDBEngine::Reopen(const LMDBConfig& cfg)
+    {
+        Close();
         mdb_env_create(&m_env);
-        mdb_env_set_maxdbs(m_env, m_cfg.max_dbs);
+        mdb_env_set_maxdbs(m_env, cfg.max_dbs);
         int page_size = sysconf(_SC_PAGE_SIZE);
-        int rc = mdb_env_set_mapsize(m_env, (m_cfg.max_dbsize / page_size) * page_size);
+        int rc = mdb_env_set_mapsize(m_env, (cfg.max_dbsize / page_size) * page_size);
         if (rc != MDB_SUCCESS)
         {
-            ERROR_LOG("Invalid db size:%llu for reason:%s", m_cfg.max_dbsize, mdb_strerror(rc));
+            ERROR_LOG("Invalid db size:%llu for reason:%s", cfg.max_dbsize, mdb_strerror(rc));
             return -1;
         }
         g_mdb_env = m_env;
         int env_opt = MDB_NOSYNC | MDB_NOMETASYNC | MDB_WRITEMAP | MDB_MAPASYNC;
-        if (!m_cfg.readahead)
+        if (!cfg.readahead)
         {
             env_opt |= MDB_NORDAHEAD;
         }
-        rc = mdb_env_open(m_env, dir.c_str(), env_opt, 0664);
+        rc = mdb_env_open(m_env, m_dbdir.c_str(), env_opt, 0664);
         if (rc != MDB_SUCCESS)
         {
             ERROR_LOG("Failed to open mdb:%s", mdb_strerror(rc));
@@ -438,8 +456,22 @@ namespace ardb
         } while (rc == 0);
         mdb_txn_commit(local_ctx.txn);
         local_ctx.txn = NULL;
-        INFO_LOG("Success to open lmdb at %s", dir.c_str());
+        INFO_LOG("Success to open lmdb at %s", m_dbdir.c_str());
+        m_cfg = cfg;
         return 0;
+    }
+
+    int LMDBEngine::Init(const std::string& dir, const std::string& options)
+    {
+        Properties props;
+        parse_conf_content(options, props);
+        LMDBConfig cfg;
+        conf_get_int64(props, "database_maxsize", cfg.max_dbsize);
+        conf_get_int64(props, "database_maxdbs", cfg.max_dbs);
+        conf_get_bool(props, "readahead", cfg.readahead);
+
+        m_dbdir = dir;
+        return Reopen(cfg);
     }
 
     int LMDBEngine::Repair(const std::string& dir)
@@ -665,6 +697,21 @@ namespace ardb
     {
         err = err - STORAGE_ENGINE_ERR_OFFSET;
         return mdb_strerror(err);
+    }
+
+    int LMDBEngine::Backup(Context& ctx, const std::string& dir)
+    {
+        LockGuard<ThreadMutex> guard(m_backup_lock);
+        int err = mdb_env_copy2(m_env, dir.c_str(), 0);
+        return ENGINE_ERR(err);
+    }
+    int LMDBEngine::Restore(Context& ctx, const std::string& dir)
+    {
+        LockGuard<ThreadMutex> guard(m_backup_lock);
+        Close();
+        dir_copy(dir, m_dbdir);
+        Reopen(m_cfg);
+        return 0;
     }
 
     bool LMDBEngine::Exists(Context& ctx, const KeyObject& key)

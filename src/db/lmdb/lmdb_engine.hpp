@@ -112,11 +112,15 @@ namespace ardb
             MDB_dbi m_meta_dbi;
             typedef TreeMap<Data, MDB_dbi>::Type DBITable;
             LMDBConfig m_cfg;
+            std::string m_dbdir;
 
             DBITable m_dbis;
             SpinRWLock m_lock;
+            ThreadMutex m_backup_lock;
             friend class LMDBIterator;
             bool GetDBI(Context& ctx, const Data& name, bool create_if_noexist, MDB_dbi& dbi);
+            int Reopen(const LMDBConfig& cfg);
+            int Close();
         public:
             LMDBEngine();
             ~LMDBEngine();
@@ -139,12 +143,15 @@ namespace ardb
             int64_t EstimateKeysNum(Context& ctx, const Data& ns);
             Iterator* Find(Context& ctx, const KeyObject& key);
             const std::string GetErrorReason(int err);
+            int Backup(Context& ctx, const std::string& dir);
+            int Restore(Context& ctx, const std::string& dir);
             const FeatureSet GetFeatureSet()
             {
                 FeatureSet features;
                 features.support_compactfilter = 0;
                 features.support_namespace = 1;
                 features.support_merge = 0;
+                features.support_backup = 1;
                 return features;
             }
 

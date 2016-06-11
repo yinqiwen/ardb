@@ -142,6 +142,13 @@ namespace ardb
             conn_id = ctx.client->client->GetID();
             ctx.client->client->BlockRead();
         }
+        /*
+         * wait until only 'import' be processing
+         */
+        while(m_db_caller_num != 1)
+        {
+            usleep(10);
+        }
         Snapshot snapshot;
         /*
          * use 4 threads to write db

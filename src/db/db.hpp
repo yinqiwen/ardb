@@ -107,6 +107,7 @@ OP_NAMESPACE_BEGIN
             bool m_compacting_data;
             uint32 m_prepare_snapshot_num;  /* if the server is prepare saving snapshot, if > 0, the server would block all write command a while  */
             volatile uint32 m_write_caller_num;
+            volatile uint32 m_db_caller_num;
             ThreadMutexLock m_write_latch;
             ArdbConfig m_conf;
             ThreadLocal<LUAInterpreter> m_lua;
