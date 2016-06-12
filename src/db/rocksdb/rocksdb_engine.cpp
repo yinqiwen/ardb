@@ -1147,7 +1147,6 @@ OP_NAMESPACE_BEGIN
             iter->MarkValid(false);
             return iter;
         }
-        RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         if (key.GetType() > 0)
         {
             if (!ctx.flags.iterate_multi_keys)
@@ -1324,6 +1323,11 @@ OP_NAMESPACE_BEGIN
         uint64 value = 0;
         m_db->GetIntProperty(cf, "rocksdb.estimate-num-keys", &value);
         return (int64) value;
+    }
+
+    int RocksDBEngine::MaxOpenFiles()
+    {
+        return (int)(m_options.max_open_files);
     }
 
     void RocksDBEngine::Stats(Context& ctx, std::string& all)

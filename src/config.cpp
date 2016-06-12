@@ -99,7 +99,11 @@ OP_NAMESPACE_BEGIN
         //conf_get_int64(props, "unixsocketperm", unixsocketperm);
         conf_get_int64(props, "slowlog-log-slower-than", slowlog_log_slower_than);
         conf_get_int64(props, "slowlog-max-len", slowlog_max_len);
-        conf_get_int64(props, "maxfiles", max_open_files);
+        conf_get_int64(props, "maxclients", max_clients);
+        if(max_clients <= 0)
+        {
+            max_clients = 10000;
+        }
 
         for (int i = 0;; i++)
         {

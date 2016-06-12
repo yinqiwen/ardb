@@ -142,6 +142,8 @@ OP_NAMESPACE_BEGIN
                 return ERR_NOTSUPPORTED;
             }
 
+            virtual int MaxOpenFiles() = 0;
+
             virtual ~Engine()
             {
             }

@@ -69,7 +69,7 @@ OP_NAMESPACE_BEGIN
 
             int64 hz;
             //int64 unixsocketperm;
-            int64 max_open_files;
+            int64 max_clients;
             int64 tcp_keepalive;
             int64 timeout;
             std::string engine;
@@ -149,7 +149,7 @@ OP_NAMESPACE_BEGIN
             Properties conf_props;
 
             ArdbConfig() :
-                    daemonize(false), thread_pool_size(0),hz(10), max_open_files(100000), tcp_keepalive(0), timeout(0), engine("rocksdb"), slowlog_log_slower_than(10000), slowlog_max_len(128), repl_data_dir("./repl"), backup_dir("./backup"), backup_redis_format(false), repl_ping_slave_period(
+                    daemonize(false), thread_pool_size(0),hz(10), max_clients(10000), tcp_keepalive(0), timeout(0), engine("rocksdb"), slowlog_log_slower_than(10000), slowlog_max_len(128), repl_data_dir("./repl"), backup_dir("./backup"), backup_redis_format(false), repl_ping_slave_period(
                             10), repl_timeout(60), repl_backlog_size(100 * 1024 * 1024), repl_backlog_cache_size(100 * 1024 * 1024), repl_backlog_sync_period(1), repl_backlog_time_limit(3600), repl_min_slaves_to_write(0), repl_min_slaves_max_lag(10), repl_serve_stale_data(
                             false), slave_cleardb_before_fullresync(true), slave_readonly(true), slave_serve_stale_data(true), slave_priority(100), max_slave_worker_queue(1024),lua_time_limit(0), master_port(0), loglevel("INFO"), hll_sparse_max_bytes(3000), reply_pool_size(
                             10000), slave_client_output_buffer_limit(256 * 1024 * 1024), pubsub_client_output_buffer_limit(32 * 1024 * 1024), slave_ignore_expire(false), slave_ignore_del(false), repl_disable_tcp_nodelay(true), scan_redis_compatible(

@@ -294,6 +294,11 @@ namespace ardb
         return true;
     }
 
+    int WiredTigerEngine::MaxOpenFiles()
+    {
+        return 100;
+    }
+
     int WiredTigerEngine::Init(const std::string& dir, const std::string& options)
     {
         Properties props;

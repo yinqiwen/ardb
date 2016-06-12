@@ -153,6 +153,11 @@ namespace ardb
         ERROR_LOG("%s %s", prefix, content);
     }
 
+    int PerconaFTEngine::MaxOpenFiles()
+    {
+        return 100;
+    }
+
     int PerconaFTEngine::Init(const std::string& dir, const std::string& options)
     {
         Properties props;

@@ -146,7 +146,10 @@ namespace ardb
                 features.support_merge = 0;
                 return features;
             }
-
+            int MaxOpenFiles()
+            {
+                return 10;
+            }
     };
 }
 

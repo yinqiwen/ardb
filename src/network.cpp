@@ -75,7 +75,6 @@ OP_NAMESPACE_BEGIN
                 m_client_ctx.client = ctx.GetChannel();
                 RedisCommandFrame* cmd = e.GetMessage();
                 ChannelService& serv = m_client_ctx.client->GetService();
-                uint32 channel_id = ctx.GetChannel()->GetID();
                 m_client_ctx.processing = true;
                 if (NULL == pool)
                 {
@@ -231,7 +230,15 @@ OP_NAMESPACE_BEGIN
             ERROR_LOG("Failed to init replication service.");
             return -1;
         }
-        m_service = new ChannelService(g_db->GetConf().max_open_files);
+        /*
+         * 1000 is reserved open files in Ardb(pipes/logs/dump/etc.)
+         */
+        uint32 maxfiles = g_db->GetConf().max_clients + 1000;
+        if(g_engine->MaxOpenFiles() > 0)
+        {
+            maxfiles += g_engine->MaxOpenFiles();
+        }
+        m_service = new ChannelService(maxfiles);
         m_service->SetThreadPoolSize(g_db->GetConf().thread_pool_size);
         ServerLifecycleHandler lifecycle;
         m_service->RegisterLifecycleCallback(&lifecycle);

@@ -154,6 +154,10 @@ namespace ardb
                 features.support_backup = 1;
                 return features;
             }
+            int MaxOpenFiles()
+            {
+                return 10;
+            }
 
     };
 }

@@ -152,6 +152,7 @@ OP_NAMESPACE_BEGIN
                 return features;
             }
             int Routine();
+            int MaxOpenFiles();
     };
 
 OP_NAMESPACE_END

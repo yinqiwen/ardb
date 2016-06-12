@@ -238,6 +238,11 @@ namespace ardb
         DELETE(m_options.filter_policy);
     }
 
+    int LevelDBEngine::MaxOpenFiles()
+    {
+        return m_cfg.max_open_files;
+    }
+
     int LevelDBEngine::Init(const std::string& dir, const std::string& options)
     {
         Properties props;
