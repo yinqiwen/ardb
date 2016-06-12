@@ -34,6 +34,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include "swal.h"
 
 #define SWAL_META_SIZE 1024

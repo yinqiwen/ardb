@@ -50,7 +50,7 @@ namespace ardb
     int file_append_content(const std::string& path, const std::string& content);
 
     int list_subdirs(const std::string& path, std::deque<std::string>& dirs);
-    int list_subfiles(const std::string& path, std::deque<std::string>& fs);
+    int list_subfiles(const std::string& path, std::deque<std::string>& fs, bool include_dir = false);
     int list_allfiles(const std::string& path, std::deque<std::string>& fs);
 
     int64 file_size(const std::string& path);
@@ -63,6 +63,8 @@ namespace ardb
 
     int file_copy(const std::string& src, const std::string& dst);
     int dir_copy(const std::string& src, const std::string& dst);
+
+    int file_del(const std::string& path);
 }
 
 #endif /* FILEHELPER_HPP_ */

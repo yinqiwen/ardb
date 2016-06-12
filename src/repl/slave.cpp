@@ -118,37 +118,27 @@ OP_NAMESPACE_BEGIN
         sync_repl_offset += buffer.ReadableBytes();
         sync_repl_cksm = crc64(sync_repl_cksm, (const unsigned char *) (buffer.GetRawReadBuffer()), buffer.ReadableBytes());
     }
-
-//    struct SlaveWorker
-//    {
-//            SPSCQueue<RedisCommandFrame*> write_queue;
-//            Context ctx;
-//            bool running;
-//            SlaveWorker() :
-//                    running(true)
-//            {
-//                ctx.flags.slave = 1;
-//                ctx.flags.no_wal = 1;
-//            }
-//            void Run()
-//            {
-//                while (running)
-//                {
-//                    RedisCommandFrame* cmd = NULL;
-//                    while(write_queue.Pop(cmd))
-//                    {
-//                        g_db->Call(ctx, *cmd);
-//                        DELETE(cmd);
-//                    }
-//                    Thread::Sleep(1, MILLIS);
-//                }
-//            }
-//            void Offer(RedisCommandFrame* cmd)
-//            {
-//                write_queue.Push(cmd);
-//            }
-//
-//    };
+    void SlaveContext::Clear()
+    {
+        server_is_redis = false;
+        server_support_psync = false;
+        state = 0;
+        cached_master_runid.clear();
+        cached_master_repl_offset = 0;
+        cached_master_repl_cksm = 0;
+        sync_repl_offset = 0;
+        sync_repl_cksm = 0;
+        snapshot_path.clear();
+        if(snapshot.IsReady())
+        {
+            snapshot.Close();
+        }
+        else
+        {
+            snapshot.Remove();
+        }
+        snapshot.SetRoutineCallback(NULL, NULL);
+    }
 
     Slave::Slave() :
             m_client(NULL), m_clientid(0)
@@ -522,7 +512,7 @@ OP_NAMESPACE_BEGIN
                     m_decoder.SwitchToDumpFileDecoder();
                     if (!strcasecmp(ss[0].c_str(), "FULLBACKUP"))
                     {
-                        m_ctx.snapshot_path = Snapshot::GetSyncSnapshotPath(BACKUP_DUMP);
+                        m_ctx.snapshot_path = Snapshot::GetSyncSnapshotPath(BACKUP_DUMP, m_ctx.cached_master_repl_offset, m_ctx.cached_master_repl_cksm);
                         std::string tmppath = m_ctx.snapshot_path + ".tmp";
                         make_dir(tmppath);
                         m_ctx.snapshot.SetFilePath(tmppath);
@@ -571,6 +561,8 @@ OP_NAMESPACE_BEGIN
             }
             return;
         }
+        m_ctx.snapshot.MarkDumpComplete();
+        g_snapshot_manager->AddSnapshot(m_ctx.snapshot.GetPath());
         m_decoder.SwitchToCommandDecoder();
         m_ctx.state = SLAVE_STATE_LOADING_SNAPSHOT;
         /*
@@ -642,7 +634,7 @@ OP_NAMESPACE_BEGIN
         if (chunk.IsFirstChunk())
         {
             m_ctx.snapshot.Close();
-            m_ctx.snapshot_path = Snapshot::GetSyncSnapshotPath(m_ctx.server_is_redis ? REDIS_DUMP : ARDB_DUMP);
+            m_ctx.snapshot_path = Snapshot::GetSyncSnapshotPath(m_ctx.server_is_redis ? REDIS_DUMP : ARDB_DUMP, m_ctx.cached_master_repl_offset, m_ctx.cached_master_repl_cksm);
             std::string tmppath = m_ctx.snapshot_path + ".tmp";
             m_ctx.snapshot.OpenWriteFile(tmppath);
             INFO_LOG("[Slave]Create dump file:%s, expected size:%lld, master is redis:%d", m_ctx.snapshot_path.c_str(), chunk.len, m_ctx.server_is_redis);

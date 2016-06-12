@@ -132,6 +132,7 @@ namespace ardb
 
     };
 
+    class SnapshotManager;
     class Snapshot: public ObjectIO
     {
         protected:
@@ -171,6 +172,7 @@ namespace ardb
             int DoSave();
             int PrepareSave(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data);
             void VerifyState();
+            friend class SnapshotManager;
         public:
             Snapshot();
             SnapshotType GetType()
@@ -195,6 +197,7 @@ namespace ardb
             }
             bool IsSaving();
             bool IsReady();
+            void MarkDumpComplete();
             void SetExpectedDataSize(int64 size);
             int64 DumpLeftDataSize();
             int64 ProcessLeftDataSize();
@@ -216,7 +219,7 @@ namespace ardb
 
             static SnapshotType GetSnapshotType(const std::string& file);
             static SnapshotType GetSnapshotTypeByName(const std::string& name);
-            static std::string GetSyncSnapshotPath(SnapshotType type);
+            static std::string GetSyncSnapshotPath(SnapshotType type, uint64 offset, uint64 cksm);
     };
 
     class SnapshotManager
@@ -227,14 +230,17 @@ namespace ardb
             SnapshotArray m_snapshots;
         public:
             SnapshotManager();
-            void RemoveExpiredSnapshots();
+            void Init();
+            void Routine();
             Snapshot* GetSyncSnapshot(SnapshotType type, SnapshotRoutine* cb, void *data);
             Snapshot* NewSnapshot(SnapshotType type, bool bgsave, SnapshotRoutine* cb, void *data);
+            void AddSnapshot(const std::string& path);
             time_t LastSave();
             int CurrentSaverNum();
             time_t LastSaveCost();
             int LastSaveErr();
             time_t LastSaveStartUnixTime();
+            void PrintSnapshotInfo(std::string& str);
     };
 
     extern SnapshotManager* g_snapshot_manager;

@@ -1425,6 +1425,10 @@ namespace ardb
                             //DUMP_CHECK_WRITE(WriteStringObject(v.GetStringValue()));
                             break;
                         }
+                        default:
+                        {
+                            FATAL_LOG("Invalid key type:%d", current_keytype);
+                        }
                     }
                     break;
                 }
@@ -1574,7 +1578,11 @@ namespace ardb
     void Snapshot::Remove()
     {
         Close();
-        unlink(m_file_path.c_str());
+        if (!m_file_path.empty())
+        {
+            WARN_LOG("Remove snapshot file:%s", m_file_path.c_str());
+            file_del(m_file_path);
+        }
     }
 
     void Snapshot::Close()
@@ -1834,7 +1842,6 @@ namespace ardb
             return err;
         }
 
-        m_save_time = time(NULL);
         m_state = DUMPING;
         this->m_routine_cb = cb;
         this->m_routine_cbdata = data;
@@ -1849,6 +1856,7 @@ namespace ardb
         g_db->CloseWriteLatchBeforeSnapshotPrepare();
         m_cached_repl_offset = g_repl->GetReplLog().WALEndOffset();
         m_cached_repl_cksm = g_repl->GetReplLog().WALCksm();
+        m_save_time = time(NULL);
         if (type != BACKUP_DUMP)
         {
             /*
@@ -1927,13 +1935,19 @@ namespace ardb
         return m_state == DUMP_SUCCESS;
     }
 
+    void Snapshot::MarkDumpComplete()
+    {
+        m_state = DUMP_SUCCESS;
+    }
+
     int Snapshot::Save(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data)
     {
         if (IsSaving())
         {
             return -1;
         }
-        std::string tmpname = file + ".tmp";
+        char tmpname[1024];
+        snprintf(tmpname, sizeof(tmpname) - 1, "%s.%llu.tmp", file.c_str(), get_current_epoch_millis());
         int ret = PrepareSave(type, tmpname, cb, data);
         if (0 != ret)
         {
@@ -1943,7 +1957,13 @@ namespace ardb
         ret = DoSave();
         if (0 == ret)
         {
-            Rename(file);
+            char snapshot_name[1024];
+            snprintf(snapshot_name, sizeof(snapshot_name) - 1, "%s.%llu.%llu.%u", file.c_str(), m_cached_repl_offset, m_cached_repl_cksm, m_save_time);
+            Rename(snapshot_name);
+        }
+        else
+        {
+            Remove();
         }
         return ret;
     }
@@ -1977,17 +1997,17 @@ namespace ardb
         return 0;
     }
 
-    std::string Snapshot::GetSyncSnapshotPath(SnapshotType type)
+    std::string Snapshot::GetSyncSnapshotPath(SnapshotType type, uint64 offset, uint64 cksm)
     {
         char tmp[g_db->GetConf().backup_dir.size() + 100];
         uint32 now = time(NULL);
         if (type == BACKUP_DUMP)
         {
-            sprintf(tmp, "%s/%s-sync-backup.%u", g_db->GetConf().backup_dir.c_str(), g_engine, now);
+            sprintf(tmp, "%s/sync-%s-backup.%llu.%llu.%u", g_db->GetConf().backup_dir.c_str(), g_engine, offset, cksm, now);
         }
         else
         {
-            sprintf(tmp, "%s/sync-%s-snapshot.%u", g_db->GetConf().backup_dir.c_str(), type2str(type), now);
+            sprintf(tmp, "%s/sync-%s-snapshot.%llu.%llu.%u", g_db->GetConf().backup_dir.c_str(), type2str(type), offset, cksm, now);
         }
         return tmp;
     }
@@ -2272,6 +2292,10 @@ namespace ardb
                                 DUMP_CHECK_WRITE(WriteLen(objectlen));
                                 //DUMP_CHECK_WRITE(WriteStringObject(v.GetStringValue()));
                                 break;
+                            }
+                            default:
+                            {
+                               FATAL_LOG("Invalid key type:%d", current_keytype);
                             }
                         }
                         break;
@@ -2653,9 +2677,62 @@ namespace ardb
     {
 
     }
-    void SnapshotManager::RemoveExpiredSnapshots()
+    void SnapshotManager::Init()
     {
+        std::deque<std::string> fs;
+        list_subfiles(g_db->GetConf().backup_dir, fs, true);
+        for (size_t i = 0; i < fs.size(); i++)
+        {
+            AddSnapshot(g_db->GetConf().backup_dir + "/" + fs[i]);
+        }
+    }
 
+    void SnapshotManager::PrintSnapshotInfo(std::string& str)
+    {
+        char buffer[1024];
+        char tmp[1024];
+        LockGuard<ThreadMutexLock> guard(m_snapshots_lock);
+        for (size_t i = 0; i < m_snapshots.size(); i++)
+        {
+            time_t ts = m_snapshots[i]->SaveTime();
+            sprintf(buffer, "snapshot%u:type=%s,"
+                    "create_time=%s,name=%s\r\n", i, type2str(m_snapshots[i]->GetType()), trim_str(ctime_r(&ts, tmp), " \t\r\n"),
+                    get_basename(m_snapshots[i]->GetPath()).c_str());
+            str.append(buffer);
+        }
+    }
+    void SnapshotManager::Routine()
+    {
+        LockGuard<ThreadMutexLock> guard(m_snapshots_lock);
+        SnapshotArray::iterator it = m_snapshots.begin();
+        while (it != m_snapshots.end())
+        {
+            Snapshot* s = *it;
+            if (s == NULL || s->CachedReplOffset() <= g_repl->GetReplLog().WALStartOffset())
+            {
+                WARN_LOG("Remove snapshot:%s since it's too old.", NULL == s? "empty":s->GetPath().c_str());
+                if(NULL != s)
+                {
+                    s->Remove();
+                }
+                DELETE(s);
+                it = m_snapshots.erase(it);
+            }
+            else
+            {
+                it++;
+            }
+        }
+        while(m_snapshots.size() > g_db->GetConf().maxsnapshots)
+        {
+            Snapshot* s = m_snapshots[0];
+            if(NULL != s)
+            {
+                s->Remove();
+            }
+            WARN_LOG("Remove snapshot:%s since snapshot number exceed limit.", NULL == s? "empty":s->GetPath().c_str());
+            m_snapshots.erase(m_snapshots.begin());
+        }
     }
 
     time_t SnapshotManager::LastSave()
@@ -2679,19 +2756,49 @@ namespace ardb
         return g_lastsave_start;
     }
 
+    void SnapshotManager::AddSnapshot(const std::string& path)
+    {
+        std::string fname = get_basename(path);
+        std::vector<std::string> ss = split_string(fname, ".");
+        if (ss.size() != 4)
+        {
+            WARN_LOG("Invalid or incomplete snapshot:%s", path.c_str());
+            file_del(path);
+            return;
+        }
+        uint64 offset, cksm;
+        uint32 create_time = 0;
+        if (!string_touint64(ss[1], offset) || !string_touint64(ss[2], cksm) || !string_touint32(ss[3], create_time))
+        {
+            WARN_LOG("Invalid snapshot:%s", fname.c_str());
+            file_del(path);
+            return;
+        }
+        Snapshot* snapshot = NULL;
+        NEW(snapshot, Snapshot);
+        snapshot->m_cached_repl_offset = offset;
+        snapshot->m_cached_repl_cksm = cksm;
+        snapshot->m_save_time = create_time;
+        snapshot->m_file_path = path;
+        snapshot->m_state = DUMP_SUCCESS;
+        snapshot->m_type = Snapshot::GetSnapshotType(snapshot->m_file_path);
+        INFO_LOG("Add cached snapshot:%s", fname.c_str());
+        LockGuard<ThreadMutexLock> guard(m_snapshots_lock);
+        m_snapshots.push_back(snapshot);
+    }
+
     Snapshot* SnapshotManager::NewSnapshot(SnapshotType type, bool bgsave, SnapshotRoutine* cb, void *data)
     {
-        time_t now = time(NULL);
         Snapshot* snapshot = NULL;
         NEW(snapshot, Snapshot);
         char path[1024];
         if (type == BACKUP_DUMP)
         {
-            snprintf(path, sizeof(path) - 1, "%s/save-%s-backup.%u", g_db->GetConf().backup_dir.c_str(), g_engine_name, now);
+            snprintf(path, sizeof(path) - 1, "%s/save-%s-backup", g_db->GetConf().backup_dir.c_str(), g_engine_name);
         }
         else
         {
-            snprintf(path, sizeof(path) - 1, "%s/save-%s-snapshot.%u", g_db->GetConf().backup_dir.c_str(), type2str(type), now);
+            snprintf(path, sizeof(path) - 1, "%s/save-%s-snapshot", g_db->GetConf().backup_dir.c_str(), type2str(type));
         }
 
         if (bgsave)
@@ -2718,7 +2825,6 @@ namespace ardb
 
     Snapshot* SnapshotManager::GetSyncSnapshot(SnapshotType type, SnapshotRoutine* cb, void *data)
     {
-        time_t now = time(NULL);
         LockGuard<ThreadMutexLock> guard(m_snapshots_lock);
         SnapshotArray::reverse_iterator it = m_snapshots.rbegin();
         while (it != m_snapshots.rend())
@@ -2739,11 +2845,11 @@ namespace ardb
         char path[1024];
         if (type == BACKUP_DUMP)
         {
-            snprintf(path, sizeof(path) - 1, "%s/master-%s-backup.%u", g_db->GetConf().backup_dir.c_str(), g_engine_name, now);
+            snprintf(path, sizeof(path) - 1, "%s/master-%s-backup", g_db->GetConf().backup_dir.c_str(), g_engine_name);
         }
         else
         {
-            snprintf(path, sizeof(path) - 1, "%s/master-%s-snapshot.%u", g_db->GetConf().backup_dir.c_str(), type2str(type), now);
+            snprintf(path, sizeof(path) - 1, "%s/master-%s-snapshot", g_db->GetConf().backup_dir.c_str(), type2str(type));
         }
 
         if (0 == snapshot->BGSave(type, path, cb, data))

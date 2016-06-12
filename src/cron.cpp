@@ -29,6 +29,7 @@
 #include "network.hpp"
 #include "statistics.hpp"
 #include "db/db.hpp"
+#include "repl/snapshot.hpp"
 
 OP_NAMESPACE_BEGIN
 
@@ -101,6 +102,7 @@ OP_NAMESPACE_BEGIN
             void Run()
             {
                 g_db->ScanExpiredKeys();
+                g_snapshot_manager->Routine();
             }
     };
 

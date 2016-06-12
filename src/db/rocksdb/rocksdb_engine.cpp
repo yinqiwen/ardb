@@ -1528,7 +1528,10 @@ OP_NAMESPACE_BEGIN
     }
     RocksDBIterator::~RocksDBIterator()
     {
-        g_iter_cache.Recycle(m_iter);
+        if(NULL != m_iter)
+        {
+            g_iter_cache.Recycle(m_iter);
+        }
     }
 OP_NAMESPACE_END
 

@@ -130,7 +130,7 @@ namespace ardb
             fd = open(path.c_str(), O_CREAT,
             S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
         }
-        if(fd != -1)
+        if (fd != -1)
         {
             close(fd);
         }
@@ -302,7 +302,7 @@ namespace ardb
         return recursive_list_allfiles(path, "", fs);;
     }
 
-    int list_subfiles(const std::string& path, std::deque<std::string>& fs)
+    int list_subfiles(const std::string& path, std::deque<std::string>& fs, bool include_dir)
     {
         struct stat buf;
         int ret = stat(path.c_str(), &buf);
@@ -326,7 +326,7 @@ namespace ardb
                         ret = stat(file_path.c_str(), &buf);
                         if (ret == 0)
                         {
-                            if (S_ISREG(buf.st_mode))
+                            if (S_ISREG(buf.st_mode) || (include_dir && S_ISDIR(buf.st_mode)))
                             {
                                 fs.push_back(ptr->d_name);
                             }
@@ -492,14 +492,60 @@ namespace ardb
     {
         std::deque<std::string> fs;
         list_allfiles(src, fs);
-        for(size_t i = 0; i < fs.size(); i++)
+        for (size_t i = 0; i < fs.size(); i++)
         {
             make_file(dst + "/" + fs[i]);
-            if(0 != file_copy(src + "/" + fs[i], dst + "/" + fs[i]))
+            if (0 != file_copy(src + "/" + fs[i], dst + "/" + fs[i]))
             {
                 return -1;
             }
         }
         return 0;
+    }
+
+    int file_del(const std::string& path)
+    {
+        if (is_dir_exist(path))
+        {
+            DIR* dir = opendir(path.c_str());
+            if (NULL != dir)
+            {
+                struct dirent * ptr;
+                while ((ptr = readdir(dir)) != NULL)
+                {
+                    if (!strcmp(ptr->d_name, ".") || !strcmp(ptr->d_name, ".."))
+                    {
+                        continue;
+                    }
+                    std::string file_path = path;
+                    file_path.append("/").append(ptr->d_name);
+                    struct stat buf;
+                    memset(&buf, 0, sizeof(buf));
+                    int ret = stat(file_path.c_str(), &buf);
+                    if (ret == 0)
+                    {
+                        if (S_ISREG(buf.st_mode))
+                        {
+                            ret = unlink(file_path.c_str());
+                        }
+                        else if (S_ISDIR(buf.st_mode))
+                        {
+                            ret = file_del(file_path);
+                        }
+                        if (0 != ret)
+                        {
+                            return ret;
+                        }
+                    }
+                }
+                closedir(dir);
+                return remove(path.c_str());
+            }
+            return 0;
+        }
+        else
+        {
+            return unlink(path.c_str());
+        }
     }
 }

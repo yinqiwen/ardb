@@ -422,6 +422,7 @@ OP_NAMESPACE_BEGIN
         {
             return 0;
         }
+        g_snapshot_manager->Init();
         int err = m_repl_backlog.Init();
         if (0 != err)
         {
