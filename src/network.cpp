@@ -84,7 +84,7 @@ OP_NAMESPACE_BEGIN
                 m_ctx.SetReply(&(pool->Allocate()));
                 RedisReply& reply = m_ctx.GetReply();
                 int ret = g_db->Call(m_ctx, *cmd);
-                if(NULL != qpsTrack)
+                if (NULL != qpsTrack)
                 {
                     qpsTrack->IncMsgCount(1);
                 }
@@ -94,14 +94,19 @@ OP_NAMESPACE_BEGIN
                     delete this;
                     return;
                 }
-                if (reply.type != 0)
+                if (reply.type != 0 && !m_ctx.flags.reply_off)
                 {
                     m_client_ctx.client->Write(reply);
+                    if (m_ctx.flags.reply_skip)
+                    {
+                        m_ctx.flags.reply_skip = 0;
+                        m_ctx.flags.reply_off = 1;
+                    }
                 }
                 if (ret < -1)
                 {
                     ChannelService* root = &(m_client_ctx.client->GetService());
-                    while(root->GetParent() != NULL)
+                    while (root->GetParent() != NULL)
                     {
                         root = root->GetParent();
                     }
@@ -167,7 +172,7 @@ OP_NAMESPACE_BEGIN
             }
         public:
             RedisRequestHandler(QPSTrack* track) :
-                qpsTrack(track), m_delete_after_processing(false), pool(NULL)
+                    qpsTrack(track), m_delete_after_processing(false), pool(NULL)
             {
                 m_ctx.client = &m_client_ctx;
                 //root_reply.SetPool(&pool);
@@ -234,7 +239,7 @@ OP_NAMESPACE_BEGIN
          * 1000 is reserved open files in Ardb(pipes/logs/dump/etc.)
          */
         uint32 maxfiles = g_db->GetConf().max_clients + 1000;
-        if(g_engine->MaxOpenFiles() > 0)
+        if (g_engine->MaxOpenFiles() > 0)
         {
             maxfiles += g_engine->MaxOpenFiles();
         }
@@ -284,7 +289,7 @@ OP_NAMESPACE_BEGIN
             }
             server->Configure(ops);
             QPSTrack* serverQPSTrack = NULL;
-            if(g_db->GetConf().servers.size() > 1)
+            if (g_db->GetConf().servers.size() > 1)
             {
                 serverQPSTrack = &serverQpsTracks[i];
                 serverQPSTrack->name = address + "_total_commands_processed";

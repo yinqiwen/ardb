@@ -305,7 +305,8 @@ namespace ardb
                     info.append("master_link_status:").append(g_repl->GetSlave().IsConnected() ? "up" : "down").append("\r\n");
                     if (g_repl->GetSlave().IsConnected())
                     {
-                        info.append("master_last_io_seconds_ago:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLastinteractionTime())).append("\r\n");
+                        info.append("master_last_io_seconds_ago:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLastinteractionTime())).append(
+                                "\r\n");
                     }
                     else
                     {
@@ -316,7 +317,8 @@ namespace ardb
                     if (g_repl->GetSlave().IsSyncing())
                     {
                         info.append("master_sync_left_bytes:").append(stringfromll(g_repl->GetSlave().SyncLeftBytes())).append("\r\n");
-                        info.append("master_sync_last_io_seconds_ago:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLastinteractionTime())).append("\r\n");
+                        info.append("master_sync_last_io_seconds_ago:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLastinteractionTime())).append(
+                                "\r\n");
                     }
                     if (g_repl->GetSlave().IsLoading())
                     {
@@ -326,7 +328,8 @@ namespace ardb
                     info.append("slave_sync_queue_size:").append(stringfromll(g_repl->GetSlave().SyncQueueSize())).append("\r\n");
                     if (!g_repl->GetSlave().IsConnected())
                     {
-                        info.append("master_link_down_since_seconds:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLinkDownTime())).append("\r\n");
+                        info.append("master_link_down_since_seconds:").append(stringfromll(time(NULL) - g_repl->GetSlave().GetMasterLinkDownTime())).append(
+                                "\r\n");
                     }
                     info.append("slave_priority:").append(stringfromll(GetConf().slave_priority)).append("\r\n");
                     info.append("slave_read_only:").append(GetConf().slave_readonly ? "1" : "0").append("\r\n");
@@ -345,7 +348,8 @@ namespace ardb
                 info.append("repl_backlog_size: ").append(stringfromll(GetConf().repl_backlog_size)).append("\r\n");
                 info.append("repl_backlog_cache_size: ").append(stringfromll(GetConf().repl_backlog_cache_size)).append("\r\n");
                 info.append("repl_backlog_first_byte_offset: ").append(stringfromll(g_repl->GetReplLog().WALStartOffset())).append("\r\n");
-                info.append("repl_backlog_histlen: ").append(stringfromll(g_repl->GetReplLog().WALEndOffset() - g_repl->GetReplLog().WALStartOffset() + 1)).append("\r\n");
+                info.append("repl_backlog_histlen: ").append(stringfromll(g_repl->GetReplLog().WALEndOffset() - g_repl->GetReplLog().WALStartOffset() + 1)).append(
+                        "\r\n");
                 info.append("repl_backlog_cksm: ").append(base16_stringfromllu(g_repl->GetReplLog().WALCksm())).append("\r\n");
                 g_snapshot_manager->PrintSnapshotInfo(info);
             }
@@ -398,7 +402,8 @@ namespace ardb
                     {
                         continue;
                     }
-                    info.append("db").append(nss[i].AsString()).append(":").append("keys=").append(stringfromll(m_engine->EstimateKeysNum(ctx, nss[i]))).append("\r\n");
+                    info.append("db").append(nss[i].AsString()).append(":").append("keys=").append(stringfromll(m_engine->EstimateKeysNum(ctx, nss[i]))).append(
+                            "\r\n");
                 }
                 info.append("\r\n");
             }
@@ -413,8 +418,9 @@ namespace ardb
                 RedisCommandHandlerSetting& setting = cit->second;
                 if (setting.calls > 0)
                 {
-                    info.append("cmdstat_").append(setting.name).append(":").append("calls=").append(stringfromll(setting.calls)).append(",usec=").append(stringfromll(setting.microseconds)).append(",usecpercall=").append(
-                            stringfromll(setting.microseconds / setting.calls)).append("\r\n");
+                    info.append("cmdstat_").append(setting.name).append(":").append("calls=").append(stringfromll(setting.calls)).append(",usec=").append(
+                            stringfromll(setting.microseconds)).append(",usecpercall=").append(stringfromll(setting.microseconds / setting.calls)).append(
+                            "\r\n");
                 }
 
                 cit++;
@@ -500,6 +506,35 @@ namespace ardb
             else
             {
                 reply.SetString(ctx.client->name);
+            }
+        }
+        else if (subcmd == "reply")
+        {
+            if (cmd.GetArguments().size() != 2)
+            {
+                reply.SetErrCode(ERR_INVALID_SYNTAX);
+                return 0;
+            }
+            reply.SetStatusCode(STATUS_OK);
+            if (!strcasecmp(cmd.GetArguments()[1].c_str(), "on"))
+            {
+                ctx.flags.reply_off = 0;
+            }
+            else if (!strcasecmp(cmd.GetArguments()[1].c_str(), "off"))
+            {
+                ctx.flags.reply_off = 1;
+            }
+            else if (!strcasecmp(cmd.GetArguments()[1].c_str(), "skip"))
+            {
+                if(!ctx.flags.reply_off)
+                {
+                    ctx.flags.reply_skip = 1;
+                }
+            }
+            else
+            {
+                reply.SetErrCode(ERR_INVALID_SYNTAX);
+                return 0;
             }
         }
         else if (subcmd == "pause")
@@ -590,11 +625,11 @@ namespace ardb
                     }
                     else if (!strcasecmp(cmd.GetArguments()[i].c_str(), "SKIPME"))
                     {
-                        if (!strcasecmp(cmd.GetArguments()[i+1].c_str(), "yes"))
+                        if (!strcasecmp(cmd.GetArguments()[i + 1].c_str(), "yes"))
                         {
                             skipme = true;
                         }
-                        else if (!strcasecmp(cmd.GetArguments()[i+1].c_str(), "no"))
+                        else if (!strcasecmp(cmd.GetArguments()[i + 1].c_str(), "no"))
                         {
                             skipme = false;
                         }
@@ -611,9 +646,9 @@ namespace ardb
                     }
                 }
             }
-            if(!kill_addr.empty())
+            if (!kill_addr.empty())
             {
-                if(is_pattern_string(kill_addr))
+                if (is_pattern_string(kill_addr))
                 {
                     kill_pattern = kill_addr;
                     kill_addr.clear();
@@ -650,9 +685,10 @@ namespace ardb
                     if (conn_addr == kill_addr)
                     {
                         to_kill = true;
-                    }else if(!kill_pattern.empty())
+                    }
+                    else if (!kill_pattern.empty())
                     {
-                        to_kill = stringmatchlen(kill_pattern.c_str(),kill_pattern.size(), conn_addr.c_str(), conn_addr.size(), 0);
+                        to_kill = stringmatchlen(kill_pattern.c_str(), kill_pattern.size(), conn_addr.c_str(), conn_addr.size(), 0);
                     }
                 }
                 if (to_kill)
@@ -667,7 +703,7 @@ namespace ardb
                     /*
                      * only one connection has same address with kill args
                      */
-                    if(!kill_addr.empty())
+                    if (!kill_addr.empty())
                     {
                         break;
                     }
@@ -1144,7 +1180,8 @@ namespace ardb
             {
                 if (replay_ctx.offset < g_repl->GetReplLog().WALStartOffset() || replay_ctx.offset > g_repl->GetReplLog().WALEndOffset())
                 {
-                    ERROR_LOG("Failed to replay wal with sync_offset:%lld, wal_start_offset:%llu, wal_end_offset:%lld", replay_ctx.offset, g_repl->GetReplLog().WALStartOffset(), g_repl->GetReplLog().WALEndOffset());
+                    ERROR_LOG("Failed to replay wal with sync_offset:%lld, wal_start_offset:%llu, wal_end_offset:%lld", replay_ctx.offset,
+                            g_repl->GetReplLog().WALStartOffset(), g_repl->GetReplLog().WALEndOffset());
                     break;
                 }
 
@@ -1153,7 +1190,8 @@ namespace ardb
                 int64_t after_replayed_bytes = replay_ctx.offset - replay_init_offset;
                 if (after_replayed_bytes / replay_process_events_interval_bytes > before_replayed_bytes / replay_process_events_interval_bytes)
                 {
-                    INFO_LOG("%lld bytes replayed from wal log, %llu bytes left.", after_replayed_bytes, g_repl->GetReplLog().WALEndOffset() - replay_ctx.offset);
+                    INFO_LOG("%lld bytes replayed from wal log, %llu bytes left.", after_replayed_bytes,
+                            g_repl->GetReplLog().WALEndOffset() - replay_ctx.offset);
                 }
                 if (replay_ctx.offset == g_repl->GetReplLog().WALEndOffset())
                 {
