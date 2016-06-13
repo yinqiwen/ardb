@@ -85,6 +85,7 @@ OP_NAMESPACE_BEGIN
         ObjectBuffer obuffer(cmd.GetArguments()[0]);
         if (obuffer.ArdbLoad(ctx))
         {
+            ctx.dirty++;
             ctx.GetReply().SetStatusCode(STATUS_OK);
         }
         else
@@ -106,6 +107,9 @@ OP_NAMESPACE_BEGIN
                 return 0;
             }
             FlushDB(ctx, ctx.ns);
+            RedisCommandFrame flushdb("flushdb");
+            flushdb.AddArg(ctx.ns.AsString());
+            ctx.RewriteClientCommand(flushdb);
             INFO_LOG("RestoreDB %s started, flush it first.", ctx.ns.AsString().c_str());
         }
         else if (!strcasecmp(cmd.GetArguments()[0].c_str(), "end"))
@@ -123,6 +127,9 @@ OP_NAMESPACE_BEGIN
                 return 0;
             }
             FlushDB(ctx, ctx.ns);
+            RedisCommandFrame flushdb("flushdb");
+            flushdb.AddArg(ctx.ns.AsString());
+            ctx.RewriteClientCommand(flushdb);
             INFO_LOG("RestoreDB %s aborted, flush broken content.", ctx.ns.AsString().c_str());
         }
         else
