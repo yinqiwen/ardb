@@ -632,13 +632,14 @@ OP_NAMESPACE_BEGIN
                 abort();
             }
         }
+        int err = 0;
         KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
         if (!ctx.flags.redis_compatible && m_engine->GetFeatureSet().support_merge)
         {
             reply.SetStatusCode(STATUS_OK);
             Data merge_data;
             merge_data.SetInt64(mills);
-            m_engine->Merge(ctx, key, REDIS_CMD_PEXPIREAT, merge_data);
+            err = MergeKeyValue(ctx, key, REDIS_CMD_PEXPIREAT, DataArray(1, merge_data));
         }
         else
         {
@@ -648,16 +649,15 @@ OP_NAMESPACE_BEGIN
             {
                 return 0;
             }
-            if (meta_value.GetType() == 0)
+            reply.SetInteger(0);
+            err = ERR_NOTPERFORMED;
+            if (meta_value.GetType() != 0)
             {
-                reply.SetInteger(0);
-            }
-            else
-            {
-                reply.SetInteger(1);
                 int64 old_ttl = meta_value.GetTTL();
                 if (0 == MergeExpire(ctx, key, meta_value, mills))
                 {
+                    reply.SetInteger(1);
+                    err = 0;
                     SetKeyValue(ctx, key, meta_value);
                     /*
                      * if the storage engine underly do NOT support custom compact filter,
@@ -669,6 +669,13 @@ OP_NAMESPACE_BEGIN
                     }
                 }
             }
+        }
+        if (0 == err && !GetConf().master_host.empty() && cmd.GetType() != REDIS_CMD_PEXPIREAT)
+        {
+            RedisCommandFrame pexpreat("pexpireat");
+            pexpreat.AddArg(cmd.GetArguments()[0]);
+            pexpreat.AddArg(stringfromll(mills));
+            ctx.RewriteClientCommand(pexpreat);
         }
         return 0;
     }
