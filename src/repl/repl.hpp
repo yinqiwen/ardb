@@ -225,11 +225,11 @@ OP_NAMESPACE_BEGIN
     class ReplicationService: public Thread
     {
         private:
-            ChannelService m_io_serv;
-            Slave m_slave;
-            Master m_master;
-            ReplicationBacklog m_repl_backlog;
-            bool m_inited;
+            ChannelService* io_serv_;
+            Slave slave_;
+            Master master_;
+            ReplicationBacklog repl_backlog_;
+            bool inited_;
             void Run();
             void Routine();
         public:

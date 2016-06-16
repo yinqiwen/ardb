@@ -235,15 +235,7 @@ OP_NAMESPACE_BEGIN
             ERROR_LOG("Failed to init replication service.");
             return -1;
         }
-        /*
-         * 1000 is reserved open files in Ardb(pipes/logs/dump/etc.)
-         */
-        uint32 maxfiles = g_db->GetConf().max_clients + 1000;
-        if (g_engine->MaxOpenFiles() > 0)
-        {
-            maxfiles += g_engine->MaxOpenFiles();
-        }
-        m_service = new ChannelService(maxfiles);
+        m_service = new ChannelService(g_db->MaxOpenFiles());
         m_service->SetThreadPoolSize(g_db->GetConf().thread_pool_size);
         ServerLifecycleHandler lifecycle;
         m_service->RegisterLifecycleCallback(&lifecycle);

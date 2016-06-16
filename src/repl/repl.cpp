@@ -339,25 +339,25 @@ OP_NAMESPACE_BEGIN
     }
 
     ReplicationService::ReplicationService() :
-            m_inited(false)
+        io_serv_(NULL),inited_(false)
     {
         g_repl = this;
     }
     ChannelService& ReplicationService::GetIOService()
     {
-        return m_io_serv;
+        return *io_serv_;
     }
     ReplicationBacklog& ReplicationService::GetReplLog()
     {
-        return m_repl_backlog;
+        return repl_backlog_;
     }
     Master& ReplicationService::GetMaster()
     {
-        return m_master;
+        return master_;
     }
     Slave& ReplicationService::GetSlave()
     {
-        return m_slave;
+        return slave_;
     }
     void ReplicationService::Routine()
     {
@@ -408,13 +408,14 @@ OP_NAMESPACE_BEGIN
                     g_repl->GetReplLog().Routine();
                 }
         };
-        m_io_serv.GetTimer().Schedule(new RoutineTask, 1, 1, SECONDS);
-        m_inited = true;
-        m_io_serv.Start();
+        NEW(io_serv_, ChannelService(g_db->MaxOpenFiles()));
+        io_serv_->GetTimer().Schedule(new RoutineTask, 1, 1, SECONDS);
+        inited_ = true;
+        io_serv_->Start();
     }
     bool ReplicationService::IsInited() const
     {
-        return m_inited;
+        return inited_;
     }
     int ReplicationService::Init()
     {
@@ -423,7 +424,7 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         g_snapshot_manager->Init();
-        int err = m_repl_backlog.Init();
+        int err = repl_backlog_.Init();
         if (0 != err)
         {
             /*
@@ -431,12 +432,12 @@ OP_NAMESPACE_BEGIN
              */
             return 0;
         }
-        err = m_master.Init();
+        err = master_.Init();
         if (0 != err)
         {
             return err;
         }
-        err = m_slave.Init();
+        err = slave_.Init();
         if (0 != err)
         {
             return err;
@@ -455,8 +456,9 @@ OP_NAMESPACE_BEGIN
         {
             return;
         }
-        m_io_serv.Stop();
+        io_serv_->Stop();
         Join();
+        DELETE(io_serv_);
     }
 OP_NAMESPACE_END
 

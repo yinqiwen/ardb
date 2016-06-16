@@ -473,6 +473,19 @@ OP_NAMESPACE_BEGIN
         return engine;
     }
 
+    uint32 Ardb::MaxOpenFiles()
+    {
+        /*
+         * 1000 is reserved open files in Ardb(pipes/logs/dump/etc.)
+         */
+        uint32 maxfiles = g_db->GetConf().max_clients + 1000;
+        if (g_engine->MaxOpenFiles() > 0)
+        {
+            maxfiles += g_engine->MaxOpenFiles();
+        }
+        return maxfiles;
+    }
+
     int Ardb::Init(const std::string& conf_file)
     {
         Properties props;

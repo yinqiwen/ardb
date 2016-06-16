@@ -480,6 +480,7 @@ OP_NAMESPACE_BEGIN
             {
                 return m_conf;
             }
+            uint32 MaxOpenFiles();
             ~Ardb();
     };
     extern Ardb* g_db;
