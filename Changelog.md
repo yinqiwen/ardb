@@ -1,5 +1,25 @@
 # Changelog
 
+## Ardb 0.9.2
+### Features
+- New storage engine forestdb.
+- New command 'Client Reply/Kill'.
+- Native backup/restore support for LMDB engine.
+- Add internal snaoshot manager to manage all snapshots
+
+### Improve
+- Bug fix
+
+
+## Ardb 0.9.1
+### Features
+- New snapshot type 'bakcup' for rocksdb engine to improve master/slave full resync performance.
+- 'Monitor' command support.
+
+### Improve
+- Much faster slave replication speed by using more than 1 thread
+- Bug fix
+
 ## Ardb 0.9.0
 ### Features
 - Redesign whole project. It's not compatible with previous version.
