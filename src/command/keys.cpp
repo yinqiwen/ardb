@@ -814,8 +814,7 @@ OP_NAMESPACE_BEGIN
         {
             KeyObject& k = iter->Key();
             const Data& kdata = k.GetKey();
-            if (k.GetNameSpace().Compare(meta_key.GetNameSpace()) != 0 || kdata.StringLength() != meta_key.GetKey().StringLength()
-                    || strncmp(meta_key.GetKey().CStr(), kdata.CStr(), kdata.StringLength()) != 0)
+            if (k.GetNameSpace().Compare(meta_key.GetNameSpace()) != 0 || kdata.StringLength() != meta_key.GetKey().StringLength() || strncmp(meta_key.GetKey().CStr(), kdata.CStr(), kdata.StringLength()) != 0)
             {
                 break;
             }
@@ -922,6 +921,28 @@ OP_NAMESPACE_BEGIN
         {
             reply.SetErrorReason("Bad data format");
         }
+        return 0;
+    }
+
+    int Ardb::Touch(Context& ctx, RedisCommandFrame& cmd)
+    {
+        int count = 0;
+        for (size_t i = 0; i < cmd.GetArguments().size(); i++)
+        {
+            KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[i]);
+            ValueObject meta;
+            KeyLockGuard guard(ctx, key);
+            if (!CheckMeta(ctx, key, (KeyType) 0, meta))
+            {
+                return 0;
+            }
+            if(meta.GetType() == 0)
+            {
+                continue;
+            }
+            count++;
+        }
+        ctx.GetReply().SetInteger(count);
         return 0;
     }
 
