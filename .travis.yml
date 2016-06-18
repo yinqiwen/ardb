@@ -3,6 +3,8 @@ language: cpp
 compiler:
   - gcc
   - clang
+  
+cache: ccache
 
 sudo: required
 dist: trusty
@@ -13,13 +15,13 @@ addons:
 
 script:
     - pushd src
-    - make
+    - make -j2
     - ./ardb-test
-    - storage_engine=leveldb make
+    - storage_engine=leveldb make -j2
     - ./ardb-test
-    - storage_engine=lmdb make
+    - storage_engine=lmdb make -j2
     - ./ardb-test
-    - storage_engine=wiredtiger make
+    - storage_engine=wiredtiger make -j2
     - ./ardb-test
     - popd
 
