@@ -19,13 +19,15 @@ env:
     - storage_engine=leveldb
     - storage_engine=lmdb
     - storage_engine=wiredtiger
-    - storage_engine=''
 
 script:
     - pushd src
     - make -j2
     - ./ardb-test
     - popd
-
+matrix:
+  include:
+    - compiler: gcc
+    - compiler: clang
 os:
   - linux
