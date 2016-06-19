@@ -28,6 +28,8 @@ script:
 matrix:
   include:
     - compiler: gcc
+      env:
     - compiler: clang
+      env:
 os:
   - linux
