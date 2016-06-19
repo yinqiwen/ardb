@@ -22,14 +22,14 @@ env:
 
 script:
     - pushd src
-    - make -j2
+    - make
     - ./ardb-test
     - popd
 matrix:
   include:
     - compiler: gcc
-      env:
+      env: DEFAULT_STORAGE_ENGINE=1 # travis doesn't like empty env sections
     - compiler: clang
-      env:
+      env: DEFAULT_STORAGE_ENGINE=1 # travis doesn't like empty env sections
 os:
   - linux
