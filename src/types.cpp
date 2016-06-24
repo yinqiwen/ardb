@@ -83,7 +83,6 @@ OP_NAMESPACE_BEGIN
 
     void Data::Encode(Buffer& buf) const
     {
-
         switch (encoding)
         {
             case E_FLOAT64:

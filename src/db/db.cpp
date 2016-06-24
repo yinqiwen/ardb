@@ -340,7 +340,8 @@ OP_NAMESPACE_BEGIN
         { "restorechunk", REDIS_CMD_RESTORECHUNK, &Ardb::RestoreChunk, 1, 1, "wl", 0, 0, 0 },
         { "restoredb", REDIS_CMD_RESTOREDB, &Ardb::RestoreDB, 1, 1, "wl", 0, 0, 0 },
         { "monitor", REDIS_CMD_MONITOR, &Ardb::Monitor, 0, 0, "ars", 0, 0, 0 },
-        { "debug", REDIS_CMD_DEBUG, &Ardb::Debug, 2, -1, "ars", 0, 0, 0 },};
+        { "debug", REDIS_CMD_DEBUG, &Ardb::Debug, 2, -1, "ars", 0, 0, 0 },
+        { "touch", REDIS_CMD_TOUCH, &Ardb::Touch, 1, -2, "rF", 0, 0, 0 },};
 
         CostRanges cmdstat_ranges;
         cmdstat_ranges.push_back(CostRange(0, 1000));

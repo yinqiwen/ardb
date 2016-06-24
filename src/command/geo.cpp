@@ -439,6 +439,11 @@ namespace ardb
             reply.SetErrorReason("need numeric radius");
             return 0;
         }
+        if(radius < 0)
+        {
+            reply.SetErrorReason("radius cannot be negative");
+            return 0;
+        }
         double to_meters = extractUnitOrReply(cmd.GetArguments()[radius_arg_pos + 1]);
         if (to_meters < 0)
         {

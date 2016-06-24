@@ -2003,7 +2003,7 @@ namespace ardb
         uint32 now = time(NULL);
         if (type == BACKUP_DUMP)
         {
-            sprintf(tmp, "%s/sync-%s-backup.%llu.%llu.%u", g_db->GetConf().backup_dir.c_str(), g_engine, offset, cksm, now);
+            sprintf(tmp, "%s/sync-%s-backup.%llu.%llu.%u", g_db->GetConf().backup_dir.c_str(), g_engine_name, offset, cksm, now);
         }
         else
         {

@@ -182,13 +182,21 @@ OP_NAMESPACE_BEGIN
         startkey.SetNameSpace(ctx.ns);
         uint32 cursor_pos = 0;
         std::string cursor_element;
+        Data nil;
         if (cmd.GetType() == REDIS_CMD_HSCAN)
         {
             cursor_pos = 1;
             FindElementByRedisCursor(cmd.GetArguments()[cursor_pos], cursor_element);
             startkey.SetType(KEY_HASH_FIELD);
             startkey.SetKey(cmd.GetArguments()[0]);
-            startkey.SetHashField(cursor_element);
+            if(cursor_element.empty())
+            {
+                startkey.SetHashField(nil);
+            }
+            else
+            {
+                startkey.SetHashField(cursor_element);
+            }
 
         }
         else if (cmd.GetType() == REDIS_CMD_SSCAN)
@@ -197,7 +205,14 @@ OP_NAMESPACE_BEGIN
             FindElementByRedisCursor(cmd.GetArguments()[cursor_pos], cursor_element);
             startkey.SetType(KEY_SET_MEMBER);
             startkey.SetKey(cmd.GetArguments()[0]);
-            startkey.SetSetMember(cursor_element);
+            if(cursor_element.empty())
+            {
+                startkey.SetSetMember(nil);
+            }
+            else
+            {
+                startkey.SetSetMember(cursor_element);
+            }
         }
         else if (cmd.GetType() == REDIS_CMD_ZSCAN)
         {
@@ -280,6 +295,7 @@ OP_NAMESPACE_BEGIN
                 {
                     break;
                 }
+
                 if (!pattern.empty())
                 {
                     if (k.GetType() == KEY_ZSET_SORT)
@@ -814,8 +830,7 @@ OP_NAMESPACE_BEGIN
         {
             KeyObject& k = iter->Key();
             const Data& kdata = k.GetKey();
-            if (k.GetNameSpace().Compare(meta_key.GetNameSpace()) != 0 || kdata.StringLength() != meta_key.GetKey().StringLength()
-                    || strncmp(meta_key.GetKey().CStr(), kdata.CStr(), kdata.StringLength()) != 0)
+            if (k.GetNameSpace().Compare(meta_key.GetNameSpace()) != 0 || kdata.StringLength() != meta_key.GetKey().StringLength() || strncmp(meta_key.GetKey().CStr(), kdata.CStr(), kdata.StringLength()) != 0)
             {
                 break;
             }
@@ -922,6 +937,28 @@ OP_NAMESPACE_BEGIN
         {
             reply.SetErrorReason("Bad data format");
         }
+        return 0;
+    }
+
+    int Ardb::Touch(Context& ctx, RedisCommandFrame& cmd)
+    {
+        int count = 0;
+        for (size_t i = 0; i < cmd.GetArguments().size(); i++)
+        {
+            KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[i]);
+            ValueObject meta;
+            KeyLockGuard guard(ctx, key);
+            if (!CheckMeta(ctx, key, (KeyType) 0, meta))
+            {
+                return 0;
+            }
+            if(meta.GetType() == 0)
+            {
+                continue;
+            }
+            count++;
+        }
+        ctx.GetReply().SetInteger(count);
         return 0;
     }
 
