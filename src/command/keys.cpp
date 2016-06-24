@@ -182,13 +182,21 @@ OP_NAMESPACE_BEGIN
         startkey.SetNameSpace(ctx.ns);
         uint32 cursor_pos = 0;
         std::string cursor_element;
+        Data nil;
         if (cmd.GetType() == REDIS_CMD_HSCAN)
         {
             cursor_pos = 1;
             FindElementByRedisCursor(cmd.GetArguments()[cursor_pos], cursor_element);
             startkey.SetType(KEY_HASH_FIELD);
             startkey.SetKey(cmd.GetArguments()[0]);
-            startkey.SetHashField(cursor_element);
+            if(cursor_element.empty())
+            {
+                startkey.SetHashField(nil);
+            }
+            else
+            {
+                startkey.SetHashField(cursor_element);
+            }
 
         }
         else if (cmd.GetType() == REDIS_CMD_SSCAN)
@@ -197,7 +205,14 @@ OP_NAMESPACE_BEGIN
             FindElementByRedisCursor(cmd.GetArguments()[cursor_pos], cursor_element);
             startkey.SetType(KEY_SET_MEMBER);
             startkey.SetKey(cmd.GetArguments()[0]);
-            startkey.SetSetMember(cursor_element);
+            if(cursor_element.empty())
+            {
+                startkey.SetSetMember(nil);
+            }
+            else
+            {
+                startkey.SetSetMember(cursor_element);
+            }
         }
         else if (cmd.GetType() == REDIS_CMD_ZSCAN)
         {
@@ -280,6 +295,7 @@ OP_NAMESPACE_BEGIN
                 {
                     break;
                 }
+
                 if (!pattern.empty())
                 {
                     if (k.GetType() == KEY_ZSET_SORT)
