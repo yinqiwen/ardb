@@ -221,7 +221,7 @@ namespace ardb
                 it++;
             }
         }
-        if (m_watched_ctxs->empty())
+        if (NULL != m_watched_ctxs && m_watched_ctxs->empty())
         {
             DELETE(m_watched_ctxs);
         }
