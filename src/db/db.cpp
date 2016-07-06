@@ -288,7 +288,7 @@ OP_NAMESPACE_BEGIN
         { "zunionstore", REDIS_CMD_ZUNIONSTORE, &Ardb::ZUnionStore, 3, -1, "w", 0, 0, 0 },
         { "zrevrank", REDIS_CMD_ZREVRANK, &Ardb::ZRevRank, 2, 2, "r", 0, 0, 0 },
         { "zscore", REDIS_CMD_ZSCORE, &Ardb::ZScore, 2, 2, "r", 0, 0, 0 },
-        { "zscan", REDIS_CMD_ZSCORE, &Ardb::ZScan, 2, 6, "r", 0, 0, 0 },
+        { "zscan", REDIS_CMD_ZSCAN, &Ardb::ZScan, 2, 6, "r", 0, 0, 0 },
         { "zlexcount", REDIS_CMD_ZLEXCOUNT, &Ardb::ZLexCount, 3, 3, "r", 0, 0, 0 },
         { "zrangebylex", REDIS_CMD_ZRANGEBYLEX, &Ardb::ZRangeByLex, 3, 6, "r", 0, 0, 0 },
         { "zrevrangebylex", REDIS_CMD_ZREVRANGEBYLEX, &Ardb::ZRangeByLex, 3, 6, "r", 0, 0, 0 },
