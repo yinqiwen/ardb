@@ -32,6 +32,7 @@
 #include "buffer/buffer_helper.hpp"
 
 #include <limits.h>
+#include <cmath>
 
 using ardb::BufferHelper;
 using namespace ardb::codec;
@@ -64,7 +65,7 @@ bool RedisReplyEncoder::Encode(Buffer& buf, RedisReply& reply)
         case REDIS_REPLY_ERROR:
         {
             const std::string& err = reply.Error();
-            if(!err.empty() && err[0] == '-')
+            if (!err.empty() && err[0] == '-')
             {
                 buf.Printf("%s\r\n", err.c_str());
             }
@@ -81,15 +82,26 @@ bool RedisReplyEncoder::Encode(Buffer& buf, RedisReply& reply)
         }
         case REDIS_REPLY_DOUBLE:
         {
-            std::string doubleStrValue;
-            fast_dtoa(reply.GetDouble(), 9, doubleStrValue);
-            buf.Printf("$%d\r\n", doubleStrValue.size());
-            buf.Printf("%s\r\n", doubleStrValue.c_str());
+            char dbuf[128], sbuf[128];
+            int dlen, slen;
+            double d = reply.GetDouble();
+            if (std::isinf (d))
+            {
+                /* Libc in odd systems (Hi Solaris!) will format infinite in a
+                 * different way, so better to handle it in an explicit way. */
+                buf.Printf(d > 0 ? "inf" : "-inf");
+            }
+            else
+            {
+                dlen = snprintf(dbuf, sizeof(dbuf), "%.17g", d);
+                slen = snprintf(sbuf, sizeof(sbuf), "$%d\r\n%s\r\n", dlen, dbuf);
+                buf.Write(sbuf, slen);
+            }
             break;
         }
         case REDIS_REPLY_ARRAY:
         {
-            if(reply.integer < 0)
+            if (reply.integer < 0)
             {
                 buf.Printf("*-1\r\n");
                 break;
@@ -259,7 +271,7 @@ bool RedisDumpFileChunkDecoder::Decode(ChannelHandlerContext& ctx, Channel* chan
         {
             buffer.AdvanceReadIndex(1);
         }
-        if(!buffer.Readable())
+        if (!buffer.Readable())
         {
             return false;
         }
