@@ -182,6 +182,7 @@ OP_NAMESPACE_BEGIN
         startkey.SetNameSpace(ctx.ns);
         uint32 cursor_pos = 0;
         std::string cursor_element;
+        bool skip_first = false;
         Data nil;
         if (cmd.GetType() == REDIS_CMD_HSCAN)
         {
@@ -235,6 +236,8 @@ OP_NAMESPACE_BEGIN
             ctx.flags.iterate_total_order = 1;
         }
 
+        skip_first = !cursor_element.empty();
+
         if (cmd.GetArguments().size() > cursor_pos + 1)
         {
             for (uint32 i = cursor_pos + 1; i < cmd.GetArguments().size(); i++)
@@ -276,6 +279,10 @@ OP_NAMESPACE_BEGIN
         uint32 scan_count = 0;
         int64_t result_count = 0;
         Iterator* iter = m_engine->Find(ctx, startkey);
+        if(iter->Valid() && skip_first)
+        {
+        	iter->Next();
+        }
         std::string match_element;
         while (iter->Valid())
         {
@@ -296,7 +303,7 @@ OP_NAMESPACE_BEGIN
                     break;
                 }
 
-                if (!pattern.empty())
+                //if (!pattern.empty())
                 {
                     if (k.GetType() == KEY_ZSET_SORT)
                     {
@@ -366,7 +373,7 @@ OP_NAMESPACE_BEGIN
         else
         {
             std::string next = match_element;
-            next.append(1, 0);
+            //next.append(1, 0);
             uint64 newcursor = GetNewRedisCursor(next);
             r1.SetString(stringfromll(newcursor));
         }
