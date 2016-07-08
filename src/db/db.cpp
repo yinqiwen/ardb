@@ -1318,7 +1318,7 @@ OP_NAMESPACE_BEGIN
                     to_close.push_back(client);
                 }
             }
-            if (NULL != client->client && NULL != client->client->client)
+            if (NULL != client && NULL != client->client && NULL != client->client->client)
             {
                 if (client->client->resume_ustime > 0 && now <= client->client->resume_ustime)
                 {
