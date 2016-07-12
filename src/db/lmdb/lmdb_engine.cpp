@@ -450,8 +450,18 @@ namespace ardb
                     Data ns;
                     ns.SetString((const char*) val.mv_data, val.mv_size, true);
                     MDB_dbi tmp;
-                    GetDBI(init_ctx, ns, false, tmp);
-                    INFO_LOG("Open db:%s success.", ns.AsString().c_str());
+                    //GetDBI(init_ctx, ns, false, tmp);
+                    rc = mdb_open(local_ctx.txn, ns.AsString().c_str(), 0, &tmp);
+                    if(0 == rc)
+                    {
+                    	m_dbis[ns] = tmp;
+                        INFO_LOG("Open db:%s success.", ns.AsString().c_str());
+                    }
+                    else
+                    {
+                    	ERROR_LOG("Failed to open db:%s with reason:%s", ns.AsString().c_str(),  mdb_strerror(rc));
+                    }
+
                 }
             }
         } while (rc == 0);
