@@ -656,9 +656,16 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         err = m_engine->Get(ctx, key, meta);
-        if (err != 0 && err != ERR_ENTRY_NOT_EXIST)
+        if (err != 0)
         {
-            reply.SetErrCode(err);
+        	if(err != ERR_ENTRY_NOT_EXIST)
+        	{
+                reply.SetErrCode(err);
+        	}
+        	else
+        	{
+        		reply.SetInteger(0);
+        	}
             return 0;
         }
         if (meta.GetType() != KEY_HASH)
