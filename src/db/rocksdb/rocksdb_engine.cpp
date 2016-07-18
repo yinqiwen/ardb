@@ -411,6 +411,10 @@ OP_NAMESPACE_BEGIN
             // transform a src in domain to a dst in the range
             rocksdb::Slice Transform(const rocksdb::Slice& src) const
             {
+            	if(src.size() == 0)
+            	{
+            		return src;
+            	}
                 Buffer buffer(const_cast<char*>(src.data()), 0, src.size());
                 KeyObject k;
                 if (!k.DecodeKey(buffer, false))
