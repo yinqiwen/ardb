@@ -101,8 +101,9 @@ OP_NAMESPACE_BEGIN
             time_t create_time;
             bool iter_total_order_seek;
             bool iter_prefix_same_as_start;
+            bool delete_after_finish;
             RocksIterData() :
-                    iter(NULL), dbseq(0), create_time(0), iter_total_order_seek(false), iter_prefix_same_as_start(false)
+                    iter(NULL), dbseq(0), create_time(0), iter_total_order_seek(false), iter_prefix_same_as_start(false),delete_after_finish(false)
             {
             }
             bool EqaulOptions(const rocksdb::ReadOptions& a)
@@ -115,90 +116,122 @@ OP_NAMESPACE_BEGIN
             }
     };
 
-    struct RocksIteratorCache
-    {
-            SpinMutexLock cache_lock;
-            typedef std::list<RocksIterData*> CacheList;
-            CacheList cache;
-            size_t cache_size;
-            size_t max_cache_size;
-            RocksIteratorCache() :
-                    cache_size(0), max_cache_size(10)
-            {
-
-            }
-            void Init()
-            {
-                max_cache_size = g_db->GetConf().thread_pool_size + 10;
-            }
-            RocksIterData* Get(const Data& ns, const rocksdb::ReadOptions& options)
-            {
-                LockGuard<SpinMutexLock> guard(cache_lock);
-                CacheList::iterator it = cache.begin();
-                while (it != cache.end())
-                {
-                    RocksIterData* cursor = *it;
-                    if (cursor->dbseq < g_rocksdb->GetLatestSequenceNumber())
-                    {
-                        it = cache.erase(it);
-                        DELETE(cursor);
-                        cache_size--;
-                        continue;
-                    }
-                    if (cursor->ns == ns && cursor->EqaulOptions(options))
-                    {
-                        RocksIterData* iter = cursor;
-                        cache.erase(it);
-                        cache_size--;
-                        return iter;
-                    }
-                    it++;
-                }
-                return NULL;
-            }
-            void Recycle(RocksIterData* it)
-            {
-                if (cache_size >= max_cache_size || it->dbseq < g_rocksdb->GetLatestSequenceNumber())
-                {
-                    DELETE(it);
-                    return;
-                }
-                LockGuard<SpinMutexLock> guard(cache_lock);
-                cache.push_back(it);
-                cache_size++;
-            }
-            void Routine()
-            {
-                time_t now = time(NULL);
-                LockGuard<SpinMutexLock> guard(cache_lock);
-                CacheList::iterator it = cache.begin();
-                while (it != cache.end())
-                {
-                    RocksIterData* cursor = *it;
-                    if (cursor->dbseq < g_rocksdb->GetLatestSequenceNumber() || cursor->create_time < (now - 10))
-                    {
-                        it = cache.erase(it);
-                        DELETE(cursor);
-                        cache_size--;
-                        continue;
-                    }
-                    it++;
-                }
-            }
-            void Clear()
-            {
-                LockGuard<SpinMutexLock> guard(cache_lock);
-                CacheList::iterator it = cache.begin();
-                while (it != cache.end())
-                {
-                    RocksIterData* cursor = *it;
-                    DELETE(cursor);
-                    it++;
-                }
-                cache.clear();
-                cache_size = 0;
-            }
-    };
+//    struct RocksIteratorCache
+//    {
+//            SpinMutexLock cache_lock;
+//            typedef std::list<RocksIterData*> CacheList;
+//            typedef TreeSet<RocksIterData*>::Type RocksIterDataSet;
+//            ThreadMutexLock running_iters_lock;
+//            RocksIterDataSet running_iters;
+//            CacheList cache;
+//            size_t cache_size;
+//            size_t max_cache_size;
+//            RocksIteratorCache() :
+//                    cache_size(0), max_cache_size(10)
+//            {
+//
+//            }
+//            void Init()
+//            {
+//                max_cache_size = g_db->GetConf().thread_pool_size + 10;
+//            }
+//            void AddRunningIter(RocksIterData* rocksiter)
+//            {
+//                LockGuard<ThreadMutexLock> guard(running_iters_lock);
+//                running_iters.insert(rocksiter);
+//            }
+//
+//            RocksIterData* Get(const Data& ns, const rocksdb::ReadOptions& options)
+//            {
+//                LockGuard<SpinMutexLock> guard(cache_lock);
+//                CacheList::iterator it = cache.begin();
+//                while (it != cache.end())
+//                {
+//                    RocksIterData* cursor = *it;
+//                    if (cursor->dbseq < g_rocksdb->GetLatestSequenceNumber())
+//                    {
+//                        it = cache.erase(it);
+//                        DELETE(cursor);
+//                        cache_size--;
+//                        continue;
+//                    }
+//                    if (cursor->ns == ns && cursor->EqaulOptions(options))
+//                    {
+//                        RocksIterData* iter = cursor;
+//                        cache.erase(it);
+//                        cache_size--;
+//                        return iter;
+//                    }
+//                    it++;
+//                }
+//                return NULL;
+//            }
+//            void Recycle(RocksIterData* it)
+//            {
+//                if (cache_size >= max_cache_size || it->dbseq < g_rocksdb->GetLatestSequenceNumber()|| it->delete_after_finish)
+//                {
+//                    LockGuard<ThreadMutexLock> guard(running_iters_lock);
+//                	running_iters.erase(it);
+//                    DELETE(it);
+//                    return;
+//                }
+//                LockGuard<SpinMutexLock> guard(cache_lock);
+//                cache.push_back(it);
+//                cache_size++;
+//            }
+//            void Routine()
+//            {
+//                time_t now = time(NULL);
+//                LockGuard<SpinMutexLock> guard(cache_lock);
+//                CacheList::iterator it = cache.begin();
+//                while (it != cache.end())
+//                {
+//                    RocksIterData* cursor = *it;
+//                    if (cursor->dbseq < g_rocksdb->GetLatestSequenceNumber() || cursor->create_time < (now - 10))
+//                    {
+//                        it = cache.erase(it);
+//                        LockGuard<ThreadMutexLock> guard(running_iters_lock);
+//                        running_iters.erase(cursor);
+//                        DELETE(cursor);
+//                        cache_size--;
+//                        continue;
+//                    }
+//                    it++;
+//                }
+//            }
+//            void Clear()
+//            {
+//            	{
+//                    LockGuard<SpinMutexLock> guard(cache_lock);
+//                    CacheList::iterator it = cache.begin();
+//                    while (it != cache.end())
+//                    {
+//                    	LockGuard<ThreadMutexLock> guard(running_iters_lock);
+//                        RocksIterData* cursor = *it;
+//                        running_iters.erase(cursor);
+//                        DELETE(cursor);
+//                        it++;
+//                    }
+//                    cache.clear();
+//                    cache_size = 0;
+//            	}
+//            	{
+//                    LockGuard<ThreadMutexLock> guard(running_iters_lock);
+//                    RocksIterDataSet::iterator it = running_iters.begin();
+//                    while(it != running_iters.end())
+//                    {
+//                    	(*it)->delete_after_finish = true;
+//                    	it++;
+//                    }
+//                    while(!running_iters.empty())
+//                    {
+//                    	running_iters_lock.Wait(1*MILLIS);
+//                    }
+//            	}
+//
+//
+//            }
+//    };
 
 #define DEFAULT_ROCKS_LOCAL_MULTI_CACHE_SIZE 10
     struct RocksDBLocalContext
@@ -234,7 +267,7 @@ OP_NAMESPACE_BEGIN
     };
 
     static ThreadLocal<RocksDBLocalContext> g_rocks_context;
-    static RocksIteratorCache g_iter_cache;
+    //static RocksIteratorCache g_iter_cache;
 
     static inline int rocksdb_err(const rocksdb::Status& s)
     {
@@ -380,7 +413,7 @@ OP_NAMESPACE_BEGIN
             {
                 Buffer buffer(const_cast<char*>(src.data()), 0, src.size());
                 KeyObject k;
-                if (!k.DecodePrefix(buffer, false))
+                if (!k.DecodeKey(buffer, false))
                 {
                 	FATAL_LOG("Not a valid key slice in PrefixExtractor with len:%d", src.size());
                 }
@@ -759,7 +792,7 @@ OP_NAMESPACE_BEGIN
 
     void RocksDBEngine::Close()
     {
-        g_iter_cache.Clear();
+        //g_iter_cache.Clear();
         RWLockGuard<SpinRWLock> guard(m_lock, true);
         m_handlers.clear(); //handlers MUST be deleted before m_db
         DELETE(m_db);
@@ -853,7 +886,7 @@ OP_NAMESPACE_BEGIN
 
     int RocksDBEngine::Init(const std::string& dir, const std::string& conf)
     {
-        g_iter_cache.Init();
+        //g_iter_cache.Init();
 
         static RocksDBComparator comparator;
         m_options.comparator = &comparator;
@@ -886,7 +919,7 @@ OP_NAMESPACE_BEGIN
 
     int RocksDBEngine::Routine()
     {
-        g_iter_cache.Routine();
+        //g_iter_cache.Routine();
         return 0;
     }
 
@@ -1177,7 +1210,8 @@ OP_NAMESPACE_BEGIN
         {
             opt.total_order_seek = true;
         }
-        RocksIterData* rocksiter = g_iter_cache.Get(key.GetNameSpace(), opt);
+        //RocksIterData* rocksiter = g_iter_cache.Get(key.GetNameSpace(), opt);
+        RocksIterData* rocksiter= NULL;
         if (NULL == rocksiter)
         {
             NEW(rocksiter, RocksIterData);
@@ -1188,6 +1222,7 @@ OP_NAMESPACE_BEGIN
             rocksiter->iter_total_order_seek = opt.total_order_seek;
             rocksiter->ns.Clone(key.GetNameSpace());
             rocksiter->ns.ToMutableStr();
+            //g_iter_cache.AddRunningIter(rocksiter);
         }
         iter->SetIterator(rocksiter);
         if (key.GetType() > 0)
@@ -1301,7 +1336,7 @@ OP_NAMESPACE_BEGIN
     int RocksDBEngine::DropNameSpace(Context& ctx, const Data& ns)
     {
         RWLockGuard<SpinRWLock> guard(m_lock, false);
-        g_iter_cache.Clear();
+        //g_iter_cache.Clear();
         ColumnFamilyHandleTable::iterator found = m_handlers.find(ns);
         if (found != m_handlers.end())
         {
@@ -1336,7 +1371,7 @@ OP_NAMESPACE_BEGIN
         std::string str, version_info;
         version_info.append("rocksdb_version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(stringfromll(rocksdb::kMinorVersion)).append(".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
         all.append(version_info);
-        all.append("rocksdb_iterator_cache:").append(stringfromll(g_iter_cache.cache_size)).append("\r\n");
+       // all.append("rocksdb_iterator_cache:").append(stringfromll(g_iter_cache.cache_size)).append("\r\n");
         std::map<rocksdb::MemoryUtil::UsageType, uint64_t> usage_by_type;
         std::unordered_set<const rocksdb::Cache*> cache_set;
         std::vector<rocksdb::DB*> dbs(1, m_db);
@@ -1535,7 +1570,8 @@ OP_NAMESPACE_BEGIN
     {
         if(NULL != m_iter)
         {
-            g_iter_cache.Recycle(m_iter);
+        	DELETE(m_iter);
+            //g_iter_cache.Recycle(m_iter);
         }
     }
 OP_NAMESPACE_END

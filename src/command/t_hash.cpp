@@ -241,7 +241,6 @@ OP_NAMESPACE_BEGIN
         reply.ReserveMember(0);
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_META, keystr);
-        ctx.flags.iterate_multi_keys = 1;
         Iterator* iter = m_engine->Find(ctx, key);
 
         bool checked_meta = false;
