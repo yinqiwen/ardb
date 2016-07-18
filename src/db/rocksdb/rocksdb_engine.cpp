@@ -380,9 +380,9 @@ OP_NAMESPACE_BEGIN
             {
                 Buffer buffer(const_cast<char*>(src.data()), 0, src.size());
                 KeyObject k;
-                if (!k.DecodeKey(buffer, false))
+                if (!k.DecodePrefix(buffer, false))
                 {
-                    abort();
+                	FATAL_LOG("Not a valid key slice in PrefixExtractor with len:%d", src.size());
                 }
                 return rocksdb::Slice(src.data(), src.size() - buffer.ReadableBytes());
             }
@@ -1301,6 +1301,7 @@ OP_NAMESPACE_BEGIN
     int RocksDBEngine::DropNameSpace(Context& ctx, const Data& ns)
     {
         RWLockGuard<SpinRWLock> guard(m_lock, false);
+        g_iter_cache.Clear();
         ColumnFamilyHandleTable::iterator found = m_handlers.find(ns);
         if (found != m_handlers.end())
         {

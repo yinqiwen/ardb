@@ -241,18 +241,20 @@ OP_NAMESPACE_BEGIN
         reply.ReserveMember(0);
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_META, keystr);
+        ctx.flags.iterate_multi_keys = 1;
         Iterator* iter = m_engine->Find(ctx, key);
 
         bool checked_meta = false;
-        while (NULL != iter && iter->Valid())
+        while (iter->Valid())
         {
             KeyObject& field = iter->Key();
-
             if (!checked_meta)
             {
                 if (field.GetType() == KEY_META && field.GetKey() == key.GetKey())
                 {
+
                     ValueObject& meta = iter->Value();
+
                     if (meta.GetType() != KEY_HASH)
                     {
                         reply.SetErrCode(ERR_WRONG_TYPE);
