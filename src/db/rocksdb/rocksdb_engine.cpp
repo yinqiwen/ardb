@@ -233,7 +233,6 @@ OP_NAMESPACE_BEGIN
 //            }
 //    };
 
-#define DEFAULT_ROCKS_LOCAL_MULTI_CACHE_SIZE 10
     struct RocksDBLocalContext
     {
             RocksWriteBatch transc;
@@ -252,16 +251,8 @@ OP_NAMESPACE_BEGIN
                 string_cache.clear();
                 return string_cache;
             }
-            std::vector<string>& GetMultiStringCache(size_t num)
+            std::vector<string>& GetMultiStringCache()
             {
-                if (multi_string_cache.size() < num)
-                {
-                    multi_string_cache.resize(num);
-                }
-                else
-                {
-                    multi_string_cache.resize(DEFAULT_ROCKS_LOCAL_MULTI_CACHE_SIZE);
-                }
                 return multi_string_cache;
             }
     };
@@ -810,7 +801,6 @@ OP_NAMESPACE_BEGIN
         rocksdb::Status s = rocksdb::BackupEngine::Open(rocksdb::Env::Default(), opt, &backup_engine);
         if (s.ok())
         {
-
             s = backup_engine->CreateNewBackup(m_db, true);
             if (s.ok())
             {
@@ -1035,7 +1025,7 @@ OP_NAMESPACE_BEGIN
         std::vector<size_t> positions;
         Buffer& key_encode_buffers = rocks_ctx.GetEncodeBuferCache();
         ks.resize(keys.size());
-        std::vector<std::string>& vs = rocks_ctx.GetMultiStringCache(keys.size());
+        std::vector<std::string>& vs = rocks_ctx.GetMultiStringCache();
         for (size_t i = 0; i < keys.size(); i++)
         {
             size_t mark = key_encode_buffers.GetWriteIndex();
@@ -1044,13 +1034,7 @@ OP_NAMESPACE_BEGIN
         }
         for (size_t i = 0; i < keys.size(); i++)
         {
-            if(positions[i] == 0)
-            {
-            	printf("@@@@@2######%d\n",  i);
-            	abort();
-            }
             cfs.push_back(cf);
-
             ks[i] = rocksdb::Slice(key_encode_buffers.GetRawReadBuffer(), positions[i]);
             key_encode_buffers.AdvanceReadIndex(positions[i]);
         }
