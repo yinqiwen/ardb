@@ -664,7 +664,7 @@ OP_NAMESPACE_BEGIN
          *
          * Instead we take the other branch of the IF statement setting an expire
          * (possibly in the past) and wait for an explicit DEL from the master. */
-    	if(now > mills && GetConf().master_host.empty() && !IsLoadingData())
+    	if(now > mills && GetConf().master_host.empty() && !IsLoadingData() && cmd.GetType() != REDIS_CMD_PERSIST)
     	{
     		if ((!ctx.flags.redis_compatible && m_engine->GetFeatureSet().support_merge) || m_engine->Exists(ctx, key))
     		{
@@ -712,7 +712,7 @@ OP_NAMESPACE_BEGIN
                 }
             }
         }
-        if (0 == err && !GetConf().master_host.empty() && cmd.GetType() != REDIS_CMD_PEXPIREAT)
+        if (0 == err && !GetConf().master_host.empty() && (cmd.GetType() != REDIS_CMD_PEXPIREAT && cmd.GetType() != REDIS_CMD_PERSIST))
         {
             RedisCommandFrame pexpreat("pexpireat");
             pexpreat.AddArg(cmd.GetArguments()[0]);
