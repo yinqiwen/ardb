@@ -735,6 +735,10 @@ OP_NAMESPACE_BEGIN
         return PExpireat(ctx, cmd);
     }
 
+    /*
+     * The command returns -2 if the key does not exist.
+     * The command returns -1 if the key exists but has no associated expire.
+     */
     int Ardb::PTTL(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
@@ -747,6 +751,10 @@ OP_NAMESPACE_BEGIN
             if (err != ERR_ENTRY_NOT_EXIST)
             {
                 reply.SetErrCode(err);
+            }
+            else
+            {
+            	reply.SetInteger(-2);
             }
             return 0;
         }
@@ -764,19 +772,30 @@ OP_NAMESPACE_BEGIN
             }
             if (ttl < 0)
             {
-//                if (GetConf().master_host.empty() || !GetConf().slave_readonly)
-//                {
-//                    if (val.GetType() == KEY_STRING)
-//                    {
-//                        RemoveKey(ctx, key);
-//                    }
-//                    else
-//                    {
-//                        DelKey(ctx, key);
-//                    }
-//                }
-//                ttl = 0;
+                if (GetConf().master_host.empty())
+                {
+                    if (val.GetType() == KEY_STRING)
+                    {
+                        RemoveKey(ctx, key);
+                    }
+                    else
+                    {
+                        DelKey(ctx, key);
+                    }
+                    RedisCommandFrame del("del");
+                    del.AddArg(cmd.GetArguments()[0]);
+                    FeedReplicationBacklog(ctx, ctx.ns, del);
+                    ttl = -2;
+                }
+                else
+                {
+                    ttl = -1;
+                }
             }
+        }
+        else
+        {
+        	ttl = -1;
         }
         reply.SetInteger(ttl);
         return 0;
