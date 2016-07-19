@@ -610,9 +610,10 @@ OP_NAMESPACE_BEGIN
         }
         RedisReply& reply = ctx.GetReply();
         int64 mills;
+        int64 now = get_current_epoch_millis();
         if (cmd.GetArguments().size() == 2)
         {
-            if (!string_toint64(cmd.GetArguments()[1], mills) || mills <= 0)
+            if (!string_toint64(cmd.GetArguments()[1], mills))
             {
                 reply.SetErrCode(ERR_OUTOFRANGE);
                 return 0;
@@ -641,22 +642,40 @@ OP_NAMESPACE_BEGIN
             case REDIS_CMD_EXPIRE2:
             {
                 mills *= 1000;
-                mills += get_current_epoch_millis();
+                mills += now;
                 break;
             }
             case REDIS_CMD_PEXPIRE:
             case REDIS_CMD_PEXPIRE2:
             {
-                mills += get_current_epoch_millis();
+                mills += now;
                 break;
             }
             default:
             {
-                abort();
+                FATAL_LOG("Invalid expire command:%d", cmd.GetType());
             }
         }
         int err = 0;
         KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
+        /* EXPIRE with negative TTL, or EXPIREAT with a timestamp into the past
+         * should never be executed as a DEL when load the AOF or in the context
+         * of a slave instance.
+         *
+         * Instead we take the other branch of the IF statement setting an expire
+         * (possibly in the past) and wait for an explicit DEL from the master. */
+    	if(now > mills && GetConf().master_host.empty() && !IsLoadingData())
+    	{
+    		if ((!ctx.flags.redis_compatible && m_engine->GetFeatureSet().support_merge) || m_engine->Exists(ctx, key))
+    		{
+        		DelKey(ctx, key);
+        		RedisCommandFrame del("del");
+        		del.AddArg(cmd.GetArguments()[0]);
+        		ctx.RewriteClientCommand(del);
+        		reply.SetInteger(0);
+        		return 0;
+    		}
+    	}
         if (!ctx.flags.redis_compatible && m_engine->GetFeatureSet().support_merge)
         {
             reply.SetStatusCode(STATUS_OK);
