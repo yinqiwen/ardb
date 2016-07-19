@@ -129,10 +129,12 @@ OP_NAMESPACE_BEGIN
         uint32 keylen;
         if (!BufferHelper::ReadVarUInt32(buffer, keylen))
         {
+        	ERROR_LOG("Read length header failed.");
             return false;
         }
         if (buffer.ReadableBytes() < (keylen))
         {
+        	ERROR_LOG("No space for key content with size:%u", keylen);
             return false;
         }
         key.SetString(buffer.GetRawReadBuffer(), keylen, clone_str);
@@ -227,6 +229,7 @@ OP_NAMESPACE_BEGIN
     {
         if (verify && !IsValid())
         {
+        	ERROR_LOG("Invalid key");
             return Slice();
         }
         size_t mark = buffer.GetWriteIndex();

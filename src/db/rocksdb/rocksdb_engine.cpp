@@ -1038,14 +1038,19 @@ OP_NAMESPACE_BEGIN
         std::vector<std::string>& vs = rocks_ctx.GetMultiStringCache(keys.size());
         for (size_t i = 0; i < keys.size(); i++)
         {
-            vs[i].clear();
             size_t mark = key_encode_buffers.GetWriteIndex();
             keys[i].Encode(key_encode_buffers);
-            positions.push_back(key_encode_buffers.GetWriteIndex() - mark);
+            positions.push_back((size_t)(key_encode_buffers.GetWriteIndex() - mark));
         }
         for (size_t i = 0; i < keys.size(); i++)
         {
+            if(positions[i] == 0)
+            {
+            	printf("@@@@@2######%d\n",  i);
+            	abort();
+            }
             cfs.push_back(cf);
+
             ks[i] = rocksdb::Slice(key_encode_buffers.GetRawReadBuffer(), positions[i]);
             key_encode_buffers.AdvanceReadIndex(positions[i]);
         }
