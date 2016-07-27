@@ -115,6 +115,7 @@ namespace ardb
             leveldb::Options m_options;
             friend class LevelDBIterator;
             bool GetNamespace(const Data& ns, bool create_if_missing);
+            Iterator* Find(Context& ctx, const KeyObject& key, bool check_ns);
         public:
             LevelDBEngine();
             ~LevelDBEngine();

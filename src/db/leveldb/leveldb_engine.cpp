@@ -521,17 +521,21 @@ namespace ardb
 
     Iterator* LevelDBEngine::Find(Context& ctx, const KeyObject& key)
     {
+    	return Find(ctx, key, true);
+    }
+
+    Iterator* LevelDBEngine::Find(Context& ctx, const KeyObject& key, bool check_ns)
+    {
         LevelDBLocalContext& local_ctx = g_local_ctx.GetValue();
         leveldb::ReadOptions opt;
         opt.snapshot = local_ctx.snapshot.Get();
         LevelDBIterator* iter = NULL;
         NEW(iter, LevelDBIterator(this,key.GetNameSpace()));
-        if (!GetNamespace(key.GetNameSpace(), false))
+        if (check_ns && !GetNamespace(key.GetNameSpace(), false))
         {
             iter->MarkValid(false);
             return iter;
         }
-
 
         if (key.GetType() > 0)
         {
@@ -628,7 +632,8 @@ namespace ardb
         }
         KeyObject start(ns, KEY_META, "");
         ctx.flags.iterate_multi_keys = 1;
-        Iterator* iter = Find(ctx, start);
+
+        Iterator* iter = Find(ctx, start, false);
         while (iter->Valid())
         {
             KeyObject& k = iter->Key(false);
