@@ -555,14 +555,8 @@ namespace ardb
     int ForestDBEngine::DropNameSpace(Context& ctx, const Data& ns)
     {
         int rc = 0;
-        RWLockGuard<SpinRWLock> guard(m_lock, true);
         ForestDBLocalContext& local_ctx = GetDBLocalContext();
-        CHECK_EXPR(rc = fdb_kvs_remove(local_ctx.fdb, ns.AsString().c_str()));
-        if (0 == rc)
-        {
-            fdb_commit(local_ctx.fdb, FDB_COMMIT_NORMAL);
-            m_nss.erase(ns);
-        }
+        CHECK_EXPR(rc = local_ctx.RemoveKVStore(ns));
         return rc;
     }
     int64_t ForestDBEngine::EstimateKeysNum(Context& ctx, const Data& ns)
