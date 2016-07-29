@@ -540,18 +540,20 @@ namespace ardb
     int WiredTigerEngine::DropNameSpace(Context& ctx, const Data& ns)
     {
         WiredTigerLocalContext& local_ctx = GetDBLocalContext();
-        WT_CURSOR *cursor = local_ctx.GetKVStore(ns, false);
+        WT_CURSOR *cursor = local_ctx.GetKVStore(ns, false, true);
         if (NULL == cursor)
         {
             return ERR_ENTRY_NOT_EXIST;
         }
+        cursor->close(cursor);
         WT_SESSION *session = local_ctx.wsession;
-        int ret = session->drop(session, table_url(ns).c_str(), NULL);
+        int ret = session->drop(session, table_url(ns).c_str(), "force");
         if (0 == ret)
         {
             RWLockGuard<SpinRWLock> guard(m_lock, false);
             m_nss.erase(ns);
         }
+        LOG_WTERROR(ret);
         return WT_ERR(ret);
     }
     int64_t WiredTigerEngine::EstimateKeysNum(Context& ctx, const Data& ns)
