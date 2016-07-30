@@ -135,7 +135,7 @@ namespace ardb
                     }
                     return c;
                 }
-                if (found == kv_stores.end())
+                if (found == kv_stores.end() || NULL ==  found->second)
                 {
                     /*
                      * other thread may create table
