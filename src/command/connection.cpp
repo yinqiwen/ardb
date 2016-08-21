@@ -65,6 +65,11 @@ OP_NAMESPACE_BEGIN
     int Ardb::Auth(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
+        if(GetConf().requirepass.empty())
+        {
+        	reply.SetErrorReason("Client sent AUTH, but no password is set");
+        	return 0;
+        }
         if (GetConf().requirepass != cmd.GetArguments()[0])
         {
             ctx.authenticated = false;
