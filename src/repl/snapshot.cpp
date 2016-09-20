@@ -1578,7 +1578,7 @@ namespace ardb
     void Snapshot::Remove()
     {
         Close();
-        if (!m_file_path.empty())
+        if (!m_file_path.empty() && is_file_exist(m_file_path))
         {
             WARN_LOG("Remove snapshot file:%s", m_file_path.c_str());
             file_del(m_file_path);

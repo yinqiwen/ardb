@@ -353,6 +353,10 @@ namespace ardb
                 {
                     return m_raw_msg;
                 }
+                void ClearRawProtocolData()
+                {
+                	m_raw_msg.Clear();
+                }
                 inline void SetType(RedisCommandType type)
                 {
                     this->type = type;

@@ -1559,6 +1559,7 @@ OP_NAMESPACE_BEGIN
             if (setting.type != REDIS_CMD_MULTI && setting.type != REDIS_CMD_EXEC && setting.type != REDIS_CMD_DISCARD && setting.type != REDIS_CMD_QUIT)
             {
                 reply.SetStatusCode(STATUS_QUEUED);
+                args.ClearRawProtocolData();
                 ctx.GetTransaction().cached_cmds.push_back(args);
                 return 0;
             }
