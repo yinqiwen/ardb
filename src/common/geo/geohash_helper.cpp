@@ -120,7 +120,7 @@ namespace ardb
         /* Wider range torwards the poles... Note: it is possible to do better
          * than this approximation by computing the distance between meridians
          * at this latitude, but this does the trick for now. */
-        if (lat > 67 || lat < -67)
+        if (lat > 66 || lat < -66)
             step--;
         if (lat > 80 || lat < -80)
             step--;
