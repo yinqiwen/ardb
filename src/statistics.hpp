@@ -208,6 +208,24 @@ OP_NAMESPACE_BEGIN
             }
     };
 
+    struct InstantQPS
+    {
+    	volatile uint64_t count;
+    	volatile time_t   ts;
+    	InstantQPS():count(0),ts(0)
+    	{
+    	}
+    	uint64_t Inc(time_t now)
+    	{
+    		if(ts != now)
+    		{
+    			ts = now;
+    			count = 0;
+    		}
+    		return atomic_add_uint64(&count, 1);
+    	}
+    };
+
     class Statistics
     {
         private:

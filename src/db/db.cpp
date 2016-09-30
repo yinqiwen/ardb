@@ -1431,24 +1431,6 @@ OP_NAMESPACE_BEGIN
         return &(found->second);
     }
 
-    struct ResumeOverloadConnection: public Runnable
-    {
-            ChannelService& chs;
-            uint32 channle_id;
-            ResumeOverloadConnection(ChannelService& serv, uint32 id) :
-                    chs(serv), channle_id(id)
-            {
-            }
-            void Run()
-            {
-                Channel* ch = chs.GetChannel(channle_id);
-                if (NULL != ch)
-                {
-                    ch->AttachFD();
-                }
-            }
-    };
-
     int Ardb::Call(Context& ctx, RedisCommandFrame& args)
     {
         RedisReply& reply = ctx.GetReply();

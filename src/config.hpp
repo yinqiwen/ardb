@@ -144,6 +144,9 @@ OP_NAMESPACE_BEGIN
 
             bool compact_after_snapshot_load;
 
+            int64 qps_limit_per_host;
+            int64 qps_limit_per_connection;
+
             std::string _conf_file;
             std::string _executable;
             Properties conf_props;
@@ -153,7 +156,7 @@ OP_NAMESPACE_BEGIN
                             10), repl_timeout(60), repl_backlog_size(100 * 1024 * 1024), repl_backlog_cache_size(100 * 1024 * 1024), repl_backlog_sync_period(1), repl_backlog_time_limit(3600), repl_min_slaves_to_write(0), repl_min_slaves_max_lag(10), repl_serve_stale_data(
                             false), slave_cleardb_before_fullresync(true), slave_readonly(true), slave_serve_stale_data(true), slave_priority(100), max_slave_worker_queue(1024),lua_time_limit(0), master_port(0), loglevel("INFO"), hll_sparse_max_bytes(3000), reply_pool_size(
                             10000), slave_client_output_buffer_limit(256 * 1024 * 1024), pubsub_client_output_buffer_limit(32 * 1024 * 1024), slave_ignore_expire(false), slave_ignore_del(false), repl_disable_tcp_nodelay(true), scan_redis_compatible(
-                            true), scan_cursor_expire_after(60), snapshot_max_lag_offset(500 * 1024 * 1024), maxsnapshots(10),redis_compatible(false), redis_compatible_version("2.8.0"), statistics_log_period(300),compact_after_snapshot_load(false)
+                            true), scan_cursor_expire_after(60), snapshot_max_lag_offset(500 * 1024 * 1024), maxsnapshots(10),redis_compatible(false), redis_compatible_version("2.8.0"), statistics_log_period(300),compact_after_snapshot_load(false),qps_limit_per_host(0),qps_limit_per_connection(0)
             {
             }
             bool Parse(const Properties& props);

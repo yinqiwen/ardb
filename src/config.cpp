@@ -283,6 +283,9 @@ OP_NAMESPACE_BEGIN
         conf_get_bool(props, "redis-compatible-mode", redis_compatible);
         conf_get_bool(props, "compact-after-snapshot-load", compact_after_snapshot_load);
 
+        conf_get_int64(props, "qps-limit-per-host", qps_limit_per_host);
+        conf_get_int64(props, "qps-limit-per-connection", qps_limit_per_connection);
+
         //trusted_ip.clear();
         Properties::const_iterator ip_it = props.find("trusted-ip");
         if (ip_it != props.end())

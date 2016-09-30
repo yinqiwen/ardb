@@ -38,6 +38,16 @@ OP_NAMESPACE_BEGIN
     static QPSTrack g_total_qps;
     static CountTrack g_total_connections_received;
     static CountTrack g_rejected_connections;
+    static std::vector<QPSTrack> g_serverQpsTracks;
+    static std::vector<InstantQPS> g_serverInstanceQps;
+    static TreeMap<std::string, InstantQPS>::Type g_hostInstanceQpsTable;
+    static SpinMutexLock g_hostInstanceQpsTableLock;
+
+    static uint64_t incHostInstanceQps(const std::string& host, time_t now)
+    {
+    	LockGuard<SpinMutexLock> guard(g_hostInstanceQpsTableLock);
+    	return g_hostInstanceQpsTable[host].Inc(now);
+    }
 
     class ServerLifecycleHandler: public ChannelServiceLifeCycle, public Runnable
     {
@@ -60,18 +70,52 @@ OP_NAMESPACE_BEGIN
             }
     };
 
+    struct ResumeOverloadConnection: public Runnable
+    {
+            ChannelService& chs;
+            uint32 channle_id;
+            ResumeOverloadConnection(ChannelService& serv, uint32 id) :
+                    chs(serv), channle_id(id)
+            {
+            }
+            void Run()
+            {
+                Channel* ch = chs.GetChannel(channle_id);
+                if (NULL != ch)
+                {
+                    ch->AttachFD();
+                }
+            }
+    };
+
     class RedisRequestHandler: public ChannelUpstreamHandler<RedisCommandFrame>
     {
         private:
-            QPSTrack* qpsTrack;
+            //QPSTrack* qpsTrack;
+    	    uint32 server_index;
             ClientContext m_client_ctx;
             Context m_ctx;
             bool m_delete_after_processing;
             RedisReplyPool* pool;
+            std::string client_host;
+            InstantQPS conn_qps;
+
+            void suspendConnection(uint64 now)
+            {
+            	 if (NULL != m_client_ctx.client && !m_client_ctx.client->IsDetached())
+            	 {
+            		  m_client_ctx.client->DetachFD();
+            		  uint64 one_sec_micros = 1000*1000;
+            	      uint64 next = one_sec_micros - (now % one_sec_micros);
+            	      ChannelService& serv = m_client_ctx.client->GetService();
+            	      serv.GetTimer().ScheduleHeapTask(new ResumeOverloadConnection(serv, m_client_ctx.client->GetID()), next == 0 ? 1000 : next, -1, MICROS);
+            	 }
+            }
 
             void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e)
             {
-                m_client_ctx.last_interaction_ustime = get_current_epoch_micros();
+            	uint64 now = get_current_epoch_micros();
+                m_client_ctx.last_interaction_ustime = now;
                 m_client_ctx.client = ctx.GetChannel();
                 RedisCommandFrame* cmd = e.GetMessage();
                 ChannelService& serv = m_client_ctx.client->GetService();
@@ -84,11 +128,31 @@ OP_NAMESPACE_BEGIN
                 m_ctx.SetReply(&(pool->Allocate()));
                 RedisReply& reply = m_ctx.GetReply();
                 int ret = g_db->Call(m_ctx, *cmd);
-                if (NULL != qpsTrack)
-                {
-                    qpsTrack->IncMsgCount(1);
-                }
+                bool is_overload = false;
+                g_serverQpsTracks[server_index].IncMsgCount(1);
                 g_total_qps.IncMsgCount(1);
+                now = get_current_epoch_micros();
+                time_t now_sec = now/1000000;
+             	if(g_db->GetConf().qps_limit_per_connection > 0)
+                {
+             		is_overload = conn_qps.Inc(now_sec) >= g_db->GetConf().qps_limit_per_connection;
+                }
+             	if(g_db->GetConf().qps_limit_per_host > 0 && !client_host.empty())
+             	{
+             		uint64_t instance_qps = incHostInstanceQps(client_host, now_sec);
+             		if(!is_overload)
+             		{
+             		    is_overload = instance_qps >= g_db->GetConf().qps_limit_per_host;
+             		}
+             	}
+             	if(g_db->GetConf().servers[server_index].qps_limit > 0)
+             	{
+             		uint64_t instance_qps =  g_serverInstanceQps[server_index].Inc(now_sec);
+             		if(!is_overload)
+             		{
+             			is_overload = instance_qps >= g_db->GetConf().servers[server_index].qps_limit;
+             		}
+             	}
                 if (m_delete_after_processing)
                 {
                     delete this;
@@ -118,9 +182,13 @@ OP_NAMESPACE_BEGIN
                     m_client_ctx.client->Close();
                 }
                 m_client_ctx.processing = false;
-                m_client_ctx.last_interaction_ustime = get_current_epoch_micros();
+                m_client_ctx.last_interaction_ustime = now;
                 m_ctx.ClearState();
-                //reply.Clear();
+
+                if(is_overload)
+                {
+                	suspendConnection(m_client_ctx.last_interaction_ustime);
+                }
             }
             void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e)
             {
@@ -139,30 +207,36 @@ OP_NAMESPACE_BEGIN
                 {
                     m_ctx.authenticated = false;
                 }
+                const Address* remote = ctx.GetChannel()->GetRemoteAddress();
+                bool is_unix_conn = false;
+                if (InstanceOf<SocketHostAddress>(remote).OK)
+                {
+                    const SocketHostAddress* addr = (const SocketHostAddress*) remote;
+                    client_host = addr->GetHost();
+                }
+                else if(InstanceOf<SocketUnixAddress>(remote).OK)
+                {
+                    const SocketUnixAddress* addr = (const SocketUnixAddress*) remote;
+                    client_host = addr->GetPath();
+                }
 
                 //client ip white list
                 //ReadLockGuard<SpinRWLock> guard(const_cast<SpinRWLock>(g_db->GetConf().lock));
-                if (!g_db->GetConf().trusted_ip.empty())
+                if (!g_db->GetConf().trusted_ip.empty() && !is_unix_conn)
                 {
-                    const Address* remote = ctx.GetChannel()->GetRemoteAddress();
-                    if (InstanceOf<SocketHostAddress>(remote).OK)
+                    if (client_host != "127.0.0.1") //allways trust 127.0.0.1
                     {
-                        const SocketHostAddress* addr = (const SocketHostAddress*) remote;
-                        const std::string& ip = addr->GetHost();
-                        if (ip != "127.0.0.1") //allways trust 127.0.0.1
-                        {
-                            StringTreeSet::const_iterator sit = g_db->GetConf().trusted_ip.begin();
-                            while (sit != g_db->GetConf().trusted_ip.end())
-                            {
-                                if (stringmatchlen(sit->c_str(), sit->size(), ip.c_str(), ip.size(), 0) == 1)
-                                {
-                                    return;
-                                }
-                                sit++;
-                            }
-                            ctx.GetChannel()->Close();
-                            g_rejected_connections.Add(1);
-                        }
+                          StringTreeSet::const_iterator sit = g_db->GetConf().trusted_ip.begin();
+                          while (sit != g_db->GetConf().trusted_ip.end())
+                          {
+                              if (stringmatchlen(sit->c_str(), sit->size(), client_host.c_str(), client_host.size(), 0) == 1)
+                              {
+                                  return;
+                              }
+                              sit++;
+                          }
+                          ctx.GetChannel()->Close();
+                          g_rejected_connections.Add(1);
                     }
                 }
                 else
@@ -171,8 +245,8 @@ OP_NAMESPACE_BEGIN
                 }
             }
         public:
-            RedisRequestHandler(QPSTrack* track) :
-                    qpsTrack(track), m_delete_after_processing(false), pool(NULL)
+            RedisRequestHandler(uint32 server_idx) :
+            	server_index(server_idx), m_delete_after_processing(false), pool(NULL)
             {
                 m_ctx.client = &m_client_ctx;
                 //root_reply.SetPool(&pool);
@@ -190,10 +264,11 @@ OP_NAMESPACE_BEGIN
     };
     static void pipelineInit(ChannelPipeline* pipeline, void* data)
     {
-        QPSTrack* init_data = (QPSTrack*) data;
+    	uint64 idx = (uint64)data;
+        //QPSTrack* init_data = (QPSTrack*) data;
         pipeline->AddLast("decoder", new RedisCommandDecoder);
         pipeline->AddLast("encoder", new RedisReplyEncoder);
-        pipeline->AddLast("handler", new RedisRequestHandler(init_data));
+        pipeline->AddLast("handler", new RedisRequestHandler(idx));
     }
     static void pipelineDestroy(ChannelPipeline* pipeline, void* data)
     {
@@ -250,8 +325,8 @@ OP_NAMESPACE_BEGIN
 
         init_statistics_setting();
 
-        std::vector<QPSTrack> serverQpsTracks;
-        serverQpsTracks.resize(g_db->GetConf().servers.size());
+        g_serverQpsTracks.resize(g_db->GetConf().servers.size());
+        g_serverInstanceQps.resize(g_db->GetConf().servers.size());
         for (uint32 i = 0; i < g_db->GetConf().servers.size(); i++)
         {
             ServerSocketChannel* server = NULL;
@@ -283,12 +358,12 @@ OP_NAMESPACE_BEGIN
             QPSTrack* serverQPSTrack = NULL;
             if (g_db->GetConf().servers.size() > 1)
             {
-                serverQPSTrack = &serverQpsTracks[i];
+                serverQPSTrack = &g_serverQpsTracks[i];
                 serverQPSTrack->name = address + "_total_commands_processed";
                 serverQPSTrack->qpsName = address + "_instantaneous_ops_per_sec";
                 Statistics::GetSingleton().AddTrack(serverQPSTrack);
             }
-            server->SetChannelPipelineInitializor(pipelineInit, serverQPSTrack);
+            server->SetChannelPipelineInitializor(pipelineInit, (void*)i);
             server->SetChannelPipelineFinalizer(pipelineDestroy, NULL);
             server->BindThreadPool(0, g_db->GetConf().thread_pool_size);
             INFO_LOG("Ardb will accept connections on %s", address.c_str());

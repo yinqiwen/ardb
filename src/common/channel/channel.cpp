@@ -127,7 +127,12 @@ bool Channel::UnblockRead()
 bool Channel::AttachFD()
 {
     int fd = GetReadFD();
-    if (fd != -1 && aeCreateFileEvent(GetService().GetRawEventLoop(), fd, AE_READABLE, Channel::IOEventCallback, this) == AE_ERR)
+    int mask = AE_READABLE;
+    if(m_outputBuffer.Readable())
+    {
+    	mask |= AE_WRITABLE;
+    }
+    if (fd != -1 && aeCreateFileEvent(GetService().GetRawEventLoop(), fd, mask, Channel::IOEventCallback, this) == AE_ERR)
     {
         ::close(GetReadFD());
         ERROR_LOG("Failed to register event for fd:%d.", GetReadFD());
@@ -145,7 +150,12 @@ bool Channel::AttachFD(int fd)
         ERROR_LOG("Failed to attach FD since current fd is not -1");
         return false;
     }
-    if (aeCreateFileEvent(GetService().GetRawEventLoop(), fd, AE_READABLE, Channel::IOEventCallback, this) == AE_ERR)
+    int mask = AE_READABLE;
+    if(m_outputBuffer.Readable())
+    {
+    	mask |= AE_WRITABLE;
+    }
+    if (aeCreateFileEvent(GetService().GetRawEventLoop(), fd, mask, Channel::IOEventCallback, this) == AE_ERR)
     {
         ::close(fd);
         ERROR_LOG("Failed to register event for fd:%d.", m_fd);
