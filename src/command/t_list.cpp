@@ -951,6 +951,7 @@ OP_NAMESPACE_BEGIN
         {
             StringArray list_keys(1, cmd.GetArguments()[0]);
             BlockForKeys(ctx, list_keys, cmd.GetArguments()[1], timeout);
+            reply.type = 0;
         }
         return 0;
     }
@@ -1030,7 +1031,7 @@ OP_NAMESPACE_BEGIN
         {
             FATAL_LOG("Can not modify block dataset when key locked.");
         }
-        LockGuard<SpinMutexLock> guard(m_block_keys_lock);
+        LockGuard<SpinMutexLock> guard(m_block_keys_lock, !ctx.flags.block_keys_locked);
         KeyPrefix prefix;
         prefix.ns = ctx.ns;
         prefix.key.SetString(key, false);
@@ -1067,6 +1068,7 @@ OP_NAMESPACE_BEGIN
             lpush.AddArg(value);
             Context tmpctx;
             tmpctx.ns = ctx.GetBPop().target.ns;
+            tmpctx.flags.block_keys_locked = ctx.flags.block_keys_locked;
             ListPush(tmpctx, lpush, false);
             if (tmpctx.GetReply().IsErr())
             {
@@ -1133,6 +1135,8 @@ OP_NAMESPACE_BEGIN
                     list_pop.AddArg(key.key.AsString());
                     Context tmpctx;
                     tmpctx.ns = key.ns;
+                    tmpctx.flags.block_keys_locked = 1;
+                    unblock_client->flags.block_keys_locked = 1;
                     {
                         KeyObject list_key(key.ns, KEY_META, key.key);
                         KeyLockGuard keylocker(tmpctx, list_key);

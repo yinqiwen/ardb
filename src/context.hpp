@@ -58,9 +58,10 @@ OP_NAMESPACE_BEGIN
             unsigned bulk_loading :1;
             unsigned reply_off :1;
             unsigned reply_skip :1;
+            unsigned block_keys_locked:1;
             CallFlags() :
                     no_wal(0), no_fill_reply(0), create_if_notexist(0), fuzzy_check(0), redis_compatible(0), iterate_multi_keys(0), iterate_no_upperbound(0), iterate_total_order(
-                            0), slave(0), lua(0), pubsub(0), bulk_loading(0), reply_off(0),reply_skip(0)
+                            0), slave(0), lua(0), pubsub(0), bulk_loading(0), reply_off(0),reply_skip(0),block_keys_locked(0)
             {
             }
     };
@@ -162,6 +163,7 @@ OP_NAMESPACE_BEGIN
             {
             }
     };
+
 
     class Context
     {
