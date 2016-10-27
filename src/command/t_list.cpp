@@ -574,7 +574,6 @@ OP_NAMESPACE_BEGIN
                 {
                     break;
                 }
-
                 if (iter->Value().GetListElement() == rem_data)
                 {
                     //RemoveKey(ctx, field);
@@ -712,7 +711,7 @@ OP_NAMESPACE_BEGIN
     {
         RedisReply& reply = ctx.GetReply();
         int64 start, end, ltrim, rtrim;
-        if (!string_toint64(cmd.GetArguments()[1], start) || !string_toint64(cmd.GetArguments()[1], end))
+        if (!string_toint64(cmd.GetArguments()[1], start) || !string_toint64(cmd.GetArguments()[2], end))
         {
             reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
             return 0;
@@ -747,7 +746,7 @@ OP_NAMESPACE_BEGIN
             if (end >= llen)
                 end = llen - 1;
             ltrim = start;
-            rtrim = llen - end - 1;
+            rtrim = end;
         }
         int64_t trimed_count = 0;
         if (meta.GetMetaObject().list_sequential)
@@ -759,7 +758,7 @@ OP_NAMESPACE_BEGIN
                 RemoveKey(ctx, elekey);
                 trimed_count++;
             }
-            for (int64_t i = rtrim; rtrim > 0 && i < llen; i++)
+            for (int64_t i = rtrim + 1; rtrim > 0 && i < llen; i++)
             {
                 KeyObject elekey(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
                 elekey.SetListIndex(i + meta.GetListMinIdx());
@@ -773,7 +772,7 @@ OP_NAMESPACE_BEGIN
             }
             if (rtrim > 0)
             {
-                meta.SetListMaxIdx(last_min + rtrim - 1);
+                meta.SetListMaxIdx(last_min + rtrim);
             }
         }
         else
@@ -823,7 +822,7 @@ OP_NAMESPACE_BEGIN
                 {
                     iter->JumpToLast();
                 }
-                int64_t tail_trim_count = llen - rtrim;
+                int64_t tail_trim_count = llen - rtrim - 1;
                 while (iter->Valid())
                 {
                     KeyObject& field = iter->Key();
