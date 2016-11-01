@@ -1133,6 +1133,7 @@ OP_NAMESPACE_BEGIN
                 ValueObject score;
                 score.SetType(KEY_ZSET_SCORE);
                 score.SetZSetScore(it->second);
+                SetKeyValue(ctx, element, score);
                 KeyObject sort(ctx.ns, KEY_ZSET_SORT, cmd.GetArguments()[0]);
                 sort.SetZSetMember(it->first);
                 sort.SetZSetScore(it->second);
