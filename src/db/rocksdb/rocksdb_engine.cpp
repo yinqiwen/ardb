@@ -1496,6 +1496,7 @@ OP_NAMESPACE_BEGIN
         }
         if (m_iterate_upper_bound_key.GetType() > 0)
         {
+
             Jump(m_iterate_upper_bound_key);
             if (!m_rocks_iter->Valid())
             {
@@ -1503,6 +1504,7 @@ OP_NAMESPACE_BEGIN
             }
             if (m_rocks_iter->Valid())
             {
+
                 if (!Valid())
                 {
                     Prev();

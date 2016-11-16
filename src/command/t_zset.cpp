@@ -296,11 +296,6 @@ OP_NAMESPACE_BEGIN
             iter->JumpToLast();
         }
         int64_t rank = 0;
-        if (reverse)
-        {
-            rank = meta.GetObjectLen() - 1 - rank;
-        }
-
         while (iter->Valid())
         {
             KeyObject& field = iter->Key();
@@ -308,19 +303,9 @@ OP_NAMESPACE_BEGIN
             {
                 break;
             }
-            if (reverse)
+            if (rank > end)
             {
-                if (rank < start)
-                {
-                    break;
-                }
-            }
-            else
-            {
-                if (rank > end)
-                {
-                    break;
-                }
+                break;
             }
             if (rank >= start && rank <= end)
             {
@@ -348,13 +333,13 @@ OP_NAMESPACE_BEGIN
             if (reverse)
             {
                 iter->Prev();
-                rank--;
             }
             else
             {
                 iter->Next();
-                rank++;
+
             }
+            rank++;
         }
         DELETE(iter);
         if (toremove)
