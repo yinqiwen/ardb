@@ -229,7 +229,7 @@ namespace ardb
                 }
                 case STATUS_QUEUED:
                 {
-                    str.assign("QUEUED", 5);
+                    str.assign("QUEUED", 6);
                     break;
                 }
                 case STATUS_NOKEY:
