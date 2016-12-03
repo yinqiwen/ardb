@@ -286,6 +286,9 @@ OP_NAMESPACE_BEGIN
         conf_get_int64(props, "qps-limit-per-host", qps_limit_per_host);
         conf_get_int64(props, "qps-limit-per-connection", qps_limit_per_connection);
 
+
+        conf_get_bool(props, "scan-total-order", scan_total_order);
+
         //trusted_ip.clear();
         Properties::const_iterator ip_it = props.find("trusted-ip");
         if (ip_it != props.end())

@@ -184,6 +184,11 @@ OP_NAMESPACE_BEGIN
         std::string cursor_element;
         bool skip_first = false;
         Data nil;
+
+        if(GetConf().scan_total_order)
+        {
+        	ctx.flags.iterate_total_order = 1;
+        }
         if (cmd.GetType() == REDIS_CMD_HSCAN)
         {
             cursor_pos = 1;
