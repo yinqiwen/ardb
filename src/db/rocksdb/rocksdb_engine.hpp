@@ -125,6 +125,7 @@ OP_NAMESPACE_BEGIN
             int Get(Context& ctx, const KeyObject& key, ValueObject& value);
             int MultiGet(Context& ctx, const KeyObjectArray& keys, ValueObjectArray& values, ErrCodeArray& errs);
             int Del(Context& ctx, const KeyObject& key);
+            int DelRange(Context& ctx, const KeyObject& start, const KeyObject& end);
             int Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args);
             bool Exists(Context& ctx, const KeyObject& key);
             int BeginWriteBatch(Context& ctx);
@@ -142,15 +143,7 @@ OP_NAMESPACE_BEGIN
             const std::string GetErrorReason(int err);
             int Backup(Context& ctx, const std::string& dir);
             int Restore(Context& ctx, const std::string& dir);
-            const FeatureSet GetFeatureSet()
-            {
-                FeatureSet features;
-                features.support_compactfilter = 1;
-                features.support_namespace = 1;
-                features.support_merge = 1;
-                features.support_backup = 1;
-                return features;
-            }
+            const FeatureSet GetFeatureSet();
             int Routine();
             int MaxOpenFiles();
     };

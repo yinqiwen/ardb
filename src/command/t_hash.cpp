@@ -527,13 +527,11 @@ OP_NAMESPACE_BEGIN
                     float_val += increment_float;
                     vals[1].GetHashValue().SetFloat64(float_val);
                 }
-
             }
             else
             {
                 if (!vals[1].GetHashValue().IsInteger())
                 {
-
                     err = ERR_WRONG_TYPE;
                 }
                 else
@@ -553,7 +551,10 @@ OP_NAMESPACE_BEGIN
             }
             SetKeyValue(ctx, keys[1], vals[1]);
         }
-        err = ctx.transc_err;
+        if(0 == err)
+        {
+            err = ctx.transc_err;
+        }
 
         if (0 != err)
         {

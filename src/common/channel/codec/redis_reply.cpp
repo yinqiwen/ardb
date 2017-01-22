@@ -62,6 +62,7 @@ namespace ardb
                     pending.push_back(r);
                 }
                 RedisReply& rr = pending[m_cursor - elements.size()];
+                rr.Clear();
                 m_cursor++;
                 return rr;
             }

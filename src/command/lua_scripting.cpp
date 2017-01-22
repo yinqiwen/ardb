@@ -61,7 +61,8 @@ namespace ardb
             Context exec;
             Context* caller;
             LuaExecContext() :
-                    lua_time_start(0), lua_executing_func(NULL), lua_timeout(false), lua_kill(false), lua_abort(false), caller(NULL)
+                    lua_time_start(0), lua_executing_func(NULL), lua_timeout(false), lua_kill(false), lua_abort(false), caller(
+                            NULL)
             {
             }
     };
@@ -486,8 +487,7 @@ namespace ardb
         /* Build the arguments vector */
         for (j = 0; j < argc; j++)
         {
-            if (!lua_isstring(lua, j + 1))
-                break;
+            if (!lua_isstring(lua, j + 1)) break;
             std::string arg;
             arg.append(lua_tostring(lua, j + 1), lua_strlen(lua, j + 1));
             cmdargs.push_back(arg);
@@ -526,7 +526,8 @@ namespace ardb
          * of this script. */
         if (setting->IsWriteCommand())
         {
-            if (!g_db->GetConf().master_host.empty() && g_db->GetConf().slave_readonly && !g_db->IsLoadingData() && !(ctx->caller->flags.slave))
+            if (!g_db->GetConf().master_host.empty() && g_db->GetConf().slave_readonly && !g_db->IsLoadingData()
+                    && !(ctx->caller->flags.slave))
             {
                 luaPushError(lua, "-READONLY You can't write against a read only slave.");
                 return -1;
@@ -661,11 +662,18 @@ namespace ardb
             {
                 actual = lua_toboolean(lua, 2) ? "true" : "false";
             }
+            else if (lua_isnumber(lua, 2))
+            {
+                lua_Integer v = lua_tointeger(lua, 2);
+                tablestr = stringfromll(v);
+                actual = tablestr.c_str();
+            }
             else
             {
                 actual = lua_tolstring(lua, 2, NULL);
             }
-            fprintf(stderr, "\e[1;35m%-6s\e[m %s:%d Actual value is %d:%s\n", "[FAIL]", g_lua_file, lua_line, obj_type, actual);
+            fprintf(stderr, "\e[1;35m%-6s\e[m %s:%d Actual value is %s:%s\n", "[FAIL]", g_lua_file, lua_line,
+                    lua_typename(lua, obj_type), actual);
             lua_pushstring(lua, "Assert2 failed...");
             lua_error(lua);
             return -1;
@@ -802,7 +810,9 @@ namespace ardb
         uint64 elapsed = get_current_epoch_millis() - ctx->lua_time_start;
         if (elapsed >= (uint64) g_db->GetConf().lua_time_limit && !ctx->lua_timeout)
         {
-            WARN_LOG("Lua slow script detected: %s still in execution after %llu milliseconds. You can try killing the script using the SCRIPT KILL command.", ctx->lua_executing_func, elapsed);
+            WARN_LOG(
+                    "Lua slow script detected: %s still in execution after %llu milliseconds. You can try killing the script using the SCRIPT KILL command.",
+                    ctx->lua_executing_func, elapsed);
             ctx->lua_timeout = true;
             if (NULL != ctx->caller)
             {
@@ -937,7 +947,8 @@ namespace ardb
         return 0;
     }
 
-    int LUAInterpreter::Eval(Context& ctx, const std::string& func, const StringArray& keys, const StringArray& args, bool isSHA1Func)
+    int LUAInterpreter::Eval(Context& ctx, const std::string& func, const StringArray& keys, const StringArray& args,
+            bool isSHA1Func)
     {
         RedisReply& reply = ctx.GetReply();
         //DEBUG_LOG("Exec script:%s", func.c_str());
@@ -1133,9 +1144,9 @@ namespace ardb
     {
         int old_dirty = ctx.dirty;
         int err = Eval(ctx, cmd);
-        if(0 == err)
+        if (0 == err)
         {
-            if(GetConf().master_host.empty() && ctx.dirty != old_dirty)
+            if (GetConf().master_host.empty() && ctx.dirty != old_dirty)
             {
                 /*
                  * rewrite command to 'eval'
@@ -1143,7 +1154,7 @@ namespace ardb
                 cmd.SetCommand("eval");
                 cmd.SetType(REDIS_CMD_EVAL);
                 std::string* body = get_script_from_cache("f_" + cmd.GetArguments()[0]);
-                if(NULL != body)
+                if (NULL != body)
                 {
                     cmd.GetMutableArguments()[0] = *body;
                 }

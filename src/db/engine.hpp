@@ -69,8 +69,10 @@ OP_NAMESPACE_BEGIN
             unsigned support_compactfilter :1;
             unsigned support_merge :1;
             unsigned support_backup :1;
+            unsigned support_delete_range :1;
             FeatureSet() :
-                    support_namespace(0), support_compactfilter(0), support_merge(0), support_backup(0)
+                    support_namespace(0), support_compactfilter(0), support_merge(0), support_backup(0), support_delete_range(
+                            0)
             {
             }
     };
@@ -85,7 +87,12 @@ OP_NAMESPACE_BEGIN
             virtual int Put(Context& ctx, const KeyObject& key, const ValueObject& value) = 0;
             virtual int Get(Context& ctx, const KeyObject& key, ValueObject& value) = 0;
             virtual int Del(Context& ctx, const KeyObject& key) = 0;
-            virtual int MultiGet(Context& ctx, const KeyObjectArray& keys, ValueObjectArray& values, ErrCodeArray& errs) = 0;
+            virtual int DelRange(Context& ctx, const KeyObject& start, const KeyObject& end)
+            {
+                return ERR_NOTSUPPORTED;
+            }
+            virtual int MultiGet(Context& ctx, const KeyObjectArray& keys, ValueObjectArray& values,
+                    ErrCodeArray& errs) = 0;
             virtual int Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& values) = 0;
             int Merge(Context& ctx, const KeyObject& key, uint16_t op, const Data& value)
             {

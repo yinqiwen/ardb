@@ -57,7 +57,8 @@ OP_NAMESPACE_BEGIN
             while (NULL != iter && iter->Valid())
             {
                 KeyObject& field = iter->Key();
-                if (field.GetType() != ele_type || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != key.GetKey())
+                if (field.GetType() != ele_type || field.GetNameSpace() != key.GetNameSpace()
+                        || field.GetKey() != key.GetKey())
                 {
                     break;
                 }
@@ -99,7 +100,8 @@ OP_NAMESPACE_BEGIN
             return -1;
         }
         KeyObject& min_key = iter->Key(true);
-        if (min_key.GetKey() != key.GetKey() || min_key.GetType() != ele_type || min_key.GetNameSpace() != key.GetNameSpace())
+        if (min_key.GetKey() != key.GetKey() || min_key.GetType() != ele_type
+                || min_key.GetNameSpace() != key.GetNameSpace())
         {
             WARN_LOG("Invalid start iterator to fetch max element");
             DELETE(iter);
@@ -121,7 +123,8 @@ OP_NAMESPACE_BEGIN
                 return -1;
             }
             KeyObject& iter_key = iter->Key(true);
-            if (iter_key.GetType() != ele_type || iter_key.GetKey() != key.GetKey() || iter_key.GetNameSpace() != key.GetNameSpace())
+            if (iter_key.GetType() != ele_type || iter_key.GetKey() != key.GetKey()
+                    || iter_key.GetNameSpace() != key.GetNameSpace())
             {
                 DELETE(iter);
                 WARN_LOG("Invalid iterator key to fetch max element");
@@ -190,7 +193,7 @@ OP_NAMESPACE_BEGIN
             FindElementByRedisCursor(cmd.GetArguments()[cursor_pos], cursor_element);
             startkey.SetType(KEY_HASH_FIELD);
             startkey.SetKey(cmd.GetArguments()[0]);
-            if(cursor_element.empty())
+            if (cursor_element.empty())
             {
                 startkey.SetHashField(nil);
             }
@@ -206,7 +209,7 @@ OP_NAMESPACE_BEGIN
             FindElementByRedisCursor(cmd.GetArguments()[cursor_pos], cursor_element);
             startkey.SetType(KEY_SET_MEMBER);
             startkey.SetKey(cmd.GetArguments()[0]);
-            if(cursor_element.empty())
+            if (cursor_element.empty())
             {
                 startkey.SetSetMember(nil);
             }
@@ -279,9 +282,9 @@ OP_NAMESPACE_BEGIN
         uint32 scan_count = 0;
         int64_t result_count = 0;
         Iterator* iter = m_engine->Find(ctx, startkey);
-        if(iter->Valid() && skip_first)
+        if (iter->Valid() && skip_first)
         {
-        	iter->Next();
+            iter->Next();
         }
         std::string match_element;
         while (iter->Valid())
@@ -298,7 +301,8 @@ OP_NAMESPACE_BEGIN
             }
             else
             {
-                if (k.GetType() != startkey.GetType() || k.GetKey() != startkey.GetKey() || k.GetNameSpace() != startkey.GetNameSpace())
+                if (k.GetType() != startkey.GetType() || k.GetKey() != startkey.GetKey()
+                        || k.GetNameSpace() != startkey.GetNameSpace())
                 {
                     break;
                 }
@@ -318,7 +322,8 @@ OP_NAMESPACE_BEGIN
             scan_count++;
             if (!pattern.empty())
             {
-                if (stringmatchlen(pattern.c_str(), pattern.size(), match_element.c_str(), match_element.size(), 0) != 1)
+                if (stringmatchlen(pattern.c_str(), pattern.size(), match_element.c_str(), match_element.size(), 0)
+                        != 1)
                 {
                     iter->Next();
                     continue;
@@ -664,18 +669,18 @@ OP_NAMESPACE_BEGIN
          *
          * Instead we take the other branch of the IF statement setting an expire
          * (possibly in the past) and wait for an explicit DEL from the master. */
-    	if(now > mills && GetConf().master_host.empty() && !IsLoadingData() && cmd.GetType() != REDIS_CMD_PERSIST)
-    	{
-    		if ((!ctx.flags.redis_compatible && m_engine->GetFeatureSet().support_merge) || m_engine->Exists(ctx, key))
-    		{
-        		DelKey(ctx, key);
-        		RedisCommandFrame del("del");
-        		del.AddArg(cmd.GetArguments()[0]);
-        		ctx.RewriteClientCommand(del);
-        		reply.SetInteger(0);
-        		return 0;
-    		}
-    	}
+        if (now > mills && GetConf().master_host.empty() && !IsLoadingData() && cmd.GetType() != REDIS_CMD_PERSIST)
+        {
+            if ((!ctx.flags.redis_compatible && m_engine->GetFeatureSet().support_merge) || m_engine->Exists(ctx, key))
+            {
+                DelKey(ctx, key);
+                RedisCommandFrame del("del");
+                del.AddArg(cmd.GetArguments()[0]);
+                ctx.RewriteClientCommand(del);
+                reply.SetInteger(0);
+                return 0;
+            }
+        }
         if (!ctx.flags.redis_compatible && m_engine->GetFeatureSet().support_merge)
         {
             reply.SetStatusCode(STATUS_OK);
@@ -712,7 +717,8 @@ OP_NAMESPACE_BEGIN
                 }
             }
         }
-        if (0 == err && !GetConf().master_host.empty() && (cmd.GetType() != REDIS_CMD_PEXPIREAT && cmd.GetType() != REDIS_CMD_PERSIST))
+        if (0 == err && !GetConf().master_host.empty()
+                && (cmd.GetType() != REDIS_CMD_PEXPIREAT && cmd.GetType() != REDIS_CMD_PERSIST))
         {
             RedisCommandFrame pexpreat("pexpireat");
             pexpreat.AddArg(cmd.GetArguments()[0]);
@@ -754,7 +760,7 @@ OP_NAMESPACE_BEGIN
             }
             else
             {
-            	reply.SetInteger(-2);
+                reply.SetInteger(-2);
             }
             return 0;
         }
@@ -795,7 +801,7 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-        	ttl = -1;
+            ttl = -1;
         }
         reply.SetInteger(ttl);
         return 0;
@@ -823,7 +829,6 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::DelKey(Context& ctx, const KeyObject& meta_key)
     {
-
         Iterator* iter = NULL;
         int ret = DelKey(ctx, meta_key, iter);
         DELETE(iter);
@@ -861,29 +866,41 @@ OP_NAMESPACE_BEGIN
         {
             return 0;
         }
-
-        if (NULL == iter)
+        int removed = 0;
+        if (m_engine->GetFeatureSet().support_delete_range
+                && (meta_obj.GetObjectLen() < 0 || meta_obj.GetObjectLen() >= GetConf().range_delete_min_size))
         {
-            iter = m_engine->Find(ctx, meta_key);
+            KeyObject end(ctx.ns, KEY_END, meta_key.GetKey());
+            m_engine->DelRange(ctx, meta_key, end);
+            removed = 1;
         }
         else
         {
-            iter->Jump(meta_key);
-        }
-        int removed = 0;
-        while (NULL != iter && iter->Valid())
-        {
-            KeyObject& k = iter->Key();
-            const Data& kdata = k.GetKey();
-            if (k.GetNameSpace().Compare(meta_key.GetNameSpace()) != 0 || kdata.StringLength() != meta_key.GetKey().StringLength() || strncmp(meta_key.GetKey().CStr(), kdata.CStr(), kdata.StringLength()) != 0)
+            if (NULL == iter)
             {
-                break;
+                iter = m_engine->Find(ctx, meta_key);
             }
-            removed = 1;
-            iter->Del();
-            //RemoveKey(ctx, k);
-            iter->Next();
+            else
+            {
+                iter->Jump(meta_key);
+            }
+            while (NULL != iter && iter->Valid())
+            {
+                KeyObject& k = iter->Key();
+                const Data& kdata = k.GetKey();
+                if (k.GetNameSpace().Compare(meta_key.GetNameSpace()) != 0
+                        || kdata.StringLength() != meta_key.GetKey().StringLength()
+                        || strncmp(meta_key.GetKey().CStr(), kdata.CStr(), kdata.StringLength()) != 0)
+                {
+                    break;
+                }
+                removed = 1;
+                iter->Del();
+                //RemoveKey(ctx, k);
+                iter->Next();
+            }
         }
+
         if (removed > 0)
         {
             TouchWatchKey(ctx, meta_key);
@@ -997,7 +1014,7 @@ OP_NAMESPACE_BEGIN
             {
                 return 0;
             }
-            if(meta.GetType() == 0)
+            if (meta.GetType() == 0)
             {
                 continue;
             }

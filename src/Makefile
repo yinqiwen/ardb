@@ -50,8 +50,9 @@ SNAPPY_PATH=${LIB_PATH}/${SNAPPY_VER}
 SNAPPY_FILE=${SNAPPY_PATH}.tar.gz
 SNAPPY_LIBA=${SNAPPY_PATH}/.libs/libsnappy.a
 
-ROCKSDB_VER=rocksdb-4.3.1
-ROCKSDB_PATH=${LIB_PATH}/${ROCKSDB_VER}
+ROCKSDB_VER=5.0.2
+ROCKSDB_PATH=${LIB_PATH}/rocksdb-${ROCKSDB_VER}
+ROCKSDB_REMOTE_FILE=https://github.com/facebook/rocksdb/archive/v${ROCKSDB_VER}.tar.gz
 ROCKSDB_FILE=${ROCKSDB_PATH}.tar.gz
 ROCKSDB_LIBA=${ROCKSDB_PATH}/librocksdb.a
 
@@ -219,7 +220,7 @@ ifeq ($(storage_engine), rocksdb)
   STORAGE_ENGINE=$(ROCKSDB_LIBA)
   STORAGE_ENGINE_PATH=$(ROCKSDB_PATH)
   INCS+=-I${ROCKSDB_PATH}/include
-  LIBS:= ${ROCKSDB_LIBA} ${SNAPPY_LIBA} ${LIBS} -lz -lbz2 
+  LIBS:= ${ROCKSDB_LIBA} ${SNAPPY_LIBA} ${LIBS} -lz -lbz2
   CXXFLAGS+=-D__USE_ROCKSDB__ -std=c++11
 else
 ifeq ($(storage_engine), wiredtiger)
@@ -333,8 +334,9 @@ $(LEVELDB_PATH):
 	tar zxf ${LEVELDB_FILE} && \
 	echo "<<<<< Done unpacking LEVELDB"
 
-.PHONY: rocksdb
-rocksdb: $(ROCKSDB_LIBA)
+.PHONY: rocksdb 
+rocksdb: $(ROCKSDB_LIBA) 
+
 $(ROCKSDB_LIBA): $(SNAPPY_LIBA) $(ROCKSDB_PATH)
 	echo ">>>>> Building ROCKSDB" && \
 	cd ${ROCKSDB_PATH} && \
@@ -342,11 +344,17 @@ $(ROCKSDB_LIBA): $(SNAPPY_LIBA) $(ROCKSDB_PATH)
 	echo "<<<<< Done building ROCKSDB"
 
 
-$(ROCKSDB_PATH):
+$(ROCKSDB_PATH): ${ROCKSDB_FILE}
 	echo ">>>>> Unpacking ROCKSDB" && \
 	cd ${LIB_PATH} && \
 	tar zxf ${ROCKSDB_FILE} && \
 	echo "<<<<< Done unpacking ROCKSDB"
+	
+${ROCKSDB_FILE}:
+	echo ">>>>> Dowloading RocksDB" && \
+	cd ${LIB_PATH} && \
+	wget -O ${ROCKSDB_FILE} ${ROCKSDB_REMOTE_FILE} && \
+	echo "<<<<< Done dowloading RocksDB"
 	
 .PHONY: wiredtiger
 wiredtiger: $(WIREDTIGER_LIBA)
