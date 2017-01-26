@@ -179,7 +179,7 @@ OP_NAMESPACE_BEGIN
             iter->Next();
         }
         DELETE(iter);
-        if (need_set_minmax)
+        if (need_set_minmax && reply.MemberSize() > 0)
         {
             new_meta.SetObjectLen(reply.MemberSize());
             new_meta.GetMin().SetString(reply.MemberAt(0).str, true);
