@@ -123,6 +123,7 @@ OP_NAMESPACE_BEGIN
             RedisMessageDecoder m_decoder;
             NullRedisReplyEncoder m_encoder;
             SlaveContext m_ctx;
+            ClientContext m_client_ctx;
             DBWriter m_db_writer;
             void HandleRedisCommand(Channel* ch, RedisCommandFrame& cmd);
             void HandleRedisReply(Channel* ch, RedisReply& reply);

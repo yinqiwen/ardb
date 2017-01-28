@@ -85,8 +85,10 @@ OP_NAMESPACE_BEGIN
             int Put(Context& ctx,RedisCommandFrame& cmd);
             void SetNamespace(Context& ctx, const std::string& ns);
             void SetDefaulFlags(CallFlags flags);
+            void SetMasterClient(Context& ctx);
             int64 QueueSize();
             void Stop();
+            void Clear();
             ~DBWriter();
     };
 

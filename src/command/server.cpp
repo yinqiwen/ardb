@@ -1040,9 +1040,9 @@ namespace ardb
         {
             buffer.Printf("[%s lua] ", ns.AsString().c_str());
         }
-        else
+        else if(NULL != ctx.client && NULL != ctx.client->client)
         {
-            std::string addr;
+            std::string addr, a1;
             ctx.client->client->GetRemoteAddress()->ToString(addr);
             buffer.Printf("[%s %s] ", ns.AsString().c_str(), addr.c_str());
         }

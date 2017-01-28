@@ -143,6 +143,7 @@ OP_NAMESPACE_BEGIN
     Slave::Slave() :
             m_client(NULL), m_clientid(0)
     {
+    	m_ctx.ctx.client = &m_client_ctx;
     }
 
     int Slave::Init()
@@ -265,6 +266,12 @@ OP_NAMESPACE_BEGIN
         DEBUG_LOG("Master conn connected.");
         m_ctx.master_last_interaction_time = m_ctx.cmd_recved_time = time(NULL);
         m_ctx.master_link_down_time = 0;
+        m_client_ctx.last_interaction_ustime = m_ctx.cmd_recved_time;
+        m_client_ctx.uptime = m_ctx.cmd_recved_time;
+        m_client_ctx.clientid.id = ctx.GetChannel()->GetID();
+        m_client_ctx.clientid.ctx = &m_ctx.ctx;
+        m_client_ctx.client = ctx.GetChannel();
+        m_db_writer.SetMasterClient(m_ctx.ctx);
         if (!g_db->GetConf().masterauth.empty())
         {
             Buffer auth;
@@ -682,6 +689,7 @@ OP_NAMESPACE_BEGIN
         m_ctx.master_last_interaction_time = m_ctx.master_link_down_time = time(NULL);
         m_client = NULL;
         m_clientid = 0;
+        m_db_writer.Clear();
         m_ctx.Clear();
         /*
          * Current instance is disconnect from remote master, can not accept slaves now.

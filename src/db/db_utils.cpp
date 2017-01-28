@@ -203,6 +203,22 @@ OP_NAMESPACE_BEGIN
             m_workers[i]->worker_ctx.ns.SetString(ns, false);
         }
     }
+
+    void DBWriter::SetMasterClient(Context& ctx)
+    {
+        for (size_t i = 0; i < m_workers.size(); i++)
+        {
+            m_workers[i]->worker_ctx.client = ctx.client;
+        }
+    }
+
+    void DBWriter::Clear()
+    {
+        for (size_t i = 0; i < m_workers.size(); i++)
+        {
+            m_workers[i]->worker_ctx.client = NULL;
+        }
+    }
     void DBWriter::SetDefaulFlags(CallFlags flags)
     {
         for (size_t i = 0; i < m_workers.size(); i++)
