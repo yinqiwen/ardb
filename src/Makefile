@@ -40,9 +40,10 @@ uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 
 LIB_PATH=$(PWD)/../deps
 
-JEMALLOC_VER=jemalloc-4.1.0
-JEMALLOC_PATH=${LIB_PATH}/${JEMALLOC_VER}
+JEMALLOC_VER=4.4.0
+JEMALLOC_PATH=${LIB_PATH}/jemalloc-${JEMALLOC_VER}
 JEMALLOC_FILE=${JEMALLOC_PATH}.tar.bz2
+JEMALLOC_REMOTE_FILE=https://github.com/jemalloc/jemalloc/releases/download/${JEMALLOC_VER}/jemalloc-${JEMALLOC_VER}.tar.bz2
 JEMALLOC_LIBA=${JEMALLOC_PATH}/lib/libjemalloc.a
 
 SNAPPY_VER=snappy-1.1.2
@@ -56,14 +57,16 @@ ROCKSDB_REMOTE_FILE=https://github.com/facebook/rocksdb/archive/v${ROCKSDB_VER}.
 ROCKSDB_FILE=${ROCKSDB_PATH}.tar.gz
 ROCKSDB_LIBA=${ROCKSDB_PATH}/librocksdb.a
 
-LEVELDB_VER=leveldb-1.18
-LEVELDB_PATH=${LIB_PATH}/${LEVELDB_VER}
+LEVELDB_VER=1.19
+LEVELDB_PATH=${LIB_PATH}/leveldb-${LEVELDB_VER}
 LEVELDB_FILE=${LEVELDB_PATH}.tar.gz
-LEVELDB_LIBA=${LEVELDB_PATH}/libleveldb.a
+LEVELDB_REMOTE_FILE=https://github.com/google/leveldb/archive/v${LEVELDB_VER}.tar.gz
+LEVELDB_LIBA=${LEVELDB_PATH}/out-static/libleveldb.a
 
-LMDB_VER=LMDB_0.9.18
-LMDB_PATH=${LIB_PATH}/lmdb-${LMDB_VER}/libraries/liblmdb
+LMDB_VER=0.9.19
+LMDB_PATH=${LIB_PATH}/lmdb-LMDB_${LMDB_VER}/libraries/liblmdb
 LMDB_FILE=${LIB_PATH}/lmdb-${LMDB_VER}.tar.gz
+LMDB_REMOTE_FILE=https://github.com/LMDB/lmdb/archive/LMDB_${LMDB_VER}.tar.gz
 LMDB_LIBA=${LMDB_PATH}/liblmdb.a
 
 FORESTDB_VER=forestdb-1.2
@@ -73,9 +76,10 @@ FORESTDB_REMOTE_FILE=https://github.com/couchbase/forestdb/archive/v1.2.tar.gz
 FORESTDB_SO=${FORESTDB_PATH}/build/libforestdb.so
 FORESTDB_LIBA=${FORESTDB_PATH}/build/libforestdb.a
 
-WIREDTIGER_VER=wiredtiger-2.8.0
-WIREDTIGER_PATH=${LIB_PATH}/${WIREDTIGER_VER}
-WIREDTIGER_FILE=${LIB_PATH}/${WIREDTIGER_VER}.tar.bz2
+WIREDTIGER_VER=2.9.1
+WIREDTIGER_PATH=${LIB_PATH}/wiredtiger-${WIREDTIGER_VER}
+WIREDTIGER_FILE=${WIREDTIGER_PATH}.tar.bz2
+WIREDTIGER_REMOTE_FILE=https://github.com/wiredtiger/wiredtiger/releases/download/${WIREDTIGER_VER}/wiredtiger-${WIREDTIGER_VER}.tar.bz2
 WIREDTIGER_LIBA=${WIREDTIGER_PATH}/.libs/libwiredtiger.a
 
 PERCONAFT_VER=PerconaFT-master
@@ -282,14 +286,24 @@ repair: lib ${REPAIR_TOOL_OBJ}
 	
 .PHONY: jemalloc
 jemalloc: $(JEMALLOC_LIBA)
-$(JEMALLOC_LIBA):
+$(JEMALLOC_LIBA): $(JEMALLOC_PATH)
 	echo ">>>>> Building JEMALLOC" && \
-	cd ${LIB_PATH} && \
-	tar jxf ${JEMALLOC_FILE} && \
 	cd ${JEMALLOC_PATH} && \
 	./configure  && \
 	$(MAKE) build_lib_static && \
 	echo "<<<<< Done building JEMALLOC"
+
+$(JEMALLOC_PATH): ${JEMALLOC_FILE}
+	echo ">>>>> Unpacking JEMALLOC" && \
+	cd ${LIB_PATH} && \
+	tar jxf ${JEMALLOC_FILE} && \
+	echo "<<<<< Done unpacking JEMALLOC"
+
+${JEMALLOC_FILE}:
+	echo ">>>>> Dowloading JEMALLOC" && \
+	cd ${LIB_PATH} && \
+	wget -O ${JEMALLOC_FILE} ${JEMALLOC_REMOTE_FILE} && \
+	echo "<<<<< Done dowloading JEMALLOC"
 
 .PHONY: snappy
 snappy: $(SNAPPY_LIBA)
@@ -310,11 +324,17 @@ $(LMDB_LIBA): $(LMDB_PATH)
 	$(MAKE) && \
 	echo "<<<<< Done building LMDB"
 
-$(LMDB_PATH):
+$(LMDB_PATH): $(LMDB_FILE)
 	echo ">>>>> Unpacking LMDB" && \
 	cd ${LIB_PATH} && \
 	tar zxf ${LMDB_FILE} && \
 	echo "<<<<< Done unpacking LMDB"
+
+${LMDB_FILE}:
+	echo ">>>>> Dowloading LMDB" && \
+	cd ${LIB_PATH} && \
+	wget -O ${LMDB_FILE} ${LMDB_REMOTE_FILE} && \
+	echo "<<<<< Done dowloading LMDB"
 
 .PHONY: leveldb
 leveldb: $(LEVELDB_LIBA)
@@ -325,14 +345,20 @@ $(LEVELDB_LIBA): $(SNAPPY_LIBA) $(LEVELDB_PATH)
 	CXXFLAGS="-I${SNAPPY_PATH} -fno-access-control" \
 		CFLAGS="-I${SNAPPY_PATH}" \
 		LDFLAGS="${SNAPPY_PATH}/.libs" \
-		$(MAKE) libleveldb.a && \
+		$(MAKE) out-static/libleveldb.a && \
 	echo "<<<<< Done building LEVELDB"
 
-$(LEVELDB_PATH):
+$(LEVELDB_PATH): ${LEVELDB_FILE}
 	echo ">>>>> Unpacking LEVELDB" && \
 	cd ${LIB_PATH} && \
 	tar zxf ${LEVELDB_FILE} && \
 	echo "<<<<< Done unpacking LEVELDB"
+
+${LEVELDB_FILE}:
+	echo ">>>>> Dowloading LevelDB" && \
+	cd ${LIB_PATH} && \
+	wget -O ${LEVELDB_FILE} ${LEVELDB_REMOTE_FILE} && \
+	echo "<<<<< Done dowloading LevelDB"
 
 .PHONY: rocksdb 
 rocksdb: $(ROCKSDB_LIBA) 
@@ -358,13 +384,23 @@ ${ROCKSDB_FILE}:
 	
 .PHONY: wiredtiger
 wiredtiger: $(WIREDTIGER_LIBA)
-$(WIREDTIGER_LIBA): $(SNAPPY_LIBA) 
+$(WIREDTIGER_LIBA): $(SNAPPY_LIBA) $(WIREDTIGER_PATH)
 	echo ">>>>> Building WiredTiger" && \
-	cd ${LIB_PATH} && \
-	tar jxf ${WIREDTIGER_FILE} && \
 	cd ${WIREDTIGER_PATH} && \
 	./configure && $(MAKE) && \
 	echo "<<<<< Done building WiredTiger"
+
+$(WIREDTIGER_PATH): ${WIREDTIGER_FILE}
+	echo ">>>>> Unpacking WiredTiger" && \
+	cd ${LIB_PATH} && \
+	tar jxf ${WIREDTIGER_FILE} && \
+	echo "<<<<< Done unpacking WiredTiger"
+	
+${WIREDTIGER_FILE}:
+	echo ">>>>> Dowloading WiredTiger" && \
+	cd ${LIB_PATH} && \
+	wget -O ${WIREDTIGER_FILE} ${WIREDTIGER_REMOTE_FILE} && \
+	echo "<<<<< Done dowloading WiredTiger"
 
 .PHONY: forestdb
 forestdb: $(FORESTDB_LIBA)
