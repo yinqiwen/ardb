@@ -223,7 +223,7 @@ else
 ifeq ($(storage_engine), rocksdb)
   STORAGE_ENGINE=$(ROCKSDB_LIBA)
   STORAGE_ENGINE_PATH=$(ROCKSDB_PATH)
-  INCS+=-I${ROCKSDB_PATH}/include
+  INCS+=-I${ROCKSDB_PATH}/include -I${ROCKSDB_PATH}
   LIBS:= ${ROCKSDB_LIBA} ${SNAPPY_LIBA} ${LIBS} -lz -lbz2
   CXXFLAGS+=-D__USE_ROCKSDB__ -std=c++11
 else

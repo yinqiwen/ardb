@@ -299,7 +299,9 @@ OP_NAMESPACE_BEGIN
             {
                 if (k.GetType() != KEY_META)
                 {
-                    iter->Next();
+                    //iter->Next();
+                    KeyObject next(ctx.ns, KEY_END, k.GetKey());
+                    iter->Jump(next);
                     continue;
                 }
                 k.GetKey().ToString(match_element);

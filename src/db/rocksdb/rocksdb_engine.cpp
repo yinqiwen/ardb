@@ -36,6 +36,7 @@
 #include "thread/spin_mutex_lock.hpp"
 #include "db/db.hpp"
 
+
 OP_NAMESPACE_BEGIN
 
     static inline rocksdb::Slice to_rocksdb_slice(const Slice& slice)
@@ -1309,6 +1310,7 @@ OP_NAMESPACE_BEGIN
         std::map<rocksdb::MemoryUtil::UsageType, uint64_t> usage_by_type;
         std::unordered_set<const rocksdb::Cache*> cache_set;
         std::vector<rocksdb::DB*> dbs(1, m_db);
+        cache_set.insert(m_db->GetDBOptions().row_cache.get());
         rocksdb::MemoryUtil::GetApproximateMemoryUsageByType(dbs, cache_set, &usage_by_type);
         for (size_t i = 0; i < rocksdb::MemoryUtil::kNumUsageTypes; ++i)
         {
