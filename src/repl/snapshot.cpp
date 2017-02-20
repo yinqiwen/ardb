@@ -856,7 +856,9 @@ namespace ardb
         int64_t llele = 0;
         meta_value.SetType(KEY_SET);
         meta_value.SetObjectLen(intsetLen((intset*) data));
-        while (!intsetGet((intset*) data, ii++, &llele))
+
+
+        while (intsetGet((intset*) data, ii++, &llele) > 0)
         {
             KeyObject member(ctx.ns, KEY_SET_MEMBER, key);
             member.SetSetMember(stringfromll(llele));
@@ -865,8 +867,6 @@ namespace ardb
             //g_db->SetKeyValue(ctx, member, member_value);
             GetDBWriter().Put(ctx, member, member_value);
         }
-        //        KeyObject skey(ctx.ns, KEY_META, key);
-        //        g_db->SetKeyValue(ctx, skey, smeta);
     }
 
     bool ObjectIO::RedisLoadObject(Context& ctx, int rdbtype, const std::string& key, int64 expiretime)
@@ -874,7 +874,7 @@ namespace ardb
         //TransactionGuard guard(ctx);
         KeyObject meta_key(ctx.ns, KEY_META, key);
         ValueObject meta_value;
-
+        printf("####Load %s:%d\n", key.c_str(), rdbtype);
         switch (rdbtype)
         {
             case REDIS_RDB_TYPE_STRING:
