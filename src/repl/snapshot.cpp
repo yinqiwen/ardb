@@ -874,7 +874,6 @@ namespace ardb
         //TransactionGuard guard(ctx);
         KeyObject meta_key(ctx.ns, KEY_META, key);
         ValueObject meta_value;
-        printf("####Load %s:%d\n", key.c_str(), rdbtype);
         switch (rdbtype)
         {
             case REDIS_RDB_TYPE_STRING:
