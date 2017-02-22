@@ -217,7 +217,7 @@ namespace ardb
         {
             err = err_map.begin()->first;
             err--;
-            if(err_map.size() > 10)
+            if (err_map.size() > 10)
             {
                 err_map.erase(err_map.rbegin()->first);
             }
@@ -319,7 +319,8 @@ namespace ardb
                 ERROR_LOG("Failed to init engine:%s", status.ToString().c_str());
                 break;
             }
-        } while (1);
+        }
+        while (1);
         m_db = g_leveldb;
         if (status.ok())
         {
@@ -398,6 +399,10 @@ namespace ardb
         else
         {
             s = m_db->Put(opt, key_slice, value_slice);
+        }
+        {
+            RWLockGuard<SpinRWLock> guard(m_lock, false);
+            m_nss.insert(ns);
         }
         return leveldb_err(s);
     }
@@ -521,7 +526,7 @@ namespace ardb
 
     Iterator* LevelDBEngine::Find(Context& ctx, const KeyObject& key)
     {
-    	return Find(ctx, key, true);
+        return Find(ctx, key, true);
     }
 
     Iterator* LevelDBEngine::Find(Context& ctx, const KeyObject& key, bool check_ns)
@@ -560,14 +565,14 @@ namespace ardb
         }
         leveldb::Iterator* rocksiter = m_db->NewIterator(opt);
         iter->SetIterator(rocksiter);
-        if (key.GetType() > 0)
-        {
-            iter->Jump(key);
-        }
-        else
-        {
-            rocksiter->SeekToFirst();
-        }
+        //if (key.GetType() > 0)
+        //{
+        iter->Jump(key);
+        //}
+        //else
+        //{
+        //    rocksiter->SeekToFirst();
+        //}
         return iter;
     }
 
@@ -665,7 +670,8 @@ namespace ardb
     void LevelDBEngine::Stats(Context& ctx, std::string& str)
     {
         std::string stats;
-        str.append("leveldb_version:").append(stringfromll(leveldb::kMajorVersion)).append(".").append(stringfromll(leveldb::kMinorVersion)).append("\r\n");
+        str.append("leveldb_version:").append(stringfromll(leveldb::kMajorVersion)).append(".").append(
+                stringfromll(leveldb::kMinorVersion)).append("\r\n");
         m_db->GetProperty("leveldb.stats", &stats);
         str.append(stats);
     }
