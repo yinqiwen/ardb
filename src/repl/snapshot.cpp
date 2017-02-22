@@ -2707,7 +2707,7 @@ namespace ardb
         while (it != m_snapshots.end())
         {
             Snapshot* s = *it;
-            if (s == NULL || s->CachedReplOffset() <= g_repl->GetReplLog().WALStartOffset())
+            if (s == NULL || (s->CachedReplOffset() <= g_repl->GetReplLog().WALStartOffset()))
             {
                 WARN_LOG("Remove snapshot:%s since it's too old.", NULL == s? "empty":s->GetPath().c_str());
                 if(NULL != s)

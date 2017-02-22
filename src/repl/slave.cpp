@@ -569,7 +569,6 @@ OP_NAMESPACE_BEGIN
             return;
         }
         m_ctx.snapshot.MarkDumpComplete();
-        g_snapshot_manager->AddSnapshot(m_ctx.snapshot.GetPath());
         m_decoder.SwitchToCommandDecoder();
         m_ctx.state = SLAVE_STATE_LOADING_SNAPSHOT;
         /*
@@ -599,6 +598,8 @@ OP_NAMESPACE_BEGIN
         m_ctx.sync_repl_cksm = m_ctx.cached_master_repl_cksm;
         m_ctx.state = SLAVE_STATE_REPLAYING_WAL;
         ReplayWAL();
+
+        g_snapshot_manager->AddSnapshot(m_ctx.snapshot.GetPath());
     }
 
     void Slave::HandleBackupSync(Channel* ch, DirSyncStatus& status)
