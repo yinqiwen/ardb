@@ -36,7 +36,6 @@
 #include "thread/spin_mutex_lock.hpp"
 #include "db/db.hpp"
 
-
 OP_NAMESPACE_BEGIN
 
     static inline rocksdb::Slice to_rocksdb_slice(const Slice& slice)
@@ -646,7 +645,7 @@ OP_NAMESPACE_BEGIN
     };
 
     RocksDBEngine::RocksDBEngine() :
-            m_db(NULL)
+            m_db(NULL), m_bulk_loading(false)
     {
     }
 
@@ -716,6 +715,7 @@ OP_NAMESPACE_BEGIN
     int RocksDBEngine::Restore(Context& ctx, const std::string& dir)
     {
         LockGuard<ThreadMutex> guard(m_backup_lock);
+        m_bulk_loading = true;
         Close();
         rocksdb::BackupEngineReadOnly* backup_engine = NULL;
         rocksdb::BackupableDBOptions opt(dir);
@@ -732,6 +732,7 @@ OP_NAMESPACE_BEGIN
         }
         DELETE(backup_engine);
         ReOpen(m_options);
+        m_bulk_loading = false;
         return 0;
     }
 
@@ -1239,11 +1240,14 @@ OP_NAMESPACE_BEGIN
     {
         rocksdb::Options load_options = m_options;
         load_options.PrepareForBulkLoad();
+        m_bulk_loading = true;
         return ReOpen(load_options);
     }
     int RocksDBEngine::EndBulkLoad(Context& ctx)
     {
-        return ReOpen(m_options);
+        int ret = ReOpen(m_options);
+        m_bulk_loading = false;
+        return ret;
     }
 
     const std::string RocksDBEngine::GetErrorReason(int err)
@@ -1306,6 +1310,10 @@ OP_NAMESPACE_BEGIN
         version_info.append("rocksdb_version:").append(stringfromll(rocksdb::kMajorVersion)).append(".").append(
                 stringfromll(rocksdb::kMinorVersion)).append(".").append(stringfromll(ROCKSDB_PATCH)).append("\r\n");
         all.append(version_info);
+        if (m_bulk_loading || NULL == m_db)
+        {
+            return;
+        }
         // all.append("rocksdb_iterator_cache:").append(stringfromll(g_iter_cache.cache_size)).append("\r\n");
         std::map<rocksdb::MemoryUtil::UsageType, uint64_t> usage_by_type;
         std::unordered_set<const rocksdb::Cache*> cache_set;
