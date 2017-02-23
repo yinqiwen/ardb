@@ -217,7 +217,7 @@ OP_NAMESPACE_BEGIN
                     size_t buf_len = 1024;
                     NEW(buffer, char[buf_len]);
                     int n = vsnprintf(buffer, buf_len - 1, format, ap);
-                    if (n < 0)
+                    if (n > 0)
                     {
                         buffer[n] = 0;
                         LOG_WITH_LEVEL(level, "[RocksDB]%s", buffer);
