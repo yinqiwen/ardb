@@ -1206,8 +1206,16 @@ OP_NAMESPACE_BEGIN
             return ERR_ENTRY_NOT_EXIST;
         }
         Buffer start_buffer, end_buffer;
-        rocksdb::Slice start_key = to_rocksdb_slice(start.Encode(start_buffer));
-        rocksdb::Slice end_key = to_rocksdb_slice(end.Encode(end_buffer));
+        rocksdb::Slice start_key;
+        if (start.IsValid())
+        {
+            start_key = to_rocksdb_slice(start.Encode(start_buffer));
+        }
+        rocksdb::Slice end_key;
+        if (end.IsValid())
+        {
+            end_key = to_rocksdb_slice(end.Encode(end_buffer));
+        }
         rocksdb::CompactRangeOptions opt;
         rocksdb::Status s = m_db->CompactRange(opt, cf, start.IsValid() ? &start_key : NULL,
                 end.IsValid() ? &end_key : NULL);
