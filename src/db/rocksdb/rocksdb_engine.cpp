@@ -213,10 +213,16 @@ OP_NAMESPACE_BEGIN
                 }
                 if (LOG_ENABLED(level))
                 {
-                    char buffer[1024];
-                    int n = vsnprintf(buffer, sizeof(buffer) - 1, format, ap);
-                    buffer[n] = 0;
-                    LOG_WITH_LEVEL(level, "[RocksDB]%s", buffer);
+                    char* buffer = NULL;
+                    size_t buf_len = 1024;
+                    NEW(buffer, char[buf_len]);
+                    int n = vsnprintf(buffer, buf_len - 1, format, ap);
+                    if (n < 0)
+                    {
+                        buffer[n] = 0;
+                        LOG_WITH_LEVEL(level, "[RocksDB]%s", buffer);
+                    }
+                    DELETE_A(buffer);
                 }
             }
     };
