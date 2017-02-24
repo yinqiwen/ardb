@@ -130,7 +130,6 @@ OP_NAMESPACE_BEGIN
                 }
 
                 lp.host = address.substr(0, address.size() - ss[ss.size() - 1].size() - 1);
-                printf("#####%s %s %d\n", lp.host.c_str(), ss[1].c_str(), ss.size());
                 lp.port = port;
             }
             sprintf(config_key, "server[%d].qps-limit", i);
