@@ -123,12 +123,14 @@ OP_NAMESPACE_BEGIN
             {
                 std::vector<std::string> ss = split_string(address, ":");
                 uint32 port;
-                if (ss.size() != 2 || !string_touint32(ss[1], port) || port > 65535)
+                if (ss.size() < 2 || !string_touint32(ss[ss.size() - 1], port) || port > 65535)
                 {
                     ERROR_LOG("Invalid listen address %s", address.c_str());
                     return false;
                 }
-                lp.host = ss[0];
+
+                lp.host = address.substr(0, address.size() - ss[ss.size() - 1].size() - 1);
+                printf("#####%s %s %d\n", lp.host.c_str(), ss[1].c_str(), ss.size());
                 lp.port = port;
             }
             sprintf(config_key, "server[%d].qps-limit", i);
