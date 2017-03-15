@@ -185,14 +185,12 @@ namespace ardb
 
         /* Check if it's possible to encode this value as a number */
         value = strtoll(s, &endptr, 10);
-        if (endptr[0] != '\0')
-            return 0;
+        if (endptr[0] != '\0') return 0;
         ll2string(buf, 32, value);
 
         /* If the number converted back into a string is not identical
          * then it's not possible to encode the string as integer */
-        if (strlen(buf) != len || memcmp(buf, s, len))
-            return 0;
+        if (strlen(buf) != len || memcmp(buf, s, len)) return 0;
 
         return EncodeInteger(value, enc);
     }
@@ -210,23 +208,20 @@ namespace ardb
     int ObjectIO::ReadType()
     {
         unsigned char type;
-        if (Read(&type, 1) == 0)
-            return -1;
+        if (Read(&type, 1) == 0) return -1;
         return type;
     }
 
     time_t ObjectIO::ReadTime()
     {
         int32_t t32;
-        if (Read(&t32, 4) == 0)
-            return -1;
+        if (Read(&t32, 4) == 0) return -1;
         return (time_t) t32;
     }
     int64 ObjectIO::ReadMillisecondTime()
     {
         int64_t t64;
-        if (Read(&t64, 8) == 0)
-            return -1;
+        if (Read(&t64, 8) == 0) return -1;
         return (long long) t64;
     }
 
@@ -236,16 +231,13 @@ namespace ardb
         uint32_t len;
         int type;
 
-        if (isencoded)
-            *isencoded = 0;
-        if (Read(buf, 1) == 0)
-            return REDIS_RDB_LENERR;
+        if (isencoded) *isencoded = 0;
+        if (Read(buf, 1) == 0) return REDIS_RDB_LENERR;
         type = (buf[0] & 0xC0) >> 6;
         if (type == REDIS_RDB_ENCVAL)
         {
             /* Read a 6 bit encoding type. */
-            if (isencoded)
-                *isencoded = 1;
+            if (isencoded) *isencoded = 1;
             return buf[0] & 0x3F;
         }
         else if (type == REDIS_RDB_6BITLEN)
@@ -256,15 +248,13 @@ namespace ardb
         else if (type == REDIS_RDB_14BITLEN)
         {
             /* Read a 14 bit len. */
-            if (Read(buf + 1, 1) == 0)
-                return REDIS_RDB_LENERR;
+            if (Read(buf + 1, 1) == 0) return REDIS_RDB_LENERR;
             return ((buf[0] & 0x3F) << 8) | buf[1];
         }
         else
         {
             /* Read a 32 bit len. */
-            if (Read(&len, 4) == 0)
-                return REDIS_RDB_LENERR;
+            if (Read(&len, 4) == 0) return REDIS_RDB_LENERR;
             return ntohl(len);
         }
     }
@@ -274,14 +264,11 @@ namespace ardb
         unsigned int len, clen;
         unsigned char *c = NULL;
 
-        if ((clen = ReadLen(NULL)) == REDIS_RDB_LENERR)
-            return false;
-        if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR)
-            return false;
+        if ((clen = ReadLen(NULL)) == REDIS_RDB_LENERR) return false;
+        if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR) return false;
         str.resize(len);
         NEW(c, unsigned char[clen]);
-        if (NULL == c)
-            return false;
+        if (NULL == c) return false;
 
         if (!Read(c, clen))
         {
@@ -305,23 +292,20 @@ namespace ardb
 
         if (enctype == REDIS_RDB_ENC_INT8)
         {
-            if (Read(enc, 1) == 0)
-                return false;
+            if (Read(enc, 1) == 0) return false;
             val = (signed char) enc[0];
         }
         else if (enctype == REDIS_RDB_ENC_INT16)
         {
             uint16_t v;
-            if (Read(enc, 2) == 0)
-                return false;
+            if (Read(enc, 2) == 0) return false;
             v = enc[0] | (enc[1] << 8);
             val = (int16_t) v;
         }
         else if (enctype == REDIS_RDB_ENC_INT32)
         {
             uint32_t v;
-            if (Read(enc, 4) == 0)
-                return false;
+            if (Read(enc, 4) == 0) return false;
             v = enc[0] | (enc[1] << 8) | (enc[2] << 16) | (enc[3] << 24);
             val = (int32_t) v;
         }
@@ -344,8 +328,7 @@ namespace ardb
         char buf[128];
         unsigned char len;
 
-        if (Read(&len, 1) == 0)
-            return -1;
+        if (Read(&len, 1) == 0) return -1;
         switch (len)
         {
             case 255:
@@ -358,8 +341,7 @@ namespace ardb
                 val = R_Nan;
                 return 0;
             default:
-                if (Read(buf, len) == 0)
-                    return -1;
+                if (Read(buf, len) == 0) return -1;
                 buf[len] = '\0';
                 sscanf(buf, "%lg", &val);
                 return 0;
@@ -404,8 +386,7 @@ namespace ardb
             }
         }
 
-        if (len == REDIS_RDB_LENERR)
-            return false;
+        if (len == REDIS_RDB_LENERR) return false;
         str.clear();
         str.resize(len);
         char* val = &str[0];
@@ -455,8 +436,7 @@ namespace ardb
             unsigned char buf[5];
             if ((enclen = TryIntegerEncoding((char*) s, len, buf)) > 0)
             {
-                if (Write(buf, enclen) == -1)
-                    return -1;
+                if (Write(buf, enclen) == -1) return -1;
                 return enclen;
             }
         }
@@ -466,21 +446,17 @@ namespace ardb
         if (len > 20)
         {
             n = WriteLzfStringObject(s, len);
-            if (n == -1)
-                return -1;
-            if (n > 0)
-                return n;
+            if (n == -1) return -1;
+            if (n > 0) return n;
             /* Return value of 0 means data can't be compressed, save the old way */
         }
 
         /* Store verbatim */
-        if ((n = WriteLen(len)) == -1)
-            return -1;
+        if ((n = WriteLen(len)) == -1) return -1;
         nwritten += n;
         if (len > 0)
         {
-            if (Write(s, len) == -1)
-                return -1;
+            if (Write(s, len) == -1) return -1;
             nwritten += len;
         }
         return nwritten;
@@ -494,11 +470,9 @@ namespace ardb
         void *out;
 
         /* We require at least four bytes compression for this to be worth it */
-        if (len <= 4)
-            return 0;
+        if (len <= 4) return 0;
         outlen = len - 4;
-        if ((out = malloc(outlen + 1)) == NULL)
-            return 0;
+        if ((out = malloc(outlen + 1)) == NULL) return 0;
         comprlen = lzf_compress(s, len, out, outlen);
         if (comprlen == 0)
         {
@@ -507,20 +481,16 @@ namespace ardb
         }
         /* Data compressed! Let's save it on disk */
         byte = (REDIS_RDB_ENCVAL << 6) | REDIS_RDB_ENC_LZF;
-        if ((n = Write(&byte, 1)) == -1)
-            goto writeerr;
+        if ((n = Write(&byte, 1)) == -1) goto writeerr;
         nwritten += n;
 
-        if ((n = WriteLen(comprlen)) == -1)
-            goto writeerr;
+        if ((n = WriteLen(comprlen)) == -1) goto writeerr;
         nwritten += n;
 
-        if ((n = WriteLen(len)) == -1)
-            goto writeerr;
+        if ((n = WriteLen(len)) == -1) goto writeerr;
         nwritten += n;
 
-        if ((n = Write(out, comprlen)) == -1)
-            goto writeerr;
+        if ((n = Write(out, comprlen)) == -1) goto writeerr;
         nwritten += n;
 
         free(out);
@@ -544,11 +514,9 @@ namespace ardb
         {
             /* Encode as string */
             enclen = ll2string((char*) buf, 32, value);
-            if ((n = WriteLen(enclen)) == -1)
-                return -1;
+            if ((n = WriteLen(enclen)) == -1) return -1;
             nwritten += n;
-            if ((n = Write(buf, enclen)) == -1)
-                return -1;
+            if ((n = Write(buf, enclen)) == -1) return -1;
             nwritten += n;
         }
         return nwritten;
@@ -563,8 +531,7 @@ namespace ardb
         {
             /* Save a 6 bit len */
             buf[0] = (len & 0xFF) | (REDIS_RDB_6BITLEN << 6);
-            if (Write(buf, 1) == -1)
-                return -1;
+            if (Write(buf, 1) == -1) return -1;
             nwritten = 1;
         }
         else if (len < (1 << 14))
@@ -572,19 +539,16 @@ namespace ardb
             /* Save a 14 bit len */
             buf[0] = ((len >> 8) & 0xFF) | (REDIS_RDB_14BITLEN << 6);
             buf[1] = len & 0xFF;
-            if (Write(buf, 2) == -1)
-                return -1;
+            if (Write(buf, 2) == -1) return -1;
             nwritten = 2;
         }
         else
         {
             /* Save a 32 bit len */
             buf[0] = (REDIS_RDB_32BITLEN << 6);
-            if (Write(buf, 1) == -1)
-                return -1;
+            if (Write(buf, 1) == -1) return -1;
             len = htonl(len);
-            if (Write(&len, 4) == -1)
-                return -1;
+            if (Write(&len, 4) == -1) return -1;
             nwritten = 1 + 4;
         }
         return nwritten;
@@ -661,7 +625,7 @@ namespace ardb
             }
             else
 #endif
-                snprintf((char*) buf + 1, sizeof(buf) - 1, "%.17g", val);
+            snprintf((char*) buf + 1, sizeof(buf) - 1, "%.17g", val);
             buf[0] = strlen((char*) buf + 1);
             len = buf[0] + 1;
         }
@@ -687,7 +651,8 @@ namespace ardb
         Write(magic, 9);
     }
 
-    void ObjectIO::RedisLoadListZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& listmeta)
+    void ObjectIO::RedisLoadListZipList(Context& ctx, unsigned char* data, const std::string& key,
+            ValueObject& listmeta)
     {
         unsigned char* iter = ziplistIndex(data, 0);
         listmeta.SetType(KEY_LIST);
@@ -748,7 +713,8 @@ namespace ardb
         }
         return score;
     }
-    void ObjectIO::RedisLoadZSetZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value)
+    void ObjectIO::RedisLoadZSetZipList(Context& ctx, unsigned char* data, const std::string& key,
+            ValueObject& meta_value)
     {
         meta_value.SetType(KEY_ZSET);
         meta_value.SetObjectLen(ziplistLen(data) / 2);
@@ -794,7 +760,8 @@ namespace ardb
         }
     }
 
-    void ObjectIO::RedisLoadHashZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value)
+    void ObjectIO::RedisLoadHashZipList(Context& ctx, unsigned char* data, const std::string& key,
+            ValueObject& meta_value)
     {
         meta_value.SetType(KEY_HASH);
         meta_value.SetObjectLen(ziplistLen(data) / 2);
@@ -850,13 +817,13 @@ namespace ardb
         //        g_db->SetKeyValue(ctx, hkey, hmeta);
     }
 
-    void ObjectIO::RedisLoadSetIntSet(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value)
+    void ObjectIO::RedisLoadSetIntSet(Context& ctx, unsigned char* data, const std::string& key,
+            ValueObject& meta_value)
     {
         int ii = 0;
         int64_t llele = 0;
         meta_value.SetType(KEY_SET);
         meta_value.SetObjectLen(intsetLen((intset*) data));
-
 
         while (intsetGet((intset*) data, ii++, &llele) > 0)
         {
@@ -895,8 +862,7 @@ namespace ardb
             case REDIS_RDB_TYPE_SET:
             {
                 uint32 len;
-                if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR)
-                    return false;
+                if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR) return false;
 
                 if (REDIS_RDB_TYPE_SET == rdbtype)
                 {
@@ -954,8 +920,7 @@ namespace ardb
             case REDIS_RDB_TYPE_LIST_QUICKLIST:
             {
                 uint32 ziplen;
-                if ((ziplen = ReadLen(NULL)) == REDIS_RDB_LENERR)
-                    return false;
+                if ((ziplen = ReadLen(NULL)) == REDIS_RDB_LENERR) return false;
                 meta_value.SetType(KEY_LIST);
                 meta_value.GetMetaObject().list_sequential = true;
                 int64 idx = 0;
@@ -1009,8 +974,7 @@ namespace ardb
             case REDIS_RDB_TYPE_ZSET:
             {
                 uint32 len;
-                if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR)
-                    return false;
+                if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR) return false;
                 meta_value.SetType(KEY_ZSET);
                 meta_value.SetObjectLen(len);
                 while (len--)
@@ -1047,8 +1011,7 @@ namespace ardb
             case REDIS_RDB_TYPE_HASH:
             {
                 uint32 len;
-                if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR)
-                    return false;
+                if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR) return false;
                 meta_value.SetType(KEY_HASH);
                 meta_value.SetObjectLen(len);
                 while (len--)
@@ -1319,14 +1282,12 @@ namespace ardb
 
         size_t len = m_buffer.ReadableBytes();
         /* At least 2 bytes of RDB version and 8 of CRC64 should be present. */
-        if (len < 10)
-            return false;
+        if (len < 10) return false;
         footer = (const unsigned char *) (m_buffer.GetRawReadBuffer() + (len - 10));
 
         /* Verify RDB version */
         rdbver = (footer[1] << 8) | footer[0];
-        if (rdbver > REDIS_RDB_VERSION)
-            return false;
+        if (rdbver > REDIS_RDB_VERSION) return false;
 
         /* Verify CRC64 */
         crc = crc64(0, (const unsigned char*) m_buffer.GetRawReadBuffer(), len - 8);
@@ -1351,8 +1312,7 @@ namespace ardb
     bool ObjectBuffer::ArdbLoad(Context& ctx)
     {
         int type = 0;
-        if ((type = ReadType()) == -1)
-            return false;
+        if ((type = ReadType()) == -1) return false;
         if (type == ARDB_RDB_TYPE_CHUNK || type == ARDB_RDB_TYPE_SNAPPY_CHUNK)
         {
             return ArdbLoadChunk(ctx, type) == 0;
@@ -1520,7 +1480,8 @@ namespace ardb
             m_read_fp(NULL), m_write_fp(NULL), m_cksm(0), m_routine_cb(
             NULL), m_routine_cbdata(
             NULL), m_processed_bytes(0), m_file_size(0), m_state(SNAPSHOT_INVALID), m_routinetime(0), m_read_buf(
-            NULL), m_expected_data_size(0), m_writed_data_size(0), m_cached_repl_offset(0), m_cached_repl_cksm(0), m_save_time(0), m_type((SnapshotType) 0), m_snapshot_iter(
+            NULL), m_expected_data_size(0), m_writed_data_size(0), m_cached_repl_offset(0), m_cached_repl_cksm(0), m_save_time(
+                    0), m_type((SnapshotType) 0), m_snapshot_iter(
             NULL)
     {
 
@@ -1569,7 +1530,8 @@ namespace ardb
         else
         {
             int err = errno;
-            ERROR_LOG("Failed to rename %s to %s for reason:%s", GetPath().c_str(), default_file.c_str(), strerror(err));
+            ERROR_LOG("Failed to rename %s to %s for reason:%s", GetPath().c_str(), default_file.c_str(),
+                    strerror(err));
         }
         return ret;
     }
@@ -1775,7 +1737,8 @@ namespace ardb
             ERROR_LOG("Snapshot file is closed while reading.");
             return false;
         }
-        if ((m_processed_bytes + buflen) / kloading_process_events_interval_bytes > m_processed_bytes / kloading_process_events_interval_bytes)
+        if ((m_processed_bytes + buflen) / kloading_process_events_interval_bytes
+                > m_processed_bytes / kloading_process_events_interval_bytes)
         {
             INFO_LOG("%llu bytes loaded from dump file.", m_processed_bytes);
         }
@@ -1797,8 +1760,7 @@ namespace ardb
         while (buflen)
         {
             size_t bytes_to_read = (max_read_bytes < buflen) ? max_read_bytes : buflen;
-            if (fread(buf, bytes_to_read, 1, m_read_fp) == 0)
-                return false;
+            if (fread(buf, bytes_to_read, 1, m_read_fp) == 0) return false;
             if (cksm)
             {
                 //check sum here
@@ -1945,26 +1907,38 @@ namespace ardb
         {
             return -1;
         }
-        char tmpname[1024];
-        snprintf(tmpname, sizeof(tmpname) - 1, "%s.%llu.tmp", file.c_str(), get_current_epoch_millis());
-        int ret = PrepareSave(type, tmpname, cb, data);
+        int ret = BeforeSave(type, file, cb, data);
         if (0 != ret)
         {
             return ret;
         }
-        INFO_LOG("Start to save snapshot file:%s with type:%s.", file.c_str(), (m_type == REDIS_DUMP) ? "redis" : "ardb");
+
+        INFO_LOG("Start to save snapshot file:%s with type:%s.", file.c_str(),
+                (m_type == REDIS_DUMP) ? "redis" : "ardb");
         ret = DoSave();
-        if (0 == ret)
+        AfterSave(file, ret);
+        return ret;
+    }
+    int Snapshot::BeforeSave(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data)
+    {
+        char tmpname[1024];
+        snprintf(tmpname, sizeof(tmpname) - 1, "%s.%llu.tmp", file.c_str(), get_current_epoch_millis());
+        return PrepareSave(type, tmpname, cb, data);
+    }
+    int Snapshot::AfterSave(const std::string& fname, int err)
+    {
+        if (0 == err)
         {
             char snapshot_name[1024];
-            snprintf(snapshot_name, sizeof(snapshot_name) - 1, "%s.%llu.%llu.%u", file.c_str(), m_cached_repl_offset, m_cached_repl_cksm, m_save_time);
+            snprintf(snapshot_name, sizeof(snapshot_name) - 1, "%s.%llu.%llu.%u", fname.c_str(), m_cached_repl_offset,
+                    m_cached_repl_cksm, m_save_time);
             Rename(snapshot_name);
         }
         else
         {
             Remove();
         }
-        return ret;
+        return 0;
     }
     int Snapshot::BGSave(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data)
     {
@@ -1973,25 +1947,27 @@ namespace ardb
             ERROR_LOG("There is already a background task saving data.");
             return -1;
         }
-        int ret = PrepareSave(type, file, cb, data);
+        int ret = BeforeSave(type, file, cb, data);
         if (0 != ret)
         {
             return ret;
         }
         struct BGTask: public Thread
         {
-                Snapshot* serv;
-                BGTask(Snapshot* s) :
-                        serv(s)
+                Snapshot* snapshot;
+                std::string snapshot_file;
+                BGTask(Snapshot* s, const std::string& fname) :
+                    snapshot(s),snapshot_file(fname)
                 {
                 }
                 void Run()
                 {
-                    serv->DoSave();
+                    int ret = snapshot->DoSave();
+                    snapshot->AfterSave(snapshot_file, ret);
                     delete this;
                 }
         };
-        BGTask* task = new BGTask(this);
+        BGTask* task = new BGTask(this, file);
         task->Start();
         return 0;
     }
@@ -2002,11 +1978,13 @@ namespace ardb
         uint32 now = time(NULL);
         if (type == BACKUP_DUMP)
         {
-            sprintf(tmp, "%s/sync-%s-backup.%llu.%llu.%u", g_db->GetConf().backup_dir.c_str(), g_engine_name, offset, cksm, now);
+            sprintf(tmp, "%s/sync-%s-backup.%llu.%llu.%u", g_db->GetConf().backup_dir.c_str(), g_engine_name, offset,
+                    cksm, now);
         }
         else
         {
-            sprintf(tmp, "%s/sync-%s-snapshot.%llu.%llu.%u", g_db->GetConf().backup_dir.c_str(), type2str(type), offset, cksm, now);
+            sprintf(tmp, "%s/sync-%s-snapshot.%llu.%llu.%u", g_db->GetConf().backup_dir.c_str(), type2str(type), offset,
+                    cksm, now);
         }
         return tmp;
     }
@@ -2069,8 +2047,7 @@ namespace ardb
         loadctx.flags.create_if_notexist = 1;
         loadctx.flags.bulk_loading = 1;
         //BatchWriteGuard guard(tmpctx);
-        if (!Read(buf, 9, true))
-            goto eoferr;
+        if (!Read(buf, 9, true)) goto eoferr;
         buf[9] = '\0';
         if (memcmp(buf, "REDIS", 5) != 0)
         {
@@ -2089,15 +2066,12 @@ namespace ardb
         {
             expiretime = 0;
             /* Read type. */
-            if ((type = ReadType()) == -1)
-                goto eoferr;
+            if ((type = ReadType()) == -1) goto eoferr;
             if (type == REDIS_RDB_OPCODE_EXPIRETIME)
             {
-                if ((expiretime = ReadTime()) == -1)
-                    goto eoferr;
+                if ((expiretime = ReadTime()) == -1) goto eoferr;
                 /* We read the time so we need to read the object type again. */
-                if ((type = ReadType()) == -1)
-                    goto eoferr;
+                if ((type = ReadType()) == -1) goto eoferr;
                 /* the EXPIRETIME opcode specifies time in seconds, so convert
                  * into milliseconds. */
                 expiretime *= 1000;
@@ -2106,15 +2080,12 @@ namespace ardb
             {
                 /* Milliseconds precision expire times introduced with RDB
                  * version 3. */
-                if ((expiretime = ReadMillisecondTime()) == -1)
-                    goto eoferr;
+                if ((expiretime = ReadMillisecondTime()) == -1) goto eoferr;
                 /* We read the time so we need to read the object type again. */
-                if ((type = ReadType()) == -1)
-                    goto eoferr;
+                if ((type = ReadType()) == -1) goto eoferr;
             }
 
-            if (type == REDIS_RDB_OPCODE_EOF)
-                break;
+            if (type == REDIS_RDB_OPCODE_EOF) break;
 
             /* Handle SELECT DB opcode as a special case */
             if (type == REDIS_RDB_OPCODE_SELECTDB)
@@ -2132,10 +2103,8 @@ namespace ardb
             else if (type == RDB_OPCODE_RESIZEDB)
             {
                 uint32_t db_size, expires_size;
-                if ((db_size = ReadLen(NULL)) == REDIS_RDB_LENERR)
-                    goto eoferr;
-                if ((expires_size = ReadLen(NULL)) == REDIS_RDB_LENERR)
-                    goto eoferr;
+                if ((db_size = ReadLen(NULL)) == REDIS_RDB_LENERR) goto eoferr;
+                if ((expires_size = ReadLen(NULL)) == REDIS_RDB_LENERR) goto eoferr;
                 //donothing or readed data
                 continue;
             }
@@ -2253,8 +2222,9 @@ namespace ardb
                     {
                         if (objectlen != 0)
                         {
-                            ERROR_LOG("Previous key:%s with type:%u is not complete dump, %lld missing in %lld elements", current_key.AsString().c_str(),
-                                    current_keytype, objectlen, object_totallen);
+                            ERROR_LOG(
+                                    "Previous key:%s with type:%u is not complete dump, %lld missing in %lld elements",
+                                    current_key.AsString().c_str(), current_keytype, objectlen, object_totallen);
                             err = -2;
                             break;
                         }
@@ -2294,7 +2264,7 @@ namespace ardb
                             }
                             default:
                             {
-                               FATAL_LOG("Invalid key type:%d", current_keytype);
+                                FATAL_LOG("Invalid key type:%d", current_keytype);
                             }
                         }
                         break;
@@ -2466,8 +2436,7 @@ namespace ardb
         loadctx.flags.no_wal = 1;
         loadctx.flags.create_if_notexist = 1;
         loadctx.flags.bulk_loading = 1;
-        if (!Read(buf, 8, true))
-            goto eoferr;
+        if (!Read(buf, 8, true)) goto eoferr;
         buf[9] = '\0';
         if (memcmp(buf, "ARDB", 4) != 0)
         {
@@ -2486,11 +2455,9 @@ namespace ardb
         while (true)
         {
             /* Read type. */
-            if ((type = ReadType()) == -1)
-                goto eoferr;
+            if ((type = ReadType()) == -1) goto eoferr;
 
-            if (type == ARDB_RDB_TYPE_EOF)
-                break;
+            if (type == ARDB_RDB_TYPE_EOF) break;
 
             /* Handle SELECT DB opcode as a special case */
             if (type == ARDB_RDB_OPCODE_SELECTDB)
@@ -2695,8 +2662,8 @@ namespace ardb
         {
             time_t ts = m_snapshots[i]->SaveTime();
             sprintf(buffer, "snapshot%u:type=%s,"
-                    "create_time=%s,name=%s\r\n", i, type2str(m_snapshots[i]->GetType()), trim_str(ctime_r(&ts, tmp), " \t\r\n"),
-                    get_basename(m_snapshots[i]->GetPath()).c_str());
+                    "create_time=%s,name=%s\r\n", i, type2str(m_snapshots[i]->GetType()),
+                    trim_str(ctime_r(&ts, tmp), " \t\r\n"), get_basename(m_snapshots[i]->GetPath()).c_str());
             str.append(buffer);
         }
     }
@@ -2710,7 +2677,7 @@ namespace ardb
             if (s == NULL || (s->CachedReplOffset() <= g_repl->GetReplLog().WALStartOffset()))
             {
                 WARN_LOG("Remove snapshot:%s since it's too old.", NULL == s? "empty":s->GetPath().c_str());
-                if(NULL != s)
+                if (NULL != s)
                 {
                     s->Remove();
                 }
@@ -2722,10 +2689,10 @@ namespace ardb
                 it++;
             }
         }
-        while(m_snapshots.size() > g_db->GetConf().maxsnapshots)
+        while (m_snapshots.size() > g_db->GetConf().maxsnapshots)
         {
             Snapshot* s = m_snapshots[0];
-            if(NULL != s)
+            if (NULL != s)
             {
                 s->Remove();
             }
@@ -2848,7 +2815,8 @@ namespace ardb
         }
         else
         {
-            snprintf(path, sizeof(path) - 1, "%s/master-%s-snapshot", g_db->GetConf().backup_dir.c_str(), type2str(type));
+            snprintf(path, sizeof(path) - 1, "%s/master-%s-snapshot", g_db->GetConf().backup_dir.c_str(),
+                    type2str(type));
         }
 
         if (0 == snapshot->BGSave(type, path, cb, data))

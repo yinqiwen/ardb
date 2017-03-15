@@ -170,6 +170,8 @@ namespace ardb
             int BackupLoad();
 
             int DoSave();
+            int BeforeSave(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data);
+            int AfterSave(const std::string& fname, int err);
             int PrepareSave(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data);
             void VerifyState();
             friend class SnapshotManager;
