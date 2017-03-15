@@ -229,7 +229,7 @@ OP_NAMESPACE_BEGIN
     {
         if (verify && !IsValid())
         {
-        	ERROR_LOG("Invalid key");
+        	ERROR_LOG("Invalid key:%u", GetType());
             return Slice();
         }
         size_t mark = buffer.GetWriteIndex();
@@ -278,6 +278,7 @@ OP_NAMESPACE_BEGIN
             case KEY_SET_MEMBER:
             case KEY_ZSET_SORT:
             case KEY_ZSET_SCORE:
+            case KEY_TTL_SORT:
             {
                 return true;
             }
