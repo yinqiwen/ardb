@@ -1314,7 +1314,7 @@ OP_NAMESPACE_BEGIN
         features.support_namespace = 1;
         features.support_merge = 1;
         features.support_backup = 1;
-        features.support_delete_range = 0;
+        features.support_delete_range = 1;
         return features;
     }
 
