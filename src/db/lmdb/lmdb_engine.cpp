@@ -349,7 +349,7 @@ namespace ardb
         {
             recreate_local_txn = true;
         }
-        CHECK_RET(mdb_open(txn, ns.AsString().c_str(), create_if_noexist?MDB_CREATE:0, &dbi), false);
+        CHECK_RET(mdb_open(txn, ns.AsString().c_str(), create_if_noexist ? MDB_CREATE : 0, &dbi), false);
         mdb_set_compare(txn, dbi, LMDBCompareFunc);
 
         std::string ns_key = "ns:" + ns.AsString();
@@ -384,10 +384,10 @@ namespace ardb
     }
     int LMDBEngine::Close()
     {
-        if(NULL != m_env)
+        if (NULL != m_env)
         {
             DBITable::iterator it = m_dbis.begin();
-            while(it != m_dbis.end())
+            while (it != m_dbis.end())
             {
                 mdb_close(m_env, it->second);
                 it++;
@@ -445,6 +445,7 @@ namespace ardb
             if (0 == rc)
             {
                 std::string ns_key((const char*) key.mv_data, key.mv_size);
+                //printf("####%s\n", ns_key.c_str());
                 if (has_prefix(ns_key, "ns:"))
                 {
                     Data ns;
@@ -452,19 +453,23 @@ namespace ardb
                     MDB_dbi tmp;
                     //GetDBI(init_ctx, ns, false, tmp);
                     rc = mdb_open(local_ctx.txn, ns.AsString().c_str(), 0, &tmp);
-                    if(0 == rc)
+                    if (0 == rc)
                     {
-                    	m_dbis[ns] = tmp;
+                        m_dbis[ns] = tmp;
                         INFO_LOG("Open db:%s success.", ns.AsString().c_str());
                     }
                     else
                     {
-                    	ERROR_LOG("Failed to open db:%s with reason:%s", ns.AsString().c_str(),  mdb_strerror(rc));
+                        ERROR_LOG("Failed to open db:%s with reason:%s", ns.AsString().c_str(), mdb_strerror(rc));
                     }
-
                 }
             }
-        } while (rc == 0);
+            else
+            {
+                WARN_LOG("Read DB ID faile with %s", mdb_strerror(rc));
+            }
+        }
+        while (rc == 0);
         mdb_txn_commit(local_ctx.txn);
         local_ctx.txn = NULL;
         INFO_LOG("Success to open lmdb at %s", m_dbdir.c_str());
@@ -713,7 +718,7 @@ namespace ardb
     int LMDBEngine::Backup(Context& ctx, const std::string& dir)
     {
         LockGuard<ThreadMutex> guard(m_backup_lock);
-        int err = mdb_env_copy2(m_env, dir.c_str(), 0);
+        int err = mdb_env_copy(m_env, dir.c_str());
         return ENGINE_ERR(err);
     }
     int LMDBEngine::Restore(Context& ctx, const std::string& dir)
