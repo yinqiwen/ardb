@@ -224,7 +224,7 @@ ifeq ($(storage_engine), rocksdb)
   STORAGE_ENGINE=$(ROCKSDB_LIBA)
   STORAGE_ENGINE_PATH=$(ROCKSDB_PATH)
   INCS+=-I${ROCKSDB_PATH}/include -I${ROCKSDB_PATH}
-  LIBS:= ${ROCKSDB_LIBA} ${SNAPPY_LIBA} ${LIBS} -lz -lbz2
+  LIBS:= ${ROCKSDB_LIBA} ${SNAPPY_LIBA} ${LIBS} 
   CXXFLAGS+=-D__USE_ROCKSDB__ -std=c++11
 else
 ifeq ($(storage_engine), wiredtiger)
@@ -360,14 +360,19 @@ ${LEVELDB_FILE}:
 	wget -O ${LEVELDB_FILE} ${LEVELDB_REMOTE_FILE} && \
 	echo "<<<<< Done dowloading LevelDB"
 
-.PHONY: rocksdb 
-rocksdb: $(ROCKSDB_LIBA) 
+.PHONY: rocksdb  
+rocksdb: $(ROCKSDB_LIBA) rocksdb_flags
+
+rocksdb_flags:
+	$(eval ROCKSDB_LDFLAGS=$(shell grep PLATFORM_LDFLAGS $(ROCKSDB_PATH)/make_config.mk | cut -d '=' -f2 | sed 's/\-lsnappy//' | sed 's/\-lrt//' | sed 's/\-lpthread//')) 
+	$(eval LIBS+=$(ROCKSDB_LDFLAGS))
+	
 
 $(ROCKSDB_LIBA): $(SNAPPY_LIBA) $(ROCKSDB_PATH)
 	echo ">>>>> Building ROCKSDB" && \
 	cd ${ROCKSDB_PATH} && \
 	CXXFLAGS="-I${SNAPPY_PATH}" CFLAGS="-I${SNAPPY_PATH}" LDFLAGS="${SNAPPY_PATH}/.libs" $(MAKE) static_lib && \
-	echo "<<<<< Done building ROCKSDB"
+	echo "<<<<< Done building ROCKSDB" 
 
 
 $(ROCKSDB_PATH): ${ROCKSDB_FILE}
