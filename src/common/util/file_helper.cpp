@@ -39,6 +39,7 @@
 #include <stdio.h>
 #include <dirent.h>
 #include <errno.h>
+#include <limits.h>
 #include "sha1.h"
 
 namespace ardb
@@ -414,11 +415,12 @@ namespace ardb
 
     int real_path(const std::string& path, std::string& real_path)
     {
-        char* tmp = realpath(path.c_str(), NULL);
+        char buf[PATH_MAX + 1];
+        char* tmp = realpath(path.c_str(), buf);
         if (NULL != tmp)
         {
             real_path.assign(tmp);
-            free(tmp);
+            //free(tmp);
             return 0;
         }
         return errno;
