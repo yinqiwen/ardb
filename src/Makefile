@@ -46,12 +46,12 @@ JEMALLOC_FILE=${JEMALLOC_PATH}.tar.bz2
 JEMALLOC_REMOTE_FILE=https://github.com/jemalloc/jemalloc/releases/download/${JEMALLOC_VER}/jemalloc-${JEMALLOC_VER}.tar.bz2
 JEMALLOC_LIBA=${JEMALLOC_PATH}/lib/libjemalloc.a
 
-SNAPPY_VER=snappy-1.1.2
+SNAPPY_VER=snappy-1.1.4
 SNAPPY_PATH=${LIB_PATH}/${SNAPPY_VER}
 SNAPPY_FILE=${SNAPPY_PATH}.tar.gz
 SNAPPY_LIBA=${SNAPPY_PATH}/.libs/libsnappy.a
 
-ROCKSDB_VER=5.2.1
+ROCKSDB_VER=5.3.4
 ROCKSDB_PATH=${LIB_PATH}/rocksdb-${ROCKSDB_VER}
 ROCKSDB_REMOTE_FILE=https://github.com/facebook/rocksdb/archive/v${ROCKSDB_VER}.tar.gz
 ROCKSDB_FILE=${ROCKSDB_PATH}.tar.gz
@@ -312,6 +312,7 @@ $(SNAPPY_LIBA):
 	cd ${LIB_PATH} && \
 	tar zxf ${SNAPPY_FILE} && \
 	cd ${SNAPPY_PATH} && \
+        ./autogen.sh && \
 	./configure CXXFLAGS="$(SNAPPY_CXXFLAGS=)" ${XC_BUILD} ${XC_HOST} ${XC_TGT} > configure.out && \
 	$(MAKE) libsnappy.la && \
 	echo "<<<<< Done building SNAPPY"
