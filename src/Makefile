@@ -76,6 +76,11 @@ FORESTDB_REMOTE_FILE=https://github.com/couchbase/forestdb/archive/v1.2.tar.gz
 FORESTDB_SO=${FORESTDB_PATH}/build/libforestdb.so
 FORESTDB_LIBA=${FORESTDB_PATH}/build/libforestdb.a
 
+PLATFORM_VER=platform-4.6.2
+PLATFORM_PATH=${LIB_PATH}/${PLATFORM_VER}
+PLATFORM_FILE=${LIB_PATH}/${PLATFORM_VER}.tar.gz
+PLATFORM_REMOTE_FILE=https://github.com/couchbase/platform/archive/v4.6.2.tar.gz
+
 WIREDTIGER_VER=2.9.1
 WIREDTIGER_PATH=${LIB_PATH}/wiredtiger-${WIREDTIGER_VER}
 WIREDTIGER_FILE=${WIREDTIGER_PATH}.tar.bz2
@@ -410,8 +415,9 @@ ${WIREDTIGER_FILE}:
 
 .PHONY: forestdb
 forestdb: $(FORESTDB_LIBA)
-$(FORESTDB_LIBA): $(FORESTDB_PATH) $(SNAPPY_LIBA)
+$(FORESTDB_LIBA): $(FORESTDB_PATH) $(SNAPPY_LIBA) $(PLATFORM_PATH)
 	echo ">>>>> Building forestdb" ; \
+        cp -r ${PLATFORM_PATH} ${FORESTDB_PATH}/platform ;\
 	cd ${FORESTDB_PATH} ; ${SEDCMD} ;\
 	mkdir -p build ; cd build ;\
 	SNAPPY_DIR=${SNAPPY_PATH}:${SNAPPY_PATH}/.libs cmake ../ ; \
@@ -432,6 +438,19 @@ ${FORESTDB_FILE}:
 	cd ${LIB_PATH} && \
 	wget -O ${FORESTDB_FILE} ${FORESTDB_REMOTE_FILE} && \
 	echo "<<<<< Done dowloading forestdb"
+
+${PLATFORM_PATH}: ${PLATFORM_FILE}
+	echo ">>>>> Unpacking couchbase platform file" && \
+	cd ${LIB_PATH} && \
+	tar zxf ${PLATFORM_FILE} && \
+	echo "<<<<< Done unpacking couchbase platform"
+
+${PLATFORM_FILE}:
+	echo ">>>>> Dowloading platform file" && \
+	cd ${LIB_PATH} && \
+	wget -O ${PLATFORM_FILE} ${PLATFORM_REMOTE_FILE} && \
+	echo "<<<<< Done dowloading platform file"
+
 
 .PHONY: perconaft
 perconaft: $(PERCONAFT_LIBA)
