@@ -46,12 +46,12 @@ JEMALLOC_FILE=${JEMALLOC_PATH}.tar.bz2
 JEMALLOC_REMOTE_FILE=https://github.com/jemalloc/jemalloc/releases/download/${JEMALLOC_VER}/jemalloc-${JEMALLOC_VER}.tar.bz2
 JEMALLOC_LIBA=${JEMALLOC_PATH}/lib/libjemalloc.a
 
-SNAPPY_VER=snappy-1.1.2
+SNAPPY_VER=snappy-1.1.4
 SNAPPY_PATH=${LIB_PATH}/${SNAPPY_VER}
 SNAPPY_FILE=${SNAPPY_PATH}.tar.gz
 SNAPPY_LIBA=${SNAPPY_PATH}/.libs/libsnappy.a
 
-ROCKSDB_VER=5.2.1
+ROCKSDB_VER=5.3.4
 ROCKSDB_PATH=${LIB_PATH}/rocksdb-${ROCKSDB_VER}
 ROCKSDB_REMOTE_FILE=https://github.com/facebook/rocksdb/archive/v${ROCKSDB_VER}.tar.gz
 ROCKSDB_FILE=${ROCKSDB_PATH}.tar.gz
@@ -75,6 +75,11 @@ FORESTDB_FILE=${LIB_PATH}/${FORESTDB_VER}.tar.gz
 FORESTDB_REMOTE_FILE=https://github.com/couchbase/forestdb/archive/v1.2.tar.gz
 FORESTDB_SO=${FORESTDB_PATH}/build/libforestdb.so
 FORESTDB_LIBA=${FORESTDB_PATH}/build/libforestdb.a
+
+PLATFORM_VER=platform-4.6.2
+PLATFORM_PATH=${LIB_PATH}/${PLATFORM_VER}
+PLATFORM_FILE=${LIB_PATH}/${PLATFORM_VER}.tar.gz
+PLATFORM_REMOTE_FILE=https://github.com/couchbase/platform/archive/v4.6.2.tar.gz
 
 WIREDTIGER_VER=2.9.1
 WIREDTIGER_PATH=${LIB_PATH}/wiredtiger-${WIREDTIGER_VER}
@@ -312,6 +317,7 @@ $(SNAPPY_LIBA):
 	cd ${LIB_PATH} && \
 	tar zxf ${SNAPPY_FILE} && \
 	cd ${SNAPPY_PATH} && \
+        ./autogen.sh && \
 	./configure CXXFLAGS="$(SNAPPY_CXXFLAGS=)" ${XC_BUILD} ${XC_HOST} ${XC_TGT} > configure.out && \
 	$(MAKE) libsnappy.la && \
 	echo "<<<<< Done building SNAPPY"
@@ -409,8 +415,9 @@ ${WIREDTIGER_FILE}:
 
 .PHONY: forestdb
 forestdb: $(FORESTDB_LIBA)
-$(FORESTDB_LIBA): $(FORESTDB_PATH) $(SNAPPY_LIBA)
+$(FORESTDB_LIBA): $(FORESTDB_PATH) $(SNAPPY_LIBA) $(PLATFORM_PATH)
 	echo ">>>>> Building forestdb" ; \
+        cp -r ${PLATFORM_PATH} ${FORESTDB_PATH}/platform ;\
 	cd ${FORESTDB_PATH} ; ${SEDCMD} ;\
 	mkdir -p build ; cd build ;\
 	SNAPPY_DIR=${SNAPPY_PATH}:${SNAPPY_PATH}/.libs cmake ../ ; \
@@ -431,6 +438,19 @@ ${FORESTDB_FILE}:
 	cd ${LIB_PATH} && \
 	wget -O ${FORESTDB_FILE} ${FORESTDB_REMOTE_FILE} && \
 	echo "<<<<< Done dowloading forestdb"
+
+${PLATFORM_PATH}: ${PLATFORM_FILE}
+	echo ">>>>> Unpacking couchbase platform file" && \
+	cd ${LIB_PATH} && \
+	tar zxf ${PLATFORM_FILE} && \
+	echo "<<<<< Done unpacking couchbase platform"
+
+${PLATFORM_FILE}:
+	echo ">>>>> Dowloading platform file" && \
+	cd ${LIB_PATH} && \
+	wget -O ${PLATFORM_FILE} ${PLATFORM_REMOTE_FILE} && \
+	echo "<<<<< Done dowloading platform file"
+
 
 .PHONY: perconaft
 perconaft: $(PERCONAFT_LIBA)
