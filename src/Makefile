@@ -46,9 +46,10 @@ JEMALLOC_FILE=${JEMALLOC_PATH}.tar.bz2
 JEMALLOC_REMOTE_FILE=https://github.com/jemalloc/jemalloc/releases/download/${JEMALLOC_VER}/jemalloc-${JEMALLOC_VER}.tar.bz2
 JEMALLOC_LIBA=${JEMALLOC_PATH}/lib/libjemalloc.a
 
-SNAPPY_VER=snappy-1.1.2
-SNAPPY_PATH=${LIB_PATH}/${SNAPPY_VER}
+SNAPPY_VER=1.1.4
+SNAPPY_PATH=${LIB_PATH}/snappy-${SNAPPY_VER}
 SNAPPY_FILE=${SNAPPY_PATH}.tar.gz
+SNAPPY_REMOTE_FILE=https://github.com/google/snappy/releases/download/${SNAPPY_VER}/snappy-${SNAPPY_VER}.tar.gz
 SNAPPY_LIBA=${SNAPPY_PATH}/.libs/libsnappy.a
 
 ROCKSDB_VER=5.2.1
@@ -307,14 +308,22 @@ ${JEMALLOC_FILE}:
 
 .PHONY: snappy
 snappy: $(SNAPPY_LIBA)
-$(SNAPPY_LIBA):
+$(SNAPPY_LIBA):$(SNAPPY_PATH)
 	echo ">>>>> Building SNAPPY" && \
-	cd ${LIB_PATH} && \
-	tar zxf ${SNAPPY_FILE} && \
 	cd ${SNAPPY_PATH} && \
 	./configure CXXFLAGS="$(SNAPPY_CXXFLAGS=)" ${XC_BUILD} ${XC_HOST} ${XC_TGT} > configure.out && \
 	$(MAKE) libsnappy.la && \
 	echo "<<<<< Done building SNAPPY"
+
+$(SNAPPY_PATH): $(SNAPPY_FILE)
+	cd ${LIB_PATH} && \
+	tar zxf ${SNAPPY_FILE}
+
+${SNAPPY_FILE}:
+	echo ">>>>> Dowloading Snappy" && \
+	cd ${LIB_PATH} && \
+	wget -O ${SNAPPY_FILE} ${SNAPPY_REMOTE_FILE} && \
+	echo "<<<<< Done dowloading Snappy"
 
 .PHONY: lmdb
 lmdb: $(LMDB_LIBA)
@@ -367,22 +376,20 @@ rocksdb_flags:
 	$(eval ROCKSDB_LDFLAGS=$(shell grep PLATFORM_LDFLAGS $(ROCKSDB_PATH)/make_config.mk | cut -d '=' -f2 | sed 's/\-lsnappy//' | sed 's/\-lrt//' | sed 's/\-lpthread//')) 
 	$(eval LIBS+=$(ROCKSDB_LDFLAGS))
 	
-
 $(ROCKSDB_LIBA): $(SNAPPY_LIBA) $(ROCKSDB_PATH)
-	echo ">>>>> Building ROCKSDB" && \
+	@echo ">>>>> Building ROCKSDB" && \
 	cd ${ROCKSDB_PATH} && \
 	CXXFLAGS="-I${SNAPPY_PATH}" CFLAGS="-I${SNAPPY_PATH}" LDFLAGS="${SNAPPY_PATH}/.libs" $(MAKE) static_lib && \
 	echo "<<<<< Done building ROCKSDB" 
 
-
 $(ROCKSDB_PATH): ${ROCKSDB_FILE}
-	echo ">>>>> Unpacking ROCKSDB" && \
+	@echo ">>>>> Unpacking ROCKSDB" && \
 	cd ${LIB_PATH} && \
 	tar zxf ${ROCKSDB_FILE} && \
 	echo "<<<<< Done unpacking ROCKSDB"
 	
 ${ROCKSDB_FILE}:
-	echo ">>>>> Dowloading RocksDB" && \
+	@echo ">>>>> Dowloading RocksDB" && \
 	cd ${LIB_PATH} && \
 	wget -O ${ROCKSDB_FILE} ${ROCKSDB_REMOTE_FILE} && \
 	echo "<<<<< Done dowloading RocksDB"
