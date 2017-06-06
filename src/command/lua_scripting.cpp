@@ -539,6 +539,7 @@ namespace ardb
         reply.Clear();
         lua_ctx.ClearFlags();
         lua_ctx.flags.lua = 1;
+
         g_db->DoCall(lua_ctx, *setting, cmd);
         if (raise_error && reply.type != REDIS_REPLY_ERROR)
         {
@@ -1021,6 +1022,7 @@ namespace ardb
         guard.ctx.lua_time_start = get_current_epoch_millis();
         guard.ctx.lua_executing_func = funcname.c_str() + 2;
         guard.ctx.lua_kill = false;
+        guard.ctx.exec.ns = ctx.ns;
         save_exec_ctx(&guard.ctx);
         /*
          * only propagate replication log with 'eval' command
