@@ -439,6 +439,10 @@ OP_NAMESPACE_BEGIN
             int PFCount(Context& ctx, RedisCommandFrame& cmd);
             int PFMerge(Context& ctx, RedisCommandFrame& cmd);
 
+            int CMSIncrBy(Context& ctx, RedisCommandFrame& cmd);
+            int CMSQuery(Context& ctx, RedisCommandFrame& cmd);
+            int CMSInit(Context& ctx, RedisCommandFrame& cmd);
+
             int Monitor(Context& ctx, RedisCommandFrame& cmd);
             int Dump(Context& ctx, RedisCommandFrame& cmd);
             int Restore(Context& ctx, RedisCommandFrame& cmd);

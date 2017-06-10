@@ -81,6 +81,7 @@ namespace ardb
             ERR_KEY_EXIST = -1021,
             ERR_WRONG_TYPE = -1022,
             ERR_OUTOFRANGE = -1023,
+            ERR_INVALID_CMS_STRING = -1024,
         };
 
         enum StatusCode

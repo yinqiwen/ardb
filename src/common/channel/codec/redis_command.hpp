@@ -256,6 +256,9 @@ namespace ardb
             REDIS_CMD_PEXPIRE2 = 1027,
             REDIS_CMD_SETBIT2 = 1028,
             REDIS_CMD_PFADD2 = 1029,
+            REDIS_CMD_CMSINIT = 1030,
+            REDIS_CMD_CMSINCRBY = 1031,
+            REDIS_CMD_CMSQUERY = 1032,
 
             REDIS_CMD_MAX = 1100,
         };
