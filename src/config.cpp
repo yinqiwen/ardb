@@ -146,6 +146,12 @@ OP_NAMESPACE_BEGIN
             lp.port = 16379;
             servers.push_back(lp);
         }
+        if (strcasecmp(engine.c_str(), "rocksdb") == 0)
+        {
+            conf_get_string(props, "rocksdb.compaction", rocksdb_compaction);
+            conf_get_bool(props, "rocksdb.scan-total-order", rocksdb_scan_total_order);
+        }
+
         conf_get_string(props, "engine", engine);
         conf_get_string(props, "data-dir", data_base_path);
         conf_get_string(props, "backup-dir", backup_dir);
@@ -287,7 +293,6 @@ OP_NAMESPACE_BEGIN
         conf_get_int64(props, "qps-limit-per-host", qps_limit_per_host);
         conf_get_int64(props, "qps-limit-per-connection", qps_limit_per_connection);
         conf_get_int64(props, "range-delete-min-size", range_delete_min_size);
-        conf_get_bool(props, "scan-total-order", scan_total_order);
 
         //trusted_ip.clear();
         Properties::const_iterator ip_it = props.find("trusted-ip");

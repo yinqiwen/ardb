@@ -188,7 +188,7 @@ OP_NAMESPACE_BEGIN
         bool skip_first = false;
         Data nil;
 
-        if (GetConf().scan_total_order)
+        if (GetConf().rocksdb_scan_total_order)
         {
             ctx.flags.iterate_total_order = 1;
         }
