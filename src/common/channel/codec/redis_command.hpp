@@ -156,6 +156,7 @@ namespace ardb
             REDIS_CMD_HSETNX = 161,
             REDIS_CMD_HMSET = 162,
             REDIS_CMD_HSCAN = 163,
+            REDIS_CMD_HGETSET = 164,
 
             //'set' commands
             REDIS_CMD_SCARD = 200,

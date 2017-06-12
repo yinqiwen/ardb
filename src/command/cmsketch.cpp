@@ -38,10 +38,10 @@ void *newCMSketch(std::string& value, float error, float prob)
     unsigned int width = ceil(exp(1) / error);
     unsigned int depth = ceil(log(1 / prob));
     int slen = sizeof(CMS_SIGNATURE) +
-               sizeof(struct CMSketch) + 
-               sizeof(int) * width * depth + 
+               sizeof(struct CMSketch) +
+               sizeof(int) * width * depth +
                sizeof(unsigned int) * 2 * depth;
-    
+
     value.resize(slen);
 
     memcpy(&value[0], CMS_SIGNATURE, 4);

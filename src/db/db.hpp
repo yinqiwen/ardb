@@ -363,6 +363,7 @@ OP_NAMESPACE_BEGIN
             int HSetNX(Context& ctx, RedisCommandFrame& cmd);
             int HVals(Context& ctx, RedisCommandFrame& cmd);
             int HScan(Context& ctx, RedisCommandFrame& cmd);
+            int HGetSet(Context& ctx, RedisCommandFrame& cmd);
 
             int SAdd(Context& ctx, RedisCommandFrame& cmd);
             int SCard(Context& ctx, RedisCommandFrame& cmd);

@@ -252,6 +252,7 @@ OP_NAMESPACE_BEGIN
         { "hmset", REDIS_CMD_HMSET, &Ardb::HMSet, 3, -1, "w", 0, 0, 0 },
         { "hmset2", REDIS_CMD_HMSET2, &Ardb::HMSet, 3, -1, "w", 0, 0, 0 },
         { "hscan", REDIS_CMD_HSCAN, &Ardb::HScan, 2, 6, "r", 0, 0, 0 },
+        { "hgetset", REDIS_CMD_HGETSET, &Ardb::HGetSet, 3, 3, "w", 0, 0, 0 },
         { "scard", REDIS_CMD_SCARD, &Ardb::SCard, 1, 1, "r", 0, 0, 0 },
         { "sadd", REDIS_CMD_SADD, &Ardb::SAdd, 2, -1, "w", 0, 0, 0 },
         { "sadd2", REDIS_CMD_SADD2, &Ardb::SAdd, 2, -1, "w", 0, 0, 0 },
