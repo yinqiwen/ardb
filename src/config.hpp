@@ -81,6 +81,7 @@ OP_NAMESPACE_BEGIN
             // rocksdb specific properties
             std::string rocksdb_compaction;
             bool rocksdb_scan_total_order;
+            bool rocksdb_disablewal;
 
             std::string repl_data_dir;
             std::string backup_dir;

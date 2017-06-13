@@ -108,6 +108,7 @@ OP_NAMESPACE_BEGIN
             SpinRWLock m_lock;
             ThreadMutex m_backup_lock;
             bool m_bulk_loading;
+            bool disablewal;
 
             ColumnFamilyHandlePtr GetColumnFamilyHandle(Context& ctx, const Data& name, bool create_if_noexist);
 
