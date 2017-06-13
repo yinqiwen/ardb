@@ -312,6 +312,8 @@ OP_NAMESPACE_BEGIN
         { "brpop", REDIS_CMD_BRPOP, &Ardb::BRPop, 2, -1, "ws", 0, 0, 0 },
         { "brpoplpush", REDIS_CMD_BRPOPLPUSH, &Ardb::BRPopLPush, 3, 3, "ws", 0, 0, 0 },
         { "rpoplpush", REDIS_CMD_RPOPLPUSH, &Ardb::RPopLPush, 2, 2, "w", 0, 0, 0 },
+        { "jset", REDIS_CMD_JSET, &Ardb::JSet, 3, 3, "w", 0, 0, 0 },
+        { "jget", REDIS_CMD_JGET, &Ardb::JGet, 2, 2, "w", 0, 0, 0 },
         { "move", REDIS_CMD_MOVE, &Ardb::Move, 2, 2, "w", 0, 0, 0 },
         { "rename", REDIS_CMD_RENAME, &Ardb::Rename, 2, 2, "w", 0, 0, 0 },
         { "renamenx", REDIS_CMD_RENAMENX, &Ardb::RenameNX, 2, 2, "w", 0, 0, 0 },

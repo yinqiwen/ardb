@@ -423,6 +423,9 @@ OP_NAMESPACE_BEGIN
             int BRPop(Context& ctx, RedisCommandFrame& cmd);
             int BRPopLPush(Context& ctx, RedisCommandFrame& cmd);
 
+            int JSet(Context& ctx, RedisCommandFrame& cmd);
+            int JGet(Context& ctx, RedisCommandFrame& cmd);
+
             int Eval(Context& ctx, RedisCommandFrame& cmd);
             int EvalSHA(Context& ctx, RedisCommandFrame& cmd);
             int Script(Context& ctx, RedisCommandFrame& cmd);

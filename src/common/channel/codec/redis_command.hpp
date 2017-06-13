@@ -228,6 +228,10 @@ namespace ardb
             REDIS_CMD_LRANGE = 316,
             REDIS_CMD_LSET = 317,
 
+            //'json' commands
+            REDIS_CMD_JSET = 330,
+            REDIS_CMD_JGET = 331,
+
             //cluster commands
             REDIS_CMD_CLUSTER = 500,  //used in cluster mode
 
