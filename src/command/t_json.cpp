@@ -66,6 +66,7 @@ namespace ardb
             if (meta.GetType() == 0)
             {
                 j[jp] = value;
+                meta.SetType(KEY_JSON);
             }
             else{
                 meta.GetStringValue().ToString(json_value);
@@ -145,6 +146,7 @@ namespace ardb
         if (meta.GetType() == 0)
         {
             j[jp] = value;
+            meta.SetType(KEY_JSON);
         }
         else
         {
@@ -231,6 +233,7 @@ namespace ardb
         if (meta.GetType() == 0)
         {
             j[jp] = value;
+            meta.SetType(KEY_JSON);
         }
         else{
             meta.GetStringValue().ToString(json_value);
@@ -316,6 +319,7 @@ namespace ardb
         if (meta.GetType() == 0)
         {
             j[jp] = value;
+            meta.SetType(KEY_JSON);
         }
         else{
             meta.GetStringValue().ToString(json_value);
@@ -395,6 +399,7 @@ namespace ardb
         if (meta.GetType() == 0)
         {
             j[jp] = json::parse(value);
+            meta.SetType(KEY_JSON);
         }
         else
         {
@@ -469,6 +474,7 @@ namespace ardb
         if (meta.GetType() == 0)
         {
             j[jp] = value;
+            meta.SetType(KEY_JSON);
         }
         else{
             meta.GetStringValue().ToString(json_value);
@@ -555,6 +561,7 @@ int Ardb::JIncrbyFloat(Context &ctx, RedisCommandFrame &cmd)
         if (meta.GetType() == 0)
         {
             j[jp] = value;
+            meta.SetType(KEY_JSON);
         }
         else{
             meta.GetStringValue().ToString(json_value);
@@ -633,6 +640,7 @@ int Ardb::JIncrbyFloat(Context &ctx, RedisCommandFrame &cmd)
             } 
 
             j[jp] = j2;
+            meta.SetType(KEY_JSON);
         }
         else{
             meta.GetStringValue().ToString(json_value);
