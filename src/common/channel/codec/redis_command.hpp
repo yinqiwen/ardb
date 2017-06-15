@@ -232,7 +232,7 @@ namespace ardb
             REDIS_CMD_JSET = 330,
             REDIS_CMD_JSETBOOL = 331,
             REDIS_CMD_JSETINT = 332,
-            REDIS_CMD_JSETDOU = 333,
+            REDIS_CMD_JSETFLOAT = 333,
             REDIS_CMD_JSETOBJ = 334,
             REDIS_CMD_JINCRBY = 335,
             REDIS_CMD_JINCRBYFLOAT = 336,

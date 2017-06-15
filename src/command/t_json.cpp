@@ -22,7 +22,7 @@ namespace ardb
         int8_t nx = 0;
         if (field != "/" && cmd.GetArguments().size() > 3)
         {
-            const std::string& arg = cmd.GetArguments()[4];
+            const std::string& arg = cmd.GetArguments()[3];
             if (!strcasecmp(arg.c_str(), "nx"))
             {
                 nx = 1;
@@ -260,7 +260,7 @@ namespace ardb
         return 0;
     }
 
-    int Ardb::JSetDou(Context &ctx, RedisCommandFrame &cmd)
+    int Ardb::JSetFloat(Context &ctx, RedisCommandFrame &cmd)
     {
         RedisReply &reply = ctx.GetReply();
         ctx.flags.create_if_notexist = 1;
