@@ -320,7 +320,7 @@ OP_NAMESPACE_BEGIN
         { "jincrby", REDIS_CMD_JINCRBY, &Ardb::JIncrby, 2, 3, "w", 0, 0, 0 },
         { "jincrbyfloat", REDIS_CMD_JINCRBYFLOAT, &Ardb::JIncrbyFloat, 2, 3, "w", 0, 0, 0 },
         { "jpush", REDIS_CMD_JPUSH, &Ardb::JPush, 3, 4, "w", 0, 0, 0 },
-        { "jpop", REDIS_CMD_JPOP, &Ardb::JPop, 3, 4, "w", 0, 0, 0 },
+        { "jpop", REDIS_CMD_JPOP, &Ardb::JPop, 2, 3, "w", 0, 0, 0 },
         { "jdel", REDIS_CMD_JDEL, &Ardb::JDel, 2, 2, "w", 0, 0, 0 },
         { "jpatch", REDIS_CMD_JPATCH, &Ardb::JPatch, 2, 2, "w", 0, 0, 0 },
         { "jget", REDIS_CMD_JGET, &Ardb::JGet, 2, 2, "w", 0, 0, 0 },

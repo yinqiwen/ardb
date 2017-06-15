@@ -373,6 +373,11 @@ namespace ardb
                     str.assign("-WRONGTYPE Operation against a JSON key holding the wrong kind of value.");
                     break;
                 }
+                case ERR_INVALID_JSON_PATH_ARGS:
+                {
+                    str.assign("WRONGTYPE Key is not a valid JSON path value.");
+                    break;
+                }
                 case ERR_INVALID_JSON_ARRAY_ARGS:
                 {
                     str.assign("WRONGTYPE Key is not a valid JSON array string value.");

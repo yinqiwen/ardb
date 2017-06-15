@@ -83,8 +83,9 @@ namespace ardb
             ERR_OUTOFRANGE = -1023,
             ERR_INVALID_CMS_STRING = -1024,
             ERR_WRONG_JSON_TYPE = -1025,
-            ERR_INVALID_JSON_ARRAY_ARGS = -1026,
-            ERR_INVALID_JSON_OBJECT_ARGS = -1027,
+            ERR_INVALID_JSON_PATH_ARGS = -1026,
+            ERR_INVALID_JSON_ARRAY_ARGS = -1027,
+            ERR_INVALID_JSON_OBJECT_ARGS = -1028,
         };
 
         enum StatusCode

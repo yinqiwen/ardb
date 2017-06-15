@@ -12,6 +12,12 @@ namespace ardb
 
         const std::string& key_str = cmd.GetArguments()[0];
         const std::string& field = cmd.GetArguments()[1];
+        if (field.find("/") != 0)
+        {
+            reply.SetErrCode(ERR_INVALID_JSON_PATH_ARGS);
+            return 0;
+        }
+
         const std::string& value = cmd.GetArguments()[2];
         int8_t nx = 0;
         if (field != "/" && cmd.GetArguments().size() > 3)
@@ -40,12 +46,7 @@ namespace ardb
         int err= 0;
         if (field == "/")
         {
-            if (meta.GetType() == 0)
-            {
-                reply.Clear();
-                return 0;
-            }
-            else
+            if (meta.GetType() != 0)
             {
                 reply.SetErrCode(ERR_KEY_EXIST);
                 return 0;
@@ -101,6 +102,12 @@ namespace ardb
 
         const std::string& key_str = cmd.GetArguments()[0];
         const std::string& field = cmd.GetArguments()[1];
+        if (field.find("/") != 0)
+        {
+            reply.SetErrCode(ERR_INVALID_JSON_PATH_ARGS);
+            return 0;
+        }
+
         if (field == "/")
         {
             reply.Clear();
@@ -175,6 +182,12 @@ namespace ardb
 
         const std::string& key_str = cmd.GetArguments()[0];
         const std::string& field = cmd.GetArguments()[1];
+        if (field.find("/") != 0)
+        {
+            reply.SetErrCode(ERR_INVALID_JSON_PATH_ARGS);
+            return 0;
+        }
+
         if (field == "/")
         {
             reply.Clear();
@@ -254,6 +267,12 @@ namespace ardb
 
         const std::string& key_str = cmd.GetArguments()[0];
         const std::string& field = cmd.GetArguments()[1];
+        if (field.find("/") != 0)
+        {
+            reply.SetErrCode(ERR_INVALID_JSON_PATH_ARGS);
+            return 0;
+        }
+
         if (field == "/")
         {
             reply.Clear();
@@ -333,6 +352,12 @@ namespace ardb
 
         const std::string& key_str = cmd.GetArguments()[0];
         const std::string& field = cmd.GetArguments()[1];
+        if (field.find("/") != 0)
+        {
+            reply.SetErrCode(ERR_INVALID_JSON_PATH_ARGS);
+            return 0;
+        }
+
         if (field == "/")
         {
             reply.Clear();
@@ -407,6 +432,12 @@ namespace ardb
 
         const std::string& key_str = cmd.GetArguments()[0];
         const std::string& field = cmd.GetArguments()[1];
+        if (field.find("/") != 0)
+        {
+            reply.SetErrCode(ERR_INVALID_JSON_PATH_ARGS);
+            return 0;
+        }
+
         if (field == "/")
         {
             reply.Clear();
@@ -481,6 +512,18 @@ int Ardb::JIncrbyFloat(Context &ctx, RedisCommandFrame &cmd)
 
         const std::string& key_str = cmd.GetArguments()[0];
         const std::string& field = cmd.GetArguments()[1];
+        if (field.find("/") != 0)
+        {
+            reply.SetErrCode(ERR_INVALID_JSON_PATH_ARGS);
+            return 0;
+        }
+
+        if (field.find("/") != 0)
+        {
+            reply.SetErrCode(ERR_INVALID_JSON_PATH_ARGS);
+            return 0;
+        }
+
         if (field == "/")
         {
             reply.Clear();
@@ -555,6 +598,12 @@ int Ardb::JIncrbyFloat(Context &ctx, RedisCommandFrame &cmd)
 
         const std::string& key_str = cmd.GetArguments()[0];
         const std::string& field = cmd.GetArguments()[1];
+        if (field.find("/") != 0)
+        {
+            reply.SetErrCode(ERR_INVALID_JSON_PATH_ARGS);
+            return 0;
+        }
+
         if (field == "/")
         {
             reply.Clear();
@@ -607,7 +656,7 @@ int Ardb::JIncrbyFloat(Context &ctx, RedisCommandFrame &cmd)
             }
             else
             {
-                j[jp].insert(j[jp].end(), j2);
+                j[jp].insert(j[jp].end(), j2.begin(), j2.end());
             }
         }
 
@@ -634,6 +683,12 @@ int Ardb::JIncrbyFloat(Context &ctx, RedisCommandFrame &cmd)
 
         const std::string& key_str = cmd.GetArguments()[0];
         const std::string& field = cmd.GetArguments()[1];
+        if (field.find("/") != 0)
+        {
+            reply.SetErrCode(ERR_INVALID_JSON_PATH_ARGS);
+            return 0;
+        }
+
         if (field == "/")
         {
             reply.Clear();
@@ -651,6 +706,7 @@ int Ardb::JIncrbyFloat(Context &ctx, RedisCommandFrame &cmd)
 
         std::string json_value;
         json j;
+        json v;
         json::json_pointer jp(field);
         if (meta.GetType() == 0)
         {
@@ -672,6 +728,7 @@ int Ardb::JIncrbyFloat(Context &ctx, RedisCommandFrame &cmd)
                 return 0;
             }
 
+            v = j[jp][j[jp].size() - 1];
             j[jp].erase(j[jp].end());
         }
 
@@ -685,7 +742,40 @@ int Ardb::JIncrbyFloat(Context &ctx, RedisCommandFrame &cmd)
         }
         else
         {
-            reply.SetStatusCode(STATUS_OK);
+            if (v.is_primitive())
+            {
+                if (v.is_string())
+                {
+                    reply.SetString(v.get<std::string>());
+                }
+                else if (v.is_number_integer())
+                {
+                    reply.SetInteger(v.get<int64_t>());
+                }
+                else if (v.is_number_float())
+                {
+                    reply.SetString(std::to_string(v.get<double_t>()));
+                }
+                else if (v.is_boolean())
+                {
+                    if (v)
+                    {
+                        reply.SetInteger(1);
+                    }
+                    else
+                    {
+                        reply.SetInteger(0);
+                    }
+                }
+                else
+                {
+                    reply.Clear();
+                }
+            }
+            else
+            {
+                reply.SetString(v.dump());
+            }
         }
 
         return 0;
@@ -698,6 +788,12 @@ int Ardb::JIncrbyFloat(Context &ctx, RedisCommandFrame &cmd)
 
         const std::string& key_str = cmd.GetArguments()[0];
         const std::string& field = cmd.GetArguments()[1];
+        if (field.find("/") != 0)
+        {
+            reply.SetErrCode(ERR_INVALID_JSON_PATH_ARGS);
+            return 0;
+        }
+
         if (field == "/")
         {
             reply.Clear();
@@ -809,6 +905,12 @@ int Ardb::JIncrbyFloat(Context &ctx, RedisCommandFrame &cmd)
         RedisReply &reply = ctx.GetReply();
         const std::string& key_str = cmd.GetArguments()[0];
         const std::string& field = cmd.GetArguments()[1];
+        if (field.find("/") != 0)
+        {
+            reply.SetErrCode(ERR_INVALID_JSON_PATH_ARGS);
+            return 0;
+        }
+
         KeyObject meta_key(ctx.ns, KEY_META, key_str);
         ValueObject meta;
         if (!CheckMeta(ctx, meta_key, KEY_JSON, meta))
