@@ -16,14 +16,13 @@ struct CMSketch
 {
     long long c;
     unsigned int w, d;
-    unsigned int aj, bj;
     int *v;
     unsigned int *ha, *hb;
 };
 
-unsigned int hashKey(const char *key)
+int64_t hashKey(const char *key)
 {
-    unsigned long hash = 5381;
+    int64_t hash = 5381;
     int c;
     while (c = *key++)
     {
@@ -80,19 +79,19 @@ CMSketch *getCMSketch(std::string& value)
     return s;
 }
 
-unsigned int cmsIncrBy(std::string& value, const char *item, int incr)
+unsigned int cmsIncrBy(std::string& value, int64_t item, int incr)
 {
     struct CMSketch *s = getCMSketch(value);
-    int item_val = hashKey(item);
 
     s->c += incr;
-    unsigned int h = (s->ha[0] * item_val + s->hb[0]) % s->w;
-    long long offset = h % s->w;
-    unsigned int min_val = s->v[offset];
+    unsigned int h = (s->ha[0] * item + s->hb[0]) % s->w;
+    s->v[h] += incr;
+    unsigned int min_val = s->v[h];
+    long long offset;
     for (unsigned int j = 1; j < s->d; j++)
     {
-        h = (s->ha[j] * item_val + s->hb[j]) % s->w;
-        offset = j * s->w + h % s->w;
+        h = (s->ha[j] * item + s->hb[j]) % s->w;
+        offset = j * s->w + h;
         s->v[offset] += incr;
         min_val = MIN(min_val, s->v[offset]);
     }
@@ -100,20 +99,31 @@ unsigned int cmsIncrBy(std::string& value, const char *item, int incr)
     return min_val;
 }
 
-unsigned int cmsQuery(std::string& value, const char *item)
+unsigned int cmsIncrBy(std::string& value, const char *item, int incr)
+{
+    int64_t item_val = hashKey(item);
+    return cmsIncrBy(value, item_val, incr);
+}
+
+unsigned int cmsQuery(std::string& value, int64_t item)
 {
     struct CMSketch *s = getCMSketch(value);
-    int item_val = hashKey(item);
 
-    unsigned int h = (s->ha[0] * item_val + s->hb[0]) % s->w;
-    unsigned int min_val = s->v[h % s->w];
+    unsigned int h = (s->ha[0] * item + s->hb[0]) % s->w;
+    unsigned int min_val = s->v[h];
     for (unsigned int j = 1; j < s->d; j++)
     {
-        h = (s->ha[j] * item_val + s->hb[j]) % s->w;
-        min_val = MIN(min_val, s->v[j * s->w + h % s->w]);
+        h = (s->ha[j] * item + s->hb[j]) % s->w;
+        min_val = MIN(min_val, s->v[j * s->w + h]);
     }
 
     return min_val;
+}
+
+unsigned int cmsQuery(std::string& value, const char *item)
+{
+    int64_t item_val = hashKey(item);
+    return cmsQuery(value, item_val);
 }
 
 bool isCMSObjectOrReply(std::string& value)
@@ -197,13 +207,14 @@ namespace ardb
         ctx.flags.create_if_notexist = 1;
 
         const std::string& key_str = cmd.GetArguments()[0];
-        const char* item = cmd.GetArguments()[1].c_str();
-
         int incr = 1;
-        if (!string_toint32(cmd.GetArguments()[2], incr))
+        if (cmd.GetArguments().size() > 2)
         {
-            reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
-            return 0;
+            if (!string_toint32(cmd.GetArguments()[2], incr))
+            {
+                reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
+                return 0;
+            }
         }
 
         int err = 0;
@@ -232,7 +243,16 @@ namespace ardb
             }
         }
 
-        count = cmsIncrBy(cms_value, item, incr);
+        int64_t item_val;
+        if (string_toint64(cmd.GetArguments()[1], item_val))
+        {
+            count = cmsIncrBy(cms_value, item_val, incr);
+        }
+        else
+        {
+            const char* item = cmd.GetArguments()[1].c_str();
+            count = cmsIncrBy(cms_value, item, incr);
+        }
 
         meta.GetStringValue().SetString(cms_value, false);
 
@@ -254,8 +274,6 @@ namespace ardb
         RedisReply& reply = ctx.GetReply();
 
         const std::string& key_str = cmd.GetArguments()[0];
-        const char* item = cmd.GetArguments()[1].c_str();
-
         KeyObject meta_key(ctx.ns, KEY_META, key_str);
         ValueObject meta;
         if (!CheckMeta(ctx, meta_key, KEY_STRING, meta))
@@ -277,7 +295,18 @@ namespace ardb
             return 0;
         }
 
-        unsigned int count =  cmsQuery(cms_value, item);
+        unsigned int count = 0;
+        int64_t item_val;
+        if (string_toint64(cmd.GetArguments()[1], item_val))
+        {
+            count = cmsQuery(cms_value, item_val);
+        }
+        else
+        {
+            const char* item = cmd.GetArguments()[1].c_str();
+            count = cmsQuery(cms_value, item);
+        }
+
         reply.SetInteger(count);
 
         return 0;
