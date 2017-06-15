@@ -424,6 +424,16 @@ OP_NAMESPACE_BEGIN
             int BRPopLPush(Context& ctx, RedisCommandFrame& cmd);
 
             int JSet(Context& ctx, RedisCommandFrame& cmd);
+            int JSetBool(Context& ctx, RedisCommandFrame& cmd);
+            int JSetInt(Context& ctx, RedisCommandFrame& cmd);
+            int JSetDou(Context& ctx, RedisCommandFrame& cmd);
+            int JSetObj(Context& ctx, RedisCommandFrame& cmd);
+            int JIncrby(Context& ctx, RedisCommandFrame& cmd);
+            int JIncrbyFloat(Context& ctx, RedisCommandFrame& cmd);
+            int JPush(Context& ctx, RedisCommandFrame& cmd);
+            int JPop(Context& ctx, RedisCommandFrame& cmd);
+            int JDel(Context& ctx, RedisCommandFrame& cmd);
+            int JPatch(Context& ctx, RedisCommandFrame& cmd);
             int JGet(Context& ctx, RedisCommandFrame& cmd);
 
             int Eval(Context& ctx, RedisCommandFrame& cmd);

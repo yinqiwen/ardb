@@ -230,7 +230,17 @@ namespace ardb
 
             //'json' commands
             REDIS_CMD_JSET = 330,
-            REDIS_CMD_JGET = 331,
+            REDIS_CMD_JSETBOOL = 331,
+            REDIS_CMD_JSETINT = 332,
+            REDIS_CMD_JSETDOU = 333,
+            REDIS_CMD_JSETOBJ = 334,
+            REDIS_CMD_JINCRBY = 335,
+            REDIS_CMD_JINCRBYFLOAT = 336,
+            REDIS_CMD_JPUSH = 337,
+            REDIS_CMD_JPOP = 338,
+            REDIS_CMD_JDEL = 339,
+            REDIS_CMD_JPATCH = 340,
+            REDIS_CMD_JGET = 341,
 
             //cluster commands
             REDIS_CMD_CLUSTER = 500,  //used in cluster mode
