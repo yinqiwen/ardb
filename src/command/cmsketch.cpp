@@ -228,7 +228,7 @@ namespace ardb
             if (!isCMSObjectOrReply(cms_value))
             {
                 reply.SetErrCode(ERR_INVALID_CMS_STRING);
-                return ERR_INVALID_CMS_STRING;
+                return 0;
             }
         }
 
@@ -274,7 +274,7 @@ namespace ardb
         if (!isCMSObjectOrReply(cms_value))
         {
             reply.SetErrCode(ERR_INVALID_CMS_STRING);
-            return ERR_INVALID_CMS_STRING;
+            return 0;
         }
 
         unsigned int count =  cmsQuery(cms_value, item);
