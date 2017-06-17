@@ -43,7 +43,8 @@ namespace ardb
             return 0;
         }
 
-        int err= 0;
+        json j;
+        std::string json_value;
         if (field == "/")
         {
             if (meta.GetType() != 0)
@@ -52,23 +53,33 @@ namespace ardb
                 return 0;
             }
 
-            ValueObject valueobj;
+            try
+            {
+                j = json::parse(value);
+            }
+            catch (const json::parse_error&)
+            {
+                reply.SetErrCode(ERR_INVALID_JSON_OBJECT_ARGS);
+                return 0;
+            }
+
+            if (!j.is_object())
+            {
+                reply.SetErrCode(ERR_INVALID_JSON_OBJECT_ARGS);
+                return 0;
+            }
+
             meta.SetType(KEY_JSON);
-            meta.SetTTL(0);
-            meta.GetStringValue().SetString(value, true, false);
-            err = SetKeyValue(ctx, meta_key, meta);
         }
         else
         {
-            std::string json_value;
-            json j;
             json::json_pointer jp(field);
             if (meta.GetType() == 0)
             {
-                j[jp] = value;
                 meta.SetType(KEY_JSON);
             }
-            else{
+            else
+            {
                 meta.GetStringValue().ToString(json_value);
                 j = json::parse(json_value);
                 if (!j[jp].is_null() && nx)
@@ -76,13 +87,17 @@ namespace ardb
                     reply.Clear();
                     return 0;
                 }
-                j[jp] = value;
+
+                
+                meta.SetTTL(0);
             }
-            json_value = j.dump();
-            meta.SetTTL(0);
-            meta.GetStringValue().SetString(json_value, true, false);
-            err = SetKeyValue(ctx, meta_key, meta);
+
+            j[jp] = value;
         }
+
+        json_value = j.dump();
+        meta.GetStringValue().SetString(json_value, false);
+        int err = SetKeyValue(ctx, meta_key, meta);
 
         if (err != 0)
         {
@@ -130,7 +145,7 @@ namespace ardb
             }
         }
 
-        int value = cmd.GetArguments()[2] == "true" ? 1 : 0;
+        int value = (cmd.GetArguments()[2] == "false" || cmd.GetArguments()[2] == "0") ? 0 : 1;
         KeyObject meta_key(ctx.ns, KEY_META, key_str);
         KeyLockGuard guard(ctx, meta_key);
         ValueObject meta;
@@ -140,12 +155,11 @@ namespace ardb
             return 0;
         }
 
-        std::string json_value;
         json j;
         json::json_pointer jp(field);
+        std::string json_value;
         if (meta.GetType() == 0)
         {
-            j[jp] = value;
             meta.SetType(KEY_JSON);
         }
         else
@@ -158,12 +172,12 @@ namespace ardb
                 return 0;
             }
 
-            j[jp] = value;
+            meta.SetTTL(0);
         }
-        
+
+        j[jp] = value;
         json_value = j.dump();
-        meta.SetTTL(0);
-        meta.GetStringValue().SetString(json_value, true, false);
+        meta.GetStringValue().SetString(json_value, false);
         int err = SetKeyValue(ctx, meta_key, meta);
         if (err != 0)
         {
@@ -227,15 +241,15 @@ namespace ardb
             return 0;
         }
 
-        std::string json_value;
         json j;
         json::json_pointer jp(field);
+        std::string json_value;
         if (meta.GetType() == 0)
         {
-            j[jp] = value;
             meta.SetType(KEY_JSON);
         }
-        else{
+        else
+        {
             meta.GetStringValue().ToString(json_value);
             j = json::parse(json_value);
             if (!j[jp].is_null() && nx)
@@ -244,12 +258,12 @@ namespace ardb
                 return 0;
             }
 
-            j[jp] = value;
+            meta.SetTTL(0);
         }
 
+        j[jp] = value;
         json_value = j.dump();
-        meta.SetTTL(0);
-        meta.GetStringValue().SetString(json_value, true, false);
+        meta.GetStringValue().SetString(json_value, false);
         int err = SetKeyValue(ctx, meta_key, meta);
         if (err != 0)
         {
@@ -313,15 +327,15 @@ namespace ardb
             return 0;
         }
 
-        std::string json_value;
         json j;
         json::json_pointer jp(field);
+        std::string json_value;
         if (meta.GetType() == 0)
         {
-            j[jp] = value;
             meta.SetType(KEY_JSON);
         }
-        else{
+        else
+        {
             meta.GetStringValue().ToString(json_value);
             j = json::parse(json_value);
             if (!j[jp].is_null() && nx)
@@ -330,12 +344,12 @@ namespace ardb
                 return 0;
             }
 
-            j[jp] = value;
+            meta.SetTTL(0);
         }
 
+        j[jp] = value;
         json_value = j.dump();
-        meta.SetTTL(0);
-        meta.GetStringValue().SetString(json_value, true, false);
+        meta.GetStringValue().SetString(json_value, false);
         int err = SetKeyValue(ctx, meta_key, meta);
         if (err != 0)
         {
@@ -393,12 +407,27 @@ namespace ardb
             return 0;
         }
 
-        std::string json_value;
-        json j;
+        json j, j2;
+        try
+        {
+            j2 = json::parse(value);
+        }
+        catch (const json::parse_error&)
+        {
+            reply.SetErrCode(ERR_INVALID_JSON_OBJECT_ARGS);
+            return 0;
+        }
+
+        if (j2.is_primitive())
+        {
+            reply.SetErrCode(ERR_INVALID_JSON_OBJECT_ARGS);
+            return 0;
+        }
+
         json::json_pointer jp(field);
+        std:string json_value;
         if (meta.GetType() == 0)
         {
-            j[jp] = json::parse(value);
             meta.SetType(KEY_JSON);
         }
         else
@@ -411,12 +440,12 @@ namespace ardb
                 return 0;
             }
 
-            j[jp] = json::parse(value);
+            meta.SetTTL(0);
         }
 
+        j[jp] = j2;
         json_value = j.dump();
-        meta.SetTTL(0);
-        meta.GetStringValue().SetString(json_value, true, false);
+        meta.GetStringValue().SetString(json_value, false);
         int err = SetKeyValue(ctx, meta_key, meta);
         if (err != 0)
         {
@@ -468,36 +497,38 @@ namespace ardb
             return 0;
         }
 
-        std::string json_value;
         json j;
         json::json_pointer jp(field);
+        std::string json_value;
         if (meta.GetType() == 0)
         {
-            j[jp] = value;
             meta.SetType(KEY_JSON);
         }
-        else{
+        else
+        {
             meta.GetStringValue().ToString(json_value);
             j = json::parse(json_value);
 
-            if (j[jp].is_null())
-            {
-                j[jp] = value;
-            }
-            else if (j[jp].is_number_integer())
-            {
-                j[jp] = j[jp].get<int64_t>() + value;
-            }
-            else
+            if (!j[jp].is_null() && !j[jp].is_number_integer())
             {
                 reply.SetErrCode(ERR_WRONG_JSON_TYPE);
                 return 0;
             }
+
+            meta.SetTTL(0);
+        }
+
+        if (j[jp].is_null())
+            {
+            j[jp] = value;
+        }
+        else
+        {
+            j[jp] = j[jp].get<int64_t>() + value;
         }
 
         json_value = j.dump();
-        meta.SetTTL(0);
-        meta.GetStringValue().SetString(json_value, true, false);
+        meta.GetStringValue().SetString(json_value, false);
         int err = SetKeyValue(ctx, meta_key, meta);
         if (err != 0)
         {
@@ -555,36 +586,39 @@ int Ardb::JIncrbyFloat(Context &ctx, RedisCommandFrame &cmd)
             return 0;
         }
 
-        std::string json_value;
         json j;
         json::json_pointer jp(field);
+        std::string json_value;
         if (meta.GetType() == 0)
         {
             j[jp] = value;
             meta.SetType(KEY_JSON);
         }
-        else{
+        else
+        {
             meta.GetStringValue().ToString(json_value);
             j = json::parse(json_value);
 
-            if (j[jp].is_null())
-            {
-                j[jp] = value;
-            }
-            else if (j[jp].is_number_float())
-            {
-                j[jp] = j[jp].get<int64_t>() + value;
-            }
-            else
+            if (!j[jp].is_null() && !j[jp].is_number_float())
             {
                 reply.SetErrCode(ERR_WRONG_JSON_TYPE);
                 return 0;
             }
+
+            meta.SetTTL(0);
+        }
+
+        if (j[jp].is_null())
+        {
+            j[jp] = value;
+        }
+        else if (j[jp].is_number_float())
+        {
+            j[jp] = j[jp].get<double_t>() + value;
         }
 
         json_value = j.dump();
-        meta.SetTTL(0);
-        meta.GetStringValue().SetString(json_value, true, false);
+        meta.GetStringValue().SetString(json_value, false);
         int err = SetKeyValue(ctx, meta_key, meta);
         if (err != 0)
         {
@@ -627,22 +661,31 @@ int Ardb::JIncrbyFloat(Context &ctx, RedisCommandFrame &cmd)
             return 0;
         }
 
-        std::string json_value;
-        json j;
+        json j, j2;
+        try
+        {
+            j2 = json::parse(value);
+        }
+        catch (const json::parse_error&)
+        {
+            reply.SetErrCode(ERR_INVALID_JSON_ARRAY_ARGS);
+            return 0;
+        }
+
+        if (!j2.is_array() || j2.empty())
+        {
+            reply.SetErrCode(ERR_INVALID_JSON_ARRAY_ARGS);
+            return 0;
+        }
+
         json::json_pointer jp(field);
+        std::string json_value;
         if (meta.GetType() == 0)
         {
-            json j2 = json::parse(value);
-            if (!j2.is_array())
-            {
-                reply.Clear();
-                return 0;
-            } 
-
-            j[jp] = j2;
             meta.SetType(KEY_JSON);
         }
-        else{
+        else
+        {
             meta.GetStringValue().ToString(json_value);
             j = json::parse(json_value);
             if (!j[jp].is_null() && !j[jp].is_array())
@@ -651,26 +694,20 @@ int Ardb::JIncrbyFloat(Context &ctx, RedisCommandFrame &cmd)
                 return 0;
             }
 
-            json j2 = json::parse(value);
-            if (!j2.is_array())
-            {
-                reply.SetErrCode(ERR_INVALID_JSON_ARRAY_ARGS);
-                return 0;
-            }
+            meta.SetTTL(0);
+        }
 
-            if (j[jp].is_null())
-            {
-                j[jp] = j2;
-            }
-            else
-            {
-                j[jp].insert(j[jp].end(), j2.begin(), j2.end());
-            }
+        if (j[jp].is_null())
+        {
+            j[jp] = j2;
+        }
+        else
+        {
+            j[jp].insert(j[jp].end(), j2.begin(), j2.end());
         }
 
         json_value = j.dump();
-        meta.SetTTL(0);
-        meta.GetStringValue().SetString(json_value, true, false);
+        meta.GetStringValue().SetString(json_value, false);
         int err = SetKeyValue(ctx, meta_key, meta);
         if (err != 0)
         {
@@ -712,19 +749,20 @@ int Ardb::JIncrbyFloat(Context &ctx, RedisCommandFrame &cmd)
             return 0;
         }
 
-        std::string json_value;
         json j;
         json v;
         json::json_pointer jp(field);
+        std::string json_value;
         if (meta.GetType() == 0)
         {
             reply.Clear();
             return 0;
         }
-        else{
+        else
+        {
             meta.GetStringValue().ToString(json_value);
             j = json::parse(json_value);
-            if (j[jp].is_null())
+            if (j[jp].is_null() || j[jp].empty())
             {
                 reply.Clear();
                 return 0;
@@ -738,11 +776,11 @@ int Ardb::JIncrbyFloat(Context &ctx, RedisCommandFrame &cmd)
 
             v = j[jp][j[jp].size() - 1];
             j[jp].erase(j[jp].end());
+            meta.SetTTL(0);
         }
 
         json_value = j.dump();
-        meta.SetTTL(0);
-        meta.GetStringValue().SetString(json_value, true, false);
+        meta.GetStringValue().SetString(json_value, false);
         int err = SetKeyValue(ctx, meta_key, meta);
         if (err != 0)
         {
@@ -817,15 +855,16 @@ int Ardb::JIncrbyFloat(Context &ctx, RedisCommandFrame &cmd)
             return 0;
         }
 
-        std::string json_value;
         json j;
         json::json_pointer jp(field);
+        std::string json_value;
         if (meta.GetType() == 0)
         {
             reply.Clear();
             return 0;
         }
-        else{
+        else
+        {
             meta.GetStringValue().ToString(json_value);
             j = json::parse(json_value);
             if (j[jp].is_null())
@@ -836,18 +875,18 @@ int Ardb::JIncrbyFloat(Context &ctx, RedisCommandFrame &cmd)
 
             json patch = json::array({{{"op", "remove"}, {"path", field}}});
             j = j.patch(patch);
-        }
+            if (j.empty())
+            {
+                DelKey(ctx, meta_key);
+                reply.SetStatusCode(STATUS_OK);
+                return 0;
+            }
 
-        if (j.empty())
-        {
-            DelKey(ctx, meta_key);
-            reply.SetStatusCode(STATUS_OK);
-            return 0;
+            meta.SetTTL(0);
         }
 
         json_value = j.dump();
-        meta.SetTTL(0);
-        meta.GetStringValue().SetString(json_value, true, false);
+        meta.GetStringValue().SetString(json_value, false);
         int err = SetKeyValue(ctx, meta_key, meta);
         if (err != 0)
         {
@@ -878,23 +917,41 @@ int Ardb::JIncrbyFloat(Context &ctx, RedisCommandFrame &cmd)
             return 0;
         }
 
-        std::string json_value;
         json j;
+        std::string json_value;
         if (meta.GetType() == 0)
         {
             reply.Clear();
             return 0;
         }
-        else{
+        else
+        {
             meta.GetStringValue().ToString(json_value);
             j = json::parse(json_value);
-            json patch = json::parse(patch_str);
+            json patch;
+            try
+            {
+                patch = json::parse(patch_str);
+            }
+            catch (const json::parse_error&)
+            {
+                reply.SetErrCode(ERR_INVALID_JSON_OBJECT_ARGS);
+                return 0;
+            }
+
             j = j.patch(patch);
+            if (j.empty())
+            {
+                DelKey(ctx, meta_key);
+                reply.SetStatusCode(STATUS_OK);
+                return 0;
+            }
+
+            meta.SetTTL(0);
         }
 
         json_value = j.dump();
-        meta.SetTTL(0);
-        meta.GetStringValue().SetString(json_value, true, false);
+        meta.GetStringValue().SetString(json_value, false);
         int err = SetKeyValue(ctx, meta_key, meta);
         if (err != 0)
         {
@@ -933,13 +990,13 @@ int Ardb::JIncrbyFloat(Context &ctx, RedisCommandFrame &cmd)
             return 0;
         }
 
+        std::string json_value;
         if (field == "/")
         {
             reply.SetString(meta.GetStringValue());
         }
         else
         {
-            std::string json_value;
             meta.GetStringValue().ToString(json_value);
             json j = json::parse(json_value);
             json::json_pointer jp(field);
