@@ -592,6 +592,11 @@ OP_NAMESPACE_BEGIN
                 reply.SetString("string");
                 break;
             }
+            case KEY_JSON:
+            {
+                reply.SetString("json");
+                break;
+            }
             default:
             {
                 reply.SetString("invalid");
