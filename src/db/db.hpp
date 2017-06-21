@@ -423,6 +423,7 @@ OP_NAMESPACE_BEGIN
             int BRPop(Context& ctx, RedisCommandFrame& cmd);
             int BRPopLPush(Context& ctx, RedisCommandFrame& cmd);
 
+            int JNew(Context& ctx, RedisCommandFrame& cmd);
             int JSet(Context& ctx, RedisCommandFrame& cmd);
             int JSetBool(Context& ctx, RedisCommandFrame& cmd);
             int JSetInt(Context& ctx, RedisCommandFrame& cmd);
