@@ -234,6 +234,64 @@ OP_NAMESPACE_BEGIN
         return HSet(ctx, cmd);
     }
 
+    int Ardb::HGetSet(Context& ctx, RedisCommandFrame& cmd)
+    {
+        ctx.flags.create_if_notexist = 1;
+        RedisReply& reply = ctx.GetReply();
+        reply.Clear();
+
+        const std::string& keystr = cmd.GetArguments()[0];
+        KeyObject key(ctx.ns, KEY_META, keystr);
+        ValueObject meta;
+        int err = 0;
+        KeyLockGuard guard(ctx,key);
+        KeyObject field(ctx.ns, KEY_HASH_FIELD, keystr);
+        field.SetHashField(cmd.GetArguments()[1]);
+        KeyObjectArray keys;
+        keys.push_back(key);
+        keys.push_back(field);
+        ValueObjectArray vals;
+        ErrCodeArray errs;
+        m_engine->MultiGet(ctx, keys, vals, errs);
+
+        if (errs[0] != 0 && errs[0] != ERR_ENTRY_NOT_EXIST)
+        {
+            reply.SetErrCode(errs[0]);
+            return 0;
+        }
+
+        if (vals[0].GetType() > 0 && vals[0].GetType() != KEY_HASH)
+        {
+            reply.SetErrCode(ERR_WRONG_TYPE);
+            return 0;
+        }
+
+        bool inserted = vals[1].GetType() == 0;
+        if (!inserted)
+        {
+            reply.SetString(vals[1].GetStringValue());
+        }
+
+
+        WriteBatchGuard batch(ctx, m_engine);
+        ValueObject field_value;
+        field_value.SetType(KEY_HASH_FIELD);
+        field_value.SetHashValue(cmd.GetArguments()[2]);
+
+        meta.SetType(KEY_HASH);
+        meta.SetObjectLen(-1);
+        meta.SetTTL(0);
+        SetKeyValue(ctx, key, meta);
+        SetKeyValue(ctx, field, field_value);
+
+        if (0 != ctx.transc_err)
+        {
+            reply.SetErrCode(ctx.transc_err);
+        }
+
+        return 0;
+    }
+
     int Ardb::HIterate(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();

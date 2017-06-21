@@ -56,6 +56,8 @@ OP_NAMESPACE_BEGIN
 
         KEY_ZSET = 9, KEY_ZSET_SORT = 10, KEY_ZSET_SCORE = 11,
 
+        KEY_JSON = 12,
+
         /*
          * Reserver 20 types
          */

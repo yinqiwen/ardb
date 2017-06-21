@@ -363,6 +363,31 @@ namespace ardb
                     str.assign("WRONGTYPE Key is not a valid HyperLogLog string value.");
                     break;
                 }
+                case ERR_INVALID_CMS_STRING:
+                {
+                    str.assign("INVALIDOBJ Corrupted CMSketch object detected");
+                    break;
+                }
+                case ERR_WRONG_JSON_TYPE:
+                {
+                    str.assign("-WRONGTYPE Operation against a JSON key holding the wrong kind of value.");
+                    break;
+                }
+                case ERR_INVALID_JSON_PATH_ARGS:
+                {
+                    str.assign("WRONGTYPE Key is not a valid JSON path value.");
+                    break;
+                }
+                case ERR_INVALID_JSON_ARRAY_ARGS:
+                {
+                    str.assign("WRONGTYPE Key is not a valid JSON array string value.");
+                    break;
+                }
+                case ERR_INVALID_JSON_OBJECT_ARGS:
+                {
+                    str.assign("WRONGTYPE Key is not a valid JSON object string value.");
+                    break;
+                }
                 default:
                 {
                     str = g_engine->GetErrorReason(code);

@@ -156,6 +156,7 @@ namespace ardb
             REDIS_CMD_HSETNX = 161,
             REDIS_CMD_HMSET = 162,
             REDIS_CMD_HSCAN = 163,
+            REDIS_CMD_HGETSET = 164,
 
             //'set' commands
             REDIS_CMD_SCARD = 200,
@@ -227,6 +228,21 @@ namespace ardb
             REDIS_CMD_LRANGE = 316,
             REDIS_CMD_LSET = 317,
 
+            //'json' commands
+            REDIS_CMD_JNEW = 330,
+            REDIS_CMD_JSET = 331,
+            REDIS_CMD_JSETBOOL = 332,
+            REDIS_CMD_JSETINT = 333,
+            REDIS_CMD_JSETFLOAT = 334,
+            REDIS_CMD_JSETOBJ = 335,
+            REDIS_CMD_JINCRBY = 336,
+            REDIS_CMD_JINCRBYFLOAT = 337,
+            REDIS_CMD_JPUSH = 338,
+            REDIS_CMD_JPOP = 339,
+            REDIS_CMD_JDEL = 340,
+            REDIS_CMD_JPATCH = 341,
+            REDIS_CMD_JGET = 342,
+
             //cluster commands
             REDIS_CMD_CLUSTER = 500,  //used in cluster mode
 
@@ -256,6 +272,9 @@ namespace ardb
             REDIS_CMD_PEXPIRE2 = 1027,
             REDIS_CMD_SETBIT2 = 1028,
             REDIS_CMD_PFADD2 = 1029,
+            REDIS_CMD_CMSINIT = 1030,
+            REDIS_CMD_CMSINCRBY = 1031,
+            REDIS_CMD_CMSQUERY = 1032,
 
             REDIS_CMD_MAX = 1100,
         };

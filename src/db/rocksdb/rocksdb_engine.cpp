@@ -109,7 +109,7 @@ OP_NAMESPACE_BEGIN
                             false), delete_after_finish(false)
             {
             }
-            bool EqaulOptions(const rocksdb::ReadOptions& a)
+            bool EqualOptions(const rocksdb::ReadOptions& a)
             {
                 return a.total_order_seek == iter_total_order_seek
                         && a.prefix_same_as_start == iter_prefix_same_as_start;

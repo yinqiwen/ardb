@@ -363,6 +363,7 @@ OP_NAMESPACE_BEGIN
             int HSetNX(Context& ctx, RedisCommandFrame& cmd);
             int HVals(Context& ctx, RedisCommandFrame& cmd);
             int HScan(Context& ctx, RedisCommandFrame& cmd);
+            int HGetSet(Context& ctx, RedisCommandFrame& cmd);
 
             int SAdd(Context& ctx, RedisCommandFrame& cmd);
             int SCard(Context& ctx, RedisCommandFrame& cmd);
@@ -422,6 +423,20 @@ OP_NAMESPACE_BEGIN
             int BRPop(Context& ctx, RedisCommandFrame& cmd);
             int BRPopLPush(Context& ctx, RedisCommandFrame& cmd);
 
+            int JNew(Context& ctx, RedisCommandFrame& cmd);
+            int JSet(Context& ctx, RedisCommandFrame& cmd);
+            int JSetBool(Context& ctx, RedisCommandFrame& cmd);
+            int JSetInt(Context& ctx, RedisCommandFrame& cmd);
+            int JSetFloat(Context& ctx, RedisCommandFrame& cmd);
+            int JSetObj(Context& ctx, RedisCommandFrame& cmd);
+            int JIncrby(Context& ctx, RedisCommandFrame& cmd);
+            int JIncrbyFloat(Context& ctx, RedisCommandFrame& cmd);
+            int JPush(Context& ctx, RedisCommandFrame& cmd);
+            int JPop(Context& ctx, RedisCommandFrame& cmd);
+            int JDel(Context& ctx, RedisCommandFrame& cmd);
+            int JPatch(Context& ctx, RedisCommandFrame& cmd);
+            int JGet(Context& ctx, RedisCommandFrame& cmd);
+
             int Eval(Context& ctx, RedisCommandFrame& cmd);
             int EvalSHA(Context& ctx, RedisCommandFrame& cmd);
             int Script(Context& ctx, RedisCommandFrame& cmd);
@@ -438,6 +453,10 @@ OP_NAMESPACE_BEGIN
             int PFAdd(Context& ctx, RedisCommandFrame& cmd);
             int PFCount(Context& ctx, RedisCommandFrame& cmd);
             int PFMerge(Context& ctx, RedisCommandFrame& cmd);
+
+            int CMSIncrBy(Context& ctx, RedisCommandFrame& cmd);
+            int CMSQuery(Context& ctx, RedisCommandFrame& cmd);
+            int CMSInit(Context& ctx, RedisCommandFrame& cmd);
 
             int Monitor(Context& ctx, RedisCommandFrame& cmd);
             int Dump(Context& ctx, RedisCommandFrame& cmd);

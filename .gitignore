@@ -15,3 +15,9 @@ leveldb-*/
 testdb/
 ~*
 .kv_engine
+
+/deps
+/.vscode
+.directory
+/.idea
+/.git
