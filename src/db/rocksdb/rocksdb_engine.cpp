@@ -35,6 +35,8 @@
 #include "thread/lock_guard.hpp"
 #include "thread/spin_mutex_lock.hpp"
 #include "db/db.hpp"
+#include "util/string_helper.hpp"
+
 
 OP_NAMESPACE_BEGIN
 
@@ -817,7 +819,14 @@ OP_NAMESPACE_BEGIN
             ERROR_LOG("Invalid rocksdb's options:%s with error reason:%s", conf.c_str(), s.ToString().c_str());
             return -1;
         }
-        m_options.OptimizeLevelStyleCompaction();
+        if(strcasecmp(g_db->GetConf().rocksdb_compaction.c_str(),"OptimizeLevelStyleCompaction")==0 )
+        {
+            m_options.OptimizeLevelStyleCompaction();
+
+        } else if (strcasecmp(g_db->GetConf().rocksdb_compaction.c_str(),"OptimizeUniversalStyleCompaction")==0 ) {
+        	m_options.OptimizeUniversalStyleCompaction();
+        }
+
         m_options.IncreaseParallelism();
         m_options.stats_dump_period_sec = (unsigned int) g_db->GetConf().statistics_log_period;
         m_dbdir = dir;
