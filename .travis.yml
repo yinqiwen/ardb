@@ -3,6 +3,8 @@ language: cpp
 compiler:
   - gcc
   - clang
+  
+cache: ccache
 
 sudo: required
 dist: trusty
@@ -10,18 +12,24 @@ dist: trusty
 addons:
     packages:
         - libbz2-dev
+        
+        
+env:
+  matrix:
+    - storage_engine=leveldb
+    - storage_engine=lmdb
+    - storage_engine=wiredtiger
 
 script:
     - pushd src
     - make
     - ./ardb-test
-    - storage_engine=leveldb make
-    - ./ardb-test
-    - storage_engine=lmdb make
-    - ./ardb-test
-    - storage_engine=wiredtiger make
-    - ./ardb-test
     - popd
-
+matrix:
+  include:
+    - compiler: gcc
+      env: DEFAULT_STORAGE_ENGINE=1 # travis doesn't like empty env sections
+    - compiler: clang
+      env: DEFAULT_STORAGE_ENGINE=1 # travis doesn't like empty env sections
 os:
   - linux
