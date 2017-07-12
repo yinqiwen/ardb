@@ -15,10 +15,13 @@ script:
     - pushd src
     - make
     - ./ardb-test
+    - make clean
     - storage_engine=leveldb make
     - ./ardb-test
+    - make clean
     - storage_engine=lmdb make
     - ./ardb-test
+    - make clean
     - storage_engine=wiredtiger make
     - ./ardb-test
     - popd

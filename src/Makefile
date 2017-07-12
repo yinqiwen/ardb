@@ -397,19 +397,19 @@ ${ROCKSDB_FILE}:
 .PHONY: wiredtiger
 wiredtiger: $(WIREDTIGER_LIBA)
 $(WIREDTIGER_LIBA): $(SNAPPY_LIBA) $(WIREDTIGER_PATH)
-	echo ">>>>> Building WiredTiger" && \
+	@echo ">>>>> Building WiredTiger" && \
 	cd ${WIREDTIGER_PATH} && \
 	./configure && $(MAKE) && \
 	echo "<<<<< Done building WiredTiger"
 
 $(WIREDTIGER_PATH): ${WIREDTIGER_FILE}
-	echo ">>>>> Unpacking WiredTiger" && \
+	@echo ">>>>> Unpacking WiredTiger" && \
 	cd ${LIB_PATH} && \
 	tar jxf ${WIREDTIGER_FILE} && \
 	echo "<<<<< Done unpacking WiredTiger"
 	
 ${WIREDTIGER_FILE}:
-	echo ">>>>> Dowloading WiredTiger" && \
+	@echo ">>>>> Dowloading WiredTiger" && \
 	cd ${LIB_PATH} && \
 	wget -O ${WIREDTIGER_FILE} ${WIREDTIGER_REMOTE_FILE} && \
 	echo "<<<<< Done dowloading WiredTiger"
