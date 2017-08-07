@@ -221,7 +221,14 @@ OP_NAMESPACE_BEGIN
                     int n = vsnprintf(buffer, buf_len - 1, format, ap);
                     if (n > 0 && NULL != buffer)
                     {
-                        buffer[n] = 0;
+                        if (n < buf_len)
+                        {
+                            buffer[n] = 0;
+                        }
+                        else
+                        {
+                            buffer[buf_len - 1] = 0;
+                        }
                         LOG_WITH_LEVEL(level, "[RocksDB]%s", buffer);
                     }
                     DELETE_A(buffer);
