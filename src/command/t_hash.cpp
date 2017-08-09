@@ -94,7 +94,7 @@ OP_NAMESPACE_BEGIN
         ctx.flags.create_if_notexist = 1;
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_META, keystr);
-        KeyLockGuard guard(ctx,key);
+        KeyLockGuard guard(ctx, key);
         ValueObject meta;
         {
             WriteBatchGuard batch(ctx, m_engine);
@@ -138,6 +138,11 @@ OP_NAMESPACE_BEGIN
     {
         ctx.flags.create_if_notexist = 1;
         RedisReply& reply = ctx.GetReply();
+        if ((cmd.GetArguments().size() - 1) % 2 != 0)
+        {
+            reply.SetErrCode(ERR_INVALID_SYNTAX);
+            return 0;
+        }
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_META, keystr);
         ValueObject meta;
@@ -146,26 +151,29 @@ OP_NAMESPACE_BEGIN
         {
             {
                 WriteBatchGuard batch(ctx, m_engine);
-                KeyObject field(ctx.ns, KEY_HASH_FIELD, keystr);
-                field.SetHashField(cmd.GetArguments()[1]);
-                ValueObject field_value;
-                field_value.SetType(KEY_HASH_FIELD);
-                field_value.SetHashValue(cmd.GetArguments()[2]);
-                if (cmd.GetType() == REDIS_CMD_HSETNX || cmd.GetType() == REDIS_CMD_HSETNX2)
+                for (size_t i = 1; i < cmd.GetArguments().size(); i += 2)
                 {
-                    Data meta_size;
-                    meta_size.SetInt64(1);
-                    m_engine->Merge(ctx, key, REDIS_CMD_HSETNX, meta_size);
-                    m_engine->Merge(ctx, field, REDIS_CMD_HSETNX, field_value.GetHashValue());
+                    KeyObject field(ctx.ns, KEY_HASH_FIELD, keystr);
+                    field.SetHashField(cmd.GetArguments()[i]);
+                    ValueObject field_value;
+                    field_value.SetType(KEY_HASH_FIELD);
+                    field_value.SetHashValue(cmd.GetArguments()[i + 1]);
+                    if (cmd.GetType() == REDIS_CMD_HSETNX || cmd.GetType() == REDIS_CMD_HSETNX2)
+                    {
+                        Data meta_size;
+                        meta_size.SetInt64(1);
+                        m_engine->Merge(ctx, key, REDIS_CMD_HSETNX, meta_size);
+                        m_engine->Merge(ctx, field, REDIS_CMD_HSETNX, field_value.GetHashValue());
+                    }
+                    else
+                    {
+                        SetKeyValue(ctx, field, field_value);
+                    }
                 }
-                else
-                {
-                    meta.SetType(KEY_HASH);
-                    meta.SetObjectLen(-1);
-                    meta.SetTTL(0); //clear ttl setting
-                    SetKeyValue(ctx, key, meta);
-                    SetKeyValue(ctx, field, field_value);
-                }
+                meta.SetType(KEY_HASH);
+                meta.SetObjectLen(-1);
+                meta.SetTTL(0); //clear ttl setting
+                SetKeyValue(ctx, key, meta);
             }
             if (0 != ctx.transc_err)
             {
@@ -177,12 +185,15 @@ OP_NAMESPACE_BEGIN
             }
             return 0;
         }
-        KeyLockGuard guard(ctx,key);
-        KeyObject field(ctx.ns, KEY_HASH_FIELD, keystr);
-        field.SetHashField(cmd.GetArguments()[1]);
+        KeyLockGuard guard(ctx, key);
         KeyObjectArray keys;
         keys.push_back(key);
-        keys.push_back(field);
+        for (size_t i = 1; i < cmd.GetArguments().size(); i += 2)
+        {
+            KeyObject field(ctx.ns, KEY_HASH_FIELD, keystr);
+            field.SetHashField(cmd.GetArguments()[i]);
+            keys.push_back(field);
+        }
         ValueObjectArray vals;
         ErrCodeArray errs;
         m_engine->MultiGet(ctx, keys, vals, errs);
@@ -198,17 +209,23 @@ OP_NAMESPACE_BEGIN
         bool inserted = vals[1].GetType() == 0;
         if (0 == err || ERR_NOTPERFORMED == err)
         {
-            Data field_value;
-            field_value.SetString(cmd.GetArguments()[2], true);
-            err = MergeHSet(ctx, keys[1], vals[1], cmd.GetType(), field_value);
+            for (size_t i = 1; i < keys.size(); i++)
+            {
+                Data field_value;
+                field_value.SetString(cmd.GetArguments()[i * 2], true);
+                err = MergeHSet(ctx, keys[i], vals[i], cmd.GetType(), field_value);
+            }
+
         }
         if (0 == err)
         {
             vals[0].SetTTL(0);
             {
                 WriteBatchGuard batch(ctx, m_engine);
-                SetKeyValue(ctx, keys[0], vals[0]);
-                SetKeyValue(ctx, keys[1], vals[1]);
+                for (size_t i = 0; i < keys.size(); i++)
+                {
+                    SetKeyValue(ctx, keys[i], vals[i]);
+                }
             }
             err = ctx.transc_err;
         }
@@ -268,7 +285,8 @@ OP_NAMESPACE_BEGIN
                     break;
                 }
             }
-            if (field.GetType() != KEY_HASH_FIELD || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != key.GetKey())
+            if (field.GetType() != KEY_HASH_FIELD || field.GetNameSpace() != key.GetNameSpace()
+                    || field.GetKey() != key.GetKey())
             {
                 break;
             }
@@ -469,7 +487,7 @@ OP_NAMESPACE_BEGIN
             }
             return 0;
         }
-        KeyLockGuard guard(ctx,meta_key);
+        KeyLockGuard guard(ctx, meta_key);
         KeyObjectArray keys;
         keys.push_back(meta_key);
         keys.push_back(field_key);
@@ -551,7 +569,7 @@ OP_NAMESPACE_BEGIN
             }
             SetKeyValue(ctx, keys[1], vals[1]);
         }
-        if(0 == err)
+        if (0 == err)
         {
             err = ctx.transc_err;
         }
@@ -630,7 +648,7 @@ OP_NAMESPACE_BEGIN
         RedisReply& reply = ctx.GetReply();
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_META, keystr);
-        KeyLockGuard guard(ctx,key);
+        KeyLockGuard guard(ctx, key);
         ValueObject meta;
         int err = 0;
         if (!ctx.flags.redis_compatible)
@@ -660,14 +678,14 @@ OP_NAMESPACE_BEGIN
         err = m_engine->Get(ctx, key, meta);
         if (err != 0)
         {
-        	if(err != ERR_ENTRY_NOT_EXIST)
-        	{
+            if (err != ERR_ENTRY_NOT_EXIST)
+            {
                 reply.SetErrCode(err);
-        	}
-        	else
-        	{
-        		reply.SetInteger(0);
-        	}
+            }
+            else
+            {
+                reply.SetInteger(0);
+            }
             return 0;
         }
         if (meta.GetType() != KEY_HASH)

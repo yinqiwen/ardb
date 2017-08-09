@@ -399,7 +399,7 @@ wiredtiger: $(WIREDTIGER_LIBA)
 $(WIREDTIGER_LIBA): $(SNAPPY_LIBA) $(WIREDTIGER_PATH)
 	@echo ">>>>> Building WiredTiger" && \
 	cd ${WIREDTIGER_PATH} && \
-	./configure && $(MAKE) && \
+	./configure && $(MAKE) libwiredtiger_static.la && \
 	echo "<<<<< Done building WiredTiger"
 
 $(WIREDTIGER_PATH): ${WIREDTIGER_FILE}
