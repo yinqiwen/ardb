@@ -5,7 +5,7 @@ compiler:
   - clang
 
 sudo: required
-dist: trusty
+dist: xenial
 
 addons:
     packages:

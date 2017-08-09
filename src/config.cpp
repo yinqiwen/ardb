@@ -149,6 +149,7 @@ OP_NAMESPACE_BEGIN
         if (strcasecmp(engine.c_str(), "rocksdb") == 0)
         {
             conf_get_string(props, "rocksdb.compaction", rocksdb_compaction);
+            conf_get_bool(props, "rocksdb.disableWAL", rocksdb_disablewal);
             conf_get_bool(props, "rocksdb.scan-total-order", rocksdb_scan_total_order);
         }
 

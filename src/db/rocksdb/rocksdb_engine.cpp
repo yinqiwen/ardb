@@ -109,7 +109,7 @@ OP_NAMESPACE_BEGIN
                             false), delete_after_finish(false)
             {
             }
-            bool EqaulOptions(const rocksdb::ReadOptions& a)
+            bool EqualOptions(const rocksdb::ReadOptions& a)
             {
                 return a.total_order_seek == iter_total_order_seek
                         && a.prefix_same_as_start == iter_prefix_same_as_start;
@@ -827,6 +827,12 @@ OP_NAMESPACE_BEGIN
         	m_options.OptimizeUniversalStyleCompaction();
         }
 
+        if(g_db->GetConf().rocksdb_disablewal)
+        {
+            disablewal=true;
+        }
+
+
         m_options.IncreaseParallelism();
         m_options.stats_dump_period_sec = (unsigned int) g_db->GetConf().statistics_log_period;
         m_dbdir = dir;
@@ -878,7 +884,7 @@ OP_NAMESPACE_BEGIN
         }
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         rocksdb::WriteOptions opt;
-        if (ctx.flags.bulk_loading)
+        if (disablewal || ctx.flags.bulk_loading)
         {
             opt.disableWAL = true;
         }
@@ -908,7 +914,7 @@ OP_NAMESPACE_BEGIN
         }
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         rocksdb::WriteOptions opt;
-        if (ctx.flags.bulk_loading)
+        if (disablewal || ctx.flags.bulk_loading)
         {
             opt.disableWAL = true;
         }
@@ -1194,7 +1200,7 @@ OP_NAMESPACE_BEGIN
         if (rocks_ctx.transc.ReleaseRef(false) == 0)
         {
             rocksdb::WriteOptions opt;
-            if (ctx.flags.bulk_loading)
+            if (disablewal || ctx.flags.bulk_loading)
             {
                 opt.disableWAL = true;
             }
