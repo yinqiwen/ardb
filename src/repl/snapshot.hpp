@@ -73,12 +73,15 @@ namespace ardb
             int ReadType();
             time_t ReadTime();
             int64 ReadMillisecondTime();
-            uint32_t ReadLen(int *isencoded);
+            uint64_t ReadLen(int *isencoded);
             bool ReadInteger(int enctype, int64& v);
             bool ReadLzfStringObject(std::string& str);
             bool ReadString(std::string& str);
-            int ReadDoubleValue(double&val);
+            int ReadDoubleValue(double& val, bool binary = false);
+            int ReadBinaryDoubleValue(double& val);
+            int ReadBinaryFloatValue(float& val);
 
+            bool RedisLoadCheckModuleValue(char* name);
             bool RedisLoadObject(Context& ctx, int type, const std::string& key, int64 expiretime);
             void RedisLoadListZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
             void RedisLoadHashZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);

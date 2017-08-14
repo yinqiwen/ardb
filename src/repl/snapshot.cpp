@@ -57,7 +57,7 @@ extern "C"
         }             \
     }while(0)
 
-#define REDIS_RDB_VERSION 7
+#define REDIS_RDB_VERSION 8
 
 #define ARDB_RDB_VERSION 1
 
@@ -76,7 +76,8 @@ extern "C"
  * values, will fit inside. */
 #define REDIS_RDB_6BITLEN 0
 #define REDIS_RDB_14BITLEN 1
-#define REDIS_RDB_32BITLEN 2
+#define REDIS_RDB_32BITLEN 0x80
+#define REDIS_RDB_64BITLEN 0x81
 #define REDIS_RDB_ENCVAL 3
 #define REDIS_RDB_LENERR UINT_MAX
 
@@ -96,13 +97,25 @@ extern "C"
 #define REDIS_RDB_OPCODE_SELECTDB   254
 #define REDIS_RDB_OPCODE_EOF        255
 
+/* Module serialized values sub opcodes */
+#define RDB_MODULE_OPCODE_EOF   0   /* End of module value. */
+#define RDB_MODULE_OPCODE_SINT  1   /* Signed integer. */
+#define RDB_MODULE_OPCODE_UINT  2   /* Unsigned integer. */
+#define RDB_MODULE_OPCODE_FLOAT 3   /* Float. */
+#define RDB_MODULE_OPCODE_DOUBLE 4  /* Double. */
+#define RDB_MODULE_OPCODE_STRING 5  /* String. */
+
 /* Dup object types to RDB object types. Only reason is readability (are we
  * dealing with RDB types or with in-memory object types?). */
-#define REDIS_RDB_TYPE_STRING 0
-#define REDIS_RDB_TYPE_LIST   1
-#define REDIS_RDB_TYPE_SET    2
-#define REDIS_RDB_TYPE_ZSET   3
-#define REDIS_RDB_TYPE_HASH   4
+#define REDIS_RDB_TYPE_STRING   0
+#define REDIS_RDB_TYPE_LIST     1
+#define REDIS_RDB_TYPE_SET      2
+#define REDIS_RDB_TYPE_ZSET     3
+#define REDIS_RDB_TYPE_HASH     4
+#define REDIS_RDB_TYPE_ZSET_2   5 /* ZSET version 2 with doubles stored in binary. */
+#define REDIS_RDB_TYPE_MODULE   6
+#define REDIS_RDB_TYPE_MODULE_2 7 /* Module value with annotations for parsing without
+                               the generating module being loaded. */
 
 /* Object types for encoded objects. */
 #define REDIS_RDB_TYPE_HASH_ZIPMAP    9
@@ -225,7 +238,7 @@ namespace ardb
         return (long long) t64;
     }
 
-    uint32_t ObjectIO::ReadLen(int *isencoded)
+    uint64_t ObjectIO::ReadLen(int *isencoded)
     {
         unsigned char buf[2];
         uint32_t len;
@@ -251,11 +264,24 @@ namespace ardb
             if (Read(buf + 1, 1) == 0) return REDIS_RDB_LENERR;
             return ((buf[0] & 0x3F) << 8) | buf[1];
         }
-        else
+        else if (type == REDIS_RDB_32BITLEN)
         {
             /* Read a 32 bit len. */
-            if (Read(&len, 4) == 0) return REDIS_RDB_LENERR;
+            uint32_t len;
+            if (!Read(&len, 4)) return -1;
             return ntohl(len);
+        }
+        else if (type == REDIS_RDB_64BITLEN)
+        {
+            /* Read a 64 bit len. */
+            uint64_t len;
+            if (!Read(&len, 8)) return -1;
+            return ntohu64(len);
+        }
+        else
+        {
+            ERROR_LOG("Unknown length encoding %d in ReadLen()", type);
+            return -1; /* Never reached. */
         }
     }
 
@@ -318,9 +344,30 @@ namespace ardb
         return true;
     }
 
-    /* For information about double serialization check rdbSaveDoubleValue() */
-    int ObjectIO::ReadDoubleValue(double&val)
+    int ObjectIO::ReadBinaryDoubleValue(double& val)
     {
+        if (!Read(&val, sizeof(val)))
+        {
+            return -1;
+        }memrev64ifbe(val);
+        return 0;
+    }
+    int ObjectIO::ReadBinaryFloatValue(float& val)
+    {
+        if (!Read(&val, sizeof(val)))
+        {
+            return -1;
+        }memrev32ifbe(val);
+        return 0;
+    }
+
+    /* For information about double serialization check rdbSaveDoubleValue() */
+    int ObjectIO::ReadDoubleValue(double&val, bool binary)
+    {
+        if (binary)
+        {
+            return ReadBinaryDoubleValue(val);
+        }
         static double R_Zero = 0.0;
         static double R_PosInf = 1.0 / R_Zero;
         static double R_NegInf = -1.0 / R_Zero;
@@ -576,7 +623,7 @@ namespace ardb
             case KEY_ZSET_SCORE:
             case KEY_ZSET_SORT:
             {
-                return WriteType(REDIS_RDB_TYPE_ZSET);
+                return WriteType(REDIS_RDB_TYPE_ZSET_2);
             }
             case KEY_HASH:
             case KEY_HASH_FIELD:
@@ -972,6 +1019,7 @@ namespace ardb
                 break;
             }
             case REDIS_RDB_TYPE_ZSET:
+            case REDIS_RDB_TYPE_ZSET_2:
             {
                 uint32 len;
                 if ((len = ReadLen(NULL)) == REDIS_RDB_LENERR) return false;
@@ -981,7 +1029,7 @@ namespace ardb
                 {
                     std::string str;
                     double score;
-                    if (ReadString(str) && 0 == ReadDoubleValue(score))
+                    if (ReadString(str) && 0 == ReadDoubleValue(score, REDIS_RDB_TYPE_ZSET_2 == rdbtype))
                     {
                         //save value score
                         //g_db->ZAdd(m_current_db, key, score, str);
@@ -1055,16 +1103,10 @@ namespace ardb
                         unsigned char *zi = zipmapRewind(data);
                         unsigned char *fstr, *vstr;
                         unsigned int flen, vlen;
-                        //                        unsigned int maxlen = 0;
-                        //                      ValueObject hmeta;
                         meta_value.SetType(KEY_HASH);
                         int64 hlen = 0;
                         while ((zi = zipmapNext(zi, &fstr, &flen, &vstr, &vlen)) != NULL)
                         {
-                            //                            if (flen > maxlen)
-                            //                                maxlen = flen;
-                            //                            if (vlen > maxlen)
-                            //                                maxlen = vlen;
                             std::string fstring, fvstring;
                             fstring.assign((char*) fstr, flen);
                             fvstring.assign((char*) vstr, vlen);
@@ -1109,6 +1151,22 @@ namespace ardb
                 }
                 break;
             }
+            case REDIS_RDB_TYPE_MODULE:
+            {
+                ERROR_LOG("Not support RDB_TYPE_MODULE");
+                return false;
+            }
+            case REDIS_RDB_TYPE_MODULE_2:
+            {
+                uint64_t moduleid = ReadLen(NULL);
+                char name[10];
+                name[9] = '\0';
+                if (!RedisLoadCheckModuleValue(name))
+                {
+                    return false;
+                }
+                return true;
+            }
             default:
             {
                 ERROR_LOG("Unknown object type:%d", rdbtype);
@@ -1125,6 +1183,51 @@ namespace ardb
         }
         //g_db->SetKeyValue(ctx, meta_key, meta_value);
         GetDBWriter().Put(ctx, meta_key, meta_value);
+        return true;
+    }
+
+    bool ObjectIO::RedisLoadCheckModuleValue(char* modulename)
+    {
+        uint64_t opcode;
+        while ((opcode = ReadLen(NULL)) != RDB_MODULE_OPCODE_EOF)
+        {
+            if (opcode == RDB_MODULE_OPCODE_SINT || opcode == RDB_MODULE_OPCODE_UINT)
+            {
+                uint64_t len;
+                if (!ReadLen(NULL) == -1)
+                {
+                    ERROR_LOG("Error reading integer from module %s value", modulename);
+                    return false;
+                }
+            }
+            else if (opcode == RDB_MODULE_OPCODE_STRING)
+            {
+                std::string str;
+                if (!ReadString(str))
+                {
+                    ERROR_LOG("Error reading string from module %s value", modulename);
+                    return false;
+                }
+            }
+            else if (opcode == RDB_MODULE_OPCODE_FLOAT)
+            {
+                float val;
+                if (!ReadBinaryFloatValue(val))
+                {
+                    ERROR_LOG("Error reading float from module %s value", modulename);
+                    return false;
+                }
+            }
+            else if (opcode == RDB_MODULE_OPCODE_DOUBLE)
+            {
+                double val;
+                if (!ReadBinaryDoubleValue(val))
+                {
+                    ERROR_LOG("Error reading double from module %s value", modulename);
+                    return false;
+                }
+            }
+        }
         return true;
     }
 
@@ -1957,7 +2060,7 @@ namespace ardb
                 Snapshot* snapshot;
                 std::string snapshot_file;
                 BGTask(Snapshot* s, const std::string& fname) :
-                    snapshot(s),snapshot_file(fname)
+                        snapshot(s), snapshot_file(fname)
                 {
                 }
                 void Run()
@@ -2061,6 +2164,7 @@ namespace ardb
             WARN_LOG("Can't handle RDB format version %d", rdbver);
             return -1;
         }
+        INFO_LOG("Start loading RDB file with format version:%d", rdbver);
         g_engine->BeginBulkLoad(loadctx);
         while (true)
         {
@@ -2678,7 +2782,8 @@ namespace ardb
             {
                 if (NULL != s)
                 {
-                    WARN_LOG("Remove snapshot:%s since it's too old with offset:%llu", s->GetPath().c_str(), s->CachedReplOffset());
+                    WARN_LOG("Remove snapshot:%s since it's too old with offset:%llu", s->GetPath().c_str(),
+                            s->CachedReplOffset());
                     s->Remove();
                 }
                 DELETE(s);
