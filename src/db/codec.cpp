@@ -541,6 +541,11 @@ OP_NAMESPACE_BEGIN
         return true;
     }
 
+/*
+ *  meta layout:
+ *      type : format : ttl : total_size : [string | (item cnt : items)]
+ *      type: string, list, set, zset, hash
+ */
     bool ValueObject::Decode(Buffer& buffer, bool clone_str)
     {
         if (!DecodeMeta(buffer))

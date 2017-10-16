@@ -173,7 +173,12 @@ OP_NAMESPACE_BEGIN
 
     struct Data
     {
-            int64_t data;
+		/*
+		 * For int16, float64, just store data as it is into data;
+		 * For cstr, sds, it actually store pointer in data;
+		 * Could be much clearer if union is used
+		 */
+     		int64_t data;
             uint32 len;
             uint8_t encoding;
             Data();
