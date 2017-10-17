@@ -444,7 +444,7 @@ OP_NAMESPACE_BEGIN
     {
         RedisReply& reply = ctx.GetReply();
         int64 start, end;
-        if (!GetLongFromProtocol(ctx, cmd.GetArguments()[1], start) || !GetLongFromProtocol(ctx, cmd.GetArguments()[1], end))
+        if (!GetLongFromProtocol(ctx, cmd.GetArguments()[1], start) || !GetLongFromProtocol(ctx, cmd.GetArguments()[2], end))
         {
             return 0;
         }
