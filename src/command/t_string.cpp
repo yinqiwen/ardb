@@ -244,7 +244,8 @@ OP_NAMESPACE_BEGIN
     {
         if (val.GetType() > 0)
         {
-            if (val.GetType() != KEY_STRING || !val.GetStringValue().IsInteger())
+            if (val.GetType() != KEY_STRING ||
+				(!val.GetStringValue().IsInteger() && !val.GetStringValue().IsFloat()))
             {
                 return ERR_WRONG_TYPE;
             }
