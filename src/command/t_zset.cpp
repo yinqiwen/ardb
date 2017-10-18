@@ -980,7 +980,7 @@ OP_NAMESPACE_BEGIN
         m_engine->MultiGet(ctx, keys, vs, errs);
         for (size_t i = 0; i < setnum; i++)
         {
-            if (!CheckMeta(ctx, keys[i], KEY_ZSET, vs[i], false) && !!CheckMeta(ctx, keys[i], KEY_SET, vs[i], false))
+            if (!CheckMeta(ctx, keys[i], KEY_ZSET, vs[i], false) && !CheckMeta(ctx, keys[i], KEY_SET, vs[i], false))
             {
                 return 0;
             }
@@ -1086,7 +1086,6 @@ OP_NAMESPACE_BEGIN
                     {
                         score = iter->Value().GetZSetScore();
                     }
-                    //printf("###%f  %f\n", weights[i], score);
                     score = weights[i] * score;
                     DataScoreMap& result_map = inter_union_result[result_cursor];
                     std::pair<DataScoreMap::iterator, bool> ret = result_map.insert(DataScoreMap::value_type(k.GetElement(0), score));
