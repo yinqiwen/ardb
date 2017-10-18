@@ -851,11 +851,11 @@ OP_NAMESPACE_BEGIN
             {
                 lock = ret->second;
                 m_locking_keys.erase(ret);
-                m_lock_pool.push(lock);
             }
         }
         if (NULL != lock)
         {
+            m_lock_pool.push(lock);
             LockGuard<ThreadMutexLock> guard(*lock);
             lock->Notify();
         }
