@@ -328,7 +328,7 @@ namespace ardb
             int64_t idx = 0;
             while (it != value_list.end())
             {
-                KeyObject ele_key(ctx.ns, KEY_LIST, options.store_dst);
+                KeyObject ele_key(ctx.ns, KEY_LIST_ELEMENT, options.store_dst);
                 ele_key.SetListIndex(idx);
                 ValueObject ele_value;
                 ele_value.SetType(KEY_LIST_ELEMENT);
