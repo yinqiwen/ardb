@@ -1541,7 +1541,7 @@ OP_NAMESPACE_BEGIN
     }
     void RocksDBIterator::Del()
     {
-        if (NULL != m_iter)
+        if (NULL != m_rocks_iter)
         {
             rocksdb::WriteOptions opt;
             m_engine->m_db->Delete(opt, m_cf, m_rocks_iter->key());
@@ -1550,7 +1550,7 @@ OP_NAMESPACE_BEGIN
     }
     RocksDBIterator::~RocksDBIterator()
     {
-        if (NULL != m_rocks_iter)
+        if (NULL != m_iter)
         {
             DELETE(m_iter);
             //g_iter_cache.Recycle(m_iter);
