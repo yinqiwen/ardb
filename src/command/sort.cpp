@@ -226,7 +226,7 @@ namespace ardb
             Iterator* iter = m_engine->Find(ctx, startkey);
             while (iter->Valid())
             {
-                KeyObject& k = iter->Key();
+                KeyObject& k = iter->Key(true);
                 if (k.GetType() != startkey.GetType() || k.GetNameSpace() != startkey.GetNameSpace() || k.GetKey() != startkey.GetKey())
                 {
                     break;
@@ -261,21 +261,20 @@ namespace ardb
             }
             DELETE(iter);
         }
-
         if (!options.nosort)
         {
-            for (size_t i = 0; i < sortvals.size(); i++)
-            {
-                if (NULL != options.by)
+        	if (NULL != options.by)
+        	{
+                for (size_t i = 0; i < sortvals.size(); i++)
                 {
-                    if (GetValueByPattern(ctx, options.by, sortvals[i].value, sortvals[i].weight) < 0)
-                    {
-                        DEBUG_LOG("Failed to get value by pattern:%s", options.by);
-                        sortvals[i].weight.Clear();
-                        continue;
-                    }
+                	if (GetValueByPattern(ctx, options.by, sortvals[i].value, sortvals[i].weight) < 0)
+                	{
+                		DEBUG_LOG("Failed to get value by pattern:%s", options.by);
+                	    sortvals[i].weight.Clear();
+                	    continue;
+                	}
                 }
-            }
+        	}
             if (!options.is_desc)
             {
                 std::sort(sortvals.begin(), sortvals.end(), less_value<SortValue>);
