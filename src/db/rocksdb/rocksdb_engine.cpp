@@ -1550,7 +1550,7 @@ OP_NAMESPACE_BEGIN
     }
     RocksDBIterator::~RocksDBIterator()
     {
-        if (NULL != m_iter)
+        if (NULL != m_rocks_iter)
         {
             DELETE(m_iter);
             //g_iter_cache.Recycle(m_iter);
