@@ -1524,6 +1524,10 @@ OP_NAMESPACE_BEGIN
     {
         if (m_value.GetType() > 0)
         {
+        	if(clone_str)
+        	{
+        		m_value.CloneStringPart();
+        	}
             return m_value;
         }
         rocksdb::Slice key = m_rocks_iter->value();

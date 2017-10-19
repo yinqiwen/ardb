@@ -1016,6 +1016,10 @@ namespace ardb
     {
         if (m_value.GetType() > 0)
         {
+        	if(clone_str)
+        	{
+        		m_value.CloneStringPart();
+        	}
             return m_value;
         }
         Buffer kbuf((char*) (m_raw_val.mv_data), 0, m_raw_val.mv_size);
