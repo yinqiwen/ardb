@@ -1489,13 +1489,9 @@ OP_NAMESPACE_BEGIN
             {
                 m_rocks_iter->SeekToLast();
             }
-            if (m_rocks_iter->Valid())
+            else
             {
-
-                if (!Valid())
-                {
-                    Prev();
-                }
+                Prev();
             }
         }
         else
