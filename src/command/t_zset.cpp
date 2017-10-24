@@ -91,11 +91,6 @@ OP_NAMESPACE_BEGIN
             reply.SetErrorReason("INCR option supports a single increment-element pair");
             return 0;
         }
-        if (incr && elements > 1)
-        {
-            reply.SetErrorReason("INCR option supports a single increment-element pair");
-            return 0;
-        }
         std::vector<double> scores;
         for (size_t i = 0; i < elements; i++)
         {

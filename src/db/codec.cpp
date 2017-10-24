@@ -431,23 +431,15 @@ OP_NAMESPACE_BEGIN
             vals.resize(2);
             replaced = true;
         }
-        if (GetMin().IsNil() && GetMax().IsNil())
+        if (GetMin().IsNil() || GetMin() > v)
         {
             GetMin() = v;
-            GetMax() = v;
+            replaced = true;
         }
-        else
+        if (GetMax().IsNil() || GetMax() < v)
         {
-            if (GetMin() > v || GetMin().IsNil())
-            {
-                GetMin() = v;
-                replaced = true;
-            }
-            if (GetMax() < v)
-            {
-                GetMax() = v;
-                replaced = true;
-            }
+            GetMax() = v;
+            replaced = true;
         }
         return replaced;
     }

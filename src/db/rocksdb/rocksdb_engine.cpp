@@ -1489,13 +1489,9 @@ OP_NAMESPACE_BEGIN
             {
                 m_rocks_iter->SeekToLast();
             }
-            if (m_rocks_iter->Valid())
+            else
             {
-
-                if (!Valid())
-                {
-                    Prev();
-                }
+                Prev();
             }
         }
         else
@@ -1545,7 +1541,7 @@ OP_NAMESPACE_BEGIN
     }
     void RocksDBIterator::Del()
     {
-        if (NULL != m_iter)
+        if (NULL != m_rocks_iter)
         {
             rocksdb::WriteOptions opt;
             m_engine->m_db->Delete(opt, m_cf, m_rocks_iter->key());
