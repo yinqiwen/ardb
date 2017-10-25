@@ -88,7 +88,8 @@ OP_NAMESPACE_BEGIN
             while (NULL != iter && iter->Valid())
             {
                 KeyObject& field = iter->Key();
-				if (key.CompareBase(field))
+                if (field.GetType() != KEY_LIST_ELEMENT ||
+                    key.ComparePrefix(field) != 0)
                 {
                     break;
                 }
@@ -176,7 +177,8 @@ OP_NAMESPACE_BEGIN
                 if (iter->Valid())
                 {
                     KeyObject& field = iter->Key();
-					if (ele_key.CompareBase(field))
+                    if (field.GetType() == KEY_LIST_ELEMENT &&
+                        ele_key.ComparePrefix(field) == 0)
                     {
                         reply.SetString(iter->Value().GetListElement());
                         //RemoveKey(ctx, field);
@@ -194,7 +196,8 @@ OP_NAMESPACE_BEGIN
                             if (iter->Valid())
                             {
                                 KeyObject& minmax = iter->Key();
-								if (ele_key.CompareBase(minmax))
+                                if (minmax.GetType() == KEY_LIST_ELEMENT &&
+                                    ele_key.ComparePrefix(minmax) == 0)
                                 {
                                     if (is_lpop)
                                     {
@@ -278,7 +281,8 @@ OP_NAMESPACE_BEGIN
         while (NULL != iter && iter->Valid())
         {
             KeyObject& field = iter->Key();
-			if (key.CompareBase(field))
+            if (field.GetType() != KEY_LIST_ELEMENT ||
+                key.ComparePrefix(field) != 0)
             {
                 break;
             }
@@ -493,7 +497,8 @@ OP_NAMESPACE_BEGIN
         while (NULL != iter && iter->Valid())
         {
             KeyObject& field = iter->Key();
-            if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != key.GetKey())
+            if (field.GetType() != KEY_LIST_ELEMENT ||
+                key.ComparePrefix(field) != 0)
             {
                 break;
             }
@@ -544,11 +549,11 @@ OP_NAMESPACE_BEGIN
         {
             ele_key.SetListIndex(meta.GetMin());
         }
-		else // "count == 0" means remove all elements equal to value
-		{
-			ele_key.SetListIndex(meta.GetMin());
-			count = meta.GetObjectLen();
-		}
+        else // "count == 0" means remove all elements equal to value
+        {
+            ele_key.SetListIndex(meta.GetMin());
+            count = meta.GetObjectLen();
+        }
         if (count < 0)
         {
             ctx.flags.iterate_total_order = 1;
@@ -569,7 +574,8 @@ OP_NAMESPACE_BEGIN
             while (iter != NULL && iter->Valid())
             {
                 KeyObject& field = iter->Key();
-				if (ele_key.CompareBase(field))
+                if (field.GetType() != KEY_LIST_ELEMENT ||
+                    ele_key.ComparePrefix(field) != 0)
                 {
                     break;
                 }
@@ -592,25 +598,29 @@ OP_NAMESPACE_BEGIN
                     iter->Prev();
                 }
             }
-			{
-				// re-collect minmax if necessary
-				iter = m_engine->Find(ctx, ele_key);
-				if (count > 0 && iter->Valid() &&
-					!ele_key.CompareBase(iter->Key()))
-				{
-					Data min_data = iter->Value().GetListElement();
-					meta.SetMinData(min_data);
-				}
-				else if (count < 0)
-				{
-					if (!iter->Valid())
-						iter->JumpToLast();
-					if (iter->Valid() && !ele_key.CompareBase(iter->Key())) {
-						Data max_data = iter->Value().GetListElement();
-						meta.SetMaxData(max_data);
-					}
-				}
-			}
+            {
+                // re-collect minmax if necessary
+                iter = m_engine->Find(ctx, ele_key);
+                if (count > 0 &&
+                    iter->Valid() &&
+                    iter->Key().GetType() == KEY_LIST_ELEMENT &&
+                    ele_key.ComparePrefix(iter->Key()) == 0)
+                {
+                    Data min_data = iter->Value().GetListElement();
+                    meta.SetMinData(min_data);
+                }
+                else if (count < 0)
+                {
+                    if (!iter->Valid())
+                        iter->JumpToLast();
+                    if (iter->Valid() &&
+                        iter->Key().GetType() == KEY_LIST_ELEMENT &&
+                        ele_key.ComparePrefix(iter->Key()) == 0) {
+                        Data max_data = iter->Value().GetListElement();
+                        meta.SetMaxData(max_data);
+                    }
+                }
+            }
             DELETE(iter);
             meta.GetMetaObject().list_sequential = false;
             meta.SetObjectLen(meta.GetObjectLen() - removed);
@@ -690,7 +700,8 @@ OP_NAMESPACE_BEGIN
             while (NULL != iter && iter->Valid())
             {
                 KeyObject& field = iter->Key();
-                if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != key.GetKey())
+                if (field.GetType() != KEY_LIST_ELEMENT ||
+                    key.ComparePrefix(field) != 0)
                 {
                     break;
                 }
@@ -894,7 +905,7 @@ OP_NAMESPACE_BEGIN
         KeysLockGuard guard(ctx, src, dest);
         RedisCommandFrame rpop;
         rpop.SetCommand("rpop");
-        rpop.SetType(REDIS_CMD_LPUSH);
+        rpop.SetType(REDIS_CMD_RPOP);
         rpop.AddArg(cmd.GetArguments()[0]);
         ListPop(ctx, rpop, false);
         if (reply.type == REDIS_REPLY_STRING)

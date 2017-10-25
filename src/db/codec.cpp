@@ -76,9 +76,9 @@ OP_NAMESPACE_BEGIN
         return ns.Decode(buffer, clone_str);
     }
 
-    int KeyObject::CompareBase(const KeyObject& other) const
+    int KeyObject::ComparePrefix(const KeyObject& other) const
     {
-		int ret = ns.Compare(other.ns, false);
+        int ret = ns.Compare(other.ns, false);
         if (ret != 0)
         {
             return ret;
@@ -88,17 +88,17 @@ OP_NAMESPACE_BEGIN
         {
             return ret;
         }
-        ret = (int) type - (int) other.type;
-        if (ret != 0)
-        {
-            return ret;
-        }
 		return 0;
     }
 
     int KeyObject::Compare(const KeyObject& other) const
     {
-        int ret = CompareBase(other);
+        int ret = ComparePrefix(other);
+        if (ret != 0)
+        {
+            return ret;
+        }
+        ret = (int) type - (int) other.type;
         if (ret != 0)
         {
             return ret;

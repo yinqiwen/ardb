@@ -245,8 +245,8 @@ OP_NAMESPACE_BEGIN
 
             bool IsValid() const;
             int Compare(const KeyObject& other) const;
-		    // namespace, key, type
-		    int CompareBase(const KeyObject& other) const;
+            // compare (namespace, key)
+            int ComparePrefix(const KeyObject& other) const;
             Slice Encode(Buffer& buffer, bool verify = true, bool with_ns = false) const;
             void EncodePrefix(Buffer& buffer) const;
             bool DecodeNS(Buffer& buffer, bool clone_str);
