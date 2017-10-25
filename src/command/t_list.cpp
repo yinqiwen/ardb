@@ -88,7 +88,7 @@ OP_NAMESPACE_BEGIN
             while (NULL != iter && iter->Valid())
             {
                 KeyObject& field = iter->Key();
-                if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != key.GetKey())
+				if (key.CompareBase(field))
                 {
                     break;
                 }
@@ -176,7 +176,7 @@ OP_NAMESPACE_BEGIN
                 if (iter->Valid())
                 {
                     KeyObject& field = iter->Key();
-                    if (field.GetType() == KEY_LIST_ELEMENT && field.GetNameSpace() == ele_key.GetNameSpace() && field.GetKey() == ele_key.GetKey())
+					if (ele_key.CompareBase(field))
                     {
                         reply.SetString(iter->Value().GetListElement());
                         //RemoveKey(ctx, field);
@@ -194,7 +194,7 @@ OP_NAMESPACE_BEGIN
                             if (iter->Valid())
                             {
                                 KeyObject& minmax = iter->Key();
-                                if (minmax.GetType() == KEY_LIST_ELEMENT && minmax.GetNameSpace() == ele_key.GetNameSpace() && minmax.GetKey() == ele_key.GetKey())
+								if (ele_key.CompareBase(minmax))
                                 {
                                     if (is_lpop)
                                     {
@@ -278,7 +278,7 @@ OP_NAMESPACE_BEGIN
         while (NULL != iter && iter->Valid())
         {
             KeyObject& field = iter->Key();
-            if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != key.GetKey())
+			if (key.CompareBase(field))
             {
                 break;
             }
@@ -521,11 +521,6 @@ OP_NAMESPACE_BEGIN
             reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
             return 0;
         }
-        if (count == 0)
-        {
-            reply.SetInteger(0);
-            return 0;
-        }
         int64 toremove = std::abs(count);
         KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
         ValueObject meta;
@@ -545,10 +540,15 @@ OP_NAMESPACE_BEGIN
         {
             ele_key.SetListIndex(meta.GetMax());
         }
-        else
+        else if (count > 0)
         {
             ele_key.SetListIndex(meta.GetMin());
         }
+		else // "count == 0" means remove all elements equal to value
+		{
+			ele_key.SetListIndex(meta.GetMin());
+			count = meta.GetObjectLen();
+		}
         if (count < 0)
         {
             ctx.flags.iterate_total_order = 1;
@@ -560,7 +560,6 @@ OP_NAMESPACE_BEGIN
             {
                 iter->JumpToLast();
             }
-
         }
         int64 removed = 0;
         Data rem_data;
@@ -570,7 +569,7 @@ OP_NAMESPACE_BEGIN
             while (iter != NULL && iter->Valid())
             {
                 KeyObject& field = iter->Key();
-                if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != ele_key.GetNameSpace() || field.GetKey() != ele_key.GetKey())
+				if (ele_key.CompareBase(field))
                 {
                     break;
                 }
@@ -593,6 +592,25 @@ OP_NAMESPACE_BEGIN
                     iter->Prev();
                 }
             }
+			{
+				// re-collect minmax if necessary
+				iter = m_engine->Find(ctx, ele_key);
+				if (count > 0 && iter->Valid() &&
+					!ele_key.CompareBase(iter->Key()))
+				{
+					Data min_data = iter->Value().GetListElement();
+					meta.SetMinData(min_data);
+				}
+				else if (count < 0)
+				{
+					if (!iter->Valid())
+						iter->JumpToLast();
+					if (iter->Valid() && !ele_key.CompareBase(iter->Key())) {
+						Data max_data = iter->Value().GetListElement();
+						meta.SetMaxData(max_data);
+					}
+				}
+			}
             DELETE(iter);
             meta.GetMetaObject().list_sequential = false;
             meta.SetObjectLen(meta.GetObjectLen() - removed);
