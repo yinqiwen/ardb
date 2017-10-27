@@ -349,7 +349,8 @@ namespace ardb
         if (!Read(&val, sizeof(val)))
         {
             return -1;
-        }memrev64ifbe(val);
+        }
+        memrev64ifbe(val);
         return 0;
     }
     int ObjectIO::ReadBinaryFloatValue(float& val)
@@ -623,7 +624,7 @@ namespace ardb
             case KEY_ZSET_SCORE:
             case KEY_ZSET_SORT:
             {
-                return WriteType(REDIS_RDB_TYPE_ZSET_2);
+                return WriteType(REDIS_RDB_TYPE_ZSET);
             }
             case KEY_HASH:
             case KEY_HASH_FIELD:
@@ -2150,7 +2151,11 @@ namespace ardb
         loadctx.flags.create_if_notexist = 1;
         loadctx.flags.bulk_loading = 1;
         //BatchWriteGuard guard(tmpctx);
-        if (!Read(buf, 9, true)) goto eoferr;
+        if (!Read(buf, 9, true))
+        {
+            ERROR_LOG("Failed to read head.");
+            goto eoferr;
+        }
         buf[9] = '\0';
         if (memcmp(buf, "REDIS", 5) != 0)
         {
@@ -2256,6 +2261,7 @@ namespace ardb
             uint64_t cksum, expected = m_cksm;
             if (!Read(&cksum, 8, true))
             {
+                ERROR_LOG("Failed to load cksum.");
                 goto eoferr;
             }memrev64ifbe(&cksum);
             if (cksum == 0)
