@@ -34,13 +34,13 @@
 CXX=g++
 CC=gcc
 
-ARDB_VERSION=0.9.4
+ARDB_VERSION=0.9.5
 
 uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 
 LIB_PATH=$(PWD)/../deps
 
-JEMALLOC_VER=4.4.0
+JEMALLOC_VER=5.0.1
 JEMALLOC_PATH=${LIB_PATH}/jemalloc-${JEMALLOC_VER}
 JEMALLOC_FILE=${JEMALLOC_PATH}.tar.bz2
 JEMALLOC_REMOTE_FILE=https://github.com/jemalloc/jemalloc/releases/download/${JEMALLOC_VER}/jemalloc-${JEMALLOC_VER}.tar.bz2
