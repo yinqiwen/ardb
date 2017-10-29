@@ -139,14 +139,14 @@ endif
 
 storage_engine?=rocksdb
 
-LIBS= ${LUA_LIBA} ${MALLOC_LIBA} ${SNAPPY_LIBA} -lpthread 
+LIBS= ${LUA_LIBA} ${MALLOC_LIBA} ${SNAPPY_LIBA} -lpthread -ldl
 
 # Default allocator
 ifeq ($(uname_S),Linux)
 	MALLOC=jemalloc
 	CXXFLAGS+=-DCORO_ASM
 	CCFLAGS+=-DCORO_ASM
-	LIBS+=-lrt
+	LIBS+=-lrt 
 else
 	MALLOC=libc
 	CXXFLAGS+=-DCORO_UCONTEXT -D_XOPEN_SOURCE
