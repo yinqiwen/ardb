@@ -60,7 +60,7 @@ namespace ardb
             virtual int Write(const void* buf, size_t buflen) = 0;
             int WriteType(uint8 type);
             int WriteKeyType(KeyType type);
-            int WriteLen(uint32 len);
+            int WriteLen(uint64 len);
             int WriteMillisecondTime(uint64 ts);
             int WriteDouble(double v);
             int WriteLongLongAsStringObject(long long value);

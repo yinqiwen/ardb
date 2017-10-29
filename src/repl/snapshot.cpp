@@ -264,14 +264,14 @@ namespace ardb
             if (Read(buf + 1, 1) == 0) return REDIS_RDB_LENERR;
             return ((buf[0] & 0x3F) << 8) | buf[1];
         }
-        else if (type == REDIS_RDB_32BITLEN)
+        else if (buf[0] == REDIS_RDB_32BITLEN)
         {
             /* Read a 32 bit len. */
             uint32_t len;
             if (!Read(&len, 4)) return -1;
             return ntohl(len);
         }
-        else if (type == REDIS_RDB_64BITLEN)
+        else if (buf[0] == REDIS_RDB_64BITLEN)
         {
             /* Read a 64 bit len. */
             uint64_t len;
@@ -570,7 +570,7 @@ namespace ardb
         return nwritten;
     }
 
-    int ObjectIO::WriteLen(uint32 len)
+    int ObjectIO::WriteLen(uint64 len)
     {
         unsigned char buf[2];
         size_t nwritten;
@@ -590,14 +590,23 @@ namespace ardb
             if (Write(buf, 2) == -1) return -1;
             nwritten = 2;
         }
-        else
+        else  if (len <= UINT32_MAX)
         {
             /* Save a 32 bit len */
-            buf[0] = (REDIS_RDB_32BITLEN << 6);
+            buf[0] = (REDIS_RDB_32BITLEN);
             if (Write(buf, 1) == -1) return -1;
             len = htonl(len);
             if (Write(&len, 4) == -1) return -1;
             nwritten = 1 + 4;
+        }
+        else
+        {
+        	 /* Save a 64 bit len */
+        	 buf[0] = REDIS_RDB_64BITLEN;
+        	 if (Write(buf, 1) == -1) return -1;
+        	 len = htonu64(len);
+        	 if (Write(&len, 8) == -1) return -1;
+        	 nwritten = 1+8;
         }
         return nwritten;
     }
