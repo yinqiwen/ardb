@@ -64,7 +64,7 @@ LEVELDB_FILE=${LEVELDB_PATH}.tar.gz
 LEVELDB_REMOTE_FILE=https://github.com/google/leveldb/archive/v${LEVELDB_VER}.tar.gz
 LEVELDB_LIBA=${LEVELDB_PATH}/out-static/libleveldb.a
 
-LMDB_VER=0.9.19
+LMDB_VER=0.9.21
 LMDB_PATH=${LIB_PATH}/lmdb-LMDB_${LMDB_VER}/libraries/liblmdb
 LMDB_FILE=${LIB_PATH}/lmdb-${LMDB_VER}.tar.gz
 LMDB_REMOTE_FILE=https://github.com/LMDB/lmdb/archive/LMDB_${LMDB_VER}.tar.gz

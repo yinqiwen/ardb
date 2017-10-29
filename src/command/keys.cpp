@@ -92,7 +92,7 @@ OP_NAMESPACE_BEGIN
         iter = m_engine->Find(ctx, start_element);
         if (!meta.GetMin().IsNil() && !meta.GetMax().IsNil())
         {
-        	DELETE(iter);
+        	//DELETE(iter);
             return 0;
         }
         if (NULL == iter || !iter->Valid())
