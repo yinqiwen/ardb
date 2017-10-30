@@ -177,6 +177,7 @@ namespace ardb
             int AfterSave(const std::string& fname, int err);
             int PrepareSave(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data);
             void VerifyState();
+
             friend class SnapshotManager;
         public:
             Snapshot();
@@ -220,6 +221,7 @@ namespace ardb
             int Rename(const std::string& default_file = "dump.rdb");
             void Close();
             void SetRoutineCallback(SnapshotRoutine* cb, void *data);
+            void* GetIteratorByNamespace(Context& ctx, const Data& ns);
             ~Snapshot();
 
             static SnapshotType GetSnapshotType(const std::string& file);

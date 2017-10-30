@@ -349,8 +349,7 @@ namespace ardb
         if (!Read(&val, sizeof(val)))
         {
             return -1;
-        }
-        memrev64ifbe(val);
+        }memrev64ifbe(val);
         return 0;
     }
     int ObjectIO::ReadBinaryFloatValue(float& val)
@@ -590,7 +589,7 @@ namespace ardb
             if (Write(buf, 2) == -1) return -1;
             nwritten = 2;
         }
-        else  if (len <= UINT32_MAX)
+        else if (len <= UINT32_MAX)
         {
             /* Save a 32 bit len */
             buf[0] = (REDIS_RDB_32BITLEN);
@@ -601,12 +600,12 @@ namespace ardb
         }
         else
         {
-        	 /* Save a 64 bit len */
-        	 buf[0] = REDIS_RDB_64BITLEN;
-        	 if (Write(buf, 1) == -1) return -1;
-        	 len = htonu64(len);
-        	 if (Write(&len, 8) == -1) return -1;
-        	 nwritten = 1+8;
+            /* Save a 64 bit len */
+            buf[0] = REDIS_RDB_64BITLEN;
+            if (Write(buf, 1) == -1) return -1;
+            len = htonu64(len);
+            if (Write(&len, 8) == -1) return -1;
+            nwritten = 1 + 8;
         }
         return nwritten;
     }
@@ -2298,6 +2297,21 @@ namespace ardb
         WARN_LOG("Short read or OOM loading DB. Unrecoverable error, aborting now.");
         return -1;
     }
+    void* Snapshot::GetIteratorByNamespace(Context& ctx, const Data& ns)
+    {
+        KeyObject empty;
+        empty.SetNameSpace(ns);
+        if (NULL != m_snapshot_iter)
+        {
+            Iterator* iter = (Iterator*) m_snapshot_iter;
+            iter->Jump(empty);
+            return iter;
+        }
+        else
+        {
+            return g_db->GetEngine()->Find(ctx, empty);
+        }
+    }
 
     int Snapshot::RedisSave()
     {
@@ -2322,9 +2336,10 @@ namespace ardb
             int64 dbid = 0;
             string_toint64(nss[i].AsString(), dbid);
             DUMP_CHECK_WRITE(WriteLen(dbid));
-            KeyObject empty;
-            empty.SetNameSpace(nss[i]);
-            Iterator* iter = g_db->GetEngine()->Find(dumpctx, empty);
+            //KeyObject empty;
+            //empty.SetNameSpace(nss[i]);
+            //Iterator* iter = g_db->GetEngine()->Find(dumpctx, empty);
+            Iterator* iter = (Iterator*)GetIteratorByNamespace(dumpctx, nss[i]);
             Data current_key;
             KeyType current_keytype;
             int64 objectlen = 0;
@@ -2511,9 +2526,10 @@ namespace ardb
             RETURN_NEGATIVE_EXPR(WriteType(ARDB_RDB_OPCODE_SELECTDB));
             RETURN_NEGATIVE_EXPR(WriteStringObject(nss[i]));
 
-            KeyObject empty;
-            empty.SetNameSpace(nss[i]);
-            Iterator* iter = g_db->GetEngine()->Find(dumpctx, empty);
+            //KeyObject empty;
+            //empty.SetNameSpace(nss[i]);
+            //Iterator* iter = g_db->GetEngine()->Find(dumpctx, empty);
+            Iterator* iter = (Iterator*)GetIteratorByNamespace(dumpctx, nss[i]);
             while (iter->Valid())
             {
                 int64 ttl = 0;
