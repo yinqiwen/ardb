@@ -147,6 +147,8 @@ namespace ardb
                 return features;
             }
             int MaxOpenFiles();
+            EngineSnapshot CreateSnapshot();
+            void ReleaseSnapshot(EngineSnapshot s);
     };
 
 }

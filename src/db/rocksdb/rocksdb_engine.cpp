@@ -37,7 +37,6 @@
 #include "db/db.hpp"
 #include "util/string_helper.hpp"
 
-
 OP_NAMESPACE_BEGIN
 
     static inline rocksdb::Slice to_rocksdb_slice(const Slice& slice)
@@ -819,19 +818,20 @@ OP_NAMESPACE_BEGIN
             ERROR_LOG("Invalid rocksdb's options:%s with error reason:%s", conf.c_str(), s.ToString().c_str());
             return -1;
         }
-        if(strcasecmp(g_db->GetConf().rocksdb_compaction.c_str(),"OptimizeLevelStyleCompaction")==0 )
+        if (strcasecmp(g_db->GetConf().rocksdb_compaction.c_str(), "OptimizeLevelStyleCompaction") == 0)
         {
             m_options.OptimizeLevelStyleCompaction();
 
-        } else if (strcasecmp(g_db->GetConf().rocksdb_compaction.c_str(),"OptimizeUniversalStyleCompaction")==0 ) {
-        	m_options.OptimizeUniversalStyleCompaction();
         }
-
-        if(g_db->GetConf().rocksdb_disablewal)
+        else if (strcasecmp(g_db->GetConf().rocksdb_compaction.c_str(), "OptimizeUniversalStyleCompaction") == 0)
         {
-            disablewal=true;
+            m_options.OptimizeUniversalStyleCompaction();
         }
 
+        if (g_db->GetConf().rocksdb_disablewal)
+        {
+            disablewal = true;
+        }
 
         m_options.IncreaseParallelism();
         m_options.stats_dump_period_sec = (unsigned int) g_db->GetConf().statistics_log_period;
@@ -1122,6 +1122,7 @@ OP_NAMESPACE_BEGIN
     Iterator* RocksDBEngine::Find(Context& ctx, const KeyObject& key)
     {
         rocksdb::ReadOptions opt;
+        opt.snapshot = (const rocksdb::Snapshot*) ctx.engine_snapshot;
         //opt.snapshot = GetSnpashot();
         RocksDBIterator* iter = NULL;
         ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, key.GetNameSpace(), false);
@@ -1405,6 +1406,19 @@ OP_NAMESPACE_BEGIN
         }
     }
 
+    EngineSnapshot RocksDBEngine::CreateSnapshot()
+    {
+        return m_db->GetSnapshot();
+    }
+    void RocksDBEngine::ReleaseSnapshot(EngineSnapshot s)
+    {
+        if (NULL == s)
+        {
+            return;
+        }
+        m_db->ReleaseSnapshot((rocksdb::Snapshot*) s);
+    }
+
     void RocksDBIterator::SetIterator(RocksIterData* iter)
     {
         m_iter = iter;
@@ -1520,10 +1534,10 @@ OP_NAMESPACE_BEGIN
     {
         if (m_value.GetType() > 0)
         {
-        	if(clone_str)
-        	{
-        		m_value.CloneStringPart();
-        	}
+            if (clone_str)
+            {
+                m_value.CloneStringPart();
+            }
             return m_value;
         }
         rocksdb::Slice key = m_rocks_iter->value();

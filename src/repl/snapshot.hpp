@@ -160,7 +160,7 @@ namespace ardb
             time_t m_save_time;
             SnapshotType m_type;
 
-            void* m_snapshot_iter;
+            const void* m_engine_snapshot;
             bool Read(void* buf, size_t buflen, bool cksm);
 
             int RedisLoad();

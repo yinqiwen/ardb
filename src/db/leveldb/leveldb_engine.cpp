@@ -533,7 +533,14 @@ namespace ardb
     {
         LevelDBLocalContext& local_ctx = g_local_ctx.GetValue();
         leveldb::ReadOptions opt;
-        opt.snapshot = local_ctx.snapshot.Get();
+        if (NULL != ctx.engine_snapshot)
+        {
+            opt.snapshot = (const leveldb::Snapshot*) ctx.engine_snapshot;
+        }
+        else
+        {
+            opt.snapshot = local_ctx.snapshot.Get();
+        }
         LevelDBIterator* iter = NULL;
         NEW(iter, LevelDBIterator(this,key.GetNameSpace()));
         if (check_ns && !GetNamespace(key.GetNameSpace(), false))
@@ -676,6 +683,19 @@ namespace ardb
         str.append(stats);
     }
 
+    EngineSnapshot LevelDBEngine::CreateSnapshot()
+    {
+        return m_db->GetSnapshot();
+    }
+    void LevelDBEngine::ReleaseSnapshot(EngineSnapshot s)
+    {
+        if (NULL == s)
+        {
+            return;
+        }
+        m_db->ReleaseSnapshot((leveldb::Snapshot*) s);
+    }
+
     bool LevelDBIterator::Valid()
     {
         if (m_valid && NULL != m_iter && m_iter->Valid())
@@ -792,10 +812,10 @@ namespace ardb
     {
         if (m_value.GetType() > 0)
         {
-        	if(clone_str)
-        	{
-        		m_value.CloneStringPart();
-        	}
+            if (clone_str)
+            {
+                m_value.CloneStringPart();
+            }
             return m_value;
         }
         leveldb::Slice key = m_iter->value();

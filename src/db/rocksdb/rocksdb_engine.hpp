@@ -148,6 +148,8 @@ OP_NAMESPACE_BEGIN
             const FeatureSet GetFeatureSet();
             int Routine();
             int MaxOpenFiles();
+            EngineSnapshot CreateSnapshot();
+            void ReleaseSnapshot(EngineSnapshot s);
     };
 
 OP_NAMESPACE_END

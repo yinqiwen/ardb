@@ -1593,7 +1593,7 @@ namespace ardb
             NULL), m_routine_cbdata(
             NULL), m_processed_bytes(0), m_file_size(0), m_state(SNAPSHOT_INVALID), m_routinetime(0), m_read_buf(
             NULL), m_expected_data_size(0), m_writed_data_size(0), m_cached_repl_offset(0), m_cached_repl_cksm(0), m_save_time(
-                    0), m_type((SnapshotType) 0), m_snapshot_iter(
+                    0), m_type((SnapshotType) 0), m_engine_snapshot(
             NULL)
     {
 
@@ -1675,8 +1675,9 @@ namespace ardb
         m_cksm = 0;
         m_processed_bytes = 0;
         m_writed_data_size = 0;
-        delete ((Iterator*) m_snapshot_iter);
-        m_snapshot_iter = NULL;
+        g_engine->ReleaseSnapshot(m_engine_snapshot);
+        //delete ((Iterator*) m_snapshot_iter);
+        m_engine_snapshot = NULL;
     }
 
     int Snapshot::SetFilePath(const std::string& path)
@@ -1935,9 +1936,10 @@ namespace ardb
             /*
              * Create stable view for later all db iteration, 'm_snapshot_iter' would be close in 'Close' method
              */
-            Context tmpctx;
-            KeyObject start;
-            m_snapshot_iter = g_engine->Find(tmpctx, start);
+            //Context tmpctx;
+            //KeyObject start;
+            //m_snapshot_iter = g_engine->Find(tmpctx, start);
+            m_engine_snapshot = g_engine->CreateSnapshot();
             g_db->OpenWriteLatchAfterSnapshotPrepare();
         }
         return 0;
@@ -2301,16 +2303,8 @@ namespace ardb
     {
         KeyObject empty;
         empty.SetNameSpace(ns);
-        if (NULL != m_snapshot_iter)
-        {
-            Iterator* iter = (Iterator*) m_snapshot_iter;
-            iter->Jump(empty);
-            return iter;
-        }
-        else
-        {
-            return g_db->GetEngine()->Find(ctx, empty);
-        }
+        ctx.engine_snapshot = m_engine_snapshot;
+        return g_db->GetEngine()->Find(ctx, empty);
     }
 
     int Snapshot::RedisSave()
