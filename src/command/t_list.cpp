@@ -603,33 +603,31 @@ OP_NAMESPACE_BEGIN
                     iter->Prev();
                 }
             }
-            /*
-             * TBD: batch can't impose influence on Iteratordel(),
-             * but meta update will be affected. Not clear why in leveldb
-             * tha removed item could still be found ?
-             */
+            DELETE(iter);
             if (removed) {
                 // re-collect minmax
-                iter = m_engine->Find(ctx, min_key);
-                if (iter->Valid() &&
-                    iter->Key().GetType() == KEY_LIST_ELEMENT &&
-                    min_key.ComparePrefix(iter->Key()) == 0)
+                Iterator* min_iter = m_engine->Find(ctx, min_key);
+                if (min_iter->Valid() &&
+                    min_iter->Key().GetType() == KEY_LIST_ELEMENT &&
+                    min_key.ComparePrefix(min_iter->Key()) == 0)
                 {
-                    Data min_data = iter->Key().GetElement(0);
+                    Data min_data = min_iter->Key().GetElement(0);
                     meta.SetMinData(min_data);
                 }
-                iter = m_engine->Find(ctx, max_key);
-                if (!iter->Valid())
-                    iter->JumpToLast();
-                if (iter->Valid() &&
-                    iter->Key().GetType() == KEY_LIST_ELEMENT &&
-                    max_key.ComparePrefix(iter->Key()) == 0)
+                DELETE(min_iter);
+
+                Iterator* max_iter = m_engine->Find(ctx, max_key);
+                if (!max_iter->Valid())
+                    max_iter->JumpToLast();
+                if (max_iter->Valid() &&
+                    max_iter->Key().GetType() == KEY_LIST_ELEMENT &&
+                    max_key.ComparePrefix(max_iter->Key()) == 0)
                 {
-                    Data max_data = iter->Key().GetElement(0);
+                    Data max_data = max_iter->Key().GetElement(0);
                     meta.SetMaxData(max_data);
                 }
+                DELETE(max_iter);
             }
-            DELETE(iter);
             meta.GetMetaObject().list_sequential = false;
             meta.SetObjectLen(meta.GetObjectLen() - removed);
             if (meta.GetObjectLen() == 0)
