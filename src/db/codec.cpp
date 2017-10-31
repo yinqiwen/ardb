@@ -76,7 +76,7 @@ OP_NAMESPACE_BEGIN
         return ns.Decode(buffer, clone_str);
     }
 
-    int KeyObject::Compare(const KeyObject& other) const
+    int KeyObject::ComparePrefix(const KeyObject& other) const
     {
         int ret = ns.Compare(other.ns, false);
         if (ret != 0)
@@ -84,6 +84,16 @@ OP_NAMESPACE_BEGIN
             return ret;
         }
         ret = key.Compare(other.key, false);
+        if (ret != 0)
+        {
+            return ret;
+        }
+		return 0;
+    }
+
+    int KeyObject::Compare(const KeyObject& other) const
+    {
+        int ret = ComparePrefix(other);
         if (ret != 0)
         {
             return ret;
