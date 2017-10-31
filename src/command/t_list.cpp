@@ -540,6 +540,11 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         Iterator* iter = NULL;
+        // bookkeeping element key min/max index
+        KeyObject min_key(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
+        min_key.SetListIndex(meta.GetMin());
+        KeyObject max_key(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
+        max_key.SetListIndex(meta.GetMax());
         KeyObject ele_key(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
         if (count < 0)
         {
@@ -598,27 +603,30 @@ OP_NAMESPACE_BEGIN
                     iter->Prev();
                 }
             }
-            {
-                // re-collect minmax if necessary
-                iter = m_engine->Find(ctx, ele_key);
-                if (count > 0 &&
-                    iter->Valid() &&
+            /*
+             * TBD: batch can't impose influence on Iteratordel(),
+             * but meta update will be affected. Not clear why in leveldb
+             * tha removed item could still be found ?
+             */
+            if (removed) {
+                // re-collect minmax
+                iter = m_engine->Find(ctx, min_key);
+                if (iter->Valid() &&
                     iter->Key().GetType() == KEY_LIST_ELEMENT &&
-                    ele_key.ComparePrefix(iter->Key()) == 0)
+                    min_key.ComparePrefix(iter->Key()) == 0)
                 {
-                    Data min_data = iter->Value().GetListElement();
+                    Data min_data = iter->Key().GetElement(0);
                     meta.SetMinData(min_data);
                 }
-                else if (count < 0)
+                iter = m_engine->Find(ctx, max_key);
+                if (!iter->Valid())
+                    iter->JumpToLast();
+                if (iter->Valid() &&
+                    iter->Key().GetType() == KEY_LIST_ELEMENT &&
+                    max_key.ComparePrefix(iter->Key()) == 0)
                 {
-                    if (!iter->Valid())
-                        iter->JumpToLast();
-                    if (iter->Valid() &&
-                        iter->Key().GetType() == KEY_LIST_ELEMENT &&
-                        ele_key.ComparePrefix(iter->Key()) == 0) {
-                        Data max_data = iter->Value().GetListElement();
-                        meta.SetMaxData(max_data);
-                    }
+                    Data max_data = iter->Key().GetElement(0);
+                    meta.SetMaxData(max_data);
                 }
             }
             DELETE(iter);
