@@ -904,7 +904,7 @@ OP_NAMESPACE_BEGIN
         KeysLockGuard guard(ctx, src, dest);
         RedisCommandFrame rpop;
         rpop.SetCommand("rpop");
-        rpop.SetType(REDIS_CMD_LPUSH);
+        rpop.SetType(REDIS_CMD_RPOP);
         rpop.AddArg(cmd.GetArguments()[0]);
         ListPop(ctx, rpop, false);
         if (reply.type == REDIS_REPLY_STRING)
