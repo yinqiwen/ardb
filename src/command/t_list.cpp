@@ -88,8 +88,7 @@ OP_NAMESPACE_BEGIN
             while (NULL != iter && iter->Valid())
             {
                 KeyObject& field = iter->Key();
-                if (field.GetType() != KEY_LIST_ELEMENT ||
-                    key.ComparePrefix(field) != 0)
+                if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != key.GetKey())
                 {
                     break;
                 }
@@ -177,8 +176,7 @@ OP_NAMESPACE_BEGIN
                 if (iter->Valid())
                 {
                     KeyObject& field = iter->Key();
-                    if (field.GetType() == KEY_LIST_ELEMENT &&
-                        ele_key.ComparePrefix(field) == 0)
+                    if (field.GetType() == KEY_LIST_ELEMENT && field.GetNameSpace() == ele_key.GetNameSpace() && field.GetKey() == ele_key.GetKey())
                     {
                         reply.SetString(iter->Value().GetListElement());
                         //RemoveKey(ctx, field);
@@ -196,8 +194,7 @@ OP_NAMESPACE_BEGIN
                             if (iter->Valid())
                             {
                                 KeyObject& minmax = iter->Key();
-                                if (minmax.GetType() == KEY_LIST_ELEMENT &&
-                                    ele_key.ComparePrefix(minmax) == 0)
+                                if (minmax.GetType() == KEY_LIST_ELEMENT && minmax.GetNameSpace() == ele_key.GetNameSpace() && minmax.GetKey() == ele_key.GetKey())
                                 {
                                     if (is_lpop)
                                     {
@@ -281,8 +278,7 @@ OP_NAMESPACE_BEGIN
         while (NULL != iter && iter->Valid())
         {
             KeyObject& field = iter->Key();
-            if (field.GetType() != KEY_LIST_ELEMENT ||
-                key.ComparePrefix(field) != 0)
+            if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != key.GetKey())
             {
                 break;
             }
@@ -497,8 +493,7 @@ OP_NAMESPACE_BEGIN
         while (NULL != iter && iter->Valid())
         {
             KeyObject& field = iter->Key();
-            if (field.GetType() != KEY_LIST_ELEMENT ||
-                key.ComparePrefix(field) != 0)
+            if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != key.GetKey())
             {
                 break;
             }
@@ -526,6 +521,11 @@ OP_NAMESPACE_BEGIN
             reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
             return 0;
         }
+        if (count == 0)
+        {
+            reply.SetInteger(0);
+            return 0;
+        }
         int64 toremove = std::abs(count);
         KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
         ValueObject meta;
@@ -540,24 +540,14 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         Iterator* iter = NULL;
-        // bookkeeping element key min/max index
-        KeyObject min_key(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
-        min_key.SetListIndex(meta.GetMin());
-        KeyObject max_key(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
-        max_key.SetListIndex(meta.GetMax());
         KeyObject ele_key(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
         if (count < 0)
         {
             ele_key.SetListIndex(meta.GetMax());
         }
-        else if (count > 0)
+        else
         {
             ele_key.SetListIndex(meta.GetMin());
-        }
-        else // "count == 0" means remove all elements equal to value
-        {
-            ele_key.SetListIndex(meta.GetMin());
-            count = meta.GetObjectLen();
         }
         if (count < 0)
         {
@@ -570,6 +560,7 @@ OP_NAMESPACE_BEGIN
             {
                 iter->JumpToLast();
             }
+
         }
         int64 removed = 0;
         Data rem_data;
@@ -579,8 +570,7 @@ OP_NAMESPACE_BEGIN
             while (iter != NULL && iter->Valid())
             {
                 KeyObject& field = iter->Key();
-                if (field.GetType() != KEY_LIST_ELEMENT ||
-                    ele_key.ComparePrefix(field) != 0)
+                if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != ele_key.GetNameSpace() || field.GetKey() != ele_key.GetKey())
                 {
                     break;
                 }
@@ -604,30 +594,6 @@ OP_NAMESPACE_BEGIN
                 }
             }
             DELETE(iter);
-            if (removed) {
-                // re-collect minmax
-                Iterator* min_iter = m_engine->Find(ctx, min_key);
-                if (min_iter->Valid() &&
-                    min_iter->Key().GetType() == KEY_LIST_ELEMENT &&
-                    min_key.ComparePrefix(min_iter->Key()) == 0)
-                {
-                    Data min_data = min_iter->Key().GetElement(0);
-                    meta.SetMinData(min_data);
-                }
-                DELETE(min_iter);
-
-                Iterator* max_iter = m_engine->Find(ctx, max_key);
-                if (!max_iter->Valid())
-                    max_iter->JumpToLast();
-                if (max_iter->Valid() &&
-                    max_iter->Key().GetType() == KEY_LIST_ELEMENT &&
-                    max_key.ComparePrefix(max_iter->Key()) == 0)
-                {
-                    Data max_data = max_iter->Key().GetElement(0);
-                    meta.SetMaxData(max_data);
-                }
-                DELETE(max_iter);
-            }
             meta.GetMetaObject().list_sequential = false;
             meta.SetObjectLen(meta.GetObjectLen() - removed);
             if (meta.GetObjectLen() == 0)
@@ -706,8 +672,7 @@ OP_NAMESPACE_BEGIN
             while (NULL != iter && iter->Valid())
             {
                 KeyObject& field = iter->Key();
-                if (field.GetType() != KEY_LIST_ELEMENT ||
-                    key.ComparePrefix(field) != 0)
+                if (field.GetType() != KEY_LIST_ELEMENT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != key.GetKey())
                 {
                     break;
                 }
@@ -784,6 +749,7 @@ OP_NAMESPACE_BEGIN
             rtrim = end;
         }
         int64_t trimed_count = 0;
+        WriteBatchGuard batch(ctx, m_engine);
         if (meta.GetMetaObject().list_sequential)
         {
             for (int64_t i = 0; i < ltrim; i++)
@@ -911,7 +877,7 @@ OP_NAMESPACE_BEGIN
         KeysLockGuard guard(ctx, src, dest);
         RedisCommandFrame rpop;
         rpop.SetCommand("rpop");
-        rpop.SetType(REDIS_CMD_RPOP);
+        rpop.SetType(REDIS_CMD_LPUSH);
         rpop.AddArg(cmd.GetArguments()[0]);
         ListPop(ctx, rpop, false);
         if (reply.type == REDIS_REPLY_STRING)
