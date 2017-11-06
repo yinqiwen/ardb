@@ -116,6 +116,7 @@ namespace ardb
             friend class LevelDBIterator;
             bool GetNamespace(const Data& ns, bool create_if_missing);
             Iterator* Find(Context& ctx, const KeyObject& key, bool check_ns);
+            int DelKeySlice(leveldb::WriteBatch* batch, const leveldb::Slice& key);
         public:
             LevelDBEngine();
             ~LevelDBEngine();
@@ -126,6 +127,7 @@ namespace ardb
             int Get(Context& ctx, const KeyObject& key, ValueObject& value);
             int MultiGet(Context& ctx, const KeyObjectArray& keys, ValueObjectArray& values, ErrCodeArray& errs);
             int Del(Context& ctx, const KeyObject& key);
+            int DelKey(Context& ctx, const leveldb::Slice& key);
             int Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args);
             bool Exists(Context& ctx, const KeyObject& key);
             int BeginWriteBatch(Context& ctx);

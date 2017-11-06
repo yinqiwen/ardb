@@ -1037,6 +1037,32 @@ OP_NAMESPACE_BEGIN
         }
         return rocksdb_err(s);
     }
+    int RocksDBEngine::DelKeySlice(rocksdb::WriteBatch* batch, rocksdb::ColumnFamilyHandle* cf, const rocksdb::Slice& key_slice)
+    {
+        rocksdb::WriteOptions opt;
+        rocksdb::Status s;
+        //rocksdb::WriteBatch* batch = rocks_ctx.transc.Ref();
+        if (NULL != batch)
+        {
+            batch->Delete(cf, key_slice);
+        }
+        else
+        {
+            s = m_db->Delete(opt, cf, key_slice);
+        }
+        return rocksdb_err(s);
+    }
+    int RocksDBEngine::DelKey(Context& ctx, const rocksdb::Slice& key_slice)
+    {
+        ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, ctx.ns, false);
+        rocksdb::ColumnFamilyHandle* cf = cfp.get();
+        if (NULL == cf)
+        {
+            return ERR_ENTRY_NOT_EXIST;
+        }
+        RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
+        return DelKeySlice(rocks_ctx.transc.Ref(), cf, key_slice);
+    }
 
     int RocksDBEngine::Del(Context& ctx, const KeyObject& key)
     {
@@ -1050,17 +1076,7 @@ OP_NAMESPACE_BEGIN
         rocksdb::WriteOptions opt;
         Buffer& key_encode_buffer = rocks_ctx.GetEncodeBuferCache();
         rocksdb::Slice key_slice = to_rocksdb_slice(key.Encode(key_encode_buffer));
-        rocksdb::Status s;
-        rocksdb::WriteBatch* batch = rocks_ctx.transc.Ref();
-        if (NULL != batch)
-        {
-            batch->Delete(cf, key_slice);
-        }
-        else
-        {
-            s = m_db->Delete(opt, cf, key_slice);
-        }
-        return rocksdb_err(s);
+        return DelKeySlice(rocks_ctx.transc.Ref(), cf, key_slice);
     }
 
     int RocksDBEngine::Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args)
@@ -1557,8 +1573,11 @@ OP_NAMESPACE_BEGIN
     {
         if (NULL != m_rocks_iter)
         {
-            rocksdb::WriteOptions opt;
-            m_engine->m_db->Delete(opt, m_cf, m_rocks_iter->key());
+            Context tmpctx;
+            tmpctx.ns = m_ns;
+            m_engine->DelKey(tmpctx, m_rocks_iter->key());
+            //rocksdb::WriteOptions opt;
+            //m_engine->m_db->Delete(opt, m_cf, m_rocks_iter->key());
         }
 
     }

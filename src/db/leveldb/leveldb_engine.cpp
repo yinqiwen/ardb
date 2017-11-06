@@ -465,18 +465,10 @@ namespace ardb
         value.Decode(valBuffer, true);
         return 0;
     }
-    int LevelDBEngine::Del(Context& ctx, const KeyObject& key)
+    int LevelDBEngine::DelKeySlice(leveldb::WriteBatch* batch, const leveldb::Slice& key_slice)
     {
         leveldb::Status s;
-        if (!GetNamespace(key.GetNameSpace(), ctx.flags.create_if_notexist))
-        {
-            return ERR_ENTRY_NOT_EXIST;
-        }
-        LevelDBLocalContext& local_ctx = g_local_ctx.GetValue();
         leveldb::WriteOptions opt;
-        Slice ks = local_ctx.GetSlice(key);
-        leveldb::Slice key_slice(ks.data(), ks.size());
-        leveldb::WriteBatch* batch = local_ctx.batch.Ref();
         if (NULL != batch)
         {
             batch->Delete(key_slice);
@@ -486,6 +478,28 @@ namespace ardb
             s = m_db->Delete(opt, key_slice);
         }
         return leveldb_err(s);
+    }
+    int LevelDBEngine::DelKey(Context& ctx, const leveldb::Slice& key)
+    {
+        leveldb::Status s;
+        if (!GetNamespace(ctx.ns, ctx.flags.create_if_notexist))
+        {
+            return ERR_ENTRY_NOT_EXIST;
+        }
+        LevelDBLocalContext& local_ctx = g_local_ctx.GetValue();
+        return DelKeySlice(local_ctx.batch.Ref(), key);
+    }
+    int LevelDBEngine::Del(Context& ctx, const KeyObject& key)
+    {
+        leveldb::Status s;
+        if (!GetNamespace(key.GetNameSpace(), ctx.flags.create_if_notexist))
+        {
+            return ERR_ENTRY_NOT_EXIST;
+        }
+        LevelDBLocalContext& local_ctx = g_local_ctx.GetValue();
+        Slice ks = local_ctx.GetSlice(key);
+        leveldb::Slice key_slice(ks.data(), ks.size());
+        return DelKeySlice(local_ctx.batch.Ref(), key_slice);
     }
 
     int LevelDBEngine::Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args)
@@ -847,8 +861,11 @@ namespace ardb
     {
         if (NULL != m_engine && NULL != m_iter)
         {
-            leveldb::WriteOptions opt;
-            m_engine->m_db->Delete(opt, m_iter->key());
+            Context tmpctx;
+            tmpctx.ns = m_ns;
+            m_engine->DelKey(tmpctx, m_iter->key());
+//            leveldb::WriteOptions opt;
+//            m_engine->m_db->Delete(opt, m_iter->key());
         }
     }
 

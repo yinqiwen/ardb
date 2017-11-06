@@ -117,6 +117,7 @@ OP_NAMESPACE_BEGIN
             void Close();
             friend class RocksDBIterator;
             friend class RocksDBCompactionFilter;
+            int DelKeySlice(rocksdb::WriteBatch* batch, rocksdb::ColumnFamilyHandle* cf, const rocksdb::Slice& key);
         public:
             RocksDBEngine();
             ~RocksDBEngine();
@@ -127,6 +128,7 @@ OP_NAMESPACE_BEGIN
             int Get(Context& ctx, const KeyObject& key, ValueObject& value);
             int MultiGet(Context& ctx, const KeyObjectArray& keys, ValueObjectArray& values, ErrCodeArray& errs);
             int Del(Context& ctx, const KeyObject& key);
+            int DelKey(Context& ctx, const rocksdb::Slice& key);
             int DelRange(Context& ctx, const KeyObject& start, const KeyObject& end);
             int Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args);
             bool Exists(Context& ctx, const KeyObject& key);
