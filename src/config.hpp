@@ -160,7 +160,7 @@ OP_NAMESPACE_BEGIN
 
             ArdbConfig() :
                     daemonize(false), thread_pool_size(0), hz(10), max_clients(10000), tcp_keepalive(0), timeout(0), engine(
-                            "rocksdb"),rocksdb_scan_total_order(false), rocksdb_compaction("none"), slowlog_log_slower_than(10000),
+                            "rocksdb"),rocksdb_disablewal(false),rocksdb_scan_total_order(false), rocksdb_compaction("none"), slowlog_log_slower_than(10000),
 							slowlog_max_len(128), repl_data_dir("./repl"), backup_dir("./backup"), backup_redis_format(false),
 							repl_ping_slave_period(10), repl_timeout(60), repl_backlog_size(100 * 1024 * 1024),
 							repl_backlog_cache_size(100 * 1024 * 1024), repl_backlog_sync_period(1), repl_backlog_time_limit(

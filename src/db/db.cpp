@@ -102,13 +102,15 @@ OP_NAMESPACE_BEGIN
         return strcasecmp(s1.c_str(), s2.c_str()) == 0 ? true : false;
     }
 
-    Ardb::KeyLockGuard::KeyLockGuard(Context& cctx, const KeyObject& key, bool _lock) :
-            ctx(cctx), k(key), lock(_lock)
+    Ardb::KeyLockGuard::KeyLockGuard(Context& cctx, const KeyObject& key, bool _lock)
+            : ctx(cctx), lock(_lock)
     {
         if (lock)
         {
             ctx.keyslocked = true;
-            g_db->LockKey(k);
+            lk.key = key.GetKey();
+            lk.ns = key.GetNameSpace();
+            g_db->LockKey(lk);
         }
 
     }
@@ -117,22 +119,34 @@ OP_NAMESPACE_BEGIN
     {
         if (lock)
         {
-            g_db->UnlockKey(k);
+            g_db->UnlockKey(lk);
             ctx.keyslocked = false;
         }
     }
 
-    Ardb::KeysLockGuard::KeysLockGuard(Context& cctx, const KeyObjectArray& keys) :
-            ctx(cctx), ks(keys)
+    Ardb::KeysLockGuard::KeysLockGuard(Context& cctx, const KeyObjectArray& keys)
+            : ctx(cctx)
     {
         ctx.keyslocked = true;
+        for (size_t i = 0; i < keys.size(); i++)
+        {
+            KeyPrefix lk;
+            lk.key = keys[i].GetKey();
+            lk.ns = keys[i].GetNameSpace();
+            ks.insert(lk);
+        }
         g_db->LockKeys(ks);
     }
-    Ardb::KeysLockGuard::KeysLockGuard(Context& cctx, const KeyObject& key1, const KeyObject& key2) :
-            ctx(cctx)
+    Ardb::KeysLockGuard::KeysLockGuard(Context& cctx, const KeyObject& key1, const KeyObject& key2)
+            : ctx(cctx)
     {
-        ks.push_back(key1);
-        ks.push_back(key2);
+        KeyPrefix lk1, lk2;
+        lk1.key = key1.GetKey();
+        lk1.ns = key1.GetNameSpace();
+        lk2.key = key2.GetKey();
+        lk2.ns = key2.GetNameSpace();
+        ks.insert(lk1);
+        ks.insert(lk2);
         g_db->LockKeys(ks);
     }
     Ardb::KeysLockGuard::~KeysLockGuard()
@@ -143,8 +157,11 @@ OP_NAMESPACE_BEGIN
 
     static CostTrack g_cmd_cost_tracks[REDIS_CMD_MAX];
 
-    Ardb::Ardb() :
-            m_engine(NULL), m_starttime(0), m_loading_data(false), m_compacting_data(false),m_prepare_snapshot_num(0),m_write_caller_num(0),m_db_caller_num(0),m_redis_cursor_seed(0), m_watched_ctxs(NULL), m_ready_keys(NULL), m_monitors(NULL), m_restoring_nss(
+    Ardb::Ardb()
+            : m_engine(NULL), m_starttime(0), m_loading_data(false), m_compacting_data(false), m_prepare_snapshot_num(
+                    0), m_write_caller_num(0), m_db_caller_num(0), m_redis_cursor_seed(0), m_watched_ctxs(NULL), m_ready_keys(
+                    NULL), m_monitors(
+            NULL), m_restoring_nss(
             NULL), m_min_ttl(-1)
     {
         g_db = this;
@@ -580,7 +597,7 @@ OP_NAMESPACE_BEGIN
     void Ardb::OpenWriteLatchByWriteCaller()
     {
         LockGuard<ThreadMutexLock> guard(m_write_latch);
-        while(m_prepare_snapshot_num > 0)
+        while (m_prepare_snapshot_num > 0)
         {
             m_write_latch.Wait(1);
         }
@@ -596,7 +613,7 @@ OP_NAMESPACE_BEGIN
     {
         LockGuard<ThreadMutexLock> guard(m_write_latch);
         m_prepare_snapshot_num--;
-        if(m_prepare_snapshot_num == 0)
+        if (m_prepare_snapshot_num == 0)
         {
             m_write_latch.NotifyAll();
         }
@@ -610,14 +627,14 @@ OP_NAMESPACE_BEGIN
          */
         LockGuard<ThreadMutexLock> guard(m_write_latch);
         m_prepare_snapshot_num++;
-        while(m_write_caller_num != 0)
+        while (m_write_caller_num != 0)
         {
             m_write_latch.Wait(1);
         }
-        while(g_repl->GetReplLog().WALQueueSize() != 0)
+        while (g_repl->GetReplLog().WALQueueSize() != 0)
         {
             m_write_latch.Wait(1);
-            if(g_repl->GetIOService().IsInLoopThread())
+            if (g_repl->GetIOService().IsInLoopThread())
             {
                 g_repl->GetIOService().Continue();
             }
@@ -670,7 +687,7 @@ OP_NAMESPACE_BEGIN
 
     int Ardb::CompactDB(Context& ctx, const Data& ns)
     {
-        if(m_compacting_data)
+        if (m_compacting_data)
         {
             WARN_LOG("Can NOT launch compact task since server is compacting db.");
             return -1;
@@ -684,7 +701,7 @@ OP_NAMESPACE_BEGIN
     }
     int Ardb::CompactAll(Context& ctx)
     {
-        if(m_compacting_data)
+        if (m_compacting_data)
         {
             WARN_LOG("Can NOT launch compact task since server is compacting db.");
             return -1;
@@ -716,11 +733,11 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    void Ardb::LockKey(const KeyObject& key)
+    void Ardb::LockKey(const KeyPrefix& lk)
     {
-        KeyPrefix lk;
-        lk.ns = key.GetNameSpace();
-        lk.key = key.GetKey();
+//        KeyPrefix lk;
+//        lk.ns = key.GetNameSpace();
+//        lk.key = key.GetKey();
         while (true)
         {
             ThreadMutexLock* lock = NULL;
@@ -760,11 +777,11 @@ OP_NAMESPACE_BEGIN
             }
         }
     }
-    void Ardb::UnlockKey(const KeyObject& key)
+    void Ardb::UnlockKey(const KeyPrefix& lk)
     {
-        KeyPrefix lk;
-        lk.ns = key.GetNameSpace();
-        lk.key = key.GetKey();
+//        KeyPrefix lk;
+//        lk.ns = key.GetNameSpace();
+//        lk.key = key.GetKey();
         {
             LockGuard<SpinMutexLock> guard(m_locking_keys_lock);
             LockTable::iterator ret = m_locking_keys.find(lk);
@@ -779,85 +796,26 @@ OP_NAMESPACE_BEGIN
         }
     }
 
-    void Ardb::LockKeys(const KeyObjectArray& ks)
+    void Ardb::LockKeys(const KeyPrefixSet& ks)
     {
-        typedef std::vector<std::pair<LockTable::iterator, bool> > IterRetArray;
-        while (true)
+        KeyPrefixSet::const_iterator kit = ks.begin();
+        while (kit != ks.end())
         {
-            ThreadMutexLock* lock = NULL;
-            {
-                LockGuard<SpinMutexLock> guard(m_locking_keys_lock);
-                IterRetArray rets(ks.size());
-                for (size_t i = 0; i < ks.size(); i++)
-                {
-                    KeyPrefix lk;
-                    lk.ns = ks[i].GetNameSpace();
-                    lk.key = ks[i].GetKey();
-                    std::pair<LockTable::iterator, bool> ret = m_locking_keys.insert(LockTable::value_type(lk, NULL));
-                    if (!ret.second && NULL != ret.first->second)
-                    {
-                        /*
-                         * already locked by other thread, wait until unlocked
-                         */
-                        lock = ret.first->second;
-                        break;
-                    }
-                    rets[i] = ret;
-                }
-                /*
-                 * already locked by other thread, wait until unlocked
-                 */
-                if (NULL != lock)
-                {
-                    break;
-                }
-                /*
-                 * no other thread lock on the key
-                 */
-                if (!m_lock_pool.empty())
-                {
-                    lock = m_lock_pool.top();
-                    m_lock_pool.pop();
-                }
-                else
-                {
-                    NEW(lock, ThreadMutexLock);
-                }
-                for (size_t i = 0; i < ks.size(); i++)
-                {
-                    rets[i].first->second = lock;
-                }
-                return;
-            }
-
-            if (NULL != lock)
-            {
-                LockGuard<ThreadMutexLock> guard(*lock);
-                lock->Wait(1, MILLIS);
-            }
+            LockKey(*kit);
+            kit++;
         }
+//        for (size_t i = 0; i < ks.size(); i++)
+//        {
+//            LockKey(ks[i]);
+//        }
     }
-    void Ardb::UnlockKeys(const KeyObjectArray& ks)
+    void Ardb::UnlockKeys(const KeyPrefixSet& ks)
     {
-        LockGuard<SpinMutexLock> guard(m_locking_keys_lock);
-        ThreadMutexLock* lock = NULL;
-        for (size_t i = 0; i < ks.size(); i++)
+        KeyPrefixSet::const_iterator kit = ks.begin();
+        while (kit != ks.end())
         {
-            KeyPrefix lk;
-            lk.ns = ks[i].GetNameSpace();
-            lk.key = ks[i].GetKey();
-            LockTable::iterator ret = m_locking_keys.find(lk);
-            if (ret != m_locking_keys.end() && ret->second != NULL)
-            {
-                lock = ret->second;
-                m_locking_keys.erase(ret);
-            }
-        }
-        if (NULL != lock)
-        {
-            m_lock_pool.push(lock);
-            LockGuard<ThreadMutexLock> guard(*lock);
-            lock->Notify();
+            UnlockKey(*kit);
+            kit++;
         }
     }
 
@@ -1287,8 +1245,8 @@ OP_NAMESPACE_BEGIN
         /* Process at least a few clients while we are at it, even if we need
          * to process less than CLIENTS_CRON_MIN_ITERATIONS to meet our contract
          * of processing each client once per second. */
-        if (iterations < CLIENTS_CRON_MIN_ITERATIONS)
-            iterations = (numclients < CLIENTS_CRON_MIN_ITERATIONS) ? numclients : CLIENTS_CRON_MIN_ITERATIONS;
+        if (iterations < CLIENTS_CRON_MIN_ITERATIONS) iterations =
+                (numclients < CLIENTS_CRON_MIN_ITERATIONS) ? numclients : CLIENTS_CRON_MIN_ITERATIONS;
         ClientId& last_scan_clientid = m_last_scan_clientid.GetValue();
         ClientIdSet::iterator it = local_clients.lower_bound(last_scan_clientid);
         while (it != local_clients.end() && iterations--)
@@ -1387,7 +1345,7 @@ OP_NAMESPACE_BEGIN
              */
             FeedMonitors(ctx, ctx.ns, args);
         }
-        if(setting.IsWriteCommand())
+        if (setting.IsWriteCommand())
         {
             OpenWriteLatchByWriteCaller();
         }
@@ -1411,7 +1369,7 @@ OP_NAMESPACE_BEGIN
         {
             FeedReplicationBacklog(ctx, ctx.ns, args);
         }
-        if(setting.IsWriteCommand())
+        if (setting.IsWriteCommand())
         {
             CloseWriteLatchByWriteCaller();
         }
@@ -1490,7 +1448,9 @@ OP_NAMESPACE_BEGIN
 
         /* Don't accept write commands if there are not enough good slaves and
          * user configured the min-slaves-to-write option. */
-        if (GetConf().master_host.empty() && GetConf().repl_min_slaves_to_write > 0 && GetConf().repl_min_slaves_max_lag > 0 && (setting.flags & ARDB_CMD_WRITE) > 0 && g_repl->GetMaster().GoodSlavesCount() < GetConf().repl_min_slaves_to_write)
+        if (GetConf().master_host.empty() && GetConf().repl_min_slaves_to_write > 0
+                && GetConf().repl_min_slaves_max_lag > 0 && (setting.flags & ARDB_CMD_WRITE) > 0
+                && g_repl->GetMaster().GoodSlavesCount() < GetConf().repl_min_slaves_to_write)
         {
             ctx.AbortTransaction();
             reply.SetErrCode(ERR_NOREPLICAS);
@@ -1522,7 +1482,8 @@ OP_NAMESPACE_BEGIN
 
         /* Only allow INFO and SLAVEOF when slave-serve-stale-data is no and
          * we are a slave with a broken link with master. */
-        if (!GetConf().master_host.empty() && !g_repl->GetSlave().IsSynced() && !GetConf().repl_serve_stale_data && !(setting.flags & ARDB_CMD_STALE))
+        if (!GetConf().master_host.empty() && !g_repl->GetSlave().IsSynced() && !GetConf().repl_serve_stale_data
+                && !(setting.flags & ARDB_CMD_STALE))
         {
             ctx.AbortTransaction();
             reply.SetErrCode(ERR_MASTER_DOWN);
@@ -1538,7 +1499,8 @@ OP_NAMESPACE_BEGIN
         }
         if (ctx.InTransaction())
         {
-            if (setting.type != REDIS_CMD_MULTI && setting.type != REDIS_CMD_EXEC && setting.type != REDIS_CMD_DISCARD && setting.type != REDIS_CMD_QUIT)
+            if (setting.type != REDIS_CMD_MULTI && setting.type != REDIS_CMD_EXEC && setting.type != REDIS_CMD_DISCARD
+                    && setting.type != REDIS_CMD_QUIT)
             {
                 reply.SetStatusCode(STATUS_QUEUED);
                 args.ClearRawProtocolData();
@@ -1548,7 +1510,9 @@ OP_NAMESPACE_BEGIN
         }
         else if (ctx.IsSubscribed())
         {
-            if (setting.type != REDIS_CMD_SUBSCRIBE && setting.type != REDIS_CMD_PSUBSCRIBE && setting.type != REDIS_CMD_PUNSUBSCRIBE && setting.type != REDIS_CMD_UNSUBSCRIBE && setting.type != REDIS_CMD_QUIT)
+            if (setting.type != REDIS_CMD_SUBSCRIBE && setting.type != REDIS_CMD_PSUBSCRIBE
+                    && setting.type != REDIS_CMD_PUNSUBSCRIBE && setting.type != REDIS_CMD_UNSUBSCRIBE
+                    && setting.type != REDIS_CMD_QUIT)
             {
                 reply.SetErrorReason("only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context");
                 return 0;

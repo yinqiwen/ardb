@@ -85,7 +85,7 @@ OP_NAMESPACE_BEGIN
             struct KeyLockGuard
             {
                     Context& ctx;
-                    const KeyObject& k;
+                    KeyPrefix lk;
                     bool lock;
 
                     KeyLockGuard(Context& cctx, const KeyObject& key, bool _lock = true);
@@ -94,7 +94,7 @@ OP_NAMESPACE_BEGIN
             struct KeysLockGuard
             {
                     Context& ctx;
-                    KeyObjectArray ks;
+                    KeyPrefixSet ks;
                     KeysLockGuard(Context& cctx, const KeyObjectArray& keys);
                     KeysLockGuard(Context& cctx, const KeyObject& key1, const KeyObject& key2);
                     ~KeysLockGuard();
@@ -177,10 +177,10 @@ OP_NAMESPACE_BEGIN
 
             int WriteReply(Context& ctx, RedisReply* r, bool async);
 
-            void LockKey(const KeyObject& key);
-            void UnlockKey(const KeyObject& key);
-            void LockKeys(const KeyObjectArray& key);
-            void UnlockKeys(const KeyObjectArray& key);
+            void LockKey(const KeyPrefix& key);
+            void UnlockKey(const KeyPrefix& key);
+            void LockKeys(const KeyPrefixSet& key);
+            void UnlockKeys(const KeyPrefixSet& key);
 
             Engine* GetEngine()
             {

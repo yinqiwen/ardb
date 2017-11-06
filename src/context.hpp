@@ -94,6 +94,7 @@ OP_NAMESPACE_BEGIN
                 return ns.IsNil() && key.IsNil();
             }
     };
+    typedef TreeSet<KeyPrefix>::Type KeyPrefixSet;
 
     class Context;
     struct ClientId
