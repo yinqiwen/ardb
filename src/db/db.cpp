@@ -733,12 +733,13 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    void Ardb::LockKey(const KeyPrefix& lk)
+    bool Ardb::LockKey(const KeyPrefix& lk, int wait_limit)
     {
 //        KeyPrefix lk;
 //        lk.ns = key.GetNameSpace();
 //        lk.key = key.GetKey();
-        while (true)
+        int wait_counter = 0;
+        while (wait_limit <= 0 || wait_counter < wait_limit)
         {
             ThreadMutexLock* lock = NULL;
             {
@@ -766,7 +767,7 @@ OP_NAMESPACE_BEGIN
                         NEW(lock, ThreadMutexLock);
                     }
                     ret.first->second = lock;
-                    return;
+                    return true;
                 }
             }
 
@@ -774,8 +775,10 @@ OP_NAMESPACE_BEGIN
             {
                 LockGuard<ThreadMutexLock> guard(*lock);
                 lock->Wait(1, MILLIS);
+                wait_counter++;
             }
         }
+        return false;
     }
     void Ardb::UnlockKey(const KeyPrefix& lk)
     {
@@ -785,25 +788,46 @@ OP_NAMESPACE_BEGIN
         {
             LockGuard<SpinMutexLock> guard(m_locking_keys_lock);
             LockTable::iterator ret = m_locking_keys.find(lk);
-            if (ret != m_locking_keys.end() && ret->second != NULL)
+            if (ret != m_locking_keys.end())
             {
                 ThreadMutexLock* lock = ret->second;
                 m_locking_keys.erase(ret);
-                m_lock_pool.push(lock);
-                LockGuard<ThreadMutexLock> guard(*lock);
-                lock->Notify();
+                if(NULL != lock)
+                {
+                    m_lock_pool.push(lock);
+                    LockGuard<ThreadMutexLock> guard(*lock);
+                    lock->Notify();
+                }
             }
         }
     }
 
     void Ardb::LockKeys(const KeyPrefixSet& ks)
     {
-        KeyPrefixSet::const_iterator kit = ks.begin();
-        while (kit != ks.end())
+        while(true)
         {
-            LockKey(*kit);
-            kit++;
+            std::vector<KeyPrefix> locked_keys;
+            KeyPrefixSet::const_iterator kit = ks.begin();
+            while (kit != ks.end())
+            {
+                if(!LockKey(*kit, 1))
+                {
+                    break;
+                }
+                locked_keys.push_back(*kit);
+                kit++;
+            }
+            if(locked_keys.size() == ks.size())
+            {
+                return;
+            }
+            //release locked keys, and try again
+            for(size_t i = 0; i < locked_keys.size(); i++)
+            {
+                UnlockKey(locked_keys[i]);
+            }
         }
+
 //        for (size_t i = 0; i < ks.size(); i++)
 //        {
 //            LockKey(ks[i]);

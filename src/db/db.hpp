@@ -177,7 +177,7 @@ OP_NAMESPACE_BEGIN
 
             int WriteReply(Context& ctx, RedisReply* r, bool async);
 
-            void LockKey(const KeyPrefix& key);
+            bool LockKey(const KeyPrefix& key, int wait_limit = -1);
             void UnlockKey(const KeyPrefix& key);
             void LockKeys(const KeyPrefixSet& key);
             void UnlockKeys(const KeyPrefixSet& key);
