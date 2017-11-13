@@ -244,7 +244,8 @@ OP_NAMESPACE_BEGIN
     {
         if (val.GetType() > 0)
         {
-            if (val.GetType() != KEY_STRING || !val.GetStringValue().IsInteger())
+            if (val.GetType() != KEY_STRING ||
+				(!val.GetStringValue().IsInteger() && !val.GetStringValue().IsFloat()))
             {
                 return ERR_WRONG_TYPE;
             }
@@ -444,7 +445,7 @@ OP_NAMESPACE_BEGIN
     {
         RedisReply& reply = ctx.GetReply();
         int64 start, end;
-        if (!GetLongFromProtocol(ctx, cmd.GetArguments()[1], start) || !GetLongFromProtocol(ctx, cmd.GetArguments()[1], end))
+        if (!GetLongFromProtocol(ctx, cmd.GetArguments()[1], start) || !GetLongFromProtocol(ctx, cmd.GetArguments()[2], end))
         {
             return 0;
         }

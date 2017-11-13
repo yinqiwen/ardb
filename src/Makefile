@@ -34,21 +34,22 @@
 CXX=g++
 CC=gcc
 
-ARDB_VERSION=0.9.4
+ARDB_VERSION=0.9.5
 
 uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 
 LIB_PATH=$(PWD)/../deps
 
-JEMALLOC_VER=4.4.0
+JEMALLOC_VER=5.0.1
 JEMALLOC_PATH=${LIB_PATH}/jemalloc-${JEMALLOC_VER}
 JEMALLOC_FILE=${JEMALLOC_PATH}.tar.bz2
 JEMALLOC_REMOTE_FILE=https://github.com/jemalloc/jemalloc/releases/download/${JEMALLOC_VER}/jemalloc-${JEMALLOC_VER}.tar.bz2
 JEMALLOC_LIBA=${JEMALLOC_PATH}/lib/libjemalloc.a
 
-SNAPPY_VER=snappy-1.1.2
-SNAPPY_PATH=${LIB_PATH}/${SNAPPY_VER}
+SNAPPY_VER=1.1.4
+SNAPPY_PATH=${LIB_PATH}/snappy-${SNAPPY_VER}
 SNAPPY_FILE=${SNAPPY_PATH}.tar.gz
+SNAPPY_REMOTE_FILE=https://github.com/google/snappy/releases/download/${SNAPPY_VER}/snappy-${SNAPPY_VER}.tar.gz
 SNAPPY_LIBA=${SNAPPY_PATH}/.libs/libsnappy.a
 
 ROCKSDB_VER=5.2.1
@@ -63,7 +64,7 @@ LEVELDB_FILE=${LEVELDB_PATH}.tar.gz
 LEVELDB_REMOTE_FILE=https://github.com/google/leveldb/archive/v${LEVELDB_VER}.tar.gz
 LEVELDB_LIBA=${LEVELDB_PATH}/out-static/libleveldb.a
 
-LMDB_VER=0.9.19
+LMDB_VER=0.9.21
 LMDB_PATH=${LIB_PATH}/lmdb-LMDB_${LMDB_VER}/libraries/liblmdb
 LMDB_FILE=${LIB_PATH}/lmdb-${LMDB_VER}.tar.gz
 LMDB_REMOTE_FILE=https://github.com/LMDB/lmdb/archive/LMDB_${LMDB_VER}.tar.gz
@@ -138,14 +139,14 @@ endif
 
 storage_engine?=rocksdb
 
-LIBS= ${LUA_LIBA} ${MALLOC_LIBA} ${SNAPPY_LIBA} -lpthread 
+LIBS= ${LUA_LIBA} ${MALLOC_LIBA} ${SNAPPY_LIBA} -lpthread -ldl
 
 # Default allocator
 ifeq ($(uname_S),Linux)
 	MALLOC=jemalloc
 	CXXFLAGS+=-DCORO_ASM
 	CCFLAGS+=-DCORO_ASM
-	LIBS+=-lrt
+	LIBS+=-lrt 
 else
 	MALLOC=libc
 	CXXFLAGS+=-DCORO_UCONTEXT -D_XOPEN_SOURCE
@@ -307,14 +308,22 @@ ${JEMALLOC_FILE}:
 
 .PHONY: snappy
 snappy: $(SNAPPY_LIBA)
-$(SNAPPY_LIBA):
+$(SNAPPY_LIBA):$(SNAPPY_PATH)
 	echo ">>>>> Building SNAPPY" && \
-	cd ${LIB_PATH} && \
-	tar zxf ${SNAPPY_FILE} && \
 	cd ${SNAPPY_PATH} && \
 	./configure CXXFLAGS="$(SNAPPY_CXXFLAGS=)" ${XC_BUILD} ${XC_HOST} ${XC_TGT} > configure.out && \
 	$(MAKE) libsnappy.la && \
 	echo "<<<<< Done building SNAPPY"
+
+$(SNAPPY_PATH): $(SNAPPY_FILE)
+	cd ${LIB_PATH} && \
+	tar zxf ${SNAPPY_FILE}
+
+${SNAPPY_FILE}:
+	echo ">>>>> Dowloading Snappy" && \
+	cd ${LIB_PATH} && \
+	wget -O ${SNAPPY_FILE} ${SNAPPY_REMOTE_FILE} && \
+	echo "<<<<< Done dowloading Snappy"
 
 .PHONY: lmdb
 lmdb: $(LMDB_LIBA)
@@ -367,22 +376,20 @@ rocksdb_flags:
 	$(eval ROCKSDB_LDFLAGS=$(shell grep PLATFORM_LDFLAGS $(ROCKSDB_PATH)/make_config.mk | cut -d '=' -f2 | sed 's/\-lsnappy//' | sed 's/\-lrt//' | sed 's/\-lpthread//')) 
 	$(eval LIBS+=$(ROCKSDB_LDFLAGS))
 	
-
 $(ROCKSDB_LIBA): $(SNAPPY_LIBA) $(ROCKSDB_PATH)
-	echo ">>>>> Building ROCKSDB" && \
+	@echo ">>>>> Building ROCKSDB" && \
 	cd ${ROCKSDB_PATH} && \
 	CXXFLAGS="-I${SNAPPY_PATH}" CFLAGS="-I${SNAPPY_PATH}" LDFLAGS="${SNAPPY_PATH}/.libs" $(MAKE) static_lib && \
 	echo "<<<<< Done building ROCKSDB" 
 
-
 $(ROCKSDB_PATH): ${ROCKSDB_FILE}
-	echo ">>>>> Unpacking ROCKSDB" && \
+	@echo ">>>>> Unpacking ROCKSDB" && \
 	cd ${LIB_PATH} && \
 	tar zxf ${ROCKSDB_FILE} && \
 	echo "<<<<< Done unpacking ROCKSDB"
 	
 ${ROCKSDB_FILE}:
-	echo ">>>>> Dowloading RocksDB" && \
+	@echo ">>>>> Dowloading RocksDB" && \
 	cd ${LIB_PATH} && \
 	wget -O ${ROCKSDB_FILE} ${ROCKSDB_REMOTE_FILE} && \
 	echo "<<<<< Done dowloading RocksDB"
@@ -390,19 +397,19 @@ ${ROCKSDB_FILE}:
 .PHONY: wiredtiger
 wiredtiger: $(WIREDTIGER_LIBA)
 $(WIREDTIGER_LIBA): $(SNAPPY_LIBA) $(WIREDTIGER_PATH)
-	echo ">>>>> Building WiredTiger" && \
+	@echo ">>>>> Building WiredTiger" && \
 	cd ${WIREDTIGER_PATH} && \
-	./configure && $(MAKE) && \
+	./configure && $(MAKE) libwiredtiger_static.la && \
 	echo "<<<<< Done building WiredTiger"
 
 $(WIREDTIGER_PATH): ${WIREDTIGER_FILE}
-	echo ">>>>> Unpacking WiredTiger" && \
+	@echo ">>>>> Unpacking WiredTiger" && \
 	cd ${LIB_PATH} && \
 	tar jxf ${WIREDTIGER_FILE} && \
 	echo "<<<<< Done unpacking WiredTiger"
 	
 ${WIREDTIGER_FILE}:
-	echo ">>>>> Dowloading WiredTiger" && \
+	@echo ">>>>> Dowloading WiredTiger" && \
 	cd ${LIB_PATH} && \
 	wget -O ${WIREDTIGER_FILE} ${WIREDTIGER_REMOTE_FILE} && \
 	echo "<<<<< Done dowloading WiredTiger"

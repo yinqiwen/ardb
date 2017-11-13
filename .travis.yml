@@ -5,7 +5,7 @@ compiler:
   - clang
 
 sudo: required
-dist: trusty
+dist: xenial
 
 addons:
     packages:
@@ -18,8 +18,6 @@ script:
     - storage_engine=leveldb make
     - ./ardb-test
     - storage_engine=lmdb make
-    - ./ardb-test
-    - storage_engine=wiredtiger make
     - ./ardb-test
     - popd
 

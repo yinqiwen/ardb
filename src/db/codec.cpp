@@ -76,7 +76,7 @@ OP_NAMESPACE_BEGIN
         return ns.Decode(buffer, clone_str);
     }
 
-    int KeyObject::Compare(const KeyObject& other) const
+    int KeyObject::ComparePrefix(const KeyObject& other) const
     {
         int ret = ns.Compare(other.ns, false);
         if (ret != 0)
@@ -84,6 +84,16 @@ OP_NAMESPACE_BEGIN
             return ret;
         }
         ret = key.Compare(other.key, false);
+        if (ret != 0)
+        {
+            return ret;
+        }
+		return 0;
+    }
+
+    int KeyObject::Compare(const KeyObject& other) const
+    {
+        int ret = ComparePrefix(other);
         if (ret != 0)
         {
             return ret;
@@ -431,23 +441,15 @@ OP_NAMESPACE_BEGIN
             vals.resize(2);
             replaced = true;
         }
-        if (GetMin().IsNil() && GetMax().IsNil())
+        if (GetMin().IsNil() || GetMin() > v)
         {
             GetMin() = v;
-            GetMax() = v;
+            replaced = true;
         }
-        else
+        if (GetMax().IsNil() || GetMax() < v)
         {
-            if (GetMin() > v || GetMin().IsNil())
-            {
-                GetMin() = v;
-                replaced = true;
-            }
-            if (GetMax() < v)
-            {
-                GetMax() = v;
-                replaced = true;
-            }
+            GetMax() = v;
+            replaced = true;
         }
         return replaced;
     }

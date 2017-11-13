@@ -92,6 +92,7 @@ OP_NAMESPACE_BEGIN
         iter = m_engine->Find(ctx, start_element);
         if (!meta.GetMin().IsNil() && !meta.GetMax().IsNil())
         {
+        	//DELETE(iter);
             return 0;
         }
         if (NULL == iter || !iter->Valid())
@@ -188,9 +189,9 @@ OP_NAMESPACE_BEGIN
         bool skip_first = false;
         Data nil;
 
-        if(GetConf().scan_total_order)
+        if (GetConf().rocksdb_scan_total_order)
         {
-        	ctx.flags.iterate_total_order = 1;
+            ctx.flags.iterate_total_order = 1;
         }
         if (cmd.GetType() == REDIS_CMD_HSCAN)
         {
@@ -524,7 +525,14 @@ OP_NAMESPACE_BEGIN
             moved++;
         }
         DELETE(iter);
-        reply.SetInteger(moved > 0 ? 1 : 0);
+        if (cmd.GetType() == REDIS_CMD_RENAME)
+        {
+            reply.SetStatusCode(STATUS_OK);
+        }
+        else
+        {
+            reply.SetInteger(moved > 0 ? 1 : 0);
+        }
         return 0;
     }
 

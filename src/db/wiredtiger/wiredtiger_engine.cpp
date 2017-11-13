@@ -767,6 +767,10 @@ namespace ardb
     {
         if (m_value.GetType() > 0)
         {
+        	if(clone_str)
+        	{
+        		m_value.CloneStringPart();
+        	}
             return m_value;
         }
         Slice key = RawValue();

@@ -367,7 +367,6 @@ OP_NAMESPACE_BEGIN
             p = (const unsigned char*) str.CStr();
             strlen = str.StringLength();
         }
-
         /* Parse start/end range if any. */
         if (cmd.GetArguments().size() == 3)
         {
@@ -399,10 +398,9 @@ OP_NAMESPACE_BEGIN
             reply.SetErrCode(ERR_INVALID_SYNTAX);
             return 0;
         }
-
         /* Precondition: end >= 0 && end < strlen, so the only condition where
          * zero can be returned is: start > end. */
-        if (start < end)
+        if (start <= end)
         {
             long bytes = end - start + 1;
             reply.SetInteger(popcount(p + start, bytes));

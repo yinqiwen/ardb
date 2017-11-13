@@ -47,7 +47,7 @@ OP_NAMESPACE_BEGIN
             unsigned redis_compatible :1;
             unsigned iterate_multi_keys :1;
             unsigned iterate_no_upperbound :1;
-            unsigned iterate_total_order :1;  //if iterator need invoke JumpToLast/Prev later, this flag should be set to 1
+            unsigned iterate_total_order :1; //if iterator need invoke JumpToLast/Prev later, this flag should be set to 1
 
             /*
              * caller type
@@ -58,10 +58,11 @@ OP_NAMESPACE_BEGIN
             unsigned bulk_loading :1;
             unsigned reply_off :1;
             unsigned reply_skip :1;
-            unsigned block_keys_locked:1;
+            unsigned block_keys_locked :1;
             CallFlags() :
-                    no_wal(0), no_fill_reply(0), create_if_notexist(0), fuzzy_check(0), redis_compatible(0), iterate_multi_keys(0), iterate_no_upperbound(0), iterate_total_order(
-                            0), slave(0), lua(0), pubsub(0), bulk_loading(0), reply_off(0),reply_skip(0),block_keys_locked(0)
+                    no_wal(0), no_fill_reply(0), create_if_notexist(0), fuzzy_check(0), redis_compatible(0), iterate_multi_keys(
+                            0), iterate_no_upperbound(0), iterate_total_order(0), slave(0), lua(0), pubsub(0), bulk_loading(
+                            0), reply_off(0), reply_skip(0), block_keys_locked(0)
             {
             }
     };
@@ -93,6 +94,7 @@ OP_NAMESPACE_BEGIN
                 return ns.IsNil() && key.IsNil();
             }
     };
+    typedef TreeSet<KeyPrefix>::Type KeyPrefixSet;
 
     class Context;
     struct ClientId
@@ -164,7 +166,6 @@ OP_NAMESPACE_BEGIN
             }
     };
 
-
     class Context
     {
         private:
@@ -184,9 +185,12 @@ OP_NAMESPACE_BEGIN
             bool authenticated;
             bool keyslocked;
 
+            const void* engine_snapshot;
+
             Context() :
                     reply(NULL), client(NULL), transc(NULL), pubsub(
-                    NULL), bpop(NULL), current_cmd(NULL), dirty(0), last_cmdtype(REDIS_CMD_INVALID), transc_err(0), authenticated(true), keyslocked(false)
+                    NULL), bpop(NULL), current_cmd(NULL), dirty(0), last_cmdtype(REDIS_CMD_INVALID), transc_err(0), authenticated(
+                            true), keyslocked(false), engine_snapshot(NULL)
             {
                 ns.SetString("0", false);
             }

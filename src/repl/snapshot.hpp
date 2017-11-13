@@ -60,7 +60,7 @@ namespace ardb
             virtual int Write(const void* buf, size_t buflen) = 0;
             int WriteType(uint8 type);
             int WriteKeyType(KeyType type);
-            int WriteLen(uint32 len);
+            int WriteLen(uint64 len);
             int WriteMillisecondTime(uint64 ts);
             int WriteDouble(double v);
             int WriteLongLongAsStringObject(long long value);
@@ -73,12 +73,15 @@ namespace ardb
             int ReadType();
             time_t ReadTime();
             int64 ReadMillisecondTime();
-            uint32_t ReadLen(int *isencoded);
+            uint64_t ReadLen(int *isencoded);
             bool ReadInteger(int enctype, int64& v);
             bool ReadLzfStringObject(std::string& str);
             bool ReadString(std::string& str);
-            int ReadDoubleValue(double&val);
+            int ReadDoubleValue(double& val, bool binary = false);
+            int ReadBinaryDoubleValue(double& val);
+            int ReadBinaryFloatValue(float& val);
 
+            bool RedisLoadCheckModuleValue(char* name);
             bool RedisLoadObject(Context& ctx, int type, const std::string& key, int64 expiretime);
             void RedisLoadListZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
             void RedisLoadHashZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
@@ -157,7 +160,7 @@ namespace ardb
             time_t m_save_time;
             SnapshotType m_type;
 
-            void* m_snapshot_iter;
+            const void* m_engine_snapshot;
             bool Read(void* buf, size_t buflen, bool cksm);
 
             int RedisLoad();
@@ -174,6 +177,7 @@ namespace ardb
             int AfterSave(const std::string& fname, int err);
             int PrepareSave(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data);
             void VerifyState();
+
             friend class SnapshotManager;
         public:
             Snapshot();
@@ -217,6 +221,7 @@ namespace ardb
             int Rename(const std::string& default_file = "dump.rdb");
             void Close();
             void SetRoutineCallback(SnapshotRoutine* cb, void *data);
+            void* GetIteratorByNamespace(Context& ctx, const Data& ns);
             ~Snapshot();
 
             static SnapshotType GetSnapshotType(const std::string& file);

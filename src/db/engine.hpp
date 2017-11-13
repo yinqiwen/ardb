@@ -63,6 +63,8 @@ OP_NAMESPACE_BEGIN
             }
     };
 
+    typedef const void* EngineSnapshot;
+
     struct FeatureSet
     {
             unsigned support_namespace :1;
@@ -147,6 +149,15 @@ OP_NAMESPACE_BEGIN
             virtual int Routine()
             {
                 return ERR_NOTSUPPORTED;
+            }
+
+            virtual EngineSnapshot CreateSnapshot()
+            {
+                return NULL;
+            }
+
+            virtual void ReleaseSnapshot(EngineSnapshot s)
+            {
             }
 
             virtual int MaxOpenFiles() = 0;
