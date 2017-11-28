@@ -988,6 +988,7 @@ OP_NAMESPACE_BEGIN
             PointerArray<Iterator*> iters;
             iters.resize(setnum);
             Data min, max;
+            bool use_minmax = true;
             for (size_t i = 0; !empty_inter_result && i < setnum; i++)
             {
                 if (vs[i].GetType() == 0)
@@ -1010,20 +1011,39 @@ OP_NAMESPACE_BEGIN
                     break;
                 }
             }
+            if(min.encoding != max.encoding)
+            {
+                use_minmax = false;
+                empty_inter_result = false;
+            }
             for (size_t i = 0; !empty_inter_result && i < setnum; i++)
             {
                 KeyObject start(ctx.ns, (KeyType) element_type((KeyType) vs[i].GetType()), keys[i].GetKey());
-                start.SetSetMember(min);
+                if(use_minmax)
+                {
+                    start.SetSetMember(min);
+                }
+
                 iters[i]->Jump(start);
                 result_cursor = 1 - result_cursor;
                 inter_union_result[result_cursor].clear();
                 while (iters[i]->Valid())
                 {
                     KeyObject& k = iters[i]->Key(true);
-                    if (k.GetType() != start.GetType() || k.GetKey() != keys[i].GetKey() || k.GetNameSpace() != keys[i].GetNameSpace()
-                            || k.GetSetMember() > max)
+                    if (k.GetType() != start.GetType() || k.GetKey() != keys[i].GetKey() || k.GetNameSpace() != keys[i].GetNameSpace())
                     {
                         break;
+                    }
+                    Data element = k.GetElement(0);
+                    if(use_minmax)
+                    {
+                        if(k.GetSetMember() > max)
+                        {
+                            break;
+                        }
+                    }else
+                    {
+                        element.ToMutableStr();
                     }
                     double score = 1.0;
                     if (k.GetType() == KEY_ZSET_SCORE)
@@ -1033,22 +1053,23 @@ OP_NAMESPACE_BEGIN
                     score = weights[i] * score;
                     if (i == 0)
                     {
-                        inter_union_result[result_cursor][k.GetElement(0)] = score;
+                        inter_union_result[result_cursor][element] = score;
                     }
                     else
                     {
                         DataScoreMap& last_result = inter_union_result[1 - result_cursor];
-                        DataScoreMap::iterator found = last_result.find(k.GetElement(0));
+                        DataScoreMap::iterator found = last_result.find(element);
                         if (found != last_result.end())
                         {
                             zunionInterAggregate(&score, found->second, aggregate);
-                            inter_union_result[result_cursor][k.GetElement(0)] = score;
+                            inter_union_result[result_cursor][element] = score;
                             last_result.erase(found);
                         }
                     }
                     iters[i]->Next();
                 }
             }
+
         }
         else
         {
