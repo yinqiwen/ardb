@@ -44,8 +44,8 @@ OP_NAMESPACE_BEGIN
 
             int64 qps_limit;
             int64 unixsocketperm;
-            ListenPoint() :
-                    port(0), qps_limit(0), unixsocketperm(755)
+            ListenPoint()
+                    : port(0), qps_limit(0), unixsocketperm(755)
             {
             }
             std::string Address() const
@@ -136,7 +136,6 @@ OP_NAMESPACE_BEGIN
             bool scan_redis_compatible;
             int64 scan_cursor_expire_after;
 
-
             int64 snapshot_max_lag_offset;
             int64 maxsnapshots;
 
@@ -158,12 +157,12 @@ OP_NAMESPACE_BEGIN
             std::string _executable;
             Properties conf_props;
 
-            ArdbConfig() :
-                    daemonize(false), thread_pool_size(0), hz(10), max_clients(10000), tcp_keepalive(0), timeout(0), engine(
-                            "rocksdb"),rocksdb_disablewal(false),rocksdb_scan_total_order(false), rocksdb_compaction("none"), slowlog_log_slower_than(10000),
-							slowlog_max_len(128), repl_data_dir("./repl"), backup_dir("./backup"), backup_redis_format(false),
-							repl_ping_slave_period(10), repl_timeout(60), repl_backlog_size(100 * 1024 * 1024),
-							repl_backlog_cache_size(100 * 1024 * 1024), repl_backlog_sync_period(1), repl_backlog_time_limit(
+            ArdbConfig()
+                    : daemonize(false), thread_pool_size(0), hz(10), max_clients(10000), tcp_keepalive(0), timeout(0), engine(
+                            "rocksdb"), rocksdb_scan_total_order(false), rocksdb_disablewal(false), rocksdb_compaction(
+                            "none"), slowlog_log_slower_than(10000), slowlog_max_len(128), repl_data_dir("./repl"), backup_dir(
+                            "./backup"), backup_redis_format(false), repl_ping_slave_period(10), repl_timeout(60), repl_backlog_size(
+                            100 * 1024 * 1024), repl_backlog_cache_size(100 * 1024 * 1024), repl_backlog_sync_period(1), repl_backlog_time_limit(
                             3600), repl_min_slaves_to_write(0), repl_min_slaves_max_lag(10), repl_serve_stale_data(
                             false), slave_cleardb_before_fullresync(true), slave_readonly(true), slave_serve_stale_data(
                             true), slave_priority(100), max_slave_worker_queue(1024), lua_time_limit(0), master_port(0), loglevel(
@@ -171,8 +170,9 @@ OP_NAMESPACE_BEGIN
                             256 * 1024 * 1024), pubsub_client_output_buffer_limit(32 * 1024 * 1024), slave_ignore_expire(
                             false), slave_ignore_del(false), repl_disable_tcp_nodelay(true), scan_redis_compatible(
                             true), scan_cursor_expire_after(60), snapshot_max_lag_offset(500 * 1024 * 1024), maxsnapshots(
-                            10), compact_after_snapshot_load(false), redis_compatible(false), redis_compatible_version("2.8.0"),
-							statistics_log_period(300), qps_limit_per_host(0), qps_limit_per_connection(0), range_delete_min_size(100)
+                            10), compact_after_snapshot_load(false), redis_compatible(false), redis_compatible_version(
+                            "2.8.0"), statistics_log_period(300), qps_limit_per_host(0), qps_limit_per_connection(0), range_delete_min_size(
+                            100)
             {
             }
             bool Parse(const Properties& props);

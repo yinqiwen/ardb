@@ -505,7 +505,7 @@ namespace ardb
         /* Setup our fake client for command execution */
 
         RedisCommandFrame cmd(cmdargs);
-        Ardb::RedisCommandHandlerSetting* setting = g_db->FindRedisCommandHandlerSetting(cmd);
+        RedisCommandHandlerSetting* setting = g_db->FindRedisCommandHandlerSetting(cmd);
         /* Command lookup */
         if (NULL == setting)
         {

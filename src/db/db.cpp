@@ -79,11 +79,11 @@ OP_NAMESPACE_BEGIN
     Ardb* g_db = NULL;
     Engine* g_engine = NULL;
 
-    bool Ardb::RedisCommandHandlerSetting::IsAllowedInScript() const
+    bool RedisCommandHandlerSetting::IsAllowedInScript() const
     {
         return (flags & ARDB_CMD_NOSCRIPT) == 0;
     }
-    bool Ardb::RedisCommandHandlerSetting::IsWriteCommand() const
+    bool RedisCommandHandlerSetting::IsWriteCommand() const
     {
         return (flags & ARDB_CMD_WRITE) > 0;
     }
@@ -1400,7 +1400,7 @@ OP_NAMESPACE_BEGIN
         return ret;
     }
 
-    Ardb::RedisCommandHandlerSetting* Ardb::FindRedisCommandHandlerSetting(RedisCommandFrame& args)
+    RedisCommandHandlerSetting* Ardb::FindRedisCommandHandlerSetting(RedisCommandFrame& args)
     {
         std::string& cmd = args.GetMutableCommand();
         lower_string(cmd);
