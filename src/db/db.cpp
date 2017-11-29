@@ -491,6 +491,11 @@ OP_NAMESPACE_BEGIN
         return engine;
     }
 
+    bool Ardb::ContainsCommand(const std::string& cmd)
+    {
+        return m_settings.find(cmd) != m_settings.end();
+    }
+
     uint32 Ardb::MaxOpenFiles()
     {
         /*

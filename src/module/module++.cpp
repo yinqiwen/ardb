@@ -62,7 +62,7 @@ extern "C"
      * flags into the command flags used by the Redis core.
      *
      * It returns the set of flags, or -1 if unknown flags are found. */
-    int commandFlagsFromString(char *s)
+    int commandFlagsFromString(const std::string& s)
     {
         int count, j;
         int flags = 0;
@@ -150,14 +150,12 @@ extern "C"
         if (flags == -1) return REDISMODULE_ERR;
         //if ((flags & CMD_MODULE_NO_CLUSTER) && server.cluster_enabled) return REDISMODULE_ERR;
 
-        struct redisCommand *rediscmd;
+        //struct redisCommand *rediscmd;
         RedisModuleCommandProxy cp;
         //sds cmdname = sdsnew(name);
-
         /* Check if the command name is busy. */
-        if (lookupCommand((char*) name) != NULL)
+        if (g_db->ContainsCommand(name))
         {
-            sdsfree(cmdname);
             return REDISMODULE_ERR;
         }
 
@@ -182,8 +180,190 @@ extern "C"
         cp.rediscmd->keystep = keystep;
         cp.rediscmd->microseconds = 0;
         cp.rediscmd->calls = 0;
-        dictAdd(server.commands, sdsdup(cmdname), cp->rediscmd);
-        dictAdd(server.orig_commands, sdsdup(cmdname), cp->rediscmd);
+        //dictAdd(server.commands, sdsdup(cmdname), cp->rediscmd);
+        //dictAdd(server.orig_commands, sdsdup(cmdname), cp->rediscmd);
+        RedisCommandHandlerSetting setting;
+        setting.name = name;
+        //setting.handler =
+        g_db->AddCommand(name, setting);
+        return REDISMODULE_OK;
+    }
+
+    /* Called by RM_Init() to setup the `ctx->module` structure.
+     *
+     * This is an internal function, Redis modules developers don't need
+     * to use it. */
+    void RM_SetModuleAttribs(RedisModuleCtx *ctx, const char *name, int ver, int apiver)
+    {
+        RedisModule *module;
+
+        if (ctx->module != NULL) return;
+        module = malloc(sizeof(*module));
+        module->name = sdsnew((char*) name);
+        module->ver = ver;
+        module->apiver = apiver;
+        //module->types = listCreate();
+        ctx->module = module;
+    }
+
+    /* Send an error about the number of arguments given to the command,
+     * citing the command name in the error message.
+     *
+     * Example:
+     *
+     *     if (argc != 3) return RedisModule_WrongArity(ctx);
+     */
+    int RM_WrongArity(RedisModuleCtx *ctx)
+    {
+        RedisReply& reply = ctx->gctx.GetReply();
+        reply.SetErrorReason("wrong number of arguments for '" + ctx->gctx.current_cmd->GetCommand() + "' command");
+        return REDISMODULE_OK;
+    }
+
+    /* Send an integer reply to the client, with the specified long long value.
+     * The function always returns REDISMODULE_OK. */
+    int RM_ReplyWithLongLong(RedisModuleCtx *ctx, long long ll)
+    {
+        RedisReply& reply = ctx->gctx.GetReply();
+        reply.SetInteger(ll);
+        return REDISMODULE_OK;
+    }
+
+    /* Reply with the error 'err'.
+     *
+     * Note that 'err' must contain all the error, including
+     * the initial error code. The function only provides the initial "-", so
+     * the usage is, for example:
+     *
+     *     RedisModule_ReplyWithError(ctx,"ERR Wrong Type");
+     *
+     * and not just:
+     *
+     *     RedisModule_ReplyWithError(ctx,"Wrong Type");
+     *
+     * The function always returns REDISMODULE_OK.
+     */
+    int RM_ReplyWithError(RedisModuleCtx *ctx, const char *err)
+    {
+        RedisReply& reply = ctx->gctx.GetReply();
+        reply.SetErrorReason(err);
+        return REDISMODULE_OK;
+    }
+
+    /* Reply with a simple string (+... \r\n in RESP protocol). This replies
+     * are suitable only when sending a small non-binary string with small
+     * overhead, like "OK" or similar replies.
+     *
+     * The function always returns REDISMODULE_OK. */
+    int RM_ReplyWithSimpleString(RedisModuleCtx *ctx, const char *msg)
+    {
+        RedisReply& reply = ctx->gctx.GetReply();
+        reply.SetString(msg);
+        return REDISMODULE_OK;
+    }
+    /* Reply with an array type of 'len' elements. However 'len' other calls
+     * to `ReplyWith*` style functions must follow in order to emit the elements
+     * of the array.
+     *
+     * When producing arrays with a number of element that is not known beforehand
+     * the function can be called with the special count
+     * REDISMODULE_POSTPONED_ARRAY_LEN, and the actual number of elements can be
+     * later set with RedisModule_ReplySetArrayLength() (which will set the
+     * latest "open" count if there are multiple ones).
+     *
+     * The function always returns REDISMODULE_OK. */
+    int RM_ReplyWithArray(RedisModuleCtx *ctx, long len)
+    {
+        RedisReply& reply = ctx->gctx.GetReply();
+        reply.ReserveMember(len);
+        return REDISMODULE_OK;
+    }
+
+    /* When RedisModule_ReplyWithArray() is used with the argument
+     * REDISMODULE_POSTPONED_ARRAY_LEN, because we don't know beforehand the number
+     * of items we are going to output as elements of the array, this function
+     * will take care to set the array length.
+     *
+     * Since it is possible to have multiple array replies pending with unknown
+     * length, this function guarantees to always set the latest array length
+     * that was created in a postponed way.
+     *
+     * For example in order to output an array like [1,[10,20,30]] we
+     * could write:
+     *
+     *      RedisModule_ReplyWithArray(ctx,REDISMODULE_POSTPONED_ARRAY_LEN);
+     *      RedisModule_ReplyWithLongLong(ctx,1);
+     *      RedisModule_ReplyWithArray(ctx,REDISMODULE_POSTPONED_ARRAY_LEN);
+     *      RedisModule_ReplyWithLongLong(ctx,10);
+     *      RedisModule_ReplyWithLongLong(ctx,20);
+     *      RedisModule_ReplyWithLongLong(ctx,30);
+     *      RedisModule_ReplySetArrayLength(ctx,3); // Set len of 10,20,30 array.
+     *      RedisModule_ReplySetArrayLength(ctx,2); // Set len of top array
+     *
+     * Note that in the above example there is no reason to postpone the array
+     * length, since we produce a fixed number of elements, but in the practice
+     * the code may use an interator or other ways of creating the output so
+     * that is not easy to calculate in advance the number of elements.
+     */
+    void RM_ReplySetArrayLength(RedisModuleCtx *ctx, long len)
+    {
+        RedisReply& reply = ctx->gctx.GetReply();
+        reply.ReserveMember(len);
+    }
+
+    /* Reply with a bulk string, taking in input a C buffer pointer and length.
+     *
+     * The function always returns REDISMODULE_OK. */
+    int RM_ReplyWithStringBuffer(RedisModuleCtx *ctx, const char *buf, size_t len)
+    {
+        RedisReply& reply = ctx->gctx.GetReply();
+        reply.SetString(std::string(buf, len));
+        return REDISMODULE_OK;
+    }
+    /* Reply with a bulk string, taking in input a RedisModuleString object.
+     *
+     * The function always returns REDISMODULE_OK. */
+    int RM_ReplyWithString(RedisModuleCtx *ctx, const Data& str)
+    {
+        RedisReply& reply = ctx->gctx.GetReply();
+        reply.SetString(str);
+        return REDISMODULE_OK;
+    }
+    /* Reply to the client with a NULL. In the RESP protocol a NULL is encoded
+     * as the string "$-1\r\n".
+     *
+     * The function always returns REDISMODULE_OK. */
+    int RM_ReplyWithNull(RedisModuleCtx *ctx)
+    {
+        RedisReply& reply = ctx->gctx.GetReply();
+        reply.Clear();
+        return REDISMODULE_OK;
+    }
+
+    /* Send a string reply obtained converting the double 'd' into a bulk string.
+     * This function is basically equivalent to converting a double into
+     * a string into a C buffer, and then calling the function
+     * RedisModule_ReplyWithStringBuffer() with the buffer and length.
+     *
+     * The function always returns REDISMODULE_OK. */
+    int RM_ReplyWithDouble(RedisModuleCtx *ctx, double d)
+    {
+        RedisReply& reply = ctx->gctx.GetReply();
+        reply.SetDouble(d);
+        return REDISMODULE_OK;
+    }
+
+    /* Reply exactly what a Redis command returned us with RedisModule_Call().
+     * This function is useful when we use RedisModule_Call() in order to
+     * execute some command, as we want to reply to the client exactly the
+     * same reply we obtained by the command.
+     *
+     * The function always returns REDISMODULE_OK. */
+    int RM_ReplyWithCallReply(RedisModuleCtx *ctx, void *reply) {
+        RedisReply& reply = ctx->gctx.GetReply();
+
+//        sds proto = sdsnewlen(reply->proto, reply->protolen);
+//        addReplySds(c,proto);
         return REDISMODULE_OK;
     }
 }
@@ -219,96 +399,96 @@ OP_NAMESPACE_BEGIN
         REGISTER_API(ReplyWithNull);
         REGISTER_API(ReplyWithCallReply);
         REGISTER_API(ReplyWithDouble);
-        REGISTER_API(GetSelectedDb);
-        REGISTER_API(SelectDb);
-        REGISTER_API(OpenKey);
-        REGISTER_API(CloseKey);
-        REGISTER_API(KeyType);
-        REGISTER_API(ValueLength);
-        REGISTER_API(ListPush);
-        REGISTER_API(ListPop);
-        REGISTER_API(StringToLongLong);
-        REGISTER_API(StringToDouble);
-        REGISTER_API(Call);
-        REGISTER_API(CallReplyProto);
-        REGISTER_API(FreeCallReply);
-        REGISTER_API(CallReplyInteger);
-        REGISTER_API(CallReplyType);
-        REGISTER_API(CallReplyLength);
-        REGISTER_API(CallReplyArrayElement);
-        REGISTER_API(CallReplyStringPtr);
-        REGISTER_API(CreateStringFromCallReply);
-        REGISTER_API(CreateString);
-        REGISTER_API(CreateStringFromLongLong);
-        REGISTER_API(CreateStringFromString);
-        REGISTER_API(CreateStringPrintf);
-        REGISTER_API(FreeString);
-        REGISTER_API(StringPtrLen);
-        REGISTER_API(AutoMemory);
-        REGISTER_API(Replicate);
-        REGISTER_API(ReplicateVerbatim);
-        REGISTER_API(DeleteKey);
-        REGISTER_API(StringSet);
-        REGISTER_API(StringDMA);
-        REGISTER_API(StringTruncate);
-        REGISTER_API(SetExpire);
-        REGISTER_API(GetExpire);
-        REGISTER_API(ZsetAdd);
-        REGISTER_API(ZsetIncrby);
-        REGISTER_API(ZsetScore);
-        REGISTER_API(ZsetRem);
-        REGISTER_API(ZsetRangeStop);
-        REGISTER_API(ZsetFirstInScoreRange);
-        REGISTER_API(ZsetLastInScoreRange);
-        REGISTER_API(ZsetFirstInLexRange);
-        REGISTER_API(ZsetLastInLexRange);
-        REGISTER_API(ZsetRangeCurrentElement);
-        REGISTER_API(ZsetRangeNext);
-        REGISTER_API(ZsetRangePrev);
-        REGISTER_API(ZsetRangeEndReached);
-        REGISTER_API(HashSet);
-        REGISTER_API(HashGet);
-        REGISTER_API(IsKeysPositionRequest);
-        REGISTER_API(KeyAtPos);
-        REGISTER_API(GetClientId);
-        REGISTER_API(PoolAlloc);
-        REGISTER_API(CreateDataType);
-        REGISTER_API(ModuleTypeSetValue);
-        REGISTER_API(ModuleTypeGetType);
-        REGISTER_API(ModuleTypeGetValue);
-        REGISTER_API(SaveUnsigned);
-        REGISTER_API(LoadUnsigned);
-        REGISTER_API(SaveSigned);
-        REGISTER_API(LoadSigned);
-        REGISTER_API(SaveString);
-        REGISTER_API(SaveStringBuffer);
-        REGISTER_API(LoadString);
-        REGISTER_API(LoadStringBuffer);
-        REGISTER_API(SaveDouble);
-        REGISTER_API(LoadDouble);
-        REGISTER_API(SaveFloat);
-        REGISTER_API(LoadFloat);
-        REGISTER_API(EmitAOF);
-        REGISTER_API(Log);
-        REGISTER_API(LogIOError);
-        REGISTER_API(StringAppendBuffer);
-        REGISTER_API(RetainString);
-        REGISTER_API(StringCompare);
-        REGISTER_API(GetContextFromIO);
-        REGISTER_API(BlockClient);
-        REGISTER_API(UnblockClient);
-        REGISTER_API(IsBlockedReplyRequest);
-        REGISTER_API(IsBlockedTimeoutRequest);
-        REGISTER_API(GetBlockedClientPrivateData);
-        REGISTER_API(AbortBlock);
-        REGISTER_API(Milliseconds);
-        REGISTER_API(GetThreadSafeContext);
-        REGISTER_API(FreeThreadSafeContext);
-        REGISTER_API(ThreadSafeContextLock);
-        REGISTER_API(ThreadSafeContextUnlock);
-        REGISTER_API(DigestAddStringBuffer);
-        REGISTER_API(DigestAddLongLong);
-        REGISTER_API(DigestEndSequence);
+//        REGISTER_API(GetSelectedDb);
+//        REGISTER_API(SelectDb);
+//        REGISTER_API(OpenKey);
+//        REGISTER_API(CloseKey);
+//        REGISTER_API(KeyType);
+//        REGISTER_API(ValueLength);
+//        REGISTER_API(ListPush);
+//        REGISTER_API(ListPop);
+//        REGISTER_API(StringToLongLong);
+//        REGISTER_API(StringToDouble);
+//        REGISTER_API(Call);
+//        REGISTER_API(CallReplyProto);
+//        REGISTER_API(FreeCallReply);
+//        REGISTER_API(CallReplyInteger);
+//        REGISTER_API(CallReplyType);
+//        REGISTER_API(CallReplyLength);
+//        REGISTER_API(CallReplyArrayElement);
+//        REGISTER_API(CallReplyStringPtr);
+//        REGISTER_API(CreateStringFromCallReply);
+//        REGISTER_API(CreateString);
+//        REGISTER_API(CreateStringFromLongLong);
+//        REGISTER_API(CreateStringFromString);
+//        REGISTER_API(CreateStringPrintf);
+//        REGISTER_API(FreeString);
+//        REGISTER_API(StringPtrLen);
+//        REGISTER_API(AutoMemory);
+//        REGISTER_API(Replicate);
+//        REGISTER_API(ReplicateVerbatim);
+//        REGISTER_API(DeleteKey);
+//        REGISTER_API(StringSet);
+//        REGISTER_API(StringDMA);
+//        REGISTER_API(StringTruncate);
+//        REGISTER_API(SetExpire);
+//        REGISTER_API(GetExpire);
+//        REGISTER_API(ZsetAdd);
+//        REGISTER_API(ZsetIncrby);
+//        REGISTER_API(ZsetScore);
+//        REGISTER_API(ZsetRem);
+//        REGISTER_API(ZsetRangeStop);
+//        REGISTER_API(ZsetFirstInScoreRange);
+//        REGISTER_API(ZsetLastInScoreRange);
+//        REGISTER_API(ZsetFirstInLexRange);
+//        REGISTER_API(ZsetLastInLexRange);
+//        REGISTER_API(ZsetRangeCurrentElement);
+//        REGISTER_API(ZsetRangeNext);
+//        REGISTER_API(ZsetRangePrev);
+//        REGISTER_API(ZsetRangeEndReached);
+//        REGISTER_API(HashSet);
+//        REGISTER_API(HashGet);
+//        REGISTER_API(IsKeysPositionRequest);
+//        REGISTER_API(KeyAtPos);
+//        REGISTER_API(GetClientId);
+//        REGISTER_API(PoolAlloc);
+//        REGISTER_API(CreateDataType);
+//        REGISTER_API(ModuleTypeSetValue);
+//        REGISTER_API(ModuleTypeGetType);
+//        REGISTER_API(ModuleTypeGetValue);
+//        REGISTER_API(SaveUnsigned);
+//        REGISTER_API(LoadUnsigned);
+//        REGISTER_API(SaveSigned);
+//        REGISTER_API(LoadSigned);
+//        REGISTER_API(SaveString);
+//        REGISTER_API(SaveStringBuffer);
+//        REGISTER_API(LoadString);
+//        REGISTER_API(LoadStringBuffer);
+//        REGISTER_API(SaveDouble);
+//        REGISTER_API(LoadDouble);
+//        REGISTER_API(SaveFloat);
+//        REGISTER_API(LoadFloat);
+//        REGISTER_API(EmitAOF);
+//        REGISTER_API(Log);
+//        REGISTER_API(LogIOError);
+//        REGISTER_API(StringAppendBuffer);
+//        REGISTER_API(RetainString);
+//        REGISTER_API(StringCompare);
+//        REGISTER_API(GetContextFromIO);
+//        REGISTER_API(BlockClient);
+//        REGISTER_API(UnblockClient);
+//        REGISTER_API(IsBlockedReplyRequest);
+//        REGISTER_API(IsBlockedTimeoutRequest);
+//        REGISTER_API(GetBlockedClientPrivateData);
+//        REGISTER_API(AbortBlock);
+//        REGISTER_API(Milliseconds);
+//        REGISTER_API(GetThreadSafeContext);
+//        REGISTER_API(FreeThreadSafeContext);
+//        REGISTER_API(ThreadSafeContextLock);
+//        REGISTER_API(ThreadSafeContextUnlock);
+//        REGISTER_API(DigestAddStringBuffer);
+//        REGISTER_API(DigestAddLongLong);
+//        REGISTER_API(DigestEndSequence);
     }
 
     int ModuleManager::Init()

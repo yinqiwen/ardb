@@ -90,6 +90,7 @@ OP_NAMESPACE_BEGIN
             bool IsAllowedInScript() const;
             bool IsWriteCommand() const;
     };
+    class ModuleManager;
     class Ardb
     {
         public:
@@ -179,6 +180,9 @@ OP_NAMESPACE_BEGIN
 
             static void MigrateCoroTask(void* data);
             static void MigrateDBCoroTask(void* data);
+
+            bool ContainsCommand(const std::string& cmd);
+            int AddCommand(const std::string& cmd, const RedisCommandHandlerSetting& setting);
 
             bool IsLoadingData();
 
@@ -479,6 +483,7 @@ OP_NAMESPACE_BEGIN
             friend class Snapshot;
             friend class Master;
             friend class Slave;
+            friend class ModuleManager;
         public:
             Ardb();
             int Init(const std::string& conf_file);

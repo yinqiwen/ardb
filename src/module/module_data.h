@@ -8,6 +8,7 @@
 #ifndef SRC_MODULE_MODULE_DATA_H_
 #define SRC_MODULE_MODULE_DATA_H_
 #include "common/common.hpp"
+#include "context.hpp"
 #include <vector>
 
 OP_NAMESPACE_BEGIN
@@ -16,13 +17,14 @@ OP_NAMESPACE_BEGIN
     struct RedisModule
     {
             void *handle; /* Module dlopen() handle. */
-            char *name; /* Module name. */
+            std::string name; /* Module name. */
             int ver; /* Module version. We use just progressive integers. */
             int apiver; /* Module API version as requested during initialization.*/
             //list *types;    /* Module data types. */
     };
     struct RedisModuleCtx
     {
+            Context gctx;
             void *getapifuncptr; /* NOTE: Must be the first field. */
             struct RedisModule *module; /* Module reference. */
             //client *client;                 /* Client calling a command. */
