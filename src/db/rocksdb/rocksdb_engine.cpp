@@ -56,8 +56,8 @@ OP_NAMESPACE_BEGIN
             rocksdb::WriteBatch batch;
             uint32_t ref;
         public:
-            RocksWriteBatch() :
-                    ref(0)
+            RocksWriteBatch()
+                    : ref(0)
             {
             }
             rocksdb::WriteBatch& GetBatch()
@@ -103,8 +103,8 @@ OP_NAMESPACE_BEGIN
             bool iter_total_order_seek;
             bool iter_prefix_same_as_start;
             bool delete_after_finish;
-            RocksIterData() :
-                    iter(NULL), dbseq(0), create_time(0), iter_total_order_seek(false), iter_prefix_same_as_start(
+            RocksIterData()
+                    : iter(NULL), dbseq(0), create_time(0), iter_total_order_seek(false), iter_prefix_same_as_start(
                             false), delete_after_finish(false)
             {
             }
@@ -164,7 +164,7 @@ OP_NAMESPACE_BEGIN
     class RocksDBLogger: public rocksdb::Logger
     {
             // Write an entry to the log file with the specified format.
-            virtual void Logv(const char* format, va_list ap)
+            void Logv(const char* format, va_list ap)
             {
                 Logv(rocksdb::INFO_LEVEL, format, ap);
             }
@@ -436,14 +436,14 @@ OP_NAMESPACE_BEGIN
     struct RocksDBCompactionFilterFactory: public rocksdb::CompactionFilterFactory
     {
             RocksDBEngine* engine;
-            RocksDBCompactionFilterFactory(RocksDBEngine* e) :
-                    engine(e)
+            RocksDBCompactionFilterFactory(RocksDBEngine* e)
+                    : engine(e)
             {
             }
             std::unique_ptr<rocksdb::CompactionFilter> CreateCompactionFilter(
                     const rocksdb::CompactionFilter::Context& context)
             {
-                return std::unique_ptr < rocksdb::CompactionFilter > (new RocksDBCompactionFilter(engine, context));
+                return std::unique_ptr<rocksdb::CompactionFilter>(new RocksDBCompactionFilter(engine, context));
             }
 
             const char* Name() const
@@ -457,8 +457,8 @@ OP_NAMESPACE_BEGIN
         private:
             RocksDBEngine* m_engine;
         public:
-            MergeOperator(RocksDBEngine* engine) :
-                    m_engine(engine)
+            MergeOperator(RocksDBEngine* engine)
+                    : m_engine(engine)
             {
             }
             // Gives the client a way to express the read -> modify -> write semantics
@@ -658,8 +658,8 @@ OP_NAMESPACE_BEGIN
             }
     };
 
-    RocksDBEngine::RocksDBEngine() :
-            m_db(NULL), m_bulk_loading(false)
+    RocksDBEngine::RocksDBEngine()
+            : m_db(NULL), m_bulk_loading(false), disablewal(false)
     {
     }
 
@@ -1037,7 +1037,8 @@ OP_NAMESPACE_BEGIN
         }
         return rocksdb_err(s);
     }
-    int RocksDBEngine::DelKeySlice(rocksdb::WriteBatch* batch, rocksdb::ColumnFamilyHandle* cf, const rocksdb::Slice& key_slice)
+    int RocksDBEngine::DelKeySlice(rocksdb::WriteBatch* batch, rocksdb::ColumnFamilyHandle* cf,
+            const rocksdb::Slice& key_slice)
     {
         rocksdb::WriteOptions opt;
         rocksdb::Status s;
@@ -1367,6 +1368,19 @@ OP_NAMESPACE_BEGIN
         {
             return;
         }
+        rocksdb::TableFactory* table_factory = m_options.table_factory.get();
+        if (NULL != table_factory && !strcmp("BlockBasedTable", table_factory->Name()))
+        {
+            void* table_opt = table_factory->GetOptions();
+            if(NULL != table_opt)
+            {
+                rocksdb::BlockBasedTableOptions* topt = (rocksdb::BlockBasedTableOptions*)table_opt;
+                size_t usage = topt->block_cache->GetUsage();
+                size_t pinned_usage = topt->block_cache->GetPinnedUsage();
+                all.append("rocksdb.block_table_usage").append(":").append(stringfromll(usage)).append("\r\n");
+                all.append("rocksdb.block_table_pinned_usage").append(":").append(stringfromll(pinned_usage)).append("\r\n");
+            }
+        }
         // all.append("rocksdb_iterator_cache:").append(stringfromll(g_iter_cache.cache_size)).append("\r\n");
         std::map<rocksdb::MemoryUtil::UsageType, uint64_t> usage_by_type;
         std::unordered_set<const rocksdb::Cache*> cache_set;
@@ -1409,6 +1423,11 @@ OP_NAMESPACE_BEGIN
                         "\r\n");
             }
         }
+        std::string out;
+        m_db->GetProperty("rocksdb.estimate-table-readers-mem", &out);
+        all.append("rocksdb.estimate-table-readers-mem:").append(out).append("\r\n");
+        m_db->GetProperty("rocksdb.cur-size-all-mem-tables", &out);
+        all.append("rocksdb.cur-size-all-mem-tables:").append(out).append("\r\n");
         DataArray nss;
         ListNameSpaces(ctx, nss);
         for (size_t i = 0; i < nss.size(); i++)
