@@ -27,29 +27,69 @@
  *THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #ifndef SRC_MODULE_MODULE___HPP_
 #define SRC_MODULE_MODULE___HPP_
 
 #ifndef NETWORK_HPP_
 #define NETWORK_HPP_
 #include "common/common.hpp"
-
+#include "context.hpp"
 OP_NAMESPACE_BEGIN
+/* This structure represents a module inside the system. */
+    struct RedisModule
+    {
+            void *handle; /* Module dlopen() handle. */
+            std::string name; /* Module name. */
+            int ver; /* Module version. We use just progressive integers. */
+            int apiver; /* Module API version as requested during initialization.*/
+            //list *types;    /* Module data types. */
+    };
+    struct RedisModuleCtxImpl
+    {
+            void *getapifuncptr; /* NOTE: Must be the first field. */
+            RedisModule* module; /* Module reference. */
+            //client *client;                 /* Client calling a command. */
+            //struct RedisModuleBlockedClient *blocked_client; /* Blocked client for thread safe context. */
+            //struct AutoMemEntry *amqueue;   /* Auto memory queue of objects to free. */
+            //int amqueue_len; /* Number of slots in amqueue. */
+            //int amqueue_used; /* Number of used slots in amqueue. */
+            int flags; /* REDISMODULE_CTX_... flags. */
+            //void **postponed_arrays; /* To set with RM_ReplySetArrayLength(). */
+            //int postponed_arrays_count; /* Number of entries in postponed_arrays. */
+            //void *blocked_privdata; /* Privdata set when unblocking a client. */
 
-class ModuleManager
-{
-    private:
-        typedef TreeMap<std::string, void*>::Type ModuleTable;
-        ModuleTable m_moduleapi;
-        void RegisterCoreAPI();
-        int ModuleRegisterApi(const char *funcname, void *funcptr);
-    public:
-        int Init();
-};
+            /* Used if there is the REDISMODULE_CTX_KEYS_POS_REQUEST flag set. */
+            //int *keys_pos;
+            //int keys_count;
+            Context* gctx;
+            //struct RedisModulePoolAllocBlock *pa_head;
+            RedisModuleCtxImpl()
+                    : getapifuncptr(NULL), module(NULL), flags(0), gctx(NULL)
+            {
+            }
+            RedisReply& GetReply()
+            {
+                return gctx->GetReply();
+            }
+    };
+
+    class ModuleManager
+    {
+        private:
+            typedef TreeMap<std::string, void*>::Type ModuleAPITable;
+            typedef TreeMap<std::string, RedisModule*>::Type ModuleTable;
+            ModuleAPITable m_moduleapi;
+            ModuleTable m_modules;
+            void RegisterCoreAPI();
+            int ModuleRegisterApi(const char *funcname, void *funcptr);
+        public:
+            int Init();
+            int GetApi(const std::string& funcname, void **targetPtrPtr);
+            int LoadModule(const std::string& path, void **module_argv, int module_argc);
+            int UnloadModule(const std::string& name);
+    };
+    extern ModuleManager* g_module_manager;
 
 OP_NAMESPACE_END
-
-
 
 #endif /* SRC_MODULE_MODULE___HPP_ */
