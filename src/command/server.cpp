@@ -733,6 +733,9 @@ namespace ardb
                 elpased = (now <= activetime ? 0 : now - activetime) / 1000000;
                 info.append("idle=").append(stringfromll(elpased)).append(" ");
                 info.append("db=").append(client_ctx->ns.AsString()).append(" ");
+                info.append("rbuf_cap=").append(stringfromll(conn->GetInputBuffer().Capacity())).append(" ");
+                info.append("wbuf_cap=").append(stringfromll(conn->GetOutputBuffer().Capacity())).append(" ");
+                conn->GetOutputBuffer().Compact(8192);
                 std::string cmd;
                 RedisCommandHandlerSettingTable::iterator cit = m_settings.begin();
                 while (cit != m_settings.end())
@@ -1013,6 +1016,7 @@ namespace ardb
         return 0;
     }
 
+
     static void monitor_write_callback(Channel* ch, void* data)
     {
         Buffer* buffer = (Buffer*) data;
@@ -1069,6 +1073,7 @@ namespace ardb
                 client->GetService().AsyncIO(client->GetID(), monitor_write_callback, send_buffer);
                 //WriteReply()
             }
+            (*it)->client->last_interaction_ustime = get_current_epoch_micros();
             it++;
         }
     }

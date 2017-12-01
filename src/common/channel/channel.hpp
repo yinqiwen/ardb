@@ -238,6 +238,10 @@ namespace ardb
             {
                 return m_outputBuffer;
             }
+            inline Buffer& GetInputBuffer()
+            {
+                return m_inputBuffer;
+            }
 
             inline uint32 ReadableBytes()
             {
