@@ -118,7 +118,7 @@ OPTIMIZATION?=-O2
 OPT=$(OPTIMIZATION)
 
 CXXFLAGS=-Wall -g ${OPT} -fPIC -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"' 
-CCFLAGS=-Wall -std=gnu99 ${OPT} -fPIC -pedantic -g -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"'
+CCFLAGS=-Wall -std=gnu99 ${OPT} -fPIC -pedantic -g -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"' 
 LDFLAGS=-g 
 
 SNAPPY_CXXFLAGS=-g $(OPT)
@@ -170,7 +170,7 @@ COMMAND_VPATH=command
 COMMAND_CPPFILES := $(foreach dir, $(COMMAND_VPATH), $(wildcard $(dir)/*.cpp))
 COMMAND_OBJECTS := $(patsubst %.cpp, %.o, $(COMMAND_CPPFILES))
 
-DB_VPATH=db repl
+DB_VPATH=db repl module
 DB_CPPFILES := $(foreach dir, $(DB_VPATH), $(wildcard $(dir)/*.cpp))
 DB_CFILES := $(foreach dir, $(DB_VPATH), $(wildcard $(dir)/*.c))
 DB_OBJECTS := $(patsubst %.cpp, %.o, $(DB_CPPFILES)) $(patsubst %.c, %.o, $(DB_CFILES))

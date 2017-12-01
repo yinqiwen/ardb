@@ -1,5 +1,5 @@
 /*
- *Copyright (c) 2013-2014, yinqiwen <yinqiwen@gmail.com>
+ *Copyright (c) 2013-2017, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  *
  *Redistribution and use in source and binary forms, with or without
@@ -30,8 +30,6 @@
 #ifndef SRC_MODULE_MODULE___HPP_
 #define SRC_MODULE_MODULE___HPP_
 
-#ifndef NETWORK_HPP_
-#define NETWORK_HPP_
 #include "common/common.hpp"
 #include "context.hpp"
 OP_NAMESPACE_BEGIN
@@ -70,6 +68,10 @@ OP_NAMESPACE_BEGIN
             RedisReply& GetReply()
             {
                 return gctx->GetReply();
+            }
+            ~RedisModuleCtxImpl()
+            {
+
             }
     };
 

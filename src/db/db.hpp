@@ -80,13 +80,13 @@ OP_NAMESPACE_BEGIN
             const char* name;
             RedisCommandType type;
             RedisCommandHandler handler;
-            void* command_proxy;
             int min_arity;
             int max_arity;
             const char* sflags;
             int flags;
             volatile uint64 microseconds;
             volatile uint64 calls;
+            void* command_proxy;
             //CostTrack
             bool IsAllowedInScript() const;
             bool IsWriteCommand() const;
@@ -182,8 +182,6 @@ OP_NAMESPACE_BEGIN
             static void MigrateCoroTask(void* data);
             static void MigrateDBCoroTask(void* data);
 
-            bool ContainsCommand(const std::string& cmd);
-            int AddCommand(const std::string& cmd, const RedisCommandHandlerSetting& setting);
 
             bool IsLoadingData();
 
@@ -240,8 +238,7 @@ OP_NAMESPACE_BEGIN
 
             int SetString(Context& ctx, const std::string& key, const std::string& value, bool redis_compatible, int64_t px = -1, int8_t nx_xx = -1);
 
-            int ListPop(Context& ctx, RedisCommandFrame& cmd, bool lock_key = true);
-            int ListPush(Context& ctx, RedisCommandFrame& cmd, bool lock_key = true);
+
 
             bool AdjustMergeOp(uint16& op, DataArray& args);
             int MergeAppend(Context& ctx, const KeyObject& key, ValueObject& val, const std::string& append);
@@ -287,6 +284,12 @@ OP_NAMESPACE_BEGIN
             int IncrDecrCommand(Context& ctx, RedisCommandFrame& cmd);
 
             int FireKeyChangedEvent(Context& ctx, const KeyObject& key);
+
+        public:
+            bool ContainsCommand(const std::string& cmd);
+            int AddCommand(const std::string& cmd, const RedisCommandHandlerSetting& setting);
+            int ListPop(Context& ctx, RedisCommandFrame& cmd, bool lock_key = true);
+            int ListPush(Context& ctx, RedisCommandFrame& cmd, bool lock_key = true);
 
             int Time(Context& ctx, RedisCommandFrame& cmd);
             int FlushDB(Context& ctx, RedisCommandFrame& cmd);
