@@ -80,6 +80,7 @@ OP_NAMESPACE_BEGIN
             const char* name;
             RedisCommandType type;
             RedisCommandHandler handler;
+            void* command_proxy;
             int min_arity;
             int max_arity;
             const char* sflags;
@@ -472,6 +473,8 @@ OP_NAMESPACE_BEGIN
             int RestoreChunk(Context& ctx, RedisCommandFrame& cmd);
             int Debug(Context& ctx, RedisCommandFrame& cmd);
             int Touch(Context& ctx, RedisCommandFrame& cmd);
+
+            int RedisModuleCommandDispatcher(Context& ctx, RedisCommandFrame& cmd);
 
             int DoCall(Context& ctx, RedisCommandHandlerSetting& setting, RedisCommandFrame& cmd);
             RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(RedisCommandFrame& cmd);
