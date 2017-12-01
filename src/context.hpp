@@ -186,11 +186,12 @@ OP_NAMESPACE_BEGIN
             bool keyslocked;
 
             const void* engine_snapshot;
+            void* cmd_proxy;
 
             Context() :
                     reply(NULL), client(NULL), transc(NULL), pubsub(
                     NULL), bpop(NULL), current_cmd(NULL), dirty(0), last_cmdtype(REDIS_CMD_INVALID), transc_err(0), authenticated(
-                            true), keyslocked(false), engine_snapshot(NULL)
+                            true), keyslocked(false), engine_snapshot(NULL),cmd_proxy(NULL)
             {
                 ns.SetString("0", false);
             }

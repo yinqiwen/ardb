@@ -95,6 +95,10 @@ int SoftSignalChannel::FireSoftSignal(uint32 signo, uint32 info)
 //        m_lock.Unlock();
 //    }
     int ret = ::write(GetWriteFD(), &v, sizeof(v));
+    if(ret != sizeof(v))
+    {
+        return -1;
+    }
     return ret;
 }
 

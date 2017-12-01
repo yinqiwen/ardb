@@ -152,7 +152,7 @@ namespace ardb
             void VerifyRemoveQueue();
             void StartSubPool();
             void AttachAcceptedChannel(SocketChannel *ch);
-            void AsyncIO(const ChannelAsyncIOContext& ctx);
+            int AsyncIO(const ChannelAsyncIOContext& ctx, bool wait);
             void Routine();
             void SetParent(ChannelService* parent)
             {
@@ -201,7 +201,7 @@ namespace ardb
 //            void RegisterUserEventCallback(UserEventCallback* cb, void* data);
             void RegisterLifecycleCallback(ChannelServiceLifeCycle* callback);
             void FireUserEvent(uint32 ev);
-            void AsyncIO(uint32 id, ChannelAsyncIOCallback* cb, void* data);
+            int AsyncIO(uint32 id, ChannelAsyncIOCallback* cb, void* data, bool wait = true);
 
             ChannelService* GetParent()
             {
