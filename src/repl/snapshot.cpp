@@ -2798,6 +2798,10 @@ namespace ardb
     }
     void SnapshotManager::Routine()
     {
+    	if(!g_repl->IsInited())
+    	{
+    		return;
+    	}
         LockGuard<ThreadMutexLock> guard(m_snapshots_lock);
         SnapshotArray::iterator it = m_snapshots.begin();
         while (it != m_snapshots.end())

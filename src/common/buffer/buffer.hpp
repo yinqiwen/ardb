@@ -143,7 +143,7 @@ namespace ardb
                     return 0;
                 }
                 uint32_t readableBytes = ReadableBytes();
-                uint32_t total = Capacity();
+                //uint32_t total = Capacity();
                 char* newSpace = NULL;
                 newSpace = (char*) malloc(readableBytes + leastLength);
                 if (NULL == newSpace)
