@@ -565,37 +565,37 @@ OP_NAMESPACE_BEGIN
         {
             case 0:
             {
-                reply.SetString("none");
+                reply.SetStatusString("none");
                 break;
             }
             case KEY_HASH:
             {
-                reply.SetString("hash");
+                reply.SetStatusString("hash");
                 break;
             }
             case KEY_LIST:
             {
-                reply.SetString("list");
+                reply.SetStatusString("list");
                 break;
             }
             case KEY_SET:
             {
-                reply.SetString("set");
+                reply.SetStatusString("set");
                 break;
             }
             case KEY_ZSET:
             {
-                reply.SetString("zset");
+                reply.SetStatusString("zset");
                 break;
             }
             case KEY_STRING:
             {
-                reply.SetString("string");
+                reply.SetStatusString("string");
                 break;
             }
             default:
             {
-                reply.SetString("invalid");
+                reply.SetStatusString("invalid");
                 break;
             }
         }
