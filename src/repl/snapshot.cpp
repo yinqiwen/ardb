@@ -2798,27 +2798,31 @@ namespace ardb
     }
     void SnapshotManager::Routine()
     {
-        LockGuard<ThreadMutexLock> guard(m_snapshots_lock);
-        SnapshotArray::iterator it = m_snapshots.begin();
-        while (it != m_snapshots.end())
+        if(g_repl->IsInited())
         {
-            Snapshot* s = *it;
-            if (s == NULL || (s->CachedReplOffset() < g_repl->GetReplLog().WALStartOffset()))
+            LockGuard<ThreadMutexLock> guard(m_snapshots_lock);
+            SnapshotArray::iterator it = m_snapshots.begin();
+            while (it != m_snapshots.end())
             {
-                if (NULL != s)
+                Snapshot* s = *it;
+                if (s == NULL || (s->CachedReplOffset() < g_repl->GetReplLog().WALStartOffset()))
                 {
-                    WARN_LOG("Remove snapshot:%s since it's too old with offset:%llu", s->GetPath().c_str(),
-                            s->CachedReplOffset());
-                    s->Remove();
+                    if (NULL != s)
+                    {
+                        WARN_LOG("Remove snapshot:%s since it's too old with offset:%llu", s->GetPath().c_str(),
+                                s->CachedReplOffset());
+                        s->Remove();
+                    }
+                    DELETE(s);
+                    it = m_snapshots.erase(it);
                 }
-                DELETE(s);
-                it = m_snapshots.erase(it);
-            }
-            else
-            {
-                it++;
+                else
+                {
+                    it++;
+                }
             }
         }
+
         while (m_snapshots.size() > g_db->GetConf().maxsnapshots)
         {
             Snapshot* s = m_snapshots[0];

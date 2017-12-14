@@ -297,6 +297,10 @@ OP_NAMESPACE_BEGIN
     }
     void ReplicationBacklog::ClearCurrentNamespace()
     {
+        if(NULL == m_wal)
+        {
+            return;
+        }
         //WriteLockGuard<SpinRWLock> guard(m_repl_lock);
         ReplMeta* meta = (ReplMeta*) swal_user_meta(m_wal);
         meta->select_ns_size = 0;
@@ -304,21 +308,37 @@ OP_NAMESPACE_BEGIN
     uint64_t ReplicationBacklog::WALCksm(bool lock)
     {
         //ReadLockGuard<SpinRWLock> guard(m_repl_lock,lock);
+        if(NULL == m_wal)
+        {
+            return 0;
+        }
         return swal_cksm(m_wal);
     }
     void ReplicationBacklog::ResetWALOffsetCksm(uint64_t offset, uint64_t cksm)
     {
         //WriteLockGuard<SpinRWLock> guard(m_repl_lock);
+        if(NULL == m_wal)
+        {
+            return ;
+        }
         swal_reset(m_wal, offset, cksm);
     }
     uint64_t ReplicationBacklog::WALStartOffset(bool lock)
     {
         //ReadLockGuard<SpinRWLock> guard(m_repl_lock,lock);
+        if(NULL == m_wal)
+        {
+            return 0;
+        }
         return swal_start_offset(m_wal);
     }
     uint64_t ReplicationBacklog::WALEndOffset(bool lock)
     {
         //ReadLockGuard<SpinRWLock> guard(m_repl_lock,lock);
+        if(NULL == m_wal)
+        {
+            return 0;
+        }
         return swal_end_offset(m_wal);
     }
 
