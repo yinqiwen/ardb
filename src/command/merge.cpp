@@ -147,6 +147,7 @@ namespace ardb
     {
         if (left != right)
         {
+        	//ERROR_LOG("Invalid merge left/right ops: %u->%u", left, right);
             return -1;
         }
         switch (left)
@@ -163,8 +164,22 @@ namespace ardb
                 right_args[0].SetFloat64(right_args[0].GetFloat64() + left_args[0].GetFloat64());
                 return 0;
             }
+            case REDIS_CMD_PEXPIREAT:
+            {
+            	return 0;
+            }
+            case REDIS_CMD_SETXX:
+            {
+            	return 0;
+            }
+            case REDIS_CMD_SETNX:
+            {
+            	right_args[0] = left_args[0];
+            	return 0;
+            }
             default:
             {
+            	//ERROR_LOG("Invalid merge op:%u", left);
                 return -1;
             }
         }

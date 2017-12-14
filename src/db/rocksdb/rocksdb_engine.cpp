@@ -32,6 +32,7 @@
 #include "rocksdb/slice_transform.h"
 #include "rocksdb/utilities/memory_util.h"
 #include "rocksdb/table.h"
+#include "rocksdb/write_buffer_manager.h"
 #include "thread/lock_guard.hpp"
 #include "thread/spin_mutex_lock.hpp"
 #include "db/db.hpp"
@@ -156,7 +157,7 @@ OP_NAMESPACE_BEGIN
         {
             return ERR_ENTRY_NOT_EXIST;
         }
-        int err = (int) (s.code()) << 8 + s.subcode();
+        int err = ((int) (s.code()) << 8) + s.subcode();
         g_rocks_context.GetValue().err_map[err] = s;
         return err + STORAGE_ENGINE_ERR_OFFSET;
     }
@@ -364,16 +365,16 @@ OP_NAMESPACE_BEGIN
             {
                 ns = engine->GetNamespaceByColumnFamilyId(context.column_family_id);
             }
-            const char* Name() const
+            const char* Name() const override
             {
                 return "ardb.compact_filter";
             }
-            bool FilterMergeOperand(int level, const rocksdb::Slice& key, const rocksdb::Slice& operand) const
+            bool FilterMergeOperand(int level, const rocksdb::Slice& key, const rocksdb::Slice& operand) const override
             {
                 return false;
             }
             bool Filter(int level, const rocksdb::Slice& key, const rocksdb::Slice& existing_value,
-                    std::string* new_value, bool* value_changed) const
+                    std::string* new_value, bool* value_changed) const override
             {
                 /*
                  * do not do filter for slave
@@ -419,14 +420,15 @@ OP_NAMESPACE_BEGIN
                     if (meta.GetTTL() > 0 && meta.GetTTL() <= get_current_epoch_millis())
                     {
                         g_db->AddExpiredKey(ns, k.GetKey());
-                        if (meta.GetType() != KEY_STRING)
-                        {
-                            return false;
-                        }
-                        else
-                        {
-                            return true;
-                        }
+                        return false;
+//                        if (meta.GetType() != KEY_STRING)
+//                        {
+//                            return false;
+//                        }
+//                        else
+//                        {
+//                            return true;
+//                        }
                     }
                 }
                 return false;
@@ -455,10 +457,9 @@ OP_NAMESPACE_BEGIN
     class MergeOperator: public rocksdb::MergeOperator
     {
         private:
-            RocksDBEngine* m_engine;
+            //RocksDBEngine* m_engine;
         public:
-            MergeOperator(RocksDBEngine* engine)
-                    : m_engine(engine)
+            MergeOperator()
             {
             }
             // Gives the client a way to express the read -> modify -> write semantics
@@ -479,33 +480,32 @@ OP_NAMESPACE_BEGIN
             // internal corruption. This will be treated as an error by the library.
             //
             // Also make use of the *logger for error messages.
-            bool FullMerge(const rocksdb::Slice& key, const rocksdb::Slice* existing_value,
-                    const std::deque<std::string>& operand_list, std::string* new_value, rocksdb::Logger* logger) const
+            bool FullMergeV2(const MergeOperationInput& merge_in,
+                    MergeOperationOutput* merge_out) const override
             {
-
                 KeyObject key_obj;
-                Buffer keyBuffer(const_cast<char*>(key.data()), 0, key.size());
+                Buffer keyBuffer(const_cast<char*>(merge_in.key.data()), 0, merge_in.key.size());
                 key_obj.Decode(keyBuffer, false);
 
                 //INFO_LOG("Do merge for key:%s in thread %d", key_obj.GetKey().AsString().c_str(), pthread_self());
 
                 ValueObject val_obj;
-                if (NULL != existing_value)
+                if (NULL != merge_in.existing_value && merge_in.existing_value->size() > 0)
                 {
-                    Buffer valueBuffer(const_cast<char*>(existing_value->data()), 0, existing_value->size());
+                    Buffer valueBuffer(const_cast<char*>(merge_in.existing_value->data()), 0, merge_in.existing_value->size());
                     if (!val_obj.Decode(valueBuffer, false))
                     {
                         std::string ks;
                         key_obj.GetKey().ToString(ks);
                         WARN_LOG("Invalid key:%s existing value string with size:%llu", ks.c_str(),
-                                existing_value->size());
+                        		merge_in.existing_value->size());
                         return false;
                     }
                 }
                 bool value_changed = false;
-                for (size_t i = 0; i < operand_list.size(); i++)
+                for (size_t i = 0; i < merge_in.operand_list.size(); i++)
                 {
-                    Buffer mergeBuffer(const_cast<char*>(operand_list[i].data()), 0, operand_list[i].size());
+                    Buffer mergeBuffer(const_cast<char*>(merge_in.operand_list[i].data()), 0, merge_in.operand_list[i].size());
                     ValueObject mergeValue;
                     if (!mergeValue.Decode(mergeBuffer, false))
                     {
@@ -523,82 +523,15 @@ OP_NAMESPACE_BEGIN
                 {
                     Buffer encode_buffer;
                     Slice encode_slice = val_obj.Encode(encode_buffer);
-                    new_value->assign(encode_slice.data(), encode_slice.size());
+                    merge_out->new_value.assign(encode_slice.data(), encode_slice.size());
                 }
                 else
                 {
-                    if (NULL != existing_value)
+                	if (NULL != merge_in.existing_value && merge_in.existing_value->size() > 0)
                     {
-                        new_value->assign(existing_value->data(), existing_value->size());
+                		merge_out->existing_operand = *(merge_in.existing_value);
                     }
                 }
-                return true;
-            }
-            // This function performs merge(left_op, right_op)
-            // when both the operands are themselves merge operation types
-            // that you would have passed to a DB::Merge() call in the same order
-            // (i.e.: DB::Merge(key,left_op), followed by DB::Merge(key,right_op)).
-            //
-            // PartialMerge should combine them into a single merge operation that is
-            // saved into *new_value, and then it should return true.
-            // *new_value should be constructed such that a call to
-            // DB::Merge(key, *new_value) would yield the same result as a call
-            // to DB::Merge(key, left_op) followed by DB::Merge(key, right_op).
-            //
-            // The string that new_value is pointing to will be empty.
-            //
-            // The default implementation of PartialMergeMulti will use this function
-            // as a helper, for backward compatibility.  Any successor class of
-            // MergeOperator should either implement PartialMerge or PartialMergeMulti,
-            // although implementing PartialMergeMulti is suggested as it is in general
-            // more effective to merge multiple operands at a time instead of two
-            // operands at a time.
-            //
-            // If it is impossible or infeasible to combine the two operations,
-            // leave new_value unchanged and return false. The library will
-            // internally keep track of the operations, and apply them in the
-            // correct order once a base-value (a Put/Delete/End-of-Database) is seen.
-            //
-            // TODO: Presently there is no way to differentiate between error/corruption
-            // and simply "return false". For now, the client should simply return
-            // false in any case it cannot perform partial-merge, regardless of reason.
-            // If there is corruption in the data, handle it in the FullMerge() function,
-            // and return false there.  The default implementation of PartialMerge will
-            // always return false.
-            bool PartialMergeMulti(const rocksdb::Slice& key, const std::deque<rocksdb::Slice>& operand_list,
-                    std::string* new_value, rocksdb::Logger* logger) const
-            {
-                if (operand_list.size() < 2)
-                {
-                    return false;
-                }
-                ValueObject ops[2];
-                size_t left_pos = 0;
-                Buffer first_op_buffer(const_cast<char*>(operand_list[0].data()), 0, operand_list[0].size());
-                if (!ops[0].Decode(first_op_buffer, false))
-                {
-                    WARN_LOG("Invalid first merge op.");
-                    return false;
-                }
-                for (size_t i = 1; i < operand_list.size(); i++)
-                {
-                    Buffer op_buffer(const_cast<char*>(operand_list[i].data()), 0, operand_list[i].size());
-                    if (!ops[1 - left_pos].Decode(op_buffer, false))
-                    {
-                        WARN_LOG("Invalid merge op at:%u", i);
-                        return false;
-                    }
-                    if (0
-                            != g_db->MergeOperands(ops[left_pos].GetMergeOp(), ops[left_pos].GetMergeArgs(),
-                                    ops[1 - left_pos].GetMergeOp(), ops[1 - left_pos].GetMergeArgs()))
-                    {
-                        return false;
-                    }
-                    left_pos = 1 - left_pos;
-                }
-                Buffer merge;
-                encode_merge_operation(merge, ops[left_pos].GetMergeOp(), ops[left_pos].GetMergeArgs());
-                new_value->assign(merge.GetRawReadBuffer(), merge.ReadableBytes());
                 return true;
             }
             // This function performs merge when all the operands are themselves merge
@@ -625,8 +558,13 @@ OP_NAMESPACE_BEGIN
             // should either implement PartialMergeMulti, or implement PartialMerge which
             // is served as the helper function of the default PartialMergeMulti.
             bool PartialMerge(const rocksdb::Slice& key, const rocksdb::Slice& left_operand,
-                    const rocksdb::Slice& right_operand, std::string* new_value, rocksdb::Logger* logger) const
+                    const rocksdb::Slice& right_operand, std::string* new_value, rocksdb::Logger* logger) const override
             {
+            	if(left_operand == right_operand)
+            	{
+            		new_value->assign(right_operand.data(),right_operand.size());
+            		return true;
+            	}
                 ValueObject left_op, right_op;
                 Buffer left_mergeBuffer(const_cast<char*>(left_operand.data()), 0, left_operand.size());
                 Buffer right_mergeBuffer(const_cast<char*>(right_operand.data()), 0, right_operand.size());
@@ -650,6 +588,10 @@ OP_NAMESPACE_BEGIN
                     return true;
                 }
                 return false;
+            }
+            bool AllowSingleOperand() const override
+            {
+            	return true;
             }
 
             const char* Name() const override
@@ -798,7 +740,7 @@ OP_NAMESPACE_BEGIN
 
         static RocksDBComparator comparator;
         m_options.comparator = &comparator;
-        m_options.merge_operator.reset(new MergeOperator(this));
+        m_options.merge_operator.reset(new MergeOperator);
         m_options.prefix_extractor.reset(new RocksDBPrefixExtractor);
         m_options.compaction_filter_factory.reset(new RocksDBCompactionFilterFactory(this));
         m_options.info_log.reset(new RocksDBLogger);
@@ -849,7 +791,7 @@ OP_NAMESPACE_BEGIN
     {
         static RocksDBComparator comparator;
         m_options.comparator = &comparator;
-        m_options.merge_operator.reset(new MergeOperator(this));
+        m_options.merge_operator.reset(new MergeOperator);
         m_options.prefix_extractor.reset(new RocksDBPrefixExtractor);
         m_options.compaction_filter_factory.reset(new RocksDBCompactionFilterFactory(this));
         m_options.info_log.reset(new RocksDBLogger);

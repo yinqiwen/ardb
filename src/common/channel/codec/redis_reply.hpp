@@ -217,6 +217,13 @@ namespace ardb
                     type = REDIS_REPLY_STATUS;
                     integer = status;
                 }
+                void SetStatusString(const std::string& v)
+                {
+                    Clear();
+                    type = REDIS_REPLY_STATUS;
+                    str = v;
+                }
+
                 void SetPool(RedisReplyPool* pool);
                 bool IsPooled()
                 {

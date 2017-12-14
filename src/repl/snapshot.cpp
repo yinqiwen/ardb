@@ -2798,9 +2798,9 @@ namespace ardb
     }
     void SnapshotManager::Routine()
     {
-        if(g_repl->IsInited())
+        LockGuard<ThreadMutexLock> guard(m_snapshots_lock);
+        if (g_repl->IsInited() && (m_snapshots.size() < g_db->GetConf().maxsnapshots))
         {
-            LockGuard<ThreadMutexLock> guard(m_snapshots_lock);
             SnapshotArray::iterator it = m_snapshots.begin();
             while (it != m_snapshots.end())
             {
