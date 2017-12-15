@@ -1675,7 +1675,10 @@ namespace ardb
         m_cksm = 0;
         m_processed_bytes = 0;
         m_writed_data_size = 0;
-        g_engine->ReleaseSnapshot(m_engine_snapshot);
+        if(NULL != m_engine_snapshot && NULL != g_engine)
+        {
+            g_engine->ReleaseSnapshot(m_engine_snapshot);
+        }
         //delete ((Iterator*) m_snapshot_iter);
         m_engine_snapshot = NULL;
     }
