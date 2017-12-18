@@ -1,10 +1,10 @@
 #-------------------------------------------------------------------------------
 # Copyright (c) 2013-2016, yinqiwen <yinqiwen@gmail.com>
 # All rights reserved.
-#  
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
-#  
+#
 #   * Redistributions of source code must retain the above copyright notice,
 #     this list of conditions and the following disclaimer.
 #   * Redistributions in binary form must reproduce the above copyright
@@ -13,17 +13,17 @@
 #   * Neither the name of Redis nor the names of its contributors may be used
 #     to endorse or promote products derived from this software without
 #     specific prior written permission.
-#  
+#
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 # AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 # IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS 
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
 # BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
 # CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
 # SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
 # INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
 # CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF 
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 # THE POSSIBILITY OF SUCH DAMAGE.
 #-------------------------------------------------------------------------------
 #Makefile
@@ -117,9 +117,9 @@ CJSON_LIBA=${CJSON_PATH}/libcjson.a
 OPTIMIZATION?=-O2
 OPT=$(OPTIMIZATION)
 
-CXXFLAGS=-Wall -g ${OPT} -fPIC -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"' 
+CXXFLAGS=-Wall -g ${OPT} -fPIC -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"'
 CCFLAGS=-Wall -std=gnu99 ${OPT} -fPIC -pedantic -g -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"'
-LDFLAGS=-g 
+LDFLAGS=-g
 
 SNAPPY_CXXFLAGS=-g $(OPT)
 LEVELDB_OPT=-g $(OPT)
@@ -146,7 +146,7 @@ ifeq ($(uname_S),Linux)
 	MALLOC=jemalloc
 	CXXFLAGS+=-DCORO_ASM
 	CCFLAGS+=-DCORO_ASM
-	LIBS+=-lrt 
+	LIBS+=-lrt
 else
 	MALLOC=libc
 	CXXFLAGS+=-DCORO_UCONTEXT -D_XOPEN_SOURCE
@@ -176,8 +176,8 @@ DB_CFILES := $(foreach dir, $(DB_VPATH), $(wildcard $(dir)/*.c))
 DB_OBJECTS := $(patsubst %.cpp, %.o, $(DB_CPPFILES)) $(patsubst %.c, %.o, $(DB_CFILES))
 
 CORE_OBJECTS :=  config.o cron.o logger.o network.o types.o statistics.o\
-                $(COMMON_OBJECTS)  $(COMMAND_OBJECTS) $(DB_OBJECTS) 
-        
+                $(COMMON_OBJECTS)  $(COMMAND_OBJECTS) $(DB_OBJECTS)
+
 TESTOBJ := ../test/test_main.o
 REPAIR_TOOL_OBJ := tools/repair.o
 SERVEROBJ := main.o
@@ -186,7 +186,7 @@ STORAGE_ENGINE_VPATH=db/${storage_engine}
 STORAGE_ENGINE_CPPFILES := $(foreach dir, $(STORAGE_ENGINE_VPATH), $(wildcard $(dir)/*.cpp))
 STORAGE_ENGINE_CFILES := $(foreach dir, $(STORAGE_ENGINE_VPATH), $(wildcard $(dir)/*.c))
 STORAGE_ENGINE_OBJ := $(patsubst %.cpp, %.o, $(STORAGE_ENGINE_CPPFILES)) $(patsubst %.c, %.o, $(STORAGE_ENGINE_CFILES))
-STORAGE_ENGINE_ALL_OBJ := db/*/*.o   
+STORAGE_ENGINE_ALL_OBJ := db/*/*.o
 
 
 #DIST_LIB = libardb.so
@@ -203,7 +203,7 @@ ifeq ($(storage_engine), forestdb)
   STORAGE_ENGINE=$(FORESTDB_LIBA)
   STORAGE_ENGINE_PATH=$(FORESTDB_PATH)
   INCS+=-I${FORESTDB_PATH}/include
-  LIBS:=${FORESTDB_LIBA} ${SNAPPY_LIBA} ${LIBS} 
+  LIBS:=${FORESTDB_LIBA} ${SNAPPY_LIBA} ${LIBS}
   CXXFLAGS+=-D__USE_FORESTDB__
   ifeq ($(uname_S),Darwin)
      SEDCMD:=sed -i '.bak' 's/SHARED/STATIC/g' CMakeLists.txt
@@ -225,7 +225,7 @@ ifeq ($(storage_engine), rocksdb)
   STORAGE_ENGINE=$(ROCKSDB_LIBA)
   STORAGE_ENGINE_PATH=$(ROCKSDB_PATH)
   INCS+=-I${ROCKSDB_PATH}/include -I${ROCKSDB_PATH}
-  LIBS:= ${ROCKSDB_LIBA} ${SNAPPY_LIBA} ${LIBS} 
+  LIBS:= ${ROCKSDB_LIBA} ${SNAPPY_LIBA} ${LIBS}
   CXXFLAGS+=-D__USE_ROCKSDB__ -std=c++11
 else
 ifeq ($(storage_engine), wiredtiger)
@@ -246,7 +246,7 @@ else
   $(error Only leveldb/lmdb/rocksdb/perconaft/wiredtiger/forestdb supported as env storage_engine value)
 endif
 endif
-endif 
+endif
 endif
 endif
 endif
@@ -266,25 +266,25 @@ all: ${PREBUILD}  test server tools
 
 $(STORAGE_ENGINE_OBJ): $(STORAGE_ENGINE)
 
-$(DIST_LIB): $(STORAGE_ENGINE_OBJ) $(CORE_OBJECTS) 
+$(DIST_LIB): $(STORAGE_ENGINE_OBJ) $(CORE_OBJECTS)
 	${CXX} -shared -o $@ $^
 
 $(DIST_LIBA):$(STORAGE_ENGINE_OBJ) $(CORE_OBJECTS)
 	ar rcs $@ $^
 
-lib: $(DEP_LIBS) lua snappy sparsehash $(storage_engine) $(DIST_LIBA) 
+lib: $(DEP_LIBS) lua snappy sparsehash $(storage_engine) $(DIST_LIBA)
 
 server: lib $(CORE_OBJECTS) ${SERVEROBJ}
 	${CXX} -o ardb-server $(SERVEROBJ)  $(CORE_OBJECTS) ${STORAGE_ENGINE_OBJ} $(LIBS)
 
 test: lib ${TESTOBJ} $(CORE_OBJECTS)
-	${CXX} -o ardb-test ${STORAGE_ENGINE_OBJ} ${TESTOBJ} $(CORE_OBJECTS) $(LIBS) 
-	
+	${CXX} -o ardb-test ${STORAGE_ENGINE_OBJ} ${TESTOBJ} $(CORE_OBJECTS) $(LIBS)
+
 tools: repair
 
 repair: lib ${REPAIR_TOOL_OBJ}
-	${CXX} -o ardb-repair ${REPAIR_TOOL_OBJ} $(DIST_LIBA) $(LIBS) 
-	
+	${CXX} -o ardb-repair ${REPAIR_TOOL_OBJ} $(DIST_LIBA) $(LIBS)
+
 .PHONY: jemalloc
 jemalloc: $(JEMALLOC_LIBA)
 $(JEMALLOC_LIBA): $(JEMALLOC_PATH)
@@ -369,31 +369,31 @@ ${LEVELDB_FILE}:
 	wget -O ${LEVELDB_FILE} ${LEVELDB_REMOTE_FILE} && \
 	echo "<<<<< Done dowloading LevelDB"
 
-.PHONY: rocksdb  
+.PHONY: rocksdb
 rocksdb: $(ROCKSDB_LIBA) rocksdb_flags
 
 rocksdb_flags:
-	$(eval ROCKSDB_LDFLAGS=$(shell grep PLATFORM_LDFLAGS $(ROCKSDB_PATH)/make_config.mk | cut -d '=' -f2 | sed 's/\-lsnappy//' | sed 's/\-lrt//' | sed 's/\-lpthread//')) 
+	$(eval ROCKSDB_LDFLAGS=$(shell grep PLATFORM_LDFLAGS $(ROCKSDB_PATH)/make_config.mk | cut -d '=' -f2 | sed 's/\-lsnappy//' | sed 's/\-lrt//' | sed 's/\-lpthread//'))
 	$(eval LIBS+=$(ROCKSDB_LDFLAGS))
-	
+
 $(ROCKSDB_LIBA): $(SNAPPY_LIBA) $(ROCKSDB_PATH)
 	@echo ">>>>> Building ROCKSDB" && \
 	cd ${ROCKSDB_PATH} && \
 	CXXFLAGS="-I${SNAPPY_PATH}" CFLAGS="-I${SNAPPY_PATH}" LDFLAGS="${SNAPPY_PATH}/.libs" USE_RTTI=1 $(MAKE) static_lib && \
-	echo "<<<<< Done building ROCKSDB" 
+	echo "<<<<< Done building ROCKSDB"
 
 $(ROCKSDB_PATH): ${ROCKSDB_FILE}
 	@echo ">>>>> Unpacking ROCKSDB" && \
 	cd ${LIB_PATH} && \
 	tar zxf ${ROCKSDB_FILE} && \
 	echo "<<<<< Done unpacking ROCKSDB"
-	
+
 ${ROCKSDB_FILE}:
 	@echo ">>>>> Dowloading RocksDB" && \
 	cd ${LIB_PATH} && \
 	wget -O ${ROCKSDB_FILE} ${ROCKSDB_REMOTE_FILE} && \
 	echo "<<<<< Done dowloading RocksDB"
-	
+
 .PHONY: wiredtiger
 wiredtiger: $(WIREDTIGER_LIBA)
 $(WIREDTIGER_LIBA): $(SNAPPY_LIBA) $(WIREDTIGER_PATH)
@@ -407,7 +407,7 @@ $(WIREDTIGER_PATH): ${WIREDTIGER_FILE}
 	cd ${LIB_PATH} && \
 	tar jxf ${WIREDTIGER_FILE} && \
 	echo "<<<<< Done unpacking WiredTiger"
-	
+
 ${WIREDTIGER_FILE}:
 	@echo ">>>>> Dowloading WiredTiger" && \
 	cd ${LIB_PATH} && \
@@ -432,7 +432,7 @@ ${FORESTDB_PATH}: ${FORESTDB_FILE}
 	cd ${LIB_PATH} && \
 	tar zxf ${FORESTDB_FILE} && \
 	echo "<<<<< Done unpacking forestdb"
-	
+
 ${FORESTDB_FILE}:
 	echo ">>>>> Dowloading forestdb" && \
 	cd ${LIB_PATH} && \
@@ -441,7 +441,7 @@ ${FORESTDB_FILE}:
 
 .PHONY: perconaft
 perconaft: $(PERCONAFT_LIBA)
-$(PERCONAFT_LIBA): ${PERCONAFT_PATH} $(SNAPPY_LIBA) 
+$(PERCONAFT_LIBA): ${PERCONAFT_PATH} $(SNAPPY_LIBA)
 	echo ">>>>> Building PerconaFT" && \
 	cd ${LIB_PATH} && \
 	cd ${PERCONAFT_PATH} && rm -rf build &&\
@@ -469,7 +469,7 @@ $(LUA_LIBA):
 	cd ${LUA_PATH}/src && \
 	$(MAKE) all CFLAGS="$(LUA_CFLAGS)" MYLDFLAGS="$(LUA_LDFLAGS)" && \
 	echo ">>>>> Done building LUA"
-	
+
 .PHONY: cjson
 cjson: $(CJSON_LIBA)
 $(CJSON_LIBA):
