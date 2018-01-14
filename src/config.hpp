@@ -136,7 +136,6 @@ OP_NAMESPACE_BEGIN
             bool scan_redis_compatible;
             int64 scan_cursor_expire_after;
 
-
             int64 snapshot_max_lag_offset;
             int64 maxsnapshots;
 
