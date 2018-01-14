@@ -202,7 +202,7 @@ OP_NAMESPACE_BEGIN
         conf_get_int64(props, "snapshot-max-lag-offset", snapshot_max_lag_offset);
         conf_get_int64(props, "maxsnapshots", maxsnapshots);
 
-        if(maxsnapshots < 1)
+        if(maxsnapshots == 0)
         {
             maxsnapshots = 1;
         }
