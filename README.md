@@ -96,7 +96,7 @@ RocksDB Options:
 
 
 
-#####Note     
+##### Note     
 - Ardb uses 1 thread & 16 threads in this benchmark test, while redis is actually single threaded application. Ardb is a multithreaded applcation, you can start the server with more threads by setting 'thread-pool-size' to 16 or higher to increase the read/write performance.    
 - There is no any performance improve for SADD/LPUSH/LPOP with 16 threads , because in the test SADD/LPUSH/LPOP always operate on same key, while SADD/LPUSH/LPOP would lock the key until write operation done.
 - SPOP have very poor performance in ardb.
