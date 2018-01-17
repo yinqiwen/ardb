@@ -2802,7 +2802,7 @@ namespace ardb
     void SnapshotManager::Routine()
     {
         LockGuard<ThreadMutexLock> guard(m_snapshots_lock);
-        if (g_repl->IsInited() && (m_snapshots.size() < g_db->GetConf().maxsnapshots))
+        if (g_db->GetConf().maxsnapshots > 0 && g_repl->IsInited() && (m_snapshots.size() > g_db->GetConf().maxsnapshots))
         {
             SnapshotArray::iterator it = m_snapshots.begin();
             while (it != m_snapshots.end())
@@ -2826,7 +2826,7 @@ namespace ardb
             }
         }
 
-        while (m_snapshots.size() > g_db->GetConf().maxsnapshots)
+        while (g_db->GetConf().maxsnapshots > 0 && m_snapshots.size() > g_db->GetConf().maxsnapshots)
         {
             Snapshot* s = m_snapshots[0];
             if (NULL != s)
