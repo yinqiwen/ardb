@@ -58,8 +58,8 @@ namespace ardb
             Slice GetRawKey(Data& ns);
             friend class LevelDBEngine;
         public:
-            LevelDBIterator(LevelDBEngine* engine, const Data& ns) :
-                    m_ns(ns), m_engine(engine), m_iter(NULL), m_valid(true)
+            LevelDBIterator(LevelDBEngine* engine, const Data& ns)
+                    : m_ns(ns), m_engine(engine), m_iter(NULL), m_valid(true)
             {
             }
             void MarkValid(bool valid)
@@ -98,10 +98,13 @@ namespace ardb
             int64 block_restart_interval;
             int64 bloom_bits;
             int64 batch_commit_watermark;
+            int64_t max_file_size;
             std::string compression;
             bool logenable;
-            LevelDBConfig() :
-                    block_cache_size(0), write_buffer_size(0), max_open_files(10240), block_size(0), block_restart_interval(0), bloom_bits(10), batch_commit_watermark(1024), compression("snappy"), logenable(false)
+            LevelDBConfig()
+                    : block_cache_size(0), write_buffer_size(0), max_open_files(10240), block_size(0), block_restart_interval(
+                            0), bloom_bits(10), batch_commit_watermark(1024), max_file_size(2 * 1024 * 1024), compression(
+                            "snappy"), logenable(false)
             {
             }
     };

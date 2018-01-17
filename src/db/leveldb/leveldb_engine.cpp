@@ -254,6 +254,7 @@ namespace ardb
         conf_get_int64(props, "block_restart_interval", m_cfg.block_restart_interval);
         conf_get_int64(props, "bloom_bits", m_cfg.bloom_bits);
         conf_get_int64(props, "batch_commit_watermark", m_cfg.batch_commit_watermark);
+        conf_get_int64(props, "max_file_size", m_cfg.max_file_size);
         conf_get_string(props, "compression", m_cfg.compression);
         conf_get_bool(props, "logenable", m_cfg.logenable);
 
@@ -293,6 +294,10 @@ namespace ardb
         if (m_cfg.logenable)
         {
             m_options.info_log = new LevelDBLogger;
+        }
+        if(m_cfg.max_file_size > 0)
+        {
+            m_options.max_file_size = m_cfg.max_file_size;
         }
         m_cfg.path = dir;
         make_dir(m_cfg.path);
