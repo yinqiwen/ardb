@@ -114,6 +114,7 @@ OP_NAMESPACE_BEGIN
 
             void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisCommandFrame>& e)
             {
+
             	uint64 now = get_current_epoch_micros();
                 m_client_ctx.last_interaction_ustime = now;
                 m_client_ctx.client = ctx.GetChannel();

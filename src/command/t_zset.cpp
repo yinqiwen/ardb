@@ -377,6 +377,10 @@ OP_NAMESPACE_BEGIN
         if (reverse)
         {
             range_parse_success = range.Parse(cmd.GetArguments()[2], cmd.GetArguments()[1]);
+            if(range.min == range.max)
+            {
+                range.max.SetFloat64(range.max.GetFloat64() + DBL_EPSILON);
+            }
         }
         else
         {
@@ -443,13 +447,21 @@ OP_NAMESPACE_BEGIN
         }
         int64_t range_cursor = 0;
         int64_t range_count = 0;
+        bool first_iter = true;
         while (iter->Valid())
         {
             KeyObject& field = iter->Key();
             if (field.GetType() != KEY_ZSET_SORT || field.GetNameSpace() != key.GetNameSpace() || field.GetKey() != key.GetKey())
             {
+                if(first_iter && reverse)
+                {
+                    iter->Prev();
+                    first_iter = false;
+                    continue;
+                }
                 break;
             }
+            first_iter  = false;
             int inrange = range.InRange(field.GetZSetScore());
             if (reverse)
             {
