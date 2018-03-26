@@ -217,6 +217,8 @@ OP_NAMESPACE_BEGIN
 
             int ListPop(Context& ctx, RedisCommandFrame& cmd, bool lock_key = true);
             int ListPush(Context& ctx, RedisCommandFrame& cmd, bool lock_key = true);
+            int ListPopValue(Context& ctx, const KeyPrefix& key, bool lpop, std::string& value, RedisCommandFrame& cmd);
+            int ListPushValue(Context& ctx, const KeyPrefix& key, const std::string& value, bool lpush , RedisCommandFrame& cmd);
 
             bool AdjustMergeOp(uint16& op, DataArray& args);
             int MergeAppend(Context& ctx, const KeyObject& key, ValueObject& val, const std::string& append);
@@ -254,7 +256,7 @@ OP_NAMESPACE_BEGIN
 
             int BlockForKeys(Context& ctx, const StringArray& keys, const std::string& target, uint32 timeout);
             static void AsyncUnblockKeysCallback(Channel* ch, void * data);
-            int UnblockKeys(Context& ctx, bool use_lock = true);
+            int UnblockKeys(Context& ctx, bool sync = true, RedisReply* reply = NULL);
             int WakeClientsBlockingOnList(Context& ctx);
             int SignalListAsReady(Context& ctx, const std::string& key);
             int ServeClientBlockedOnList(Context& ctx, const KeyPrefix& key, const std::string& value);

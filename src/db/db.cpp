@@ -1238,7 +1238,7 @@ OP_NAMESPACE_BEGIN
             LockGuard<SpinMutexLock> guard(m_clients_lock);
             m_all_clients.erase(&ctx);
         }
-        UnblockKeys(ctx, true);
+        UnblockKeys(ctx, true, NULL);
         MarkRestoring(ctx, false);
         {
             WriteLockGuard<SpinRWLock> guard(m_monitors_lock);
