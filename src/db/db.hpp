@@ -450,6 +450,7 @@ OP_NAMESPACE_BEGIN
             int RestoreChunk(Context& ctx, RedisCommandFrame& cmd);
             int Debug(Context& ctx, RedisCommandFrame& cmd);
             int Touch(Context& ctx, RedisCommandFrame& cmd);
+            int Command(Context& ctx, RedisCommandFrame& cmd);
 
             int DoCall(Context& ctx, RedisCommandHandlerSetting& setting, RedisCommandFrame& cmd);
             RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(RedisCommandFrame& cmd);

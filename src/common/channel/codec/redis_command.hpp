@@ -84,6 +84,7 @@ namespace ardb
             REDIS_CMD_MONITOR = 40,
             REDIS_CMD_DEBUG = 41,
             REDIS_CMD_BACKUP = 42,
+			REDIS_CMD_COMMAND = 43,
 
             //'keys' commands
             REDIS_CMD_DEL = 50,

@@ -1213,5 +1213,12 @@ namespace ardb
         }
         return 0;
     }
+
+    int Ardb::Command(Context& ctx, RedisCommandFrame& cmd)
+    {
+        RedisReply& reply = ctx.GetReply();
+        reply.ReserveMember(0);
+        return 0;
+    }
 }
 

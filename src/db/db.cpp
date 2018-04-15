@@ -358,7 +358,8 @@ OP_NAMESPACE_BEGIN
         { "restoredb", REDIS_CMD_RESTOREDB, &Ardb::RestoreDB, 1, 1, "wl", 0, 0, 0 },
         { "monitor", REDIS_CMD_MONITOR, &Ardb::Monitor, 0, 0, "ars", 0, 0, 0 },
         { "debug", REDIS_CMD_DEBUG, &Ardb::Debug, 2, -1, "ars", 0, 0, 0 },
-        { "touch", REDIS_CMD_TOUCH, &Ardb::Touch, 1, -2, "rF", 0, 0, 0 },};
+        { "touch", REDIS_CMD_TOUCH, &Ardb::Touch, 1, -2, "rF", 0, 0, 0 },
+		{ "command", REDIS_CMD_COMMAND, &Ardb::Command, 0, -1, "r", 0, 0, 0 },};
 
         CostRanges cmdstat_ranges;
         cmdstat_ranges.push_back(CostRange(0, 1000));
@@ -1416,6 +1417,7 @@ OP_NAMESPACE_BEGIN
     int Ardb::Call(Context& ctx, RedisCommandFrame& args)
     {
         RedisReply& reply = ctx.GetReply();
+
         RedisCommandHandlerSetting* found = FindRedisCommandHandlerSetting(args);
         if (NULL == found)
         {
