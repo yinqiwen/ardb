@@ -19,23 +19,23 @@ OP_NAMESPACE_BEGIN
         E_INT64 = 1, E_FLOAT64 = 2, E_CSTR = 3, E_SDS = 4
     };
 
-    Data::Data() :
-            data(0), len(0), encoding(0)
+    Data::Data()
+            : data(0), len(0), encoding(0)
     {
         //value.iv = 0;
     }
-    Data::Data(const std::string& v, bool try_int_encoding) :
-            data(0), len(0), encoding(0)
+    Data::Data(const std::string& v, bool try_int_encoding)
+            : data(0), len(0), encoding(0)
     {
         SetString(v, try_int_encoding);
     }
 
-    Data::Data(int64_t v) :
-            data(v), len(0), encoding(E_INT64)
+    Data::Data(int64_t v)
+            : data(v), len(0), encoding(E_INT64)
     {
     }
-    Data::Data(double v) :
-            len(0), encoding(E_FLOAT64)
+    Data::Data(double v)
+            : len(0), encoding(E_FLOAT64)
     {
         memcpy(&data, &v, sizeof(data));
     }
@@ -50,8 +50,8 @@ OP_NAMESPACE_BEGIN
         Clear();
     }
 
-    Data::Data(const Data& other) :
-            data(0), len(0), encoding(0)
+    Data::Data(const Data& other)
+            : data(0), len(0), encoding(0)
     {
         Clone(other);
     }
@@ -190,7 +190,7 @@ OP_NAMESPACE_BEGIN
         }
         else
         {
-            data = (int64_t)str;
+            data = (int64_t) str;
             //memcpy(&data, &str, sizeof(const char*));
             encoding = E_CSTR;
         }
@@ -275,7 +275,8 @@ OP_NAMESPACE_BEGIN
         {
             if (IsInteger() && right.IsInteger())
             {
-                return GetInt64() - right.GetInt64();
+                int64_t cmp = GetInt64() - right.GetInt64();
+                return cmp > 0 ? 1 : (cmp < 0 ? -1 : 0);
             }
             if (IsNumber() && right.IsNumber())
             {
@@ -327,7 +328,7 @@ OP_NAMESPACE_BEGIN
             other_raw_data = data_buf;
         }
         size_t min_len = left_len < right_len ? left_len : right_len;
-        if(0 == min_len)
+        if (0 == min_len)
         {
             return left_len - right_len;
         }

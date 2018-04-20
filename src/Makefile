@@ -372,6 +372,7 @@ ${LEVELDB_FILE}:
 .PHONY: rocksdb
 rocksdb: $(ROCKSDB_LIBA) rocksdb_flags
 
+.PHONY: rocksdb_flags
 rocksdb_flags:
 	$(eval ROCKSDB_LDFLAGS=$(shell grep PLATFORM_LDFLAGS $(ROCKSDB_PATH)/make_config.mk | cut -d '=' -f2 | sed 's/\-lsnappy//' | sed 's/\-lrt//' | sed 's/\-lpthread//'))
 	$(eval LIBS+=$(ROCKSDB_LDFLAGS))
