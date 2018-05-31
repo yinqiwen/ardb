@@ -273,6 +273,20 @@ namespace ardb
                 	    sortvals[i].weight.Clear();
                 	    continue;
                 	}
+                	if(!options.with_alpha)
+                	{
+                	    if(sortvals[i].weight.IsString())
+                	    {
+                	        //try to convert to double
+                	        double dv;
+                	        std::string str;
+                	        sortvals[i].weight.ToString(str);
+                	        if(string_todouble(str, dv))
+                	        {
+                	            sortvals[i].weight.SetFloat64(dv);
+                	        }
+                	    }
+                	}
                 }
         	}
             if (!options.is_desc)
