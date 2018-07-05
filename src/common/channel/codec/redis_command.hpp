@@ -208,6 +208,10 @@ namespace ardb
             REDIS_CMD_GEO_DIST = 276,
             REDIS_CMD_GEO_HASH = 277,
             REDIS_CMD_GEO_POS = 278,
+            REDIS_CMD_ZPOPMIN = 279,
+            REDIS_CMD_ZPOPMAX = 280,
+            REDIS_CMD_BZPOPMIN = 281,
+            REDIS_CMD_BZPOPMAX = 282,
 
             //'list' commands
             REDIS_CMD_LINDEX = 300,

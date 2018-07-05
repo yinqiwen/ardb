@@ -438,6 +438,10 @@ OP_NAMESPACE_BEGIN
             int ZLexCount(Context& ctx, RedisCommandFrame& cmd);
             int ZRangeByLex(Context& ctx, RedisCommandFrame& cmd);
             int ZRemRangeByLex(Context& ctx, RedisCommandFrame& cmd);
+            int ZPopMin(Context& ctx, RedisCommandFrame& cmd);
+            int ZPopMax(Context& ctx, RedisCommandFrame& cmd);
+            int BZPopMin(Context& ctx, RedisCommandFrame& cmd);
+            int BZPopMax(Context& ctx, RedisCommandFrame& cmd);
 
             int LIndex(Context& ctx, RedisCommandFrame& cmd);
             int LInsert(Context& ctx, RedisCommandFrame& cmd);
