@@ -258,6 +258,7 @@ OP_NAMESPACE_BEGIN
             int ZIterateByRank(Context& ctx, RedisCommandFrame& cmd);
             int ZIterateByScore(Context& ctx, RedisCommandFrame& cmd);
             int ZIterateByLex(Context& ctx, RedisCommandFrame& cmd);
+            int ZPop(Context& ctx, RedisReply& r, const std::string& key, ValueObject* meta, int64_t count, bool reverse, bool emitkey, bool lock);
 
             int StreamDel(Context& ctx, const KeyObject& key);
             int StreamDelItem(Context& ctx, const std::string& key, const StreamID& id);
@@ -288,6 +289,7 @@ OP_NAMESPACE_BEGIN
             int BlockForKeys(Context& ctx, const StringArray& keys, const AnyArray& vals, KeyType ktype, uint32 mstimeout);
             static void AsyncUnblockKeysCallback(Channel* ch, void * data);
             int UnblockKeys(Context& ctx, bool sync = true, RedisReply* reply = NULL);
+            int WakeClientsBlockingOnZSet(Context& ctx, const KeyPrefix& ready_key,  Context& unblock_client);
             int WakeClientsBlockingOnList(Context& ctx,  const KeyPrefix& ready_key, Context& unblock_client);
             int WakeClientsBlockingOnStream(Context& ctx, const KeyPrefix& ready_key,  Context& unblock_client);
             int WakeClientsBlockingOnKeys(Context& ctx);

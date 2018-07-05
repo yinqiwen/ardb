@@ -193,6 +193,11 @@ OP_NAMESPACE_BEGIN
                                     err = WakeClientsBlockingOnList(ctx, ready_key, *unblock_client);
                                     break;
                                 }
+                                case KEY_ZSET:
+                                {
+                                    err = WakeClientsBlockingOnZSet(ctx, ready_key, *unblock_client);
+                                    break;
+                                }
                                 case KEY_STREAM:
                                 {
                                     err = WakeClientsBlockingOnStream(ctx, ready_key, *unblock_client);
