@@ -593,6 +593,11 @@ OP_NAMESPACE_BEGIN
                 reply.SetStatusString("string");
                 break;
             }
+            case KEY_STREAM:
+            {
+                reply.SetStatusString("stream");
+                break;
+            }
             default:
             {
                 reply.SetStatusString("invalid");
@@ -915,7 +920,10 @@ OP_NAMESPACE_BEGIN
                 iter->Next();
             }
         }
-
+        if(meta_obj.GetType() == KEY_STREAM)
+        {
+            StreamDel(ctx, meta_key);
+        }
         if (removed > 0)
         {
             TouchWatchKey(ctx, meta_key);

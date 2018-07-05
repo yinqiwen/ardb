@@ -59,8 +59,8 @@ OP_NAMESPACE_BEGIN
             unsigned reply_off :1;
             unsigned reply_skip :1;
             unsigned block_keys_locked :1;
-            CallFlags() :
-                    no_wal(0), no_fill_reply(0), create_if_notexist(0), fuzzy_check(0), redis_compatible(0), iterate_multi_keys(
+            CallFlags()
+                    : no_wal(0), no_fill_reply(0), create_if_notexist(0), fuzzy_check(0), redis_compatible(0), iterate_multi_keys(
                             0), iterate_no_upperbound(0), iterate_total_order(0), slave(0), lua(0), pubsub(0), bulk_loading(
                             0), reply_off(0), reply_skip(0), block_keys_locked(0)
             {
@@ -101,8 +101,8 @@ OP_NAMESPACE_BEGIN
     {
             uint32 id;
             Context* ctx;
-            ClientId() :
-                    id(0), ctx(NULL)
+            ClientId()
+                    : id(0), ctx(NULL)
             {
             }
             bool operator<(const ClientId& other) const
@@ -129,8 +129,8 @@ OP_NAMESPACE_BEGIN
             int64 uptime;
             int64 last_interaction_ustime;
             int64 resume_ustime;
-            ClientContext() :
-                    processing(false), client(NULL), uptime(0), last_interaction_ustime(0), resume_ustime(-1)
+            ClientContext()
+                    : processing(false), client(NULL), uptime(0), last_interaction_ustime(0), resume_ustime(-1)
             {
             }
     };
@@ -143,8 +143,8 @@ OP_NAMESPACE_BEGIN
             RedisCommandFrameArray cached_cmds;
             typedef TreeSet<KeyPrefix>::Type WatchKeySet;
             WatchKeySet watched_keys;
-            TransactionContext() :
-                    started(false), abort(false), cas(false)
+            TransactionContext()
+                    : started(false), abort(false), cas(false)
             {
             }
     };
@@ -153,16 +153,55 @@ OP_NAMESPACE_BEGIN
             StringTreeSet pubsub_channels;
             StringTreeSet pubsub_patterns;
     };
+    struct BlockListTarget
+    {
+            KeyPrefix target;
+    };
+    struct BlockStreamTarget
+    {
+            size_t xread_count;
+            std::string group;
+            std::string consumer;
+            bool noack;
+            std::vector<StreamID> ids;
+            BlockStreamTarget()
+                    : xread_count(0),noack(true)
+            {
+            }
+    };
 
     struct BlockingState
     {
-            typedef TreeSet<KeyPrefix>::Type BlockKeySet;
-            BlockKeySet keys;
-            KeyPrefix target;
+            typedef TreeMap<KeyPrefix, const void*>::Type BlockKeyTable;
+            BlockKeyTable keys;
             uint64 timeout;
-            BlockingState() :
-                    timeout(0)
+            BlockListTarget* list_target;
+            BlockStreamTarget* stream_target;
+            uint32 block_keytype;
+            BlockingState()
+                    : timeout(0), list_target(NULL), stream_target(NULL),block_keytype(0)
             {
+            }
+            BlockListTarget& GetListTarget()
+            {
+                if (NULL == list_target)
+                {
+                    list_target = new BlockListTarget;
+                }
+                return *list_target;
+            }
+            BlockStreamTarget& GetStreamTarget()
+            {
+                if (NULL == stream_target)
+                {
+                    stream_target = new BlockStreamTarget;
+                }
+                return *stream_target;
+            }
+            ~BlockingState()
+            {
+                DELETE(list_target);
+                DELETE(stream_target);
             }
     };
 
@@ -188,10 +227,10 @@ OP_NAMESPACE_BEGIN
             const void* engine_snapshot;
             void* cmd_proxy;
 
-            Context() :
-                    reply(NULL), client(NULL), transc(NULL), pubsub(
+            Context()
+                    : reply(NULL), client(NULL), transc(NULL), pubsub(
                     NULL), bpop(NULL), current_cmd(NULL), dirty(0), last_cmdtype(REDIS_CMD_INVALID), transc_err(0), authenticated(
-                            true), keyslocked(false), engine_snapshot(NULL),cmd_proxy(NULL)
+                            true), keyslocked(false), engine_snapshot(NULL), cmd_proxy(NULL)
             {
                 ns.SetString("0", false);
             }

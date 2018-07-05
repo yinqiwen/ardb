@@ -42,6 +42,7 @@
 OP_NAMESPACE_BEGIN
 
     typedef std::vector<std::string> StringArray;
+    typedef std::vector<const void*> AnyArray;
     typedef TreeMap<std::string, std::string>::Type StringStringMap;
     typedef TreeSet<std::string>::Type StringTreeSet;
     typedef TreeMap<std::string, double>::Type StringDoubleMap;
@@ -50,30 +51,30 @@ OP_NAMESPACE_BEGIN
     {
         public:
             // Create an empty slice.
-            Slice() :
-                    data_(""), size_(0)
+            Slice()
+                    : data_(""), size_(0)
             {
             }
-            Slice(const Slice& s) :
-                    data_(s.data()), size_(s.size())
+            Slice(const Slice& s)
+                    : data_(s.data()), size_(s.size())
             {
             }
 
             // Create a slice that refers to d[0,n-1].
-            Slice(const char* d, size_t n) :
-                    data_(d), size_(n)
+            Slice(const char* d, size_t n)
+                    : data_(d), size_(n)
             {
             }
 
             // Create a slice that refers to the contents of "s"
-            Slice(const std::string& s) :
-                    data_(s.data()), size_(s.size())
+            Slice(const std::string& s)
+                    : data_(s.data()), size_(s.size())
             {
             }
 
             // Create a slice that refers to s[0,strlen(s)-1]
-            Slice(const char* s) :
-                    data_(s), size_(strlen(s))
+            Slice(const char* s)
+                    : data_(s), size_(strlen(s))
             {
             }
 
@@ -163,10 +164,8 @@ OP_NAMESPACE_BEGIN
         int r = memcmp(data_, b.data_, min_len);
         if (r == 0)
         {
-            if (size_ < b.size_)
-                r = -1;
-            else if (size_ > b.size_)
-                r = +1;
+            if (size_ < b.size_) r = -1;
+            else if (size_ > b.size_) r = +1;
         }
         return r;
     }
@@ -264,12 +263,51 @@ OP_NAMESPACE_BEGIN
         public:
             ~PointerArray()
             {
-                for(size_t i = 0 ; i < std::vector<T>::size(); i++)
+                for (size_t i = 0; i < std::vector<T>::size(); i++)
                 {
-                    delete(std::vector<T>::at(i));
+                    delete (std::vector<T>::at(i));
                 }
             }
     };
+
+    /* Stream item ID: a 128 bit number composed of a milliseconds time and
+     * a sequence counter. IDs generated in the same millisecond (or in a past
+     * millisecond if the clock jumped backward) will use the millisecond time
+     * of the latest generated ID and an incremented sequence. */
+    struct StreamID
+    {
+            uint64_t ms; /* Unix time in milliseconds. */
+            uint64_t seq; /* Sequence number. */
+
+            StreamID()
+                    : ms(0), seq(0)
+            {
+            }
+
+            /* Compare two stream IDs. Return -1 if a < b, 0 if a == b, 1 if a > b. */
+            int Compare(const StreamID& other) const;
+            void Encode(Data& data) const;
+            void Decode(const Data& data);
+            bool Empty() const
+            {
+                return 0 == ms && 0 == seq;
+            }
+            bool operator<(const StreamID& other) const
+            {
+                return Compare(other) < 0;
+            }
+            void ToString(std::string& str) const;
+    };
+
+    template<typename T>
+    void BuildAnyArray(const std::vector<T>& src, AnyArray& dest)
+    {
+        dest.clear();
+        for(size_t i = 0; i < src.size(); i++)
+        {
+            dest.push_back(&(src[i]));
+        }
+    }
 
 OP_NAMESPACE_END
 

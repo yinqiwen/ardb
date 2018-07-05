@@ -228,6 +228,21 @@ namespace ardb
             REDIS_CMD_LRANGE = 316,
             REDIS_CMD_LSET = 317,
 
+            //'stream' commands
+            REDIS_CMD_XADD= 400,
+            REDIS_CMD_XRANGE= 401,
+            REDIS_CMD_XREVRANGE= 402,
+            REDIS_CMD_XLEN= 403,
+            REDIS_CMD_XREAD= 404,
+            REDIS_CMD_XREADGROUP= 405,
+            REDIS_CMD_XGROUP= 406,
+            REDIS_CMD_XACK= 406,
+            REDIS_CMD_XPENDING= 407,
+            REDIS_CMD_XCLAIM= 408,
+            REDIS_CMD_XINFO= 409,
+            REDIS_CMD_XDEL= 410,
+            REDIS_CMD_XTRIM= 411,
+
             //cluster commands
             REDIS_CMD_CLUSTER = 500,  //used in cluster mode
 

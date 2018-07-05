@@ -93,8 +93,8 @@ namespace ardb
                 int64 len;
                 uint32 flag;
                 std::string chunk;
-                RedisDumpFileChunk() :
-                        len(0), flag(0)
+                RedisDumpFileChunk()
+                        : len(0), flag(0)
                 {
                 }
                 bool IsLastChunk()
@@ -124,20 +124,20 @@ namespace ardb
                 std::deque<RedisReply*>* elements;
 
                 RedisReplyPool* pool;  //use object pool if reply is array with hundreds of elements
-                RedisReply() :
-                        type(REDIS_REPLY_NIL), integer(0), elements(NULL), pool(NULL)
+                RedisReply()
+                        : type(REDIS_REPLY_NIL), integer(0), elements(NULL), pool(NULL)
                 {
                 }
-                RedisReply(uint64 v) :
-                        type(REDIS_REPLY_INTEGER), integer(v), elements(NULL), pool(NULL)
+                RedisReply(uint64 v)
+                        : type(REDIS_REPLY_INTEGER), integer(v), elements(NULL), pool(NULL)
                 {
                 }
-                RedisReply(double v) :
-                        type(REDIS_REPLY_DOUBLE), integer(0), elements(NULL), pool(NULL)
+                RedisReply(double v)
+                        : type(REDIS_REPLY_DOUBLE), integer(0), elements(NULL), pool(NULL)
                 {
                 }
-                RedisReply(const std::string& v) :
-                        type(REDIS_REPLY_STRING), str(v), integer(0), elements(NULL), pool(NULL)
+                RedisReply(const std::string& v)
+                        : type(REDIS_REPLY_STRING), str(v), integer(0), elements(NULL), pool(NULL)
                 {
                 }
                 bool IsErr() const
@@ -217,6 +217,12 @@ namespace ardb
                     type = REDIS_REPLY_STATUS;
                     integer = status;
                 }
+                void SetStatusString(const char* v)
+                {
+                    Clear();
+                    type = REDIS_REPLY_STATUS;
+                    str.assign(v);
+                }
                 void SetStatusString(const std::string& v)
                 {
                     Clear();
@@ -251,7 +257,6 @@ namespace ardb
                 }
                 virtual ~RedisReply();
         };
-
 
         class RedisReplyPool
         {

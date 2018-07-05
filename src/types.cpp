@@ -10,6 +10,7 @@
 #include "util/murmur3.h"
 #include "util/string_helper.hpp"
 #include "util/math_helper.hpp"
+#include "util/network_helper.hpp"
 #include <cmath>
 
 OP_NAMESPACE_BEGIN
@@ -479,6 +480,41 @@ OP_NAMESPACE_BEGIN
     bool DataEqual::operator()(const Data& s1, const Data& s2) const
     {
         return s1.Compare(s2, false) == 0;
+    }
+
+    /* Compare two stream IDs. Return -1 if a < b, 0 if a == b, 1 if a > b. */
+    int StreamID::Compare(const StreamID& other) const
+    {
+        if (ms > other.ms) return 1;
+        else if (ms < other.ms) return -1;
+        /* The ms part is the same. Check the sequence part. */
+        else if (seq > other.seq) return 1;
+        else if (seq < other.seq) return -1;
+        /* Everything is the same: IDs are equal. */
+        return 0;
+    }
+    void StreamID::Encode(Data& data) const
+    {
+        uint64_t ids[2];
+        ids[0] = hton_u64(ms);
+        ids[1] = hton_u64(seq);
+        data.SetString((const char*) ids, 16, true);
+    }
+    void StreamID::Decode(const Data& data)
+    {
+        if(data.StringLength() >= 16)
+        {
+            uint64_t ids[2];
+            memcpy(ids, data.CStr(), 16);
+            ms = ntoh_u64(ids[0]);
+            seq = ntoh_u64(ids[1]);
+        }
+    }
+    void StreamID::ToString(std::string& str) const
+    {
+        str.resize(512);
+        int n = sprintf(&str[0], "%llu-%llu", ms, seq);
+        str.resize(n);
     }
 
 OP_NAMESPACE_END

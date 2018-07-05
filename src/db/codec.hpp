@@ -34,6 +34,7 @@
 #include "buffer/buffer.hpp"
 #include "util/sds.h"
 #include "util/string_helper.hpp"
+#include "util/network_helper.hpp"
 #include "types.hpp"
 #include <assert.h>
 #include <deque>
@@ -56,12 +57,12 @@ OP_NAMESPACE_BEGIN
 
         KEY_ZSET = 9, KEY_ZSET_SORT = 10, KEY_ZSET_SCORE = 11,
 
+        KEY_STREAM = 12, KEY_STREAM_ELEMENT = 13, KEY_STREAM_PEL = 14,
+
         /*
          * Reserver 20 types
          */
-        KEY_TTL_SORT = 29,
-        KEY_MERGE = 30,
-        KEY_END = 31, /* max value for 1byte */
+        KEY_TTL_SORT = 29, KEY_MERGE = 30, KEY_END = 31, /* max value for 1byte */
     };
 
     struct KeyObject
@@ -85,19 +86,19 @@ OP_NAMESPACE_BEGIN
                 getElement(idx).Clone(data);
             }
         public:
-            KeyObject(uint8 t = 0) :
-                    type(t)
+            KeyObject(uint8 t = 0)
+                    : type(t)
             {
                 SetType(t);
             }
-            KeyObject(const Data& nns, uint8 t, const std::string& data) :
-                    ns(nns), type(0)
+            KeyObject(const Data& nns, uint8 t, const std::string& data)
+                    : ns(nns), type(0)
             {
                 key.SetString(data, false);
                 SetType(t);
             }
-            KeyObject(const Data& nns, uint8 t, const Data& key_data) :
-                    ns(nns), type(0), key(key_data)
+            KeyObject(const Data& nns, uint8 t, const Data& key_data)
+                    : ns(nns), type(0), key(key_data)
             {
                 SetType(t);
             }
@@ -137,6 +138,19 @@ OP_NAMESPACE_BEGIN
             {
                 key.SetString(v, false);
             }
+            void SetStreamID(const StreamID& id);
+            StreamID GetStreamID() const;
+            void SetStreamGroup(const std::string& v)
+            {
+                getElement(0).SetString(v, false, true);
+            }
+            const Data& GetStreamGroup()
+            {
+                return GetElement(0);
+            }
+            void SetStreamPELId(const StreamID& id);
+            StreamID GetStreamPELId();
+
             void SetHashField(const std::string& v)
             {
                 getElement(0).SetString(v, true);
@@ -264,15 +278,15 @@ OP_NAMESPACE_BEGIN
             }
     };
 
-    struct Meta
-    {
-            int64_t ttl;
-            char reserved[8];
-            Meta() :
-                    ttl(0)
-            {
-            }
-    };
+//    struct Meta
+//    {
+//            int64_t ttl;
+//            char reserved[8];
+//            Meta()
+//                    : ttl(0)
+//            {
+//            }
+//    };
 
     struct MetaObject
     {
@@ -280,13 +294,13 @@ OP_NAMESPACE_BEGIN
             int64_t ttl;
             int64_t size;
             bool list_sequential;  //indicate that list is sequential ot not
+
+            StreamID stream_last_id;
             MetaObject();
             void Encode(Buffer& buffer, uint8 type) const;
             bool Decode(Buffer& buffer, uint8 type);
             void Clear();
     };
-
-
 
     class ValueObject
     {
@@ -304,8 +318,8 @@ OP_NAMESPACE_BEGIN
                 return vals[idx];
             }
         public:
-            ValueObject() :
-                    type(0), merge_op(0)
+            ValueObject()
+                    : type(0), merge_op(0)
             {
             }
             void Clear()
@@ -323,6 +337,10 @@ OP_NAMESPACE_BEGIN
             {
                 return merge_op;
             }
+            StreamID& GetStreamLastId()
+            {
+                return meta.stream_last_id;
+            }
             void SetType(uint8 t);
             void SetMergeOp(uint16 op)
             {
@@ -331,8 +349,7 @@ OP_NAMESPACE_BEGIN
             MetaObject& GetMetaObject();
             int64 GetObjectLen()
             {
-                if (type == 0)
-                    return 0;
+                if (type == 0) return 0;
                 return GetMetaObject().size;
             }
             void SetObjectLen(int64 v)
@@ -340,6 +357,30 @@ OP_NAMESPACE_BEGIN
                 GetMetaObject().size = v;
             }
             Data& GetStringValue()
+            {
+                return getElement(0);
+            }
+            DataArray& GetStreamMetaFieldNames()
+            {
+                return vals;
+            }
+            int64_t GetStreamFieldLength()
+            {
+                return getElement(0).GetInt64();
+            }
+            void SetStreamFieldLength(size_t v)
+            {
+                getElement(0).SetInt64((int64_t) v);
+            }
+            Data& GetStreamFieldValue(int idx)
+            {
+                return getElement(idx + 1);
+            }
+            Data& GetStreamFieldName(int idx)
+            {
+                return getElement(idx + 1 + GetStreamFieldLength());
+            }
+            Data& GetStreamGroupStreamId()
             {
                 return getElement(0);
             }
@@ -395,6 +436,10 @@ OP_NAMESPACE_BEGIN
             {
                 GetMin().SetInt64(v);
             }
+            Data& GetConsumerName()
+            {
+                return getElement(0);
+            }
             Data& GetHashValue()
             {
                 return getElement(0);
@@ -402,6 +447,30 @@ OP_NAMESPACE_BEGIN
             Data& GetListElement()
             {
                 return getElement(0);
+            }
+            Data& GetConsumerSeenTime()
+            {
+                return getElement(0);
+            }
+            Data& GetNACKConsumer()
+            {
+                return getElement(0);
+            }
+            Data& GetNACKDeliveryTime()
+            {
+                return getElement(1);
+            }
+            Data& GetNACKDeliveryCount()
+            {
+                return getElement(2);
+            }
+            Data& GetCNACKDeliveryTime()
+            {
+                return getElement(0);
+            }
+            Data& GetCNACKDeliveryCount()
+            {
+                return getElement(1);
             }
             int64_t GetTTL();
             void SetTTL(int64_t v);
@@ -421,6 +490,10 @@ OP_NAMESPACE_BEGIN
             {
                 return vals;
             }
+            size_t ElementSize() const
+            {
+                return vals.size();
+            }
             Slice Encode(Buffer& buffer) const;
             bool DecodeMeta(Buffer& buffer);
             bool Decode(Buffer& buffer, bool clone_str);
@@ -431,8 +504,8 @@ OP_NAMESPACE_BEGIN
     {
             Data min, max;
             bool contain_min, contain_max;
-            ZRangeSpec() :
-                    contain_min(false), contain_max(false)
+            ZRangeSpec()
+                    : contain_min(false), contain_max(false)
             {
                 min.SetInt64(0);
                 max.SetInt64(0);
@@ -483,8 +556,8 @@ OP_NAMESPACE_BEGIN
             std::string max;
             bool include_min;
             bool include_max;
-            ZLexRangeSpec() :
-                    include_min(false), include_max(false)
+            ZLexRangeSpec()
+                    : include_min(false), include_max(false)
             {
             }
             bool Parse(const std::string& minstr, const std::string& maxstr);
@@ -528,6 +601,60 @@ OP_NAMESPACE_BEGIN
                 return in_range;
             }
     };
+
+    struct StreamNACK;
+    typedef TreeMap<StreamID, StreamNACK*>::Type PELTable;
+    struct StreamConsumerMeta
+    {
+            std::string name;
+            int64_t seen_time;
+            PELTable pels;
+            StreamConsumerMeta()
+                    : seen_time(0)
+            {
+            }
+    };
+    struct StreamNACK
+    {
+            uint64_t delivery_time; /* Last time this message was delivered. */
+            uint64_t delivery_count; /* Number of times this message was delivered.*/
+            StreamConsumerMeta *consumer; /* The consumer this message was delivered to
+             in the last delivery. */
+            StreamNACK()
+                    : delivery_time(0), delivery_count(0), consumer(NULL)
+            {
+            }
+    };
+    typedef TreeMap<std::string, StreamConsumerMeta*>::Type ConsumerTable;
+    struct StreamGroupMeta
+    {
+            std::string name;
+            StreamID lastid;
+            ConsumerTable consumers;
+            PELTable consumer_pels;
+            StreamGroupMeta()
+            {
+            }
+            StreamID StartId()
+            {
+                StreamID empty;
+                if (consumer_pels.empty())
+                {
+                    return empty;
+                }
+                return consumer_pels.begin()->first;
+            }
+            StreamID EndId()
+            {
+                StreamID empty;
+                if (consumer_pels.empty())
+                {
+                    return empty;
+                }
+                return consumer_pels.rbegin()->first;
+            }
+    };
+    typedef TreeMap<std::string, StreamGroupMeta*>::Type GroupTable;
 
     int encode_merge_operation(Buffer& buffer, uint16_t op, const DataArray& args);
     KeyType element_type(KeyType type);

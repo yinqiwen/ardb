@@ -359,7 +359,21 @@ OP_NAMESPACE_BEGIN
         { "monitor", REDIS_CMD_MONITOR, &Ardb::Monitor, 0, 0, "ars", 0, 0, 0 },
         { "debug", REDIS_CMD_DEBUG, &Ardb::Debug, 2, -1, "ars", 0, 0, 0 },
         { "touch", REDIS_CMD_TOUCH, &Ardb::Touch, 1, -2, "rF", 0, 0, 0 },
-		{ "command", REDIS_CMD_COMMAND, &Ardb::Command, 0, -1, "r", 0, 0, 0 },};
+		{ "command", REDIS_CMD_COMMAND, &Ardb::Command, 0, -1, "r", 0, 0, 0 },
+		{ "xread", REDIS_CMD_XREAD, &Ardb::XRead, 2, -1, "r", 0, 0, 0 },
+		{ "xreadgroup", REDIS_CMD_XREAD, &Ardb::XRead, 5, -1, "rw", 0, 0, 0 },
+		{ "xadd", REDIS_CMD_XADD, &Ardb::XAdd, 4, -1, "w", 0, 0, 0 },
+		{ "xlen", REDIS_CMD_XLEN, &Ardb::XLen, 1, 1, "r", 0, 0, 0 },
+		{ "xpending", REDIS_CMD_XPENDING, &Ardb::XPending, 2, 6, "r", 0, 0, 0 },
+		{ "xrange", REDIS_CMD_XRANGE, &Ardb::XRange, 3, 5, "r", 0, 0, 0 },
+		{ "xrevrange", REDIS_CMD_XREVRANGE, &Ardb::XRevRange, 3, 5, "r", 0, 0, 0 },
+		{ "xack", REDIS_CMD_XACK, &Ardb::XACK, 3, -1, "w", 0, 0, 0 },
+		{ "xclaim", REDIS_CMD_XCLAIM, &Ardb::XClaim, 5, -1, "w", 0, 0, 0 },
+		{ "xinfo", REDIS_CMD_XINFO, &Ardb::XInfo, 1, 3, "r", 0, 0, 0 },
+		{ "xgroup", REDIS_CMD_XGROUP, &Ardb::XGroup, 1, 4, "w", 0, 0, 0 },
+		{ "xtrim", REDIS_CMD_XTRIM, &Ardb::XTrim, 4, -1, "w", 0, 0, 0 },
+		{ "xdel", REDIS_CMD_XDEL, &Ardb::XDel, 2, -1, "w", 0, 0, 0 },
+        };
 
         CostRanges cmdstat_ranges;
         cmdstat_ranges.push_back(CostRange(0, 1000));
@@ -1545,7 +1559,7 @@ OP_NAMESPACE_BEGIN
             }
         }
         ret = DoCall(ctx, setting, args);
-        WakeClientsBlockingOnList(ctx);
+        WakeClientsBlockingOnKeys(ctx);
         return ret;
     }
 

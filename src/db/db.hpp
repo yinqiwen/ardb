@@ -54,6 +54,10 @@ OP_NAMESPACE_BEGIN
     class ObjectIO;
     class ObjectBuffer;
     class Snapshot;
+    class StreamGroupMeta;
+    class StreamNACK;
+    class StreamElementVistior;
+    typedef TreeMap<std::string, StreamGroupMeta*>::Type StreamGroupTable;
     class Ardb
     {
         public:
@@ -105,7 +109,7 @@ OP_NAMESPACE_BEGIN
             time_t m_starttime;
             bool m_loading_data;
             bool m_compacting_data;
-            uint32 m_prepare_snapshot_num;  /* if the server is prepare saving snapshot, if > 0, the server would block all write command a while  */
+            uint32 m_prepare_snapshot_num; /* if the server is prepare saving snapshot, if > 0, the server would block all write command a while  */
             volatile uint32 m_write_caller_num;
             volatile uint32 m_db_caller_num;
             ThreadMutexLock m_write_latch;
@@ -172,8 +176,8 @@ OP_NAMESPACE_BEGIN
 
             void SaveTTL(Context& ctx, const Data& ns, const std::string& key, int64 old_ttl, int64_t new_ttl);
             void ScanTTLDB();
-            void FeedReplicationBacklog(Context& ctx,const Data& ns, RedisCommandFrame& cmd);
-            void FeedMonitors(Context& ctx,const Data& ns, RedisCommandFrame& cmd);
+            void FeedReplicationBacklog(Context& ctx, const Data& ns, RedisCommandFrame& cmd);
+            void FeedMonitors(Context& ctx, const Data& ns, RedisCommandFrame& cmd);
 
             int WriteReply(Context& ctx, RedisReply* r, bool async);
 
@@ -213,24 +217,30 @@ OP_NAMESPACE_BEGIN
             int UnsubscribeAll(Context& ctx, bool is_pattern, bool notify);
             int PublishMessage(Context& ctx, const std::string& channel, const std::string& message);
 
-            int SetString(Context& ctx, const std::string& key, const std::string& value, bool redis_compatible, int64_t px = -1, int8_t nx_xx = -1);
+            int SetString(Context& ctx, const std::string& key, const std::string& value, bool redis_compatible,
+                    int64_t px = -1, int8_t nx_xx = -1);
 
             int ListPop(Context& ctx, RedisCommandFrame& cmd, bool lock_key = true);
             int ListPush(Context& ctx, RedisCommandFrame& cmd, bool lock_key = true);
             int ListPopValue(Context& ctx, const KeyPrefix& key, bool lpop, std::string& value, RedisCommandFrame& cmd);
-            int ListPushValue(Context& ctx, const KeyPrefix& key, const std::string& value, bool lpush , RedisCommandFrame& cmd);
+            int ListPushValue(Context& ctx, const KeyPrefix& key, const std::string& value, bool lpush,
+                    RedisCommandFrame& cmd);
 
             bool AdjustMergeOp(uint16& op, DataArray& args);
             int MergeAppend(Context& ctx, const KeyObject& key, ValueObject& val, const std::string& append);
             int MergeIncrBy(Context& ctx, const KeyObject& key, ValueObject& val, int64_t inc);
             int MergeIncrByFloat(Context& ctx, const KeyObject& key, ValueObject& val, double inc);
-            int MergeSet(Context& ctx, const KeyObject& key, ValueObject& val, uint16_t op, const Data& data, int64_t ttl);
-            int MergeSetRange(Context& ctx, const KeyObject& key, ValueObject& val, int64_t offset, const std::string& range);
+            int MergeSet(Context& ctx, const KeyObject& key, ValueObject& val, uint16_t op, const Data& data,
+                    int64_t ttl);
+            int MergeSetRange(Context& ctx, const KeyObject& key, ValueObject& val, int64_t offset,
+                    const std::string& range);
             int MergeHSet(Context& ctx, const KeyObject& key, ValueObject& value, uint16_t op, const Data& v);
             int MergeHIncrby(Context& ctx, const KeyObject& key, ValueObject& value, uint16_t op, const Data& v);
             int MergeExpire(Context& ctx, const KeyObject& key, ValueObject& meta, int64 ms);
-            int MergeSetBit(Context& ctx, const KeyObject& key, ValueObject& meta, int64 offset, uint8 bit, uint8* oldbit);
-            int MergePFAdd(Context& ctx, const KeyObject& key, ValueObject& value, const DataArray& ms, int* updated = NULL);
+            int MergeSetBit(Context& ctx, const KeyObject& key, ValueObject& meta, int64 offset, uint8 bit,
+                    uint8* oldbit);
+            int MergePFAdd(Context& ctx, const KeyObject& key, ValueObject& value, const DataArray& ms, int* updated =
+            NULL);
 
             bool CheckMeta(Context& ctx, const std::string& key, KeyType expected);
             bool CheckMeta(Context& ctx, const std::string& key, KeyType expected, ValueObject& meta);
@@ -249,16 +259,39 @@ OP_NAMESPACE_BEGIN
             int ZIterateByScore(Context& ctx, RedisCommandFrame& cmd);
             int ZIterateByLex(Context& ctx, RedisCommandFrame& cmd);
 
+            int StreamDel(Context& ctx, const KeyObject& key);
+            int StreamDelItem(Context& ctx, const std::string& key, const StreamID& id);
+            int StreamCreateCG(Context& ctx, const std::string& key, const std::string& group, const StreamID& id,
+                    ValueObject& v);
+            int64_t StreamDelConsumer(Context& ctx, const std::string& key, const std::string& group,
+                    const std::string& consumer);
+            int64_t StreamDelGroup(Context& ctx, const std::string& key, const std::string& group);
+            int64_t StreamTrimByLength(Context& ctx, const std::string& key, ValueObject& meta, size_t maxlen,
+                    int approx);
+            int StreamCreateNACK(Context& ctx, const std::string& key, const std::string& group,
+                    const std::string& consumer, const StreamID& id, StreamGroupMeta* group_meta);
+            int StreamUpdateNACK(Context& ctx, const std::string& key, const std::string& group,
+                    const std::string& consumer, const StreamID& id, StreamGroupMeta* group_meta, StreamNACK* nack);
+            int StreamAddConsumer(Context& ctx, const std::string& consumer, StreamGroupMeta* group_meta);
+            int StreamMinMaxID(Context& ctx, const std::string& key, StreamID& min, StreamID& max, ValueObject& minv, ValueObject& maxv);
+            StreamGroupMeta* StreamLoadGroup(Context& ctx, const KeyPrefix& key, const std::string& group);
+            StreamGroupMeta* StreamLoadGroup(Context& ctx, const std::string& key, const std::string& group);
+            StreamGroupTable* StreamLoadGroups(Context& ctx, const std::string& key, bool create_ifnotexist);
+            StreamGroupTable* StreamLoadGroups(Context& ctx, const KeyPrefix& key, bool create_ifnotexist);
+            StreamGroupTable* StreamLoadGroups(Iterator* iter);
+
             int WatchForKey(Context& ctx, const std::string& key);
             int UnwatchKeys(Context& ctx);
             int TouchWatchedKeysOnFlush(Context& ctx, const Data& ns);
             int DiscardTransaction(Context& ctx);
 
-            int BlockForKeys(Context& ctx, const StringArray& keys, const std::string& target, uint32 timeout);
+            int BlockForKeys(Context& ctx, const StringArray& keys, const AnyArray& vals, KeyType ktype, uint32 mstimeout);
             static void AsyncUnblockKeysCallback(Channel* ch, void * data);
             int UnblockKeys(Context& ctx, bool sync = true, RedisReply* reply = NULL);
-            int WakeClientsBlockingOnList(Context& ctx);
-            int SignalListAsReady(Context& ctx, const std::string& key);
+            int WakeClientsBlockingOnList(Context& ctx,  const KeyPrefix& ready_key, Context& unblock_client);
+            int WakeClientsBlockingOnStream(Context& ctx, const KeyPrefix& ready_key,  Context& unblock_client);
+            int WakeClientsBlockingOnKeys(Context& ctx);
+            int SignalKeyAsReady(Context& ctx, const std::string& key);
             int ServeClientBlockedOnList(Context& ctx, const KeyPrefix& key, const std::string& value);
 
             int IncrDecrCommand(Context& ctx, RedisCommandFrame& cmd);
@@ -441,6 +474,19 @@ OP_NAMESPACE_BEGIN
             int PFCount(Context& ctx, RedisCommandFrame& cmd);
             int PFMerge(Context& ctx, RedisCommandFrame& cmd);
 
+            int XAdd(Context& ctx, RedisCommandFrame& cmd);
+            int XACK(Context& ctx, RedisCommandFrame& cmd);
+            int XPending(Context& ctx, RedisCommandFrame& cmd);
+            int XGroup(Context& ctx, RedisCommandFrame& cmd);
+            int XInfo(Context& ctx, RedisCommandFrame& cmd);
+            int XClaim(Context& ctx, RedisCommandFrame& cmd);
+            int XTrim(Context& ctx, RedisCommandFrame& cmd);
+            int XDel(Context& ctx, RedisCommandFrame& cmd);
+            int XRead(Context& ctx, RedisCommandFrame& cmd);
+            int XRange(Context& ctx, RedisCommandFrame& cmd);
+            int XRevRange(Context& ctx, RedisCommandFrame& cmd);
+            int XLen(Context& ctx, RedisCommandFrame& cmd);
+
             int Monitor(Context& ctx, RedisCommandFrame& cmd);
             int Dump(Context& ctx, RedisCommandFrame& cmd);
             int Restore(Context& ctx, RedisCommandFrame& cmd);
@@ -470,7 +516,7 @@ OP_NAMESPACE_BEGIN
             int MergeOperation(const KeyObject& key, ValueObject& val, uint16_t op, DataArray& args);
             int MergeOperands(uint16_t left, const DataArray& left_args, uint16_t& right, DataArray& right_args);
             void AddExpiredKey(const Data& ns, const Data& key);
-            void FeedReplicationDelOperation(Context& ctx,  const Data& ns, const std::string& key);
+            void FeedReplicationDelOperation(Context& ctx, const Data& ns, const std::string& key);
             int TouchWatchKey(Context& ctx, const KeyObject& key);
             void FreeClient(Context& ctx);
             void AddClient(Context& ctx);

@@ -38,6 +38,7 @@ extern "C"
 #include "redis/intset.h"
 #include "redis/crc64.h"
 #include "redis/endianconv.h"
+#include "redis/listpack.h"
 }
 #include <float.h>
 #include <cmath>
@@ -57,7 +58,7 @@ extern "C"
         }             \
     }while(0)
 
-#define REDIS_RDB_VERSION 8
+#define REDIS_RDB_VERSION 9
 
 #define ARDB_RDB_VERSION 1
 
@@ -107,15 +108,15 @@ extern "C"
 
 /* Dup object types to RDB object types. Only reason is readability (are we
  * dealing with RDB types or with in-memory object types?). */
-#define REDIS_RDB_TYPE_STRING   0
-#define REDIS_RDB_TYPE_LIST     1
-#define REDIS_RDB_TYPE_SET      2
-#define REDIS_RDB_TYPE_ZSET     3
-#define REDIS_RDB_TYPE_HASH     4
-#define REDIS_RDB_TYPE_ZSET_2   5 /* ZSET version 2 with doubles stored in binary. */
-#define REDIS_RDB_TYPE_MODULE   6
-#define REDIS_RDB_TYPE_MODULE_2 7 /* Module value with annotations for parsing without
-                               the generating module being loaded. */
+#define REDIS_RDB_TYPE_STRING          0
+#define REDIS_RDB_TYPE_LIST            1
+#define REDIS_RDB_TYPE_SET             2
+#define REDIS_RDB_TYPE_ZSET            3
+#define REDIS_RDB_TYPE_HASH            4
+#define REDIS_RDB_TYPE_ZSET_2          5 /* ZSET version 2 with doubles stored in binary. */
+#define REDIS_RDB_TYPE_MODULE          6
+#define REDIS_RDB_TYPE_MODULE_2        7 /* Module value with annotations for parsing without
+                                            the generating module being loaded. */
 
 /* Object types for encoded objects. */
 #define REDIS_RDB_TYPE_HASH_ZIPMAP    9
@@ -124,12 +125,23 @@ extern "C"
 #define REDIS_RDB_TYPE_ZSET_ZIPLIST  12
 #define REDIS_RDB_TYPE_HASH_ZIPLIST  13
 #define REDIS_RDB_TYPE_LIST_QUICKLIST      14
+#define REDIS_RDB_TYPE_STREAM_LISTPACKS    15
 
 #define ARDB_RDB_TYPE_CHUNK 1
 #define ARDB_RDB_TYPE_SNAPPY_CHUNK 2
 #define ARDB_RDB_OPCODE_SELECTDB   3
 #define ARDB_OPCODE_AUX        250
 #define ARDB_RDB_TYPE_EOF 255
+
+#define STREAM_BYTES_PER_LISTPACK 2048
+/* Every stream item inside the listpack, has a flags field that is used to
+ * mark the entry as deleted, or having the same field as the "master"
+ * entry at the start of the listpack> */
+#define STREAM_ITEM_FLAG_NONE 0             /* No special flags. */
+#define STREAM_ITEM_FLAG_DELETED (1<<0)     /* Entry is delted. Skip it. */
+#define STREAM_ITEM_FLAG_SAMEFIELDS (1<<1)  /* Same fields as master entry. */
+
+#define LONG_STR_SIZE      21          /* Bytes needed for long -> str + '\0' */
 
 namespace ardb
 {
@@ -255,18 +267,21 @@ namespace ardb
         }
         else if (type == REDIS_RDB_6BITLEN)
         {
+            //if (isencoded) *isencoded = 1;
             /* Read a 6 bit len. */
             return buf[0] & 0x3F;
         }
         else if (type == REDIS_RDB_14BITLEN)
         {
             /* Read a 14 bit len. */
+            //if (isencoded) *isencoded = 2;
             if (Read(buf + 1, 1) == 0) return REDIS_RDB_LENERR;
             return ((buf[0] & 0x3F) << 8) | buf[1];
         }
         else if (buf[0] == REDIS_RDB_32BITLEN)
         {
             /* Read a 32 bit len. */
+            //if (isencoded) *isencoded = 4;
             uint32_t len;
             if (!Read(&len, 4)) return -1;
             return ntohl(len);
@@ -274,6 +289,7 @@ namespace ardb
         else if (buf[0] == REDIS_RDB_64BITLEN)
         {
             /* Read a 64 bit len. */
+            //if (isencoded) *isencoded = 2;
             uint64_t len;
             if (!Read(&len, 8)) return -1;
             return ntohu64(len);
@@ -569,43 +585,69 @@ namespace ardb
         return nwritten;
     }
 
-    int ObjectIO::WriteLen(uint64 len)
+    int ObjectIO::WriteLen(uint64 len, int fixlen)
     {
         unsigned char buf[2];
         size_t nwritten;
-
-        if (len < (1 << 6))
+        int wlen = fixlen;
+        if (0 == wlen)
         {
-            /* Save a 6 bit len */
-            buf[0] = (len & 0xFF) | (REDIS_RDB_6BITLEN << 6);
-            if (Write(buf, 1) == -1) return -1;
-            nwritten = 1;
+            if ((len < (1 << 6)))
+            {
+                wlen = 1;
+            }
+            else if (len < (1 << 14))
+            {
+                wlen = 2;
+            }
+            else if (len <= UINT32_MAX)
+            {
+                wlen = 4;
+            }
+            else
+            {
+                wlen = 8;
+            }
         }
-        else if (len < (1 << 14))
+        switch (wlen)
         {
-            /* Save a 14 bit len */
-            buf[0] = ((len >> 8) & 0xFF) | (REDIS_RDB_14BITLEN << 6);
-            buf[1] = len & 0xFF;
-            if (Write(buf, 2) == -1) return -1;
-            nwritten = 2;
-        }
-        else if (len <= UINT32_MAX)
-        {
-            /* Save a 32 bit len */
-            buf[0] = (REDIS_RDB_32BITLEN);
-            if (Write(buf, 1) == -1) return -1;
-            len = htonl(len);
-            if (Write(&len, 4) == -1) return -1;
-            nwritten = 1 + 4;
-        }
-        else
-        {
-            /* Save a 64 bit len */
-            buf[0] = REDIS_RDB_64BITLEN;
-            if (Write(buf, 1) == -1) return -1;
-            len = htonu64(len);
-            if (Write(&len, 8) == -1) return -1;
-            nwritten = 1 + 8;
+            case 1:
+            {
+                /* Save a 6 bit len */
+                buf[0] = (len & 0xFF) | (REDIS_RDB_6BITLEN << 6);
+                if (Write(buf, 1) == -1) return -1;
+                nwritten = 1;
+                break;
+            }
+            case 2:
+            {
+                /* Save a 14 bit len */
+                buf[0] = ((len >> 8) & 0xFF) | (REDIS_RDB_14BITLEN << 6);
+                buf[1] = len & 0xFF;
+                if (Write(buf, 2) == -1) return -1;
+                nwritten = 2;
+                break;
+            }
+            case 4:
+            {
+                /* Save a 32 bit len */
+                buf[0] = (REDIS_RDB_32BITLEN);
+                if (Write(buf, 1) == -1) return -1;
+                len = htonl(len);
+                if (Write(&len, 4) == -1) return -1;
+                nwritten = 1 + 4;
+                break;
+            }
+            default:
+            {
+                /* Save a 64 bit len */
+                buf[0] = REDIS_RDB_64BITLEN;
+                if (Write(buf, 1) == -1) return -1;
+                len = htonu64(len);
+                if (Write(&len, 8) == -1) return -1;
+                nwritten = 1 + 8;
+                break;
+            }
         }
         return nwritten;
     }
@@ -638,6 +680,12 @@ namespace ardb
             case KEY_HASH_FIELD:
             {
                 return WriteType(REDIS_RDB_TYPE_HASH);
+            }
+            case KEY_STREAM:
+            case KEY_STREAM_ELEMENT:
+            case KEY_STREAM_PEL:
+            {
+                return WriteType(REDIS_RDB_TYPE_STREAM_LISTPACKS);
             }
             default:
             {
@@ -1176,6 +1224,14 @@ namespace ardb
                 }
                 return true;
             }
+            case REDIS_RDB_TYPE_STREAM_LISTPACKS:
+            {
+                if (!RedisLoadStream(ctx, key))
+                {
+                    return false;
+                }
+                return true;
+            }
             default:
             {
                 ERROR_LOG("Unknown object type:%d", rdbtype);
@@ -1361,6 +1417,611 @@ namespace ardb
         }
         return -1;
     }
+    /* This is just a wrapper for lpAppend() to directly use a 64 bit integer
+     * instead of a string. */
+    static unsigned char *lpAppendInteger(unsigned char *lp, int64_t value)
+    {
+        char buf[LONG_STR_SIZE];
+        int slen = ll2string(buf, sizeof(buf), value);
+        return lpAppend(lp, (unsigned char*) buf, slen);
+    }
+
+    /* This is just a wrapper for lpReplace() to directly use a 64 bit integer
+     * instead of a string to replace the current element. The function returns
+     * the new listpack as return value, and also updates the current cursor
+     * by updating '*pos'. */
+    static unsigned char *lpReplaceInteger(unsigned char *lp, unsigned char **pos, int64_t value)
+    {
+        char buf[LONG_STR_SIZE];
+        int slen = ll2string(buf, sizeof(buf), value);
+        return lpInsert(lp, (unsigned char*) buf, slen, *pos, LP_REPLACE, pos);
+    }
+
+    /* This is a wrapper function for lpGet() to directly get an integer value
+     * from the listpack (that may store numbers as a string), converting
+     * the string if needed. */
+    static int64_t lpGetInteger(unsigned char *ele)
+    {
+        int64_t v;
+        unsigned char *e = lpGet(ele, &v, NULL);
+        if (e == NULL) return v;
+        /* The following code path should never be used for how listpacks work:
+         * they should always be able to store an int64_t value in integer
+         * encoded form. However the implementation may change. */
+        int64_t ll;
+        int retval = string2ll((const char*) e, v, &ll);
+        //serverAssert(retval != 0);
+        v = ll;
+        return v;
+    }
+
+    static void GetStreamFieldNames(ValueObject& meta, ValueObject& iv, StringArray& fs)
+    {
+        if (!fs.empty())
+        {
+            return;
+        }
+        for (size_t i = 0; i < iv.GetStreamFieldLength(); i++)
+        {
+            std::string str;
+            if (iv.ElementSize() == iv.GetStreamFieldLength() + 1)
+            {
+                meta.GetStreamMetaFieldNames()[i].ToString(str);
+            }
+            else
+            {
+                iv.GetStreamFieldName(i).ToString(str);
+            }
+            fs.push_back(str);
+        }
+    }
+
+    int64_t ObjectIO::RedisWriteStreamPEL(PELTable& pel, bool nacks)
+    {
+        ssize_t n, nwritten = 0;
+
+        /* Number of entries in the PEL. */
+        if ((n = WriteLen(pel.size())) == -1) return -1;
+        nwritten += n;
+
+        /* Save each entry. */
+        PELTable::iterator pit = pel.begin();
+        while (pit != pel.end())
+        {
+            /* We store IDs in raw form as 128 big big endian numbers, like
+             * they are inside the radix tree key. */
+            Data d;
+            pit->first.Encode(d);
+            if ((n = Write(d.CStr(), d.StringLength())) == -1) return -1;
+            nwritten += n;
+
+            if (nacks)
+            {
+                StreamNACK *nack = pit->second;
+                if ((n = WriteMillisecondTime(nack->delivery_time)) == -1) return -1;
+                nwritten += n;
+                if ((n = WriteLen(nack->delivery_count)) == -1) return -1;
+                nwritten += n;
+                /* We don't save the consumer name: we'll save the pending IDs
+                 * for each consumer in the consumer PEL, and resolve the consumer
+                 * at loading time. */
+            }
+            pit++;
+        }
+
+        return nwritten;
+    }
+    int64_t ObjectIO::RedisWriteStreamConsumers(ConsumerTable& consumers)
+    {
+        ssize_t n, nwritten = 0;
+
+        /* Number of consumers in this consumer group. */
+        if ((n = WriteLen(consumers.size())) == -1) return -1;
+        nwritten += n;
+
+        /* Save each consumer. */
+        ConsumerTable::iterator cit = consumers.begin();
+        while (cit != consumers.end())
+        {
+            StreamConsumerMeta& c = *(cit->second);
+
+            /* Consumer name. */
+            if ((n = WriteRawString(c.name)) == -1) return -1;
+            nwritten += n;
+
+            /* Last seen time. */
+            if ((n = WriteMillisecondTime(c.seen_time)) == -1) return -1;
+            nwritten += n;
+
+            /* Consumer PEL, without the ACKs (see last parameter of the function
+             * passed with value of 0), at loading time we'll lookup the ID
+             * in the consumer group global PEL and will put a reference in the
+             * consumer local PEL. */
+            if ((n = RedisWriteStreamPEL(c.pels, false)) == -1) return -1;
+            nwritten += n;
+            cit++;
+        }
+
+        return nwritten;
+    }
+
+    int64_t ObjectIO::RedisWriteStream(void* iter)
+    {
+        int64_t nwritten = 0;
+        Iterator* siter = (Iterator*) iter;
+        KeyObject& key = siter->Key(true);
+        ValueObject& meta = siter->Value(true);
+        size_t lp_bytes = 0; /* Total bytes in the tail listpack. */
+        unsigned char *lp = NULL; /* Tail listpack pointer. */
+        siter->Next();
+        int64_t raxlen = 0;
+        int64_t streamlen = 0;
+        int64_t raxlen_pos = GetWritePos();
+        nwritten += WriteLen(raxlen, 8);
+        StreamID master_id;
+        bool write_rax_end = false;
+        while (siter->Valid())
+        {
+            KeyObject& ik = siter->Key(false);
+            if (ik.GetKey() != key.GetKey())
+            {
+                break;
+            }
+            ValueObject& iv = siter->Value(false);
+            int64_t numfields = iv.GetStreamFieldLength();
+            int flags = STREAM_ITEM_FLAG_NONE;
+            StringArray fns;
+            int n;
+            if (ik.GetType() == KEY_STREAM_ELEMENT)
+            {
+                streamlen++;
+                if (lp_bytes > STREAM_BYTES_PER_LISTPACK)
+                {
+                    Data d;
+                    master_id.Encode(d);
+                    if ((n = WriteRawString(d.CStr(), d.StringLength())) == -1) return -1;
+                    nwritten += n;
+                    if ((n = WriteRawString((const char*) lp, lp_bytes)) == -1) return -1;
+                    nwritten += n;
+                    lpFree(lp);
+                    lp = NULL;
+                }
+                StreamID sid = ik.GetStreamID();
+                if (lp == NULL)
+                {
+                    raxlen++;
+                    master_id = sid;
+                    //streamEncodeID(rax_key, &id);
+                    /* Create the listpack having the master entry ID and fields. */
+                    lp = lpNew();
+                    lp = lpAppendInteger(lp, 1); /* One item, the one we are adding. */
+                    lp = lpAppendInteger(lp, 0); /* Zero deleted so far. */
+                    lp = lpAppendInteger(lp, numfields);
+                    GetStreamFieldNames(meta, iv, fns);
+                    for (int i = 0; i < numfields; i++)
+                    {
+                        const std::string& field = fns[i];
+                        lp = lpAppend(lp, (unsigned char*) field.data(), field.size());
+                    }
+                    lp = lpAppendInteger(lp, 0); /* Master entry zero terminator. */
+                    //raxInsert(s->rax, (unsigned char*) &rax_key, sizeof(rax_key), lp, NULL);
+                    /* The first entry we insert, has obviously the same fields of the
+                     * master entry. */
+                    flags |= STREAM_ITEM_FLAG_SAMEFIELDS;
+                }
+                else
+                {
+                    //serverAssert(ri.key_len == sizeof(rax_key));
+                    //memcpy(rax_key, ri.key, sizeof(rax_key));
+                    /* Read the master ID from the radix tree key. */
+                    //streamDecodeID(rax_key, &master_id);
+                    unsigned char *lp_ele = lpFirst(lp);
+
+                    /* Update count and skip the deleted fields. */
+                    int64_t count = lpGetInteger(lp_ele);
+                    lp = lpReplaceInteger(lp, &lp_ele, count + 1);
+                    lp_ele = lpNext(lp, lp_ele); /* seek deleted. */
+                    lp_ele = lpNext(lp, lp_ele); /* seek master entry num fields. */
+
+                    /* Check if the entry we are adding, have the same fields
+                     * as the master entry. */
+                    int master_fields_count = lpGetInteger(lp_ele);
+                    lp_ele = lpNext(lp, lp_ele);
+                    if (numfields == master_fields_count)
+                    {
+                        int i;
+                        GetStreamFieldNames(meta, iv, fns);
+                        for (i = 0; i < master_fields_count; i++)
+                        {
+                            const std::string& field = fns[i];
+                            int64_t e_len;
+                            unsigned char buf[LP_INTBUF_SIZE];
+                            unsigned char *e = lpGet(lp_ele, &e_len, buf);
+                            /* Stop if there is a mismatch. */
+                            if (field.size() != (size_t) e_len || memcmp(e, field.c_str(), e_len) != 0) break;
+                            lp_ele = lpNext(lp, lp_ele);
+                        }
+                        /* All fields are the same! We can compress the field names
+                         * setting a single bit in the flags. */
+                        if (i == master_fields_count) flags |= STREAM_ITEM_FLAG_SAMEFIELDS;
+                    }
+                }
+                /* Populate the listpack with the new entry. We use the following
+                 * encoding:
+                 *
+                 * +-----+--------+----------+-------+-------+-/-+-------+-------+--------+
+                 * |flags|entry-id|num-fields|field-1|value-1|...|field-N|value-N|lp-count|
+                 * +-----+--------+----------+-------+-------+-/-+-------+-------+--------+
+                 *
+                 * However if the SAMEFIELD flag is set, we have just to populate
+                 * the entry with the values, so it becomes:
+                 *
+                 * +-----+--------+-------+-/-+-------+--------+
+                 * |flags|entry-id|value-1|...|value-N|lp-count|
+                 * +-----+--------+-------+-/-+-------+--------+
+                 *
+                 * The entry-id field is actually two separated fields: the ms
+                 * and seq difference compared to the master entry.
+                 *
+                 * The lp-count field is a number that states the number of listpack pieces
+                 * that compose the entry, so that it's possible to travel the entry
+                 * in reverse order: we can just start from the end of the listpack, read
+                 * the entry, and jump back N times to seek the "flags" field to read
+                 * the stream full entry. */
+                lp = lpAppendInteger(lp, flags);
+                lp = lpAppendInteger(lp, sid.ms - master_id.ms);
+                lp = lpAppendInteger(lp, sid.seq - master_id.seq);
+                if (!(flags & STREAM_ITEM_FLAG_SAMEFIELDS))
+                {
+                    lp = lpAppendInteger(lp, numfields);
+                    GetStreamFieldNames(meta, iv, fns);
+                }
+                for (int i = 0; i < numfields; i++)
+                {
+                    std::string value;
+                    iv.GetStreamFieldValue(i).ToString(value);
+                    if (!(flags & STREAM_ITEM_FLAG_SAMEFIELDS))
+                    {
+                        const std::string& field = fns[i];
+                        lp = lpAppend(lp, (unsigned char*) field.data(), field.size());
+                    }
+                    lp = lpAppend(lp, (unsigned char*) value.data(), value.size());
+                }
+                /* Compute and store the lp-count field. */
+                int lp_count = numfields;
+                lp_count += 3; /* Add the 3 fixed fields flags + ms-diff + seq-diff. */
+                if (!(flags & STREAM_ITEM_FLAG_SAMEFIELDS))
+                {
+                    /* If the item is not compressed, it also has the fields other than
+                     * the values, and an additional num-fileds field. */
+                    lp_count += numfields + 1;
+                }
+                lp = lpAppendInteger(lp, lp_count);
+            }
+            else
+            {
+                if(NULL != lp)
+                {
+                    Data d;
+                    master_id.Encode(d);
+                    if ((n = WriteRawString(d.CStr(), d.StringLength())) == -1) return -1;
+                    nwritten += n;
+                    if ((n = WriteRawString((const char*) lp, lp_bytes)) == -1) return -1;
+                    nwritten += n;
+                    lpFree(lp);
+                    lp = NULL;
+                }
+                if (!write_rax_end)
+                {
+                    write_rax_end = true;
+                    //rewrite raxlen
+                    int64_t current_wpos = GetWritePos();
+                    WriteSeek(raxlen_pos);
+                    WriteLen(raxlen, 8);
+                    WriteSeek(current_wpos);
+
+                    /* Save the number of elements inside the stream. We cannot obtain
+                     * this easily later, since our macro nodes should be checked for
+                     * number of items: not a great CPU / space tradeoff. */
+                    if ((n = WriteLen(streamlen)) == -1) return -1;
+                    nwritten += n;
+                    /* Save the last entry ID. */
+                    if ((n = WriteLen(meta.GetStreamLastId().ms)) == -1) return -1;
+                    nwritten += n;
+                    if ((n = WriteLen(meta.GetStreamLastId().seq)) == -1) return -1;
+                    nwritten += n;
+                }
+                StreamGroupTable* gtable = g_db->StreamLoadGroups(siter);
+                if (NULL == gtable)
+                {
+                    if ((n = WriteLen(0)) == -1) return -1;
+                }
+                else
+                {
+                    if ((n = WriteLen(gtable->size())) == -1) return -1;
+                    StreamGroupTable::iterator git = gtable->begin();
+                    while (git != gtable->end())
+                    {
+                        StreamGroupMeta& gmeta = *(git->second);
+                        if ((n = WriteRawString(gmeta.name)) == -1) return -1;
+                        nwritten += n;
+
+                        /* Last ID. */
+                        if ((n = WriteLen(gmeta.lastid.ms)) == -1) return -1;
+                        nwritten += n;
+                        if ((n = WriteLen(gmeta.lastid.seq)) == -1) return -1;
+                        nwritten += n;
+
+                        /* Save the global PEL. */
+                        if ((n = RedisWriteStreamPEL(gmeta.consumer_pels, true)) == -1) return -1;
+                        nwritten += n;
+
+                        /* Save the consumers of this group. */
+                        if ((n = RedisWriteStreamConsumers(gmeta.consumers)) == -1) return -1;
+                        nwritten += n;
+                        git++;
+                    }
+                    DELETE(gtable);
+                }
+            }
+            siter->Next();
+        }
+        return nwritten;
+    }
+
+    bool ObjectIO::RedisLoadStream(Context& ctx, const std::string& key)
+    {
+        KeyObject meta_key(ctx.ns, KEY_META, key);
+        ValueObject meta_value;
+        meta_value.SetType(KEY_STREAM);
+        uint64_t listpacks;
+        int64_t ele_count = 0;
+        meta_value.GetStreamMetaFieldNames();
+        int isencode;
+        if ((listpacks = ReadLen(&isencode)) == REDIS_RDB_LENERR)
+        {
+            ERROR_LOG("Failed to read raxlen.");
+            return false;
+        }
+        //INFO_LOG("######Stream %s raxlen:%llu - %d.", key.c_str(), listpacks, isencode);
+        while (listpacks--)
+        {
+            std::string idstr, lpstr;
+            if (!ReadString(idstr) || !ReadString(lpstr))
+            {
+                ERROR_LOG("Failed to streramid or rax node value.");
+                return false;
+            }
+            Data idata;
+            idata.SetString(idstr, false);
+            StreamID master_id;
+            master_id.Decode(idata);
+            unsigned char* lp = (unsigned char*) lpstr.data();
+            unsigned char *lp_ele = lpFirst(lp);
+            int64_t valid_count = lpGetInteger(lp_ele);
+            lp_ele = lpNext(lp, lp_ele); /* seek deleted. */
+            int64_t deleted_count = lpGetInteger(lp_ele);
+            int64_t scount = valid_count + deleted_count;
+            //INFO_LOG("######[%llu-%llu]Stream ele counts:%lld-%lld.", master_id.ms, master_id.seq, valid_count, deleted_count);
+            lp_ele = lpNext(lp, lp_ele); /* seek master entry num fields. */
+            bool create_meta_fns = meta_value.GetStreamMetaFieldNames().empty();
+            int master_fields_count = lpGetInteger(lp_ele);
+            StringArray master_fns;
+            while (master_fields_count--)
+            {
+                lp_ele = lpNext(lp, lp_ele);
+                int64_t e_len;
+                unsigned char buf[LP_INTBUF_SIZE];
+                unsigned char *e = lpGet(lp_ele, &e_len, buf);
+                std::string str;
+                str.assign((const char*) e, e_len);
+                master_fns.push_back(str);
+                if (create_meta_fns)
+                {
+                    Data d;
+                    d.SetString((const char*) e, e_len, true);
+                    meta_value.GetStreamMetaFieldNames().push_back(d);
+                }
+            }
+            lp_ele = lpNext(lp, lp_ele);
+            while (scount--)
+            {
+                lp_ele = lpNext(lp, lp_ele);
+                int64_t flags = lpGetInteger(lp_ele);
+                StreamID id;
+                lp_ele = lpNext(lp, lp_ele);
+                id.ms = lpGetInteger(lp_ele) + master_id.ms;
+                lp_ele = lpNext(lp, lp_ele);
+                id.seq = lpGetInteger(lp_ele) + master_id.seq;
+                int numfields = master_fns.size();
+                if (!(flags & STREAM_ITEM_FLAG_SAMEFIELDS))
+                {
+                    lp_ele = lpNext(lp, lp_ele);
+                    numfields = lpGetInteger(lp_ele);
+                }
+                KeyObject sk(ctx.ns, KEY_STREAM_ELEMENT, key);
+                sk.SetStreamID(id);
+                ValueObject sv;
+                sv.SetType(KEY_STREAM_ELEMENT);
+                StringArray fns, fvs;
+                int should_save_fn = -1;
+                if (numfields != meta_value.GetStreamMetaFieldNames().size())
+                {
+                    should_save_fn = 0;
+                }
+                for (int i = 0; i < numfields; i++)
+                {
+                    std::string field, value;
+                    if (!(flags & STREAM_ITEM_FLAG_SAMEFIELDS))
+                    {
+                        lp_ele = lpNext(lp, lp_ele);
+                        int64_t e_len;
+                        unsigned char buf[LP_INTBUF_SIZE];
+                        unsigned char *e = lpGet(lp_ele, &e_len, buf);
+                        field.assign((const char*) e, e_len);
+                    }
+                    else
+                    {
+                        field = master_fns[i];
+                    }
+                    lp_ele = lpNext(lp, lp_ele);
+                    int64_t e_len;
+                    unsigned char buf[LP_INTBUF_SIZE];
+                    unsigned char *e = lpGet(lp_ele, &e_len, buf);
+                    value.assign((const char*) e, e_len);
+                    fns.push_back(field);
+                    fvs.push_back(value);
+                    if (-1 == should_save_fn)
+                    {
+                        std::string ss;
+                        meta_value.GetStreamMetaFieldNames()[i].ToString(ss);
+                        if (field != ss)
+                        {
+                            should_save_fn = 0;
+                        }
+                    }
+                }
+                if (-1 == should_save_fn)
+                {
+                    should_save_fn = 1;
+                }
+                for (size_t i = 0; i < fns.size(); i++)
+                {
+                    if (should_save_fn == 1)
+                    {
+                        sv.GetStreamFieldName(i).SetString(fns[i], false);
+                    }
+                    sv.GetStreamFieldValue(i).SetString(fvs[i], false);
+                }
+                lp_ele = lpNext(lp, lp_ele); //skip lpcount
+                if (!(flags & STREAM_ITEM_FLAG_DELETED))
+                {
+                    GetDBWriter().Put(ctx, sk, sv);
+                    ele_count++;
+                }
+            }
+        }
+        int64_t stream_len;
+        if ((stream_len = ReadLen(NULL)) == REDIS_RDB_LENERR)
+        {
+            ERROR_LOG("Failed to read  stream len.");
+            return false;
+        }
+        StreamID last_id;
+        if ((last_id.ms = ReadLen(NULL)) == REDIS_RDB_LENERR)
+        {
+            ERROR_LOG("Failed to read  stream lastid ms.");
+            return false;
+        }
+        if ((last_id.seq = ReadLen(NULL)) == REDIS_RDB_LENERR)
+        {
+            ERROR_LOG("Failed to read  stream lastid seq.");
+            return false;
+        }
+        meta_value.GetStreamLastId() = last_id;
+        size_t cgroups_count = 0;
+        if ((cgroups_count = ReadLen(NULL)) == REDIS_RDB_LENERR)
+        {
+            ERROR_LOG("Failed to read  group len.");
+            return false;
+        }
+        //INFO_LOG("######Stream %s group len:%llu, len1:%lld len2:%lld.", key.c_str(), cgroups_count, stream_len, ele_count);
+        while (cgroups_count--)
+        {
+            std::string group_name;
+            StreamID group_last_id;
+            if (!ReadString(group_name))
+            {
+                ERROR_LOG("Failed to read group name.");
+                return false;
+            }
+            if ((group_last_id.ms = ReadLen(NULL)) == REDIS_RDB_LENERR)
+            {
+                ERROR_LOG("Failed to read group lastid ms.");
+                return false;
+            }
+            if ((group_last_id.seq = ReadLen(NULL)) == REDIS_RDB_LENERR)
+            {
+                ERROR_LOG("Failed to read group lastid seq.");
+                return false;
+            }
+            KeyObject gk(ctx.ns, KEY_STREAM_PEL, key);
+            gk.SetStreamGroup(group_name);
+            ValueObject gv;
+            gv.SetType(KEY_STREAM_PEL);
+            group_last_id.Encode(gv.GetStreamGroupStreamId());
+            GetDBWriter().Put(ctx, gk, gv);
+            size_t pel_size = ReadLen(NULL);
+            //INFO_LOG("######Stream %s group %s have pel len:%lld.", key.c_str(), group_name.c_str(), pel_size);
+            typedef TreeMap<StreamID, StreamNACK>::Type StreamNACKTable;
+            StreamNACKTable nack_table;
+            while (pel_size--)
+            {
+                std::string pel_idstr;
+                pel_idstr.resize(sizeof(StreamID));
+                if (!Read(&pel_idstr[0], pel_idstr.size()))
+                {
+                    ERROR_LOG("Failed to read group pel id.");
+                    return false;
+                }
+                Data idata;
+                idata.SetString(pel_idstr, false);
+                StreamID pel_id;
+                pel_id.Decode(idata);
+                StreamNACK& nack = nack_table[pel_id];
+                nack.delivery_time = ReadMillisecondTime();
+                nack.delivery_count = ReadLen(NULL);
+            }
+            size_t consumers_num = ReadLen(NULL);
+            //INFO_LOG("######Stream %s group %s have consumer len:%lld.", key.c_str(), group_name.c_str(), consumers_num);
+            while (consumers_num--)
+            {
+                std::string consumer_name;
+                if (!ReadString(consumer_name))
+                {
+                    ERROR_LOG("Failed to read consumer name.");
+                    return false;
+                }
+                int64_t seen_time = ReadMillisecondTime();
+
+                /* Load the PEL about entries owned by this specific
+                 * consumer. */
+                pel_size = ReadLen(NULL);
+                while (pel_size--)
+                {
+                    std::string pel_idstr;
+                    pel_idstr.resize(sizeof(StreamID));
+                    if (!Read(&pel_idstr[0], pel_idstr.size()))
+                    {
+                        ERROR_LOG("Failed to read consumer pel id.");
+                        return false;
+                    }
+                    Data idata;
+                    idata.SetString(pel_idstr, false);
+                    StreamID pel_id;
+                    pel_id.Decode(idata);
+                    StreamNACKTable::iterator fit = nack_table.find(pel_id);
+                    if (fit == nack_table.end())
+                    {
+                        FATAL_LOG("Consumer entry not found in group global PEL");
+                    }
+                    StreamNACK& nack = fit->second;
+                    KeyObject pk(ctx.ns, KEY_STREAM_PEL, key);
+                    pk.SetStreamGroup(group_name);
+                    pk.SetStreamPELId(pel_id);
+                    ValueObject pv;
+                    pv.SetType(KEY_STREAM_PEL);
+                    pv.GetNACKConsumer().SetString(consumer_name, false);
+                    pv.GetCNACKDeliveryCount().SetInt64(nack.delivery_count);
+                    pv.GetNACKDeliveryTime().SetInt64(nack.delivery_time);
+                    GetDBWriter().Put(ctx, pk, pv);
+                }
+            }
+        }
+        meta_value.SetObjectLen(ele_count);
+        GetDBWriter().Put(ctx, meta_key, meta_value);
+        return true;
+    }
 
     ObjectBuffer::ObjectBuffer()
     {
@@ -1379,6 +2040,15 @@ namespace ardb
         }
         m_buffer.Read(buf, buflen);
         return true;
+    }
+    int64_t ObjectBuffer::WriteSeek(int64_t pos)
+    {
+        m_buffer.SetWriteIndex(pos);
+        return m_buffer.GetWriteIndex();
+    }
+    int64_t ObjectBuffer::GetWritePos()
+    {
+        return m_buffer.GetWriteIndex();
     }
     int ObjectBuffer::Write(const void* buf, size_t buflen)
     {
@@ -1496,6 +2166,12 @@ namespace ardb
                             //DUMP_CHECK_WRITE(WriteStringObject(v.GetStringValue()));
                             break;
                         }
+                        case KEY_STREAM:
+                        {
+                            RedisWriteStream(iter);
+                            continue;
+                            //break;
+                        }
                         default:
                         {
                             FATAL_LOG("Invalid key type:%d", current_keytype);
@@ -1588,8 +2264,8 @@ namespace ardb
         return success;
     }
 
-    Snapshot::Snapshot() :
-            m_read_fp(NULL), m_write_fp(NULL), m_cksm(0), m_routine_cb(
+    Snapshot::Snapshot()
+            : m_read_fp(NULL), m_write_fp(NULL), m_cksm(0), m_routine_cb(
             NULL), m_routine_cbdata(
             NULL), m_processed_bytes(0), m_file_size(0), m_state(SNAPSHOT_INVALID), m_routinetime(0), m_read_buf(
             NULL), m_expected_data_size(0), m_writed_data_size(0), m_cached_repl_offset(0), m_cached_repl_cksm(0), m_save_time(
@@ -1675,7 +2351,7 @@ namespace ardb
         m_cksm = 0;
         m_processed_bytes = 0;
         m_writed_data_size = 0;
-        if(NULL != m_engine_snapshot && NULL != g_engine)
+        if (NULL != m_engine_snapshot && NULL != g_engine)
         {
             g_engine->ReleaseSnapshot(m_engine_snapshot);
         }
@@ -1790,6 +2466,16 @@ namespace ardb
             m_routine_cb(m_state, this, m_routine_cbdata);
         }
         return ret;
+    }
+
+    int64_t Snapshot::WriteSeek(int64_t pos)
+    {
+        fseeko(m_write_fp, SEEK_SET, pos);
+        return ftello(m_write_fp);
+    }
+    int64_t Snapshot::GetWritePos()
+    {
+        return ftello(m_write_fp);
     }
 
     int Snapshot::Write(const void* buf, size_t buflen)
@@ -2073,8 +2759,8 @@ namespace ardb
         {
                 Snapshot* snapshot;
                 std::string snapshot_file;
-                BGTask(Snapshot* s, const std::string& fname) :
-                        snapshot(s), snapshot_file(fname)
+                BGTask(Snapshot* s, const std::string& fname)
+                        : snapshot(s), snapshot_file(fname)
                 {
                 }
                 void Run()
@@ -2188,12 +2874,24 @@ namespace ardb
         {
             expiretime = 0;
             /* Read type. */
-            if ((type = ReadType()) == -1) goto eoferr;
+            if ((type = ReadType()) == -1)
+            {
+                ERROR_LOG("Failed to read type.");
+                goto eoferr;
+            }
             if (type == REDIS_RDB_OPCODE_EXPIRETIME)
             {
-                if ((expiretime = ReadTime()) == -1) goto eoferr;
+                if ((expiretime = ReadTime()) == -1)
+                {
+                    ERROR_LOG("Failed to read expire time.");
+                    goto eoferr;
+                }
                 /* We read the time so we need to read the object type again. */
-                if ((type = ReadType()) == -1) goto eoferr;
+                if ((type = ReadType()) == -1)
+                {
+                    ERROR_LOG("Failed to read expire key type.");
+                    goto eoferr;
+                }
                 /* the EXPIRETIME opcode specifies time in seconds, so convert
                  * into milliseconds. */
                 expiretime *= 1000;
@@ -2202,9 +2900,17 @@ namespace ardb
             {
                 /* Milliseconds precision expire times introduced with RDB
                  * version 3. */
-                if ((expiretime = ReadMillisecondTime()) == -1) goto eoferr;
+                if ((expiretime = ReadMillisecondTime()) == -1)
+                {
+                    ERROR_LOG("Failed to read expire mstime.");
+                    goto eoferr;
+                }
                 /* We read the time so we need to read the object type again. */
-                if ((type = ReadType()) == -1) goto eoferr;
+                if ((type = ReadType()) == -1)
+                {
+                    ERROR_LOG("Failed to read expire ms key type.");
+                    goto eoferr;
+                }
             }
 
             if (type == REDIS_RDB_OPCODE_EOF) break;
@@ -2225,8 +2931,16 @@ namespace ardb
             else if (type == RDB_OPCODE_RESIZEDB)
             {
                 uint32_t db_size, expires_size;
-                if ((db_size = ReadLen(NULL)) == REDIS_RDB_LENERR) goto eoferr;
-                if ((expires_size = ReadLen(NULL)) == REDIS_RDB_LENERR) goto eoferr;
+                if ((db_size = ReadLen(NULL)) == REDIS_RDB_LENERR)
+                {
+                    ERROR_LOG("Failed to read dbsize");
+                    goto eoferr;
+                }
+                if ((expires_size = ReadLen(NULL)) == REDIS_RDB_LENERR)
+                {
+                    ERROR_LOG("Failed to read expire size");
+                    goto eoferr;
+                }
                 //donothing or readed data
                 continue;
             }
@@ -2260,6 +2974,7 @@ namespace ardb
                 ERROR_LOG("Failed to read current key.");
                 goto eoferr;
             }
+
             //g_db->RemoveKey(tmpctx, key);
             if (!RedisLoadObject(loadctx, type, key, expiretime))
             {
@@ -2329,6 +3044,7 @@ namespace ardb
                 continue;
             }
             dumpctx.ns = nss[i];
+            dumpctx.flags.iterate_total_order = 1;
             DUMP_CHECK_WRITE(WriteType(REDIS_RDB_OPCODE_SELECTDB));
             int64 dbid = 0;
             string_toint64(nss[i].AsString(), dbid);
@@ -2336,7 +3052,7 @@ namespace ardb
             //KeyObject empty;
             //empty.SetNameSpace(nss[i]);
             //Iterator* iter = g_db->GetEngine()->Find(dumpctx, empty);
-            Iterator* iter = (Iterator*)GetIteratorByNamespace(dumpctx, nss[i]);
+            Iterator* iter = (Iterator*) GetIteratorByNamespace(dumpctx, nss[i]);
             Data current_key;
             KeyType current_keytype;
             int64 objectlen = 0;
@@ -2385,6 +3101,7 @@ namespace ardb
                             case KEY_ZSET:
                             case KEY_SET:
                             case KEY_HASH:
+                            case KEY_STREAM:
                             {
                                 g_db->ObjectLen(dumpctx, current_keytype, kstr);
                                 objectlen = dumpctx.GetReply().GetInteger();
@@ -2453,6 +3170,11 @@ namespace ardb
                          iter->Jump(next);
                          continue;
                          */
+                        break;
+                    }
+                    case KEY_STREAM_ELEMENT:
+                    {
+
                         break;
                     }
                     default:
@@ -2526,7 +3248,7 @@ namespace ardb
             //KeyObject empty;
             //empty.SetNameSpace(nss[i]);
             //Iterator* iter = g_db->GetEngine()->Find(dumpctx, empty);
-            Iterator* iter = (Iterator*)GetIteratorByNamespace(dumpctx, nss[i]);
+            Iterator* iter = (Iterator*) GetIteratorByNamespace(dumpctx, nss[i]);
             while (iter->Valid())
             {
                 int64 ttl = 0;
@@ -2671,8 +3393,8 @@ namespace ardb
                 int err;
                 bool complete;
 
-                BGTask(const std::string& f) :
-                        path(f), err(0), complete(false)
+                BGTask(const std::string& f)
+                        : path(f), err(0), complete(false)
                 {
                 }
                 void Run()
@@ -2726,8 +3448,8 @@ namespace ardb
                 std::string path;
                 int err;
                 bool complete;
-                BGTask(const std::string& f) :
-                        path(f), err(0), complete(false)
+                BGTask(const std::string& f)
+                        : path(f), err(0), complete(false)
                 {
                 }
                 void Run()
@@ -2802,7 +3524,8 @@ namespace ardb
     void SnapshotManager::Routine()
     {
         LockGuard<ThreadMutexLock> guard(m_snapshots_lock);
-        if (g_db->GetConf().maxsnapshots > 0 && g_repl->IsInited() && (m_snapshots.size() > g_db->GetConf().maxsnapshots))
+        if (g_db->GetConf().maxsnapshots > 0 && g_repl->IsInited()
+                && (m_snapshots.size() > g_db->GetConf().maxsnapshots))
         {
             SnapshotArray::iterator it = m_snapshots.begin();
             while (it != m_snapshots.end())

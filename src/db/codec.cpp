@@ -47,10 +47,12 @@ OP_NAMESPACE_BEGIN
             case KEY_LIST_ELEMENT:
             case KEY_ZSET_SCORE:
             case KEY_HASH_FIELD:
+            case KEY_STREAM_ELEMENT:
             {
                 elements.resize(1);
                 break;
             }
+            case KEY_STREAM_PEL:
             case KEY_ZSET_SORT:
             {
                 elements.resize(2);
@@ -64,6 +66,7 @@ OP_NAMESPACE_BEGIN
                 elements.resize(3);
                 break;
             }
+
             default:
             {
                 break;
@@ -88,7 +91,7 @@ OP_NAMESPACE_BEGIN
         {
             return ret;
         }
-		return 0;
+        return 0;
     }
 
     int KeyObject::Compare(const KeyObject& other) const
@@ -119,32 +122,17 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-//    bool KeyObject::DecodeType(Buffer& buffer)
-//    {
-//        char tmp;
-//        if (!buffer.ReadByte(tmp))
-//        {
-//            return false;
-//        }
-//        type = (uint8) tmp;
-//        return true;
-//    }
-//    bool KeyObject::DecodeKey(Buffer& buffer, bool clone_str)
-//    {
-//        return key.Decode(buffer, clone_str);
-//    }
-
     bool KeyObject::DecodeKey(Buffer& buffer, bool clone_str)
     {
         uint32 keylen;
         if (!BufferHelper::ReadVarUInt32(buffer, keylen))
         {
-        	ERROR_LOG("Read length header failed.");
+            ERROR_LOG("Read length header failed.");
             return false;
         }
         if (buffer.ReadableBytes() < (keylen))
         {
-        	ERROR_LOG("No space for key content with size:%u", keylen);
+            ERROR_LOG("No space for key content with size:%u", keylen);
             return false;
         }
         key.SetString(buffer.GetRawReadBuffer(), keylen, clone_str);
@@ -239,7 +227,7 @@ OP_NAMESPACE_BEGIN
     {
         if (verify && !IsValid())
         {
-        	ERROR_LOG("Invalid key:%u", GetType());
+            ERROR_LOG("Invalid key:%u", GetType());
             return Slice();
         }
         size_t mark = buffer.GetWriteIndex();
@@ -289,6 +277,9 @@ OP_NAMESPACE_BEGIN
             case KEY_ZSET_SORT:
             case KEY_ZSET_SCORE:
             case KEY_TTL_SORT:
+            case KEY_STREAM:
+            case KEY_STREAM_ELEMENT:
+            case KEY_STREAM_PEL:
             {
                 return true;
             }
@@ -298,8 +289,29 @@ OP_NAMESPACE_BEGIN
             }
         }
     }
-    MetaObject::MetaObject() :
-            format(kCurrentMetaFormat), ttl(0), size(-1), list_sequential(true)
+    void KeyObject::SetStreamID(const StreamID& id)
+    {
+        id.Encode(getElement(0));
+    }
+    StreamID KeyObject::GetStreamID() const
+    {
+        StreamID id;
+        id.Decode(GetElement(0));
+        return id;
+    }
+    void KeyObject::SetStreamPELId(const StreamID& id)
+    {
+        id.Encode(getElement(1));
+    }
+    StreamID KeyObject::GetStreamPELId()
+    {
+        StreamID id;
+        id.Decode(GetElement(1));
+        return id;
+    }
+
+    MetaObject::MetaObject()
+            : format(kCurrentMetaFormat), ttl(0), size(-1), list_sequential(true)
     {
 
     }
@@ -325,12 +337,28 @@ OP_NAMESPACE_BEGIN
             case KEY_SET:
             case KEY_ZSET:
             case KEY_HASH:
+            case KEY_STREAM:
             {
                 BufferHelper::WriteVarInt64(buffer, size);
-                if (type == KEY_LIST)
-                {
-                    buffer.WriteByte(list_sequential ? 1 : 0);
-                }
+                break;
+            }
+            default:
+            {
+                break;
+            }
+        }
+        switch (type)
+        {
+            case KEY_LIST:
+            {
+                buffer.WriteByte(list_sequential ? 1 : 0);
+                break;
+            }
+            case KEY_STREAM:
+            {
+                Data data1;
+                stream_last_id.Encode(data1);
+                data1.Encode(buffer);
                 break;
             }
             default:
@@ -362,24 +390,43 @@ OP_NAMESPACE_BEGIN
             case KEY_SET:
             case KEY_ZSET:
             case KEY_HASH:
+            case KEY_STREAM:
             {
                 if (!BufferHelper::ReadVarInt64(buffer, size))
                 {
                     return false;
-                }
-                if (type == KEY_LIST)
-                {
-                    if (!buffer.ReadByte(tmp))
-                    {
-                        return false;
-                    }
-                    list_sequential = (bool) tmp;
                 }
                 break;
             }
             default:
             {
                 FATAL_LOG("Invalid type for mata object");
+            }
+        }
+        switch (type)
+        {
+            case KEY_LIST:
+            {
+                if (!buffer.ReadByte(tmp))
+                {
+                    return false;
+                }
+                list_sequential = (bool) tmp;
+                break;
+            }
+            case KEY_STREAM:
+            {
+                Data data1;
+                if (!data1.Decode(buffer, false))
+                {
+                    return false;
+                }
+                stream_last_id.Decode(data1);
+                break;
+            }
+            default:
+            {
+                break;
             }
         }
         return true;
@@ -454,7 +501,8 @@ OP_NAMESPACE_BEGIN
         return replaced;
     }
 
-    static void encode_value_object(Buffer& encode_buffer, uint8 type, uint16 merge_op, const DataArray& args, const MetaObject* meta)
+    static void encode_value_object(Buffer& encode_buffer, uint8 type, uint16 merge_op, const DataArray& args,
+            const MetaObject* meta)
     {
         encode_buffer.WriteByte((char) type);
         switch (type)
@@ -469,6 +517,7 @@ OP_NAMESPACE_BEGIN
             case KEY_SET:
             case KEY_ZSET:
             case KEY_HASH:
+            case KEY_STREAM:
             {
                 meta->Encode(encode_buffer, type);
                 break;
@@ -494,6 +543,7 @@ OP_NAMESPACE_BEGIN
     {
         if (0 == type)
         {
+            DEBUG_LOG("Empty type for value object.");
             return Slice();
         }
         encode_value_object(encode_buffer, type, merge_op, vals, &meta);
@@ -528,6 +578,7 @@ OP_NAMESPACE_BEGIN
             case KEY_SET:
             case KEY_ZSET:
             case KEY_HASH:
+            case KEY_STREAM:
             {
                 if (!meta.Decode(buffer, type))
                 {

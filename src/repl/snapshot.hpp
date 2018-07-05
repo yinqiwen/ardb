@@ -55,12 +55,16 @@ namespace ardb
     class ObjectIO
     {
         protected:
+
+            typedef TreeMap<StreamID, unsigned char *>::Type ListPackTree;
             DBWriter* m_dbwriter;
             virtual bool Read(void* buf, size_t buflen, bool cksm = true) = 0;
             virtual int Write(const void* buf, size_t buflen) = 0;
+            virtual int64_t WriteSeek(int64_t pos) = 0;
+            virtual int64_t GetWritePos() = 0;
             int WriteType(uint8 type);
             int WriteKeyType(KeyType type);
-            int WriteLen(uint64 len);
+            int WriteLen(uint64 len, int fixlen = 0);
             int WriteMillisecondTime(uint64 ts);
             int WriteDouble(double v);
             int WriteLongLongAsStringObject(long long value);
@@ -87,7 +91,11 @@ namespace ardb
             void RedisLoadHashZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
             void RedisLoadZSetZipList(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
             void RedisLoadSetIntSet(Context& ctx, unsigned char* data, const std::string& key, ValueObject& meta_value);
+            bool RedisLoadStream(Context& ctx, const std::string& key);
             void RedisWriteMagicHeader();
+            int64_t RedisWriteStream(void* iter);
+            int64_t RedisWriteStreamPEL(PELTable& pel, bool nacks);
+            int64_t RedisWriteStreamConsumers(ConsumerTable& consumers);
 
             int ArdbWriteMagicHeader();
             int ArdbLoadChunk(Context& ctx, int type);
@@ -116,6 +124,8 @@ namespace ardb
             Buffer m_buffer;
             bool Read(void* buf, size_t buflen, bool cksm);
             int Write(const void* buf, size_t buflen);
+            int64_t WriteSeek(int64_t pos);
+            int64_t GetWritePos();
         public:
             ObjectBuffer();
             ObjectBuffer(const std::string& content);
@@ -177,6 +187,9 @@ namespace ardb
             int AfterSave(const std::string& fname, int err);
             int PrepareSave(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data);
             void VerifyState();
+
+            int64_t WriteSeek(int64_t pos);
+            int64_t GetWritePos();
 
             friend class SnapshotManager;
         public:

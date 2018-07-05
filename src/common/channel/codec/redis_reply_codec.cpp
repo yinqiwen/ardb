@@ -101,7 +101,7 @@ bool RedisReplyEncoder::Encode(Buffer& buf, RedisReply& reply)
         }
         case REDIS_REPLY_ARRAY:
         {
-            if (reply.integer < 0)
+            if (reply.integer < 0 && NULL == reply.elements)
             {
                 buf.Printf("*-1\r\n");
                 break;

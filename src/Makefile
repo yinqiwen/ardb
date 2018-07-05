@@ -34,13 +34,13 @@
 CXX=g++
 CC=gcc
 
-ARDB_VERSION=0.9.6
+ARDB_VERSION=0.10.0
 
 uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 
 LIB_PATH=$(PWD)/../deps
 
-JEMALLOC_VER=5.0.1
+JEMALLOC_VER=5.1.0
 JEMALLOC_PATH=${LIB_PATH}/jemalloc-${JEMALLOC_VER}
 JEMALLOC_FILE=${JEMALLOC_PATH}.tar.bz2
 JEMALLOC_REMOTE_FILE=https://github.com/jemalloc/jemalloc/releases/download/${JEMALLOC_VER}/jemalloc-${JEMALLOC_VER}.tar.bz2
@@ -77,11 +77,11 @@ FORESTDB_REMOTE_FILE=https://github.com/couchbase/forestdb/archive/v1.2.tar.gz
 FORESTDB_SO=${FORESTDB_PATH}/build/libforestdb.so
 FORESTDB_LIBA=${FORESTDB_PATH}/build/libforestdb.a
 
-WIREDTIGER_VER=2.9.3
+WIREDTIGER_VER=3.0.0
 WIREDTIGER_PATH=${LIB_PATH}/wiredtiger-${WIREDTIGER_VER}
 WIREDTIGER_FILE=${WIREDTIGER_PATH}.tar.bz2
 WIREDTIGER_REMOTE_FILE=https://github.com/wiredtiger/wiredtiger/releases/download/${WIREDTIGER_VER}/wiredtiger-${WIREDTIGER_VER}.tar.bz2
-WIREDTIGER_LIBA=${WIREDTIGER_PATH}/.libs/libwiredtiger.a
+WIREDTIGER_LIBA=${WIREDTIGER_PATH}/.libs/libwiredtiger_static.a
 
 PERCONAFT_VER=PerconaFT-master
 PERCONAFT_PATH=${LIB_PATH}/${PERCONAFT_VER}
