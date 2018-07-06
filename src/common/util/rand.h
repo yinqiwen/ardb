@@ -33,7 +33,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#ifndef __STDC_LIMIT_MACROS
 #define __STDC_LIMIT_MACROS
+#endif
 #include <stdint.h>
 int32_t redisLrand48();
 void redisSrand48(int32_t seedval);

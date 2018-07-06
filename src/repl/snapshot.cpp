@@ -141,6 +141,8 @@ extern "C"
 #define STREAM_ITEM_FLAG_DELETED (1<<0)     /* Entry is delted. Skip it. */
 #define STREAM_ITEM_FLAG_SAMEFIELDS (1<<1)  /* Same fields as master entry. */
 
+#define READINT_ERR ((uint64_t)-1)
+
 #define LONG_STR_SIZE      21          /* Bytes needed for long -> str + '\0' */
 
 namespace ardb
@@ -1260,7 +1262,7 @@ namespace ardb
             if (opcode == RDB_MODULE_OPCODE_SINT || opcode == RDB_MODULE_OPCODE_UINT)
             {
                 //uint64_t len;
-                if (!ReadLen(NULL) == -1)
+                if (ReadLen(NULL) == READINT_ERR)
                 {
                     ERROR_LOG("Error reading integer from module %s value", modulename);
                     return false;

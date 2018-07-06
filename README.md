@@ -1,7 +1,7 @@
 # Ardb: A High Performance Persistent NoSql, Full Redis-Protocol Compatibility
 
 [![Join the chat at https://gitter.im/yinqiwen/ardb](https://badges.gitter.im/yinqiwen/ardb.svg)](https://gitter.im/yinqiwen/ardb?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-[![Build Status](https://travis-ci.org/yinqiwen/ardb.svg?branch=0.9)](https://travis-ci.org/yinqiwen/ardb)  
+[![Build Status](https://travis-ci.org/yinqiwen/ardb.svg?branch=master)](https://travis-ci.org/yinqiwen/ardb)  
 Ardb is a BSD licensed, redis-protocol compatible persistent nosql, it support multiple storage engines as backend like [Google's LevelDB](https://github.com/google/leveldb), [Facebook's RocksDB](https://github.com/facebook/rocksdb), [OpenLDAP's LMDB](http://symas.com/mdb/), [WiredTiger](http://www.wiredtiger.com/), [PerconaFT](https://github.com/percona/PerconaFT),[Couchbase's ForestDB](https://github.com/couchbase/forestdb) the default backend is [Facebook's RocksDB](https://github.com/facebook/rocksdb).
 
 
