@@ -78,28 +78,28 @@ OP_NAMESPACE_BEGIN
         return bits;
     }
 
-    static long popcount_bitval(const std::string& val, int32 offset, int32 limit)
-    {
-        if (limit < 0)
-        {
-            limit = val.size() - 1;
-        }
-        if (val.size() > limit)
-        {
-            std::string tmp = val.substr(offset, limit - offset + 1);
-            return popcount(tmp.data(), tmp.size());
-        }
-        else if (val.size() <= limit && val.size() <= offset)
-        {
-            return 0;
-        }
-        else if (val.size() > offset)
-        {
-            std::string tmp = val.substr(offset);
-            return popcount(tmp.data(), tmp.size());
-        }
-        return 0;
-    }
+//    static long popcount_bitval(const std::string& val, int32 offset, int32 limit)
+//    {
+//        if (limit < 0)
+//        {
+//            limit = val.size() - 1;
+//        }
+//        if (val.size() > (size_t)limit)
+//        {
+//            std::string tmp = val.substr(offset, limit - offset + 1);
+//            return popcount(tmp.data(), tmp.size());
+//        }
+//        else if (val.size() <= (size_t)limit && val.size() <= (size_t)offset)
+//        {
+//            return 0;
+//        }
+//        else if (val.size() > (size_t)offset)
+//        {
+//            std::string tmp = val.substr(offset);
+//            return popcount(tmp.data(), tmp.size());
+//        }
+//        return 0;
+//    }
 
     static bool get_bit_offset(const std::string& str, int64& offset)
     {
@@ -560,7 +560,7 @@ OP_NAMESPACE_BEGIN
         }
 
         /* Sanity check: NOT accepts only a single key argument. */
-        if (op == BITOP_NOT && cmd.GetArguments().size() != (2 + destkey_count))
+        if (op == BITOP_NOT && cmd.GetArguments().size() != (size_t)(2 + destkey_count))
         {
             reply.SetErrorReason("BITOP NOT must be called with a single source key.");
             return 0;
@@ -620,7 +620,7 @@ OP_NAMESPACE_BEGIN
             /* Fast path: as far as we have data for all the input bitmaps we
              * can take a fast path that performs much better than the
              * vanilla algorithm. */
-            int j = 0;
+            size_t j = 0;
             if (minlen >= sizeof(unsigned long) * 4 && numkeys <= 16)
             {
                 unsigned long *lp[16];

@@ -253,7 +253,7 @@ namespace ardb
     uint64_t ObjectIO::ReadLen(int *isencoded)
     {
         unsigned char buf[2];
-        uint32_t len;
+        //uint32_t len;
         int type;
 
         if (isencoded) *isencoded = 0;
@@ -1222,6 +1222,7 @@ namespace ardb
                 {
                     return false;
                 }
+                (void)moduleid;
                 return true;
             }
             case REDIS_RDB_TYPE_STREAM_LISTPACKS:
@@ -1258,7 +1259,7 @@ namespace ardb
         {
             if (opcode == RDB_MODULE_OPCODE_SINT || opcode == RDB_MODULE_OPCODE_UINT)
             {
-                uint64_t len;
+                //uint64_t len;
                 if (!ReadLen(NULL) == -1)
                 {
                     ERROR_LOG("Error reading integer from module %s value", modulename);
@@ -1451,6 +1452,7 @@ namespace ardb
         int64_t ll;
         int retval = string2ll((const char*) e, v, &ll);
         //serverAssert(retval != 0);
+        (void)retval;
         v = ll;
         return v;
     }
@@ -1461,10 +1463,10 @@ namespace ardb
         {
             return;
         }
-        for (size_t i = 0; i < iv.GetStreamFieldLength(); i++)
+        for (int64_t i = 0; i < iv.GetStreamFieldLength(); i++)
         {
             std::string str;
-            if (iv.ElementSize() == iv.GetStreamFieldLength() + 1)
+            if ((int64_t)iv.ElementSize() == iv.GetStreamFieldLength() + 1)
             {
                 meta.GetStreamMetaFieldNames()[i].ToString(str);
             }
@@ -1833,7 +1835,7 @@ namespace ardb
                 id.ms = lpGetInteger(lp_ele) + master_id.ms;
                 lp_ele = lpNext(lp, lp_ele);
                 id.seq = lpGetInteger(lp_ele) + master_id.seq;
-                int numfields = master_fns.size();
+                size_t numfields = master_fns.size();
                 if (!(flags & STREAM_ITEM_FLAG_SAMEFIELDS))
                 {
                     lp_ele = lpNext(lp, lp_ele);
@@ -1849,7 +1851,7 @@ namespace ardb
                 {
                     should_save_fn = 0;
                 }
-                for (int i = 0; i < numfields; i++)
+                for (size_t i = 0; i < numfields; i++)
                 {
                     std::string field, value;
                     if (!(flags & STREAM_ITEM_FLAG_SAMEFIELDS))
@@ -1983,6 +1985,7 @@ namespace ardb
                     return false;
                 }
                 int64_t seen_time = ReadMillisecondTime();
+                (void)seen_time;
 
                 /* Load the PEL about entries owned by this specific
                  * consumer. */
@@ -2112,7 +2115,7 @@ namespace ardb
         KeyObject start(ctx.ns, KEY_META, key);
         Iterator* iter = g_db->GetEngine()->Find(ctx, start);
         int64 objectlen = 0;
-        KeyType current_keytype;
+        KeyType current_keytype = KEY_UNKNOWN;
         bool iter_continue = true;
         bool success = false;
 
@@ -2725,7 +2728,7 @@ namespace ardb
     int Snapshot::BeforeSave(SnapshotType type, const std::string& file, SnapshotRoutine* cb, void *data)
     {
         char tmpname[1024];
-        snprintf(tmpname, sizeof(tmpname) - 1, "%s.%llu.tmp", file.c_str(), get_current_epoch_millis());
+        snprintf(tmpname, sizeof(tmpname) - 1, "%s.%" PRIu64 ".tmp", file.c_str(), get_current_epoch_millis());
         return PrepareSave(type, tmpname, cb, data);
     }
     int Snapshot::AfterSave(const std::string& fname, int err)
@@ -2733,8 +2736,8 @@ namespace ardb
         if (0 == err)
         {
             char snapshot_name[1024];
-            snprintf(snapshot_name, sizeof(snapshot_name) - 1, "%s.%llu.%llu.%u", fname.c_str(), m_cached_repl_offset,
-                    m_cached_repl_cksm, m_save_time);
+            snprintf(snapshot_name, sizeof(snapshot_name) - 1, "%s.%" PRIu64 ".%" PRIu64 ".%" PRIu32 , fname.c_str(), m_cached_repl_offset,
+                    m_cached_repl_cksm, (uint32_t)m_save_time);
             Rename(snapshot_name);
         }
         else
@@ -2781,12 +2784,12 @@ namespace ardb
         uint32 now = time(NULL);
         if (type == BACKUP_DUMP)
         {
-            sprintf(tmp, "%s/sync-%s-backup.%llu.%llu.%u", g_db->GetConf().backup_dir.c_str(), g_engine_name, offset,
+            sprintf(tmp, "%s/sync-%s-backup.%" PRIu64 ".%" PRIu64 ".%" PRIu32, g_db->GetConf().backup_dir.c_str(), g_engine_name, offset,
                     cksm, now);
         }
         else
         {
-            sprintf(tmp, "%s/sync-%s-snapshot.%llu.%llu.%u", g_db->GetConf().backup_dir.c_str(), type2str(type), offset,
+            sprintf(tmp, "%s/sync-%s-snapshot.%" PRIu64 ".%" PRIu64 ".%" PRIu32, g_db->GetConf().backup_dir.c_str(), type2str(type), offset,
                     cksm, now);
         }
         return tmp;
@@ -3054,7 +3057,7 @@ namespace ardb
             //Iterator* iter = g_db->GetEngine()->Find(dumpctx, empty);
             Iterator* iter = (Iterator*) GetIteratorByNamespace(dumpctx, nss[i]);
             Data current_key;
-            KeyType current_keytype;
+            KeyType current_keytype = KEY_UNKNOWN;
             int64 objectlen = 0;
             int64 object_totallen = 0;
 
@@ -3071,7 +3074,7 @@ namespace ardb
                         {
                             ERROR_LOG(
                                     "Previous key:%s with type:%u is not complete dump, %lld missing in %lld elements",
-                                    current_key.AsString().c_str(), current_keytype, objectlen, object_totallen);
+                                    current_key.AsString().c_str(), (uint32_t)current_keytype, objectlen, object_totallen);
                             err = -2;
                             break;
                         }
@@ -3516,7 +3519,7 @@ namespace ardb
         {
             time_t ts = m_snapshots[i]->SaveTime();
             sprintf(buffer, "snapshot%u:type=%s,"
-                    "create_time=%s,name=%s\r\n", i, type2str(m_snapshots[i]->GetType()),
+                    "create_time=%s,name=%s\r\n", (uint32_t)i, type2str(m_snapshots[i]->GetType()),
                     trim_str(ctime_r(&ts, tmp), " \t\r\n"), get_basename(m_snapshots[i]->GetPath()).c_str());
             str.append(buffer);
         }
@@ -3525,7 +3528,7 @@ namespace ardb
     {
         LockGuard<ThreadMutexLock> guard(m_snapshots_lock);
         if (g_db->GetConf().maxsnapshots > 0 && g_repl->IsInited()
-                && (m_snapshots.size() > g_db->GetConf().maxsnapshots))
+                && ((int64_t)m_snapshots.size() > g_db->GetConf().maxsnapshots))
         {
             SnapshotArray::iterator it = m_snapshots.begin();
             while (it != m_snapshots.end())
@@ -3549,7 +3552,7 @@ namespace ardb
             }
         }
 
-        while (g_db->GetConf().maxsnapshots > 0 && m_snapshots.size() > g_db->GetConf().maxsnapshots)
+        while (g_db->GetConf().maxsnapshots > 0 && (int64_t)m_snapshots.size() > g_db->GetConf().maxsnapshots)
         {
             Snapshot* s = m_snapshots[0];
             if (NULL != s)

@@ -35,6 +35,7 @@
 #include "util/sds.h"
 #include "util/string_helper.hpp"
 #include "util/network_helper.hpp"
+#include "util/atomic.hpp"
 #include "types.hpp"
 #include <assert.h>
 #include <deque>
@@ -654,7 +655,17 @@ OP_NAMESPACE_BEGIN
                 return consumer_pels.rbegin()->first;
             }
     };
-    typedef TreeMap<std::string, StreamGroupMeta*>::Type GroupTable;
+    typedef TreeMap<std::string, StreamGroupMeta*>::Type StreamGroupTableBase;
+    struct StreamGroupTable: public StreamGroupTableBase
+    {
+            volatile uint32_t ref;
+            StreamGroupTable()
+                    : ref(0)
+            {
+            }
+            uint32_t IncRef();
+            uint32_t DecRef();
+    };
 
     int encode_merge_operation(Buffer& buffer, uint16_t op, const DataArray& args);
     KeyType element_type(KeyType type);

@@ -174,7 +174,7 @@ OP_NAMESPACE_BEGIN
         {
             if (timeout > 0)
             {
-                if (get_current_epoch_millis() - start >= timeout)
+                if (get_current_epoch_millis() - start >= (uint64_t)timeout)
                 {
                     return -1;
                 }

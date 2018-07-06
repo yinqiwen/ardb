@@ -91,14 +91,16 @@ namespace ardb
         {
             if (type == REDIS_REPLY_DOUBLE)
             {
-                return *(double*) (&integer);
+                double* vv = (double*) (&integer);
+                return *vv;
             }
             return 0;
         }
         void RedisReply::SetDouble(double v)
         {
             type = REDIS_REPLY_DOUBLE;
-            *(double*) (&integer) = v;
+            double* vv = (double*) (&integer);
+            *vv = v;
         }
 
         RedisReply& RedisReply::AddMember(bool tail)
@@ -132,7 +134,7 @@ namespace ardb
             Clear();
             type = REDIS_REPLY_ARRAY;
             integer = num;
-            for (size_t i = 0; num > 0 && i < num; i++)
+            for (int64_t i = 0; num > 0 && i < num; i++)
             {
                 AddMember();
             }
@@ -153,7 +155,7 @@ namespace ardb
         {
             if (NULL == pool && NULL != elements)
             {
-                for (int i = 0; i < elements->size(); i++)
+                for (size_t i = 0; i < elements->size(); i++)
                 {
                     DELETE(elements->at(i));
                 }

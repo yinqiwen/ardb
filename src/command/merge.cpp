@@ -189,7 +189,6 @@ namespace ardb
     int Ardb::MergeOperation(const KeyObject& key, ValueObject& val, uint16_t op, DataArray& args)
     {
         Context merge_ctx;
-        int err = 0;
         if (!AdjustMergeOp(op, args))
         {
             return -1;

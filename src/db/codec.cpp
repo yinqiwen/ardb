@@ -179,7 +179,7 @@ OP_NAMESPACE_BEGIN
     }
     bool KeyObject::DecodeElement(Buffer& buffer, bool clone_str, int idx)
     {
-        if (elements.size() <= idx)
+        if (elements.size() <= (size_t)idx)
         {
             elements.resize(idx + 1);
         }
@@ -768,6 +768,15 @@ OP_NAMESPACE_BEGIN
                 abort();
             }
         }
+    }
+
+    uint32_t StreamGroupTable::IncRef()
+    {
+        return atomic_add_uint32(&ref, 1);
+    }
+    uint32_t StreamGroupTable::DecRef()
+    {
+        return atomic_sub_uint32(&ref, 1);
     }
 
 OP_NAMESPACE_END

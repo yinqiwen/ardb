@@ -52,7 +52,7 @@ OP_NAMESPACE_BEGIN
         int processed = 0; /* Number of elements processed, may remain zero with
          options like XX. */
         size_t scoreidx = 1;
-        int err = 0;
+        //int err = 0;
         while (scoreidx < cmd.GetArguments().size())
         {
             const char* opt = cmd.GetArguments()[scoreidx].c_str();
@@ -568,7 +568,7 @@ OP_NAMESPACE_BEGIN
         ZScore(ctx, cmd);
         if (reply.type == REDIS_REPLY_DOUBLE)
         {
-            double score = reply.GetDouble();
+            //double score = reply.GetDouble();
             Data member;
             member.SetString(cmd.GetArguments()[1], false);
             KeyObject sort_key(ctx.ns, KEY_ZSET_SORT, cmd.GetArguments()[0]);
@@ -931,7 +931,7 @@ OP_NAMESPACE_BEGIN
             int remaining = cmd.GetArguments().size() - arg_cursor;
             while (remaining)
             {
-                if (remaining >= (setnum + 1) && !strcasecmp(cmd.GetArguments()[arg_cursor].c_str(), "weights"))
+                if (remaining >= (int)(setnum + 1) && !strcasecmp(cmd.GetArguments()[arg_cursor].c_str(), "weights"))
                 {
                     arg_cursor++;
                     remaining--;

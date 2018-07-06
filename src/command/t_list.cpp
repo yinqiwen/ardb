@@ -474,7 +474,7 @@ OP_NAMESPACE_BEGIN
             return 0;
         }
         if (end >= meta.GetObjectLen()) end = meta.GetObjectLen() - 1;
-        int64_t rangelen = (end - start) + 1;
+        //int64_t rangelen = (end - start) + 1;
         reply.ReserveMember(0);
 
         KeyObject ele_key(ctx.ns, KEY_LIST_ELEMENT, cmd.GetArguments()[0]);
@@ -523,7 +523,7 @@ OP_NAMESPACE_BEGIN
             reply.SetErrCode(ERR_INVALID_INTEGER_ARGS);
             return 0;
         }
-        int64 toremove = std::abs(count);
+        //int64 toremove = std::abs(count);
         KeyObject key(ctx.ns, KEY_META, cmd.GetArguments()[0]);
         ValueObject meta;
         KeyLockGuard guard(ctx, key);

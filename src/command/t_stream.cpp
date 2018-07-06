@@ -30,6 +30,11 @@
 #include "util/string_helper.hpp"
 #include "util/lru.hpp"
 
+#define GTABLE_IDLE   0
+#define GTABLE_INUSE  1
+#define GTABLE_ERASED 2
+
+
 OP_NAMESPACE_BEGIN
 /* Parse a stream ID in the format given by clients to Redis, that is
  * <ms>-<seq>, and converts it into a streamID structure. If
@@ -87,7 +92,7 @@ OP_NAMESPACE_BEGIN
     static void replyStreamID(RedisReply& r, const StreamID& id)
     {
         char reply_buffer[256];
-        sprintf(reply_buffer, "%llu-%llu", id.ms, id.seq);
+        sprintf(reply_buffer, "%" PRIu64 "-%" PRIu64 , id.ms, id.seq);
         r.SetStatusString(reply_buffer);
     }
 
@@ -99,7 +104,7 @@ OP_NAMESPACE_BEGIN
         fvs.ReserveMember(0);
         for (int64_t i = 0; i < ele.GetStreamFieldLength(); i++)
         {
-            if (ele.ElementSize() == ele.GetStreamFieldLength() + 1)
+            if (ele.ElementSize() == (size_t)ele.GetStreamFieldLength() + 1)
             {
                 fvs.AddMember().SetString(meta.GetStreamMetaFieldNames()[i]);
             }
@@ -141,9 +146,19 @@ OP_NAMESPACE_BEGIN
         }
     }
 
-    typedef LRUCache<KeyPrefix, GroupTable*> StreamGroupCache;
+    typedef LRUCache<KeyPrefix, StreamGroupTable*> StreamGroupCache;
+    typedef TreeSet<StreamGroupTable*>::Type GroupTableSet;
     static StreamGroupCache g_stream_groups;
     static ThreadMutex g_stream_groups_mutex;
+    static GroupTableSet g_retired_groups;
+    static ThreadMutex g_retired_groups_mutex;
+
+    static void addRetiredGroup(StreamGroupTable* g)
+    {
+        LockGuard<ThreadMutex> guard(g_retired_groups_mutex);
+        g_retired_groups.insert(g);
+    }
+
 
     static void clearGroup(StreamGroupMeta* g)
     {
@@ -156,18 +171,18 @@ OP_NAMESPACE_BEGIN
         PELTable::iterator pit = g->consumer_pels.begin();
         while (pit != g->consumer_pels.end())
         {
-            DELETE(cit->second);
+            DELETE(pit->second);
             pit++;
         }
         DELETE(g);
     }
-    static void clearGroupTable(GroupTable* g)
+    static void clearGroupTable(StreamGroupTable* g)
     {
         if (NULL == g)
         {
             return;
         }
-        GroupTable::iterator git = g->begin();
+        StreamGroupTable::iterator git = g->begin();
         while (git != g->end())
         {
             clearGroup(git->second);
@@ -190,7 +205,7 @@ OP_NAMESPACE_BEGIN
         {
             c = found->second;
         }
-        if(c->seen_time < nack->delivery_time)
+        if(c->seen_time < (int64_t)nack->delivery_time)
         {
             c->seen_time = nack->delivery_time;
         }
@@ -199,13 +214,22 @@ OP_NAMESPACE_BEGIN
         g->consumer_pels[sid] = nack;
     }
 
+    static void release_gtable(void* gtable)
+    {
+        if(NULL == gtable)
+        {
+            return;
+        }
+        ((StreamGroupTable*)gtable)->DecRef();
+    }
+
     int Ardb::StreamDel(Context& ctx, const KeyObject& key)
     {
         KeyPrefix prefix;
         prefix.key = key.GetKey();
         prefix.ns = key.GetNameSpace();
         LockGuard<ThreadMutex> guard(g_stream_groups_mutex);
-        GroupTable* gtable = NULL;
+        StreamGroupTable* gtable = NULL;
         if (g_stream_groups.Erase(prefix, gtable))
         {
             clearGroupTable(gtable);
@@ -213,9 +237,30 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
+    void Ardb::ClearRetiredStreamCache()
+    {
+        LockGuard<ThreadMutex> guard(g_retired_groups_mutex);
+        if(!g_retired_groups.empty())
+        {
+            GroupTableSet::iterator sit = g_retired_groups.begin();
+            while(sit != g_retired_groups.end())
+            {
+                StreamGroupTable* g = *sit;
+                if(g->ref == 0)
+                {
+                    DEBUG_LOG("Clear retired stream group cache data.");
+                    clearGroupTable(g);
+                    sit = g_retired_groups.erase(sit);
+                    continue;
+                }
+                sit++;
+            }
+        }
+    }
+
     StreamGroupTable* Ardb::StreamLoadGroups(Iterator* iter)
     {
-        GroupTable* gtable = new GroupTable;
+        StreamGroupTable* gtable = new StreamGroupTable;
         StreamGroupMeta* gmeta = NULL;
         while (iter->Valid())
         {
@@ -231,7 +276,7 @@ OP_NAMESPACE_BEGIN
                 gmeta = new StreamGroupMeta;
                 gmeta->name = group_name;
                 gmeta->lastid.Decode(iter->Value(false).GetStreamGroupStreamId());
-                gtable->insert(GroupTable::value_type(group_name, gmeta));
+                gtable->insert(StreamGroupTable::value_type(group_name, gmeta));
             }
             StreamID sid = ik.GetStreamPELId();
             if (!sid.Empty())
@@ -254,13 +299,14 @@ OP_NAMESPACE_BEGIN
 
     StreamGroupTable* Ardb::StreamLoadGroups(Context& ctx, const KeyPrefix& gk, bool create_ifnotexist)
     {
-        GroupTable* gtable = NULL;
+        StreamGroupTable* gtable = NULL;
         LockGuard<ThreadMutex> guard(g_stream_groups_mutex);
-        g_stream_groups.SetMaxCacheSize(1024);
+        g_stream_groups.SetMaxCacheSize(GetConf().stream_lru_cache_size);
         if (g_stream_groups.Get(gk, gtable))
         {
             return gtable;
         }
+
         KeyObject sk(gk.ns, KEY_STREAM_PEL, gk.key);
         StreamGroupMeta* gmeta = NULL;
         Iterator* iter = m_engine->Find(ctx, sk);
@@ -279,7 +325,7 @@ OP_NAMESPACE_BEGIN
                 gmeta = new StreamGroupMeta;
                 gmeta->name = group_name;
                 gmeta->lastid.Decode(iter->Value(false).GetStreamGroupStreamId());
-                gtable->insert(GroupTable::value_type(group_name, gmeta));
+                gtable->insert(StreamGroupTable::value_type(group_name, gmeta));
             }
             StreamID sid = ik.GetStreamPELId();
             if (!sid.Empty())
@@ -297,7 +343,7 @@ OP_NAMESPACE_BEGIN
         {
             if(NULL == gtable)
             {
-                gtable = new GroupTable;
+                gtable = new StreamGroupTable;
             }
         }
         if(NULL != gtable)
@@ -306,8 +352,11 @@ OP_NAMESPACE_BEGIN
             g_stream_groups.Insert(gk, gtable, erased);
             if (NULL != erased.second)
             {
-                clearGroupTable(erased.second);
+                StreamGroupTable* g = erased.second;
+                addRetiredGroup(g);
             }
+            gtable->IncRef();
+            ctx.AddPostCmdFunc(release_gtable, gtable);
         }
         return gtable;
     }
@@ -322,10 +371,10 @@ OP_NAMESPACE_BEGIN
 
     StreamGroupMeta* Ardb::StreamLoadGroup(Context& ctx, const KeyPrefix& gk, const std::string& group)
     {
-        GroupTable* gtable = StreamLoadGroups(ctx, gk, false);
+        StreamGroupTable* gtable = StreamLoadGroups(ctx, gk, false);
         if (NULL != gtable)
         {
-            GroupTable::iterator git = gtable->find(group);
+            StreamGroupTable::iterator git = gtable->find(group);
             if (git == gtable->end())
             {
                 return NULL;
@@ -389,7 +438,7 @@ OP_NAMESPACE_BEGIN
             xclaim.GetMutableArguments().push_back(consumer);
             xclaim.GetMutableArguments().push_back("0");
             char tmp[512];
-            sprintf(tmp, "%llu-%llu", id.ms, id.seq);
+            sprintf(tmp, "%" PRIu64 "-%" PRIu64 , id.ms, id.seq);
             xclaim.GetMutableArguments().push_back(tmp);
             xclaim.GetMutableArguments().push_back("TIME");
             xclaim.GetMutableArguments().push_back(stringfromll(nack->delivery_time));
@@ -500,12 +549,12 @@ OP_NAMESPACE_BEGIN
     }
     int64_t Ardb::StreamDelGroup(Context& ctx, const std::string& key, const std::string& group)
     {
-        GroupTable* gtable = StreamLoadGroups(ctx, key, false);
+        StreamGroupTable* gtable = StreamLoadGroups(ctx, key, false);
         if (NULL == gtable)
         {
             return 0;
         }
-        GroupTable::iterator git = gtable->find(group);
+        StreamGroupTable::iterator git = gtable->find(group);
         if (git == gtable->end())
         {
             return 0;
@@ -576,7 +625,7 @@ OP_NAMESPACE_BEGIN
         KeyObject start(ctx.ns, KEY_STREAM_ELEMENT, key);
         Iterator* iter = m_engine->Find(ctx, start);
         WriteBatchGuard batch(ctx, m_engine);
-        while (iter->Valid() && meta.GetObjectLen() > maxlen)
+        while (iter->Valid() && meta.GetObjectLen() > (int64_t)maxlen)
         {
             KeyObject& ik = iter->Key(false);
             if (ik.GetType() != KEY_STREAM_ELEMENT || ik.GetNameSpace() != start.GetNameSpace()
@@ -611,7 +660,7 @@ OP_NAMESPACE_BEGIN
             int64_t maxlen = 0; /* 0 means no maximum length. */
             int approx_maxlen = 0; /* If 1 only delete whole radix tree nodes, so
              the maxium length is not applied verbatim. */
-            int maxlen_arg_idx = 0; /* Index of the count in MAXLEN, for rewriting. */
+            //int maxlen_arg_idx = 0; /* Index of the count in MAXLEN, for rewriting. */
             bool id_given = false;
             size_t i = 1;
             for (; i < cmd.GetArguments().size(); i++)
@@ -639,7 +688,7 @@ OP_NAMESPACE_BEGIN
                         return 0;
                     }
                     i++;
-                    maxlen_arg_idx = i;
+                    //maxlen_arg_idx = i;
                 }
                 else
                 {
@@ -816,7 +865,7 @@ OP_NAMESPACE_BEGIN
                 "DELCONSUMER <key> <groupname> <consumer> -- Remove the specified conusmer.",
                 "HELP                                     -- Prints this help.",
                 NULL };
-        const char* grpname = NULL;
+        //const char* grpname = NULL;
         const char *opt = cmd.GetArguments()[0].c_str(); /* Subcommand name. */
         ValueObject meta;
         /* Lookup the key now, this is common for all the subcommands but HELP. */
@@ -833,7 +882,7 @@ OP_NAMESPACE_BEGIN
                 ctx.GetReply().SetErrCode(ERR_ENTRY_NOT_EXIST);
                 return 0;
             }
-            grpname = cmd.GetArguments()[2].c_str();
+            //grpname = cmd.GetArguments()[2].c_str();
 
             /* Certain subcommands require the group to exist. */
             if ((!strcasecmp(opt, "SETID") || !strcasecmp(opt, "DELGROUP") || !strcasecmp(opt, "DELCONSUMER"))
@@ -1104,7 +1153,7 @@ OP_NAMESPACE_BEGIN
         {
             if (count > 0)
             {
-                if (reply.MemberSize() >= count)
+                if (reply.MemberSize() >= (size_t)count)
                 {
                     break;
                 }
@@ -1140,7 +1189,7 @@ OP_NAMESPACE_BEGIN
             fvs.ReserveMember(0);
             for (int64_t i = 0; i < iv.GetStreamFieldLength(); i++)
             {
-                if (iv.ElementSize() == iv.GetStreamFieldLength() + 1)
+                if (iv.ElementSize() == (size_t)iv.GetStreamFieldLength() + 1)
                 {
                     fvs.AddMember().SetString(meta.GetStreamMetaFieldNames()[i]);
                 }
@@ -1270,7 +1319,7 @@ OP_NAMESPACE_BEGIN
         }
         ctx.GetReply().Clear();
 
-        int last_id_arg = j - 1; /* Next time we iterate the IDs we now the range. */
+        //int last_id_arg = j - 1; /* Next time we iterate the IDs we now the range. */
         int force = 0;
         int justid = 0;
         /* If we stopped because some IDs cannot be parsed, perhaps they
@@ -2014,7 +2063,7 @@ OP_NAMESPACE_BEGIN
                 StreamCreateNACK(stream_ctx, stream_key, unblock_client.GetBPop().GetStreamTarget().group,
                         unblock_client.GetBPop().GetStreamTarget().consumer, id, group_meta);
             }
-            if (ele_count >= unblock_client.GetBPop().GetStreamTarget().xread_count)
+            if ((size_t)ele_count >= unblock_client.GetBPop().GetStreamTarget().xread_count)
             {
                 break;
             }

@@ -57,7 +57,6 @@ OP_NAMESPACE_BEGIN
     class StreamGroupMeta;
     class StreamNACK;
     class StreamElementVistior;
-    typedef TreeMap<std::string, StreamGroupMeta*>::Type StreamGroupTable;
     class Ardb
     {
         public:
@@ -280,6 +279,7 @@ OP_NAMESPACE_BEGIN
             StreamGroupTable* StreamLoadGroups(Context& ctx, const std::string& key, bool create_ifnotexist);
             StreamGroupTable* StreamLoadGroups(Context& ctx, const KeyPrefix& key, bool create_ifnotexist);
             StreamGroupTable* StreamLoadGroups(Iterator* iter);
+            void ClearRetiredStreamCache();
 
             int WatchForKey(Context& ctx, const std::string& key);
             int UnwatchKeys(Context& ctx);
@@ -528,6 +528,8 @@ OP_NAMESPACE_BEGIN
             void AddClient(Context& ctx);
             void ScanClients();
             int64 ScanExpiredKeys();
+            void GC();
+
             const ArdbConfig& GetConf() const
             {
                 return m_conf;

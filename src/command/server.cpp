@@ -1120,7 +1120,7 @@ namespace ardb
         while (logbuf.Readable())
         {
             RedisCommandFrame msg;
-            size_t rest = logbuf.ReadableBytes();
+            //size_t rest = logbuf.ReadableBytes();
             if (!RedisCommandDecoder::Decode(NULL, logbuf, msg))
             {
                 break;
@@ -1183,7 +1183,7 @@ namespace ardb
             const int64_t max_replay_bytes = 1024 * 1024;
             while (true)
             {
-                if (replay_ctx.offset < g_repl->GetReplLog().WALStartOffset() || replay_ctx.offset > g_repl->GetReplLog().WALEndOffset())
+                if ((uint64_t)replay_ctx.offset < g_repl->GetReplLog().WALStartOffset() || (uint64_t)replay_ctx.offset > g_repl->GetReplLog().WALEndOffset())
                 {
                     ERROR_LOG("Failed to replay wal with sync_offset:%lld, wal_start_offset:%llu, wal_end_offset:%lld", replay_ctx.offset,
                             g_repl->GetReplLog().WALStartOffset(), g_repl->GetReplLog().WALEndOffset());
@@ -1198,7 +1198,7 @@ namespace ardb
                     INFO_LOG("%lld bytes replayed from wal log, %llu bytes left.", after_replayed_bytes,
                             g_repl->GetReplLog().WALEndOffset() - replay_ctx.offset);
                 }
-                if (replay_ctx.offset == g_repl->GetReplLog().WALEndOffset())
+                if ((uint64_t)replay_ctx.offset == g_repl->GetReplLog().WALEndOffset())
                 {
                     break;
                 }

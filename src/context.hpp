@@ -165,7 +165,7 @@ OP_NAMESPACE_BEGIN
             bool noack;
             std::vector<StreamID> ids;
             BlockStreamTarget()
-                    : xread_count(0),noack(true)
+                    : xread_count(0), noack(true)
             {
             }
     };
@@ -179,7 +179,7 @@ OP_NAMESPACE_BEGIN
             BlockStreamTarget* stream_target;
             uint32 block_keytype;
             BlockingState()
-                    : timeout(0), list_target(NULL), stream_target(NULL),block_keytype(0)
+                    : timeout(0), list_target(NULL), stream_target(NULL), block_keytype(0)
             {
             }
             BlockListTarget& GetListTarget()
@@ -205,6 +205,18 @@ OP_NAMESPACE_BEGIN
             }
     };
 
+    typedef void ContextFunc(void*);
+    struct ContextFunctor
+    {
+            ContextFunc* func;
+            void* data;
+            ContextFunctor(ContextFunc* f = NULL, void* d = NULL)
+                    : func(f), data(d)
+            {
+            }
+    };
+    typedef std::vector<ContextFunctor> ContextFunctorArray;
+
     class Context
     {
         private:
@@ -226,13 +238,18 @@ OP_NAMESPACE_BEGIN
 
             const void* engine_snapshot;
             void* cmd_proxy;
-
+            ContextFunctorArray post_cmd_func;
             Context()
                     : reply(NULL), client(NULL), transc(NULL), pubsub(
                     NULL), bpop(NULL), current_cmd(NULL), dirty(0), last_cmdtype(REDIS_CMD_INVALID), transc_err(0), authenticated(
                             true), keyslocked(false), engine_snapshot(NULL), cmd_proxy(NULL)
             {
                 ns.SetString("0", false);
+            }
+            void AddPostCmdFunc(ContextFunc* f, void* data)
+            {
+                ContextFunctor func(f, data);
+                post_cmd_func.push_back(func);
             }
             void RewriteClientCommand(const RedisCommandFrame& cmd)
             {

@@ -199,7 +199,7 @@ OP_NAMESPACE_BEGIN
         const int64_t replay_process_events_interval_bytes = 10 * 1024 * 1024;
         while (true)
         {
-            if (m_ctx.sync_repl_offset < g_repl->GetReplLog().WALStartOffset() || m_ctx.sync_repl_offset > g_repl->GetReplLog().WALEndOffset())
+            if ((uint64_t)m_ctx.sync_repl_offset < g_repl->GetReplLog().WALStartOffset() || (uint64_t)m_ctx.sync_repl_offset > g_repl->GetReplLog().WALEndOffset())
             {
                 ERROR_LOG("Failed to replay wal with sync_offset:%lld, wal_start_offset:%llu, wal_end_offset:%lld", m_ctx.sync_repl_offset,
                         g_repl->GetReplLog().WALStartOffset(), g_repl->GetReplLog().WALEndOffset());
@@ -220,7 +220,7 @@ OP_NAMESPACE_BEGIN
                 INFO_LOG("%lld bytes replayed from wal log, %llu bytes left.", after_replayed_bytes,
                         g_repl->GetReplLog().WALEndOffset() - m_ctx.sync_repl_offset);
             }
-            if (m_ctx.sync_repl_offset == g_repl->GetReplLog().WALEndOffset())
+            if ((uint64_t)m_ctx.sync_repl_offset == g_repl->GetReplLog().WALEndOffset())
             {
                 m_ctx.state = SLAVE_STATE_SYNCED;
                 if (!g_repl->GetReplLog().CurrentNamespace().empty())
@@ -242,7 +242,7 @@ OP_NAMESPACE_BEGIN
         while (logbuf.Readable() && m_ctx.state == SLAVE_STATE_REPLAYING_WAL)
         {
             RedisCommandFrame msg;
-            size_t rest = logbuf.ReadableBytes();
+            //size_t rest = logbuf.ReadableBytes();
             if (!RedisCommandDecoder::Decode(NULL, logbuf, msg))
             {
                 break;
@@ -651,6 +651,7 @@ OP_NAMESPACE_BEGIN
         if (!chunk.chunk.empty())
         {
             int err = m_ctx.snapshot.Write(chunk.chunk.c_str(), chunk.chunk.size());
+            (void)err;
             //printf("####write err:%d with %d %d\n", err, chunk.chunk.size(), m_ctx.snapshot.DumpLeftDataSize());
         }
         if (chunk.IsLastChunk())

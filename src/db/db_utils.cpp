@@ -116,7 +116,7 @@ OP_NAMESPACE_BEGIN
     {
         if (workers > 1)
         {
-            for (size_t i = 0; i < workers; i++)
+            for (size_t i = 0; i < (size_t)workers; i++)
             {
                 DBWriterWorker* worker = NULL;
                 NEW(worker, DBWriterWorker(this));
@@ -165,7 +165,7 @@ OP_NAMESPACE_BEGIN
             return;
         }
         LockGuard<ThreadMutexLock> guard(m_queue_lock);
-        while(m_queue.size() >= g_db->GetConf().max_slave_worker_queue)
+        while(m_queue.size() >= (size_t)(g_db->GetConf().max_slave_worker_queue))
         {
             m_queue_lock.Wait(1);
         }

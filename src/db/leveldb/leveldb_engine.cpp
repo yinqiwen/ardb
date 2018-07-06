@@ -56,7 +56,7 @@ namespace ardb
             {
                 char logbuf[1024];
                 int len = vsnprintf(logbuf, sizeof(logbuf), format, ap);
-                if (len < sizeof(logbuf))
+                if ((size_t)len < sizeof(logbuf))
                 {
                     INFO_LOG(logbuf);
                 }

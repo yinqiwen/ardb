@@ -213,7 +213,7 @@ OP_NAMESPACE_BEGIN
         {
             KeyObject& k = iter->Key();
             int64 ttl = 0;
-            if (iter->Key().GetType() == KEY_META)
+            if (k.GetType() == KEY_META)
             {
                 ttl = iter->Value().GetTTL();
             }
@@ -274,7 +274,7 @@ OP_NAMESPACE_BEGIN
         RedisReply& reply = ctx.GetReply();
         const std::string& host = cmd.GetArguments()[0];
         uint32 port;
-        int copy = 0, replace = 0;
+        int copy = 0;
         int64 timeout;
         if (!string_toint64(cmd.GetArguments()[3], timeout) || !string_touint32(cmd.GetArguments()[1], port))
         {
@@ -492,7 +492,7 @@ OP_NAMESPACE_BEGIN
         }
         MigrateContext* migrate_ctx = NULL;
         NEW(migrate_ctx, MigrateContext);
-        for (size_t i = first_key; i < cmd.GetArguments().size() && migrate_ctx->keys.size() < num_keys; i++)
+        for (size_t i = first_key; i < cmd.GetArguments().size() && migrate_ctx->keys.size() < (size_t)num_keys; i++)
         {
             KeyObject k(ctx.ns, KEY_META, cmd.GetArguments()[i]);
             migrate_ctx->keys.push_back(k);

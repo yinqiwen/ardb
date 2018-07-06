@@ -49,7 +49,7 @@ namespace ardb
 
     void Ardb::TryPushSlowCommand(const RedisCommandFrame& cmd, uint64 micros)
     {
-        if (micros < GetConf().slowlog_log_slower_than)
+        if ((int64_t)micros < GetConf().slowlog_log_slower_than)
         {
             return;
         }

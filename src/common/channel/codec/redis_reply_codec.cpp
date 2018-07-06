@@ -300,7 +300,7 @@ bool RedisDumpFileChunkDecoder::Decode(ChannelHandlerContext& ctx, Channel* chan
     {
         msg.len = m_all_chunk_len;
         int64 chunklen = m_waiting_chunk_len;
-        if (chunklen > buffer.ReadableBytes())
+        if ((size_t)chunklen > buffer.ReadableBytes())
         {
             chunklen = buffer.ReadableBytes();
         }

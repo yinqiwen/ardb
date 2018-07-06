@@ -68,7 +68,7 @@ int FastRedisCommandDecoder::ProcessMultibulkBuffer(Buffer& buffer, std::string&
             return 0;
         }
         /* Buffer should also contain \n */
-        if (newline - buffer.GetRawReadBuffer() > (buffer.ReadableBytes() - 2))
+        if (newline - buffer.GetRawReadBuffer() > (int64_t)(buffer.ReadableBytes() - 2))
             return 0;
 
         /* We know for sure there is a whole line since newline != NULL,
@@ -108,7 +108,7 @@ int FastRedisCommandDecoder::ProcessMultibulkBuffer(Buffer& buffer, std::string&
             }
 
             /* Buffer should also contain \n */
-            if (newline - buffer.GetRawReadBuffer() > (buffer.ReadableBytes() - 2))
+            if (newline - buffer.GetRawReadBuffer() > (int64_t)(buffer.ReadableBytes() - 2))
                 break;
 
             if (buffer.GetRawReadBuffer()[pos] != '$')
@@ -283,7 +283,7 @@ static inline int readBulkLen(Buffer& buffer, int& len)
     char *eptr = NULL;
     const char* raw = buffer.GetRawReadBuffer();
     int tmp = strtol(raw, &eptr, 10);
-    if ((eptr - raw) > (buffer.ReadableBytes() - 2))
+    if ((eptr - raw) > (int64_t)(buffer.ReadableBytes() - 2))
     {
         return 0;
     }
@@ -362,7 +362,7 @@ int RedisCommandDecoder::ProcessMultibulkBuffer(Channel* channel, Buffer& buffer
             THROW_DECODE_EX("Protocol error: invalid bulk length");
             return -1;
         }
-        if (buffer.ReadableBytes() < (arglen + 2))
+        if (buffer.ReadableBytes() < (size_t)(arglen + 2))
         {
             return 0;
         }

@@ -108,16 +108,16 @@ OP_NAMESPACE_BEGIN
             {
                 if (ranges[i - 1].max == UINT64_MAX)
                 {
-                    snprintf(range, sizeof(range) - 1, "range[%llu-]", ranges[i - 1].min);
+                    snprintf(range, sizeof(range) - 1, "range[%" PRIu64 "-]", ranges[i - 1].min);
                 }
                 else
                 {
-                    snprintf(range, sizeof(range) - 1, "range[%llu-%llu]", ranges[i - 1].min, ranges[i - 1].max);
+                    snprintf(range, sizeof(range) - 1, "range[%" PRIu64 "-%" PRIu64 "]", ranges[i - 1].min, ranges[i - 1].max);
                 }
             }
 
             char tmp[1024];
-            snprintf(tmp, sizeof(tmp) - 1, "coststat_%s_%s:calls=%llu,costs=%llu,cost_per_call=%llu,percents=%.4f%%", name.c_str(), range, recs[i].count,
+            snprintf(tmp, sizeof(tmp) - 1, "coststat_%s_%s:calls=%" PRIu64 ",costs=%" PRIu64 ",cost_per_call=%" PRIu64 ",percents=%.4f%%", name.c_str(), range, recs[i].count,
                     recs[i].cost, recs[i].cost / recs[i].count, (double(recs[i].count) / double(recs[0].count)) * 100);
             cb(tmp, data);
         }

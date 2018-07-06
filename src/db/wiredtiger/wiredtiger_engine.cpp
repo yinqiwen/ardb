@@ -270,7 +270,7 @@ namespace ardb
         s_table << "bloom_hash_count=" << (int) (0.6 * g_wt_conig.bloom_bits) << ",";
         s_table << "),";
         int ret;
-        std: string table_name = table_url(ns);
+        std::string table_name = table_url(ns);
 
         WT_SESSION *session;
         std::string table_config = s_table.str();
@@ -329,7 +329,7 @@ namespace ardb
         CHECK_WT_RETURN(ret = ::wiredtiger_open(dir.c_str(), NULL, conn_config.c_str(), &m_db));
 
         WT_SESSION* session = NULL;
-        WT_CURSOR *cursor = NULL;
+        //WT_CURSOR *cursor = NULL;
         CHECK_WT_RETURN(ret = m_db->open_session(m_db, NULL, "isolation=snapshot", &session));
         WT_CURSOR *c;
         CHECK_WT_RETURN(ret = session->open_cursor(session, "metadata:", NULL, NULL, &c));
@@ -606,21 +606,21 @@ namespace ardb
         return iter;
     }
 
-    static int print_cursor(WT_CURSOR *cursor, std::string& str)
-    {
-        WT_ITEM desc, pvalue;
-        uint64_t value;
-        int ret;
-
-        while ((ret = cursor->next(cursor)) == 0 && (ret = cursor->get_value(cursor, &desc, &pvalue, &value)) == 0)
-        {
-            if (value != 0)
-            {
-                str.append((const char*) desc.data, desc.size).append(": ").append((const char*) pvalue.data, pvalue.size).append("\r\n");
-            }
-        }
-        return (ret == WT_NOTFOUND ? 0 : ret);
-    }
+//    static int print_cursor(WT_CURSOR *cursor, std::string& str)
+//    {
+//        WT_ITEM desc, pvalue;
+//        uint64_t value;
+//        int ret;
+//
+//        while ((ret = cursor->next(cursor)) == 0 && (ret = cursor->get_value(cursor, &desc, &pvalue, &value)) == 0)
+//        {
+//            if (value != 0)
+//            {
+//                str.append((const char*) desc.data, desc.size).append(": ").append((const char*) pvalue.data, pvalue.size).append("\r\n");
+//            }
+//        }
+//        return (ret == WT_NOTFOUND ? 0 : ret);
+//    }
 
     void WiredTigerEngine::Stats(Context& ctx, std::string& str)
     {

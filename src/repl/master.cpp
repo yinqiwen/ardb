@@ -170,7 +170,7 @@ OP_NAMESPACE_BEGIN
                     ping.Printf("*1\r\n$4\r\nping\r\n");
                     g_repl->GetReplLog().WriteWAL(ping, true);
                 }
-                if (slave->sync_offset < g_repl->GetReplLog().WALEndOffset())
+                if ((uint64_t)slave->sync_offset < g_repl->GetReplLog().WALEndOffset())
                 {
                     SyncWAL(slave);
                 }
@@ -229,7 +229,7 @@ OP_NAMESPACE_BEGIN
             {
                 return false;
             }
-            if (slave->sync_offset < g_repl->GetReplLog().WALEndOffset() - g_db->GetConf().repl_backlog_cache_size / 2)
+            if ((uint64_t)slave->sync_offset < g_repl->GetReplLog().WALEndOffset() - g_db->GetConf().repl_backlog_cache_size / 2)
             {
                 return false;
             }
@@ -379,7 +379,7 @@ OP_NAMESPACE_BEGIN
         SlaveSyncContext* slave = (SlaveSyncContext*) data;
         slave->conn->GetOutputBuffer().Write(log, loglen);
         slave->sync_offset += loglen;
-        if (slave->sync_offset == g_repl->GetReplLog().WALEndOffset(false))
+        if ((uint64_t)slave->sync_offset == g_repl->GetReplLog().WALEndOffset(false))
         {
             slave->conn->GetWritableOptions().auto_disable_writing = true;
         }
@@ -393,7 +393,7 @@ OP_NAMESPACE_BEGIN
 
     void Master::SyncWAL(SlaveSyncContext* slave)
     {
-        if (slave->sync_offset < g_repl->GetReplLog().WALStartOffset() || slave->sync_offset > g_repl->GetReplLog().WALEndOffset())
+        if ((uint64_t)slave->sync_offset < g_repl->GetReplLog().WALStartOffset() || (uint64_t)slave->sync_offset > g_repl->GetReplLog().WALEndOffset())
         {
             WARN_LOG("Slave synced offset:%llu is invalid in offset range[%llu-%llu] for wal.", slave->sync_offset, g_repl->GetReplLog().WALStartOffset(),
                     g_repl->GetReplLog().WALEndOffset());
@@ -403,11 +403,11 @@ OP_NAMESPACE_BEGIN
         /*
          * It's too busy to replay wal log if more than 10MB data in slave output buffer
          */
-        if (slave->conn->WritableBytes() >= g_db->GetConf().slave_client_output_buffer_limit)
+        if (slave->conn->WritableBytes() >= (uint64_t)g_db->GetConf().slave_client_output_buffer_limit)
         {
             return;
         }
-        if (slave->sync_offset < g_repl->GetReplLog().WALEndOffset())
+        if ((uint64_t)slave->sync_offset < g_repl->GetReplLog().WALEndOffset())
         {
             g_repl->GetReplLog().Replay(slave->sync_offset, MAX_SEND_CACHE_SIZE, send_wal_toslave, slave);
         }
@@ -721,7 +721,7 @@ OP_NAMESPACE_BEGIN
 
     void Master::PrintSlaves(std::string& str)
     {
-        uint32 i = 0;
+        uint32_t i = 0;
         char buffer[1024];
         SlaveSyncContextSet::iterator it = m_slaves.begin();
         while (it != m_slaves.end())
@@ -759,7 +759,7 @@ OP_NAMESPACE_BEGIN
 
             uint32 lag = time(NULL) - slave->acktime;
             sprintf(buffer, "slave%u:%s,state=%s,"
-                    "offset=%" PRId64 ",ack_offset=%" PRId64",lag=%u,o_buffer_size=%u,o_buffer_capacity=%u\r\n", i, slave->GetAddress().c_str(), state,
+                    "offset=%" PRId64 ",ack_offset=%" PRId64",lag=%u,o_buffer_size=%u,o_buffer_capacity=%" PRIu64 "\r\n", i, slave->GetAddress().c_str(), state,
                     slave->sync_offset, slave->ack_offset, lag, slave->conn->WritableBytes(), slave->conn->GetOutputBuffer().Capacity());
             it++;
             i++;

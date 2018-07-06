@@ -57,7 +57,7 @@ OP_NAMESPACE_BEGIN
     void ReplicationBacklog::Routine()
     {
         uint64_t now = get_current_epoch_millis();
-        RUN_PERIOD(sync, g_db->GetConf().repl_backlog_sync_period * 1000)
+        RUN_PERIOD(sync, (uint64_t)g_db->GetConf().repl_backlog_sync_period * 1000)
         {
             FlushSyncWAL();
         }
@@ -263,7 +263,7 @@ OP_NAMESPACE_BEGIN
     bool ReplicationBacklog::IsValidOffsetCksm(int64_t offset, uint64_t cksm)
     {
         //ReadLockGuard<SpinRWLock> guard(m_repl_lock);
-        bool valid_offset = offset > 0 && offset <= (swal_end_offset(m_wal)) && offset >= swal_start_offset(m_wal);
+        bool valid_offset = offset > 0 && (size_t)offset <= (swal_end_offset(m_wal)) && (size_t)offset >= swal_start_offset(m_wal);
         if (!valid_offset)
         {
             return false;

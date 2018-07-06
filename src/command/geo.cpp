@@ -504,7 +504,7 @@ namespace ardb
             range.contain_max = true;
             range.min.SetInt64(tit->first);
             range.max.SetInt64(tit->second);
-            while (nit != tmp.end() && nit->first == range.max.GetInt64())
+            while (nit != tmp.end() && (int64_t)nit->first == range.max.GetInt64())
             {
                 range.max.SetInt64(nit->second);
                 nit++;

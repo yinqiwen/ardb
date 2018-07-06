@@ -118,7 +118,6 @@ OP_NAMESPACE_BEGIN
                 m_client_ctx.last_interaction_ustime = now;
                 m_client_ctx.client = ctx.GetChannel();
                 RedisCommandFrame* cmd = e.GetMessage();
-                ChannelService& serv = m_client_ctx.client->GetService();
                 m_client_ctx.processing = true;
                 if (NULL == pool)
                 {
@@ -135,14 +134,14 @@ OP_NAMESPACE_BEGIN
                 time_t now_sec = now/1000000;
              	if(g_db->GetConf().qps_limit_per_connection > 0)
                 {
-             		is_overload = conn_qps.Inc(now_sec) >= g_db->GetConf().qps_limit_per_connection;
+             		is_overload = conn_qps.Inc(now_sec) >= (uint64_t)(g_db->GetConf().qps_limit_per_connection);
                 }
              	if(g_db->GetConf().qps_limit_per_host > 0 && !client_host.empty())
              	{
              		uint64_t instance_qps = incHostInstanceQps(client_host, now_sec);
              		if(!is_overload)
              		{
-             		    is_overload = instance_qps >= g_db->GetConf().qps_limit_per_host;
+             		    is_overload = instance_qps >= (uint64_t)(g_db->GetConf().qps_limit_per_host);
              		}
              	}
              	if(g_db->GetConf().servers[server_index].qps_limit > 0)
@@ -150,7 +149,7 @@ OP_NAMESPACE_BEGIN
              		uint64_t instance_qps =  g_serverInstanceQps[server_index].Inc(now_sec);
              		if(!is_overload)
              		{
-             			is_overload = instance_qps >= g_db->GetConf().servers[server_index].qps_limit;
+             			is_overload = instance_qps >= (uint64_t)(g_db->GetConf().servers[server_index].qps_limit);
              		}
              	}
                 if (m_delete_after_processing)
@@ -363,7 +362,8 @@ OP_NAMESPACE_BEGIN
                 serverQPSTrack->qpsName = address + "_instantaneous_ops_per_sec";
                 Statistics::GetSingleton().AddTrack(serverQPSTrack);
             }
-            server->SetChannelPipelineInitializor(pipelineInit, (void*)i);
+
+            server->SetChannelPipelineInitializor(pipelineInit, reinterpret_cast<void*>(i));
             server->SetChannelPipelineFinalizer(pipelineDestroy, NULL);
             server->BindThreadPool(0, g_db->GetConf().thread_pool_size);
             INFO_LOG("Ardb will accept connections on %s", address.c_str());

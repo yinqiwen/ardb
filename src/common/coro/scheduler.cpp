@@ -52,7 +52,7 @@ OP_NAMESPACE_BEGIN
     Coroutine::~Coroutine()
     {
         coro_stack_free(&stack);
-        coro_destroy(&ctx);
+        (void)coro_destroy(&ctx);
     }
 
     Scheduler::Scheduler() :

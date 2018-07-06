@@ -47,10 +47,10 @@ typedef struct
  */
 static int wt_snappy_error(WT_COMPRESSOR *compressor, WT_SESSION *session, const char *call, snappy_status snret)
 {
-    WT_EXTENSION_API *wt_api;
+    //WT_EXTENSION_API *wt_api;
     const char *msg;
 
-    wt_api = ((SNAPPY_COMPRESSOR *) compressor)->wt_api;
+    //wt_api = ((SNAPPY_COMPRESSOR *) compressor)->wt_api;
 
     switch (snret)
     {
@@ -64,7 +64,7 @@ static int wt_snappy_error(WT_COMPRESSOR *compressor, WT_SESSION *session, const
             msg = "unknown error";
             break;
     }
-
+    ERROR_LOG("wiredtiger snappy error:%s", msg);
     //(void) wt_api->err_printf(wt_api, session, "snappy error: %s: %s: %d", call, msg, snret);
     return (WT_ERROR);
 }
@@ -119,11 +119,11 @@ static int wt_snappy_compress(WT_COMPRESSOR *compressor, WT_SESSION *session, ui
  */
 static int wt_snappy_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *src, size_t src_len, uint8_t *dst, size_t dst_len, size_t *result_lenp)
 {
-    WT_EXTENSION_API *wt_api;
+    //WT_EXTENSION_API *wt_api;
     snappy_status snret;
     size_t snaplen;
 
-    wt_api = ((SNAPPY_COMPRESSOR *) compressor)->wt_api;
+    //wt_api = ((SNAPPY_COMPRESSOR *) compressor)->wt_api;
 
     /* retrieve the saved length */
     snaplen = *(size_t *) src;

@@ -513,7 +513,7 @@ OP_NAMESPACE_BEGIN
     void StreamID::ToString(std::string& str) const
     {
         str.resize(512);
-        int n = sprintf(&str[0], "%llu-%llu", ms, seq);
+        int n = sprintf(&str[0], "%" PRIu64 "-%" PRIu64 , ms, seq);
         str.resize(n);
     }
 

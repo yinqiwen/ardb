@@ -10,8 +10,8 @@
 
 namespace ardb
 {
-    EventCondition::EventCondition() :
-            m_read_fd(-1), m_write_fd(-1), m_waiting_num(0)
+    EventCondition::EventCondition()
+            : m_read_fd(-1), m_write_fd(-1), m_waiting_num(0)
     {
         int pipefd[2];
         int ret = pipe(pipefd);
@@ -33,7 +33,9 @@ namespace ardb
     {
         //if (m_waiting_num > 0)
         {
-            write(m_write_fd, "N", 1);
+            if (write(m_write_fd, "N", 1))
+            {
+            }
         }
         return 0;
     }
@@ -43,7 +45,9 @@ namespace ardb
         {
             uint32_t num = m_waiting_num;
             char buf[num];
-            write(m_write_fd, buf, num);
+            if (write(m_write_fd, buf, num))
+            {
+            }
         }
         return 0;
     }

@@ -558,7 +558,7 @@ OP_NAMESPACE_BEGIN
             std::string content = tmp;
             file_write_content(m_conf.pidfile, content);
         }
-        chdir(GetConf().home.c_str());
+        if(chdir(GetConf().home.c_str())){}
         ArdbLogger::InitDefaultLogger(m_conf.loglevel, m_conf.logfile);
 
         std::string dbdir = GetConf().data_base_path + "/" + g_engine_name;
@@ -836,7 +836,7 @@ OP_NAMESPACE_BEGIN
                 locked_keys.push_back(*kit);
                 kit++;
             }
-            if(locked_keys.size() == ks.size())
+            if(locked_keys.size() == (size_t)ks.size())
             {
                 return;
             }
@@ -971,7 +971,7 @@ OP_NAMESPACE_BEGIN
         {
             KeyObject& k = iter->Key(false);
             m_min_ttl = k.GetTTL();
-            if (k.GetTTL() > get_current_epoch_millis())
+            if (k.GetTTL() > (int64_t)get_current_epoch_millis())
             {
                 break;
             }
@@ -1009,6 +1009,10 @@ OP_NAMESPACE_BEGIN
         {
             INFO_LOG("Cost %llums to delete %u keys.", (end_time - start_time), total_expired_keys);
         }
+    }
+    void Ardb::GC()
+    {
+        ClearRetiredStreamCache();
     }
 
     int64 Ardb::ScanExpiredKeys()
@@ -1181,7 +1185,7 @@ OP_NAMESPACE_BEGIN
                 reply.SetErrCode(ERR_WRONG_TYPE);
                 return false;
             }
-            if (meta.GetTTL() > 0 && meta.GetTTL() < get_current_epoch_millis())
+            if (meta.GetTTL() > 0 && meta.GetTTL() < (int64_t)get_current_epoch_millis())
             {
                 if (GetConf().master_host.empty() || !GetConf().slave_readonly)
                 {
@@ -1300,7 +1304,7 @@ OP_NAMESPACE_BEGIN
             {
                 if (!client->IsBlocking() && !client->IsSubscribed())
                 {
-                    if (now - client->client->last_interaction_ustime >= GetConf().tcp_keepalive * 1000 * 1000)
+                    if ((int64_t)now - client->client->last_interaction_ustime >= GetConf().tcp_keepalive * 1000 * 1000)
                     {
                         //timeout;
                         to_close.push_back(client);
@@ -1321,7 +1325,7 @@ OP_NAMESPACE_BEGIN
             }
             if (NULL != client && NULL != client->client && NULL != client->client->client)
             {
-                if (client->client->resume_ustime > 0 && now <= client->client->resume_ustime)
+                if (client->client->resume_ustime > 0 && (int64_t)now <= client->client->resume_ustime)
                 {
                     client->client->client->AttachFD();
                     client->client->resume_ustime = -1;
@@ -1393,8 +1397,17 @@ OP_NAMESPACE_BEGIN
             OpenWriteLatchByWriteCaller();
         }
         atomic_add_uint32(&m_db_caller_num, 1);
+
         int ret = (this->*(setting.handler))(ctx, args);
         atomic_sub_uint32(&m_db_caller_num, 1);
+        if(!ctx.post_cmd_func.empty())
+        {
+            for(size_t i = 0; i < ctx.post_cmd_func.size(); i++)
+            {
+                ctx.post_cmd_func[i].func(ctx.post_cmd_func[i].data);
+            }
+            ctx.post_cmd_func.clear();
+        }
         if (!ctx.flags.lua)
         {
             uint64 stop_time = get_current_epoch_micros();

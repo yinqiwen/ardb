@@ -117,7 +117,7 @@ CJSON_LIBA=${CJSON_PATH}/libcjson.a
 OPTIMIZATION?=-O2
 OPT=$(OPTIMIZATION)
 
-CXXFLAGS=-Wall -g ${OPT} -fPIC -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"'
+CXXFLAGS=-Wall -g ${OPT} -Werror -fPIC -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"'
 CCFLAGS=-Wall -std=gnu99 ${OPT} -fPIC -pedantic -g -D__STDC_FORMAT_MACROS -DARDB_VERSION='"${ARDB_VERSION}"'
 LDFLAGS=-g
 
@@ -128,6 +128,25 @@ LUA_CFLAGS+= $(OPT) -Wall -DLUA_ANSI $(CCFLAGS)
 LUA_LDFLAGS+= $(LDFLAGS)
 
 INCS=-I./ -I./common -I${LIB_PATH}/cpp-btree -I${LUA_PATH}/src -I${SNAPPY_PATH} -I${SPARSEHASH_PATH}/src
+
+ARDB_CC=$(QUIET_CC)$(CC) $(CCFLAGS)
+ARDB_CXX=$(QUIET_CXX)$(CXX) $(CXXFLAGS)
+ARDB_LD=$(QUIET_LINK)$(CXX) $(LDFLAGS)
+ARDB_AR=$(QUIET_LINK) ar rcs
+
+CCCOLOR="\033[34m"
+LINKCOLOR="\033[34;1m"
+SRCCOLOR="\033[33m"
+BINCOLOR="\033[37;1m"
+MAKECOLOR="\033[32;1m"
+ENDCOLOR="\033[0m"
+
+ifndef V
+QUIET_CC = @printf '    %b %b\n' $(CCCOLOR)CC$(ENDCOLOR) $(SRCCOLOR)$@$(ENDCOLOR) 1>&2;
+QUIET_CXX = @printf '    %b %b\n' $(CCCOLOR)CXX$(ENDCOLOR) $(SRCCOLOR)$@$(ENDCOLOR) 1>&2;
+QUIET_LINK = @printf '    %b %b\n' $(LINKCOLOR)LINK$(ENDCOLOR) $(BINCOLOR)$@$(ENDCOLOR) 1>&2;
+QUIET_INSTALL = @printf '    %b %b\n' $(LINKCOLOR)INSTALL$(ENDCOLOR) $(BINCOLOR)$@$(ENDCOLOR) 1>&2;
+endif
 
 
 ifeq ($(MALLOC),libc)
@@ -154,10 +173,10 @@ else
 endif
 
 %.o : %.cpp
-	${CXX} -c ${CXXFLAGS} ${INCS} $< -o $@
+	${ARDB_CXX} -c ${INCS} $< -o $@
 
 %.o : %.c
-	${CC} -c ${CCFLAGS} ${INCS} $< -o $@
+	${ARDB_CC} -c ${INCS} $< -o $@
 
 
 COMMON_VPATH=common/channel common/channel/socket common/channel/fifo common/channel/codec common/channel/timer common/channel/signal \
@@ -267,23 +286,23 @@ all: ${PREBUILD}  test server tools
 $(STORAGE_ENGINE_OBJ): $(STORAGE_ENGINE)
 
 $(DIST_LIB): $(STORAGE_ENGINE_OBJ) $(CORE_OBJECTS)
-	${CXX} -shared -o $@ $^
+	${ARDB_CXX} -shared -o $@ $^
 
 $(DIST_LIBA):$(STORAGE_ENGINE_OBJ) $(CORE_OBJECTS)
-	ar rcs $@ $^
+	$(ARDB_AR) $@ $^
 
 lib: $(DEP_LIBS) lua snappy sparsehash $(storage_engine) $(DIST_LIBA)
 
 server: lib $(CORE_OBJECTS) ${SERVEROBJ}
-	${CXX} -o ardb-server $(SERVEROBJ)  $(CORE_OBJECTS) ${STORAGE_ENGINE_OBJ} $(LIBS)
+	${ARDB_LD} -o ardb-server $(SERVEROBJ)  $(CORE_OBJECTS) ${STORAGE_ENGINE_OBJ} $(LIBS)
 
 test: lib ${TESTOBJ} $(CORE_OBJECTS)
-	${CXX} -o ardb-test ${STORAGE_ENGINE_OBJ} ${TESTOBJ} $(CORE_OBJECTS) $(LIBS)
+	${ARDB_LD} -o ardb-test ${STORAGE_ENGINE_OBJ} ${TESTOBJ} $(CORE_OBJECTS) $(LIBS)
 
 tools: repair
 
 repair: lib ${REPAIR_TOOL_OBJ}
-	${CXX} -o ardb-repair ${REPAIR_TOOL_OBJ} $(DIST_LIBA) $(LIBS)
+	${ARDB_LD} -o ardb-repair ${REPAIR_TOOL_OBJ} $(DIST_LIBA) $(LIBS)
 
 .PHONY: jemalloc
 jemalloc: $(JEMALLOC_LIBA)
