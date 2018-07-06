@@ -49,7 +49,7 @@
 
 OP_NAMESPACE_BEGIN
 
-    class RocksIterData;
+    struct RocksIterData;
     class RocksDBEngine;
     class RocksDBIterator: public Iterator
     {

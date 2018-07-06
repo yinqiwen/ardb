@@ -54,9 +54,8 @@ OP_NAMESPACE_BEGIN
     class ObjectIO;
     class ObjectBuffer;
     class Snapshot;
-    class StreamGroupMeta;
-    class StreamNACK;
-    class StreamElementVistior;
+    struct StreamGroupMeta;
+    struct StreamNACK;
     class Ardb
     {
         public:

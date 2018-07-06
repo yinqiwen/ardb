@@ -270,8 +270,8 @@ namespace ardb
             /*Get IP of the net card */
             if (-1 == ioctl(fd, SIOCGIFADDR, (char *) &ifr[intrface]))
                 continue;
-            if (NULL == ifr[intrface].ifr_name)
-                continue;
+//            if (NULL == ifr[intrface].ifr_name)
+//                continue;
 
             if (0 == strcmp(ifName.c_str(), ifr[intrface].ifr_name))
             {

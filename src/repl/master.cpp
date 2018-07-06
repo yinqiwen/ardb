@@ -759,7 +759,7 @@ OP_NAMESPACE_BEGIN
 
             uint32 lag = time(NULL) - slave->acktime;
             sprintf(buffer, "slave%u:%s,state=%s,"
-                    "offset=%" PRId64 ",ack_offset=%" PRId64",lag=%u,o_buffer_size=%u,o_buffer_capacity=%" PRIu64 "\r\n", i, slave->GetAddress().c_str(), state,
+                    "offset=%" PRId64 ",ack_offset=%" PRId64",lag=%u,o_buffer_size=%u,o_buffer_capacity=%zu\r\n", i, slave->GetAddress().c_str(), state,
                     slave->sync_offset, slave->ack_offset, lag, slave->conn->WritableBytes(), slave->conn->GetOutputBuffer().Capacity());
             it++;
             i++;

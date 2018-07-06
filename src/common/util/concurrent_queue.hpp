@@ -67,7 +67,7 @@
 
 typedef void* vptr_t;
 #if defined(HAVE_SYNC_OP)
-static vptr_t atomic_get_and_set_vptr_t(volatile vptr_t* var, vptr_t v)
+inline vptr_t atomic_get_and_set_vptr_t(volatile vptr_t* var, vptr_t v)
 {
     bool res;
     vptr_t expected;

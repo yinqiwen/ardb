@@ -627,7 +627,7 @@ OP_NAMESPACE_BEGIN
                 unsigned long *lres = (unsigned long*) (&res[0]);
 
                 /* Note: sds pointer is always aligned to 8 byte boundary. */
-                for (size_t k = 0; k < numkeys; i++)
+                for (size_t k = 0; k < numkeys; k++)
                 {
                     lp[k] = (unsigned long*) (vals[k + destkey_count].GetStringValue().CStr());
                 }

@@ -84,6 +84,7 @@ OP_NAMESPACE_BEGIN
             RedisReplyDecoder m_decoder;
             RedisCommandEncoder m_encoder;
             RedisReply m_error_reply;
+            using CoroChannel::MessageReceived;
             void SetReply(RedisReply* buf);
             void MessageReceived(ChannelHandlerContext& ctx, MessageEvent<RedisReply>& e);
             void ChannelClosed(ChannelHandlerContext& ctx, ChannelStateEvent& e);

@@ -2426,7 +2426,7 @@ namespace ardb
         }
         uint64_t start_time = get_current_epoch_millis();
         m_type = GetSnapshotType(file);
-        if (m_type == -1)
+        if (m_type == (SnapshotType)-1)
         {
             ERROR_LOG("Invalid snapshot file:%s", file.c_str());
             return -1;

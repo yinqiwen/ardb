@@ -59,7 +59,7 @@ namespace ardb
         if (cmd.GetArguments().size() == 1)
         {
             type = Snapshot::GetSnapshotTypeByName(cmd.GetArguments()[0]);
-            if (type == -1)
+            if (type == (SnapshotType)-1)
             {
                 reply.SetErrCode(ERR_INVALID_ARGS);
                 return 0;
@@ -106,7 +106,7 @@ namespace ardb
         if (cmd.GetArguments().size() == 1)
         {
             type = Snapshot::GetSnapshotTypeByName(cmd.GetArguments()[0]);
-            if (type == -1)
+            if (type == (SnapshotType)-1)
             {
                 reply.SetErrCode(ERR_INVALID_ARGS);
                 return 0;

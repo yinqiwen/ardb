@@ -65,8 +65,9 @@ OP_NAMESPACE_BEGIN
         return encode_buffer_cache;
     }
 
-    struct DBWriterWorker: public Thread
+    class DBWriterWorker: public Thread
     {
+        public:
             Context worker_ctx;
             CallFlags flags;
             DBWriter* writer;
