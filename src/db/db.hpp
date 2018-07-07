@@ -56,6 +56,7 @@ OP_NAMESPACE_BEGIN
     class Snapshot;
     struct StreamGroupMeta;
     struct StreamNACK;
+    class BackGroundThread;
     class Ardb
     {
         public:
@@ -159,6 +160,8 @@ OP_NAMESPACE_BEGIN
 
             int64_t m_min_ttl;
 
+            BackGroundThread* g_background;
+
             static void MigrateCoroTask(void* data);
             static void MigrateDBCoroTask(void* data);
 
@@ -251,6 +254,7 @@ OP_NAMESPACE_BEGIN
             int DelKey(Context& ctx, const std::string& key);
             int DelKey(Context& ctx, const KeyObject& key);
             int MoveKey(Context& ctx, RedisCommandFrame& cmd);
+            int AsyncDeleteKey(Context& ctx, const Data& ns, const std::string& key);
 
             int HIterate(Context& ctx, RedisCommandFrame& cmd);
             int ZIterateByRank(Context& ctx, RedisCommandFrame& cmd);
@@ -368,6 +372,7 @@ OP_NAMESPACE_BEGIN
             int Strlen(Context& ctx, RedisCommandFrame& cmd);
             int Set(Context& ctx, RedisCommandFrame& cmd);
 
+            int Unlink(Context& ctx, RedisCommandFrame& cmd);
             int Del(Context& ctx, RedisCommandFrame& cmd);
             int Exists(Context& ctx, RedisCommandFrame& cmd);
             int Expire(Context& ctx, RedisCommandFrame& cmd);
@@ -507,12 +512,16 @@ OP_NAMESPACE_BEGIN
             RedisCommandHandlerSetting* FindRedisCommandHandlerSetting(RedisCommandFrame& cmd);
             void RenameCommand();
 
+            int CreateBackGroundThread();
+            int StopBackGroundThread();
+
             friend class LUAInterpreter;
             friend class ObjectIO;
             friend class ObjectBuffer;
             friend class Snapshot;
             friend class Master;
             friend class Slave;
+            friend class BackGroundThread;
         public:
             Ardb();
             int Init(const std::string& conf_file);

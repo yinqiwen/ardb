@@ -112,6 +112,7 @@ namespace ardb
             REDIS_CMD_RESTOREDB = 72,
             REDIS_CMD_RESTORECHUNK = 73,
             REDIS_CMD_TOUCH = 74,
+			REDIS_CMD_UNLINK = 75,
 
             //'string' commands
             REDIS_CMD_APPEND = 100,

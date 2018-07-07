@@ -162,7 +162,7 @@ OP_NAMESPACE_BEGIN
                     0), m_write_caller_num(0), m_db_caller_num(0), m_redis_cursor_seed(0), m_watched_ctxs(NULL), m_ready_keys(
                     NULL), m_monitors(
             NULL), m_restoring_nss(
-            NULL), m_min_ttl(-1)
+            NULL), m_min_ttl(-1),g_background(NULL)
     {
         g_db = this;
         m_settings.set_empty_key("");
@@ -210,6 +210,7 @@ OP_NAMESPACE_BEGIN
         { "set", REDIS_CMD_SET, &Ardb::Set, 2, 7, "w", 0, 0, 0 },
         { "set2", REDIS_CMD_SET2, &Ardb::Set, 2, 7, "w", 0, 0, 0 },
         { "del", REDIS_CMD_DEL, &Ardb::Del, 1, -1, "w", 0, 0, 0 },
+		{ "unlink", REDIS_CMD_UNLINK, &Ardb::Unlink, 1, -1, "w", 0, 0, 0 },
         { "exists", REDIS_CMD_EXISTS, &Ardb::Exists, 1, 1, "r", 0, 0, 0 },
         { "expire", REDIS_CMD_EXPIRE, &Ardb::Expire, 2, 2, "w", 0, 0, 0 },
         { "pexpire", REDIS_CMD_PEXPIRE, &Ardb::PExpire, 2, 2, "w", 0, 0, 0 },
@@ -454,6 +455,7 @@ OP_NAMESPACE_BEGIN
 
     Ardb::~Ardb()
     {
+    	StopBackGroundThread();
         DELETE(m_engine);
         DELETE(m_ready_keys);
         DELETE(m_watched_ctxs);
@@ -582,6 +584,7 @@ OP_NAMESPACE_BEGIN
         }
         m_starttime = time(NULL);
         g_engine = m_engine;
+        CreateBackGroundThread();
         INFO_LOG("Ardb init engine:%s success.", g_engine_name);
         return 0;
     }

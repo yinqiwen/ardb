@@ -195,7 +195,7 @@ DB_CPPFILES := $(foreach dir, $(DB_VPATH), $(wildcard $(dir)/*.cpp))
 DB_CFILES := $(foreach dir, $(DB_VPATH), $(wildcard $(dir)/*.c))
 DB_OBJECTS := $(patsubst %.cpp, %.o, $(DB_CPPFILES)) $(patsubst %.c, %.o, $(DB_CFILES))
 
-CORE_OBJECTS :=  config.o cron.o logger.o network.o types.o statistics.o\
+CORE_OBJECTS :=  config.o cron.o logger.o network.o types.o statistics.o background.o\
                 $(COMMON_OBJECTS)  $(COMMAND_OBJECTS) $(DB_OBJECTS)
 
 TESTOBJ := ../test/test_main.o

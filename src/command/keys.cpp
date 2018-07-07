@@ -932,6 +932,20 @@ OP_NAMESPACE_BEGIN
         return removed;
     }
 
+    int Ardb::Unlink(Context& ctx, RedisCommandFrame& cmd)
+    {
+        RedisReply& reply = ctx.GetReply();
+        int removed = 0;
+
+        for (size_t i = 0; i < cmd.GetArguments().size(); i++)
+        {
+        	AsyncDeleteKey(ctx, ctx.ns, cmd.GetArguments()[i]);
+            removed++;
+        }
+        reply.SetInteger(removed);
+        return 0;
+    }
+
     int Ardb::Del(Context& ctx, RedisCommandFrame& cmd)
     {
         RedisReply& reply = ctx.GetReply();
