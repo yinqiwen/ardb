@@ -933,7 +933,7 @@ OP_NAMESPACE_BEGIN
         uint64 start_time = get_current_epoch_millis();
         while (iter->Valid() && scaned_keys < max_scan_keys_one_iter)
         {
-            KeyObject& k = iter->Key(false);
+            KeyObject& k = iter->Key(true);
             m_min_ttl = k.GetTTL();
             if (k.GetTTL() > (int64_t)get_current_epoch_millis())
             {

@@ -1,5 +1,5 @@
 /*
- *Copyright (c) 2013-2015, yinqiwen <yinqiwen@gmail.com>
+ *Copyright (c) 2013-2018, yinqiwen <yinqiwen@gmail.com>
  *All rights reserved.
  *
  *Redistribution and use in source and binary forms, with or without
@@ -60,12 +60,9 @@ OP_NAMESPACE_BEGIN
 	        			g_db->UnlockKey(k);
 	        			if(!g_db->GetConf().master_host.empty())
 	        			{
-		        			RedisCommandFrame del;
-		        			del.SetCommand("del");
 		        			std::string kstr;
 		        			k.key.ToString(kstr);
-		        			del.GetMutableArguments().push_back(kstr);
-	        				g_db->FeedReplicationBacklog(dctx, k.ns, del);
+	        				g_db->FeedReplicationDelOperation(dctx, k.ns, kstr);
 	        			}
 	        			delete_ks.pop_front();
 	        		}
