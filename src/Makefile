@@ -525,7 +525,7 @@ $(SPARSEHASH_CONFIG):
 
 
 clean_db_obj:
-	rm -f db/db.o
+	rm -f db/engine_factory.o
 
 clean_test:
 	rm -f ${TESTOBJ};rm -f ardb-test

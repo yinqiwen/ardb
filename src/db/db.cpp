@@ -36,27 +36,8 @@
 #include "db.hpp"
 #include "repl/repl.hpp"
 #include "statistics.hpp"
-#if defined __USE_LMDB__
-#include "lmdb/lmdb_engine.hpp"
-const char* ardb::g_engine_name = "lmdb";
-#elif defined __USE_ROCKSDB__
-#include "rocksdb/rocksdb_engine.hpp"
-const char* ardb::g_engine_name ="rocksdb";
-#elif defined __USE_FORESTDB__
-#include "forestdb/forestdb_engine.hpp"
-const char* ardb::g_engine_name ="forestdb";
-#elif defined __USE_LEVELDB__
-#include "leveldb/leveldb_engine.hpp"
-const char* ardb::g_engine_name = "leveldb";
-#elif defined __USE_WIREDTIGER__
-#include "wiredtiger/wiredtiger_engine.hpp"
-const char* ardb::g_engine_name ="wiredtiger";
-#elif defined __USE_PERCONAFT__
-#include "perconaft/perconaft_engine.hpp"
-const char* ardb::g_engine_name ="perconaft";
-#else
-const char* ardb::g_engine_name = "unknown";
-#endif
+#include "db/engine_factory.hpp"
+
 
 /* Command flags. Please check the command table defined in the redis.c file
  * for more information about the meaning of every flag. */
@@ -170,7 +151,7 @@ OP_NAMESPACE_BEGIN
 
         struct RedisCommandHandlerSetting settingTable[] =
         {
-        { "ping", REDIS_CMD_PING, &Ardb::Ping, 0, 0, "rtF", 0, 0, 0 },
+        { "ping", REDIS_CMD_PING, &Ardb::Ping, 0, 1, "rtF", 0, 0, 0 },
         { "multi", REDIS_CMD_MULTI, &Ardb::Multi, 0, 0, "rsF", 0, 0, 0 },
         { "discard", REDIS_CMD_DISCARD, &Ardb::Discard, 0, 0, "rsF", 0, 0, 0 },
         { "exec", REDIS_CMD_EXEC, &Ardb::Exec, 0, 0, "sM", 0, 0, 0 },
@@ -490,27 +471,7 @@ OP_NAMESPACE_BEGIN
         return 0;
     }
 
-    static Engine* create_engine()
-    {
-        Engine* engine = NULL;
-#if defined __USE_LMDB__
-        NEW(engine, LMDBEngine);
-#elif defined __USE_ROCKSDB__
-        NEW(engine, RocksDBEngine);
-#elif defined __USE_LEVELDB__
-        NEW(engine, LevelDBEngine);
-#elif defined __USE_FORESTDB__
-        NEW(engine, ForestDBEngine);
-#elif defined __USE_WIREDTIGER__
-        NEW(engine, WiredTigerEngine);
-#elif defined __USE_PERCONAFT__
-        NEW(engine, PerconaFTEngine);
-#else
-        ERROR_LOG("Unsupported storage engine specified at compile time.");
-        return NULL;
-#endif
-        return engine;
-    }
+
 
     uint32 Ardb::MaxOpenFiles()
     {
