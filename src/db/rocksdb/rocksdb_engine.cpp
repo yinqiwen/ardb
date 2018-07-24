@@ -218,6 +218,10 @@ OP_NAMESPACE_BEGIN
                     char* buffer = NULL;
                     size_t buf_len = 1024;
                     NEW(buffer, char[buf_len]);
+                    if(NULL == buffer)
+                    {
+                        return;
+                    }
                     int n = vsnprintf(buffer, buf_len - 1, format, ap);
                     if (n > 0 && NULL != buffer)
                     {

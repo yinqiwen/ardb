@@ -36,7 +36,7 @@
         {                    \
            Ptr = new Type;   \
         }                    \
-        catch(std::bad_alloc)\
+        catch(std::bad_alloc&)\
         {                    \
             Ptr = NULL;      \
         }                    \
@@ -49,7 +49,7 @@
         {                    \
            Ptr = new CONSTRCTOR;   \
         }                    \
-        catch(std::bad_alloc)\
+        catch(std::bad_alloc&)\
         {                    \
             Ptr = NULL;      \
         }                    \
