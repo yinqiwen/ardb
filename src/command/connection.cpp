@@ -37,7 +37,7 @@ OP_NAMESPACE_BEGIN
     }
     int Ardb::Ping(Context& ctx, RedisCommandFrame& cmd)
     {
-    	if(cmd.GetArguments().size() == 1)
+    	if(cmd.GetArguments().size() == 0)
     	{
             ctx.GetReply().SetStatusCode(STATUS_PONG);
     	}
