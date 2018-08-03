@@ -268,13 +268,14 @@ OP_NAMESPACE_BEGIN
             {
                 if (field.GetType() == KEY_META && field.GetKey() == key.GetKey())
                 {
-
                     ValueObject& meta = iter->Value();
-
-                    if (meta.GetType() != KEY_HASH)
+                    if (!CheckMeta(ctx, key, KEY_HASH, meta))
                     {
-                        reply.SetErrCode(ERR_WRONG_TYPE);
-                        break;
+                        return 0;
+                    }
+                    if (meta.GetType() == 0)
+                    {
+                        return 0;
                     }
                     checked_meta = true;
                     iter->Next();
