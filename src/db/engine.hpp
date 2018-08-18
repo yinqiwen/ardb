@@ -38,6 +38,7 @@ OP_NAMESPACE_BEGIN
 
     struct Iterator
     {
+	        Iterator();
             virtual bool Valid() = 0;
             virtual void Next() = 0;
             virtual void Prev() = 0;
@@ -58,9 +59,7 @@ OP_NAMESPACE_BEGIN
              * It's more efficient, and the only right way to delete data in iterator for some engine(forestdb).
              */
             virtual void Del() = 0;
-            virtual ~Iterator()
-            {
-            }
+            virtual ~Iterator();
     };
 
     typedef const void* EngineSnapshot;
@@ -206,6 +205,7 @@ OP_NAMESPACE_BEGIN
     int compare_keyslices(const Slice& k1, const Slice& k2, bool has_ns);
 
     extern Engine* g_engine;
+    extern volatile uint64_t g_db_iterator_counter;
 OP_NAMESPACE_END
 
 #endif /* SRC_DB_ENGINE_HPP_ */

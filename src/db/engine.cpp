@@ -28,9 +28,19 @@
  */
 #include "engine.hpp"
 #include <assert.h>
+#include "util/atomic.hpp"
 
 OP_NAMESPACE_BEGIN
 
+    volatile uint64_t g_db_iterator_counter = 0;
+    Iterator::Iterator()
+    {
+    	atomic_add_uint64(&g_db_iterator_counter, 1);
+    }
+    Iterator::~Iterator()
+    {
+    	atomic_sub_uint64(&g_db_iterator_counter, 1);
+    }
     int compare_keyslices(const Slice& k1, const Slice& k2, bool has_ns)
     {
         return compare_keys(k1.data(), k1.size(), k2.data(), k2.size(), has_ns);
