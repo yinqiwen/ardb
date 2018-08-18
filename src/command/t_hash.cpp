@@ -271,10 +271,12 @@ OP_NAMESPACE_BEGIN
                     ValueObject& meta = iter->Value();
                     if (!CheckMeta(ctx, key, KEY_HASH, meta))
                     {
+                    	DELETE(iter);
                         return 0;
                     }
                     if (meta.GetType() == 0)
                     {
+                    	DELETE(iter);
                         return 0;
                     }
                     checked_meta = true;

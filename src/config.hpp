@@ -159,6 +159,9 @@ OP_NAMESPACE_BEGIN
             std::string _executable;
             Properties conf_props;
 
+            bool rocksdb_read_fill_cache;
+            bool rocksdb_iter_fill_cache;
+
             ArdbConfig()
                     : daemonize(false), thread_pool_size(0), hz(10), max_clients(10000), tcp_keepalive(0), timeout(0), engine(
                             "rocksdb"), slowlog_log_slower_than(10000), slowlog_max_len(128), rocksdb_compaction(
@@ -174,7 +177,7 @@ OP_NAMESPACE_BEGIN
                             true), scan_cursor_expire_after(60), snapshot_max_lag_offset(500 * 1024 * 1024), maxsnapshots(
                             10), redis_compatible(false), compact_after_snapshot_load(false), redis_compatible_version(
                             "2.8.0"), statistics_log_period(300), qps_limit_per_host(0), qps_limit_per_connection(0), range_delete_min_size(
-                            100), stream_lru_cache_size(1024)
+                            100), stream_lru_cache_size(1024),rocksdb_read_fill_cache(true),rocksdb_iter_fill_cache(true)
             {
             }
             bool Parse(const Properties& props);

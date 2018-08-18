@@ -297,6 +297,9 @@ OP_NAMESPACE_BEGIN
         conf_get_int64(props, "range-delete-min-size", range_delete_min_size);
         conf_get_int64(props, "stream-lru-cache-size", stream_lru_cache_size);
 
+        conf_get_bool(props, "rocksdb.read_fill_cache", rocksdb_read_fill_cache);
+        conf_get_bool(props, "rocksdb.iter_fill_cache", rocksdb_iter_fill_cache);
+
         //trusted_ip.clear();
         Properties::const_iterator ip_it = props.find("trusted-ip");
         if (ip_it != props.end())

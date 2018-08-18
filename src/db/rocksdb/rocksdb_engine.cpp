@@ -914,7 +914,7 @@ OP_NAMESPACE_BEGIN
         }
 
         rocksdb::ReadOptions opt;
-        //opt.snapshot = rocks_ctx.PeekSnapshot();
+        opt.fill_cache = g_db->GetConf().rocksdb_read_fill_cache;
         std::vector<rocksdb::Status> ss = m_db->MultiGet(opt, cfs, ks, &vs);
 
         for (size_t i = 0; i < ss.size(); i++)
@@ -938,7 +938,7 @@ OP_NAMESPACE_BEGIN
         }
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         rocksdb::ReadOptions opt;
-        //opt.snapshot = rocks_ctx.PeekSnapshot();
+        opt.fill_cache = g_db->GetConf().rocksdb_read_fill_cache;
         std::string& valstr = rocks_ctx.GetStringCache();
         Buffer& key_encode_buffer = rocks_ctx.GetEncodeBuferCache();
         rocksdb::Slice key_slice = to_rocksdb_slice(key.Encode(key_encode_buffer));
@@ -1066,7 +1066,7 @@ OP_NAMESPACE_BEGIN
         }
         RocksDBLocalContext& rocks_ctx = g_rocks_context.GetValue();
         rocksdb::ReadOptions opt;
-        //opt.snapshot = rocks_ctx.PeekSnapshot();
+        opt.fill_cache = g_db->GetConf().rocksdb_read_fill_cache;
         Buffer& key_encode_buffer = rocks_ctx.GetEncodeBuferCache();
         std::string& tmp = rocks_ctx.GetStringCache();
         rocksdb::Slice k = to_rocksdb_slice(key.Encode(key_encode_buffer));
@@ -1086,7 +1086,7 @@ OP_NAMESPACE_BEGIN
     {
         rocksdb::ReadOptions opt;
         opt.snapshot = (const rocksdb::Snapshot*) ctx.engine_snapshot;
-        //opt.snapshot = GetSnpashot();
+        opt.fill_cache = g_db->GetConf().rocksdb_iter_fill_cache;
         RocksDBIterator* iter = NULL;
         ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, key.GetNameSpace(), false);
         rocksdb::ColumnFamilyHandle* cf = cfp.get();
