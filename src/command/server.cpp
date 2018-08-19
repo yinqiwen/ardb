@@ -227,6 +227,7 @@ namespace ardb
             sprintf(tmp, "%" PRId64, filesize);
             info.append("used_disk_space:").append(tmp).append("\r\n");
             info.append("living_iterator_num:").append(stringfromll(g_db_iterator_counter)).append("\r\n");
+            info.append("living_reply_num:").append(stringfromll(living_reply_count())).append("\r\n");
             std::string stats;
             m_engine->Stats(ctx, stats);
             info.append(stats).append("\r\n");

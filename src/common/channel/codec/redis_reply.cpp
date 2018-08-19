@@ -29,11 +29,19 @@
 
 #include "redis_reply.hpp"
 #include "db/engine.hpp"
+#include "util/atomic.hpp"
 
 namespace ardb
 {
     namespace codec
     {
+        static volatile uint64_t g_reply_counter = 0;
+
+        uint64_t living_reply_count()
+        {
+        	return g_reply_counter;
+        }
+
         RedisReplyPool::RedisReplyPool(uint32 size) :
                 m_max_size(size), m_cursor(0)
         {
@@ -181,9 +189,30 @@ namespace ardb
             }
             return str;
         }
+        RedisReply::RedisReply()
+                : type(REDIS_REPLY_NIL), integer(0), elements(NULL), pool(NULL)
+        {
+        	atomic_add_uint64(&g_reply_counter, 1);
+        }
+        RedisReply::RedisReply(uint64 v)
+                : type(REDIS_REPLY_INTEGER), integer(v), elements(NULL), pool(NULL)
+        {
+        	atomic_add_uint64(&g_reply_counter, 1);
+        }
+        RedisReply::RedisReply(double v)
+                : type(REDIS_REPLY_DOUBLE), integer(0), elements(NULL), pool(NULL)
+        {
+        	atomic_add_uint64(&g_reply_counter, 1);
+        }
+        RedisReply::RedisReply(const std::string& v)
+                : type(REDIS_REPLY_STRING), str(v), integer(0), elements(NULL), pool(NULL)
+        {
+        	atomic_add_uint64(&g_reply_counter, 1);
+        }
         RedisReply::~RedisReply()
         {
             Clear();
+            atomic_sub_uint64(&g_reply_counter, 1);
         }
 
         void clone_redis_reply(RedisReply& src, RedisReply& dst)

@@ -124,22 +124,10 @@ namespace ardb
                 std::deque<RedisReply*>* elements;
 
                 RedisReplyPool* pool;  //use object pool if reply is array with hundreds of elements
-                RedisReply()
-                        : type(REDIS_REPLY_NIL), integer(0), elements(NULL), pool(NULL)
-                {
-                }
-                RedisReply(uint64 v)
-                        : type(REDIS_REPLY_INTEGER), integer(v), elements(NULL), pool(NULL)
-                {
-                }
-                RedisReply(double v)
-                        : type(REDIS_REPLY_DOUBLE), integer(0), elements(NULL), pool(NULL)
-                {
-                }
-                RedisReply(const std::string& v)
-                        : type(REDIS_REPLY_STRING), str(v), integer(0), elements(NULL), pool(NULL)
-                {
-                }
+                RedisReply();
+                RedisReply(uint64 v);
+                RedisReply(double v);
+                RedisReply(const std::string& v);
                 bool IsErr() const
                 {
                     return type == REDIS_REPLY_ERROR;
@@ -278,6 +266,8 @@ namespace ardb
         void reply_error_string(int code, std::string& str);
 
         void clone_redis_reply(RedisReply& src, RedisReply& dst);
+
+        uint64_t living_reply_count();
     }
 }
 
