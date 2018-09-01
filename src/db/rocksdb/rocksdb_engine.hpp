@@ -131,7 +131,7 @@ OP_NAMESPACE_BEGIN
             int DelKey(Context& ctx, const rocksdb::Slice& key);
             int DelRange(Context& ctx, const KeyObject& start, const KeyObject& end);
             int Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args);
-            bool Exists(Context& ctx, const KeyObject& key);
+            bool Exists(Context& ctx, const KeyObject& key,ValueObject& val);
             int BeginWriteBatch(Context& ctx);
             int CommitWriteBatch(Context& ctx);
             int DiscardWriteBatch(Context& ctx);

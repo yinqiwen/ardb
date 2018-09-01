@@ -642,7 +642,8 @@ OP_NAMESPACE_BEGIN
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_HASH_FIELD, keystr);
         key.SetHashField(cmd.GetArguments()[1]);
-        bool existed = m_engine->Exists(ctx, key);
+        ValueObject tmp;
+        bool existed = m_engine->Exists(ctx, key,tmp);
         reply.SetInteger(existed ? 1 : 0);
         return 0;
     }
@@ -703,7 +704,8 @@ OP_NAMESPACE_BEGIN
             {
                 KeyObject field(ctx.ns, KEY_HASH_FIELD, keystr);
                 field.SetHashField(cmd.GetArguments()[i]);
-                if (m_engine->Exists(ctx, field))
+                ValueObject tmp;
+                if (m_engine->Exists(ctx, field,tmp))
                 {
                     RemoveKey(ctx, field);
                     del_num++;

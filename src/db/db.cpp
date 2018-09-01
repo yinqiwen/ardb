@@ -1126,10 +1126,10 @@ OP_NAMESPACE_BEGIN
     bool Ardb::CheckMeta(Context& ctx, const std::string& key, KeyType expected, ValueObject& meta_value)
     {
         KeyObject meta_key(ctx.ns, KEY_META, key);
-        return CheckMeta(ctx, meta_key, expected, meta_value);
+        return CheckMeta(ctx, meta_key, expected, meta_value, true, NULL);
     }
 
-    bool Ardb::CheckMeta(Context& ctx, const KeyObject& key, KeyType expected, ValueObject& meta, bool fetch)
+    bool Ardb::CheckMeta(Context& ctx, const KeyObject& key, KeyType expected, ValueObject& meta, bool fetch, bool* expired)
     {
         RedisReply& reply = ctx.GetReply();
         int err = 0;
@@ -1173,7 +1173,18 @@ OP_NAMESPACE_BEGIN
                     }
                 }
                 meta.Clear();
+                if(NULL != expired)
+                {
+                	*expired = true;
+                }
                 return true;
+            }
+            else
+            {
+                if(NULL != expired)
+                {
+                	*expired = false;
+                }
             }
         }
         return true;

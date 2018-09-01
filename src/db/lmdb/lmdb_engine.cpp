@@ -730,9 +730,8 @@ namespace ardb
         return 0;
     }
 
-    bool LMDBEngine::Exists(Context& ctx, const KeyObject& key)
+    bool LMDBEngine::Exists(Context& ctx, const KeyObject& key,ValueObject& val)
     {
-        ValueObject val;
         return Get(ctx, key, val) == 0;
     }
 

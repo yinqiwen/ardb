@@ -499,7 +499,8 @@ OP_NAMESPACE_BEGIN
         KeyObject src(srcdb, KEY_META, srckey);
         KeyObject dst(dstdb, KEY_META, dstkey);
         KeysLockGuard guard(ctx, src, dst);
-        if (m_engine->Exists(ctx, dst))
+        ValueObject dst_val;
+        if (m_engine->Exists(ctx, dst,dst_val))
         {
             if (nx)
             {
@@ -691,7 +692,8 @@ OP_NAMESPACE_BEGIN
          * (possibly in the past) and wait for an explicit DEL from the master. */
         if (now > mills && GetConf().master_host.empty() && !IsLoadingData() && cmd.GetType() != REDIS_CMD_PERSIST)
         {
-            if ((!ctx.flags.redis_compatible && m_engine->GetFeatureSet().support_merge) || m_engine->Exists(ctx, key))
+        	ValueObject tmp;
+            if ((!ctx.flags.redis_compatible && m_engine->GetFeatureSet().support_merge) || m_engine->Exists(ctx, key,tmp))
             {
                 DelKey(ctx, key);
                 RedisCommandFrame del("del");
@@ -836,7 +838,17 @@ OP_NAMESPACE_BEGIN
         RedisReply& reply = ctx.GetReply();
         const std::string& keystr = cmd.GetArguments()[0];
         KeyObject key(ctx.ns, KEY_META, keystr);
-        bool existed = m_engine->Exists(ctx, key);
+        ValueObject val;
+        bool existed = m_engine->Exists(ctx, key,val);
+        if(existed)
+        {
+        	bool expired;
+        	CheckMeta(ctx, key, KEY_UNKNOWN, val, false, &expired);
+        	if(expired)
+        	{
+        		existed = false;
+        	}
+        }
         reply.SetInteger(existed ? 1 : 0);
         return 0;
     }
@@ -1015,7 +1027,8 @@ OP_NAMESPACE_BEGIN
         KeyLockGuard guard(ctx, meta);
         if (!replace)
         {
-            if (m_engine->Exists(ctx, meta))
+        	ValueObject meta_val;
+            if (m_engine->Exists(ctx, meta,meta_val))
             {
                 reply.SetErrorReason("-BUSYKEY Target key name already exists.");
                 return 0;

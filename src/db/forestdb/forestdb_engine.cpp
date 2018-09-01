@@ -514,9 +514,8 @@ namespace ardb
         return err;
     }
 
-    bool ForestDBEngine::Exists(Context& ctx, const KeyObject& key)
+    bool ForestDBEngine::Exists(Context& ctx, const KeyObject& key,ValueObject& val)
     {
-        ValueObject val;
         return Get(ctx, key, val) == 0;
     }
 

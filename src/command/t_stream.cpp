@@ -463,7 +463,8 @@ OP_NAMESPACE_BEGIN
     {
         KeyObject k(ctx.ns, KEY_STREAM_ELEMENT, key);
         k.SetStreamID(id);
-        if (!m_engine->Exists(ctx, k))
+        ValueObject tmp;
+        if (!m_engine->Exists(ctx, k, tmp))
         {
             return 0;
         }
@@ -1400,7 +1401,8 @@ OP_NAMESPACE_BEGIN
             {
                 KeyObject selement(ctx.ns, KEY_STREAM_ELEMENT, cmd.GetArguments()[0]);
                 selement.SetStreamID(ids[i]);
-                if (!m_engine->Exists(ctx, selement))
+                ValueObject tmp;
+                if (!m_engine->Exists(ctx, selement, tmp))
                 {
                     continue;
                 }

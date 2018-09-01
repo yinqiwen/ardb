@@ -99,7 +99,7 @@ OP_NAMESPACE_BEGIN
             {
                 return Merge(ctx, key, op, DataArray(1, value));
             }
-            virtual bool Exists(Context& ctx, const KeyObject& key) = 0;
+            virtual bool Exists(Context& ctx, const KeyObject& key,ValueObject& value) = 0;
 
             virtual Iterator* Find(Context& ctx, const KeyObject& key) = 0;
 

@@ -65,7 +65,8 @@ OP_NAMESPACE_BEGIN
                 field.SetSetMember(data);
                 if (redis_compatible)
                 {
-                    if ((0 == meta.GetType() || !m_engine->Exists(ctx, field)) && added.count(data) == 0)
+                	ValueObject tmp;
+                    if ((0 == meta.GetType() || !m_engine->Exists(ctx, field, tmp)) && added.count(data) == 0)
                     {
                         SetKeyValue(ctx, field, empty);
                         if (meta.SetMinMaxData(field.GetSetMember()))
@@ -128,7 +129,8 @@ OP_NAMESPACE_BEGIN
         KeyObject member(ctx.ns, KEY_SET_MEMBER, cmd.GetArguments()[0]);
         member.SetSetMember(cmd.GetArguments()[1]);
         RedisReply& reply = ctx.GetReply();
-        reply.SetInteger(m_engine->Exists(ctx, member) ? 1 : 0);
+        ValueObject tmp;
+        reply.SetInteger(m_engine->Exists(ctx, member, tmp) ? 1 : 0);
         return 0;
     }
 
@@ -477,7 +479,8 @@ OP_NAMESPACE_BEGIN
             {
                 KeyObject member(ctx.ns, KEY_SET_MEMBER, cmd.GetArguments()[0]);
                 member.SetSetMember(cmd.GetArguments()[i]);
-                if (m_engine->Exists(ctx, member))
+                ValueObject tmp;
+                if (m_engine->Exists(ctx, member, tmp))
                 {
                     RemoveKey(ctx, member);
                     if (meta.GetObjectLen() > 0)

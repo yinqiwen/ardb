@@ -127,7 +127,8 @@ namespace ardb
             int Get(Context& ctx, const KeyObject& key, ValueObject& value);
             int MultiGet(Context& ctx, const KeyObjectArray& keys, ValueObjectArray& values, ErrCodeArray& errs);
             int Del(Context& ctx, const KeyObject& key);
-            int Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args);bool Exists(Context& ctx, const KeyObject& key);
+            int Merge(Context& ctx, const KeyObject& key, uint16_t op, const DataArray& args);
+            bool Exists(Context& ctx, const KeyObject& key,ValueObject& value);
             int BeginWriteBatch(Context& ctx);
             int CommitWriteBatch(Context& ctx);
             int DiscardWriteBatch(Context& ctx);

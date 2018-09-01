@@ -496,9 +496,8 @@ namespace ardb
         }
         return err;
     }
-    bool WiredTigerEngine::Exists(Context& ctx, const KeyObject& key)
+    bool WiredTigerEngine::Exists(Context& ctx, const KeyObject& key,ValueObject& val)
     {
-        ValueObject val;
         return Get(ctx, key, val) == 0;
     }
     int WiredTigerEngine::BeginWriteBatch(Context& ctx)

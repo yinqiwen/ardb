@@ -1056,7 +1056,7 @@ OP_NAMESPACE_BEGIN
         return rocksdb_err(s);
     }
 
-    bool RocksDBEngine::Exists(Context& ctx, const KeyObject& key)
+    bool RocksDBEngine::Exists(Context& ctx, const KeyObject& key,ValueObject& val)
     {
         ColumnFamilyHandlePtr cfp = GetColumnFamilyHandle(ctx, key.GetNameSpace(), false);
         rocksdb::ColumnFamilyHandle* cf = cfp.get();
@@ -1070,7 +1070,8 @@ OP_NAMESPACE_BEGIN
         Buffer& key_encode_buffer = rocks_ctx.GetEncodeBuferCache();
         std::string& tmp = rocks_ctx.GetStringCache();
         rocksdb::Slice k = to_rocksdb_slice(key.Encode(key_encode_buffer));
-        bool exist = m_db->KeyMayExist(opt, cf, k, &tmp, NULL);
+        bool value_found  = false;
+        bool exist = m_db->KeyMayExist(opt, cf, k, &tmp, &value_found);
         if (!exist)
         {
             return false;
@@ -1079,7 +1080,13 @@ OP_NAMESPACE_BEGIN
         {
             return exist;
         }
-        return m_db->Get(opt, cf, k, &tmp).ok();
+        if(value_found)
+        {
+            Buffer valBuffer(const_cast<char*>(tmp.data()), 0, tmp.size());
+            val.Decode(valBuffer, true);
+            return true;
+        }
+        return 0 == Get(ctx, key, val);
     }
 
     Iterator* RocksDBEngine::Find(Context& ctx, const KeyObject& key)
