@@ -254,46 +254,30 @@ int geohash_fast_decode(GeoHashRange lat_range, GeoHashRange lon_range, GeoHashB
     return 0;
 }
 
-static int geohash_move_x(GeoHashBits* hash, int8_t d)
-{
+static int geohash_move_x(GeoHashBits *hash, int8_t d) {
     if (d == 0)
-        return 0;
-    uint64_t x = hash->bits & 0xaaaaaaaaaaaaaaaaLL;
-    uint64_t y = hash->bits & 0x5555555555555555LL;
-
-    uint64_t zz = 0x5555555555555555LL >> (64 - hash->step * 2);
+        return 0;    
+    uint64_t x;
+    uint64_t y = hash->bits & 0x5555555555555555ULL;
     if (d > 0)
-    {
-        x = x + (zz + 1);
-    }
+        x = (hash->bits | 0x5555555555555555ULL) + 1;
     else
-    {
-        x = x | zz;
-        x = x - (zz + 1);
-    }
-    x &= (0xaaaaaaaaaaaaaaaaLL >> (64 - hash->step * 2));
+        x = (hash->bits & 0xaaaaaaaaaaaaaaaaULL) - 1;
+    x &= (0xaaaaaaaaaaaaaaaaULL >> (64 - hash->step * 2));
     hash->bits = (x | y);
     return 0;
 }
 
-static int geohash_move_y(GeoHashBits* hash, int8_t d)
-{
+static int geohash_move_y(GeoHashBits *hash, int8_t d) {
     if (d == 0)
-        return 0;
-    uint64_t x = hash->bits & 0xaaaaaaaaaaaaaaaaLL;
-    uint64_t y = hash->bits & 0x5555555555555555LL;
-
-    uint64_t zz = 0xaaaaaaaaaaaaaaaaLL >> (64 - hash->step * 2);
+        return;
+    uint64_t x = hash->bits & 0xaaaaaaaaaaaaaaaaULL;
+    uint64_t y ;
     if (d > 0)
-    {
-        y = y + (zz + 1);
-    }
+        y = (hash->bits | 0xaaaaaaaaaaaaaaaaULL) + 1;
     else
-    {
-        y = y | zz;
-        y = y - (zz + 1);
-    }
-    y &= (0x5555555555555555LL >> (64 - hash->step * 2));
+        y = (hash->bits & 0x5555555555555555ULL) - 1;
+    y &= (0x5555555555555555ULL >> (64 - hash->step * 2));
     hash->bits = (x | y);
     return 0;
 }
