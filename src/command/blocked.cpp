@@ -175,6 +175,7 @@ OP_NAMESPACE_BEGIN
             const KeyPrefix& ready_key = *sit;
             {
                 LockGuard<SpinMutexLock> block_guard(m_block_keys_lock);
+                ctx.flags.block_keys_locked = 1;
                 BlockedContextTable::iterator fit = m_blocked_ctxs.find(ready_key);
                 if (fit != m_blocked_ctxs.end())
                 {
