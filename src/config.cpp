@@ -135,7 +135,7 @@ OP_NAMESPACE_BEGIN
             sprintf(config_key, "server[%d].qps-limit", i);
             conf_get_int64(props, config_key, lp.qps_limit);
             sprintf(config_key, "server[%d].unixsocketperm", i);
-            conf_get_int64(props, config_key, lp.qps_limit);
+            conf_get_int64(props, config_key, lp.unixsocketperm);
             servers.push_back(lp);
         }
 
