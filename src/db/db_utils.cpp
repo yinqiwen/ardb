@@ -95,7 +95,7 @@ OP_NAMESPACE_BEGIN
             {
                 while (running)
                 {
-                    RedisCommandFrame* cmd = writer->Dequeue(1);
+                    RedisCommandFrame* cmd = writer->Dequeue(1000);
                     if(NULL != cmd)
                     {
                         Call(*cmd);
