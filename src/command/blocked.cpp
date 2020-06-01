@@ -94,7 +94,14 @@ OP_NAMESPACE_BEGIN
             }
             ctx.ClearBPop();
         }
-        ctx.client->client->UnblockRead();
+        if (ctx.client->client != nullptr)
+        {
+            // Apart from BRPOP and friends, this is usually called in
+            // ARDB::FreeClient, which is usually called when a channel is
+            // closed. But there's no guarantee a channel is set up already, for
+            // example when a channel is closed because accept() failed.
+            ctx.client->client->UnblockRead();
+        }
         return 0;
     }
 
